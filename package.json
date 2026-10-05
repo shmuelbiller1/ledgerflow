@@ -42,7 +42,7 @@
     "@tanstack/react-table": "^8.20.6",
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.20.0",
-    "bidi-js": "^1.0.3",
+    "bidi-js": "^1.1.0",
     "clsx": "^2.1.1",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
