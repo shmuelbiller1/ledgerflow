@@ -1,0 +1,1069 @@
+LEDGERFLOW — RECOVERED A-4 / CA-34 CHANGES
+This text file contains the complete recovered source files, documentation excerpts, and an applicable code patch. Source sections are full file copies; the PATCH section is a unified diff, not a source file.
+================================================================================
+FILE: README.txt
+================================================================================
+Recovered LedgerFlow A-4 / CA-34 changes
+The original commit is unavailable in this checkout. This archive contains recovered source files and a patch for the implementation and tests, excluding unrelated local work.
+Apply on a compatible checkout:
+  git apply --check A4-CA34.patch
+  git apply A4-CA34.patch
+Merge the documentation excerpts manually. Full source copies are in files/.
+Review before applying to avoid overwriting newer work. Tests were not rerun during this export. Nothing has been pushed to GitHub.
+================================================================================
+FILE: documentation-excerpts.md
+================================================================================
+# docs/COORDINATION.md (recovered excerpts)
+- [x] **A-4 CA-34 Since when don't the books balance?** *(AI #3, ready for review on
+  `arena/2f87acb1-ledgerflow`, built on main `e42f0c5`; see Messages)*: on Data Health, when the
+  balance sheet doesn't balance, find the first date it stopped balancing by halving the date range
+  (`computeBalanceSheet` at each probe; dates from the first entry to today), then list that day's
+  entries with the amount each is off and a link to open it. Read-only, posts nothing; the existing
+  `unbalanced` / `missing-account` checks in `src/lib/dataChecks.ts` stay as they are. Pure tests with
+  hand-checked dates (a break on the first day, on the last day, none at all) and one DOM test.
+- 2026-10-06 AI #3 (Arena): **A-4 CA-34 "since when don't the books balance?" is ready for review**
+  on `arena/2f87acb1-ledgerflow`, built straight on the current `main` (`e42f0c5`) so it merges
+  cleanly and carries nothing else. Data Health now has a "Since when don't the books balance?"
+  panel. It looks at the end date first (a history that balances costs one look and says so); when
+  the books are off it halves the dates that carry a postable entry — a balance cannot change on a
+  day with no entries, so the break is on one of them — running the report code's own
+  `computeBalanceSheet` at every probe and never keeping a second copy of the report rules
+  (`src/lib/balanceBreak.ts`). The answer is the first day the figures are off; then that day's
+  entries are added one at a time and each one's amount is what it changed the difference by, so the
+  listed numbers add up to the day's change and the biggest share is first. An entry that is off by
+  zero is still shown when it is the cause: a line whose account is not in the chart is left out of
+  the sheet, and the missing account is named (`src/components/system/BalanceBreakPanel.tsx`, mounted
+  above the findings in `DataHealthView.tsx`). Every entry has an "Open the entry" button into the
+  usual record viewer. Read-only, like the rest of Data Health: nothing is posted or repaired, and
+  the existing `unbalanced` / `missing-account` checks were not touched. Checks run here (no Postgres
+  and no Chromium in this sandbox, so the rules and browser suites were not run): `npx tsc --noEmit`
+  clean; the new suites 12/12 (9 hand-checked pure cases — a break on the first day, on the last day,
+  in the middle with balanced entries after it, a history that never breaks, an empty one, a line on
+  a missing account, and that the day's shares add up; 3 DOM cases including the panel on Data
+  Health); the structural pack (money-format, store-selector, ledger-collections, reachability,
+  no-orphan-modules, quality-ratchet, postable-adoption, table-a11y, effect-cleanup,
+  route-collision, allowed-fields) 58/58; full `npm test` and a production build follow here and I
+  will report if anything moves. No database change: this reads what is already loaded. My queue's
+  next item is A-3 K-31 petty cash.
+# docs/TRACKER.md (recovered excerpts)
+- [x] CA-34 Bisect accounting statements — **done 6 Oct (AI #3, A-4)**: the balance sheet does not balance and nobody knows since when. New `src/lib/balanceBreak.ts` finds the first day it was off by halving the dates that carry a postable entry (a balance cannot change on a day with no entries), probing the report code's own `computeBalanceSheet` at each step (the end date first: a history that balances costs one look), then adds that day's entries one at a time and reports what each changed the difference by, so the day's numbers add up to the day's change; a line whose account is missing from the chart is named as such. Data Health now shows "Since when don't the books balance?" with the day, the amount, each entry's share and an Open button into the usual record viewer — read-only, it posts nothing and leaves the existing `unbalanced` and `missing-account` checks alone (`src/components/system/BalanceBreakPanel.tsx`; tests `balance-break.test.ts` with hand-checked dates — first day, last day, middle, never, and a missing account — and `balance-break-ui.test.tsx`)
+================================================================================
+FILE: files/src/components/system/BalanceBreakPanel.tsx
+================================================================================
+import React, { useMemo } from 'react';
+import { AlertTriangle, CheckCircle2, Scale } from 'lucide-react';
+import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useUIStore } from '../../stores/useUIStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { findBalanceBreak } from '../../lib/balanceBreak';
+import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+/**
+ * Since when don't the books balance? (A-4, CA-34): the panel on Data Health that answers it. When
+ * the balance sheet is off, `src/lib/balanceBreak.ts` halves the date range of the entries to find
+ * the first day it was off, and this shows that day's entries with the amount each contributes,
+ * each opening in the usual record viewer.
+ *
+ * Read-only, like the rest of Data Health: it says what it found and changes nothing. The figures
+ * come from the report code (`computeBalanceSheet`) over the history loaded here, the same entries
+ * the checks above use.
+ */
+export default function BalanceBreakPanel() {
+  const transactions = useLedgerStore(s => s.transactions);
+  const accounts = useLedgerStore(s => s.accounts);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const openRecord = useUIStore(s => s.openRecord);
+  const today = getLocalDateISO();
+  const result = useMemo(() => findBalanceBreak(accounts || [], transactions || [], today), [accounts, transactions, today]);
+  const money = (cents: number) => formatCurrency(cents, currency);
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-3" aria-labelledby="balance-break">
+      <h2 id="balance-break" className="text-sm font-bold flex items-center gap-2 text-[var(--text)]">
+        <Scale size={16} className="text-[var(--brass)]" aria-hidden="true" />
+        Since when don&apos;t the books balance?
+      </h2>
+      {result.balanced ? (
+        <p className="text-sm text-[var(--pos)] flex items-center gap-2">
+          <CheckCircle2 size={16} aria-hidden="true" />
+          The books balance on {result.endDate}: what the workspace owns and what is owed against it agree to the cent.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              The books stopped balancing on <strong>{result.firstUnbalancedDate}</strong>
+              {result.lastBalancedDate
+                ? <>; they still balanced on {result.lastBalancedDate}</>
+                : <> — the first entries in the loaded history are already off</>}
+              . Found in {result.probes} report probe{result.probes === 1 ? '' : 's'}, by halving the dates that carry an entry.
+            </span>
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            At {result.endDate} the balance sheet is off by {money(Math.abs(result.differenceCents))}
+            {result.differenceCents > 0
+              ? ' — it shows more assets than the liabilities, equity and profit account for.'
+              : ' — it shows more owed against the assets than the assets hold.'}
+            {result.differenceBeforeCents === 0
+              ? ' Nothing before that day moved the difference.'
+              : ` It was already off by ${money(Math.abs(result.differenceBeforeCents))} before that day.`}
+          </p>
+          <ul className="space-y-2">
+            {result.entries.map(entry => (
+              <li key={entry.transactionId} className="p-4 rounded-xl border border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-[var(--text)]">
+                  <p className="text-sm font-semibold">{entry.description}</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    {entry.date} · {entry.offCents === 0
+                      ? 'its own lines balance; it moves the difference through a line the sheet cannot place'
+                      : `off by ${money(Math.abs(entry.offCents))}${entry.offCents > 0 ? ' (adds to the difference)' : ' (takes away from it)'}`}
+                    {entry.missingAccounts.length > 0 && ` · it uses ${entry.missingAccounts.join(', ')}, which ${entry.missingAccounts.length === 1 ? 'is' : 'are'} not in the chart of accounts`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openRecord({ type: 'transaction', id: entry.transactionId })}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--text)] shrink-0 self-start sm:self-auto"
+                >
+                  Open the entry
+                </button>
+              </li>
+            ))}
+            {result.entries.length === 0 && (
+              <li className="text-xs text-[var(--muted)]">
+                No entry is dated {result.firstUnbalancedDate} in the loaded history, so an opening balance or an entry loaded from another day is the cause.
+              </li>
+            )}
+          </ul>
+          <p className="text-xs text-[var(--muted)]">
+            Read-only: this check never changes anything. Open the entry and correct its lines, or reverse it and enter it again.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+================================================================================
+FILE: files/src/lib/balanceBreak.ts
+================================================================================
+/**
+ * Since when don't the books balance? (A-4, CA-34, AI #3)
+ *
+ * When the balance sheet doesn't balance, the answer used to be "somewhere in your history". This
+ * finds the day it started by halving the range of dates that have entries: a balance is the same
+ * on a day with no entries as on the day before, so only days that carry an entry (and the end
+ * date) can be where it broke. Every probe runs the report code's own `computeBalanceSheet` — this
+ * module computes no money of its own and keeps no second copy of the report rules — and the first
+ * date whose figures are off is the answer.
+ *
+ * Then the entries of that day are added one at a time, and each entry's amount is what it changed
+ * the difference by when it was added — so the numbers add up to that day's change, and the day's
+ * biggest share is listed first. An entry can be off by zero and still be the cause: a line whose
+ * account is not in the chart is left out of the sheet, and that shows as the amount the entry
+ * takes out (and the missing account is named).
+ *
+ * Read-only: nothing here posts, repairs or changes anything.
+ */
+import type { ChartAccount, Transaction } from '../types';
+import { computeBalanceSheet } from '../server/reports/computeReports';
+import { isPostable, transactionDate } from './txFilters';
+import { getLocalDateISO } from './utils';
+export interface BalanceBreakEntry {
+  transactionId: string;
+  date: string;
+  description: string;
+  /** what this entry does to the difference: its own share of the imbalance, in cents */
+  offCents: number;
+  /** lines whose account is not in the chart of accounts (the sheet leaves them out) */
+  missingAccounts: string[];
+}
+export interface BalanceBreakResult {
+  /** whether the books balance at the end date */
+  balanced: boolean;
+  /** the date the search ran to (the workspace's today) */
+  endDate: string;
+  /** how far off the books are at the end date, in cents (0 when they balance) */
+  differenceCents: number;
+  /** the first date the books did not balance, or null when they always did */
+  firstUnbalancedDate: string | null;
+  /** the last date they still balanced before that, or null when no earlier entry exists */
+  lastBalancedDate: string | null;
+  /** how far off they already were before the break day (0 when it broke on the first day) */
+  differenceBeforeCents: number;
+  /** that day's entries, the biggest share first */
+  entries: BalanceBreakEntry[];
+  /** how many report probes the search used, for the sentence */
+  probes: number;
+}
+/** The dates worth probing: every day a postable entry falls on, in order, then the end date. */
+export function probeDates(transactions: Transaction[], endDate: string): string[] {
+  const dates = new Set<string>();
+  for (const tx of transactions) {
+    if (!isPostable(tx)) continue;
+    const date = transactionDate(tx);
+    if (date && date <= endDate) dates.add(date);
+  }
+  dates.add(endDate);
+  return [...dates].sort();
+}
+/** How far the balance sheet is off on a date, from the report code's own two totals. */
+export function balanceDifferenceCents(accounts: ChartAccount[], transactions: Transaction[], endDate: string): number {
+  const sheet = computeBalanceSheet(accounts, transactions, endDate);
+  return sheet.totalAssets - sheet.totalClaims;
+}
+/**
+ * The day the books stopped balancing, and what each entry of that day is off by. `endDate`
+ * defaults to today; the search never looks past it.
+ */
+export function findBalanceBreak(accounts: ChartAccount[], transactions: Transaction[], endDate = getLocalDateISO()): BalanceBreakResult {
+  const empty: BalanceBreakResult = {
+    balanced: true, endDate, differenceCents: 0, firstUnbalancedDate: null, lastBalancedDate: null,
+    differenceBeforeCents: 0, entries: [], probes: 0,
+  };
+  const dates = probeDates(transactions, endDate);
+  if (dates.length === 0) return empty;
+  let probes = 0;
+  const balancedOn = (date: string): boolean => {
+    probes += 1;
+    const sheet = computeBalanceSheet(accounts, transactions, date);
+    return sheet.isBalanced;
+  };
+  const last = dates[dates.length - 1];
+  if (balancedOn(last)) return { ...empty, probes };
+  // the last date is known to be off, so the first off date is at or before it: halve the range
+  let low = 0;
+  let high = dates.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (balancedOn(dates[middle])) low = middle + 1;
+    else high = middle;
+  }
+  const firstUnbalancedDate = dates[low];
+  const lastBalancedDate = low > 0 ? dates[low - 1] : null;
+  const differenceCents = balanceDifferenceCents(accounts, transactions, last);
+  // the entries of the break day, each with its own share of the difference (in the order they
+  // come; the shares are per entry, so which one "gets" it does not depend on the others)
+  const postable = transactions.filter(isPostable);
+  const before = postable.filter(tx => transactionDate(tx) < firstUnbalancedDate);
+  const thatDay = postable.filter(tx => transactionDate(tx) === firstUnbalancedDate);
+  const missing = new Map<string, string[]>();
+  for (const line of computeBalanceSheet(accounts, thatDay, firstUnbalancedDate).orphanedLines) {
+    if (!line.transactionId) continue;
+    missing.set(line.transactionId, [...(missing.get(line.transactionId) || []), line.accountId]);
+  }
+  const differenceBeforeCents = balanceDifferenceCents(accounts, before, firstUnbalancedDate);
+  // add the day's entries one at a time: each entry's amount is what it changed the difference by
+  const added = [...before];
+  const entries: BalanceBreakEntry[] = thatDay.map(tx => {
+    const differenceBeforeIt = balanceDifferenceCents(accounts, added, firstUnbalancedDate);
+    added.push(tx);
+    const after = balanceDifferenceCents(accounts, added, firstUnbalancedDate);
+    const offCents = after - differenceBeforeIt;
+    return {
+      transactionId: tx.id,
+      date: transactionDate(tx),
+      description: tx.description || tx.id,
+      offCents,
+      missingAccounts: missing.get(tx.id) || [],
+    };
+  });
+  entries.sort((a, b) => Math.abs(b.offCents) - Math.abs(a.offCents) || a.transactionId.localeCompare(b.transactionId));
+  return { balanced: false, endDate: last, differenceCents, firstUnbalancedDate, lastBalancedDate, differenceBeforeCents, entries, probes };
+}
+================================================================================
+FILE: files/src/tests/balance-break-ui.test.tsx
+================================================================================
+/**
+ * Since when don't the books balance? on Data Health (A-4, CA-34): what the panel says when the
+ * books are off, that each entry of the break day opens in the usual record viewer, and that it
+ * reports the balanced case as balanced. The search itself is in `src/tests/balance-break.test.ts`;
+ * here it is the screen, read-only, with the report code run over the loaded records.
+ *
+ * `./helpers/dom` must be the first import; a DOM element is never asserted against null with
+ * `assert.equal` (see the note at the top of `src/tests/cash-movement-ui.test.tsx`).
+ */
+import './helpers/dom';
+import test, { afterEach, beforeEach, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import BalanceBreakPanel from '../components/system/BalanceBreakPanel';
+import DataHealthView from '../components/system/DataHealthView';
+import { useLedgerStore } from '../stores/useLedgerStore';
+import { useUIStore } from '../stores/useUIStore';
+import { makeChartAccount, makeTransaction } from './fixtures';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
+import { getSupabase } from '../lib/db/client';
+import type { ChartAccount } from '../types';
+const bank: ChartAccount = makeChartAccount({ id: 'bank', code: '1010', name: 'Bank', type: 'asset', category: 'Cash' });
+const sales: ChartAccount = makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue' });
+const rent: ChartAccount = makeChartAccount({ id: 'rent', code: '6100', name: 'Rent', type: 'expense', category: 'Operating Expenses' });
+const accounts = [bank, sales, rent];
+const entry = (id: string, date: string, description: string, lines: Array<[string, number]>) => makeTransaction({
+  id, date, description,
+  lines: lines.map(([accountId, amountCents]) => ({ id: `line-${id}-${accountId}`, accountId, amountCents })),
+});
+const sale = (id: string, date: string) => entry(id, date, `Sale ${id}`, [['bank', 1000], ['sales', -1000]]);
+describe('Since when the books don\'t balance (Data Health)', () => {
+  beforeEach(() => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts, transactions: [] });
+  });
+  afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
+  test('a broken history names the day, the amount, and each entry’s share', () => {
+    useLedgerStore.setState({
+      transactions: [
+        sale('t1', '2026-03-01'),
+        entry('t2', '2026-03-05', 'Rent paid from the bank', [['rent', 30000], ['bank', -20000]]),
+      ],
+    });
+    render(<BalanceBreakPanel />);
+    const panel = screen.getByRole('region', { name: /Since when don.t the books balance/ });
+    assert.match(panel.textContent || '', /stopped balancing on 2026-03-05/);
+    assert.match(panel.textContent || '', /still balanced on 2026-03-01/);
+    assert.match(panel.textContent || '', /off by \$100\.00/, '300.00 of rent against 200.00 out of the bank');
+    assert.match(panel.textContent || '', /Rent paid from the bank/);
+    assert.match(panel.textContent || '', /off by \$100\.00 \(adds to the difference\)/);
+    assert.match(panel.textContent || '', /Read-only/);
+  });
+  test('each entry opens the usual record viewer, and a balanced history says so', () => {
+    useLedgerStore.setState({ transactions: [sale('t1', '2026-03-01'), entry('t2', '2026-03-05', 'Odd entry', [['rent', 30000], ['bank', -20000]])] });
+    render(<BalanceBreakPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open the entry' }));
+    assert.deepEqual(useUIStore.getState().focusRecord, { type: 'transaction', id: 't2' });
+    assert.match(window.location.hash, /transactions\/transaction\/t2/);
+    cleanup();
+    useLedgerStore.setState({ transactions: [sale('t1', '2026-03-01'), sale('t2', '2026-03-05')] });
+    render(<BalanceBreakPanel />);
+    const balanced = screen.getByRole('region', { name: /Since when don.t the books balance/ });
+    assert.match(balanced.textContent || '', /The books balance on/);
+    assert.ok(screen.queryByRole('button', { name: 'Open the entry' }) === null, 'nothing to open when nothing is off');
+  });
+  test('the panel is part of Data Health, above the findings', () => {
+    markComponentCollectionsLoaded('bankLines', 'bills', 'inventory', 'invoices', 'recurring');
+    useLedgerStore.setState({
+      transactions: [entry('t1', '2026-03-02', 'Cash sale entered short', [['bank', 50000], ['sales', -40000]])],
+    });
+    render(<DataHealthView />);
+    assert.ok(screen.getByRole('heading', { name: 'Data health' }));
+    const panel = screen.getByRole('region', { name: /Since when don.t the books balance/ });
+    assert.match(panel.textContent || '', /stopped balancing on 2026-03-02/);
+    assert.match(panel.textContent || '', /Cash sale entered short/);
+    assert.ok(screen.getByRole('heading', { name: 'Entries whose debits and credits differ' }), 'the checks still run beside it');
+  });
+});
+================================================================================
+FILE: files/src/tests/balance-break.test.ts
+================================================================================
+/**
+ * Since when don't the books balance? (A-4, CA-34): the search behind the Data Health panel.
+ *
+ * Every number here is worked out by hand from the report code's own rule (assets against
+ * liabilities + equity + profit, whole cents):
+ *   a sale of 1000 (bank +1000, sales −1000) adds 1000 to the assets and 1000 to profit → still level;
+ *   an entry with both sides on one account, or a side missing, leaves the sheet off by the amount
+ *   it does not account for. The dates are chosen so the halving has to look at the first day, the
+ *   last day, a day in the middle, and a history that never breaks.
+ */
+import test, { describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { balanceDifferenceCents, findBalanceBreak, probeDates } from '../lib/balanceBreak';
+import { makeChartAccount, makeTransaction } from './fixtures';
+import type { ChartAccount, Transaction } from '../types';
+const bank: ChartAccount = makeChartAccount({ id: 'bank', code: '1010', name: 'Bank', type: 'asset', category: 'Cash' });
+const sales: ChartAccount = makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue' });
+const rent: ChartAccount = makeChartAccount({ id: 'rent', code: '6100', name: 'Rent', type: 'expense', category: 'Operating Expenses' });
+const loan: ChartAccount = makeChartAccount({ id: 'loan', code: '2500', name: 'Bank loan', type: 'liability', category: 'Long-term Liabilities' });
+const accounts = [bank, sales, rent, loan];
+const entry = (id: string, date: string, lines: Array<[string, number]>) => makeTransaction({
+  id, date, description: `Entry ${id}`,
+  lines: lines.map(([accountId, amountCents]) => ({ id: `line-${id}-${accountId}`, accountId, amountCents })),
+});
+/** A sale: the bank up, sales up; balanced. */
+const sale = (id: string, date: string, cents: number) => entry(id, date, [['bank', cents], ['sales', -cents]]);
+const today = '2026-03-31';
+describe('Probing dates', () => {
+  test('only days that carry a postable entry, in order, then the end date', () => {
+    const transactions: Transaction[] = [
+      sale('c', '2026-03-20', 100),
+      sale('a', '2026-03-01', 100),
+      makeTransaction({ id: 'draft', date: '2026-03-05', status: 'draft', lines: [{ accountId: 'bank', amountCents: 1 }] }),
+      makeTransaction({ id: 'void', date: '2026-03-06', status: 'void', lines: [{ accountId: 'bank', amountCents: 1 }] }),
+      sale('late', '2026-04-02', 100),
+      makeTransaction({ id: 'stamp', date: '2026-03-10T12:00:00.000Z', lines: [{ accountId: 'bank', amountCents: 1 }, { accountId: 'sales', amountCents: -1 }] }),
+    ];
+    assert.deepEqual(probeDates(transactions, today), ['2026-03-01', '2026-03-10', '2026-03-20', today]);
+  });
+  test('the difference is the report code’s own two totals', () => {
+    assert.equal(balanceDifferenceCents(accounts, [sale('a', '2026-03-01', 1000)], today), 0);
+    assert.equal(balanceDifferenceCents(accounts, [entry('b', '2026-03-01', [['bank', 500], ['sales', -400]])], today), 100);
+    assert.equal(balanceDifferenceCents(accounts, [], today), 0);
+  });
+});
+describe('Finding the day the books stopped balancing', () => {
+  test('a break on the first day of the history', () => {
+    const transactions = [entry('first', '2026-03-01', [['bank', 500], ['sales', -400]])];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.equal(result.balanced, false);
+    assert.equal(result.firstUnbalancedDate, '2026-03-01');
+    assert.equal(result.lastBalancedDate, null, 'nothing came before it');
+    assert.equal(result.differenceCents, 100);
+    assert.equal(result.differenceBeforeCents, 0);
+    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['first', 100]]);
+    assert.equal(result.probes, 2, 'the end date and the first day');
+  });
+  test('a break on the last day', () => {
+    const transactions = [
+      sale('jan', '2026-03-01', 1000),
+      entry('rent', '2026-03-05', [['rent', 300], ['bank', -200]]),
+    ];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.equal(result.firstUnbalancedDate, '2026-03-05');
+    assert.equal(result.lastBalancedDate, '2026-03-01', 'the day before still balanced');
+    assert.equal(result.differenceCents, 100, '800 in the bank against 700 of profit');
+    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['rent', 100]]);
+    assert.equal(result.probes, 3);
+  });
+  test('a break in the middle, with balanced entries after it', () => {
+    const transactions = [
+      sale('a', '2026-03-01', 1000),
+      entry('b', '2026-03-10', [['rent', 50], ['bank', -40]]),
+      sale('c', '2026-03-20', 500),
+    ];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.equal(result.firstUnbalancedDate, '2026-03-10');
+    assert.equal(result.lastBalancedDate, '2026-03-01');
+    assert.equal(result.differenceCents, 10);
+    assert.deepEqual(result.entries.map(e => e.transactionId), ['b'], 'only the break day’s entries are listed');
+    // the entry shares add up to the day's change
+    assert.equal(result.entries.reduce((sum, e) => sum + e.offCents, 0), result.differenceCents - result.differenceBeforeCents);
+  });
+  test('a history that never breaks, and an empty one', () => {
+    const result = findBalanceBreak(accounts, [sale('a', '2026-03-01', 1000), sale('b', '2026-03-20', 400)], today);
+    assert.deepEqual({ balanced: result.balanced, first: result.firstUnbalancedDate, last: result.lastBalancedDate, difference: result.differenceCents, entries: result.entries.length }, { balanced: true, first: null, last: null, difference: 0, entries: 0 });
+    assert.equal(result.probes, 1, 'one look at the end date is enough');
+    assert.deepEqual(findBalanceBreak(accounts, [], today).balanced, true);
+  });
+  test('a line whose account is not in the chart is named, and the entry carries its amount', () => {
+    const transactions = [sale('ok', '2026-03-01', 400), entry('ghost', '2026-03-02', [['not-in-chart', 250], ['bank', -250]])];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.equal(result.firstUnbalancedDate, '2026-03-02');
+    assert.equal(result.differenceCents, -250, 'the 250 line is left out of the sheet, so the assets lose it');
+    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents, e.missingAccounts]), [['ghost', -250, ['not-in-chart']]]);
+  });
+  test('the biggest share is listed first, and a balanced entry is not blamed for another’s amount', () => {
+    const transactions = [
+      entry('small', '2026-03-04', [['bank', 10], ['sales', -5]]),
+      entry('big', '2026-03-04', [['bank', 900], ['sales', -800]]),
+    ];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.equal(result.firstUnbalancedDate, '2026-03-04');
+    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['big', 100], ['small', 5]]);
+    assert.equal(result.entries.reduce((sum, e) => sum + e.offCents, 0), 105, 'the whole day');
+  });
+  test('a missing account in one entry of the day does not change the other entry’s share', () => {
+    const transactions = [
+      entry('ghost', '2026-03-03', [['not-in-chart', 250], ['bank', -250]]),
+      entry('off', '2026-03-03', [['rent', 30], ['bank', -20]]),
+    ];
+    const result = findBalanceBreak(accounts, transactions, today);
+    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['ghost', -250], ['off', 10]]);
+    assert.equal(result.differenceCents, -240, '-250 from the placed line, +10 from the second entry');
+  });
+});
+================================================================================
+FILE: files/src/components/system/DataHealthView.tsx
+================================================================================
+import React, { useMemo, useState } from 'react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useUIStore } from '../../stores/useUIStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { getLocalDateISO } from '../../lib/utils';
+import { DATA_CHECKS, runDataChecks } from '../../lib/dataChecks';
+import type { CheckSeverity } from '../../lib/dataChecks';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { LoadingState } from '../ui/LoadingState';
+import BalanceBreakPanel from './BalanceBreakPanel';
+/**
+ * Data Health (launch step 8): runs every check in the registry (src/lib/dataChecks.ts) over the
+ * loaded records, groups the findings by check with what to do about them, and opens each record
+ * with one click (Z-32 record links).
+ */
+const SEVERITY: Record<CheckSeverity, { label: string; className: string }> = {
+  high: { label: 'Fix now', className: 'text-[var(--neg)] border-[var(--neg)]' },
+  medium: { label: 'Check soon', className: 'text-[var(--brass)] border-[var(--brass)]' },
+  low: { label: 'Worth a look', className: 'text-[var(--muted)] border-[var(--line)]' },
+};
+export default function DataHealthView() {
+  const transactions = useLedgerStore(s => s.transactions);
+  const accounts = useLedgerStore(s => s.accounts);
+  const invoices = useLedgerStore(s => s.invoices);
+  const bills = useLedgerStore(s => s.bills);
+  const recurring = useLedgerStore(s => s.recurring);
+  const inventory = useLedgerStore(s => s.inventory);
+  const bankLines = useLedgerStore(s => s.bankLines);
+  const { loading } = useLedgerCollections('bankLines', 'bills', 'inventory', 'invoices', 'recurring');
+  const baseCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const openRecord = useUIStore(s => s.openRecord);
+  const [only, setOnly] = useState<string>('all');
+  const findings = useMemo(() => runDataChecks({
+    transactions: transactions || [], accounts: accounts || [], invoices: invoices || [], bills: bills || [],
+    recurring: recurring || [], inventory: inventory || [], bankLines: bankLines || [], today: getLocalDateISO(), baseCurrency,
+  }), [transactions, accounts, invoices, bills, recurring, inventory, bankLines, baseCurrency]);
+  const byCheck = useMemo(() => DATA_CHECKS.map(check => ({ check, findings: findings.filter(f => f.checkId === check.id) })), [findings]);
+  const shown = byCheck.filter(g => g.findings.length > 0 && (only === 'all' || g.check.id === only));
+  const count = (severity: CheckSeverity) => findings.filter(f => f.severity === severity).length;
+  return (
+    <div className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto text-[var(--text)]">
+      <div className="flex items-center gap-4 pb-4 border-b border-[var(--line)]">
+        <Activity size={24} className="text-[var(--brass)]" aria-hidden="true" />
+        <div>
+          <h1 className="text-2xl font-bold">Data health</h1>
+          <p className="text-xs text-[var(--muted)]">{DATA_CHECKS.length} checks on your books: entries that don't balance, duplicate numbers, missing accounts, wrong dates and more. Updated as you work.</p>
+        </div>
+      </div>
+      <BalanceBreakPanel />
+      <div className="grid grid-cols-3 gap-4" role="status">
+        {(['high', 'medium', 'low'] as CheckSeverity[]).map(s => (
+          <div key={s} className={`p-4 rounded-xl border ${SEVERITY[s].className}`}>
+            <p className="text-xs font-semibold">{SEVERITY[s].label}</p>
+            <p className="text-2xl font-bold">{count(s)}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Show">
+        <button type="button" aria-pressed={only === 'all'} onClick={() => setOnly('all')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${only === 'all' ? 'border-[var(--brass)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>All ({findings.length})</button>
+        {byCheck.filter(g => g.findings.length > 0).map(g => (
+          <button key={g.check.id} type="button" aria-pressed={only === g.check.id} onClick={() => setOnly(g.check.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${only === g.check.id ? 'border-[var(--brass)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>
+            {g.check.label} ({g.findings.length})
+          </button>
+        ))}
+      </div>
+      {loading ? <LoadingState what="your records to check" /> : findings.length === 0 ? (
+        <div className="p-12 text-center border border-[var(--line)] rounded-2xl">
+          <CheckCircle2 size={40} className="text-[var(--pos)] mx-auto mb-3" aria-hidden="true" />
+          <h2 className="text-base font-bold">Everything checks out</h2>
+          <p className="text-xs text-[var(--muted)] mt-1">All {DATA_CHECKS.length} checks passed on the records loaded.</p>
+        </div>
+      ) : shown.map(({ check, findings: list }) => (
+        <section key={check.id} className="space-y-2" aria-labelledby={`check-${check.id}`}>
+          <h2 id={`check-${check.id}`} className="text-sm font-bold">{check.label}</h2>
+          <p className="text-xs text-[var(--muted)]">{check.remedy}</p>
+          <ul className="space-y-2">
+            {list.slice(0, 50).map(f => (
+              <li key={f.id} className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${SEVERITY[f.severity].className}`}>
+                <div className="flex items-start gap-3 text-[var(--text)]">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-semibold">{f.title}</p>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">{f.description}</p>
+                  </div>
+                </div>
+                {f.record && (
+                  <button type="button" onClick={() => openRecord(f.record!)} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--text)] inline-flex items-center gap-1 shrink-0">
+                    Open <ArrowRight size={12} aria-hidden="true" />
+                  </button>
+                )}
+              </li>
+            ))}
+            {list.length > 50 && <li className="text-xs text-[var(--muted)]">and {list.length - 50} more</li>}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+================================================================================
+PATCH: A4-CA34.patch
+================================================================================
+diff --git a/src/components/system/DataHealthView.tsx b/src/components/system/DataHealthView.tsx
+index 8471df8..b3b5581 100644
+--- a/src/components/system/DataHealthView.tsx
++++ b/src/components/system/DataHealthView.tsx
+@@ -8,6 +8,7 @@ import { DATA_CHECKS, runDataChecks } from '../../lib/dataChecks';
+ import type { CheckSeverity } from '../../lib/dataChecks';
+ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+ import { LoadingState } from '../ui/LoadingState';
++import BalanceBreakPanel from './BalanceBreakPanel';
+ 
+ /**
+  * Data Health (launch step 8): runs every check in the registry (src/lib/dataChecks.ts) over the
+@@ -53,6 +54,8 @@ export default function DataHealthView() {
+         </div>
+       </div>
+ 
++      <BalanceBreakPanel />
++
+       <div className="grid grid-cols-3 gap-4" role="status">
+         {(['high', 'medium', 'low'] as CheckSeverity[]).map(s => (
+           <div key={s} className={`p-4 rounded-xl border ${SEVERITY[s].className}`}>
+diff --git a/src/components/system/BalanceBreakPanel.tsx b/src/components/system/BalanceBreakPanel.tsx
+new file mode 100644
+--- /dev/null
++++ b/src/components/system/BalanceBreakPanel.tsx
+@@ -0,0 +1,99 @@
++import React, { useMemo } from 'react';
++import { AlertTriangle, CheckCircle2, Scale } from 'lucide-react';
++import { useLedgerStore } from '../../stores/useLedgerStore';
++import { useUIStore } from '../../stores/useUIStore';
++import { useAuthStore } from '../../stores/useAuthStore';
++import { findBalanceBreak } from '../../lib/balanceBreak';
++import { formatCurrency, getLocalDateISO } from '../../lib/utils';
++
++/**
++ * Since when don't the books balance? (A-4, CA-34): the panel on Data Health that answers it. When
++ * the balance sheet is off, `src/lib/balanceBreak.ts` halves the date range of the entries to find
++ * the first day it was off, and this shows that day's entries with the amount each contributes,
++ * each opening in the usual record viewer.
++ *
++ * Read-only, like the rest of Data Health: it says what it found and changes nothing. The figures
++ * come from the report code (`computeBalanceSheet`) over the history loaded here, the same entries
++ * the checks above use.
++ */
++export default function BalanceBreakPanel() {
++  const transactions = useLedgerStore(s => s.transactions);
++  const accounts = useLedgerStore(s => s.accounts);
++  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
++  const openRecord = useUIStore(s => s.openRecord);
++  const today = getLocalDateISO();
++
++  const result = useMemo(() => findBalanceBreak(accounts || [], transactions || [], today), [accounts, transactions, today]);
++  const money = (cents: number) => formatCurrency(cents, currency);
++
++  return (
++    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-3" aria-labelledby="balance-break">
++      <h2 id="balance-break" className="text-sm font-bold flex items-center gap-2 text-[var(--text)]">
++        <Scale size={16} className="text-[var(--brass)]" aria-hidden="true" />
++        Since when don&apos;t the books balance?
++      </h2>
++
++      {result.balanced ? (
++        <p className="text-sm text-[var(--pos)] flex items-center gap-2">
++          <CheckCircle2 size={16} aria-hidden="true" />
++          The books balance on {result.endDate}: what the workspace owns and what is owed against it agree to the cent.
++        </p>
++      ) : (
++        <>
++          <p className="text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
++            <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
++            <span>
++              The books stopped balancing on <strong>{result.firstUnbalancedDate}</strong>
++              {result.lastBalancedDate
++                ? <>; they still balanced on {result.lastBalancedDate}</>
++                : <> — the first entries in the loaded history are already off</>}
++              . Found in {result.probes} report probe{result.probes === 1 ? '' : 's'}, by halving the dates that carry an entry.
++            </span>
++          </p>
++
++          <p className="text-xs text-[var(--muted)]">
++            At {result.endDate} the balance sheet is off by {money(Math.abs(result.differenceCents))}
++            {result.differenceCents > 0
++              ? ' — it shows more assets than the liabilities, equity and profit account for.'
++              : ' — it shows more owed against the assets than the assets hold.'}
++            {result.differenceBeforeCents === 0
++              ? ' Nothing before that day moved the difference.'
++              : ` It was already off by ${money(Math.abs(result.differenceBeforeCents))} before that day.`}
++          </p>
++
++          <ul className="space-y-2">
++            {result.entries.map(entry => (
++              <li key={entry.transactionId} className="p-4 rounded-xl border border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
++                <div className="text-[var(--text)]">
++                  <p className="text-sm font-semibold">{entry.description}</p>
++                  <p className="text-xs text-[var(--muted)] mt-0.5">
++                    {entry.date} · {entry.offCents === 0
++                      ? 'its own lines balance; it moves the difference through a line the sheet cannot place'
++                      : `off by ${money(Math.abs(entry.offCents))}${entry.offCents > 0 ? ' (adds to the difference)' : ' (takes away from it)'}`}
++                    {entry.missingAccounts.length > 0 && ` · it uses ${entry.missingAccounts.join(', ')}, which ${entry.missingAccounts.length === 1 ? 'is' : 'are'} not in the chart of accounts`}
++                  </p>
++                </div>
++                <button
++                  type="button"
++                  onClick={() => openRecord({ type: 'transaction', id: entry.transactionId })}
++                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--text)] shrink-0 self-start sm:self-auto"
++                >
++                  Open the entry
++                </button>
++              </li>
++            ))}
++            {result.entries.length === 0 && (
++              <li className="text-xs text-[var(--muted)]">
++                No entry is dated {result.firstUnbalancedDate} in the loaded history, so an opening balance or an entry loaded from another day is the cause.
++              </li>
++            )}
++          </ul>
++
++          <p className="text-xs text-[var(--muted)]">
++            Read-only: this check never changes anything. Open the entry and correct its lines, or reverse it and enter it again.
++          </p>
++        </>
++      )}
++    </section>
++  );
++}
+diff --git a/src/lib/balanceBreak.ts b/src/lib/balanceBreak.ts
+new file mode 100644
+--- /dev/null
++++ b/src/lib/balanceBreak.ts
+@@ -0,0 +1,136 @@
++/**
++ * Since when don't the books balance? (A-4, CA-34, AI #3)
++ *
++ * When the balance sheet doesn't balance, the answer used to be "somewhere in your history". This
++ * finds the day it started by halving the range of dates that have entries: a balance is the same
++ * on a day with no entries as on the day before, so only days that carry an entry (and the end
++ * date) can be where it broke. Every probe runs the report code's own `computeBalanceSheet` — this
++ * module computes no money of its own and keeps no second copy of the report rules — and the first
++ * date whose figures are off is the answer.
++ *
++ * Then the entries of that day are added one at a time, and each entry's amount is what it changed
++ * the difference by when it was added — so the numbers add up to that day's change, and the day's
++ * biggest share is listed first. An entry can be off by zero and still be the cause: a line whose
++ * account is not in the chart is left out of the sheet, and that shows as the amount the entry
++ * takes out (and the missing account is named).
++ *
++ * Read-only: nothing here posts, repairs or changes anything.
++ */
++import type { ChartAccount, Transaction } from '../types';
++import { computeBalanceSheet } from '../server/reports/computeReports';
++import { isPostable, transactionDate } from './txFilters';
++import { getLocalDateISO } from './utils';
++
++export interface BalanceBreakEntry {
++  transactionId: string;
++  date: string;
++  description: string;
++  /** what this entry does to the difference: its own share of the imbalance, in cents */
++  offCents: number;
++  /** lines whose account is not in the chart of accounts (the sheet leaves them out) */
++  missingAccounts: string[];
++}
++
++export interface BalanceBreakResult {
++  /** whether the books balance at the end date */
++  balanced: boolean;
++  /** the date the search ran to (the workspace's today) */
++  endDate: string;
++  /** how far off the books are at the end date, in cents (0 when they balance) */
++  differenceCents: number;
++  /** the first date the books did not balance, or null when they always did */
++  firstUnbalancedDate: string | null;
++  /** the last date they still balanced before that, or null when no earlier entry exists */
++  lastBalancedDate: string | null;
++  /** how far off they already were before the break day (0 when it broke on the first day) */
++  differenceBeforeCents: number;
++  /** that day's entries, the biggest share first */
++  entries: BalanceBreakEntry[];
++  /** how many report probes the search used, for the sentence */
++  probes: number;
++}
++
++/** The dates worth probing: every day a postable entry falls on, in order, then the end date. */
++export function probeDates(transactions: Transaction[], endDate: string): string[] {
++  const dates = new Set<string>();
++  for (const tx of transactions) {
++    if (!isPostable(tx)) continue;
++    const date = transactionDate(tx);
++    if (date && date <= endDate) dates.add(date);
++  }
++  dates.add(endDate);
++  return [...dates].sort();
++}
++
++/** How far the balance sheet is off on a date, from the report code's own two totals. */
++export function balanceDifferenceCents(accounts: ChartAccount[], transactions: Transaction[], endDate: string): number {
++  const sheet = computeBalanceSheet(accounts, transactions, endDate);
++  return sheet.totalAssets - sheet.totalClaims;
++}
++
++/**
++ * The day the books stopped balancing, and what each entry of that day is off by. `endDate`
++ * defaults to today; the search never looks past it.
++ */
++export function findBalanceBreak(accounts: ChartAccount[], transactions: Transaction[], endDate = getLocalDateISO()): BalanceBreakResult {
++  const empty: BalanceBreakResult = {
++    balanced: true, endDate, differenceCents: 0, firstUnbalancedDate: null, lastBalancedDate: null,
++    differenceBeforeCents: 0, entries: [], probes: 0,
++  };
++  const dates = probeDates(transactions, endDate);
++  if (dates.length === 0) return empty;
++
++  let probes = 0;
++  const balancedOn = (date: string): boolean => {
++    probes += 1;
++    const sheet = computeBalanceSheet(accounts, transactions, date);
++    return sheet.isBalanced;
++  };
++
++  const last = dates[dates.length - 1];
++  if (balancedOn(last)) return { ...empty, probes };
++
++  // the last date is known to be off, so the first off date is at or before it: halve the range
++  let low = 0;
++  let high = dates.length - 1;
++  while (low < high) {
++    const middle = (low + high) >> 1;
++    if (balancedOn(dates[middle])) low = middle + 1;
++    else high = middle;
++  }
++
++  const firstUnbalancedDate = dates[low];
++  const lastBalancedDate = low > 0 ? dates[low - 1] : null;
++  const differenceCents = balanceDifferenceCents(accounts, transactions, last);
++
++  // the entries of the break day, each with its own share of the difference (in the order they
++  // come; the shares are per entry, so which one "gets" it does not depend on the others)
++  const postable = transactions.filter(isPostable);
++  const before = postable.filter(tx => transactionDate(tx) < firstUnbalancedDate);
++  const thatDay = postable.filter(tx => transactionDate(tx) === firstUnbalancedDate);
++  const missing = new Map<string, string[]>();
++  for (const line of computeBalanceSheet(accounts, thatDay, firstUnbalancedDate).orphanedLines) {
++    if (!line.transactionId) continue;
++    missing.set(line.transactionId, [...(missing.get(line.transactionId) || []), line.accountId]);
++  }
++
++  const differenceBeforeCents = balanceDifferenceCents(accounts, before, firstUnbalancedDate);
++  // add the day's entries one at a time: each entry's amount is what it changed the difference by
++  const added = [...before];
++  const entries: BalanceBreakEntry[] = thatDay.map(tx => {
++    const differenceBeforeIt = balanceDifferenceCents(accounts, added, firstUnbalancedDate);
++    added.push(tx);
++    const after = balanceDifferenceCents(accounts, added, firstUnbalancedDate);
++    const offCents = after - differenceBeforeIt;
++    return {
++      transactionId: tx.id,
++      date: transactionDate(tx),
++      description: tx.description || tx.id,
++      offCents,
++      missingAccounts: missing.get(tx.id) || [],
++    };
++  });
++  entries.sort((a, b) => Math.abs(b.offCents) - Math.abs(a.offCents) || a.transactionId.localeCompare(b.transactionId));
++
++  return { balanced: false, endDate: last, differenceCents, firstUnbalancedDate, lastBalancedDate, differenceBeforeCents, entries, probes };
++}
+diff --git a/src/tests/balance-break-ui.test.tsx b/src/tests/balance-break-ui.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/src/tests/balance-break-ui.test.tsx
+@@ -0,0 +1,86 @@
++/**
++ * Since when don't the books balance? on Data Health (A-4, CA-34): what the panel says when the
++ * books are off, that each entry of the break day opens in the usual record viewer, and that it
++ * reports the balanced case as balanced. The search itself is in `src/tests/balance-break.test.ts`;
++ * here it is the screen, read-only, with the report code run over the loaded records.
++ *
++ * `./helpers/dom` must be the first import; a DOM element is never asserted against null with
++ * `assert.equal` (see the note at the top of `src/tests/cash-movement-ui.test.tsx`).
++ */
++import './helpers/dom';
++import test, { afterEach, beforeEach, describe } from 'node:test';
++import assert from 'node:assert/strict';
++import React from 'react';
++import { cleanup, fireEvent, render, screen } from '@testing-library/react';
++import BalanceBreakPanel from '../components/system/BalanceBreakPanel';
++import DataHealthView from '../components/system/DataHealthView';
++import { useLedgerStore } from '../stores/useLedgerStore';
++import { useUIStore } from '../stores/useUIStore';
++import { makeChartAccount, makeTransaction } from './fixtures';
++import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
++import { getSupabase } from '../lib/db/client';
++import type { ChartAccount } from '../types';
++
++const bank: ChartAccount = makeChartAccount({ id: 'bank', code: '1010', name: 'Bank', type: 'asset', category: 'Cash' });
++const sales: ChartAccount = makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue' });
++const rent: ChartAccount = makeChartAccount({ id: 'rent', code: '6100', name: 'Rent', type: 'expense', category: 'Operating Expenses' });
++const accounts = [bank, sales, rent];
++
++const entry = (id: string, date: string, description: string, lines: Array<[string, number]>) => makeTransaction({
++  id, date, description,
++  lines: lines.map(([accountId, amountCents]) => ({ id: `line-${id}-${accountId}`, accountId, amountCents })),
++});
++const sale = (id: string, date: string) => entry(id, date, `Sale ${id}`, [['bank', 1000], ['sales', -1000]]);
++
++describe('Since when the books don\'t balance (Data Health)', () => {
++  beforeEach(() => {
++    setComponentWorkspace('owner');
++    useLedgerStore.setState({ accounts, transactions: [] });
++  });
++  afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
++
++  test('a broken history names the day, the amount, and each entry’s share', () => {
++    useLedgerStore.setState({
++      transactions: [
++        sale('t1', '2026-03-01'),
++        entry('t2', '2026-03-05', 'Rent paid from the bank', [['rent', 30000], ['bank', -20000]]),
++      ],
++    });
++    render(<BalanceBreakPanel />);
++    const panel = screen.getByRole('region', { name: /Since when don.t the books balance/ });
++    assert.match(panel.textContent || '', /stopped balancing on 2026-03-05/);
++    assert.match(panel.textContent || '', /still balanced on 2026-03-01/);
++    assert.match(panel.textContent || '', /off by \$100\.00/, '300.00 of rent against 200.00 out of the bank');
++    assert.match(panel.textContent || '', /Rent paid from the bank/);
++    assert.match(panel.textContent || '', /off by \$100\.00 \(adds to the difference\)/);
++    assert.match(panel.textContent || '', /Read-only/);
++  });
++
++  test('each entry opens the usual record viewer, and a balanced history says so', () => {
++    useLedgerStore.setState({ transactions: [sale('t1', '2026-03-01'), entry('t2', '2026-03-05', 'Odd entry', [['rent', 30000], ['bank', -20000]])] });
++    render(<BalanceBreakPanel />);
++    fireEvent.click(screen.getByRole('button', { name: 'Open the entry' }));
++    assert.deepEqual(useUIStore.getState().focusRecord, { type: 'transaction', id: 't2' });
++    assert.match(window.location.hash, /transactions\/transaction\/t2/);
++
++    cleanup();
++    useLedgerStore.setState({ transactions: [sale('t1', '2026-03-01'), sale('t2', '2026-03-05')] });
++    render(<BalanceBreakPanel />);
++    const balanced = screen.getByRole('region', { name: /Since when don.t the books balance/ });
++    assert.match(balanced.textContent || '', /The books balance on/);
++    assert.ok(screen.queryByRole('button', { name: 'Open the entry' }) === null, 'nothing to open when nothing is off');
++  });
++
++  test('the panel is part of Data Health, above the findings', () => {
++    markComponentCollectionsLoaded('bankLines', 'bills', 'inventory', 'invoices', 'recurring');
++    useLedgerStore.setState({
++      transactions: [entry('t1', '2026-03-02', 'Cash sale entered short', [['bank', 50000], ['sales', -40000]])],
++    });
++    render(<DataHealthView />);
++    assert.ok(screen.getByRole('heading', { name: 'Data health' }));
++    const panel = screen.getByRole('region', { name: /Since when don.t the books balance/ });
++    assert.match(panel.textContent || '', /stopped balancing on 2026-03-02/);
++    assert.match(panel.textContent || '', /Cash sale entered short/);
++    assert.ok(screen.getByRole('heading', { name: 'Entries whose debits and credits differ' }), 'the checks still run beside it');
++  });
++});
+diff --git a/src/tests/balance-break.test.ts b/src/tests/balance-break.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/tests/balance-break.test.ts
+@@ -0,0 +1,128 @@
++/**
++ * Since when don't the books balance? (A-4, CA-34): the search behind the Data Health panel.
++ *
++ * Every number here is worked out by hand from the report code's own rule (assets against
++ * liabilities + equity + profit, whole cents):
++ *   a sale of 1000 (bank +1000, sales −1000) adds 1000 to the assets and 1000 to profit → still level;
++ *   an entry with both sides on one account, or a side missing, leaves the sheet off by the amount
++ *   it does not account for. The dates are chosen so the halving has to look at the first day, the
++ *   last day, a day in the middle, and a history that never breaks.
++ */
++import test, { describe } from 'node:test';
++import assert from 'node:assert/strict';
++import { balanceDifferenceCents, findBalanceBreak, probeDates } from '../lib/balanceBreak';
++import { makeChartAccount, makeTransaction } from './fixtures';
++import type { ChartAccount, Transaction } from '../types';
++
++const bank: ChartAccount = makeChartAccount({ id: 'bank', code: '1010', name: 'Bank', type: 'asset', category: 'Cash' });
++const sales: ChartAccount = makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue' });
++const rent: ChartAccount = makeChartAccount({ id: 'rent', code: '6100', name: 'Rent', type: 'expense', category: 'Operating Expenses' });
++const loan: ChartAccount = makeChartAccount({ id: 'loan', code: '2500', name: 'Bank loan', type: 'liability', category: 'Long-term Liabilities' });
++const accounts = [bank, sales, rent, loan];
++
++const entry = (id: string, date: string, lines: Array<[string, number]>) => makeTransaction({
++  id, date, description: `Entry ${id}`,
++  lines: lines.map(([accountId, amountCents]) => ({ id: `line-${id}-${accountId}`, accountId, amountCents })),
++});
++
++/** A sale: the bank up, sales up; balanced. */
++const sale = (id: string, date: string, cents: number) => entry(id, date, [['bank', cents], ['sales', -cents]]);
++const today = '2026-03-31';
++
++describe('Probing dates', () => {
++  test('only days that carry a postable entry, in order, then the end date', () => {
++    const transactions: Transaction[] = [
++      sale('c', '2026-03-20', 100),
++      sale('a', '2026-03-01', 100),
++      makeTransaction({ id: 'draft', date: '2026-03-05', status: 'draft', lines: [{ accountId: 'bank', amountCents: 1 }] }),
++      makeTransaction({ id: 'void', date: '2026-03-06', status: 'void', lines: [{ accountId: 'bank', amountCents: 1 }] }),
++      sale('late', '2026-04-02', 100),
++      makeTransaction({ id: 'stamp', date: '2026-03-10T12:00:00.000Z', lines: [{ accountId: 'bank', amountCents: 1 }, { accountId: 'sales', amountCents: -1 }] }),
++    ];
++    assert.deepEqual(probeDates(transactions, today), ['2026-03-01', '2026-03-10', '2026-03-20', today]);
++  });
++
++  test('the difference is the report code’s own two totals', () => {
++    assert.equal(balanceDifferenceCents(accounts, [sale('a', '2026-03-01', 1000)], today), 0);
++    assert.equal(balanceDifferenceCents(accounts, [entry('b', '2026-03-01', [['bank', 500], ['sales', -400]])], today), 100);
++    assert.equal(balanceDifferenceCents(accounts, [], today), 0);
++  });
++});
++
++describe('Finding the day the books stopped balancing', () => {
++  test('a break on the first day of the history', () => {
++    const transactions = [entry('first', '2026-03-01', [['bank', 500], ['sales', -400]])];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.equal(result.balanced, false);
++    assert.equal(result.firstUnbalancedDate, '2026-03-01');
++    assert.equal(result.lastBalancedDate, null, 'nothing came before it');
++    assert.equal(result.differenceCents, 100);
++    assert.equal(result.differenceBeforeCents, 0);
++    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['first', 100]]);
++    assert.equal(result.probes, 2, 'the end date and the first day');
++  });
++
++  test('a break on the last day', () => {
++    const transactions = [
++      sale('jan', '2026-03-01', 1000),
++      entry('rent', '2026-03-05', [['rent', 300], ['bank', -200]]),
++    ];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.equal(result.firstUnbalancedDate, '2026-03-05');
++    assert.equal(result.lastBalancedDate, '2026-03-01', 'the day before still balanced');
++    assert.equal(result.differenceCents, 100, '800 in the bank against 700 of profit');
++    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['rent', 100]]);
++    assert.equal(result.probes, 3);
++  });
++
++  test('a break in the middle, with balanced entries after it', () => {
++    const transactions = [
++      sale('a', '2026-03-01', 1000),
++      entry('b', '2026-03-10', [['rent', 50], ['bank', -40]]),
++      sale('c', '2026-03-20', 500),
++    ];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.equal(result.firstUnbalancedDate, '2026-03-10');
++    assert.equal(result.lastBalancedDate, '2026-03-01');
++    assert.equal(result.differenceCents, 10);
++    assert.deepEqual(result.entries.map(e => e.transactionId), ['b'], 'only the break day’s entries are listed');
++    // the entry shares add up to the day's change
++    assert.equal(result.entries.reduce((sum, e) => sum + e.offCents, 0), result.differenceCents - result.differenceBeforeCents);
++  });
++
++  test('a history that never breaks, and an empty one', () => {
++    const result = findBalanceBreak(accounts, [sale('a', '2026-03-01', 1000), sale('b', '2026-03-20', 400)], today);
++    assert.deepEqual({ balanced: result.balanced, first: result.firstUnbalancedDate, last: result.lastBalancedDate, difference: result.differenceCents, entries: result.entries.length }, { balanced: true, first: null, last: null, difference: 0, entries: 0 });
++    assert.equal(result.probes, 1, 'one look at the end date is enough');
++    assert.deepEqual(findBalanceBreak(accounts, [], today).balanced, true);
++  });
++
++  test('a line whose account is not in the chart is named, and the entry carries its amount', () => {
++    const transactions = [sale('ok', '2026-03-01', 400), entry('ghost', '2026-03-02', [['not-in-chart', 250], ['bank', -250]])];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.equal(result.firstUnbalancedDate, '2026-03-02');
++    assert.equal(result.differenceCents, -250, 'the 250 line is left out of the sheet, so the assets lose it');
++    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents, e.missingAccounts]), [['ghost', -250, ['not-in-chart']]]);
++  });
++
++  test('the biggest share is listed first, and a balanced entry is not blamed for another’s amount', () => {
++    const transactions = [
++      entry('small', '2026-03-04', [['bank', 10], ['sales', -5]]),
++      entry('big', '2026-03-04', [['bank', 900], ['sales', -800]]),
++    ];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.equal(result.firstUnbalancedDate, '2026-03-04');
++    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['big', 100], ['small', 5]]);
++    assert.equal(result.entries.reduce((sum, e) => sum + e.offCents, 0), 105, 'the whole day');
++  });
++
++  test('a missing account in one entry of the day does not change the other entry’s share', () => {
++    const transactions = [
++      entry('ghost', '2026-03-03', [['not-in-chart', 250], ['bank', -250]]),
++      entry('off', '2026-03-03', [['rent', 30], ['bank', -20]]),
++    ];
++    const result = findBalanceBreak(accounts, transactions, today);
++    assert.deepEqual(result.entries.map(e => [e.transactionId, e.offCents]), [['ghost', -250], ['off', 10]]);
++    assert.equal(result.differenceCents, -240, '-250 from the placed line, +10 from the second entry');
++  });
++});
