@@ -121,8 +121,8 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
             : row.result === 'at'
               ? 'At threshold — review scope and dates'
               : `${money(row.remainingCents || 0, row.baseCurrency)} below`}</td>
-        <td className="whitespace-nowrap"><a className="underline" href={row.rule.source.url} target="_blank" rel="noreferrer">Rule source</a>
-          {row.rule.effect.kind === 'registration-threshold' && row.rule.effect.guidanceUrl && <> · <a className="underline" href={row.rule.effect.guidanceUrl} target="_blank" rel="noreferrer">Scope guidance</a></>}
+        <td className="whitespace-nowrap"><a className="underline" href={row.rule.source.url} target="_blank" rel="noopener noreferrer">Rule source</a>
+          {row.rule.effect.kind === 'registration-threshold' && row.rule.effect.guidanceUrl && <> · <a className="underline" href={row.rule.effect.guidanceUrl} target="_blank" rel="noopener noreferrer">Scope guidance</a></>}
         </td>
       </tr>)}</tbody>
     </table></ReportTableScroll>}

@@ -111,6 +111,23 @@ test('posted-sales watch uses dated calendar windows, node aliases, FX base cent
   assert.equal(mismatchedCurrency.remainingCents, null);
 });
 
+test('UK trailing window includes leap day and excludes the day before it when rolling back twelve months', () => {
+  const nodes = [entity('UKCO', 'UK Entity'), activityNode('UKVAT', 'UK VAT taxable turnover')];
+  const profiles = { labels: { 'world:UKCO': { place: { country: 'GB' } } } };
+  const transactions = [
+    sale('before-window', '2024-02-28', -8_000_000, { world: 'UKCO', activity: 'UKVAT' }),
+    sale('leap-day', '2024-02-29', -500_000, { world: 'UKCO', activity: 'UKVAT' }),
+    sale('as-of-day', '2025-02-28', -250_000, { world: 'UKCO', activity: 'UKVAT' }),
+  ];
+  const report = registrationThresholdWatch({
+    accounts, transactions, profiles, dimensionNodes: nodes,
+    entityDimensionId: 'world', activityDimensionId: 'activity', asOf: '2025-02-28', baseCurrency: 'GBP',
+  });
+  const row = report.rows.find(candidate => candidate.rule.id === 'uk-vat-registration-2024-04');
+  assert.ok(row);
+  assert.deepEqual([row.periodStart, row.periodEnd, row.salesCents], ['2024-02-29', '2025-02-28', 750_000]);
+});
+
 test('Canada shows the current and recent single-quarter tests plus the four latest completed quarters', () => {
   const nodes = [entity('CACO', 'Canada Entity'), activityNode('GST', 'Canada GST/HST taxable supplies')];
   const profiles = { labels: { 'world:CACO': { place: { country: 'CA' } } } };
