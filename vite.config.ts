@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
 export default defineConfig({
+  // Dev-only: allow the sandbox live-preview host (Vite rejects unknown Host headers).
+  server: {
+    allowedHosts: ['.e2b.app'],
+  },
   resolve: { 
     alias: {
       react: path.resolve('./node_modules/react'),
