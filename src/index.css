@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
+@import "./components/reporting/reportPack/reportPack.css";
 
 /* dark: classes follow the app's theme (App.tsx puts .dark or .light on <html>), not the OS setting */
 @custom-variant dark (&:where(.dark, .dark *));

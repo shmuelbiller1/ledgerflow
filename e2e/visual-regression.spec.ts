@@ -36,7 +36,7 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
         return useLedgerStore.getState().transactions.length;
       })).toBe(2);
       if (screen === 'pnl') await expect(main.getByLabel('Reporting period start date')).toHaveValue('2026-09-01');
-      if (screen === 'balance-sheet') await expect(main.getByRole('heading', { name: 'Resource Matrix (Assets)', exact: true })).toBeVisible();
+      if (screen === 'balance-sheet') await expect(main.getByRole('heading', { name: 'Assets', exact: true })).toBeVisible();
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*\bdark\b)/);
       await page.evaluate(() => document.fonts.ready);
       await expect(main).not.toContainText('Something went wrong');

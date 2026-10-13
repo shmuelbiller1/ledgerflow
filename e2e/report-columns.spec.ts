@@ -104,7 +104,7 @@ for (const kind of ["pl", "bs"] as const) {
     const columns = screen.getByLabel("Columns:");
     await expect(columns).toHaveValue("total");
     await columns.selectOption("months");
-    await expect(screen.getByRole("button", { name: kind === "pl" ? "Export Synthesis" : "Export Blueprint", exact: true })).toHaveCount(0);
+    await expect(screen.getByRole("button", { name: "Export to Excel", exact: true })).toHaveCount(0);
     await expect(
       screen.getByRole("columnheader", { name: /Feb 2024/ }),
     ).toBeVisible();

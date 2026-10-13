@@ -103,6 +103,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     { label: 'Withholding Report (Form 856)', componentName: 'Form856ReportView' },
     { label: 'Expense Policy Check', componentName: 'ExpensePolicyReportView' },
     { label: 'Vendor Scorecard', componentName: 'VendorScorecardReportView' },
+    { label: 'Inventory Cycle Count', componentName: 'CycleCountReportView' },
   ];
 
   for (const report of reportTabs) {

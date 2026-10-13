@@ -120,17 +120,17 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
       };
     } else {
       return {
-        assetsLabel: "Resource Matrix (Assets)",
-        assetsSub: "Aggregate Asset Vectors",
-        liabilitiesLabel: "Institutional Obligations (Liabilities)",
-        liabilitiesSub: "Operational Liabilities & Accounts Payable",
+        assetsLabel: "Assets",
+        assetsSub: "What the business owns",
+        liabilitiesLabel: "Liabilities",
+        liabilitiesSub: "What the business owes",
         equityLabel: "Owner Equity & Capital",
-        equitySub: "Equity Topology & Paid-In Capital",
+        equitySub: "Capital and retained earnings",
         retainedEarningsLabel: "Retained Earnings (YTD Net)",
-        retainedEarningsSub: "Calculated Dynamic Net Surplus",
+        retainedEarningsSub: "Profit to date",
         totalClaimsLabel: "Total Equity & Liabilities",
-        totalClaimsSub: "Combined Claims & Capital Balance",
-        isBalancedSuccess: "Balanced Double-Entry",
+        totalClaimsSub: "Must equal total assets",
+        isBalancedSuccess: "Balanced",
         isBalancedDrift: "Balance Drift Detected"
       };
     }

@@ -154,15 +154,15 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     } else {
       return {
         title: "Profit & Loss Statement",
-        inflowLabel: "Inflow Velocity",
-        inflowSub: "Generating Revenue",
-        outflowLabel: "Resource Leakage",
-        outflowSub: "Cost Absorption",
-        netLabel: "Net Structural Surplus",
-        netSub: "Performance Protocol Status",
-        revenueStreams: "Revenue Streams",
-        expenseClusters: "Expense Clusters",
-        netChangeTitle: "Net Performance Surplus",
+        inflowLabel: "Income",
+        inflowSub: "Total income",
+        outflowLabel: "Expenses",
+        outflowSub: "Total expenses",
+        netLabel: "Net profit",
+        netSub: "Income less expenses",
+        revenueStreams: "Income",
+        expenseClusters: "Expenses",
+        netChangeTitle: "Net profit",
         exportName: "Profit_and_Loss_Statement"
       };
     }
@@ -345,7 +345,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                <Calendar aria-hidden="true" size={13} />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Temporal Range</span>
+              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Period</span>
               <div className="flex flex-wrap items-center gap-2">
                 <input 
                   aria-label="Reporting period start date"
@@ -401,9 +401,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         {(basis === 'cash' || !columnsActive) && <button
           onClick={exportToExcel}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg font-bold uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all shadow-sm active:scale-95 group/btn w-full lg:w-auto cursor-pointer"
-         aria-label="Export Synthesis">
+         aria-label="Export to Excel">
           <FileSpreadsheet aria-hidden="true" size={13} className="text-emerald-400 group-hover/btn:text-emerald-300 transition-colors shrink-0" />
-          <span>Export Synthesis</span>
+          <span>Export to Excel</span>
         </button>}
       </div>
 
@@ -486,7 +486,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
           </div>
           <div className="flex items-center gap-2 mt-auto">
             <p className="text-[8px] font-bold uppercase tracking-wider text-white/60">
-              {(data.netIncome || 0) >= 0 ? "Surplus Mode Stable" : "Refinement Protocol Recommended"}
+              {(data.netIncome || 0) >= 0 ? "Profit" : "Loss"}
             </p>
             {isComparative && prevData.netIncome !== 0 && (
                <span className={cn(
@@ -521,7 +521,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         <div className="p-4 border-b border-slate-150 bg-[var(--ink)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider">{labels.title}</h2>
-            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-0.5">Hierarchical Performance Synthesis</p>
+            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-0.5">Income and expenses for the period</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">Sort By:</span>

@@ -260,7 +260,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                <Calendar aria-hidden="true" size={13} />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Temporal Range</span>
+              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Period</span>
               <div className="flex flex-wrap items-center gap-2">
                 <input 
                   aria-label="Reporting period start date"
@@ -311,7 +311,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
           className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg font-bold uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all shadow-sm active:scale-95 group/btn w-full lg:w-auto cursor-pointer"
         >
           <FileSpreadsheet aria-hidden="true" size={13} className="text-emerald-400 group-hover/btn:text-emerald-300 transition-colors shrink-0" />
-          <span>Export Synthesis</span>
+          <span>Export to Excel</span>
         </button>
       </div>
 

@@ -8,12 +8,19 @@
  * person instead of guessing. `reduced` means the state taxes the category at less than its own
  * general rate — the rate shown is the state part and local taxes may still apply.
  *
+ * A-42 (12 Oct) extended the digital side: SaaS, downloads and streaming are answered per form in
+ * `usDigitalTaxability.ts`, and this table's `saas` rows read that one (the `digital-goods` rows keep
+ * the list both tables share — `DIGITAL_GOODS_TAXABLE_STATES`). A state that answers a download and a
+ * stream differently is therefore `unclear` at the category level, and `digitalFormMismatches()`
+ * names those states for a person.
+ *
  * Every row carries the state's revenue-department link and the date the table was checked. Before a
  * filing position is taken, a person confirms the row against that source (PLAN §5: an accountant
  * checks one real period).
  */
 import { US_STATE_SALES_TAX } from './usStateSalesTax';
 import { TAX_CATEGORIES, TAX_CATEGORY_IDS, type TaxCategoryId } from './taxCategories';
+import { DIGITAL_GOODS_TAXABLE_STATES, digitalTreatment } from './usDigitalTaxability';
 
 export type TaxTreatment = 'taxable' | 'exempt' | 'reduced' | 'unclear';
 
@@ -59,8 +66,6 @@ const GROCERY_TAXABLE = ['HI', 'ID', 'OK'];
 /** Prescription medicine: exempt unless listed here. */
 const RX_REDUCED: Partial<Record<string, number>> = { IL: 0.01 };
 
-/** States whose published answer taxes digital goods (delivered electronically) as a sale. */
-const DIGITAL_TAXABLE = ['AZ', 'CO', 'CT', 'DC', 'GA', 'HI', 'IA', 'ID', 'IL', 'IN', 'KY', 'LA', 'MA', 'MD', 'ME', 'MI', 'MN', 'MS', 'NE', 'NJ', 'NM', 'NY', 'OH', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'WA', 'WI'];
 
 /** A short, honest note for the categories where the state's answer depends on the product. */
 const UNCLEAR_NOTE: Partial<Record<TaxCategoryId, string>> = {
@@ -73,7 +78,12 @@ const UNCLEAR_NOTE: Partial<Record<TaxCategoryId, string>> = {
 
 const sourceFor = (state: string) => US_STATE_SALES_TAX.find(r => r.state === state)?.source || '';
 
-function treatmentFor(state: string, category: TaxCategoryId, noStateTax: boolean): { treatment: TaxTreatment; rate?: number } {
+function treatmentFor(state: string, category: TaxCategoryId, noStateTax: boolean): { treatment: TaxTreatment; rate?: number; note?: string } {
+  // A-42: the SaaS answer is kept per form in usDigitalTaxability; this row reads it, never a guess
+  if (category === 'saas' && !noStateTax) {
+    const row = digitalTreatment(state, 'saas');
+    return { treatment: row?.treatment ?? 'unclear', ...(row?.rate !== undefined ? { rate: row.rate } : {}), ...(row?.note ? { note: row.note } : {}) };
+  }
   if (noStateTax) return { treatment: category === 'general' ? 'exempt' : 'unclear' };
   switch (category) {
     case 'general':
@@ -92,7 +102,7 @@ function treatmentFor(state: string, category: TaxCategoryId, noStateTax: boolea
       if (state in RX_REDUCED) return { treatment: 'reduced', rate: RX_REDUCED[state] };
       return { treatment: 'exempt' };
     case 'digital-goods':
-      return DIGITAL_TAXABLE.includes(state) ? { treatment: 'taxable' } : { treatment: 'exempt' };
+      return DIGITAL_GOODS_TAXABLE_STATES.includes(state) ? { treatment: 'taxable' } : { treatment: 'exempt' };
     case 'saas':
     case 'services':
     case 'books':
@@ -106,9 +116,10 @@ function expand(): UsProductTaxabilityRow[] {
     const source = sourceFor(state.state);
     const noStateTax = state.rate === 0;
     for (const category of TAX_CATEGORY_IDS) {
-      const { treatment, rate } = treatmentFor(state.state, category, noStateTax);
+      const { treatment, rate, note: own } = treatmentFor(state.state, category, noStateTax);
       const note = [
         treatment === 'unclear' ? UNCLEAR_NOTE[category] : undefined,
+        own,
         category === 'clothing' && state.state in CLOTHING_CAPPED ? CLOTHING_CAPPED[state.state] : undefined,
         treatment === 'reduced' ? 'the state or local part may still apply' : undefined,
         noStateTax && category !== 'general' ? 'no state sales tax; a local jurisdiction may still tax this' : undefined,

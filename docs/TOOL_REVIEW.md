@@ -240,6 +240,11 @@ The shared person picker in `HourlyPayCell` has no duplicate-link guard. `payRun
 
 The implemented approved-time/pay-run link removes manual re-entry of hours and locks paid time against subsequent editing. It should not be described as a universal double-payment guarantee until this same-run boundary is resolved.
 
+### C-30 report pack: less assembly work, explicit time boundaries
+
+Reports now offers one server-backed printable pack with cover, workspace, chosen period, UTC preparation timestamp, numbered pages and selectable financial sections. The benefit over manually combining separate legacy exports is a reviewable preview and a single print/PDF step. It refuses to print an incomplete pack instead of silently substituting cached numbers. Existing single-report totals are retained and checked against those functions; mixed Hebrew labels and locale money survive actual PDF extraction.
+
+Scope: accrual P&L and balance sheet, current receivables aging, optional trial balance, cash flow and current payables aging. Current aging is dated independently of historical periods, as explicitly authorized by owner/AI #1; it is not historical aging. Individual report reads can observe intervening edits, so this is not an atomic close snapshot. Other specialized reports still print separately; C-30/BD-06 remains partial for arbitrary shell-report inclusion. Browser Save as PDF and Chromium numbered pages are verified; universal browser pagination is not claimed. See `reportPack.ts`, `ReportPackDialog.tsx`, report-pack pure/DOM tests and `e2e/report-pack.spec.ts`.
 ## Page bookmarks (C-37)
 
 The sidebar can remember the pages a user returns to, including an exact report or settings subview. This reduces repeated menu searches while leaving the current report’s date context available. Existing header pins continue to provide their global shortcuts.

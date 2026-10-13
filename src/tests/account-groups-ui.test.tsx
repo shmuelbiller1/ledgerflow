@@ -207,14 +207,14 @@ describe('the balance sheet', () => {
     return render(<BalanceSheetView accounts={sheetChart} formatCurrency={money} asOfDate="2026-03-31" />);
   };
   const totalAssets = (view: ReturnType<typeof sheet>) =>
-    view.getByText(/Total Resource Matrix \(Assets\)/).closest('div')!.parentElement!.textContent || '';
+    view.getByText(/Total Assets/).closest('div')!.parentElement!.textContent || '';
 
   test('assets are grouped with a subtotal, and total assets are unchanged', async () => {
     const view = sheet();
     await waitFor(() => assert.ok(view.queryByText('Total Current assets')));
     assert.equal(view.getByText('Total Current assets').parentElement!.textContent, 'Total Current assets$200.00');
     assert.match(totalAssets(view), /\$400\.00/, '150.00 + 50.00 inside the group, plus 200.00 of equipment');
-    assert.ok(view.getByText('Balanced Double-Entry'), 'the sheet still balances');
+    assert.ok(view.getByText('Balanced'), 'the sheet still balances');
     assert.equal((view.getByTitle('Click to drill down into Cash').parentElement as HTMLElement).style.paddingLeft, '16px');
     assert.equal((view.getByTitle('Click to drill down into Equipment').parentElement as HTMLElement).style.paddingLeft, '0px');
   });
@@ -229,7 +229,7 @@ describe('the balance sheet', () => {
     assert.ok(view.getByTitle('Click to drill down into Equipment'), 'an account with no group stays');
     assert.match(totalAssets(view), /\$400\.00/);
     assert.match(view.getByText(/Total Equity & Liabilities/).closest('div')!.parentElement!.textContent || '', /\$400\.00/);
-    assert.ok(view.getByText('Balanced Double-Entry'));
+    assert.ok(view.getByText('Balanced'));
   });
 });
 

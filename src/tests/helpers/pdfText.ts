@@ -1,12 +1,13 @@
 /**
- * Reads the text back out of a PDF made by pdfService (pdfkit, embedded fonts) for tests: content
- * streams are inflated, glyph codes mapped through each font's ToUnicode table. Returns the text
+ * Reads PDFKit and Chromium PDF text for tests: content streams are inflated, literal/hex strings
+ * decoded with each font's codespace and ToUnicode table (simple WinAnsi fonts also work). Returns the text
  * runs in drawing order (one per word, as the PDF draws words one by one); right-to-left words come
  * out in display order, so tests compare them reversed.
  */
 import zlib from 'node:zlib';
 
 interface PdfObject { dict: string; stream?: Buffer }
+interface PdfFont { glyphs?: Map<number, string>; bytes: number }
 
 function objects(pdf: Buffer): Map<number, PdfObject> {
   const text = pdf.toString('latin1');
@@ -61,29 +62,54 @@ function parseCmap(cmap: string): Map<number, string> {
 export function pdfTextRuns(pdf: Buffer): string[] {
   const objs = objects(pdf);
   // font resource name (F1, F2…) → glyph map
-  const fontMaps = new Map<string, Map<number, string>>();
+  const fontMaps = new Map<string, PdfFont>();
   for (const obj of objs.values()) {
     for (const ref of obj.dict.matchAll(/\/(F\d+)\s+(\d+) 0 R/g)) {
       const font = objs.get(Number(ref[2]));
       const toUnicode = font?.dict.match(/\/ToUnicode (\d+) 0 R/);
       const cmap = toUnicode ? objs.get(Number(toUnicode[1]))?.stream : undefined;
-      if (cmap) fontMaps.set(ref[1], parseCmap(cmap.toString('latin1')));
+      const cmapText = cmap?.toString('latin1');
+      const codeSpace = cmapText?.match(/begincodespacerange\s*<([0-9a-fA-F]+)>/);
+      fontMaps.set(ref[1], {
+        glyphs: cmapText ? parseCmap(cmapText) : undefined,
+        bytes: codeSpace ? codeSpace[1].length / 2 : /\/Subtype\s*\/Type0\b/.test(font?.dict || '') ? 2 : 1,
+      });
     }
   }
   const runs: string[] = [];
   for (const obj of objs.values()) {
     const content = obj.stream?.toString('latin1');
     if (!content || !/ Tf\b/.test(content)) continue;
-    let font: Map<number, string> | undefined;
-    for (const op of content.matchAll(/\/(F\d+) [\d.]+ Tf|\[([^\]]*)\] TJ|<([0-9a-fA-F]*)> Tj/g)) {
+    let font: PdfFont | undefined;
+    // Chromium may write simple-font ASCII as literal strings, while Hebrew is
+    // encoded using a composite font's hex glyphs. Both are valid text operators.
+    const strings = /<[0-9a-fA-F\s]*>|\((?:\\[\s\S]|[^\\()])*\)/g;
+    for (const op of content.matchAll(/\/(F\d+)\s+[-\d.]+\s+Tf|\[((?:\((?:\\[\s\S]|[^\\()])*\)|[^\]])*)\]\s*TJ|(<[0-9a-fA-F\s]*>|\((?:\\[\s\S]|[^\\()])*\))\s*Tj/g)) {
       if (op[1]) { font = fontMaps.get(op[1]); continue; }
-      const hexes = op[2] !== undefined ? (op[2].match(/<([0-9a-fA-F]*)>/g) || []).map(h => h.slice(1, -1)) : [op[3]];
+      const encoded = op[2] !== undefined ? [...op[2].matchAll(strings)].map(match => match[0]) : [op[3]];
       let run = '';
-      for (const hex of hexes) for (let i = 0; i + 4 <= hex.length; i += 4) run += font?.get(parseInt(hex.slice(i, i + 4), 16)) ?? '?';
+      for (const token of encoded) {
+        const raw = token.startsWith('<') ? Buffer.from(token.slice(1, -1).replace(/\s/g, ''), 'hex') : literalBytes(token);
+        if (!font?.glyphs) { run += new TextDecoder('windows-1252').decode(raw); continue; }
+        for (let i = 0; i + font.bytes <= raw.length; i += font.bytes) {
+          run += font.glyphs.get(raw.readUIntBE(i, font.bytes)) ?? '?';
+        }
+      }
       if (run) runs.push(run);
     }
   }
   return runs;
+}
+
+/** PDF literal strings escape delimiters, octal bytes and continued lines. */
+function literalBytes(token: string): Buffer {
+  const chars = token.slice(1, -1).replace(/\\(?:\r\n|[\r\n]|[0-7]{1,3}|[\s\S])/g, escape => {
+    const value = escape.slice(1);
+    if (/^[0-7]/.test(value)) return String.fromCharCode(parseInt(value, 8));
+    if (/^[\r\n]/.test(value)) return '';
+    return ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' } as Record<string, string>)[value] ?? value;
+  });
+  return Buffer.from(chars, 'latin1');
 }
 
 /** All the text, words separated by spaces. */

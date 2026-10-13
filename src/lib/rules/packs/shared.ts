@@ -67,7 +67,23 @@ export interface MarketplaceEffect {
   note: string;
 }
 
-export type TaxEffect = RateEffect | NexusEffect | RegistrationThresholdEffect | FilingEffect | MarketplaceEffect;
+/**
+ * A-43: the effect of a withholding-at-source rule — the default percentage the payer holds back on a
+ * payment to a vendor who has no current approval. It is a suggested rate with the source it was read
+ * from; the vendor's own approval always replaces it, and a person confirms before the payment.
+ */
+export interface WithholdingDefaultEffect {
+  kind: 'withholding-default';
+  paymentType: string;
+  /** 'israel' for an Israeli resident, 'foreign' for a non-resident */
+  residence: 'israel' | 'foreign';
+  ratePercent: number;
+  /** what the percentage is taken from, where the source settles it */
+  base: 'payment-less-vat' | 'payment-including-vat' | 'unspecified';
+  note: string;
+}
+
+export type TaxEffect = RateEffect | NexusEffect | RegistrationThresholdEffect | FilingEffect | MarketplaceEffect | WithholdingDefaultEffect;
 
 /** A table row a pack could not turn into a rule (a category it cannot name, a place it does not know). */
 export interface UnmappedRow {

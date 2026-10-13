@@ -17,6 +17,7 @@ import { productTaxabilityPack } from './productTaxabilityPack';
 import { filingPack } from './filingPack';
 import { registrationThresholdPack } from './registrationThresholdPack';
 import { marketplaceChannelPack } from './marketplacePack';
+import { ilWithholdingPack } from './ilWithholdingPack';
 import type { TaxEffect, TaxRulePack, UnmappedRow } from './shared';
 
 export { usSalesTaxPack } from './usSalesTaxPack';
@@ -28,6 +29,7 @@ export { usNexusPack } from './usNexusPack';
 export { productTaxabilityPack, stateSalesRuleIds } from './productTaxabilityPack';
 export { registrationThresholdPack } from './registrationThresholdPack';
 export { marketplaceChannelPack, marketplaceRuleId } from './marketplacePack';
+export { ilWithholdingPack } from './ilWithholdingPack';
 // the packs' own tooling (A-59, A-60): what the source pages answered, and what changed since a snapshot
 export {
   ruleSourceIndex, checkRuleSources, sourceReportLines, sourceReportSummary, sourceReportMarkdown,
@@ -46,7 +48,7 @@ export { rateRule, where, slug, type TaxEffect, type TaxRulePack, type RateEffec
 
 /** Every pack, in the order a screen should list them. */
 export function taxRulePacks(): TaxRulePack[] {
-  return [ilVatPack(), usSalesTaxPack(), usNexusPack(), productTaxabilityPack(), canadaVatPack(), ukVatPack(), euVatPack(), registrationThresholdPack(), filingPack(), marketplaceChannelPack()];
+  return [ilVatPack(), usSalesTaxPack(), usNexusPack(), productTaxabilityPack(), canadaVatPack(), ukVatPack(), euVatPack(), registrationThresholdPack(), filingPack(), marketplaceChannelPack(), ilWithholdingPack()];
 }
 
 /** Every rule in every pack. */

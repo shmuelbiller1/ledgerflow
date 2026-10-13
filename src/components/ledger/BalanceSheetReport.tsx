@@ -167,18 +167,18 @@ export function BalanceSheetReport({ columnMode, setColumnMode, showPercent, set
           {(basis === 'cash' || (columnMode === 'total' && !showPercent && !isComparative)) && <button
             onClick={exportBalanceSheet}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all shadow-sm active:scale-95 group/btn w-full lg:w-auto cursor-pointer"
-           aria-label="Export Blueprint">
+           aria-label="Export to Excel">
             <FileSpreadsheet aria-hidden="true" size={13} className="text-emerald-400 group-hover/btn:text-emerald-300 transition-colors shrink-0" />
-            <span>Export Blueprint</span>
+            <span>Export to Excel</span>
           </button>}
         </div>
       </div>
 
-      {/* Fundamental Equilibrium Status Card */}
+      {/* Balance check Card */}
       <div className="flex flex-col md:flex-row md:items-center justify-between p-5 bg-slate-900 rounded-xl text-white shadow-sm relative overflow-hidden border border-slate-950 gap-4">
         <div className="absolute technical-grid inset-0 opacity-[0.03] pointer-events-none" />
         <div className="flex flex-col relative z-10">
-          <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1">Fundamental Equilibrium Status</span>
+          <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1">Balance check</span>
           <div className="flex items-baseline gap-3">
              <span className="text-xl font-black text-white tracking-tight">
                {currentData.isBalanced ? labels.isBalancedSuccess : 'Drift Alert'}

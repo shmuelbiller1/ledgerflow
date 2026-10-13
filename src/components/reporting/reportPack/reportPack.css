@@ -1,0 +1,16 @@
+.report-pack-paper { overflow-wrap: anywhere; }
+.report-pack-cover { padding-block: 2rem; }
+.report-pack-cover p, .report-pack-cover ol { margin-block: 1rem; }
+.report-pack-section { margin-block: 2rem; }
+@media print {
+  @page ledgerflow-pack { margin: 16mm; @bottom-center { content: "Page " counter(page) " of " counter(pages); } }
+  body:has(.report-pack-overlay) > :not(.report-pack-overlay) { display: none !important; }
+  body:has(.report-pack-overlay) * { visibility: hidden !important; }
+  body:has(.report-pack-overlay) [data-report-pack-print],
+  body:has(.report-pack-overlay) [data-report-pack-print] * { visibility: visible !important; }
+  .report-pack-overlay { position: static !important; overflow: visible !important; padding: 0 !important; background: white !important; }
+  .report-pack-paper { page: ledgerflow-pack; margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  .report-pack-cover { break-after: page; }
+  .report-pack-section { break-before: page; margin: 0; }
+  .report-pack-section h2 { break-after: avoid; }
+}

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, workspaceYearMonth } from '../../lib/utils';
+const ReportPackDialog = React.lazy(() => import('./reportPack/ReportPackDialog'));
 const DrillDownModal = React.lazy(() => import('../layout/DrillDownModal'));
 type ExplainRequest = import('../layout/DrillDownModal').ExplainRequest;
 
@@ -55,6 +56,7 @@ const Reports = React.memo(() => {
   const [timeframe, setTimeframe] = useState<'month' | 'quarter' | 'year'>(linked.timeframe);
   const [customPeriod, setCustomPeriod] = useState(() => linked.startDate && linked.endDate ? { startDate: linked.startDate, endDate: linked.endDate } : undefined);
   const [compareMode, setCompareMode] = useState<CompareMode>(linked.compare);
+  const [packPeriod, setPackPeriod] = useState<{ startDate: string; endDate: string }>();
   const [drillDownAccount, setDrillDownAccount] = useState<string | null>(null);
   // N-12: a report that knows the figure's filter gets it explained from the server
   const [drillDownExplain, setDrillDownExplain] = useState<ExplainRequest | undefined>(undefined);
@@ -307,12 +309,15 @@ const Reports = React.memo(() => {
               <Download size={14} />
             </button>
             
+            <button className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs" onClick={() => setPackPeriod({ startDate: period.startDate, endDate: period.endDate })}>Report pack</button>
             <button onClick={() => window.print()} className="h-7 px-2.5 flex items-center gap-1.5 text-[10px] font-bold text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-md shadow-xs hover:border-[var(--brass-line)] transition-colors cursor-pointer">
               <Printer size={14} aria-hidden="true" /> Print / PDF
             </button>
           </div>
         </div>
       </div>
+
+      {packPeriod && <React.Suspense fallback={<p role="status">Loading report pack…</p>}><ReportPackDialog {...packPeriod} onClose={() => setPackPeriod(undefined)} /></React.Suspense>}
 
       {/* Navigation */}
       <div data-print-hide className="flex flex-wrap gap-2 pb-2 border-b border-[var(--line)]">

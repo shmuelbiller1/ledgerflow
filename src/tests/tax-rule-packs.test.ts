@@ -123,6 +123,6 @@ test('the nexus pack is entity-period and says the numbers, not a conclusion', (
 
 test('the pack list is stable and every pack is in it', () => {
   const ids = taxRulePacks().map(p => p.id);
-  assert.deepEqual(ids, ['il-vat', 'us-sales-tax', 'us-nexus', 'us-product-taxability', 'ca-sales-tax', 'uk-vat', 'eu-vat', 'registration-thresholds', 'filings', 'us-marketplace-facilitator']);
+  assert.deepEqual(ids, ['il-vat', 'us-sales-tax', 'us-nexus', 'us-product-taxability', 'ca-sales-tax', 'uk-vat', 'eu-vat', 'registration-thresholds', 'filings', 'us-marketplace-facilitator', 'il-withholding-defaults']);
   for (const pack of taxRulePacks()) assert.ok(pack.rules.length > 0, pack.id);
 });

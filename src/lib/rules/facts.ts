@@ -22,6 +22,8 @@ export type FactAttribute =
   | 'productCategory'     // A-30's item tax categories (clothing, groceries, SaaS …): what is being sold
   | 'accountingMethod'    // accrual, cash
   | 'channel'             // A-41: where the sale happens — direct, marketplace, own-website …
+  | 'paymentType'         // A-43: what a payment to a vendor is for — services-or-assets, rent-expense, interest, royalty
+  | 'payeeResidence'      // A-43: where the payee is a resident — IL (Israeli resident) or foreign
   | 'registration';       // a set of keys from src/lib/tax/profile.ts registrationKey
 
 /** Single-valued attributes may conflict between dimensions; set-valued ones accumulate. */
