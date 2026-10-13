@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { deriveScopedOperationKey } from '../utils/idempotency';
 import { isWithholdingAccount } from '../../lib/tax/withholding';
 import { calculateAmountDue, settledStatus } from '../../lib/documentMath';
 import { writeServerAuditLog } from './auditLogService';
@@ -7,7 +9,7 @@ import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
 import { formatCurrency } from '../../lib/utils';
 import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
-import type { DocumentReference, Firestore } from '../db/firestore';
+import type { DocumentReference, Firestore, Transaction } from '../db/firestore';
 
 export interface CreatePaymentPayload {
   workspaceId: string;
@@ -41,6 +43,35 @@ const PAYMENT_METHODS = new Set(['cash', 'check', 'bank_transfer', 'card', 'othe
 
 export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload) {
   return db.runTransaction((tx: unknown) => createPaymentInTransaction(db, tx, payload));
+}
+
+/** Idempotent manual/bulk payment posting: the result key and journal commit together.
+ * The same key with different payment details or a different actor is always refused.
+ */
+export async function createPaymentIdempotent(db: Firestore, payload: CreatePaymentPayload, operationId: string) {
+  const key = deriveScopedOperationKey(payload.workspaceId, 'PAYMENT_CREATE', operationId);
+  const payloadHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return db.runTransaction(async (tx: Transaction) => {
+    const keyRef = db.collection('idempotencyKeys').doc(key);
+    const previous = await tx.get(keyRef);
+    if (previous.exists) {
+      const old = previous.data() || {};
+      if (old.actor !== payload.uid || old.payloadHash !== payloadHash) {
+        throw Object.assign(new Error('Idempotency key reused for different payment details or actor'), { status: 409 });
+      }
+      if (old.status === 'success' && old.result) return { ...old.result, replayed: true };
+      throw Object.assign(new Error('Payment operation is already in progress'), { status: 409 });
+    }
+    const result = await createPaymentInTransaction(db, tx, payload);
+    const now = new Date();
+    tx.set(keyRef, {
+      id: key, workspaceId: payload.workspaceId, actor: payload.uid,
+      operationType: 'PAYMENT_CREATE', status: 'success', payloadHash,
+      result, createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 30 * 86400000).toISOString(),
+    });
+    return { ...result, replayed: false };
+  });
 }
 
 /**

@@ -72,8 +72,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     }
   };
 
-  const handleQuickAdd = async (data: Partial<Transaction>) => {
-    if (!user || !currentWorkspaceId) return;
+  /** Resolves `true` only when the server saved the entry (callers show success on that, #105). */
+  const handleQuickAdd = async (data: Partial<Transaction>, operationId?: string): Promise<boolean> => {
+    if (!user || !currentWorkspaceId) return false;
     
     // Core App Feature: Integrity Enforcement
     try {
@@ -85,7 +86,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       }
     } catch (e) {
       toast.error(errorMessage(e));
-      return;
+      return false;
     }
 
     // Core App Feature: Billing and Usage limits
@@ -95,12 +96,12 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     const transactions = useLedgerStore.getState().transactions;
     if (!checkQuota(currentWorkspace?.plan, transactions?.length)) {
       toast.error("Usage Limit Reached: Please upgrade your plan to record more transactions.");
-      return;
+      return false;
     }
     
     if (data.date && isPeriodLocked(data.date)) {
       toast.error("Historical freeze active. Cannot inject data into locked periods.");
-      return;
+      return false;
     }
     
     const processedLines = balanceTransactionLines(data.lines || [], data.totalAmountCents || 0);
@@ -110,9 +111,8 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     };
 
     // Create optimistic ID
-    const tempId = `temp-${crypto.randomUUID().split('-')[0]}`;
+    const tempId = operationId || `temp-${crypto.randomUUID().split('-')[0]}`;
     const optimisticTx: Transaction = {
-      id: tempId,
       uid: user.uid,
       workspaceId: currentWorkspaceId,
       status: 'completed',
@@ -123,6 +123,8 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       currency: 'USD',
       date: getLocalDateISO(),
       ...balancedData,
+      // Reuse the exact transaction ID and server idempotency key when a failed/unknown response is retried.
+      id: operationId || balancedData.id || tempId,
       lines: balancedData.lines || []
     };
 
@@ -142,7 +144,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     const balance = optimisticTx.lines?.reduce((sum, l) => sum + (l.amountCents || 0), 0) || 0;
     if (balance !== 0) {
       toast.error("Double-entry violation: Debits and Credits must sum to zero.");
-      return;
+      return false;
     }
 
     // (A block here used to add four made-up tax rates — "Federal 22%", "State 5%"… — to the
@@ -199,6 +201,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // Handled by true sync errors
       toast.error('Failed to add transaction. Protocol interrupted.');
     }
+    return !err;
   };
 
   const handleBulkUpdate = async (ids: string[], updates: TransactionUpdates) => {

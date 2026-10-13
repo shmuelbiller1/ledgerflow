@@ -2,7 +2,8 @@ import express from 'express';
 import { z } from 'zod';
 import type { Firestore } from '../db/firestore';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { applyUnappliedPayment, createPaymentAtomic, PaymentApplyError } from '../services/paymentService';
+import { applyUnappliedPayment, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
+import { extractCanonicalOperationId } from '../utils/idempotency';
 import { getLocalDateISO } from '../../lib/utils';
 import { getWorkspaceUserRole, AuthenticatedRequest, requireWorkspaceRole } from './workspaceRoutes';
 import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../services/creditService';
@@ -66,12 +67,19 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
       }
     }
 
-    const result = await createPaymentAtomic(db, {
-      ...payload,
-      workspaceId,
-      uid: authReq.user.uid
-    });
-    const remittance = await afterPaymentRecorded(db, { ...result.payment, id: result.paymentId }, authReq.user.uid, { remittance: sendRemittance });
+    const operationId = extractCanonicalOperationId(req);
+    if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid payment operation ID' });
+    }
+    // Existing clients without an operation ID remain compatible; callers with a stable ID
+    // receive replay-safe posting, including when the server committed but HTTP response was lost.
+    const paymentInput = { ...payload, workspaceId, uid: authReq.user.uid };
+    const result = operationId
+      ? await createPaymentIdempotent(db, paymentInput, operationId)
+      : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
+    // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
+    // them when replaying an already-committed payment operation.
+    const remittance = result.replayed ? undefined : await afterPaymentRecorded(db, { ...result.payment, id: result.paymentId }, authReq.user.uid, { remittance: sendRemittance });
 
     res.json({ status: 'success', data: { ...result, ...(sendRemittance ? { remittance } : {}) } });
   } catch (err) {
@@ -79,6 +87,7 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     if (message === 'FORBIDDEN' || message.includes('Forbidden') || message.includes('Unauthorized') || message.includes('Security Violation')) {
       return res.status(403).json({ status: 'error', message });
     }
+    if ((err as { status?: number }).status === 409) return res.status(409).json({ status: 'error', message });
     if (message === 'NOT_FOUND' || message.includes('not found')) {
       return res.status(404).json({ status: 'error', message });
     }

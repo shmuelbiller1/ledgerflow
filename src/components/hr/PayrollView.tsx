@@ -29,6 +29,7 @@ import PayRunApprovals from './PayRunApprovals';
 import { TimeOffCell } from './TimeOffCell';
 import { DeductionsCell } from './DeductionsCell';
 import { PayRunHistory } from './PayRunHistory';
+import { IsraelForm102Review } from './IsraelForm102Review';
 import { HourlyPayCell } from './HourlyPayCell';
 import { asPaidFor, hoursToPay, isHourly, type PayableTime } from '../../lib/hourlyPay';
 
@@ -37,6 +38,7 @@ const PayrollViewContent: React.FC = () => {
   const payRuns = useLedgerStore(s => (s.payRuns || []) as PayRun[]);
   const setPayRuns = useLedgerStore(s => s.setPayRuns);
   const accounts = useLedgerStore(s => s.accounts) as ChartAccount[];
+  const baseCurrency = useLedgerStore(s => s.baseCurrency) || 'USD';
   useLedgerCollections('employees', 'payRuns');
   const getCurrentWorkspace = useAuthStore(s => s.getCurrentWorkspace);
   const user = useAuthStore(s => s.user);
@@ -424,6 +426,8 @@ const PayrollViewContent: React.FC = () => {
           </div>
         )
       )}
+
+      {activeTab === 'runs' && <IsraelForm102Review payRuns={payRuns} homeCurrency={baseCurrency} />}
 
       {/* Add Employee Modal */}
       {isAddingEmployee && (

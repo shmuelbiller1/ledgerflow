@@ -1,0 +1,9 @@
+{
+  "swallowing-action": 97,
+  "success-after-call": 12,
+  "unchecked-write": 2,
+  "write-in-loop": 14,
+  "stale-async": 81,
+  "silent-catch": 54,
+  "effect-before-write": 0
+}

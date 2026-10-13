@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -31,6 +31,7 @@ export default function BulkPaymentDialog({ side, documents, onClose, onDone }: 
   const [method, setMethod] = useState('bank_transfer');
   const [remittance, setRemittance] = useState(false);
   const [saving, setSaving] = useState(false);
+  const operationIds = useRef(new Map<string, string>());
   const { dialogProps, titleId } = useDialog(onClose, true);
   const { payments, skipped } = useMemo(() => paymentPlan(documents, side, currency), [documents, side, currency]);
   const total = payments.reduce((sum, p) => sum + p.amountCents, 0);
@@ -41,7 +42,7 @@ export default function BulkPaymentDialog({ side, documents, onClose, onDone }: 
     if (!cashAccountId || payments.length === 0) return;
     setSaving(true);
     try {
-      const { done, failed, remittancesSent } = await recordPayments(payments, { workspaceId, side, cashAccountId, date, method, sendRemittance: remittance });
+      const { done, failed, remittancesSent } = await recordPayments(payments, { workspaceId, side, cashAccountId, date, method, sendRemittance: remittance, operationIds: operationIds.current });
       const paidIds = done.flatMap(p => p.allocations.map(a => a.documentId));
       if (done.length) toast.success(`${paidIds.length} ${noun}${paidIds.length === 1 ? '' : 's'} paid (${formatCurrency(done.reduce((s, p) => s + p.amountCents, 0), currency)})`);
       if (remittance && side === 'bill') toast.info(`${remittancesSent} remittance advice email${remittancesSent === 1 ? '' : 's'} sent (vendors without an email address get none)`);

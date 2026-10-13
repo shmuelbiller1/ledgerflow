@@ -1,3 +1,6 @@
+/** E-17: guarded human-review worksheet for recorded Israeli withholding; not filing-ready. */
+export { form856ReviewExport, FORM_856_REVIEW_HEADERS } from './tax/form856ReviewExport';
+
 /**
  * PLAN §10: the filings each entity owes for a year. Reachable here until AI #2's C-58 filings calendar uses it.
  */

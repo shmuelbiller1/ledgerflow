@@ -5,6 +5,15 @@
 > **Codex and other AI assistants:** first read [`docs/COORDINATION.md`](docs/COORDINATION.md).
 > It says which task to do next, which files not to touch, and the checks every change must pass.
 > What to build first, and what stays out of the core: [`docs/ROADMAP.md`](docs/ROADMAP.md) (owner, 7 Oct).
+>
+> **AI #3 (Arena): the finalized to-do list (owner, 13 Oct).** The queue, the IDs (`A-…`) and the lane rules live in [`docs/COORDINATION.md`](docs/COORDINATION.md) → "AI #3 (Arena): tasks". Work in this order; one branch and PR per batch of 3–5 tasks, from the latest main; **a task is done only when a user can reach it on a screen** (a library alone is `[~]`, not done); never change how money is calculated or posted (AI #1's lane); tests for each; a line under Messages.
+> 1. **A-133** Expenses: missing-receipt checklist by employee (report).
+> 2. **A-135** Contacts: duplicate-contact finder across entities (report).
+> 3. **A-141** Reports: purchase price variance by vendor.
+> 4. **A-142** Reports: sales by territory (uses a Location label).
+> 5. **A-144** Compliance: record-retention periods by country (table + a report).
+>
+> A-15 and A-16 (older open items) need a new field and wait on AI #1's migration; A-46, A-48…A-50, A-63, A-70, A-73, A-79 and A-80 are libraries waiting on AI #1's screens (both listed under Messages). Then continue down the open `A-` items in queue order.
 
 ## 1. System Overview
 This project is an advanced Enterprise Resource Planning (ERP) and Financial Ledger system built with React, Vite, and Tailwind CSS. It uses client-side state management (Zustand) and features a dynamic registry architecture for views, algorithms, and analytical lenses.

@@ -23,6 +23,20 @@ other AI (Codex, Arena, a new one) can take the lead role by following this file
 7. **Owner questions** go in `docs/FOR_YOU.md` with the default used. Never wait.
 8. **Plan** (`docs/PLAN.md`) is brought up to date when a batch of work lands.
 
+## Fixing bug patterns fast
+
+`npx tsx scripts/bug-patterns.ts` rewrites `docs/BUG_PATTERNS.md`: every place one of the seven
+patterns can happen, with file and line. Take one pattern in one area (10–20 places), fix each with the
+helper from `src/lib/serverAction.ts`, run the scanner with `--write-baseline` (the counts go down;
+the test refuses any rise), push. Fix recipes:
+- swallowing-action → return `ActionResult` / `true|false` (or rethrow); callers show success on `ok`.
+- success-after-call → check the result first.
+- write-in-loop → one server route doing all-or-nothing; or `allSettledWrites` and report failures.
+- stale-async → `const scope = workspaceScope(...)` before the await; `if (!scope.isCurrent()) return;` after.
+- effect-before-write → do the effect after the write, only for what was accepted.
+- unchecked-write → check `res.ok`, throw otherwise.
+- silent-catch → show the error, or comment why it is safe to ignore.
+
 ## Rules that never change
 
 - **One owner for money.** Posting, tax calculation, payroll calculation and database changes belong

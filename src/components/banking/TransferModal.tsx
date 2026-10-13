@@ -1,5 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useMemo, useId } from 'react';
+import { runOnce } from '../../lib/serverAction';
+import React, { useState, useMemo, useId, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { createAccountTransfer, detectPotentialTransfers, TransferMatchCandidate } from '../../lib/transferEngine';
@@ -42,6 +43,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   const [date, setDate] = useState<string>(getLocalDateISO());
   const [description, setDescription] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const retryRef = useRef<{ fingerprint: string; operationId: string } | null>(null);
   const { setSafeTimeout } = useTimeout();
 
   // Cash / Bank accounts filter
@@ -57,6 +60,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   if (!isOpen) return null;
 
   const handleCreateTransfer = async () => {
+    if (saving) return;
     if (!fromAccountId || !toAccountId || !amount || parseFloat(amount) <= 0) {
       return;
     }
@@ -87,12 +91,27 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
     // saved through the normal posting path (server-checked, survives a reload); it only changed
     // the list on screen before, so the transfer was gone after a reload (L-181)
-    await txActions.handleQuickAdd({ ...transferTx, currency: currentWorkspace?.currency || transferTx.currency });
-    setSuccessMessage(`Transferred ${formatCurrency(amountCents, currentWorkspace?.currency)} from ${fromAcc.name} to ${toAcc.name}`);
-    setSafeTimeout(() => {
-      setSuccessMessage(null);
-      onClose();
-    }, 1500);
+    // #105: success only when the server saved it; a second click while saving is ignored
+    const fingerprint = JSON.stringify([user?.uid, currentWorkspace?.id, fromAccountId, toAccountId, amountCents, date, description, currentWorkspace?.currency]);
+    if (retryRef.current?.fingerprint !== fingerprint) {
+      retryRef.current = { fingerprint, operationId: crypto.randomUUID() };
+    }
+    const operationId = retryRef.current.operationId;
+    setSaving(true);
+    try {
+      // The same payload retains its operation ID after an uncertain response. The server
+      // uses this ID for the transaction and its atomic idempotency record.
+      const saved = await runOnce(`transfer:${fingerprint}`, () => txActions.handleQuickAdd({ ...transferTx, currency: currentWorkspace?.currency || transferTx.currency }, operationId));
+      if (saved !== true) return;
+      retryRef.current = null;
+      setSuccessMessage(`Transferred ${formatCurrency(amountCents, currentWorkspace?.currency)} from ${fromAcc.name} to ${toAcc.name}`);
+      setSafeTimeout(() => {
+        setSuccessMessage(null);
+        onClose();
+      }, 1500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -257,11 +276,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCreateTransfer}
-                  disabled={!fromAccountId || !toAccountId || !amount || parseFloat(amount) <= 0}
+                  disabled={saving || !fromAccountId || !toAccountId || !amount || parseFloat(amount) <= 0}
                   className="px-4 py-2 text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
                 >
                   <Check aria-hidden="true" className="w-3.5 h-3.5" />
-                  Post Transfer
+                  {saving ? 'Recording…' : 'Post Transfer'}
                 </button>
               </div>
             </div>

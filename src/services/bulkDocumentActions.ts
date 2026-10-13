@@ -7,10 +7,10 @@ import { documentLabel } from '../lib/bulkDocuments';
  * (a locked month, a missing email address) doesn't stop the rest; the results say which failed.
  */
 
-async function post(path: string, body: unknown): Promise<Record<string, unknown>> {
+async function post(path: string, body: unknown, operationId?: string): Promise<Record<string, unknown>> {
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}`, ...(operationId ? { 'x-operation-id': operationId } : {}) },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -18,13 +18,18 @@ async function post(path: string, body: unknown): Promise<Record<string, unknown
   return data;
 }
 
-export interface PaymentOptions { workspaceId: string; side: BulkSide; cashAccountId: string; date: string; method: string; sendRemittance?: boolean }
+export interface PaymentOptions { workspaceId: string; side: BulkSide; cashAccountId: string; date: string; method: string; sendRemittance?: boolean; /** Retains a payment's key across a failed or uncertain response in the same dialog. */ operationIds?: Map<string, string> }
 
 export async function recordPayments(payments: PlannedPayment[], options: PaymentOptions) {
   const done: PlannedPayment[] = [];
   const failed: Array<{ payment: PlannedPayment; message: string }> = [];
   let remittancesSent = 0;
   for (const payment of payments) {
+    // A retry uses the identical operation key only for exactly the same intended payment.
+    // Include all fields that influence the POST, rather than only the vendor or amount.
+    const signature = JSON.stringify([options.workspaceId, options.side, options.cashAccountId, options.date, options.method, !!options.sendRemittance, payment.partyId, payment.partyName, payment.amountCents, payment.allocations]);
+    const operationId = options.operationIds?.get(signature) || crypto.randomUUID();
+    options.operationIds?.set(signature, operationId);
     try {
       const result = await post('/api/v1/payments', {
         workspaceId: options.workspaceId,
@@ -38,7 +43,8 @@ export async function recordPayments(payments: PlannedPayment[], options: Paymen
         cashAccountId: options.cashAccountId,
         allocations: payment.allocations.map(({ documentId, documentType, amountCents }) => ({ documentId, documentType, amountCents })),
         ...(options.side === 'bill' && options.sendRemittance ? { sendRemittance: true } : {}),
-      });
+      }, operationId);
+      options.operationIds?.delete(signature);
       if ((result.data as { remittance?: string } | undefined)?.remittance === 'sent') remittancesSent++;
       done.push(payment);
     } catch (err) {
