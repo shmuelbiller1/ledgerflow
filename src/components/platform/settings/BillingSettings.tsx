@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PLANS, planFor } from '../../../lib/plans';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { CreditCard, ChevronRight, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -131,67 +132,15 @@ export default function BillingSettings() {
     }
   };
 
-  const activePlan = (billingStatus?.plan || currentWorkspace?.plan || 'free').toLowerCase();
+  const activePlan = planFor(billingStatus?.plan || currentWorkspace?.plan).id;
   const isPastDue = billingStatus?.paymentStatus === 'past_due' || (currentWorkspace as typeof currentWorkspace & { paymentStatus?: string })?.paymentStatus === 'past_due';
 
-  const plans = [
-    {
-      id: 'free',
-      name: 'Free',
-      price: '$0',
-      period: '/mo',
-      desc: 'Starter accounting for micro-businesses',
-      features: [
-        'Up to 100 Transactions',
-        '1 User Seat',
-        'Basic Financial Reports',
-        'Community Support'
-      ]
-    },
-    {
-      id: 'growth',
-      name: 'Growth',
-      price: '$29',
-      period: '/mo',
-      desc: 'Scaling teams needing multi-currency',
-      features: [
-        'Up to 1,000 Transactions',
-        '5 User Seats',
-        'Multi-Currency Support',
-        'Bank Feed Import & Reconciliation',
-        'Standard Email Support'
-      ]
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: '$99',
-      period: '/mo',
-      badge: 'Popular',
-      desc: 'Mid-market ERP with AI automation',
-      features: [
-        'Up to 10,000 Transactions',
-        '25 User Seats',
-        'Full AI General Ledger',
-        'Audit Trail & Role Control',
-        'Priority 24/7 Support'
-      ]
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise',
-      price: '$299',
-      period: '/mo',
-      desc: 'Large organizations & multi-entity groups',
-      features: [
-        '1,000,000+ Transactions',
-        '1,000 User Seats',
-        'Consolidation Engine',
-        'Custom SSO & Dedicated Manager',
-        'SLA Guarantee'
-      ]
-    }
-  ];
+  // the one plan table (src/lib/plans.ts), shared with the public pricing page and the checkout
+  const plans = PLANS.map(p => ({
+    id: p.id, name: p.name, price: `$${p.monthlyUsd}`, period: '/mo',
+    ...(p.recommended ? { badge: 'Popular' } : {}),
+    desc: p.description, features: p.features,
+  }));
 
   return (
     <div className="space-y-8">

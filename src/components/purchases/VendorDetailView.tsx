@@ -5,6 +5,7 @@ import { daysOverdue, outstandingBaseCents, partyStats } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { ArrowLeft, DollarSign, FileText, User } from 'lucide-react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import VendorTaxRecordsButton from './VendorTaxRecordsButton';
 import PartyProfilePanel from '../common/PartyProfilePanel';
 import UnappliedPayments from '../common/UnappliedPayments';
 import AttachmentsPanel from '../common/AttachmentsPanel';
@@ -73,6 +74,7 @@ export default function VendorDetailView({ vendorId, onBack }: VendorDetailViewP
         </div>
       </div>
 
+      <VendorTaxRecordsButton />
       <PartyProfilePanel side="vendor" party={vendor} />
       <UnappliedPayments side="vendor" partyId={vendorId} />
       <AttachmentsPanel target={{ collection: 'vendors', id: vendorId, label: vendor.name }} className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)]" />

@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "mutate": [
+    "src/lib/taxCodes.ts",
+    "src/lib/documentMath.ts",
+    "src/lib/moneyFormat.ts",
+    "src/lib/hourlyPay.ts"
+  ],
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "npm run test:mutation:unit"
+  },
+  "coverageAnalysis": "off",
+  "concurrency": 4,
+  "timeoutMS": 5000,
+  "timeoutFactor": 2,
+  "tempDirName": "work/stryker-tmp",
+  "reporters": ["clear-text", "progress", "json", "html"],
+  "jsonReporter": {
+    "fileName": "work/mutation/mutation.json"
+  },
+  "htmlReporter": {
+    "fileName": "work/mutation/index.html"
+  },
+  "ignorePatterns": [
+    "**",
+    "!package.json",
+    "!package-lock.json",
+    "!tsconfig.json",
+    "!supabase-config.json",
+    "!src/**",
+    "!scripts/test-money-mutation.mjs"
+  ]
+}

@@ -256,3 +256,43 @@ Reports can remember several named column selections and orders rather than maki
 ## Current invoice price review (C-39, partial)
 
 A bookkeeper can find invoice lines whose stored unit rate differs from the customer’s current list or item price, and open the exact invoice without searching again. Existing list-price logic supplies the expectation; missing references and foreign currency are excluded explicitly. Complete CSV requires successful full invoice/item reads; cache-only rows remain visibly provisional. The feature helps investigate current price differences, but cannot establish what discount was agreed historically: line agreements, dated list versions and separate item discount rules are not stored. Nine targeted tests/guards and a registered phone/axe case pass; integrated gates are pending.
+
+## Vendor withholding reconciliation (C-61)
+
+The month report gathers recorded vendor settlements, the net vendor amount and retained tax by exact vendor and currency, with the certificate references saved when the payments were posted. It avoids a spreadsheet's common drift from today's contact certificate or accidental mixed-currency totals, and shared vendor details can be edited without losing the selected month. The CSV exposes minor-unit values and requires complete workspace history with no unreadable relevant payment amounts. Sources are `vendorWithholdingReport.ts`, `VendorWithholdingView.tsx` and the existing payment posting service. It is a recorded-payment review, not a statutory filing or proof of exemption; foreign-currency bank conversion and unrecorded historical evidence remain outside its scope.
+## Customer certificate expiry review (C-47)
+
+Bookkeepers can scan recorded exemption certificates, prioritize expiry within 30 days, and edit the customer's shared address without leaving the review. Unlike a spreadsheet copied from a partially loaded contact list, its CSV requires a complete workspace read and becomes unavailable after an edit until refreshed. Exact mixed Hebrew names and references are preserved. Sources are `customerTaxCertificates.ts`, `CustomerTaxCertificatesView.tsx` and the customer detail button. Declarations remain unverified; absence from the loaded preview does not establish absence from the workspace, and past invoice exemption eligibility requires authoritative historical evidence.
+## Vendor tax-record follow-up (C-48)
+
+A single review gathers masked tax/VAT identifiers and current recorded withholding expiries, with reminders for unreadable IDs, missing certificate references, and approaching or elapsed expiry. Shared metadata can be edited in the related-record drawer while the review stays visible. CSV uses the same masking and requires a complete fresh workspace read. This reduces manual contact-by-contact follow-up, but is not a W-9 receipt register, identifier verification service or tax-rate decision. `vendorTaxRecords.ts` reads the existing canonical vendor metadata; no guessed legal evidence is added.
+## Manual money mutation review (D-11 / BP-08, AI #4)
+
+Run `npm ci`, then `npm run test:mutation` on Node 24 (the measured runtime and current CI version). Stryker is a development dependency; the mutation command is deliberately absent from CI. It mutates only `taxCodes.ts`, `documentMath.ts`, `moneyFormat.ts` and `hourlyPay.ts`. The original money source, existing expectations, production dependency versions and quality gates are unchanged. Normal CI still runs the new functional tests.
+
+The command runner bundles the new hand-number contracts and unchanged `tax-codes.test.ts`. It caches bundles only while hashes of every bundled input, both package files and the runner match. Instrumentation and Stryker's active-mutant environment survive bundling; failed Node assertions return failure. Sandbox contents are explicitly restricted to public source/configuration. JSON/HTML reports and sandboxes live under ignored `work/`. ESLint ignores that generated directory too, preventing repeated linting of instrumented source copies while retaining all maintained source checks.
+
+Two complete runs each tested all 605 mutations. The initial 20-case suite killed 439, left 164 surviving and timed out on 2. After additional independent cases, the complete 31-case run killed 549, left 30 surviving and timed out on 26. Stryker reported 95.04% because its score counts timeouts; that is **not** evidence of 575 assertion kills. Its actual assertion-kill fraction was 549/605 (90.74%). Final functional coverage comprises 33 passing tests, with no skips, including inclusive discounts and reverse-charge sales credits.
+
+The contracts cover explicit tax precedence and nullable fields, fractional-cent rounding, legacy/v2 discounts, deposits and settlement records, currency precision/accounting signs/locale fallback, compound parts and treatment metadata, credit tax, all twenty counted document statuses, period boundaries, FX and reverse charges, and hourly approval/cutoff/pay-frequency boundaries. They establish arithmetic with independent numbers rather than comparing a function to itself.
+
+### Existing component-rate bug for AI #1
+
+`TaxComponent.rate` is percent; TaxManager's advanced "rate (%)" input saves component values directly, whereas its simple scalar rate is divided by 100. `taxCodeFromRate` applies its legacy scalar fraction conversion to components too. With `components: [{name: 'Small', rate: 0.5}, {name: 'Other', rate: 20}]`, standard treatment and a 10,000-cent net amount, `computeTax(10000, code).taxCents` is 2,050. Passing the same code through `taxCodeFromRate(code)` changes the component rates to `[50, 20]` and tax to 7,000. The expected tax is 20.50, not 70.00. This task does not change money code; the lead owns that correction. The new direct-component contract covers the valid percentage arithmetic without declaring the adapter's wrong output correct.
+
+### Remaining mutations and focused confirmation
+
+To distinguish assertion kills from timeouts, the same 605-mutant instrumented sandbox was checked sequentially, with the current 33 contracts and an unmutated passing control. Each unresolved ID was selected through Stryker's `__STRYKER_ACTIVE_MUTANT__`; only an actual failed Node test counts as killed. A generous 30-second process budget prevents startup/load timing from becoming claimed evidence. The full JSON remains the native 31-case run; focused results are separate, not rewritten native results. Local evidence is `work/mutation/full-expanded-mutation.json` and `work/mutation/rechecks/results.json`, with one captured log per ID.
+
+The focused check resolved all 56 IDs: **26 assertion kills, 30 survivors, zero timeouts and zero harness errors**. This includes both additional real gaps (111, inclusive-discount arithmetic; 551, reverse-charge sales-credit classification). Of the 26 previous timeouts, 24 fail assertions and two (437/438) survive. Combined evidence supports 575 kills and the 30 IDs below, but a fresh full 605-mutant run with the final 33 cases is not claimed.
+
+| File | Surviving IDs | Interpretation / remaining scope |
+|---|---|---|
+| documentMath | 6, 7, 8, 10, 13, 27, 39, 51, 59, 74, 87 | Redundant null/undefined/zero checks: later NaN/finite checks or zero arithmetic retain the same result. Explicit nullable overrides and negative values are separately tested. |
+| moneyFormat | 249 | Replacing the typeof guard with true retains native, non-coercing `Number.isFinite`, so nonnumbers still fall back. |
+| taxCodes | 327, 328, 330, 372, 412, 413, 437, 438, 439, 441, 442, 508, 515 | Redundant empty/positive/zero guards or ignored default documents within the typed, finite, nonnegative-money domain. These are inspected domain equivalents, not proof for arbitrary JavaScript objects. |
+| taxCodes | 308, 317 | The required components array is missing only in malformed external shapes. Existing typed adapters supply an array; this defensive boundary remains uncovered. |
+| taxCodes | 492 | Changing the missing-date fallback still rejects it against valid ISO period boundaries; not a claim for malformed period strings. |
+| taxCodes | 506, 507 | Negative FX rates can distinguish these guards, outside validated positive-rate input. This remains a domain-boundary gap, not an assertion of global equivalence. |
+
+No mutations are excluded to inflate a score. Surviving guard mutations are recorded explicitly, including malformed-input gaps, rather than hidden or “fixed” by changing financial behavior.

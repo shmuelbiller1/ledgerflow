@@ -2400,7 +2400,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [x] BP-05 Visual regression *(AI #4 / PR #85; final integration checks pending)*
 - [ ] BP-06 Load tests
 - [ ] BP-07 Canary rollout
-- [ ] BP-08 Mutation testing on money files
+- [x] BP-08 Mutation testing on money files (AI #4, manual command and contract tests; integration/lead merge pending)
 
 # SECTION CA–CG — FROM 12 OPEN-SOURCE PRODUCTS
 
@@ -2648,3 +2648,5 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 - [ ] AU-4 Migration acceptance by reconciliation: after a QuickBooks/CSV import, show trial balance, A/R, A/P, cash and tax payable against the source, not just a record count.
 - [ ] AU-5 Money arithmetic audit: 132 uses of parseFloat/toFixed(2) in server and library code; list each one that touches money and move it to whole cents (or the shared money helpers).
 - [ ] AU-6 One door to the ledger: about 30 server files write transaction documents directly. Map them, route each through the shared posting module, then add a lint rule that rejects ledger writes outside it.
+- [ ] ACC-1 Owner "Give access" screen (owner request, 13 Oct): as platform admin, type a person's email, pick Full / Pro / Growth / tester, and it sets bypassBilling or the plan on their workspaces (and can make them admin), with an audit line. Today this needs SQL or the System Command Center per workspace.
+- [ ] ACC-2 Settings → Billing & Plan: remove jargon ("Precision Core v2.0", "institutional rule bridges", "Documentation Protocol … topological registries"); show "Free access (given by LedgerFlow)" when bypassBilling is on; plan names match everywhere (sandbox/growth vs Free/Growth/Pro).

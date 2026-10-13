@@ -1,4 +1,5 @@
 import { errorMessage, requestUser, type RequestUser } from '../auth/requestUser';
+import { planFor } from '../../lib/plans';
 import express from "express";
 import crypto from "crypto";
 import { getDb, validateWorkspaceMember, FieldValue } from "../db/firestore.ts";
@@ -40,49 +41,18 @@ billingRouter.post("/checkout", async (req: express.Request, res: express.Respon
 
     const stripe = getStripe();
     const { plan } = req.body;
-    let priceInfo: any = {};
-    
-    // Dynamic ad-hoc line items for the checkout:
-    // "make a 5$ dollar a munth till, x amount of useg and over that limit 10$"
-    if (plan === "pro") {
-       priceInfo = {
-         price_data: {
-           currency: 'usd',
-           product_data: {
-             name: 'Pro Subscription',
-             description: 'Advanced capabilities up to limits ($5.00/mo) + overage ($10.00)',
-           },
-           unit_amount: 500, // $5.00
-           recurring: { interval: 'month' },
-         },
-         quantity: 1,
-       };
-    } else if (plan === "enterprise") {
-       priceInfo = {
-         price_data: {
-           currency: 'usd',
-           product_data: {
-             name: 'Enterprise Subscription',
-             description: 'Unlimited capacity and capabilities',
-           },
-           unit_amount: 5000, // $50.00
-           recurring: { interval: 'month' },
-         },
-         quantity: 1,
-       };
-    } else {
-       priceInfo = {
-         price_data: {
-           currency: 'usd',
-           product_data: {
-             name: 'Standard Capacity Upgrade',
-           },
-           unit_amount: 1000, 
-           recurring: { interval: 'month' },
-         },
-         quantity: 1,
-       };
-    }
+    // the price shown on both pricing pages (src/lib/plans.ts); the free plan has nothing to buy
+    const chosen = planFor(plan);
+    if (chosen.monthlyUsd <= 0) return res.status(400).json({ status: "error", message: "The free plan needs no checkout" });
+    const priceInfo = {
+      price_data: {
+        currency: 'usd',
+        product_data: { name: `LedgerFlow ${chosen.name}`, description: chosen.description },
+        unit_amount: chosen.monthlyUsd * 100,
+        recurring: { interval: 'month' as const },
+      },
+      quantity: 1,
+    };
 
     // Use trusted app URL helper to prevent Host-header poisoning (#85-R, N6)
     const baseUrl = getTrustedAppUrl(req);
@@ -95,7 +65,7 @@ billingRouter.post("/checkout", async (req: express.Request, res: express.Respon
       cancel_url: `${baseUrl}/?checkout=canceled`,
       metadata: {
         workspaceId,
-        plan: plan || 'pro'
+        plan: chosen.id
       },
       subscription_data: {
         metadata: {
@@ -168,7 +138,7 @@ billingRouter.post("/verify-session", async (req: express.Request, res: express.
         return false;
       });
 
-      const targetPlan = session.metadata?.plan === 'enterprise' ? 'enterprise' : (session.metadata?.plan === 'pro' ? 'pro' : 'pro');
+      const targetPlan = planFor(session.metadata?.plan).id;
       const creditsToGrant = targetPlan === 'enterprise' ? 10000000 : 1000000;
 
       if (alreadyClaimed) {

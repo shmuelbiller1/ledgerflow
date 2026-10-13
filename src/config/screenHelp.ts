@@ -88,6 +88,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Inspect the developer-only administration demonstration. Explore its example panels when developer mode is enabled. Demonstration telemetry is distinct from production monitoring.",
   },
   reports: {
+    "customer-tax-certificates": "Review current customer certificate declarations, with expiries within 30 calendar days first and expired or unreadable entries marked. Refresh the complete workspace customer list before CSV export. This is a dated review of current metadata, not verified entitlement or certificate history. Open customer details in a side drawer to keep this list visible.",
+    "vendor-tax-records": "Review masked recorded tax/VAT IDs, withholding-certificate expiry and missing-data reminders. Refresh the complete workspace vendor list before CSV export; edited records invalidate that export until refreshed. This does not verify ID kind, W-9 receipt, registration or legal withholding obligations. Open related vendor details without leaving the report.",
     "form-856":
       "Review tax withheld at source from vendor payments, per vendor and tax year, with the certificate numbers the payments relied on. Choose the year and download the CSV for the form. Payments without a certificate number are listed as missing, never filled in; nothing is filed here.",
     "customer-cohorts": "Group customers by their earliest observed issued-invoice month and inspect each later month's total invoicing, distinct active customers or percentage. The first invoice can predate the selected display window. Incomplete invoice history makes these cohorts provisional.",
@@ -141,6 +143,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Review scheduled revenue earned by month and still deferred at the period end. Inspect each schedule and its recorded earned amounts. Future scheduled amounts remain distinct from posted earned revenue.",
     "financial-ratios":
       "Review financial ratios together with their formulas. Adjust report-only current-account groups and compare periods. Zero denominators are undefined and turnover days use labelled revenue or COGS proxies.",
+    "vendor-withholding": "Review posted vendor payments for a calendar month, grouped by vendor and payment currency. Saved withheld amounts and certificate references are used without recomputing tax rates. Refresh complete workspace payment history before exporting; changed or unreadable payment data keeps CSV unavailable. Vendor paid is shown in the payment currency, and the related-record drawer edits shared vendor metadata without leaving the report.",
     "discount-mismatch":
       "Compare issued invoice unit prices in the selected period with current customer price lists or item catalogue prices. Refresh complete invoice/item reads before CSV. Current prices do not prove historical discount entitlement; foreign currencies, document-wide discounts and unknown item references are excluded.",
     "vendor-scorecard":

@@ -9,6 +9,7 @@ import PartyProfilePanel from '../common/PartyProfilePanel';
 import UnappliedPayments from '../common/UnappliedPayments';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import CustomerPortalLink from './CustomerPortalLink';
+import CustomerTaxCertificatesButton from './CustomerTaxCertificatesButton';
 
 interface CustomerDetailViewProps {
   customerId: string;
@@ -74,6 +75,7 @@ export default function CustomerDetailView({ customerId, onBack }: CustomerDetai
         </div>
       </div>
 
+      <CustomerTaxCertificatesButton />
       <PartyProfilePanel side="customer" party={customer} />
       <UnappliedPayments side="customer" partyId={customerId} />
       <AttachmentsPanel target={{ collection: 'customers', id: customerId, label: customer.name }} className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)]" />

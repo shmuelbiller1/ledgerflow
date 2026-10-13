@@ -1,4 +1,4 @@
-# LedgerFlow: the plan (11 Oct 2026)
+# LedgerFlow: the plan (updated 13 Oct 2026)
 
 Written for the owner. It says where the list stands, the fastest way to finish it, what Claude
 (AI #1) does next, what the other AIs do, and how tax becomes solid: the US and Israel first, then
@@ -6,13 +6,15 @@ states, cities and other countries.
 
 ## 1. Where the list stands
 
-`docs/TRACKER.md` has **993 items**:
+`docs/TRACKER.md` has **977 items** (13 Oct; the daily count is in `docs/LINE_COUNT.md`):
 
 | | Items | Share |
 |---|---|---|
-| Done | 794 | 80% |
-| Partly done | 23 | 2% |
-| Open | 176 | 18% |
+| Done | 803 | 82% |
+| Open | 174 | 18% |
+
+The open count stays flat because new items keep arriving (AU-1..AU-6 from the owner's two audit
+reports, SL for the Spreadsheet Lab) as old ones close.
 
 About 60 of the 176 open items are **dropped on purpose** (things like SSO, Avalara, single-industry
 add-ons, and WooCommerce or Zapier links). Of the rest, roughly:
@@ -25,7 +27,7 @@ add-ons, and WooCommerce or Zapier links). Of the rest, roughly:
 **What is solid today:** bookkeeping, invoices and bills, payments, bank reconciliation, period
 locks, approvals, reports (P&L, balance sheet, cash basis, aging), multi-currency with
 revaluation, groups of books, time tracking, hourly and salaried payroll, and documents in English
-and Hebrew. It has 2,293 unit tests and 187 browser tests, and GitHub now runs them on every push.
+and Hebrew. It has 2,785 unit tests and about 250 browser tests (including 40 screenshot checks), and GitHub runs them on every push.
 
 **The weakest area is tax.** The tax *engine* is good: tax codes, tax groups, compound tax,
 reverse charge, zero-rated and exempt, return boxes, filed copies and exemption certificates. But
@@ -110,32 +112,40 @@ official examples and you have had an accountant check one real period. That is 
 
 ## 4. Who does what
 
-### Claude (AI #1), in order
+### Claude (AI #1), in order (13 Oct)
 
-1. Keep CI green. The fix is pushed and the result is being checked.
-2. IL-1, the 18% fix (today).
-3. The places model and dated rates (the base for IL and US).
-4. IL-2, IL-3 and IL-5, then IL-6 and IL-7's engine.
-5. US-1's lookup, US-3, US-5, then L-1.
-6. Leftovers:
-   - Y-35 rounding and BM-04 rounding per currency;
-   - W-08 drop-ship, V-08 work in progress, BF-04 landed cost.
-7. Every few hours: merge the other AIs' work, keep every queue at least 5 days long, and apply any
-   database change.
+Done since 11 Oct: IL-1, IL-2, IL-3, IL-5, allocation-number thresholds and fields, US-1 lookup
+(rule packs feed the line tax), US-3 state sales-tax return, entity filings, the rule graph (§10),
+the AI gateway with the brain route on it, plain report wording.
+
+Next, in order:
+1. **AU-6 One door to the ledger** — about 30 server files write transactions directly; route them
+   through the posting module and add a lint rule. The most important integrity item.
+2. **AU-3** stress tests on posting (always balanced, never twice), then **AU-2** one label filter.
+3. **AU-5** money arithmetic audit (132 `parseFloat`/`toFixed` uses to check).
+4. IL-7 Israeli payroll engine (on AI #4's tables), US-5 federal payroll.
+5. AU-1 Plaid `/transactions/sync`, AU-4 migration proof against the source totals.
+6. IL-6 live allocation-number request (waits on the Tax Authority registration, FOR_YOU 42).
+7. Leftovers: Y-35/BM-04 rounding, W-08 drop-ship, V-08 work in progress.
+8. Every few hours: merge the other AIs' work, look at changed screenshots before accepting them,
+   keep every queue weeks long, apply any database change.
 
 ### Other AIs
 
 They work in their own areas and never change how money is posted. Each queue is in
 `docs/COORDINATION.md`, at least 5 days long, and holds the tax tasks above.
 
-| AI | Area | Now | Then (tax) |
-|---|---|---|---|
-| #2 Codex | reports, screens, accessibility | report pack, access review, audit evidence pack, bookmarks | IL-3 screen, US-2 nexus watch, US-3 screen, payroll forms (941, 940, 102, 106) |
-| #3 Arena | product features | asset log, label report, project budget, customer prices, bundles | US-1 state rate table, IL-5 Form 856 |
-| #4 Codex | quality, charts, tables | charts, visual tests, mutation tests, load tests | payroll tables: US 15-T, states, Israel, with sources and golden tests |
-| #5 (spare) | imports, files | cohorts, asset register, transfer check, FreshBooks | IL-4 PCN874 writer, US-4 1099 forms, L-1 state rate importers |
+| AI | Area | Open tasks (13 Oct) | Next |
+|---|---|---:|---|
+| #2 Codex | reports, screens, exports | 68 | screens for AI #3's features, consistent Excel/PDF exports, saved views, Hebrew review |
+| #3 Arena | tax content, inventory, purchasing | 93 | rate packs for all US states and ~15 countries, payroll tables, lots/serials, golden tax fixtures |
+| #4 Codex | quality, charts, phone | 66 | D-44 report picker, dark-mode contrast, charts, screenshot tests, speed budgets |
+| #5 | imports, files | 29 | PCN874 writer, 1099 forms, state rate importers |
+| #6 | security | 21 | S-1..S-21 |
+| #7 | stability | 21 | F-1..F-21 |
+| #8 (spare) | next free AI | 8 | G-1..G-8 |
 
-The queues are long enough that **if Claude runs out of usage, the others keep going for 5 days**.
+The queues are long enough that **if Claude runs out of usage, the others keep going for weeks** (AI #3 clears ~15–35 tasks a day, so it gets the longest queue).
 Their tax tasks only add tables, files and screens: Claude merges them, and nothing they write
 posts money.
 
@@ -187,7 +197,7 @@ The first "five days" of queue lasted about two hours (AI #5 shipped nine PRs). 
 holds **20 or more tasks**, and Claude refills it at every check. AI #5 is for now a chat standing in
 until another AI's usage resets: its tasks are small, self-contained and come with fixtures.
 
-## 8. Done so far (Claude, 11 Oct night)
+## 8. Done so far (Claude, updated 13 Oct)
 
 | Step | What | Where |
 |---|---|---|
@@ -200,7 +210,16 @@ until another AI's usage resets: its tasks are small, self-contained and come wi
 | IL-3 | VAT report figures per registration (taxable, zero, exempt, output, fixed-asset and other inputs, to pay) | `src/lib/tax/ilVatReturn.ts` |
 | IL-5 | Withholding at source: vendor certificate, amount on the bill payment, posted as owed | `withholding.ts`, payment posting |
 
-Next: IL-6 allocation-number request, IL-7 Israeli payroll engine (on AI #4's tables), US-1 lookup on AI #3's state table, US-3 state returns, US-5 federal payroll.
+| US-1 | Line tax falls back to the rule packs (state and local rates) when no table is set | `src/lib/tax/ruleRateTable.ts` |
+| US-3 | State sales-tax return per registration: gross, exempt, taxable, collected, by jurisdiction | `src/lib/tax/usSalesTaxReturn.ts` |
+| §10 | Rule graph: facts composed across all labels, evidence, dated rules, blocked when unverified | `src/lib/rules/` |
+| Filings | Which returns each entity owes for a year (US 1120/1120-S/1065/990, Israel 1214, VAT report) | `src/lib/tax/entityFilings.ts` |
+| AI | Every model call measured and priced through the AI gateway; canned answers removed | `aiGateway.ts`, `brainRoutes.ts` |
+| Reports | Plain words (Income, Expenses, Net profit, Assets, Liabilities) instead of jargon | ProfitAndLossView, BalanceSheetView |
+| CI | Screenshot tests; a hand-run workflow refreshes them, and Claude looks at them before accepting | `visual-baselines.yml` |
+| Count | Daily lines of code, to-do and AI queue counts | `docs/LINE_COUNT.md` |
+
+Next: see §4.
 
 ## 9. The strategic review (owner, 11 Oct night) — what changes
 
@@ -273,3 +292,46 @@ printing, macOS quit, egui UI) is desktop plumbing that LedgerFlow does not need
 - **Order:** SL-1 licence notice and no-brand check; SL-2 server report snapshot (read only, with provenance ids);
   SL-3 the iframe and bridge behind a feature flag; SL-4 Explain-in-LedgerFlow; SL-5 export to .xlsx.
 - **Not before:** the tax and payroll work in §6 and §10. Native Pivot Sheet and pins stay the main way to analyse.
+
+## 12. The owner's two audit reports (13 Oct) — what was taken
+
+Both reports said themselves they could not read the code, so each idea was checked against it.
+Already true: one posting module for documents, period locks on the server, corrections as
+reversals, dated rules with evidence, import preview, duplicate-request guards. Real gaps, now in
+TRACKER: AU-1 Plaid sync with a cursor, AU-2 one label filter, AU-3 posting stress tests, AU-4
+migration proof by totals, AU-5 money arithmetic audit, AU-6 one door to the ledger. Not taken:
+their timelines, new table designs and folder reorganisation (they would rebuild what works).
+
+## 13. Is the plan good? The strategy check (13 Oct)
+
+**What is right:** money, tax and posting stay with one AI (Claude) and one posting path; tax is
+built as dated rules with evidence, not code branches; everything is tested against the real
+database; CI and screenshot checks guard every push; the other AIs work in their own lanes.
+
+**What was wrong, and the fix:**
+
+1. **Built but not reachable.** 25 of 43 shared libraries are used by no screen, including Claude's
+   own Israeli VAT report, US sales-tax return and entity filings. Code a user cannot reach is not a
+   feature. Fix: a task is done only when it is on a screen; Codex's queue now starts with C-102..C-126,
+   one per library, before any new feature.
+2. **Width over depth.** The queues add features faster than they get finished end to end. From now
+   on Claude's order is: integrity first (AU-6, AU-3, AU-2, AU-5), then wiring (the 25 libraries,
+   reports reachable, return screens), then new content.
+3. **Speed was measured as tasks closed, not as things a user can do.** The daily count now shows
+   lines and queues; Claude adds "screens reachable" to it when the wiring is done.
+
+**The way it gets done (the strategy):**
+
+- One owner per risk: Claude owns money, posting, tax calculation and the database; nothing else
+  posts money. AU-6 makes that a lint rule, not a promise.
+- Every feature goes library → screen → help → e2e → screenshot, in one task.
+- Claude merges every few hours, looks at changed screenshots before accepting them, keeps CI
+  green, and refills queues so no AI waits.
+- Owner decisions go in FOR_YOU with the default used, so work never stops.
+
+**Why AI #3 is so much faster.** Three reasons, none of them that it is smarter:
+(1) its tasks are mostly tables and pure functions with tests — no screens, no screenshots, no
+server; (2) it puts 5–15 tasks in one PR, while Codex makes one PR per task and runs a screenshot
+capture-and-approve cycle on each; (3) each session starts fresh on the latest main with a long,
+precise list. The cost is the first problem above: much of its output waits for someone else to put
+it on a screen. The new rule makes it finish its own screens, so it will slow down — on purpose.

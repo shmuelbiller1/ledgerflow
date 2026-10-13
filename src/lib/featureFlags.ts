@@ -1,3 +1,4 @@
+import { PLANS } from './plans';
 export type FeatureFlag =
   | 'multi_currency_revaluation'
   | 'automated_dunning'
@@ -20,37 +21,11 @@ export interface PricingTier {
   features: string[];
 }
 
-export const PRICING_TIERS: PricingTier[] = [
-  {
-    id: 'free',
-    name: 'Community / Starter',
-    monthlyPriceUsd: 0,
-    description: 'Essential single-workspace ledger and manual journal entry suite',
-    features: ['1 Workspace', 'Standard Double-Entry Ledger', 'CSV Data Exports', 'Basic Financial Reports']
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    monthlyPriceUsd: 49,
-    description: 'Automated bank matching, invoicing, and bill management',
-    recommended: true,
-    features: ['Up to 5 Workspaces', 'MT940 & CAMT.053 Parsers', 'AI Receipt Auto-Matching', 'Automated Dunning Rules']
-  },
-  {
-    id: 'pro',
-    name: 'Professional',
-    monthlyPriceUsd: 149,
-    description: 'Multi-currency, tax set-aside, and fixed asset depreciation',
-    features: ['Unlimited Workspaces', 'Multi-Currency Revaluation', 'Fixed Asset Depreciation Register', 'Xero / Quickbooks COA Import']
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    monthlyPriceUsd: 499,
-    description: 'Forensic audit hash chaining, intercompany elimination & SLAs',
-    features: ['Dedicated Firestore Instance', 'SHA-256 Audit Chain Verification', 'Intercompany Consolidation Engine', '24/7 Dedicated Support']
-  }
-];
+/** Derived from the one plan table (src/lib/plans.ts). */
+export const PRICING_TIERS: PricingTier[] = PLANS.map(p => ({
+  id: p.id, name: p.name, monthlyPriceUsd: p.monthlyUsd, description: p.description,
+  recommended: p.recommended, features: p.features,
+}));
 
 const DEFAULT_FLAGS: Record<FeatureFlag, FeatureFlagConfig> = {
   multi_currency_revaluation: { enabled: true, minTier: 'pro' },

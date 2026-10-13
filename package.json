@@ -28,7 +28,9 @@
     "ratchet:update": "tsx scripts/update-ratchet.ts",
     "test:cov": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic tsx --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-exclude='src/tests/**' --test-coverage-exclude='src/**/*.test.ts' --test-coverage-lines=75 --test-coverage-branches=72 --test-coverage-functions=73 src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts",
     "check:rule-sources": "tsx scripts/check-rule-sources.ts",
-    "diff:rule-packs": "tsx scripts/rule-pack-diff.ts"
+    "diff:rule-packs": "tsx scripts/rule-pack-diff.ts",
+    "test:mutation": "stryker run",
+    "test:mutation:unit": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic node scripts/test-money-mutation.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
@@ -85,6 +87,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
+    "@stryker-mutator/core": "^10.0.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/compression": "^1.8.1",

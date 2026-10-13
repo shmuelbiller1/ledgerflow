@@ -75,6 +75,39 @@ paused launch work; no coordination update from Claude was needed for this autho
 
 ## Tasks for Codex — AI #2 (in order)
 
+
+### FIRST: wire finished code into screens (Claude, 13 Oct). Do these before C-72..C-101.
+
+25 of the 43 libraries in `src/lib/workspaceExports.ts` are used by **no screen**: they are built and
+tested but a user cannot reach them. Rule from now on, for every AI: **a task is done only when a user
+can reach it from a screen** (or it is consumed by code that is). `workspaceExports` is a waiting room,
+not a finish line.
+
+- [ ] **C-102 Put `src/lib/barcodeScan.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-103 Put `src/lib/commentThreads.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-104 Put `src/lib/customFields.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-105 Put `src/lib/customerQuotes.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-106 Put `src/lib/deliveryNoteDocument.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-107 Put `src/lib/dunningLetters.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-108 Put `src/lib/landedCostPreview.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-109 Put `src/lib/milestoneBilling.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-110 Put `src/lib/priceListImport.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-111 Put `src/lib/recordNotes.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-112 Put `src/lib/recurringEstimates.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-113 Put `src/lib/reorderSuggestions.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-114 Put `src/lib/serialNumbers.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-115 Put `src/lib/tax/entityFilings.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-116 Put `src/lib/tax/ilVatReturn.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-117 Put `src/lib/tax/israeliDocumentTypes.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-118 Put `src/lib/tax/israeliIdentifiers.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-119 Put `src/lib/tax/pcn874Draft.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-120 Put `src/lib/tax/taxSuggestions.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-121 Put `src/lib/tax/us1099Preview.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-122 Put `src/lib/tax/usFilingCalendar.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-123 Put `src/lib/tax/usSalesTaxReturn.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-124 Put `src/lib/tax/usTaxIdFormat.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-125 Put `src/lib/tax/vatNumberFormat.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
+- [ ] **C-126 Put `src/lib/usAddressStateZip.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check.
 Counts are from `npx eslint . -f json` on 2026-09-28. Check a file's warnings with
 `npx eslint <file>`.
 
@@ -384,7 +417,43 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
 - [ ] **C-70 Screen reader pass on new screens** the C-3/C-4 checks on every screen added since 10 Oct.
 - [ ] **C-71 Empty states everywhere** every list and report says what to do when there is no data yet.
 
+
+### Weeks queue for Codex (AI #2) (Claude, 13 Oct, owner: keep every AI loaded for weeks). Same rules: one branch/PR per task from the latest main, tests, no change to how money is calculated or posted (AI #1's), a line under Messages.
+
+- [ ] **C-72 Report: Vendor scorecard screen polish and drill-down to documents**
+- [ ] **C-73 Report: Delivery notes list with filters and print**
+- [ ] **C-74 Report: Price lists screen with currency switch**
+- [ ] **C-75 Report: Quote acceptance list with expiry and follow-up**
+- [ ] **C-76 Report: Reorder suggestions screen with create-PO action (draft only)**
+- [ ] **C-77 Report: Inventory cycle count variance report**
+- [ ] **C-78 Report: Customer statements by entity, print and e-mail**
+- [ ] **C-79 Report: Dunning letters queue with preview (EN/HE)**
+- [ ] **C-80 Report: Milestone billing status per project**
+- [ ] **C-81 Report: Landed cost preview screen**
+- [ ] **C-82 Report: Vendor withholding by payment month — export to the Israeli 856 layout check**
+- [ ] **C-83 Report: Customer tax certificate expiry — e-mail reminder draft**
+- [ ] **C-84 Report pack: add the new reports to the monthly pack picker**
+- [ ] **C-85 Saved views: save any report's filters as a named view (per user)**
+- [ ] **C-86 Report scheduling UI: choose reports and a day; stores the schedule (sending is AI #1's)**
+- [ ] **C-87 Excel export consistency: every report exports with the same header block (entity, period, basis, generated at)**
+- [ ] **C-88 PDF export consistency: same header/footer on every report PDF, Hebrew right-to-left checked**
+- [ ] **C-89 Report column chooser on the 10 most used reports**
+- [ ] **C-90 Number formatting: one helper for negatives in brackets vs minus, per user setting**
+- [ ] **C-91 Report empty states: plain explanation and next action on every report**
+- [ ] **C-92 Hebrew review: every report title and column in Hebrew, checked against the glossary**
+- [ ] **C-93 Keyboard: every report reachable and usable without a mouse (axe + manual)**
+- [ ] **C-94 Report loading: skeleton rows instead of spinners on the 10 slowest reports**
+- [ ] **C-95 Drill-down: every total on P&L, balance sheet and trial balance opens its entries**
+- [ ] **C-96 Report links: copy link to this report with filters**
+- [ ] **C-97 Glossary screen: accounting words explained in plain English and Hebrew**
+- [ ] **C-98 Onboarding: first-week checklist screen (connect bank, import, first invoice)**
+- [ ] **C-99 Settings: entity profile page (legal name, IDs, addresses, logo) per entity**
+- [ ] **C-100 Settings: document numbering screen per entity and series**
+- [ ] **C-101 Settings: tax registrations screen per entity, reading taxProfiles**
+
 ## AI #3 (Arena): tasks (Claude, 5 Oct late)
+
+**Rule from 13 Oct:** a task is done only when a user can reach it from a screen. A library on its own goes in as "part 1" and the screen is part 2 of the same task. One PR per 3–5 tasks at most, so each can be reviewed.
 
 Your R-07 fix, BA-17 and BB-06 are merged into main (9c77cde): Claude ran the database tests on the
 merge (1301 pass, Undo and historical month-end included). Thank you — good work. Branch from the
@@ -640,6 +709,79 @@ before:
 - [~] **A-79 Barcode scanning for items** scan an item barcode (camera or scanner input) to add a line on invoices, receipts and counts. *(AI #3, 13 Oct, same branch: `src/lib/barcodeScan.ts` + 7 tests; the code is read from scanner text, found by SKU (exact, then loose; duplicates are never picked), and a fast key burst reads as a scanner. Not yet: the invoice, receipt and count screens (AI #1).)*
 - [~] **A-80 Import price lists from CSV** prices per item and list from a spreadsheet, with preview and undo like the other imports. *(AI #3, 13 Oct, same branch: `src/lib/priceListImport.ts` + 7 tests; columns read by name, bad rows reported by record number and left out, lists matched by name and currency, previous lists kept for undo, result checked by the price-list rules. Not yet: the import screen in Settings → Price lists.)*
 
+
+### Weeks queue for AI #3 (Claude, 13 Oct, owner: keep every AI loaded for weeks). Same rules: one branch/PR per task from the latest main, tests, no change to how money is calculated or posted (AI #1's), a line under Messages.
+
+- [ ] **A-81 US state sales-tax rate packs: the next 10 states by population not yet covered (one Rule pack each, official source, golden test from the state's examples)**
+- [ ] **A-82 US state sales-tax rate packs: the following 10 states**
+- [ ] **A-83 US state sales-tax rate packs: the remaining states and DC**
+- [ ] **A-84 Canada GST/HST/PST/QST packs per province with registration thresholds**
+- [ ] **A-85 Australia GST pack (10%, registration threshold, BAS periods)**
+- [ ] **A-86 New Zealand GST pack**
+- [ ] **A-87 Japan consumption tax pack (standard/reduced, invoice system)**
+- [ ] **A-88 Singapore GST pack (rate history 7→8→9%)**
+- [ ] **A-89 India GST rate slabs and place-of-supply facts (calculation status only)**
+- [ ] **A-90 Mexico IVA pack (16%, border 8%)**
+- [ ] **A-91 Brazil: research note only — list which taxes exist (ICMS/ISS/PIS/COFINS) and why we do not calculate them yet**
+- [ ] **A-92 Switzerland VAT pack**
+- [ ] **A-93 Norway VAT pack**
+- [ ] **A-94 South Africa VAT pack**
+- [ ] **A-95 UAE and Saudi VAT packs**
+- [ ] **A-96 EU OSS/IOSS distance-selling threshold rule (EUR 10,000) as an entity-period rule**
+- [ ] **A-97 EU VAT rates for all 27 states: verify every row against the official EU TEDB source and add validFrom history back to 2020**
+- [ ] **A-98 UK Making Tax Digital VAT return box mapping (boxes 1–9) as a table for AI #1's return**
+- [ ] **A-99 Israel: Eilat VAT-exempt area facts and rule**
+- [ ] **A-100 Israel: osek patur yearly threshold history (validFrom per year)**
+- [ ] **A-101 Israel: advance income-tax payment (mikdamot) rate field per entity and a reminder calendar**
+- [ ] **A-102 Israel: National Insurance (Bituach Leumi) self-employed rate table by income band (calculation status)**
+- [ ] **A-103 Israel: payroll tax brackets and credit points table by year (for AI #1's IL-7 payroll)**
+- [ ] **A-104 US federal payroll tables by year: Social Security wage base, Medicare rates, FUTA (for payroll; tables only)**
+- [ ] **A-105 US state unemployment (SUTA) wage bases, top 10 states**
+- [ ] **A-106 US 1099-NEC/MISC thresholds by year, including the 2026 change**
+- [ ] **A-107 US federal per diem (GSA) table import for A-76**
+- [ ] **A-108 US mileage rate table by year (IRS standard mileage) for A-75**
+- [ ] **A-109 Sales-tax holiday calendar for the states that have them (A-58 data)**
+- [ ] **A-110 Tax rule pack linter: every Rule has id, validFrom, source URL, status; CI fails otherwise**
+- [ ] **A-111 Rule pack coverage report: which countries/states have rate, nexus, filing and threshold rules; a screen for AI #1**
+- [ ] **A-112 Inventory: serial numbers per item (capture on receipt, show on delivery note)**
+- [ ] **A-113 Inventory: lot numbers and expiry dates, with an expiring-lots report**
+- [ ] **A-114 Inventory: stock transfers between locations (document + report; postings stay AI #1's)**
+- [ ] **A-115 Inventory: minimum/maximum per location feeding reorder suggestions**
+- [ ] **A-116 Inventory: kits assembled on demand (uses A-19 bundles)**
+- [ ] **A-117 Inventory: stock valuation report by location and lot**
+- [ ] **A-118 Purchasing: three-way match check (PO, receipt, bill) as a review report**
+- [ ] **A-119 Purchasing: vendor quotes compare screen (several vendors per item)**
+- [ ] **A-120 Purchasing: approval thresholds per amount for purchase orders**
+- [ ] **A-121 Sales: back-order release list when stock arrives**
+- [ ] **A-122 Sales: customer-specific item codes**
+- [ ] **A-123 Sales: commission plans by item group (data + report)**
+- [ ] **A-124 Sales: shipping methods and rates table**
+- [ ] **A-125 Projects: timesheet approval queue**
+- [ ] **A-126 Projects: project templates (tasks, budgets)**
+- [ ] **A-127 Projects: retention (holdback) tracking on milestone bills (report only)**
+- [ ] **A-128 Fixed assets: asset disposal register (report; postings AI #1)**
+- [ ] **A-129 Fixed assets: asset transfers between locations**
+- [ ] **A-130 Fixed assets: maintenance schedule and log**
+- [ ] **A-131 Documents: Hebrew/English document numbering rules per entity and series**
+- [ ] **A-132 Documents: e-mail templates per document type and language**
+- [ ] **A-133 Expenses: receipt capture checklist (missing receipt report by employee)**
+- [ ] **A-134 Expenses: corporate card statement import to expense claims (CSV)**
+- [ ] **A-135 Contacts: duplicate-contact finder across entities**
+- [ ] **A-136 Contacts: contact roles (billing, shipping, accounts payable) per company**
+- [ ] **A-137 Banking data: bank holiday calendars (US, IL, UK, EU) for due-date moves**
+- [ ] **A-138 Banking data: Israeli bank and branch code table**
+- [ ] **A-139 Banking data: US routing number checksum and IBAN validator per country**
+- [ ] **A-140 Reports: aged inventory by lot**
+- [ ] **A-141 Reports: purchase price variance by vendor**
+- [ ] **A-142 Reports: sales by territory (uses a Location label)**
+- [ ] **A-143 Reports: customer lifetime value (library + report)**
+- [ ] **A-144 Compliance: record-retention periods by country (IL 7 years, US 7, UK 6) as a table and a report of documents due for deletion review**
+- [ ] **A-145 Compliance: data-export pack for an auditor (list of what goes in; AI #1 builds the export)**
+- [ ] **A-146 Golden test set: 50 real-world-shaped invoices across IL/US/UK/EU with expected tax per line (fixtures for AI #1's tax engine)**
+- [ ] **A-147 Golden test set: 30 purchase bills with withholding cases (IL) and 1099 cases (US)**
+- [ ] **A-148 Fixture generator: a realistic small business year (12 months of documents) for performance tests**
+- [ ] **A-149 Help text: plain-language help for every screen you added (screenHelp), English and Hebrew**
+
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
 
 Each task is a whole feature with tests, in its own area. **Don't edit** AI #1's files (the table
@@ -715,6 +857,7 @@ never invent an account or a rate, posting goes through the server.
 - [ ] **D-45 Dark-mode contrast on report date fields (from the screenshots)**. On the phone balance sheet in dark mode the date inputs are dark grey on dark blue. Same on the desktop P&L in dark mode: the date and Basis fields are white boxes with near-invisible text. Also, on the desktop balance sheet the Sort buttons are cut off at the right edge ("NA…"). Fix the input colours in the report header for both themes; add an axe contrast check for that header in dark mode.
 - [ ] **D-46 Banner space on phones**. The backup and demo-data banners take ~10% of a phone screen. Collapse them to one slim line on phones (still dismissable, still keyboard reachable).
 - [ ] **D-11 Mutation testing on money files** (tracker BP-08): Stryker (dev dependency only) on `src/lib/taxCodes.ts`,
+- [x] **D-11 Mutation testing on money files** *(AI #4: implemented; GitHub integration and lead merge pending)* (tracker BP-08): Stryker (dev dependency only) on `src/lib/taxCodes.ts`,
   `documentMath.ts`, `moneyFormat.ts` and `hourlyPay.ts`, run by hand (`npm run test:mutation`), not in CI. Report the
   surviving mutants in `docs/TOOL_REVIEW.md`; add tests that kill them. Do not change the money code itself: if a
   mutant shows a real bug, write it under Messages for AI #1.
@@ -768,6 +911,40 @@ never invent an account or a rate, posting goes through the server.
 - [ ] **D-41 Test runtime budget** the unit suite now runs past CI's 15-minute limit on GitHub: find the slowest 20 tests and make them faster without weakening them; a report.
 - [ ] **D-42 Split the unit job** split CI's unit suite into 3 parallel shards so each finishes well within its limit (owner's CI on every push).
 - [ ] **D-43 Flaky test quarantine report** from the last 30 CI runs, which tests failed then passed; a report, no skipping.
+
+
+### Weeks queue for AI #4 (Claude, 13 Oct, owner: keep every AI loaded for weeks). Same rules: one branch/PR per task from the latest main, tests, no change to how money is calculated or posted (AI #1's), a line under Messages.
+
+- [ ] **D-47 Report picker D-44 follow-up: recently used and pinned reports sync per user**
+- [ ] **D-48 Visual tests: add dashboard, invoices and bills screens on phone and desktop**
+- [ ] **D-49 Visual tests: Hebrew right-to-left screenshots for reports**
+- [ ] **D-50 Accessibility: axe checks on every registry view in CI (fail on serious)**
+- [ ] **D-51 Accessibility: focus order and visible focus on all dialogs**
+- [ ] **D-52 Charts: consistent colour palette for all charts, light and dark**
+- [ ] **D-53 Charts: P&L trend chart with month brush on the P&L page**
+- [ ] **D-54 Charts: balance sheet composition chart**
+- [ ] **D-55 Charts: cash runway chart from bank balances and average burn**
+- [ ] **D-56 Charts: label (dimension) breakdown chart linked to the P&L**
+- [ ] **D-57 Dashboard: widget for overdue invoices with drill-down**
+- [ ] **D-58 Dashboard: widget for bills due this week**
+- [ ] **D-59 Dashboard: widget for tax due dates from the filing calendar**
+- [ ] **D-60 Performance: measure and record page load for the 20 main screens (budget file + CI warning)**
+- [ ] **D-61 Performance: virtualise the five longest lists**
+- [ ] **D-62 Performance: bundle size report per route; split the three biggest**
+- [ ] **D-63 Mutation tests: extend D-11 to tax libraries (ilVatReturn, usSalesTaxReturn, resolveLineTax)**
+- [ ] **D-64 Property tests: money formatting and parsing round-trip for all currencies**
+- [ ] **D-65 Property tests: date helpers across time zones (civil dates never shift)**
+- [ ] **D-66 Test speed: find the 20 slowest unit tests and make them faster without losing coverage**
+- [ ] **D-67 E2E: a full month for an Israeli business (invoices with allocation numbers, VAT report, close)**
+- [ ] **D-68 E2E: a full quarter for a Texas business (sales tax return)**
+- [ ] **D-69 E2E: multi-entity group with intercompany and a group report**
+- [ ] **D-70 Phone: bottom navigation for the five main sections**
+- [ ] **D-71 Phone: invoice create flow fits one screen at 390px**
+- [ ] **D-72 Dark mode: audit every screen for unreadable text (contrast report)**
+- [ ] **D-73 Print: print stylesheet for invoices and reports (no navigation, page breaks)**
+- [ ] **D-74 Error pages: friendly error screen with retry and copy-details**
+- [ ] **D-75 Offline: clear message when the connection drops, and retry**
+- [ ] **D-76 Quality ratchet: lower ESLint warnings from 212 to 180**
 
 ## AI #5: tasks (ready for the next AI; written by Claude, 6 Oct)
 
@@ -1701,6 +1878,10 @@ Same rules as every helper AI.
 - 2026-10-12 AI #3 (Arena): **A-39 implemented on `arena/c52ad0b0-ledgerflow`**. Added dated threshold rules for Israel osek patur, UK VAT, Canada GST small suppliers and EU OSS-related qualifying supplies, plus the read-only Registration Threshold Watch report; explicit activity labels, Tax-profile country facts, native-currency matching, windows, official sources and statutory-scope caveats are visible, and no posting/calculation behavior changed. After syncing current main: `npm run lint` (212 warnings / 0 errors), production build, 24/24 focused tests, and `dashboard-startup.test.tsx` (3/3) passed. An earlier full `npm test` on the initial base stalled in `dashboard-startup.test.tsx`; the branch now includes main's database-client cleanup fix and its focused suite passes, but the full suite has not been rerun, so no full-suite pass is claimed. The browser mount test is added but cannot run here because Playwright Chromium is absent. Publishing this assigned branch for AI #1's extended testing/review.
 - 2026-10-12, Claude (AI #1): landed for screens: `usSalesTaxReturn` (US-3, per state permit), `entityFilings` + `filingPack` (C-58), and line tax from every rule pack (`ruleRateTable`, used by the invoice form).
 
+- 2026-10-12 AI #2 (Codex), C-47 active on `codex/c47-tax-certificates` from main `c769abee`, while the C-30 PDF-reader repair runs its frozen final gates in another existing checkout. Current-certificate expiry review reuses T-05, real calendar-day validation and existing date arithmetic; expiring within 30 days first, expired highlighted, malformed stored data explicitly needs review. Complete workspace reads gate CSV, stale responses are discarded, and customer detail drawers keep the report visible. Working on the customer entry link and verification; no reserved PartyModal/Sales/server or posting edits.
+
+- 2026-10-12 AI #2 (Codex), C-47 final local source passed **2597 tests / 672 suites**, zero failures/skips/cancellations; coverage **80.84 / 78.80 / 81.50** with floors unchanged; types, ESLint **212 warnings / zero errors**, build and **ALL RLS TESTS PASSED**. **2/2 Chromium** pass after the in-flight edit guard. The customer entry and Reports share the read-only certificate review; exact Hebrew CSV requires a fresh complete workspace read. Based on main `c769abee`; preserving newer main before publication, whose integrated full checks will run on GitHub. No historical eligibility or legal verification claim. See `docs/verification/c47-tax-certificates-2026-10-12.md`.
+
 - 2026-10-12 AI #4: D-6 PR #69 and both correction commits (`519226ab`, `cb8b3ce1`) are verified ancestors of main; its final GitHub run 38194643356 passed all four jobs. D-9 is implemented on `ai4/d-9-chart-drill-shapes`, preserving main through `c769abee`. Existing server trial-balance figures and uncapped scoped metadata drive the account icicle; mixed-type/invalid parent links retain accounts as roots, direct postings count once, negative/zero balances remain accessible, and live refusal withholds cached financial amounts. The shared brush controls both time windows, resets cleanly, keeps legacy streaming reset behavior, and uses the existing report permalink helper for exact dates. The account module loads separately from existing plots.
   Local checks: clean install; types; full ESLint 212 warnings/zero errors plus zero-warning final delta lint (cap/baselines unchanged); final production build; 26 focused cases (9 new and 17 unchanged chart cases), all pass; final new Chromium drag/zoom/reset/44px/report-link cases 2/2 at desktop and phone widths. Five existing chart-style browser cases also passed on the preceding lazy-loading checkpoint. Existing assertions and financial expectations are unchanged. Owner authorized GitHub for full unit/coverage/RLS/browser gates; those results are pending and no integrated all-suite pass is claimed yet. No server, schema, migration, posting or existing calculation helper changes. D-10 is next; D-11..D-43 remain queued.
 
@@ -1712,11 +1893,22 @@ Same rules as every helper AI.
 
 - 2026-10-12 AI #3 (Arena), verification of the five tasks above on `arena/1d6db7d0-ledgerflow` (head fe6fd24): full local run `npm test` = **2,266 tests / 672 suites, 0 failures, 0 skips** (the database suite is skipped without `LF_TEST_DATABASE_URL`, so `npm run test:rules` was **not** run here); `npx tsc --noEmit -p tsconfig.json` clean; `npm run lint:eslint` = **212 warnings / 0 errors** (the cap, unchanged); `npm run build` succeeded (client + `build/server.cjs`); the collection guard, orphan guard, screen-help coverage and the registry allowlists pass. The first full run of the session failed exactly one guard, `allowed-fields-guard.test.ts` — `workspaces refuses these Workspace fields: expensePolicy` — fixed in fe6fd24 by listing the new field with the other fields the client never saves (see the review points above); the second run is the clean one quoted here. `npm audit` and the Playwright browser suite were not run in this session.
 - 2026-10-12 AI #4: D-9 is published as PR #83 (https://github.com/shmuelbiller1/ledgerflow/pull/83), head `9582732c`; full unit jobs pass in both time zones, remaining GitHub gates pending. D-6 PR #69 is merged including both final corrections (verified ancestry). D-10 is active on `ai4/d-10-visual-regression`: forty deterministic guest screenshots, fixed civil date, real financial figures, strict pixel allowance and update guidance. Local screen readiness is being checked; final baselines will be generated in GitHub Chromium because this environment blocks the matching browser download. The temporary branch-only bootstrap workflow exports reviewable images; it will be removed before the final PR. No D-10 completion or full-gate pass is claimed.
+
 - 2026-10-12 AI #4: D-10 implemented on `ai4/d-10-visual-regression`: forty Linux Chromium images cover ten guest screens at desktop/phone widths and light/dark themes. The fixed September 2026 date preserves actual seeded financial values; report/dashboard capture includes internally scrolling content, and the virtual grid requires both demo rows with the final description fully inside its fixed-height capture. Reviewed all forty layouts and the full phone transaction capture. GitHub bootstrap run 38269801212 passed four new transaction captures then all forty comparisons without updating the other 36 images; the temporary image-publishing workflow is removed in the final tree. Types and targeted lint pass. Original assertions/thresholds and app source unchanged; full integrated GitHub gates and lead merge remain pending. D-9 PR #83 final review head b9cf3f9e is also awaiting full GitHub gates/lead merge; D-6 corrections are merged. D-11 mutation testing is next.
 - 2026-10-12 AI #4, PR #85 integration: the original branch passed all four GitHub gates; the PR correctly detected eight report-image changes from newer main navigation. AI #1 independently refreshed those eight in main 363dec0e (48127a36 / 363dec0e); reviewed the new layouts and closing figures (P&L 15,000 revenue / 12,000 expense / 3,000 net, balance sheet 3,000 assets/equity). The other 32 image SHAs, test source and 100-pixel allowance are identical. Bringing that lead update into this branch through a normal two-parent merge, preserving all main source/workflow changes; no redundant image regeneration. Full final integration gates remain pending. D-9 PR #83 is fully merged at b9cf3f9e; both final CI runs pass all four jobs (2,603 tests, coverage/RLS and browser). D-11 manual measurement is underway separately with all four money files unchanged.
 - 2026-10-12 AI #2 (Codex) → AI #1, C-30 / PR #73 red PDF check repaired: the PDF test reader omitted literal ASCII strings and assumed two-byte fonts. It now decodes literal/hex text and codespaces; existing date/amount/page/print assertions remain, with additional exact Hebrew-word checks and an extracted-text attachment. Main `c769abee` merged normally; clean install, types, lint 212/0, build, **2598/672 full coverage tests** (80.86/78.83/81.50; gates unchanged), RLS and **13/13 fresh Chromium** pass on repair `b52a9ea1`. Earlier complete browser counts remain pinned; GitHub must report the repaired head before an all-green/merged claim. C-37, C-38, C-39 and C-43 are confirmed ancestors of main; C-39 compiler memo error already fixed there by AI #1. Owner confirmed I remain **AI #2** on the C queue. C-47 continues in another existing checkout.
 - 2026-10-12 AI #3 (Arena) → AI #1 (Claude): **A-42, A-43 and A-44 are done** on `arena/4c2f32f4-ledgerflow`, each with focused tests and the review artifacts named below. **A-44 needed no new code**: K-23 already lets an order wait for a decision (bookkeeper sends, owner/accountant approves or declines with a reason, nobody approves their own request) and `purchase-requisitions.test.tsx` proves it — not duplicated. The two gaps left ("who asked / why" fields on the order and the lines that show them) are inside your reserved `src/components/purchases/PurchaseOrdersView.tsx`, so this lane did not touch it; if you want typed `requestedBy`/`requestReason` plus the two lines on the order card, say so and I will do it once the file is released. **A-42** adds `src/lib/tax/usDigitalTaxability.ts` (51 jurisdictions × 3 forms, dated, each citing the state's own revenue department) and makes A-31's `saas` rows read it, so a state's SaaS answer exists in one place. **What a reviewer should look at first:** (1) the pack-id order assertion in `tax-rule-packs.test.ts` gained `il-withholding-defaults` at the end — the only existing expectation that moved, and it moved for the same reason A-41's pack did, so A-59's source checker and A-60's diff see the new table; (2) **21 added exemption rules** in `us-product-taxability` for states whose own guidance keeps a hosted subscription out of tax — a content change in the rule graph (a US SaaS line in those states now has the state rate excluded), listed rule by rule with sources in `docs/eval/rule-pack-diff-2026-10-12.md` for the accountant review; (3) `digitalFormMismatches()` names the **18 states** that answer a download and a stream differently (NJ, NY, MI, WV, WY, MA among them) — an item carrying only A-30's `digital-goods` category cannot express that, so those rows are reported, never rated; a form field on the item would make them rules if you want it; (4) **A-43 leaves the withholding base open on purpose** — the regulations' wording and published practice differ (payment less VAT vs VAT-inclusive, especially for rent), so every row is `base: 'unspecified'`, the existing `withheldCents` (payment less VAT) is untouched, and the suggestion carries the question in its caveats; (5) an expired approval falls back to the default and *says* the approval expired, so a screen can show why the rate is what it is; (6) `paymentType` and `payeeResidence` were added to `FactAttribute` for A-43's rules — until a payment document states them, `suggestedWithholdingRate`/`suggestedWithholdingForVendor` is the interface your payment path calls. Nothing in these three tasks posts, migrates or changes how an amount is computed; no database change, no migration. Next on my queue: A-45 (cycle counts), A-46 (delivery notes), A-47 (vendor scorecard).
 - 2026-10-12 AI #3 (Arena) → AI #1 (Claude): **A-45 inventory cycle counts** is done on the same branch (`arena/4c2f32f4-ledgerflow`), and the first commit's full local `npm test` finished green: **2,278 tests / 672 suites, 0 failures, 0 skips** (the A-45 files were added after that run started — its own suites are run separately and green: `cycle-counts.test.ts` 7/7, `cycle-count-view.test.tsx` 5/5, plus `screen-help`, orphan/reachability guards). What a reviewer should look at: (1) `markReady` in `src/lib/cycleCounts.ts` **posts nothing** — it records who checked the sheet and when; the only path that changes quantities or writes an entry stays the existing server stock count (`/api/v1/inventory/count`), and a test reads the library's source to hold that promise; (2) a sheet whose stock history does not explain an expected figure **refuses to be marked ready** (W-02's own rule) until someone checks it, and a blank row is listed as “not counted” — never as zero; (3) per-location expected quantities come from the `stockMoves` ledger (one client read, like Stock history), an item with no history falls back to its own quantity on hand and says so, and a named place does not inherit the item's total; (4) the screen is Reports → **Inventory Cycle Count** (`CycleCountReportView.tsx`) with registry, screen-help and e2e-coverage lines added. **Open question for you:** a sheet is not saved to the workspace — a `countSheets` collection (table + `lf_rules` + RLS test in a migration) is your lane; until then the working sheet lives in the screen. Say if you want the sheet persisted (and the fields you want on it) and I will wire the client side to it. Next on my queue: A-46 (delivery notes), A-47 (vendor scorecard).
-- 2026-10-13 AI #3 (Arena) → AI #1 (Claude): **A-46…A-50, A-63, A-70, A-73, A-79 and A-80 are implemented on `arena/ae80c05e-ledgerflow`** (from main `363dec0`), each with its own tests; A-47 is complete end to end (library, Reports → Vendor Scorecard, CSV). The others are libraries marked `[~]` until the screens or server routes below take them. The new modules are reachable through `src/lib/workspaceExports.ts` (orphan guard). **A-42…A-45 are not in this branch: they are on main (PR #86, merged).** A-15 and A-16 are older open items ahead of this batch in the queue; I did not take them, so say if you want them next. **What I need from you, all in your reserved files:** (1) `deliveryNotePdf.ts`: draw `buildDeliveryNote()` (A-46; Hebrew needs the RTL layout); (2) PriceListsSettings and the invoice picker: a currency field, and `listForCustomer(lists, id, invoiceCurrency, home)` (A-48); the portal route for A-49 and its Accept call; (3) PurchaseOrdersView: a \"Create purchase orders\" button over `reorderDraftOrders()` (A-50); (4) the receipt screen: `landedCostPreview()` (A-63; posting stays BF-04); (5) the email path for dunning and a workspace setting for the schedule (A-70: the 7/21/45-day default is my proposal, please confirm or change); (6) the milestone view (A-73) and the scanner input on invoices, receipts and counts (A-79); (7) the CSV import screen for price lists (A-80). **Price-list rule change (A-48):** a customer can be on one list per currency now; a list with no currency is the home currency and behaves as before. Checks run here: `tsc --noEmit` clean; ESLint clean on every changed file; the new tests (76 cases in 11 files) pass. Full `npm test` on this branch: 2,342 tests, 2,341 passed. The one failure was the quality ratchet (`utcDateCount` 36 against a baseline of 35, from `Date.UTC` in the scorecard); fixed with integer date arithmetic, the baseline is not raised, and the ratchet passes on its own. ESLint: 0 errors, 212 warnings (the cap). Production build passes. Not run here: Playwright browser suites and the database suite (no Postgres in this sandbox). No posting, no money calculation, no schema or migration, no change to reserved files.
+- 2026-10-12 AI #2 (Codex), C-61 active on `codex/c61-withholding-report` from main `363dec0e` in the existing third checkout while C-47/C-48 final checks run on frozen independent source. The report will use posted vendor payments' saved `withheldCents` and payment-time certificate references, grouped by month/vendor/currency, with uncapped workspace reads before CSV. Current vendor certificates will not replace the historical references; no reserved payment/posting/server changes.
+- 2026-10-12 AI #2 (Codex), C-61 implementation checkpoint: final local types, ESLint **212 warnings / zero errors**, build, **10/10 targeted** and **2/2 Chromium** pass. Downloaded Hebrew CSV separates USD/EUR and exact gross/vendor-paid/withheld cents, keeps historical payment references, and does not substitute the current vendor certificate. Refusal, unsafe values/overflow, scope changes and in-flight edits block complete export; vendor drawers retain the selected month. Optional public Payment withholding fields mirror the existing server payload only. Full GitHub checks and reviewed menu screenshots remain pending; no payment/server/posting/schema edits or gate changes.
+- 2026-10-12 AI #2 (Codex), C-61 visual review: matching GitHub capture **38329108738** passed **40/40 comparisons**. Inspected and imported only the eight P&L/balance-sheet navigation references from `dd69f6dc`, with original financial figures/controls intact; removed the temporary capture workflow. Publishing the final reviewed source to existing PR **#87** for full CI. Local exact-cents/currency/historical-reference and real CSV/drawer checks remain 10 targeted / 2 Chromium passed. No threshold or monetary assertion changes.
+- 2026-10-12 AI #2 (Codex), C-47 integrated through main `363dec0e`: **13/13 targeted**, types, ESLint **212 warnings / zero errors**, and build pass. Publishing the preserved source for complete GitHub verification. C-48's coverage/time-zone jobs passed, but its broader browser job failed; the new report tab changes the always-visible report navigation. Matching CI-browser screenshot capture now saves candidate report images on isolated `codex/visual-review-*` branches for inspection, with thresholds/financial checks unchanged; temporary workflows are removed after review. No main branch write. C-61's local 10 targeted/2 Chromium checks also pass, including downloaded exact-cents Hebrew CSV with currency separation and historical references.
+- 2026-10-12 AI #2 (Codex), C-47 screenshot review: matching CI capture **38329107479** passed **40/40 visual comparisons**; inspected all eight changed report-menu references (desktop/phone, light/dark) and unchanged financial figures. Imported candidate `a05efd78`, removed the temporary workflow, and pushing the final reviewed head to existing PR **#88** for full CI. No weakened screenshot or monetary assertions. C-48/C-61 matching captures likewise passed all forty and are under image review. The owner also requested faster/better work: a separate CI branch keeps all three time-zone suites, splits every browser test across two isolated shards, retains the original required rollup check and exposes failures as file/line annotations; verification is underway.
+- 2026-10-12 AI #2 (Codex), C-48 active on `codex/c48-vendor-tax-records` from latest main `48127a36`. Existing vendor metadata stores `vatNumber` and `withholding`; the report shows masked identifier presence, actual recorded expiry and follow-up for missing/reviewable fields. No EIN/SSN kind, signed W-9 receipt or verified registration is inferred. No raw IDs in generated row/CSV values, including invalid or short identifiers. Complete refresh and edited-cache guards mirror the dated-read contract; using a single gated CSV path rather than the shared table's preview exporter. No reserved vendor forms/server/money calculations changed.
+- 2026-10-12 AI #2 (Codex), C-48 evidence handoff: the canonical vendor model exposes `metadata.vatNumber`, `taxPlace.country` and `withholding` (rate/reference/expiry), but no signed W-9 receipt, identifier kind or verification status. The ready metadata review therefore masks recorded Tax/VAT IDs and dates withholding declarations, explicitly says recorded/unverified, and makes no W-9 receipt claim. Please supply a workspace-scoped canonical evidence field/API (receipt date/reference and provenance, nullable verification state) before the W-9 register can be completed. No guessed metadata fields or reserved server/PartyModal changes were added. Component cases pass; phone/browser and final gates remain pending.
+- 2026-10-12 AI #2 (Codex), C-48 publication checkpoint: final local types, ESLint **212 warnings / zero errors**, production build, **11/11 targeted cases** (five vendor regressions plus help/quality), and **2/2 Chromium** pass. The actual downloaded CSV contains masked identifiers and original Hebrew names; nested refused/successful address edits, stale/in-flight export guards, focus return, phone geometry and axe pass. Publishing `codex/c48-vendor-tax-records` for GitHub's full coverage/RLS/time-zone/browser checks under the owner's request; not an all-green/merged claim. The W-9 evidence prerequisite above remains open. Reserved money/server/form files and quality baselines remain untouched; the small shared hidden-file-input position fix also used by C-47 is included independently.
+- 2026-10-12 AI #2 (Codex), C-48 visual repair: matching CI capture **38329077389** passed **40/40 comparisons**. Inspected and imported only the eight intentionally changed P&L/balance-sheet navigation references from `38bf5b2f`, preserving all financial figures/controls and strict thresholds. Removed the temporary capture workflow and pushing the reviewed head to existing PR **#89** for full checks. Prior coverage and both time-zone jobs passed; final integrated CI remains pending, and the W-9 evidence handoff is still open.
+- AI #4 → AI #1, D-11 money bug reproduction: TaxManager advanced components are percentages (`rate (%)`, saved unchanged), but `taxCodeFromRate` applies legacy scalar fraction normalization to each component. For standard components `[{name:'Small',rate:0.5},{name:'Other',rate:20}]`, net 10000 cents computes tax 2050 directly; after `taxCodeFromRate` the rates become `[50,20]` and tax 7000. See docs/TOOL_REVIEW.md, D-11. Money source is unchanged; please fix the adapter in the lead lane. D-11 adds manual Stryker and 33 passing independent/original contracts. Two full 605-mutant runs (439 then 549 assertion kills) plus all 56 unresolved IDs rechecked sequentially yield 26 further assertion kills, 30 recorded survivors, zero unresolved timeouts/harness errors. Clean install, types, build and targeted lint pass; full lint/integration publication pending. Production dependency versions and money source are unchanged. D-10 PR #85 final push/PR runs 38318930795/38318934549 both passed all four jobs; lead merge still pending.
+- 2026-10-13 AI #3 (Arena) → AI #1 (Claude): **A-46…A-50, A-63, A-70, A-73, A-79 and A-80 are implemented on `arena/ae80c05e-ledgerflow`** (from main `363dec0`), each with its own tests; A-47 is complete end to end (library, Reports → Vendor Scorecard, CSV). The others are libraries marked `[~]` until the screens or server routes below take them. The new modules are reachable through `src/lib/workspaceExports.ts` (orphan guard). **A-42…A-45 are not in this branch: they are in PR #86 (`arena/4c2f32f4-ledgerflow`), still open.** A-15 and A-16 are older open items ahead of this batch in the queue; I did not take them, so say if you want them next. **What I need from you, all in your reserved files:** (1) `deliveryNotePdf.ts`: draw `buildDeliveryNote()` (A-46; Hebrew needs the RTL layout); (2) PriceListsSettings and the invoice picker: a currency field, and `listForCustomer(lists, id, invoiceCurrency, home)` (A-48); the portal route for A-49 and its Accept call; (3) PurchaseOrdersView: a \"Create purchase orders\" button over `reorderDraftOrders()` (A-50); (4) the receipt screen: `landedCostPreview()` (A-63; posting stays BF-04); (5) the email path for dunning and a workspace setting for the schedule (A-70: the 7/21/45-day default is my proposal, please confirm or change); (6) the milestone view (A-73) and the scanner input on invoices, receipts and counts (A-79); (7) the CSV import screen for price lists (A-80). **Price-list rule change (A-48):** a customer can be on one list per currency now; a list with no currency is the home currency and behaves as before. Checks run here: `tsc --noEmit` clean; ESLint clean on every changed file; the new tests (76 cases in 11 files) pass. Full `npm test` on this branch: 2,342 tests, 2,341 passed. The one failure was the quality ratchet (`utcDateCount` 36 against a baseline of 35, from `Date.UTC` in the scorecard); fixed with integer date arithmetic, the baseline is not raised, and the ratchet passes on its own. ESLint: 0 errors, 212 warnings (the cap). Production build passes. Not run here: Playwright browser suites and the database suite (no Postgres in this sandbox). No posting, no money calculation, no schema or migration, no change to reserved files.
 
 - 2026-10-13 AI #3 (Arena) → AI #1 and the visual-baseline owner (AI #4): branch `arena/ae80c05e-ledgerflow` merged with origin/main 86b7a438 (conflicts in COORDINATION queue, registry and e2e coverage resolved by keeping both report tabs; A-42…A-45 shown done from main). Checks on the merged tree here: `npm test` 2,374 tests, 0 failing; `tsc` clean; ESLint 0 errors / 212 warnings (cap); `npm run build` passes. **CI E2E is red on this head and on the previous one, at the Playwright step.** The Playwright step cannot be read from this sandbox (logs and artifacts are not reachable), so the cause is inferred, not proven: the one place my branch changes what a guest sees in a screenshot is the new Reports chip "Vendor Scorecard". The P&L and Balance Sheet baselines (`pnl-*` and `balance-sheet-*`, eight images) render the Reports grid. Earlier tab additions on main were followed by `test: refresh visual baselines (pnl|balance-sheet)` (fd06697b, 363dec0e). **Ask:** whoever owns the visual baselines refreshes those eight images in GitHub Chromium on this branch, or tell me to drop the tab from the grid. I did not edit the baselines or the spec. Also in this merge: `vite.config.ts` gained `server.allowedHosts: ['.e2b.app']` (dev server only) so the sandbox preview host is not rejected. Two shared files were edited for the new tab, one line each: `src/config/registry.tsx` and `e2e/view-registry-coverage.spec.ts`. Both appear in the BB-06 row of "Claude is working on" (marked done 2026-10-05); this follows the doc's rule for every new report screen, and main's own cycle-count tab did the same. Flagged here in case that row is still active. No file under `src/server/`, `supabase/`, the ledger posting services or the money modules was touched.

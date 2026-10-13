@@ -1,5 +1,6 @@
 
 import { AlertOctagon, ShieldCheck, Building, Cpu, Users, DollarSign, Gift, Sparkles, Zap } from 'lucide-react';
+import { planFor } from '../../lib/plans';
 
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -143,7 +144,7 @@ export function WorkspacePolicyDialog({ model }: { model: SystemCommandCenterMod
                               <span className="text-xs font-black text-[#2e7d32] uppercase tracking-tight flex items-center gap-1">
                                 <Zap aria-hidden="true" size={10} /> Growth Business Plan
                               </span>
-                              <span className="text-[9px] font-black uppercase text-[#2e7d32] bg-emerald-50 px-2 py-0.5 rounded-lg">$49.00 / mo</span>
+                              <span className="text-[9px] font-black uppercase text-[#2e7d32] bg-emerald-50 px-2 py-0.5 rounded-lg">${planFor('growth').monthlyUsd}.00 / mo</span>
                             </div>
                             <p className="text-[10px] text-[var(--muted)] font-medium lowercase first-letter:uppercase">Allocates 500k standard compute credits, up to 15 seat limits, and standard API capabilities.</p>
                           </div>
@@ -320,7 +321,7 @@ export function WorkspacePolicyDialog({ model }: { model: SystemCommandCenterMod
                               Estimated Monthly Bill
                             </div>
                             <div className="w-full h-11 bg-slate-100 border border-[var(--line)] rounded-xl px-4 text-xs font-mono font-bold text-slate-600 flex items-center">
-                              ${formState.plan === 'growth' ? '49.00 / mo' : formState.plan === 'enterprise' ? '299.00 / mo' : '0.00 (Free)'}
+                              ${planFor(formState.plan).monthlyUsd > 0 ? `${planFor(formState.plan).monthlyUsd}.00 / mo` : '0.00 (Free)'}
                             </div>
                             <p className="text-[9px] text-[var(--muted)] mt-1 uppercase font-bold tracking-wider leading-relaxed">Based on designated plan model</p>
                           </div>

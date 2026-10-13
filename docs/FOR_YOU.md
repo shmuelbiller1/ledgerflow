@@ -9,7 +9,7 @@ Last updated: 2026-10-07.
 
 ## A. Settings only you can change (a few minutes each)
 
-0. **Most important: let database changes go through without you (1 minute).** Open
+0. **Done (owner, 13 Oct).** **Most important: let database changes go through without you (1 minute).** Open
    https://claude.ai/customize/connectors → **Supabase** → tool permissions → set
    `apply_migration`, `execute_sql` and `list_migrations` to **Always allow**.
    *Why:* these tools ask you to approve every single time, and while an approval is waiting
@@ -17,7 +17,7 @@ Last updated: 2026-10-07.
    this, Claude calls them as rarely as possible, and the 5-hour check-in cancels any
    approval that is still waiting so work carries on.
    *Both waiting changes (`tax_returns`, `updated_at_indexes`) were applied on 2 Oct while you were here.*
-1. **Sign-in addresses (Supabase).** supabase.com → project *ledgerflow* → Authentication → URL
+1. **Done (owner, 13 Oct).** **Sign-in addresses (Supabase).** supabase.com → project *ledgerflow* → Authentication → URL
    Configuration. Site URL: `https://ledgerflow-one-pearl.vercel.app`. Redirect URLs: add
    `https://ledgerflow-one-pearl.vercel.app/**` and `http://localhost:3000/**`.
    Without it, sign-up confirmation and password-reset emails link to the wrong place.
@@ -53,7 +53,7 @@ Last updated: 2026-10-07.
    money, the same with the live keys. Other optional keys (currency rates, tax): tell Claude
    which ones you want. Plaid (bank feeds): Claude has no Plaid connection; the `PLAID_*` values
    in Vercel must come from your Plaid dashboard (use the sandbox first).
-9. **Old settings to delete** in Vercel (unused since the move to Supabase): `FIREBASE_PROJECT_ID`,
+9. **Done (owner, 13 Oct).** **Old settings to delete** in Vercel (unused since the move to Supabase): `FIREBASE_PROJECT_ID`,
    `SQL_*`, `JWT_SECRET`.
 
 17. **Privacy papers (before real customers, 15 minutes + a lawyer).** Put your company name,
@@ -77,7 +77,7 @@ Last updated: 2026-10-07.
     invoice field needs a migration (the approval itself is stored with the invoice). Same as item 19:
     paste it in Supabase → SQL editor, or say so and the next session runs it through the connector.
 
-26. **Password rules in Supabase too (2 minutes, 7 Oct).** The app now asks for at least 10
+26. **Done (owner, 13 Oct).** **Password rules in Supabase too (2 minutes, 7 Oct).** The app now asks for at least 10
     characters (not a common password, not your email name) when someone signs up or picks a new
     password after a reset link. Make Supabase say the same, so nobody can get around it: Supabase →
     Authentication → Providers → Email → *Minimum password length* **10**, and, if your plan has it,
@@ -138,7 +138,7 @@ not really live (everything else works). In Supabase → SQL editor, one at a ti
 8. `supabase/migrations/20261013070000_workspace_groups.sql` (item 30)
 Each is safe to run twice. Tell Claude when done, or Claude sees it at the next session and crosses these out.
 
-22. **One database change to paste (5 Oct, L-191).** `supabase/migrations/20261008000000_invoice_approval_guard.sql`
+22. ~~**One database change to paste (5 Oct, L-191).**~~ **Done: checked 13 Oct, all applied on the live database.** `supabase/migrations/20261008000000_invoice_approval_guard.sql`
     timed out twice through the connector (creating a trigger on the invoices table waits for it to be
     free). Paste the whole file into Supabase → SQL editor → Run; running it twice is safe. Until then,
     the server already refuses approvals from bookkeepers on every normal save; only a direct database
@@ -159,7 +159,7 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
     needed. Until it is applied, saving a loan says nothing was saved, and deleting a whole workspace
     would stop at the missing table.
 
-25. **Four database changes to paste (7 Oct) — please look soon.** The code is on main; the
+25. ~~**Four database changes to paste (7 Oct) — please look soon.**~~ **Done: checked 13 Oct, all applied on the live database.** The code is on main; the
     Supabase connector timed out on all of them (the first one rebuilds the list indexes, and a
     rebuild waits until each table is free, the same as item 22). First, in Supabase → SQL editor,
     check nothing is stuck (a waiting index build can hold up saving on that table):
@@ -215,7 +215,7 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
     - *Default:* that stays refused, so closed books are never replaced by an older state. If you
       want an owner-only "reopen everything" that allows it, say so and Claude adds it, audited.
 
-30. **Two more database changes to paste (7 Oct) — after the four in item 25.**
+30. ~~**Two more database changes to paste (7 Oct) — after the four in item 25.**~~ **Done: checked 13 Oct, all applied on the live database.**
     `supabase/migrations/20261013060000_stock_moves.sql` adds the stock history: every change to an
     item's stock with its reason (sold, returned, bought, counted, moved between locations). The
     Supabase connector timed out on it. Paste it in Supabase → SQL editor and Run (safe to run
@@ -299,7 +299,7 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
    pay run, for their approved time up to the pay date that no earlier run paid, at one hourly rate.
    There is no overtime rate (e.g. time and a half over 40 hours a week) yet. Say if you need overtime.
 
-41. **Repository made public (11 Oct): roll one old Stripe test key — needs you, 2 minutes.** An early
+41. **Done (owner, 13 Oct).** **Repository made public (11 Oct): roll one old Stripe test key — needs you, 2 minutes.** An early
    commit (5 Jul, removed on 22 Jul) had a Stripe *test-mode* secret key starting `sk_test_51Th0cy…`.
    It cannot move real money, but anyone can now read it. In Stripe → Developers → API keys (test mode)
    → "Roll key", then put the new one in Vercel's `STRIPE_SECRET_KEY` if you use test mode there. No
@@ -330,6 +330,13 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
    are MIT OR Apache-2.0; we would use MIT and ship their NOTICE in a THIRD_PARTY_NOTICES file. The ArtCraft name and
    logos are trademarks and are not covered: we never show them. GridCraft says it is **alpha**. Default: it stays an
    optional, separate add-on that only reads report data and never writes to the books. Say if you want it sooner, or not at all.
+
+47. **Prices (13 Oct, decided by default).** There were four price lists: the pricing page ($0/49/149/499), Settings
+   ($0/29/99/299), the admin screen ($49/$299) and the Stripe checkout, which actually charged **$5, $10 and $50**.
+   Now there is one table, `src/lib/plans.ts`, read by all of them. Default used: **Free $0, Growth $29, Pro $99,
+   Enterprise $299 a month** (yearly 20% off), with the limits the server already enforced (100 / 1,000 / 10,000 /
+   1,000,000 entries; 1 / 5 / 25 / 1,000 people). Feature lists now say only what the app does (no "dedicated Firestore",
+   no "SSO", no "24/7"). Tell Claude your real prices and they change in one place.
 
 ## C. Good to know (no action needed)
 

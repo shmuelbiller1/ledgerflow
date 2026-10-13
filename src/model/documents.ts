@@ -246,6 +246,11 @@ export interface Payment {
   depositAccountId: string;             // which bank/cash account it hit
   allocations: PaymentAllocation[];
   unappliedCents: number;               // amountCents minus sum(allocations)
+  /** Saved by vendor payment posting: home-currency tax retained from the gross settlement. */
+  withheldCents?: number;
+  withholdingRatePercent?: number;
+  /** Certificate reference recorded with this payment, not today's vendor declaration. */
+  withholdingCertificate?: string;
   /** A deposit taken for this estimate (BE-05); applied to its invoice once that is issued. */
   estimateId?: string;
   status: 'draft' | 'posted' | 'void';

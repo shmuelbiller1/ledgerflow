@@ -3,6 +3,7 @@ import { getTrialStatus as _getTrialStatus } from '../../lib/trialManager';
 import React, { useState } from 'react';
 import { Check, Shield, Zap, Building, Sparkles } from 'lucide-react';
 import { PRICING_TIERS } from '../../lib/featureFlags';
+import { YEARLY_DISCOUNT } from '../../lib/plans';
 
 export const PricingPage: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -14,10 +15,10 @@ export const PricingPage: React.FC = () => {
           <Sparkles className="w-3.5 h-3.5" /> Commercial Plans
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Transparent, Ledger-Native Pricing
+          Pricing
         </h1>
         <p className="mt-3 text-base sm:text-lg text-slate-600 dark:text-slate-400">
-          Scale your accounting infrastructure without transaction limits or hidden fees.
+          One price per workspace a month. The same plans and prices as Settings → Billing & Plan.
         </p>
 
         {/* Billing Switch */}
@@ -52,7 +53,7 @@ export const PricingPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {PRICING_TIERS.map((tier) => {
-          const price = billingCycle === 'yearly' ? Math.round(tier.monthlyPriceUsd * 0.8) : tier.monthlyPriceUsd;
+          const price = billingCycle === 'yearly' ? Math.round(tier.monthlyPriceUsd * (1 - YEARLY_DISCOUNT)) : tier.monthlyPriceUsd;
 
           return (
             <div

@@ -1,15 +1,14 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
+import { PLANS, planFor } from '../../lib/plans';
 import { getDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 
-export const PLAN_LIMITS: Record<string, { transactions: number; seats: number }> = {
-  free: { transactions: 100, seats: 1 },
-  sandbox: { transactions: 100, seats: 1 },
-  growth: { transactions: 1000, seats: 5 },
-  pro: { transactions: 10000, seats: 25 },
-  enterprise: { transactions: 1000000, seats: 1000 }
-};
+// From the one plan table (src/lib/plans.ts); 'sandbox' is the free plan's older name.
+export const PLAN_LIMITS: Record<string, { transactions: number; seats: number }> = Object.fromEntries([
+  ...PLANS.map(p => [p.id, { transactions: p.limits.transactions, seats: p.limits.seats }] as const),
+  ['sandbox', { transactions: planFor('sandbox').limits.transactions, seats: planFor('sandbox').limits.seats }] as const,
+]);
 
 export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storage', dbOverride?: any) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -79,7 +78,7 @@ export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storag
           });
         }
       } else if (resource === 'storage') {
-        const storageCapMb = wsData.maxStorageMb || (plan === 'enterprise' ? 100000 : plan === 'pro' ? 25000 : plan === 'growth' ? 5000 : 500);
+        const storageCapMb = wsData.maxStorageMb || planFor(plan).limits.storageMb;
         const currentStorageMb = wsData.currentStorageMb || 0;
         if (currentStorageMb >= storageCapMb) {
           return res.status(402).json({

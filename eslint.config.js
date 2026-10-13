@@ -8,7 +8,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactPlugin from 'eslint-plugin-react';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'dist/**', 'public/**'] },
+  { ignores: ['dist', 'node_modules', 'dist/**', 'public/**', 'work/**'] },
   {
     extends: [
       js.configs.recommended,

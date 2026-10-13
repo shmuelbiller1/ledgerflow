@@ -15,3 +15,6 @@ fix_*.py
 cleanup_*.py
 .vercel/
 .cache/
+
+# AI #4 mutation reports and instrumented sandboxes are local artifacts.
+work/

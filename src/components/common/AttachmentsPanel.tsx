@@ -69,9 +69,9 @@ export default function AttachmentsPanel({ target, className = '', workspaceId: 
           <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Files{files && files.length > 0 ? ` (${files.length})` : ''}
         </h3>
         {canAttach && (
-          <label htmlFor={inputId} className={`text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
+          <label htmlFor={inputId} className={`relative text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
             {busy ? 'Attaching…' : 'Attach files'}
-            <input id={inputId} type="file" multiple className="sr-only" aria-label={`Attach files to ${target.label}`}
+            <input id={inputId} type="file" multiple className="sr-only left-0 top-0" aria-label={`Attach files to ${target.label}`}
               onChange={e => { void add(e.target.files); e.target.value = ''; }} />
           </label>
         )}
