@@ -1,0 +1,43 @@
+name: Code atlas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked tooling dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+          NODE_ENV: development
+          npm_config_production: false
+      - name: Test atlas tooling
+        run: node --test scripts/code-atlas.test.mjs
+      - name: Validate inventory, source blobs and review references
+        run: node scripts/code-atlas.mjs validate
+      - name: Reject source drift and stale interpretation
+        run: node scripts/code-atlas.mjs changes --check
+      - name: Verify fresh deterministic extraction and derived report
+        shell: bash
+        run: |
+          REVISION=$(node --input-type=module -e "import {readIndex} from './scripts/code-atlas.mjs'; console.log(readIndex('docs/CODE_ATLAS.jsonl').meta.sourceRevision)")
+          node scripts/code-atlas.mjs generate --revision "$REVISION" --fresh --output "$RUNNER_TEMP/ledgerflow-atlas.jsonl"
+          cmp docs/CODE_ATLAS.jsonl "$RUNNER_TEMP/ledgerflow-atlas.jsonl"
+          node scripts/code-atlas.mjs stats --markdown > "$RUNNER_TEMP/ledgerflow-atlas-validation.md"
+          cmp docs/CODE_ATLAS_VALIDATION.md "$RUNNER_TEMP/ledgerflow-atlas-validation.md"
