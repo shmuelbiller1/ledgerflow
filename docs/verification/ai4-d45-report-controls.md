@@ -51,3 +51,7 @@ image review are recorded in the PR. Vercel previews remain intentionally blocke
 by the owner to save limits; no deployment retry or success is claimed.
 
 CI reference capture: run 39163910254 passed, generated exactly the eight affected P&L/balance-sheet images, and all 40 visual reference cases passed. All eight candidate images were opened and inspected before acceptance: dates/Basis are readable, balance-sheet sorting is fully visible, and report figures remain visible. The temporary push trigger was removed; the final workflow matches main. Full final-PR gates remain pending at publication.
+
+Review follow-up: Sort buttons now have both 44px minimum width and height. Flattened wrapping containers preserve row-major visual/DOM order; the browser contract traverses real Tab stops (including native date segments) and rejects a jump back up a row. All eight cases pass locally; refreshed references and corrected-head full gates pending.
+
+Corrected visual capture run 39165617884 passed all 40 references after the review fixes. Six of the eight report references changed (P&L phone images stayed byte-identical); all six changed candidates were inspected before acceptance. No threshold changed. Types and targeted lint pass (one existing warning). Final corrected-head full PR gates are pending at this checkpoint.

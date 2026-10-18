@@ -49,7 +49,8 @@ for (const width of [390, 1280])
             return rect.width &&
               (rect.left < frame.left ||
                 rect.right > frame.right + 1 ||
-                rect.height < 44)
+                rect.height < 44 ||
+                rect.width < 44)
               ? [
                   {
                     control:
@@ -92,6 +93,48 @@ for (const width of [390, 1280])
         });
         for (const contrast of contrasts)
           expect(contrast).toBeGreaterThanOrEqual(4.5);
+        // Traverse real Tab stops, including the native date input's internal segments.
+        const controls = header
+          .locator(
+            "button:not([disabled]), input:not([disabled]), select:not([disabled])",
+          )
+          .filter({ visible: true });
+        await controls.first().focus();
+        let previousBottom = 0;
+        for (let index = 0; index < (await controls.count()); index++) {
+          const control = controls.nth(index);
+          if (index) {
+            for (let step = 0; step < 8; step++) {
+              await page.keyboard.press("Tab");
+              if (
+                await control.evaluate(
+                  (element) => element === document.activeElement,
+                )
+              )
+                break;
+              expect(
+                await header.evaluate((element) =>
+                  element.contains(document.activeElement),
+                ),
+              ).toBe(true);
+            }
+            await expect(control).toBeFocused();
+          }
+          const bottom = await control.evaluate((element) => {
+            const target =
+              element instanceof HTMLInputElement && element.type === "checkbox"
+                ? element.closest("label")!
+                : element;
+            return (
+              target.getBoundingClientRect().bottom -
+              element
+                .closest('[data-testid="report-controls"]')!
+                .getBoundingClientRect().top
+            );
+          });
+          expect(bottom).toBeGreaterThanOrEqual(previousBottom - 10);
+          previousBottom = bottom;
+        }
         const a11y = await new AxeBuilder({ page })
           .include('[data-testid="report-controls"]')
           .withRules(["color-contrast"])

@@ -68,9 +68,9 @@ export function BalanceSheetReport({ columnMode, setColumnMode, showPercent, set
       ) : null}
 
       {/* Date controls and configuration header */}
-      <div data-testid="report-controls" role="region" aria-label="Report filters" className="flex flex-wrap items-start justify-between p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs relative group gap-4">
+      <div data-testid="report-controls" role="region" aria-label="Report filters" className="flex flex-wrap items-end justify-between p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs relative group gap-4">
         <div className="absolute technical-grid inset-0 opacity-[0.015] pointer-events-none" />
-        <div className="flex flex-wrap items-end gap-4 relative z-10 flex-1 min-w-0">
+        <div className="contents">
           <MonthNavigator
             className="[&_button]:min-h-11 [&_button]:min-w-11 [&_button]:text-[var(--text)]"
             currentDate={asOfDate}
@@ -145,7 +145,7 @@ export function BalanceSheetReport({ columnMode, setColumnMode, showPercent, set
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 min-w-0">
+        <div className="contents">
           <div className="flex flex-wrap items-center gap-1.5 bg-[var(--ink)] p-1 rounded-lg">
             <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider px-1">Sort:</span>
             {(['code', 'name', 'balance'] as const).map(field => (
@@ -154,7 +154,7 @@ export function BalanceSheetReport({ columnMode, setColumnMode, showPercent, set
                 aria-pressed={sortBy === field}
                 onClick={() => toggleSort(field)}
                 className={cn(
-                  "min-h-11 px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors flex items-center gap-1 cursor-pointer",
+                  "min-h-11 min-w-11 px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors flex items-center gap-1 cursor-pointer",
                   sortBy === field ? "bg-slate-900 text-white shadow-xs" : "text-[var(--text)] hover:text-[var(--text)]"
                 )}
               >

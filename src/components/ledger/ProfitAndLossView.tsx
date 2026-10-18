@@ -349,9 +349,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       ) : null}
 
       {/* Date Range & Controls */}
-      <div data-testid="report-controls" role="region" aria-label="Report filters" className="flex flex-wrap items-start justify-between p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs relative group gap-4">
+      <div data-testid="report-controls" role="region" aria-label="Report filters" className="flex flex-wrap items-end justify-between p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs relative group gap-4">
         <div className="absolute technical-grid inset-0 opacity-[0.015] pointer-events-none" />
-        <div className="flex flex-wrap items-end gap-4 relative z-10 flex-1 min-w-0">
+        <div className="contents">
           <MonthNavigator 
             className="[&_button]:min-h-11 [&_button]:min-w-11 [&_button]:text-[var(--text)]"
             currentDate={dateRange.start} 
