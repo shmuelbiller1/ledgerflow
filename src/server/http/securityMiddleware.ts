@@ -24,7 +24,7 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
   app.set("trust proxy", 1); 
   app.use(compression());
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.plaid.com"],
@@ -36,9 +36,9 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
         frameSrc: ["'self'", "https://*.stripe.com", "https://cdn.plaid.com"],
         frameAncestors: aiStudioProxy ? ["*"] : ["'self'"]
       }
-    } : false,
+    },
     crossOriginEmbedderPolicy: false,
-    frameguard: aiStudioProxy ? false : { action: 'sameorigin' },
+    frameguard: { action: 'sameorigin' },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
