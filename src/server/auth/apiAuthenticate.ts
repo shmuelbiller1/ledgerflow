@@ -55,11 +55,26 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
          return res.status(401).json({ status: "error", message: "API key corrupt." });
       }
 
-      const computedHash = crypto.createHash('sha256').update(secretKey).digest('hex');
+      // Expected format: scrypt$N$r$p$saltHex$derivedKeyHex
+      const hashParts = storedHash.split("$");
+      if (hashParts.length !== 6 || hashParts[0] !== "scrypt") {
+         return res.status(401).json({ status: "error", message: "API key signature is invalid." });
+      }
 
-      const storedBuf = Buffer.from(storedHash, 'hex');
-      const computedBuf = Buffer.from(computedHash, 'hex');
-      if (storedBuf.length !== computedBuf.length || !crypto.timingSafeEqual(storedBuf, computedBuf)) {
+      const N = Number(hashParts[1]);
+      const r = Number(hashParts[2]);
+      const p = Number(hashParts[3]);
+      const saltHex = hashParts[4];
+      const storedDerivedHex = hashParts[5];
+
+      const saltBuf = Buffer.from(saltHex, "hex");
+      const storedDerivedBuf = Buffer.from(storedDerivedHex, "hex");
+      if (!Number.isInteger(N) || !Number.isInteger(r) || !Number.isInteger(p) || saltBuf.length === 0 || storedDerivedBuf.length === 0) {
+         return res.status(401).json({ status: "error", message: "API key signature is invalid." });
+      }
+
+      const computedDerivedBuf = crypto.scryptSync(secretKey, saltBuf, storedDerivedBuf.length, { N, r, p });
+      if (computedDerivedBuf.length !== storedDerivedBuf.length || !crypto.timingSafeEqual(storedDerivedBuf, computedDerivedBuf)) {
          return res.status(401).json({ status: "error", message: "API key signature is invalid." });
       }
 
