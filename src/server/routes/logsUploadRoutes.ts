@@ -6,10 +6,28 @@ import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import fs from "fs";
+import path from "path";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
 import { validateUploadedFile } from "../utils/fileValidation";
+
+const SAFE_UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+
+function isPathInsideRoot(candidatePath: string, rootPath: string): boolean {
+  const relative = path.relative(rootPath, candidatePath);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function safeDeleteUploadedFile(filePath: string): void {
+  const resolvedRoot = path.resolve(SAFE_UPLOAD_ROOT);
+  const resolvedPath = path.resolve(filePath);
+  const normalizedTarget = fs.existsSync(resolvedPath) ? fs.realpathSync.native(resolvedPath) : resolvedPath;
+
+  if (isPathInsideRoot(normalizedTarget, resolvedRoot) && fs.existsSync(normalizedTarget)) {
+    fs.unlinkSync(normalizedTarget);
+  }
+}
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContext): void {
@@ -147,10 +165,10 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
         }
       });
 
-      fs.unlinkSync(req.file.path);
+      safeDeleteUploadedFile(req.file.path);
       res.json(transactions);
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (req.file) safeDeleteUploadedFile(req.file.path);
       if (/not a member|API key is scoped/i.test(errorMessage(error))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, "Failed to parse CSV", 500, error);
     }
