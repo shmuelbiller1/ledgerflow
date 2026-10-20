@@ -30,7 +30,10 @@ const accountLabel = (a: ChartAccount) => `${a.code ? `${a.code} - ` : ''}${a.na
  * does not have, a row that does not add up or a facility the books do not have stops the import with the reason.
  */
 export default function PayrollImportDialog({ workspaceId, accounts, dimensions, currency, onClose }: PayrollImportDialogProps) {
-  const { dialogProps, titleId } = useDialog(onClose, true);
+  // #261 review: while the import is being posted the dialog cannot be dismissed (the request would still post)
+  const savingRef = useRef(false);
+  const close = () => { if (!savingRef.current) onClose(); };
+  const { dialogProps, titleId } = useDialog(close, true);
   const [provider, setProvider] = useState<PayrollProvider>('gusto');
   const [csv, setCsv] = useState('');
   const [fileName, setFileName] = useState('');
@@ -56,17 +59,21 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
   const problems = [...read.problems, ...(read.problems.length ? [] : preview.problems)];
 
   const loadFile = async (file: File | undefined) => {
-    requestSeq.current++;
+    const mine = ++requestSeq.current;
     setServerProblems([]);
     if (!file) return;
+    const text = await file.text();
+    // #261 review: a later choice of file wins, whichever read finishes first
+    if (mine !== requestSeq.current) return;
     setFileName(file.name);
-    setCsv(await file.text());
+    setCsv(text);
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (problems.length || !preview.payDates.length) return;
     const mine = ++requestSeq.current;
+    savingRef.current = true;
     setSaving(true);
     setServerProblems([]);
     try {
@@ -87,6 +94,7 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
     } catch (err) {
       if (mine === requestSeq.current) setServerProblems([(err as Error).message]);
     } finally {
+      savingRef.current = false;
       if (mine === requestSeq.current) setSaving(false);
     }
   };
@@ -99,7 +107,7 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
             <h2 id={titleId} className="text-lg font-bold text-neutral-900">Import payroll from a provider</h2>
             <p className="text-xs text-neutral-600">Records what your payroll provider ran: one entry per pay date. It does not run payroll.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close payroll import" className="min-h-11 min-w-11 p-1 rounded-lg text-neutral-500 hover:text-neutral-900">
+          <button type="button" onClick={close} disabled={saving} aria-label="Close payroll import" className="disabled:opacity-50 min-h-11 min-w-11 p-1 rounded-lg text-neutral-500 hover:text-neutral-900">
             <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
@@ -174,9 +182,9 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
             </div>
           ))}
 
-          <p className="text-xs text-neutral-600">The same file is refused a second time. To correct an imported pay date, reverse its entry (Reverse &amp; Correct), then import the corrected file. Pay the net amount from the bank to the payroll clearing account.</p>
+          <p className="text-xs text-neutral-600">The same file is refused a second time. To correct an imported pay date, reverse its entry without a replacement, then import the corrected file; if you already corrected it with Reverse &amp; Correct, the corrected entry stands and the file is refused. Pay the net amount from the bank to the payroll clearing account.</p>
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="min-h-11 px-4 py-2 text-sm rounded-lg text-neutral-800 hover:bg-neutral-100">Cancel</button>
+            <button type="button" onClick={close} disabled={saving} className="min-h-11 px-4 py-2 text-sm rounded-lg text-neutral-800 hover:bg-neutral-100 disabled:opacity-50">Cancel</button>
             <button type="submit" disabled={saving || !!problems.length || !preview.payDates.length} className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-neutral-900 text-white disabled:opacity-50">
               {saving ? 'Recording…' : `Record ${preview.payDates.length || ''} ${preview.payDates.length === 1 ? 'entry' : 'entries'}`.replace(/\s+/g, ' ')}
             </button>

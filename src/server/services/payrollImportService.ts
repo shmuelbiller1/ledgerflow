@@ -4,7 +4,9 @@ import { FieldValue, validateWorkspaceAccounts } from '../db/firestore';
 import { ledgerWrite } from './ledgerDoor';
 import { writeServerAuditLog } from './auditLogService';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import { lockMessage, postingLock } from '../../lib/periodLock';
+import { lockMessage, postingLock, workspaceRole } from '../../lib/periodLock';
+import { resolveAccountRole } from '../../lib/accountUtils';
+import { twoPersonOn } from '../../lib/twoPersonRule';
 import { isCashAccount } from '../../lib/txFilters';
 import { formatCurrency } from '../../lib/utils';
 import {
@@ -47,16 +49,16 @@ export interface PayrollImportResult {
   entries: Array<{ transactionId: string; payDate: string; totals: PayrollTotals }>;
 }
 
-/** The import key of one pay date: the provider, the date and every total. */
-export function payrollImportKey(provider: PayrollProvider, payDate: PayrollPayDate): string {
+/** The import key of one pay date: the workspace (#261 review), the provider, the date and every total. */
+export function payrollImportKey(workspaceId: string, provider: PayrollProvider, payDate: PayrollPayDate): string {
   const t = payDate.totals;
-  const basis = [provider, payDate.payDate, t.people, t.grossCents, t.employeeTaxCents, t.deductionCents, t.employerTaxCents, t.employerBenefitCents, t.netCents].join('|');
+  const basis = [workspaceId, provider, payDate.payDate, t.people, t.grossCents, t.employeeTaxCents, t.deductionCents, t.employerTaxCents, t.employerBenefitCents, t.netCents].join('|');
   return crypto.createHash('sha256').update(basis).digest('hex').slice(0, 32);
 }
 
 const EXPENSE_TYPES = new Set(['expense', 'cost_of_goods']);
 
-function checkAccountKinds(accounts: PayrollAccounts, byId: Map<string, { id: string; name: string; type: string; category?: string }>) {
+function checkAccountKinds(accounts: PayrollAccounts, byId: Map<string, ChartAccount>) {
   const problems: string[] = [];
   for (const r of PAYROLL_ACCOUNT_ROLES) {
     const id = accounts[r.role];
@@ -66,7 +68,8 @@ function checkAccountKinds(accounts: PayrollAccounts, byId: Map<string, { id: st
     const type = String(account.type || '').toLowerCase();
     if (r.side === 'expense' && !EXPENSE_TYPES.has(type)) problems.push(`"${r.label}" must be an expense account; ${account.name} is not.`);
     if (r.role === 'clearing') {
-      if (isCashAccount(account as ChartAccount) || !['liability', 'asset'].includes(type)) problems.push(`"${r.label}" must be a clearing account (a liability or asset that is not a bank account); ${account.name} is not.`);
+      // #261 review: judged on the whole account record (subtype, role), not only its type
+      if (isCashAccount(account) || resolveAccountRole(account) === 'cash' || !['liability', 'asset'].includes(type)) problems.push(`"${r.label}" must be a clearing account (a liability or asset that is not a bank account); ${account.name} is not.`);
     } else if (r.side === 'liability' && type !== 'liability') problems.push(`"${r.label}" must be a liability account; ${account.name} is not.`);
   }
   return problems;
@@ -89,13 +92,13 @@ export async function importPayroll(db: Firestore, input: PayrollImportInput): P
   const built = payrollEntries(read.rows, input.accounts, labels);
   if (built.problems.length) throw new PayrollImportError(400, 'The file cannot be imported', built.problems);
 
-  const ids = Object.values(input.accounts).filter((id): id is string => Boolean(id));
-  let byId: Map<string, { id: string; name: string; type: string; category?: string }>;
+  const ids = [...new Set(Object.values(input.accounts).filter((id): id is string => Boolean(id)))];
   try {
-    byId = await validateWorkspaceAccounts(db, input.workspaceId, ids);
+    await validateWorkspaceAccounts(db, input.workspaceId, ids);
   } catch {
     throw new PayrollImportError(400, 'Choose accounts from this workspace');
   }
+  const byId = new Map((await db.getAll(...ids.map(id => db.collection('chartAccounts').doc(id)))).map(d => [d.id, { ...d.data(), id: d.id } as ChartAccount]));
   const kinds = checkAccountKinds(input.accounts, byId);
   if (kinds.length) throw new PayrollImportError(400, 'Choose accounts of the right kind', kinds);
 
@@ -104,12 +107,17 @@ export async function importPayroll(db: Firestore, input: PayrollImportInput): P
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new PayrollImportError(404, 'Workspace not found');
     const currency = String(workspace.currency || 'USD');
+    // #261 review: payroll approval applies to imported payroll too. Imports cannot wait for approval yet, so where
+    // a second person must approve (the two-person rule, or approval required and the importer is not an owner)
+    // nothing is posted and the reason is given
+    if (twoPersonOn(workspace)) throw new PayrollImportError(409, 'Under the two-person rule someone else approves payroll, and an import cannot wait for approval yet: nothing was posted.');
+    if (workspace.payrollApproval === true && workspaceRole(workspace as never, input.uid) !== 'owner') throw new PayrollImportError(409, 'Payroll needs an owner\'s approval in this workspace: an owner imports it. Nothing was posted.');
     // every pay date's period open, every pay date new, before anything is written
     const planned: Array<{ payDate: PayrollPayDate; key: string; ref: DocumentReference }> = [];
     for (const payDate of built.payDates) {
       const lock = postingLock(payDate.payDate, workspace as never, input.uid);
       if (lock) throw new PayrollImportError(409, `${lockMessage(payDate.payDate, lock)} Nothing from this file was posted.`);
-      const key = payrollImportKey(input.provider, payDate);
+      const key = payrollImportKey(input.workspaceId, input.provider, payDate);
       let ref = db.collection('transactions').doc(`payroll-import-${key}`);
       for (let n = 2; ; n++) {
         const earlier = await t.get(ref);
@@ -117,6 +125,11 @@ export async function importPayroll(db: Firestore, input: PayrollImportInput): P
         const e = earlier.data() || {};
         if (e.workspaceId !== input.workspaceId) throw new PayrollImportError(409, 'This file was imported elsewhere; nothing was posted');
         const undone = Boolean(e.reversalEventId) || e.status === 'void';
+        // #261 review: Reverse & Correct may have posted a replacement (metadata.correctsTxId): that entry is the
+        // payroll of this date now, so importing again would count it twice
+        const replaced = undone && (await t.get(db.collection('transactions').where('workspaceId', '==', input.workspaceId).where('metadata.correctsTxId', '==', ref.id))).docs
+          .some(d => d.data().status !== 'void' && !d.data().reversalEventId);
+        if (replaced) throw new PayrollImportError(409, `The payroll of ${payDate.payDate} was reversed and corrected in the books (Reverse & Correct). The corrected entry stands: nothing from this file was posted.`);
         if (!undone) throw new PayrollImportError(409, `The payroll of ${payDate.payDate} from this file (${formatCurrency(payDate.totals.grossCents, currency)} gross, ${payDate.totals.people} ${payDate.totals.people === 1 ? 'person' : 'people'}) is already in the books. Nothing from this file was posted. To correct it, reverse that entry first.`);
         ref = db.collection('transactions').doc(`payroll-import-${key}-${n}`);
       }

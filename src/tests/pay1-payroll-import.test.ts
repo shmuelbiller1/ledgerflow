@@ -107,6 +107,30 @@ test('PAY-1: the ADP and Paychex column sets add their tax columns together', ()
   assert.deepEqual([paychex.rows[0].payDate, paychex.rows[0].netCents, paychex.rows[0].employerTaxCents], ['2026-05-15', 300_000, 30_600]);
 });
 
+// ---- #261 review (pure) ----
+test('#261 review: labels compare as text (Unicode form, Hebrew points) but a name shared by two labels is refused', () => {
+  const rows = readPayrollCsv([HEADER, '05/15/2026,Ana Ruiz,E1,Cafe\u0301 North,"1,000.00",200.00,0.00,800.00,76.50,0.00', '05/15/2026,Dov Levi,E2,\u05D1\u05BCית,"1,000.00",200.00,0.00,800.00,76.50,0.00'].join('\n'), 'gusto').rows;
+  const labelled = payrollEntries(rows, ACCOUNTS, { dimensionId: 'property', nodes: [{ id: 'C1', description: 'Caf\u00E9 North' }, { id: 'B1', description: '\u05D1\u05D9\u05EA' }] });
+  assert.deepEqual(labelled.problems, []);
+  assert.deepEqual(labelled.payDates[0].lines.filter(l => l.accountId === 'wages').map(l => l.label), ['C1', 'B1']);
+  const twice = payrollEntries(rows.slice(0, 1), ACCOUNTS, { dimensionId: 'property', nodes: [{ id: 'C1', description: 'Café North' }, { id: 'C2', aliases: ['Café North'] }, { id: 'C3', description: 'Café North' }] });
+  assert.match(twice.problems[0], /names more than one property label \(C1, C3\)\. Use the label's code/);
+});
+
+test('#261 review: rows with nothing paid are left out; a file of only such rows is refused', () => {
+  const zero = '05/15/2026,Zed Null,E9,Maple House,0.00,0.00,0.00,0.00,0.00,0.00';
+  assert.equal(readPayrollCsv([HEADER, MAY_15[0], zero].join('\n'), 'gusto').rows.length, 1);
+  assert.deepEqual(readPayrollCsv([HEADER, zero].join('\n'), 'gusto').problems, ['Every row in the file is zero: there is no payroll to record.']);
+});
+
+test('#261 review: more than 100 lines split by label is refused before posting', () => {
+  // 34 facilities × 3 expense lines + 5 credit lines = 107 lines
+  const many = Array.from({ length: 34 }, (_, i) => `05/15/2026,P${i},E${i},F${i},100.00,20.00,5.00,75.00,7.65,3.00`);
+  const nodes34 = Array.from({ length: 34 }, (_, i) => ({ id: `F${i}` }));
+  const { problems } = payrollEntries(readPayrollCsv([HEADER, ...many].join('\n'), 'gusto').rows, ACCOUNTS, { dimensionId: 'property', nodes: nodes34 });
+  assert.deepEqual(problems, ['The payroll of 2026-05-15 needs 107 lines split by label; an entry holds at most 100. Import it without splitting, or in parts.']);
+});
+
 const url = process.env.LF_TEST_DATABASE_URL;
 
 describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
@@ -224,6 +248,52 @@ describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set'
     assert.notEqual(same.body.entries[0].transactionId, may29.id);
     // the whole file still refuses: 2026-05-15 is in the books
     assert.equal((await importFile(FILE)).status, 409);
+  });
+
+  test('#261 review: a Reverse & Correct replacement stands — the same pay date is not imported on top of it', async () => {
+    const one = [HEADER, MAY_15[1].replace('05/15/2026', '05/22/2026')].join('\n');
+    const first = await importFile(one);
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    const original = first.body.entries[0].transactionId;
+    const entry = (await entries()).find(e => e.id === original)!;
+    const corrected = await send(OWNER, 'POST', `/api/v1/transactions/${original}/reverse`, { workspaceId: ws, reversalDate: '2026-05-22', reason: 'hours', replacement: { lines: entry.lines.map(l => ({ accountId: l.accountId, amountCents: l.amountCents })), description: 'Payroll 2026-05-22 corrected' } });
+    assert.equal(corrected.status, 200, JSON.stringify(corrected.body));
+    const again = await importFile(one);
+    assert.equal(again.status, 409);
+    assert.match(again.body.message, /was reversed and corrected in the books \(Reverse & Correct\)\. The corrected entry stands/);
+  });
+
+  test('#261 review: another workspace imports the same figures as its own payroll', async () => {
+    const other = `${ws}_twin`;
+    await db.collection('workspaces').doc(other).set({ uid: OWNER, name: 'Twin', currency: 'USD', timezone: 'UTC', members: [OWNER] });
+    const twin: Record<string, string> = {};
+    for (const [code, type, name] of [['2100', 'liability', 'Clearing'], ['2110', 'liability', 'WH'], ['2120', 'liability', 'Ded'], ['2130', 'liability', 'Tax due'], ['2140', 'liability', 'Ben due'], ['6000', 'expense', 'Wages'], ['6010', 'expense', 'Tax'], ['6020', 'expense', 'Ben']]) {
+      twin[code] = `${other}_${code}`;
+      await db.collection('chartAccounts').doc(twin[code]).set({ workspaceId: other, code, type, name });
+    }
+    const res = await send(OWNER, 'POST', `/api/v1/workspaces/${other}/pay-runs/imports`, { provider: 'gusto', csv: [HEADER, ...MAY_15].join('\n'), accounts: {
+      wages: twin['6000'], employerTaxExpense: twin['6010'], employerBenefitExpense: twin['6020'], withholdings: twin['2110'], deductions: twin['2120'], employerTaxLiability: twin['2130'], employerBenefitLiability: twin['2140'], clearing: twin['2100'],
+    } });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    for (const table of ['transactions', 'chartAccounts', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [other]).catch(() => {});
+  });
+
+  test('#261 review: a bank account is refused as clearing by its subtype; payroll approval rules are kept', async () => {
+    const one = [HEADER, MAY_15[2].replace('05/15/2026', '05/23/2026')].join('\n');
+    await db.collection('chartAccounts').doc(`${ws}_op`).set({ workspaceId: ws, code: '1010', type: 'asset', subtype: 'Checking', name: 'Operating' });
+    const subtype = await importFile(one, { accounts: { ...accounts, clearing: `${ws}_op` } });
+    assert.equal(subtype.status, 400);
+    assert.match(subtype.body.problems[0], /must be a clearing account .* Operating is not/);
+    await db.collection('workspaces').doc(ws).set({ twoPersonRule: true }, { merge: true });
+    const twoPerson = await importFile(one);
+    assert.equal(twoPerson.status, 409);
+    assert.match(twoPerson.body.message, /two-person rule/);
+    await db.collection('workspaces').doc(ws).set({ twoPersonRule: false, payrollApproval: true, roles: { book: 'bookkeeper', acct: 'accountant' }, members: [OWNER, 'book', 'acct'] }, { merge: true });
+    const accountant = await importFile(one, {}, 'acct');
+    assert.equal(accountant.status, 409);
+    assert.match(accountant.body.message, /an owner imports it/);
+    await db.collection('workspaces').doc(ws).set({ payrollApproval: false }, { merge: true });
+    assert.equal((await entries()).filter(e => e.date === '2026-05-23').length, 0);
   });
 
   test('refused: a bookkeeper, a closed month, accounts of the wrong kind, an unknown column', async () => {

@@ -71,3 +71,23 @@ Five facilities, one person each, pay date 2026-05-15:
 
 The column sets have not been checked against real exports from each provider (FOR_YOU, 20 Oct). Until they are, a
 different export is refused by name, not read wrongly.
+
+## #261 review (11 findings)
+
+`pay1-payroll-import.test.ts` is 16/16.
+
+1. **Import key.** It now includes the workspace, so another workspace with the same figures imports its own payroll.
+2. **Clearing account.** It is judged on the whole account record (subtype, role). An asset with subtype "Checking"
+   is refused.
+3. **Label text.** Labels are compared as text: Unicode form, case, Hebrew points and direction marks are folded. Codes
+   must match exactly.
+4. **File read.** A later choice of file wins, whichever read finishes first.
+5. **Payroll approval** applies to imports too. Under the two-person rule, or when approval is required and the importer
+   is not an owner, nothing is posted and the reason is given. Imports cannot wait for approval yet (FOR_YOU).
+6. **Shared label name.** A name or alias shared by two labels is refused; the file must use the label's code.
+7. **Zero rows.** Rows with nothing paid are left out. A file of only such rows is refused.
+8. **Line limit.** Over 100 lines split by label is refused in the preview and on the server, with the line count.
+9. **No dismissing while posting.** While the import posts, Cancel, the close button and Escape do nothing.
+10. **Reverse & Correct.** When a replacement exists (`metadata.correctsTxId`), the corrected entry stands and the same
+    pay date is refused. The dialog says to reverse without a replacement before importing a corrected file.
+11. **Phone layout.** The Payroll header buttons wrap on phones.

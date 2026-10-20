@@ -17,6 +17,7 @@
  * Posting, the open-period check and refusing the same file twice are on the server (payrollImportService.ts).
  */
 import { parseCsv } from './csv';
+import { normalizeSearchText } from './textNormalization';
 
 export type PayrollProvider = 'adp' | 'gusto' | 'paychex';
 
@@ -174,6 +175,8 @@ export function readPayrollCsv(content: string, provider: PayrollProvider): { ro
     });
     if (bad) continue;
     if (!row.employee) { problems.push(`Row ${n}: no employee.`); continue; }
+    // #261 review: a row with nothing paid (all amounts zero) changes nothing in the books and is left out
+    if (!row.grossCents && !row.employeeTaxCents && !row.deductionCents && !row.employerTaxCents && !row.employerBenefitCents && !row.netCents) continue;
     const expectedNet = row.grossCents - row.employeeTaxCents - row.deductionCents;
     if (expectedNet !== row.netCents) {
       problems.push(`Row ${n} (${row.employee}): gross ${money(row.grossCents)} less withholdings ${money(row.employeeTaxCents)} and deductions ${money(row.deductionCents)} is ${money(expectedNet)}, but net pay is ${money(row.netCents)}.`);
@@ -181,6 +184,7 @@ export function readPayrollCsv(content: string, provider: PayrollProvider): { ro
     }
     rows.push(row);
   }
+  if (!problems.length && !rows.length) problems.push('Every row in the file is zero: there is no payroll to record.');
   return problems.length ? { rows: [], problems } : { rows, problems };
 }
 
@@ -193,14 +197,26 @@ export function payrollTotals(rows: PayrollRow[]): PayrollTotals {
   return { ...t, costCents: t.grossCents + t.employerTaxCents + t.employerBenefitCents };
 }
 
-/** The label value a file's text names: its code, name or alias, ignoring case; never a near match. */
-function labelOf(text: string, choice: PayrollLabelChoice): string | undefined {
-  const s = normalize(text);
+/**
+ * The label value a file's text names: its code exactly, else its name or alias compared as text (case, Unicode form,
+ * Hebrew points and direction marks folded, #261 review); never a near match. Two values sharing that name or alias
+ * are ambiguous: none is chosen.
+ */
+function labelOf(text: string, choice: PayrollLabelChoice): { id?: string; ambiguous?: string[] } {
   const live = choice.nodes.filter(n => n.status !== 'archived');
-  return live.find(n => normalize(n.id) === s)?.id
-    ?? live.find(n => normalize(n.description || '') === s)?.id
-    ?? live.find(n => (n.aliases || []).some(a => normalize(a) === s))?.id;
+  const exact = live.find(n => n.id === text.trim());
+  if (exact) return { id: exact.id };
+  const s = normalizeSearchText(text.trim().replace(/\s+/g, ' '));
+  const fold = (v: string) => normalizeSearchText(v.trim().replace(/\s+/g, ' '));
+  for (const matches of [live.filter(n => fold(n.id) === s), live.filter(n => fold(n.description || '') === s), live.filter(n => (n.aliases || []).some(a => fold(a) === s))]) {
+    if (matches.length === 1) return { id: matches[0].id };
+    if (matches.length > 1) return { ambiguous: matches.map(n => n.id) };
+  }
+  return {};
 }
+
+/** A journal entry holds at most 100 lines (TransactionSchema). */
+export const PAYROLL_MAX_LINES = 100;
 
 /**
  * One entry per pay date, oldest first. Expense lines are split by the chosen label (one line per label value, in
@@ -219,9 +235,10 @@ export function payrollEntries(rows: PayrollRow[], accounts: PayrollAccounts, la
   if (labels) {
     for (const row of rows) {
       if (!row.label) { problems.push(`Row ${row.row} (${row.employee}): no ${labels.dimensionId} label; with costs split by label, every row needs one.`); continue; }
-      const id = labelOf(row.label, labels);
-      if (!id) problems.push(`Row ${row.row} (${row.employee}): "${row.label}" is not one of this workspace's ${labels.dimensionId} labels. Add it, or fix the file.`);
-      else labelIds.set(row.label, id);
+      const found = labelOf(row.label, labels);
+      if (found.ambiguous) problems.push(`Row ${row.row} (${row.employee}): "${row.label}" names more than one ${labels.dimensionId} label (${found.ambiguous.join(', ')}). Use the label's code in the file.`);
+      else if (!found.id) problems.push(`Row ${row.row} (${row.employee}): "${row.label}" is not one of this workspace's ${labels.dimensionId} labels. Add it, or fix the file.`);
+      else labelIds.set(row.label, found.id);
     }
   }
   if (problems.length) return { payDates: [], problems: [...new Set(problems)] };
@@ -254,5 +271,9 @@ export function payrollEntries(rows: PayrollRow[], accounts: PayrollAccounts, la
     owed('clearing', totals.netCents, 'Net pay');
     return { payDate, rows: these, totals, lines };
   });
-  return { payDates, problems };
+  // #261 review: an entry has at most 100 lines; say so before posting rather than fail on the server
+  for (const p of payDates) {
+    if (p.lines.length > PAYROLL_MAX_LINES) problems.push(`The payroll of ${p.payDate} needs ${p.lines.length} lines split by label; an entry holds at most ${PAYROLL_MAX_LINES}. Import it without splitting, or in parts.`);
+  }
+  return problems.length ? { payDates: [], problems } : { payDates, problems };
 }
