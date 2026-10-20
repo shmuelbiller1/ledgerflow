@@ -147,12 +147,12 @@ export default function BillingSettings() {
       <UsagePanel />
       {/* Payment Warning Banner */}
       {isPastDue && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-amber-900 shadow-sm">
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-between text-amber-900 dark:text-amber-100 shadow-sm">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="text-amber-600 shrink-0" size={20} />
+            <AlertTriangle className="text-amber-600 dark:text-amber-400 shrink-0" size={20} />
             <div>
               <h3 className="font-bold text-sm">Payment Past Due</h3>
-              <p className="text-xs text-amber-700">Your last subscription payment failed. Please update your payment method to avoid service interruption.</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">Your last subscription payment failed. Please update your payment method to avoid service interruption.</p>
             </div>
           </div>
           <button
@@ -165,28 +165,28 @@ export default function BillingSettings() {
       )}
 
       {/* Main Container */}
-      <div className="ledger-card p-6 md:p-10 bg-white border border-slate-200 rounded-3xl shadow-sm">
-        <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between mb-8 pb-6 border-b border-slate-100">
+      <div className="ledger-card p-6 md:p-10 bg-[var(--panel)] border border-[var(--line)] rounded-3xl shadow-sm">
+        <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between mb-8 pb-6 border-b border-[var(--line)]">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
               <CreditCard size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Subscription & Plan Tiers</h2>
+              <h2 className="text-xl font-bold text-[var(--text)] tracking-tight">Subscription & Plan Tiers</h2>
               <p className="text-xs text-[var(--muted)] font-medium">Manage workspace plan capacity, billing cycle, and billing portal</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-[var(--muted)]">Current Plan:</span>
-            <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-full uppercase tracking-wider">
+            <span className="px-3 py-1 bg-[var(--brass-soft)] border border-[var(--brass-line)] text-[var(--text)] text-xs font-bold rounded-full uppercase tracking-wider">
               {activePlan}
             </span>
             {billingStatus?.stripeSubscriptionId && (
               <RequireRole requiredRole="owner" disableOnly tooltip="Only the workspace owner can manage billing">
                 <button
                   onClick={handleOpenPortal}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                  className="px-4 py-2 bg-[var(--text)] hover:opacity-90 text-[var(--ink)] text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
                 >
                   <CheckCircle2 size={14} /> Manage Portal
                 </button>
@@ -206,10 +206,10 @@ export default function BillingSettings() {
               return (
                 <div
                   key={p.id}
-                  className={`p-6 rounded-2xl border flex flex-col justify-between transition-all ${
+                  className={`relative p-6 rounded-2xl border flex flex-col justify-between transition-all ${
                     isCurrent
-                      ? 'border-indigo-600 bg-indigo-50/40 shadow-md relative'
-                      : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                      ? 'border-[var(--brass)] bg-[var(--brass-soft)] shadow-md'
+                      : 'border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brass-line)] hover:shadow-sm'
                   }`}
                 >
                   {p.badge && !isCurrent && (
@@ -225,17 +225,17 @@ export default function BillingSettings() {
                   )}
 
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">{p.name}</h3>
+                    <h3 className="text-base font-bold text-[var(--text)]">{p.name}</h3>
                     <p className="text-xs text-[var(--muted)] mt-1 min-h-[32px]">{p.desc}</p>
                     <div className="mt-4 mb-6">
-                      <span className="text-3xl font-extrabold text-slate-900">{p.price}</span>
+                      <span className="text-3xl font-extrabold text-[var(--text)]">{p.price}</span>
                       <span className="text-xs text-[var(--muted)] font-medium">{p.period}</span>
                     </div>
 
-                    <ul className="space-y-2.5 text-xs text-slate-600 mb-6">
+                    <ul className="space-y-2.5 text-xs text-[var(--muted)] mb-6">
                       {p.features.map((f) => (
                         <li key={f} className="flex items-center gap-2">
-                          <CheckCircle2 size={14} className="text-indigo-600 shrink-0" />
+                          <CheckCircle2 size={14} className="text-[var(--brass)] shrink-0" />
                           <span>{f}</span>
                         </li>
                       ))}
@@ -245,14 +245,14 @@ export default function BillingSettings() {
                   {isCurrent ? (
                     <button
                       disabled
-                      className="w-full py-2.5 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl cursor-default"
+                      className="w-full py-2.5 bg-[var(--brass-soft)] text-[var(--text)] font-bold text-xs rounded-xl cursor-default"
                     >
                       Current Plan
                     </button>
                   ) : p.id === 'free' ? (
                     <button
                       disabled
-                      className="w-full py-2.5 bg-slate-100 text-[var(--muted)] font-semibold text-xs rounded-xl cursor-not-allowed"
+                      className="w-full py-2.5 bg-[var(--elevated)] text-[var(--muted)] font-semibold text-xs rounded-xl cursor-not-allowed"
                     >
                       Included
                     </button>

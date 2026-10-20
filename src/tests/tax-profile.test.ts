@@ -57,6 +57,28 @@ test('what a profile needs before it is saved', () => {
   assert.match(String(taxProfilesProblem({ labels: { 'world:x': { registrations: [{ kind: 'gst', number: '1', place: { country: 'CA' } }] } } })), /kind/);
   assert.match(String(taxProfilesProblem({ books: { registrations: [{ kind: 'vat', number: '1', place: { country: 'IL' }, validFrom: '2026-02-01', validTo: '2026-01-01' }] } })), /ends before/);
   assert.match(String(taxProfilesProblem({ books: { registrations: [{ kind: 'vat', number: '<x>', place: { country: 'IL' } }] } })), /1 to 40/);
+  // A-101: Israeli advance tax payment (mikdamot) rate and frequency
+  assert.equal(taxProfilesProblem({ books: { advanceTaxRatePercent: 3.5, advanceTaxFrequency: 'bimonthly' } }), null);
+  assert.match(String(taxProfilesProblem({ books: { advanceTaxRatePercent: -1 } })), /between 0 and 100/);
+  assert.match(String(taxProfilesProblem({ books: { advanceTaxRatePercent: 105 } })), /between 0 and 100/);
+  assert.match(String(taxProfilesProblem({ books: { advanceTaxFrequency: 'yearly' as never } })), /monthly or bimonthly/);
+});
+
+test('A-101: advance tax rate and frequency inheritance', () => {
+  const p: TaxProfiles = {
+    books: { advanceTaxRatePercent: 4.5, advanceTaxFrequency: 'bimonthly' },
+    labels: {
+      'world:il': { name: 'Israel Entity', advanceTaxRatePercent: 3.0 },
+      'world:child': { name: 'Child Subsidiary' },
+    },
+  };
+  const il = resolveSellerProfile(p, { world: 'il' }, ['world']);
+  assert.equal(il.advanceTaxRatePercent, 3.0, 'uses own rate');
+  assert.equal(il.advanceTaxFrequency, 'bimonthly', 'inherits frequency from books');
+
+  const child = resolveSellerProfile(p, { world: 'child' }, ['world']);
+  assert.equal(child.advanceTaxRatePercent, 4.5, 'inherits rate from books');
+  assert.equal(child.advanceTaxFrequency, 'bimonthly', 'inherits frequency from books');
 });
 
 describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {

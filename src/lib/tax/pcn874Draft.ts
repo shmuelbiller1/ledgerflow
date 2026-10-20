@@ -30,6 +30,11 @@ export interface Pcn874FixtureDocument {
 export interface Pcn874DraftRequest {
   dealerId: string;
   month: string; // YYYY-MM
+  /**
+   * CON-4: the last month of a bimonthly report (the month after `month`); omitted for a monthly one.
+   * The header keeps `month`, the period's first month — not verified against the current layout.
+   */
+  endMonth?: string;
   generatedOn: string; // YYYY-MM-DD
   documents: readonly Pcn874FixtureDocument[];
 }
@@ -63,6 +68,10 @@ export function buildPcn874FixtureDraft(request: Pcn874DraftRequest): Pcn874Draf
   const dealerId = numeric(request.dealerId, 9, 'dealer ID');
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(request.month)) throw new Error('Invalid PCN874 month.');
   const month = request.month.replace('-', '');
+  const endMonth = (request.endMonth || request.month).replace('-', '');
+  const [y, m] = request.month.split('-').map(Number);
+  const nextMonth = m === 12 ? null : `${y}${String(m + 1).padStart(2, '0')}`;
+  if (endMonth !== month && (!/^\d{6}$/.test(endMonth) || endMonth !== nextMonth)) throw new Error('Invalid PCN874 period: a report is one month or two months of one year.');
   const generatedOn = date8(request.generatedOn);
   let taxableSales = 0, taxableVat = 0, zeroSales = 0, inputOther = 0, inputEquipment = 0;
   let saleCount = 0, inputCount = 0;
@@ -73,7 +82,7 @@ export function buildPcn874FixtureDraft(request: Pcn874DraftRequest): Pcn874Draf
       throw new Error('PCN874 type/category classification mismatch.');
     if (doc.sign !== '+' && doc.sign !== '-') throw new Error('Invalid PCN874 sign.');
     const date = date8(doc.invoiceDate);
-    if (date.slice(0, 6) !== month) throw new Error('PCN874 document date is outside report month.');
+    if (date.slice(0, 6) < month || date.slice(0, 6) > endMonth) throw new Error('PCN874 document date is outside report month.');
     if (!/^[\x20-\x7e]{0,4}$/.test(doc.referenceGroup)) throw new Error('Invalid PCN874 reference group.');
     if (doc.category === 'zero-sale' && doc.vatNis !== 0) throw new Error('Zero-rate entry has VAT.');
     signedAmount(doc, 'vatNis'); signedAmount(doc, 'baseNis');

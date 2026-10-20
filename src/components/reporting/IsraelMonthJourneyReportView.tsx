@@ -6,7 +6,7 @@ import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import {
   IL_MONTH_JOURNEY_CSV_HEADERS, israelMonthJourney, ilMonthJourneyCsvRows, israelMonthOf, israelMonthProblem,
-  ilPcn874Preview, type IlJourneyDocument, type IlJourneyParty, type IlMonthStepStatus, type IsraelMonth,
+  ilPcn874Preview, ilReturnForDealer, type IlJourneyDocument, type IlJourneyParty, type IlMonthStepStatus, type IsraelMonth,
 } from '../../lib/israelMonthJourney';
 import { downloadCsv } from '../../lib/csvExport';
 import { monthCloseState } from '../../lib/periodLock';
@@ -111,8 +111,14 @@ export default function IsraelMonthJourneyReportView() {
   const preview = useMemo(() => {
     if (!MONTH_TEXT.test(monthText)) return null;
     const month = israelMonthOf(monthText)?.month || monthText;
+    // CON-4: the draft covers the report period of the registration whose dealer number is typed
+    const returns = journey?.steps.find(s => s.id === 'vat-report')?.returns || [];
+    const own = ilReturnForDealer(returns, dealerId);
+    const period = own ? { startMonth: own.startMonth, endMonth: own.endMonth } : journey?.pcn874Period || { startMonth: month, endMonth: month };
     return ilPcn874Preview({
-      month,
+      month: period.startMonth,
+      endMonth: period.endMonth,
+      ...(own ? { registration: own.registration, profiles: workspace?.taxProfiles, order: [workspace?.dimensions?.find(d => d.isWorld)?.id || 'world'] } : {}),
       generatedOn: getLocalDateISO(),
       currency,
       dealerId,
@@ -122,9 +128,9 @@ export default function IsraelMonthJourneyReportView() {
       creditNotes: inWorkspace(creditNotes, workspaceId) as IlJourneyDocument[],
       bills: inWorkspace(bills, workspaceId) as IlJourneyDocument[],
       vendorCredits: inWorkspace(vendorCredits, workspaceId) as IlJourneyDocument[],
-      returns: journey?.steps.find(s => s.id === 'vat-report')?.returns || [],
+      returns: own ? [own] : returns,
     });
-  }, [monthText, currency, dealerId, journey, customers, vendors, workspaceId, invoices, creditNotes, bills, vendorCredits]);
+  }, [monthText, currency, dealerId, journey, workspace, customers, vendors, workspaceId, invoices, creditNotes, bills, vendorCredits]);
 
   return <IsraelMonthJourneyPanel
     journey={journey}
@@ -187,7 +193,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!journey || loading}
         onClick={() => journey && downloadCsv(`israel-month-journey-${journey.month}`, IL_MONTH_JOURNEY_CSV_HEADERS, ilMonthJourneyCsvRows(journey))}>Export CSV</button>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!preview?.draft}
-        onClick={() => preview?.draft && downloadText(`pcn874-${monthText}-draft.txt`, preview.draft.text)}>Download PCN874 draft</button>
+        onClick={() => preview?.draft && downloadText(`pcn874-${preview.startMonth === preview.endMonth ? preview.startMonth : `${preview.startMonth}-to-${preview.endMonth}`}-draft.txt`, preview.draft.text)}>Download PCN874 draft</button>
     </div>
 
     {problem && <p role="alert">{problem}</p>}
@@ -229,7 +235,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
     {preview && <section aria-labelledby="pcn874-preview" className="rounded border border-[var(--line)] p-3 space-y-2">
       <h3 id="pcn874-preview" className="font-semibold text-sm">PCN874 historical draft</h3>
       <p className="text-sm text-[var(--muted)]">
-        The fixed-width Appendix A layout, built from the month’s documents in shekels: {preview.rows.length} row(s).
+        The fixed-width Appendix A layout, built from the documents of {preview.startMonth === preview.endMonth ? preview.startMonth : `the bimonthly report ${preview.startMonth} to ${preview.endMonth} (the header carries its first month, not verified for the current layout)`} in shekels: {preview.rows.length} row(s).
         It is <b>not filing-ready</b>: the layout dates to 2010, and current validation, document
         classification, allocation-number rules and Tax Authority acceptance must be verified
         independently. Nothing is submitted from this screen.
@@ -280,14 +286,14 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
 function VatReturnTable({ returns, currency }: { returns: IsraelMonth['steps'][number]['returns']; currency: string }) {
   return <ReportTableScroll>
     <table className="w-full text-sm">
-      <caption className="text-left font-semibold text-[var(--text)] pb-1">The VAT report of the month, as the return screen computes it</caption>
+      <caption className="text-left font-semibold text-[var(--text)] pb-1">The VAT report each registration files for this month (its own monthly or two-month period), as the return screen computes it</caption>
       <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
         {['Registration', 'Documents', 'Taxable sales', 'Output VAT', 'Zero-rated', 'Input VAT, other', 'Input VAT, equipment', 'To pay / reclaim', 'Due date', 'Recorded as filed'].map(head =>
           <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
       </tr></thead>
       <tbody>
         {returns.map(r => <tr key={r.registration} className="border-b border-[var(--line)]/50">
-          <th scope="row" className="text-left font-normal py-1 px-2">{r.registration.split(':').pop()}</th>
+          <th scope="row" className="text-left font-normal py-1 px-2"><span className="block">{r.registration.split(':').pop()}</span><span className="block text-xs text-[var(--muted)]">{r.startMonth === r.endMonth ? r.startMonth : `${r.startMonth} to ${r.endMonth}`}</span></th>
           <td className="py-1 px-2 tabular-nums">{r.documentCount}</td>
           <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.taxableSalesCents, currency)}</td>
           <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.outputVatCents, currency)}</td>

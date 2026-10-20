@@ -34,6 +34,13 @@ export const TAX_TABLES: readonly TableSpec[] = [
     ]
   },
   {
+    "file": "ilAdvanceTaxCalendar.ts",
+    "name": "IL_ADVANCE_TAX_SCHEDULE",
+    "keys": [
+      "frequency"
+    ]
+  },
+  {
     "file": "ilAllocation.ts",
     "name": "IL_ALLOCATION_THRESHOLD",
     "keys": [],

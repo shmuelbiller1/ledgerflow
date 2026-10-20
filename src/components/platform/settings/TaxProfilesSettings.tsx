@@ -90,12 +90,16 @@ function ScopedTaxProfiles() {
     <label className="block">Profile<select className={field} value={target} disabled={Boolean(editing)} onChange={event=>setTarget(event.target.value)}>{targets.map(key=><option key={key} value={key}>{key==='books'?'The books':`${names.get(key)||key} (${key})`}</option>)}</select></label>
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2">{([
       ['Name',selected.name,'name'], ['Accounting basis',selected.basis,'basis'],
+      ['Advance income-tax rate (מקדמות)',selected.advanceTaxRatePercent!==undefined?`${selected.advanceTaxRatePercent}%`:undefined,'advanceTaxRatePercent'],
+      ['Advance income-tax frequency',selected.advanceTaxFrequency?(selected.advanceTaxFrequency==='bimonthly'?'Bi-monthly':'Monthly'):undefined,'advanceTaxFrequency'],
       ...(['country','state','city','county','district','postalCode'] as const).map(key=>[key==='postalCode'?'Postal code':key[0].toUpperCase()+key.slice(1),selected.place?.[key],`place.${key}`]),
       ['Registrations',(selected.registrations||[]).map(reg=>`${reg.kind.replaceAll('_',' ')}: ${reg.number} (${reg.place.country}${reg.place.state?` / ${reg.place.state}`:''}${reg.place.city?` / ${reg.place.city}`:''}; ${reg.filing||'frequency not set'}; ${reg.validFrom||'no start'} – ${reg.validTo||'no end'})`).join('; '),'registrations'],
     ] as Array<[string,string|undefined,string]>).map(([label,value,key])=>{
       const source=selected.from.find(parent=>{
         const profile=own(parent); if(!profile)return false;
         if(key.startsWith('place.')) return Boolean(profile.place?.[key.slice(6) as keyof NonNullable<TaxProfile['place']>]);
+        if(key==='advanceTaxRatePercent') return profile.advanceTaxRatePercent!==undefined;
+        if(key==='advanceTaxFrequency') return Boolean(profile.advanceTaxFrequency);
         return key==='registrations'?Boolean(profile.registrations?.length):Boolean(profile[key as 'name'|'basis']);
       });
       const inherited=Boolean(value&&source&&source!==target);
@@ -106,6 +110,8 @@ function ScopedTaxProfiles() {
     {editing&&<form onSubmit={event=>{event.preventDefault();void save();}} aria-label="Edit tax profile" className="rounded border p-3 space-y-3"><p><bdi>{editing.target}</bdi> — leave a field empty to inherit it. Registrations inherit as a whole when no own rows are supplied. If you set a place, its country is required; clear every place field to inherit the whole place.</p><fieldset disabled={busy||!canEdit} className="space-y-3"><legend className="sr-only">Own profile fields</legend>
       <label className="block">Profile name<input ref={draftName} className={field} value={editing.draft.name||''} maxLength={120} onChange={event=>change({...editing.draft,name:event.target.value||undefined})}/></label>
       <label className="block">Accounting basis<select className={field} value={editing.draft.basis||''} onChange={event=>change({...editing.draft,basis:(event.target.value||undefined) as TaxProfile['basis']})}><option value="">Inherit</option><option value="accrual">Accrual</option><option value="cash">Cash</option></select></label>
+      <label className="block">Advance income-tax rate (מקדמות %)<input type="number" step="0.01" min="0" max="100" className={field} value={editing.draft.advanceTaxRatePercent!==undefined?String(editing.draft.advanceTaxRatePercent):''} placeholder="e.g. 3.5" onChange={event=>{const val=event.target.value.trim();change({...editing.draft,advanceTaxRatePercent:val===''?undefined:Number(val)});}}/></label>
+      <label className="block">Advance income-tax frequency<select className={field} value={editing.draft.advanceTaxFrequency||''} onChange={event=>change({...editing.draft,advanceTaxFrequency:(event.target.value||undefined) as TaxProfile['advanceTaxFrequency']})}><option value="">Inherit</option><option value="monthly">Monthly</option><option value="bimonthly">Bi-monthly</option></select></label>
       {(['country','state','city','county','district','postalCode'] as const).map(key=><label key={key} className="block">{key==='postalCode'?'Postal code':key[0].toUpperCase()+key.slice(1)}<input className={field} value={editing.draft.place?.[key]||''} onChange={event=>{const next={...editing.draft.place,country:editing.draft.place?.country||'',[key]:key==='country'?event.target.value:event.target.value||undefined};change({...editing.draft,place:Object.values(next).some(Boolean)?next:undefined});}}/></label>)}
       {editing.draft.place?.country.trim().toUpperCase()==='US'&&<UsAddressHelp onUse={value=>change({...editing.draft,place:{...editing.draft.place!,...value}})}/>}
       <h3>Own registrations</h3>{(editing.draft.registrations||[]).map((reg,index)=>{const rowKey=editing.rowKeys[index];return <RegistrationFields key={rowKey} inputRef={element=>{const key=rowKey;if(element)registrationInputs.current.set(key,element);else registrationInputs.current.delete(key);}} value={reg} index={index} change={next=>change({...editing.draft,registrations:editing.draft.registrations!.map((row,i)=>i===index?next:row)})} remove={()=>removeRegistration(index)}/>;})}

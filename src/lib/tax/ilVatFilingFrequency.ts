@@ -13,6 +13,7 @@
  * page must be read before a historical period is relied on. Nothing here files or posts.
  */
 import { rateRule, where, type FilingEffect, type TaxRulePack } from '../rules/packs/shared';
+import { monthEnd } from '../periodLock';
 
 export type IlVatFrequency = 'monthly' | 'bimonthly';
 
@@ -139,4 +140,36 @@ export function ilVatFrequencyProblems(): string[] {
     if (!assignedFrequency(cents, '2026-10-13')) problems.push(`₪${(cents / 100).toLocaleString('en-US')} matches no band`);
   }
   return problems;
+}
+
+export interface IlVatReportPeriod {
+  frequency: IlVatFrequency;
+  /** the period's first and last months, YYYY-MM (the same month for a monthly report) */
+  startMonth: string;
+  endMonth: string;
+  startDate: string;
+  endDate: string;
+  /** the planning due date: the 15th of the month after the period ends (the rows' `due`) */
+  dueDate: string;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * CON-4: the periodic VAT report a month belongs to under a frequency. Monthly: the month itself.
+ * Bimonthly: the two-month period it falls in — January–February, March–April, … November–December
+ * (the periods start in the odd months). The due date is the planning date from the rows above; the
+ * authority's own notice on the file governs. Undefined for text that is not a month.
+ */
+export function ilVatReportPeriod(month: string, frequency: IlVatFrequency): IlVatReportPeriod | undefined {
+  const found = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(month || '').trim());
+  if (!found) return undefined;
+  const year = Number(found[1]);
+  const m = Number(found[2]);
+  const first = frequency === 'bimonthly' ? (m % 2 === 1 ? m : m - 1) : m;
+  const last = frequency === 'bimonthly' ? first + 1 : m;
+  const startMonth = `${year}-${pad2(first)}`;
+  const endMonth = `${year}-${pad2(last)}`;
+  const dueDate = last === 12 ? `${year + 1}-01-15` : `${year}-${pad2(last + 1)}-15`;
+  return { frequency, startMonth, endMonth, startDate: `${startMonth}-01`, endDate: monthEnd(endMonth), dueDate };
 }

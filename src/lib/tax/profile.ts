@@ -47,6 +47,10 @@ export interface TaxProfile {
   place?: TaxPlace;
   registrations?: TaxRegistration[];
   basis?: 'accrual' | 'cash';
+  /** Israel: advance income-tax payment (mikdamot) rate on turnover, as a percentage (e.g. 3.5 for 3.5%) */
+  advanceTaxRatePercent?: number;
+  /** Israel: advance income-tax payment (mikdamot) filing frequency */
+  advanceTaxFrequency?: 'monthly' | 'bimonthly';
 }
 
 /** Where profiles are kept: the books' own and one per label value, keyed `dimensionId:nodeId`. */
@@ -89,6 +93,8 @@ export function resolveSellerProfile(profiles: TaxProfiles | null | undefined, d
   for (const [, profile] of chain) {
     if (out.name === undefined && profile.name) out.name = profile.name;
     if (out.basis === undefined && profile.basis) out.basis = profile.basis;
+    if (out.advanceTaxRatePercent === undefined && profile.advanceTaxRatePercent !== undefined) out.advanceTaxRatePercent = profile.advanceTaxRatePercent;
+    if (out.advanceTaxFrequency === undefined && profile.advanceTaxFrequency !== undefined) out.advanceTaxFrequency = profile.advanceTaxFrequency;
     if (out.registrations === undefined && profile.registrations?.length) out.registrations = profile.registrations;
     if (profile.place) out.place = { ...profile.place, ...stripEmpty(out.place) };
   }
@@ -130,6 +136,14 @@ function profileProblem(profile: unknown, where: string): string | null {
   if (!p || typeof p !== 'object' || Array.isArray(p)) return `${where}: not readable`;
   if (!text(p.name, 120)) return `${where}: the name is 1 to 120 characters`;
   if (p.basis !== undefined && p.basis !== 'accrual' && p.basis !== 'cash') return `${where}: the basis is accrual or cash`;
+  if (p.advanceTaxRatePercent !== undefined) {
+    if (typeof p.advanceTaxRatePercent !== 'number' || !Number.isFinite(p.advanceTaxRatePercent) || p.advanceTaxRatePercent < 0 || p.advanceTaxRatePercent > 100) {
+      return `${where}: the advance tax rate is a percentage between 0 and 100`;
+    }
+  }
+  if (p.advanceTaxFrequency !== undefined && p.advanceTaxFrequency !== 'monthly' && p.advanceTaxFrequency !== 'bimonthly') {
+    return `${where}: the advance tax frequency is monthly or bimonthly`;
+  }
   const place = placeProblem(p.place, where);
   if (place) return place;
   if (p.registrations !== undefined) {

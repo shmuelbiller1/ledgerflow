@@ -128,6 +128,38 @@ describe('Invoice dialog', () => {
     assert.equal(input('Due Date').value, '2026-07-31');
   });
 
+  test('all save actions report required fields under their input and retain the draft', async () => {
+    const saved = setup();
+    for (const action of ['Save Draft', 'Save & Close', 'Send Invoice']) {
+      await act(async () => { fireEvent.click(screen.getByText(action)); });
+      assert.equal(saved.length, 0);
+      assert.equal(input('Customer').getAttribute('aria-invalid'), 'true');
+      assert.ok(document.getElementById('inv-customer-error')?.textContent);
+    }
+    type(input('Customer'), 'Acme Ltd');
+    assert.equal(document.getElementById('inv-customer-error'), null);
+    type(input('Invoice Number'), '');
+    await act(async () => { fireEvent.click(screen.getByText('Save Draft')); });
+    assert.equal(saved.length, 0);
+    assert.equal(input('Invoice Number').getAttribute('aria-invalid'), 'true');
+    assert.equal(input('Customer').value, 'Acme Ltd');
+  });
+
+  test('a deposit error is associated with its field, keeps its help and focuses the correction', async () => {
+    const saved = setup();
+    type(input('Customer'), 'Acme Ltd');
+    type(input(/^Deposit/), '1');
+    await act(async () => { fireEvent.click(screen.getByText('Save Draft')); });
+    assert.equal(saved.length, 0);
+    assert.equal(input(/^Deposit/).getAttribute('aria-describedby'), 'inv-deposit-help inv-deposit-error');
+    assert.equal(document.activeElement, input(/^Deposit/));
+    assert.equal(document.getElementById('inv-deposit-error')?.textContent, "The deposit can't be more than the invoice total");
+    type(input(/^Deposit/), '0');
+    assert.equal(document.getElementById('inv-deposit-error'), null);
+    await act(async () => { fireEvent.click(screen.getByText('Save Draft')); });
+    assert.equal(saved.length, 1);
+  });
+
   test('closing with unsaved changes asks first; untouched, it just closes (I-07)', () => {
     let closed = 0;
     const asked: string[] = [];

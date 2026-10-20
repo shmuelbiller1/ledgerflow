@@ -7,7 +7,7 @@ import AllocationNumberField from './AllocationNumberField';
  * On an invoice (T-05): the customer is tax-exempt, with the certificate's number, and a button to
  * charge no tax while tax is charged; or their certificate ran out, so tax is charged again.
  */
-export default function TaxExemptionNotice({ customer, date, charging, onNoTax, lineLabels, currentRate = 0, onUseRate, allocation }: {
+export default function TaxExemptionNotice({ customer, date, charging, onNoTax, lineLabels, currentRate = 0, currentTreatment, salesTreatments, onUseRate, allocation }: {
   customer?: { name?: string; metadata?: unknown } | null;
   date: string;
   /** whether the invoice charges tax now */
@@ -16,13 +16,16 @@ export default function TaxExemptionNotice({ customer, date, charging, onNoTax, 
   /** PLAN §6: the first line's labels (its entity), what the invoice charges now and how to change it */
   lineLabels?: Record<string, string>;
   currentRate?: number;
-  onUseRate?: (rate: number) => void;
+  /** CON-3: the current code's treatment and the treatments the workspace has sales codes for */
+  currentTreatment?: string;
+  salesTreatments?: string[];
+  onUseRate?: (rate: number, treatment?: 'zero_rated' | 'exempt') => void;
   /** IL-6: the invoice's figures and its allocation number */
   allocation?: { netCents: number; taxCents: number; currency: string; exchangeRate?: number; value: string; onChange: (value: string) => void };
 }) {
   const found = exemptionOn(customer, date);
   const suggestion = <>
-    {onUseRate && <TaxPlaceSuggestion customer={customer} date={date} lineLabels={lineLabels} currentRate={currentRate} exempt={found?.state === 'exempt'} onUseRate={onUseRate} />}
+    {onUseRate && <TaxPlaceSuggestion customer={customer} date={date} lineLabels={lineLabels} currentRate={currentRate} currentTreatment={currentTreatment} salesTreatments={salesTreatments} exempt={found?.state === 'exempt'} onUseRate={onUseRate} />}
     {allocation && <AllocationNumberField customer={customer} date={date} {...allocation} />}
   </>;
   if (!found) return suggestion;
