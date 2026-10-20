@@ -6,10 +6,18 @@ import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import fs from "fs";
+import path from "path";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
 import { validateUploadedFile } from "../utils/fileValidation";
+
+function resolveSafeUploadPath(filePath: string): string | null {
+  const uploadRoot = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"));
+  const resolvedPath = path.resolve(uploadRoot, filePath);
+  if (!resolvedPath.startsWith(uploadRoot + path.sep)) return null;
+  return resolvedPath;
+}
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContext): void {
@@ -39,7 +47,8 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
 
     const validation = await validateUploadedFile(req.file.path);
     if (!validation.valid) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      const safePath = resolveSafeUploadPath(req.file.path);
+      if (safePath && fs.existsSync(safePath)) fs.unlinkSync(safePath);
       return sendError(res, validation.error || "Invalid file content", 400);
     }
 
@@ -147,10 +156,14 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
         }
       });
 
-      fs.unlinkSync(req.file.path);
+      const safePath = resolveSafeUploadPath(req.file.path);
+      if (safePath && fs.existsSync(safePath)) fs.unlinkSync(safePath);
       res.json(transactions);
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (req.file) {
+        const safePath = resolveSafeUploadPath(req.file.path);
+        if (safePath && fs.existsSync(safePath)) fs.unlinkSync(safePath);
+      }
       if (/not a member|API key is scoped/i.test(errorMessage(error))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, "Failed to parse CSV", 500, error);
     }
