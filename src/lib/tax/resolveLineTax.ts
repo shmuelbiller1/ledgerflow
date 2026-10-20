@@ -65,6 +65,7 @@ const IL_AREA_CONDITIONS: Record<string, string> = {
   'eilat-local': 'the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat (Eilat Free Trade Zone Law, s.5); goods on the law\'s excluded list are taxed at the ordinary rate',
   'duty-free': 'a sale to a traveller leaving the country, with the travel document kept',
   export: 'the buyer is in the area and the documents the Tax Authority asks for are kept (treated as an export)',
+  abroad: 'goods leave Israel, or a service is given to a foreign resident and used abroad as VAT Law s.30 sets out, with the export documents kept; a service used in Israel is taxed',
 };
 
 /** CON-3: the Israeli special area (its table key) a place names, when it is one zero-rated on the date. */
@@ -109,8 +110,14 @@ export function resolveLineTax(input: {
   const vat = registrationsOn(input.seller, 'vat', input.date).find(r => r.place.country === sellerCountry);
   if (!vat) return none('not-registered');
   const key = registrationKey(vat);
-  // an Israeli export is zero-rated (VAT Law s.30): a taxable sale at 0%, so it takes the zero-rated code, never the exempt one
-  if (buyer.country !== sellerCountry) return sellerCountry === 'IL' ? { ...none('export', key), treatment: 'zero_rated' } : none('export', key);
+  // an Israeli export can be zero-rated (VAT Law s.30): a taxable sale at 0%, so it takes the zero-rated code, never the
+  // exempt one. Whether s.30 covers it (goods leaving Israel, a service to a foreign resident used abroad) is not in the
+  // books, so it is offered on its conditions beside the ordinary rate, never decided from the buyer's country alone.
+  if (buyer.country !== sellerCountry) {
+    return sellerCountry === 'IL'
+      ? { ...none('export', key), treatment: 'zero_rated', conditions: IL_AREA_CONDITIONS.abroad, ordinaryRate: rateOn(IL_VAT_STANDARD, input.date)?.rate }
+      : none('export', key);
+  }
   if (input.exempt) return none('exempt-certificate', key);
   const components = table(sellerCountry)?.(buyer, input.date, input.category);
   if (!components) return none('no-rate-table', key);

@@ -21,3 +21,12 @@ exempt sale, not a zero-rated one.
 - All 3 new tests fail without the change.
 
 Release gate: W7 (Israeli VAT report boxes). The row is unchanged: W7 stays Partly.
+
+**Review fixes (#237).**
+- **Default state.** A new invoice's "No tax" has no tax code. "Use no tax" is still offered there, so the export
+  gets the zero-rated code and not an out-of-scope 0%.
+- **A choice, not a verdict.** A sale abroad is no longer decided from the buyer's country alone. The notice states
+  when s.30 applies (goods leaving Israel, or a service to a foreign resident used abroad, with the documents) and
+  "Otherwise VAT is 18%", and offers "Use no tax" (zero-rated) beside "Use 18%".
+- **Touch targets.** Both actions are 44px.
+- **Statute citation.** The Eilat subsection citation and the non-taxing-code fixes come from #234 (merged in).

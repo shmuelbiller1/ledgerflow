@@ -51,7 +51,7 @@ export default function TaxPlaceSuggestion({ customer, date, lineLabels, current
   const buyer = (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;
   const tax = resolveLineTax({ seller, buyer, date, exempt, fallback: packRates });
   const who = seller.name ? `${seller.name}: ` : '';
-  if (tax.conditions && tax.treatment) {
+  if (tax.conditions && tax.treatment && tax.reason !== 'export') {
     // CON-3 review: a special-area relief depends on facts the books do not hold, so it is the user's choice, never the expected tax
     const kind = TREATMENT_NAME[tax.treatment];
     const ordinary = tax.ordinaryRate;
@@ -72,13 +72,17 @@ export default function TaxPlaceSuggestion({ customer, date, lineLabels, current
   }
   if (tax.reason !== 'taxed') {
     const noCode = tax.treatment && salesTreatments && !salesTreatments.includes(tax.treatment);
-    const differs = tax.reason !== 'no-rate-table' && !noCode && (currentRate > 0 || Boolean(tax.treatment && currentTreatment && currentTreatment !== tax.treatment));
+    // a new invoice's "No tax" has no code (undefined treatment): it still differs from the zero-rated code it needs
+    const differs = tax.reason !== 'no-rate-table' && !noCode && (currentRate > 0 || Boolean(tax.treatment && currentTreatment !== tax.treatment));
+    const ordinary = tax.reason === 'export' ? tax.ordinaryRate : undefined;
+    const offerOrdinary = ordinary !== undefined && (Math.abs(ordinary - currentRate) > 1e-6 || (currentTreatment !== undefined && currentTreatment !== 'standard'));
     return (
       <p role="status" className="text-xs text-[var(--muted)]">
         {who}{SAYS[tax.reason]}.
-        {tax.reason === 'export' && tax.treatment === 'zero_rated' && <> An export is zero-rated (VAT Law s.30): goods leaving Israel, or a service to a foreign resident that s.30 covers, with the export documents kept; a service used in Israel is taxed.</>}
+        {tax.reason === 'export' && tax.conditions && <> It is zero-rated only when {tax.conditions}.{ordinary !== undefined && <> Otherwise VAT is {pct(ordinary)}.</>}</>}
         {noCode && <> To record it, add a zero-rated sales tax code in Settings → Tax Manager; a 0% custom rate is not counted on the VAT report.</>}
-        {differs && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className="underline font-semibold text-[var(--text)]">Use no tax</button></>}
+        {differs && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className={tax.treatment ? ACTION : 'underline font-semibold text-[var(--text)]'}>Use no tax</button></>}
+        {offerOrdinary && <> <button type="button" onClick={() => onUseRate(ordinary)} className={ACTION}>Use {pct(ordinary)}</button></>}
       </p>
     );
   }
