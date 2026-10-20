@@ -12,8 +12,8 @@ and the VAT report would put the sale in the wrong box.
 **Now.**
 - The built-in table is `ilVatRateTable()`, which uses `ilVatAreaKeyFor` (#229), so every spelling of a place is recognised.
 - `resolveLineTax` returns `treatment` for an Israeli special area, following the Eilat Free Trade Zone Law, 1985, s.5:
-  - a sale into Eilat by a dealer from outside the area: **zero-rated** (5(a));
-  - a sale by a seller whose tax place is Eilat to a buyer in Eilat: **exempt**, no VAT and no input credit (5(b), 5(e)), reason `exempt-area`;
+  - a sale into Eilat by a dealer from outside the area: **zero-rated**;
+  - a sale by a seller whose tax place is Eilat to a buyer in Eilat: **exempt**, no VAT and no input credit, reason `exempt-area`;
   - the West Bank, Gaza and duty-free areas: zero-rated (export areas).
 - `taxChoiceFor` takes the code with exactly that treatment. If the workspace has no such code it substitutes nothing and returns `missing`.
 - The invoice suggestion says which case applies and offers "Use zero-rated" / "Use exempt". It does so even when the
@@ -51,3 +51,12 @@ Release gate: W7, connected for the Eilat line. W7 stays Partly because CON-4 is
 - **No promise about input VAT.** The exempt message no longer says "no input credit". It says the input VAT on
   purchases for an exempt sale is not deductible and that the VAT report does not split those purchases out, so they
   need review. Apportioning that input VAT is VAT-return maths and is left to AI #1 (raised under Messages).
+
+**Second review (from #237 and #239, on this code).**
+- The screen cites "Eilat Free Trade Zone Law, s.5" without a subsection. The table's note and the reviewer's source
+  disagree on which subsection is which, and the official text could not be fetched here, so no unverified subsection
+  number is shown.
+- The relief and "Use 18%" actions are 44px touch targets.
+- "Use 18%" is offered while the current code does not tax (exempt or zero-rated), even if that code's parts add to
+  18%.
+- `taxChoiceFor` never picks a non-taxing code for a positive rate.

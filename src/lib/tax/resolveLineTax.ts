@@ -61,8 +61,8 @@ export const builtInRateTables: RateTables = {
 
 // CON-3 review: when each relief applies (Eilat Free Trade Zone Law, 1985, s.5; the export areas as exports)
 const IL_AREA_CONDITIONS: Record<string, string> = {
-  eilat: 'goods sold to a dealer resident in Eilat for its business there (s.5(a)); services, sales to private buyers and goods on the law\'s excluded list are taxed at the ordinary rate',
-  'eilat-local': 'the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat (s.5(b), 5(e)); goods on the law\'s excluded list are taxed at the ordinary rate',
+  eilat: 'goods sold to a dealer resident in Eilat for its business there (Eilat Free Trade Zone Law, s.5); services, sales to private buyers and goods on the law\'s excluded list are taxed at the ordinary rate',
+  'eilat-local': 'the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat (Eilat Free Trade Zone Law, s.5); goods on the law\'s excluded list are taxed at the ordinary rate',
   'duty-free': 'a sale to a traveller leaving the country, with the travel document kept',
   export: 'the buyer is in the area and the documents the Tax Authority asks for are kept (treated as an export)',
 };
@@ -117,8 +117,8 @@ export function resolveLineTax(input: {
   const rate = total(components);
   const ilArea = sellerCountry === 'IL' && rate === 0 ? ilZeroAreaOf(buyer, input.date) : undefined;
   if (ilArea) {
-    // Eilat Free Trade Zone Law s.5: a dealer resident in Eilat selling for use there is exempt (5(b), 5(e));
-    // a sale into the area by a dealer from outside it is at the zero rate (5(a)). The other areas are exports.
+    // Eilat Free Trade Zone Law s.5: a dealer resident in Eilat selling for use there is exempt;
+    // a sale into the area by a dealer from outside it is at the zero rate. The other areas are exports.
     const exempt = ilArea === 'eilat' && ilZeroAreaOf(input.seller.place, input.date) === 'eilat';
     const relief = { registration: key, conditions: IL_AREA_CONDITIONS[exempt ? 'eilat-local' : ilArea] || IL_AREA_CONDITIONS.export, ordinaryRate: rateOn(IL_VAT_STANDARD, input.date)?.rate };
     return exempt
@@ -139,6 +139,8 @@ export function taxChoiceFor<C>(rate: number, codes: Array<{ id: string; treatme
     const exact = codes.find(c => c.treatment === treatment);
     return exact ? { taxCodeId: exact.id, taxRate: 0 } : { taxCodeId: undefined, taxRate: 0, missing: treatment };
   }
-  const match = rate === 0 ? codes.find(c => c.treatment === 'exempt') || codes.find(c => effective(c.components) === 0) : codes.find(c => Math.abs(effective(c.components) - rate) < 1e-6);
+  // a positive rate takes a taxing code only: an exempt or zero-rated code charges nothing whatever its parts say
+  const taxing = (c: { treatment?: string }) => !c.treatment || c.treatment === 'standard';
+  const match = rate === 0 ? codes.find(c => c.treatment === 'exempt') || codes.find(c => effective(c.components) === 0) : codes.find(c => taxing(c) && Math.abs(effective(c.components) - rate) < 1e-6);
   return match ? { taxCodeId: match.id, taxRate: 0 } : { taxCodeId: undefined, taxRate: Math.round(rate * 100000) / 1000 };
 }

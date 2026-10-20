@@ -1,8 +1,8 @@
 /**
  * CON-3: Israel's special VAT areas (Eilat) on invoices. The Eilat Free Trade Zone Law, 1985, s.5:
- *  - a sale into Eilat by a dealer from outside the area is at the zero rate (5(a)): a taxable sale at 0%,
+ *  - a sale into Eilat by a dealer from outside the area is at the zero rate: a taxable sale at 0%,
  *    reported as zero-rated, and the seller keeps its input VAT;
- *  - a sale by a dealer resident in Eilat, for use there, is exempt (5(b), 5(e)): no VAT and no input credit,
+ *  - a sale by a dealer resident in Eilat, for use there, is exempt: no VAT and no input credit,
  *    reported as exempt;
  *  - the same seller selling to the rest of Israel charges the ordinary 18% (from 1 Jan 2025).
  * Every expected amount below is worked by hand in agorot; none comes from another production helper.
@@ -69,6 +69,9 @@ test('CON-3: the invoice takes the code of exactly that treatment, never the oth
   assert.deepEqual(taxChoiceFor(0, codes.filter(c => c.id !== 'zero'), eff, 'zero_rated'), { taxCodeId: undefined, taxRate: 0, missing: 'zero_rated' });
   // no treatment: the old choice stands (an exempt code for 0)
   assert.deepEqual(taxChoiceFor(0, codes, eff), { taxCodeId: 'exempt', taxRate: 0 });
+  // a positive rate never takes a non-taxing code, even one whose parts add to that rate (#239 review)
+  assert.deepEqual(taxChoiceFor(0.18, [{ id: 'odd-exempt', treatment: 'exempt', components: [{ rate: 0.18 }] }, ...codes], eff), { taxCodeId: 'vat18', taxRate: 0 });
+  assert.deepEqual(taxChoiceFor(0.18, [{ id: 'odd-exempt', treatment: 'exempt', components: [{ rate: 0.18 }] }], eff), { taxCodeId: undefined, taxRate: 18 });
 });
 
 test('CON-3 worked figures: three ₪10,000 invoices reach the VAT report in the boxes the law puts them', () => {
@@ -112,7 +115,7 @@ describe('CON-3 on the invoice screen', () => {
     const used: Array<[number, string | undefined]> = [];
     render(<TaxExemptionNotice customer={customer} date={DATE} charging onNoTax={() => {}} currentRate={0.18} currentTreatment="standard" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
     const text = screen.getByRole('status').textContent || '';
-    assert.match(text, /Tel Aviv Ltd: a special VAT area: the sale can be zero-rated only when goods sold to a dealer resident in Eilat for its business there \(s\.5\(a\)\); services, sales to private buyers and goods on the law's excluded list are taxed at the ordinary rate\. Otherwise VAT is 18%\./);
+    assert.match(text, /Tel Aviv Ltd: a special VAT area: the sale can be zero-rated only when goods sold to a dealer resident in Eilat for its business there \(Eilat Free Trade Zone Law, s\.5\); services, sales to private buyers and goods on the law's excluded list are taxed at the ordinary rate\. Otherwise VAT is 18%\./);
     assert.doesNotMatch(text, /expected tax/, 'the relief is never presented as the expected tax');
     assert.equal(screen.queryByRole('button', { name: 'Use 18%' }), null, 'already at 18%');
     fireEvent.click(screen.getByRole('button', { name: 'It qualifies: use zero-rated' }));
@@ -138,10 +141,22 @@ describe('CON-3 on the invoice screen', () => {
     const used: Array<[number, string | undefined]> = [];
     render(<TaxExemptionNotice customer={{ metadata: { taxPlace: { country: 'IL', city: 'Eilat' } } }} date={DATE} charging onNoTax={() => {}} lineLabels={{ world: 'eilat' }} currentRate={0.18} currentTreatment="standard" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
     const text = screen.getByRole('status').textContent || '';
-    assert.match(text, /Eilat Ltd: Eilat dealer selling in Eilat: the sale can be exempt only when the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat \(s\.5\(b\), 5\(e\)\)/);
+    assert.match(text, /Eilat Ltd: Eilat dealer selling in Eilat: the sale can be exempt only when the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat \(Eilat Free Trade Zone Law, s\.5\)/);
     assert.match(text, /input VAT on purchases for it is not deductible; the VAT report does not split those purchases out, so review them/);
     assert.doesNotMatch(text, /no input credit/);
     fireEvent.click(screen.getByRole('button', { name: 'It qualifies: use exempt' }));
     assert.deepEqual(used, [[0, 'exempt']]);
+  });
+
+  test('review (#237, #239): 44px actions; "Use 18%" offered while the current code does not tax, even if its parts add to 18%', async () => {
+    const { useAuthStore } = await import('../stores/useAuthStore');
+    const ws = setComponentWorkspace('owner');
+    useAuthStore.setState({ workspaces: [{ ...ws, taxProfiles: profiles }] });
+    const used: Array<[number, string | undefined]> = [];
+    // an exempt code whose parts say 18%: the invoice charges nothing, so 18% is still the ordinary choice
+    render(<TaxExemptionNotice customer={{ metadata: { taxPlace: { country: 'IL', city: 'Eilat' } } }} date={DATE} charging={false} onNoTax={() => {}} currentRate={0.18} currentTreatment="exempt" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
+    for (const name of ['It qualifies: use zero-rated', 'Use 18%']) assert.match(screen.getByRole('button', { name }).className, /\bmin-h-11\b/, name);
+    fireEvent.click(screen.getByRole('button', { name: 'Use 18%' }));
+    assert.deepEqual(used, [[0.18, undefined]]);
   });
 });

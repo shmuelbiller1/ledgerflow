@@ -20,6 +20,9 @@ const SAYS: Record<Exclude<LineTaxReason, 'taxed'>, string> = {
 // CON-3: the Israeli special areas say which of the two a 0% sale is, and the VAT report needs a code of that kind
 const TREATMENT_NAME = { zero_rated: 'zero-rated', exempt: 'exempt' } as const;
 
+// 44px touch targets on phones (UI_GUIDE), still reading as inline links
+const ACTION = 'inline-flex min-h-11 items-center px-1 underline font-semibold text-[var(--text)]';
+
 const pct = (rate: number) => `${Math.round(rate * 100000) / 1000}%`;
 
 /**
@@ -54,15 +57,16 @@ export default function TaxPlaceSuggestion({ customer, date, lineLabels, current
     const ordinary = tax.ordinaryRate;
     const noCode = salesTreatments && !salesTreatments.includes(tax.treatment);
     const offerRelief = !noCode && (currentRate > 0 || currentTreatment !== tax.treatment);
-    const offerOrdinary = ordinary !== undefined && Math.abs(ordinary - currentRate) > 1e-6;
+    // a non-taxing current code (exempt, zero-rated) charges nothing even when its parts add up to the ordinary rate
+    const offerOrdinary = ordinary !== undefined && (Math.abs(ordinary - currentRate) > 1e-6 || (currentTreatment !== undefined && currentTreatment !== 'standard'));
     return (
       <p role="status" className="text-xs text-[var(--muted)]">
         {who}{tax.reason === 'exempt-area' ? SAYS['exempt-area'] : 'a special VAT area: the sale can be zero-rated'} only when {tax.conditions}.
         {ordinary !== undefined && <> Otherwise VAT is {pct(ordinary)}.</>}
         {tax.treatment === 'exempt' && <> An exempt sale also means the input VAT on purchases for it is not deductible; the VAT report does not split those purchases out, so review them.</>}
         {noCode && <> To record it, add a {kind} sales tax code in Settings → Tax Manager; a 0% custom rate is not counted on the VAT report.</>}
-        {offerRelief && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className="underline font-semibold text-[var(--text)]">It qualifies: use {kind}</button></>}
-        {offerOrdinary && <> <button type="button" onClick={() => onUseRate(ordinary)} className="underline font-semibold text-[var(--text)]">Use {pct(ordinary)}</button></>}
+        {offerRelief && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className={ACTION}>It qualifies: use {kind}</button></>}
+        {offerOrdinary && <> <button type="button" onClick={() => onUseRate(ordinary)} className={ACTION}>Use {pct(ordinary)}</button></>}
       </p>
     );
   }
