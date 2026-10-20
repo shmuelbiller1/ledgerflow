@@ -48,7 +48,14 @@ test('CON-3: a sale into Eilat from Tel Aviv is zero-rated, whichever way the pl
 test('CON-3: an Eilat dealer selling in Eilat is exempt; selling to Haifa it charges 18%', () => {
   const local = resolveLineTax({ seller: eilat, buyer: { country: 'IL', city: 'Eilat' }, date: DATE });
   assert.deepEqual([local.reason, local.rate, local.treatment, local.registration], ['exempt-area', 0, 'exempt', 'vat:IL:514000002']);
+  // the relief depends on facts the books do not hold: the answer names them and the ordinary rate (#234 review)
+  assert.match(local.conditions || '', /supplied and used in Eilat/);
+  assert.equal(local.ordinaryRate, 0.18);
+  const into = resolveLineTax({ seller: telAviv, buyer: { country: 'IL', city: 'Eilat' }, date: DATE });
+  assert.match(into.conditions || '', /goods sold to a dealer resident in Eilat.*services, sales to private buyers/);
+  assert.equal(into.ordinaryRate, 0.18);
   const haifa = resolveLineTax({ seller: eilat, buyer: { country: 'IL', city: 'Haifa' }, date: DATE });
+  assert.equal(haifa.conditions, undefined, 'an ordinary sale has no conditions');
   assert.deepEqual([haifa.reason, haifa.rate, haifa.treatment], ['taxed', 0.18, undefined]);
   // the other special areas are export areas: zero-rated even from Eilat
   const westBank = resolveLineTax({ seller: eilat, buyer: { country: 'IL', district: 'יהודה ושומרון' }, date: DATE });
@@ -97,37 +104,44 @@ test('CON-3 worked figures: three ₪10,000 invoices reach the VAT report in the
 describe('CON-3 on the invoice screen', () => {
   afterEach(() => cleanup());
 
-  test('a Tel Aviv invoice to an Eilat customer offers the zero-rated code; without one it says what to add', async () => {
+  test('a Tel Aviv invoice to an Eilat customer states when the zero rate applies; the user chooses, 18% stays offered', async () => {
     const { useAuthStore } = await import('../stores/useAuthStore');
     const ws = setComponentWorkspace('owner');
     useAuthStore.setState({ workspaces: [{ ...ws, taxProfiles: profiles }] });
     const customer = { metadata: { taxPlace: { country: 'IL', city: 'אילת' } } };
     const used: Array<[number, string | undefined]> = [];
     render(<TaxExemptionNotice customer={customer} date={DATE} charging onNoTax={() => {}} currentRate={0.18} currentTreatment="standard" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
-    assert.match(screen.getByRole('status').textContent || '', /Tel Aviv Ltd: no tax: a zero-rated area \(zero-rated: a taxable sale at 0%, input VAT stays reclaimable\)/);
-    fireEvent.click(screen.getByRole('button', { name: 'Use zero-rated' }));
+    const text = screen.getByRole('status').textContent || '';
+    assert.match(text, /Tel Aviv Ltd: a special VAT area: the sale can be zero-rated only when goods sold to a dealer resident in Eilat for its business there \(s\.5\(a\)\); services, sales to private buyers and goods on the law's excluded list are taxed at the ordinary rate\. Otherwise VAT is 18%\./);
+    assert.doesNotMatch(text, /expected tax/, 'the relief is never presented as the expected tax');
+    assert.equal(screen.queryByRole('button', { name: 'Use 18%' }), null, 'already at 18%');
+    fireEvent.click(screen.getByRole('button', { name: 'It qualifies: use zero-rated' }));
     assert.deepEqual(used, [[0, 'zero_rated']]);
     cleanup();
 
-    // already 0% but on the exempt code: still offered, the report box differs
+    // already 0% on the exempt code: both choices are offered — the right relief code, or the ordinary 18% (a service, a private buyer)
     render(<TaxExemptionNotice customer={customer} date={DATE} charging={false} onNoTax={() => {}} currentRate={0} currentTreatment="exempt" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Use zero-rated' }));
-    assert.deepEqual(used, [[0, 'zero_rated'], [0, 'zero_rated']]);
+    fireEvent.click(screen.getByRole('button', { name: 'It qualifies: use zero-rated' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use 18%' }));
+    assert.deepEqual(used, [[0, 'zero_rated'], [0, 'zero_rated'], [0.18, undefined]]);
     cleanup();
 
     render(<TaxExemptionNotice customer={customer} date={DATE} charging onNoTax={() => {}} currentRate={0.18} currentTreatment="standard" salesTreatments={['standard', 'exempt']} onUseRate={(r, t) => { used.push([r, t]); }} />);
     assert.match(screen.getByRole('status').textContent || '', /add a zero-rated sales tax code in Settings → Tax Manager/);
-    assert.equal(screen.queryByRole('button', { name: /Use/ }), null);
+    assert.equal(screen.queryByRole('button', { name: /qualifies/ }), null);
   });
 
-  test('the Eilat entity selling in Eilat is told the sale is exempt', async () => {
+  test('the Eilat entity selling in Eilat: exempt only on conditions, and the input VAT is flagged for review, not promised', async () => {
     const { useAuthStore } = await import('../stores/useAuthStore');
     const ws = setComponentWorkspace('owner');
     useAuthStore.setState({ workspaces: [{ ...ws, taxProfiles: profiles }] });
     const used: Array<[number, string | undefined]> = [];
     render(<TaxExemptionNotice customer={{ metadata: { taxPlace: { country: 'IL', city: 'Eilat' } } }} date={DATE} charging onNoTax={() => {}} lineLabels={{ world: 'eilat' }} currentRate={0.18} currentTreatment="standard" salesTreatments={['standard', 'exempt', 'zero_rated']} onUseRate={(r, t) => { used.push([r, t]); }} />);
-    assert.match(screen.getByRole('status').textContent || '', /Eilat Ltd: no VAT: sold and used in Eilat by an Eilat dealer, an exempt sale/);
-    fireEvent.click(screen.getByRole('button', { name: 'Use exempt' }));
+    const text = screen.getByRole('status').textContent || '';
+    assert.match(text, /Eilat Ltd: Eilat dealer selling in Eilat: the sale can be exempt only when the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat \(s\.5\(b\), 5\(e\)\)/);
+    assert.match(text, /input VAT on purchases for it is not deductible; the VAT report does not split those purchases out, so review them/);
+    assert.doesNotMatch(text, /no input credit/);
+    fireEvent.click(screen.getByRole('button', { name: 'It qualifies: use exempt' }));
     assert.deepEqual(used, [[0, 'exempt']]);
   });
 });

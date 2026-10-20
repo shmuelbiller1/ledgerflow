@@ -39,3 +39,15 @@ The Tel Aviv return is 1,000,000 / 180,000 / 1,000,000 zero-rated / 0 exempt, so
   zero-rated too. This is raised for AI #1 under Messages and not changed in this PR.
 
 Release gate: W7, connected for the Eilat line. W7 stays Partly because CON-4 is still open.
+
+**Review fixes (#234, Codex P1 ×2).**
+- **The relief is the user's choice, not the expected tax.** It depends on facts the books do not hold: goods or
+  services, whether the buyer is an Eilat-resident dealer buying for its business there, where the goods are used, and
+  the law's excluded goods.
+  - `resolveLineTax` keeps the same reason and treatment for the area. It now also returns the `conditions` and the
+    `ordinaryRate`.
+  - The invoice states the conditions and "Otherwise VAT is 18%". It offers "It qualifies: use zero-rated / exempt"
+    and "Use 18%", so a service or a sale to a private buyer is one click from the ordinary rate.
+- **No promise about input VAT.** The exempt message no longer says "no input credit". It says the input VAT on
+  purchases for an exempt sale is not deductible and that the VAT report does not split those purchases out, so they
+  need review. Apportioning that input VAT is VAT-return maths and is left to AI #1 (raised under Messages).

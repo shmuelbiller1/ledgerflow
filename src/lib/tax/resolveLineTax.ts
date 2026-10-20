@@ -9,6 +9,7 @@
  * `no-rate-table`: nothing is guessed. Pure.
  */
 import { ilVatAreaKeyFor, ilVatRateTable, isIlZeroArea } from './ilVat';
+import { IL_VAT_STANDARD, rateOn } from './ilVatRates';
 import { registrationKey, registrationsOn, type ResolvedProfile, type TaxPlace } from './profile';
 
 export interface TaxComponent {
@@ -40,6 +41,13 @@ export interface LineTax {
    * law decides it here; otherwise the document's tax code says.
    */
   treatment?: 'zero_rated' | 'exempt';
+  /**
+   * CON-3 review: the special-area relief applies only when these conditions hold, and the books do not record them
+   * (goods or services, who the buyer is, where the goods are used, the law's excluded goods). A screen offers the
+   * relief as the user's choice, never as the expected tax; `ordinaryRate` is the rate when it does not apply.
+   */
+  conditions?: string;
+  ordinaryRate?: number;
 }
 
 /** A US state's (or other) rates for a buyer's place, a date and an item category; none = no table. */
@@ -49,6 +57,14 @@ export type RateTables = Partial<Record<string, RateTable>>;
 // CON-3: Israel's table reads the special areas however the place is written (אילת, Eilat, EILAT, city or district)
 export const builtInRateTables: RateTables = {
   IL: ilVatRateTable(),
+};
+
+// CON-3 review: when each relief applies (Eilat Free Trade Zone Law, 1985, s.5; the export areas as exports)
+const IL_AREA_CONDITIONS: Record<string, string> = {
+  eilat: 'goods sold to a dealer resident in Eilat for its business there (s.5(a)); services, sales to private buyers and goods on the law\'s excluded list are taxed at the ordinary rate',
+  'eilat-local': 'the seller is a dealer resident in Eilat and the goods or services are supplied and used in Eilat (s.5(b), 5(e)); goods on the law\'s excluded list are taxed at the ordinary rate',
+  'duty-free': 'a sale to a traveller leaving the country, with the travel document kept',
+  export: 'the buyer is in the area and the documents the Tax Authority asks for are kept (treated as an export)',
 };
 
 /** CON-3: the Israeli special area (its table key) a place names, when it is one zero-rated on the date. */
@@ -93,7 +109,8 @@ export function resolveLineTax(input: {
   const vat = registrationsOn(input.seller, 'vat', input.date).find(r => r.place.country === sellerCountry);
   if (!vat) return none('not-registered');
   const key = registrationKey(vat);
-  if (buyer.country !== sellerCountry) return none('export', key);
+  // an Israeli export is zero-rated (VAT Law s.30): a taxable sale at 0%, so it takes the zero-rated code, never the exempt one
+  if (buyer.country !== sellerCountry) return sellerCountry === 'IL' ? { ...none('export', key), treatment: 'zero_rated' } : none('export', key);
   if (input.exempt) return none('exempt-certificate', key);
   const components = table(sellerCountry)?.(buyer, input.date, input.category);
   if (!components) return none('no-rate-table', key);
@@ -103,9 +120,10 @@ export function resolveLineTax(input: {
     // Eilat Free Trade Zone Law s.5: a dealer resident in Eilat selling for use there is exempt (5(b), 5(e));
     // a sale into the area by a dealer from outside it is at the zero rate (5(a)). The other areas are exports.
     const exempt = ilArea === 'eilat' && ilZeroAreaOf(input.seller.place, input.date) === 'eilat';
+    const relief = { registration: key, conditions: IL_AREA_CONDITIONS[exempt ? 'eilat-local' : ilArea] || IL_AREA_CONDITIONS.export, ordinaryRate: rateOn(IL_VAT_STANDARD, input.date)?.rate };
     return exempt
-      ? { reason: 'exempt-area', components, rate, registration: key, treatment: 'exempt' }
-      : { reason: 'zero-area', components, rate, registration: key, treatment: 'zero_rated' };
+      ? { reason: 'exempt-area', components, rate, treatment: 'exempt', ...relief }
+      : { reason: 'zero-area', components, rate, treatment: 'zero_rated', ...relief };
   }
   return { reason: rate === 0 && buyer.district ? 'zero-area' : 'taxed', components, rate, registration: key };
 }

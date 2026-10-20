@@ -12,7 +12,7 @@ const SAYS: Record<Exclude<LineTaxReason, 'taxed'>, string> = {
   'exempt-certificate': 'no tax: the customer has an exemption certificate',
   export: 'no tax: sold to another country',
   'zero-area': 'no tax: a zero-rated area',
-  'exempt-area': 'no VAT: sold and used in Eilat by an Eilat dealer, an exempt sale (no VAT and no input credit)',
+  'exempt-area': 'Eilat dealer selling in Eilat: the sale can be exempt',
   'not-registered': 'no tax: the seller has no tax registration for the customer\'s place',
   'no-rate-table': 'LedgerFlow has no rates for this place yet; choose the tax yourself',
 };
@@ -48,15 +48,33 @@ export default function TaxPlaceSuggestion({ customer, date, lineLabels, current
   const buyer = (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;
   const tax = resolveLineTax({ seller, buyer, date, exempt, fallback: packRates });
   const who = seller.name ? `${seller.name}: ` : '';
-  if (tax.reason !== 'taxed') {
-    const kind = tax.treatment && TREATMENT_NAME[tax.treatment];
-    const noCode = tax.treatment && salesTreatments && !salesTreatments.includes(tax.treatment);
-    const differs = tax.reason !== 'no-rate-table' && !noCode && (currentRate > 0 || Boolean(tax.treatment && currentTreatment !== tax.treatment));
+  if (tax.conditions && tax.treatment) {
+    // CON-3 review: a special-area relief depends on facts the books do not hold, so it is the user's choice, never the expected tax
+    const kind = TREATMENT_NAME[tax.treatment];
+    const ordinary = tax.ordinaryRate;
+    const noCode = salesTreatments && !salesTreatments.includes(tax.treatment);
+    const offerRelief = !noCode && (currentRate > 0 || currentTreatment !== tax.treatment);
+    const offerOrdinary = ordinary !== undefined && Math.abs(ordinary - currentRate) > 1e-6;
     return (
       <p role="status" className="text-xs text-[var(--muted)]">
-        {who}{SAYS[tax.reason]}{tax.reason === 'zero-area' && kind ? ` (${kind}: a taxable sale at 0%, input VAT stays reclaimable)` : ''}.
-        {noCode && <> To report it, add a {kind} sales tax code in Settings → Tax Manager; a 0% custom rate is not counted on the VAT report.</>}
-        {differs && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className="underline font-semibold text-[var(--text)]">{kind ? `Use ${kind}` : 'Use no tax'}</button></>}
+        {who}{tax.reason === 'exempt-area' ? SAYS['exempt-area'] : 'a special VAT area: the sale can be zero-rated'} only when {tax.conditions}.
+        {ordinary !== undefined && <> Otherwise VAT is {pct(ordinary)}.</>}
+        {tax.treatment === 'exempt' && <> An exempt sale also means the input VAT on purchases for it is not deductible; the VAT report does not split those purchases out, so review them.</>}
+        {noCode && <> To record it, add a {kind} sales tax code in Settings → Tax Manager; a 0% custom rate is not counted on the VAT report.</>}
+        {offerRelief && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className="underline font-semibold text-[var(--text)]">It qualifies: use {kind}</button></>}
+        {offerOrdinary && <> <button type="button" onClick={() => onUseRate(ordinary)} className="underline font-semibold text-[var(--text)]">Use {pct(ordinary)}</button></>}
+      </p>
+    );
+  }
+  if (tax.reason !== 'taxed') {
+    const noCode = tax.treatment && salesTreatments && !salesTreatments.includes(tax.treatment);
+    const differs = tax.reason !== 'no-rate-table' && !noCode && (currentRate > 0 || Boolean(tax.treatment && currentTreatment && currentTreatment !== tax.treatment));
+    return (
+      <p role="status" className="text-xs text-[var(--muted)]">
+        {who}{SAYS[tax.reason]}.
+        {tax.reason === 'export' && tax.treatment === 'zero_rated' && <> An export is zero-rated (VAT Law s.30): goods leaving Israel, or a service to a foreign resident that s.30 covers, with the export documents kept; a service used in Israel is taxed.</>}
+        {noCode && <> To record it, add a zero-rated sales tax code in Settings → Tax Manager; a 0% custom rate is not counted on the VAT report.</>}
+        {differs && <> <button type="button" onClick={() => onUseRate(0, tax.treatment)} className="underline font-semibold text-[var(--text)]">Use no tax</button></>}
       </p>
     );
   }
