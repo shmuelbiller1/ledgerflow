@@ -68,14 +68,15 @@ payRunRouter.post('/:payRunId/reject', async (req, res) => {
 });
 
 // U-01: one employee's payslip for a posted run (PDF)
-payRunRouter.get('/:payRunId/payslips/:employeeId', async (req, res) => {
+payRunRouter.post('/:payRunId/payslips', async (req, res) => {
   try {
+    const { employeeId } = z.object({ employeeId: z.string().min(1) }).strict().parse(req.body || {});
     const { workspaceId } = actor(req);
     const db = getDb();
     const run = (await db.collection('payRuns').doc(String(req.params.payRunId)).get()).data();
     if (!run || run.workspaceId !== workspaceId) return res.status(404).json({ status: 'error', message: 'That pay run is not in this workspace' });
     if (['awaiting_approval', 'rejected', 'withdrawn'].includes(String(run.status))) return res.status(409).json({ status: 'error', message: 'Payslips are for pay runs that were posted' });
-    const line = ((run.employees || []) as PayRunEmployeeLine[]).find(e => e.employeeId === req.params.employeeId);
+    const line = ((run.employees || []) as PayRunEmployeeLine[]).find(e => e.employeeId === employeeId);
     if (!line) return res.status(404).json({ status: 'error', message: 'That employee was not paid in this run' });
     const year = String(run.date).slice(0, 4);
     const runs = (await db.collection('payRuns').where('workspaceId', '==', workspaceId).get()).docs.map(d => d.data())
