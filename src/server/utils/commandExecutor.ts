@@ -58,14 +58,14 @@ export async function executeCommand<T>(
       const status = (error as { status?: number }).status || 500;
       if (status >= 500) {
         const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        console.error(`[CommandExecutor:${correlationId}] ${operationType} failed:`, error);
+        console.error('[CommandExecutor:%s] %s failed:', correlationId, operationType, error);
         return res.status(status).json({
           status: 'error',
           message: 'An internal server error occurred.',
           correlationId
         });
       }
-      console.error(`[CommandExecutor] Operation ${operationType} failed:`, error);
+      console.error('[CommandExecutor] Operation %s failed:', operationType, error);
       return res.status(status).json({ 
         status: 'error', 
         message: errorMessage(error), 
@@ -89,14 +89,14 @@ export async function executeCommand<T>(
     const status = (error as { status?: number }).status || 500;
     if (status >= 500) {
       const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      console.error(`[CommandExecutor:${correlationId}] Idempotent operation ${scopedKey} failed:`, error);
+      console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, scopedKey, error);
       return res.status(status).json({
         status: 'error',
         message: 'An internal server error occurred.',
         correlationId
       });
     }
-    console.error(`[CommandExecutor] Idempotent operation ${scopedKey} failed:`, error);
+    console.error('[CommandExecutor] Idempotent operation %s failed:', scopedKey, error);
     return res.status(status).json({ 
       status: 'error', 
       message: errorMessage(error), 
