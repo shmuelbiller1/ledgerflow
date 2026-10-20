@@ -6,6 +6,7 @@ import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import fs from "fs";
+import path from "path";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
@@ -14,6 +15,16 @@ import { validateUploadedFile } from "../utils/fileValidation";
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContext): void {
   const { apiLogs } = ctx;
+  const uploadsRoot = path.resolve(process.cwd(), "uploads");
+  const resolveSafeUploadPath = (filePath: string): string => {
+    const resolvedPath = path.resolve(filePath);
+    const relative = path.relative(uploadsRoot, resolvedPath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error("Invalid upload path");
+    }
+    return resolvedPath;
+  };
+
   app.get("/api/v1/logs", apiAuthenticate, async (req: express.Request, res: express.Response) => {
     try {
       const workspaceId = (req.query.workspaceId as string) || requestUser(req).developerWorkspaceId;
@@ -37,14 +48,21 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
     const authReq = req as AuthenticatedRequest;
     if (!req.file) return sendError(res, "No file uploaded", 400);
 
-    const validation = await validateUploadedFile(req.file.path);
+    let safeFilePath: string;
+    try {
+      safeFilePath = resolveSafeUploadPath(req.file.path);
+    } catch {
+      return sendError(res, "Invalid upload path", 400);
+    }
+
+    const validation = await validateUploadedFile(safeFilePath);
     if (!validation.valid) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (fs.existsSync(safeFilePath)) fs.unlinkSync(safeFilePath);
       return sendError(res, validation.error || "Invalid file content", 400);
     }
 
     try {
-      const csvData = fs.readFileSync(req.file.path, "utf8");
+      const csvData = fs.readFileSync(safeFilePath, "utf8");
       const records: Array<Record<string, string>> = parseCsv(csvData, {
         columns: true,
         skip_empty_lines: true,
@@ -53,7 +71,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       });
 
       if (!records || records.length === 0) {
-        if (req.file) fs.unlinkSync(req.file.path);
+        if (fs.existsSync(safeFilePath)) fs.unlinkSync(safeFilePath);
         return res.json([]);
       }
 
@@ -150,7 +168,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       fs.unlinkSync(req.file.path);
       res.json(transactions);
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (fs.existsSync(safeFilePath)) fs.unlinkSync(safeFilePath);
       if (/not a member|API key is scoped/i.test(errorMessage(error))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, "Failed to parse CSV", 500, error);
     }
