@@ -1,5 +1,6 @@
 import { errorMessage } from '../auth/requestUser';
 import fs from 'node:fs';
+import path from 'node:path';
 
 export type AllowedMimeType = 'application/pdf' | 'image/png' | 'image/jpeg' | 'text/csv' | 'text/plain' | 'application/json';
 
@@ -10,6 +11,19 @@ export interface FileValidationResult {
 }
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+const DEFAULT_UPLOAD_ROOT = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
+
+export async function resolveSafeUploadPath(filePath: string): Promise<string> {
+  const rootResolved = await fs.promises.realpath(DEFAULT_UPLOAD_ROOT);
+  const candidateResolved = await fs.promises.realpath(path.resolve(filePath));
+  const rootWithSep = rootResolved.endsWith(path.sep) ? rootResolved : `${rootResolved}${path.sep}`;
+
+  if (candidateResolved !== rootResolved && !candidateResolved.startsWith(rootWithSep)) {
+    throw new Error('Invalid upload file path');
+  }
+
+  return candidateResolved;
+}
 
 /**
  * Validates the file buffer or file on disk against magic bytes and security rules.
@@ -93,12 +107,13 @@ export function validateFileMagicBytes(buffer: Buffer): FileValidationResult {
  */
 export async function validateUploadedFile(filePath: string): Promise<FileValidationResult> {
   try {
-    const stat = await fs.promises.stat(filePath);
+    const safePath = await resolveSafeUploadPath(filePath);
+    const stat = await fs.promises.stat(safePath);
     if (stat.size > MAX_FILE_SIZE_BYTES) {
       return { valid: false, error: `File exceeds 25 MB limit (${(stat.size / (1024 * 1024)).toFixed(1)} MB)` };
     }
 
-    const fd = await fs.promises.open(filePath, 'r');
+    const fd = await fs.promises.open(safePath, 'r');
     const buffer = Buffer.alloc(Math.min(stat.size, 8192));
     await fd.read(buffer, 0, buffer.length, 0);
     await fd.close();

@@ -9,7 +9,7 @@ import fs from "fs";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
-import { validateUploadedFile } from "../utils/fileValidation";
+import { resolveSafeUploadPath, validateUploadedFile } from "../utils/fileValidation";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContext): void {
@@ -37,14 +37,21 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
     const authReq = req as AuthenticatedRequest;
     if (!req.file) return sendError(res, "No file uploaded", 400);
 
-    const validation = await validateUploadedFile(req.file.path);
+    let safePath: string;
+    try {
+      safePath = await resolveSafeUploadPath(req.file.path);
+    } catch {
+      return sendError(res, "Invalid upload file path", 400);
+    }
+
+    const validation = await validateUploadedFile(safePath);
     if (!validation.valid) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (fs.existsSync(safePath)) fs.unlinkSync(safePath);
       return sendError(res, validation.error || "Invalid file content", 400);
     }
 
     try {
-      const csvData = fs.readFileSync(req.file.path, "utf8");
+      const csvData = fs.readFileSync(safePath, "utf8");
       const records: Array<Record<string, string>> = parseCsv(csvData, {
         columns: true,
         skip_empty_lines: true,
@@ -150,7 +157,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       fs.unlinkSync(req.file.path);
       res.json(transactions);
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (fs.existsSync(safePath)) fs.unlinkSync(safePath);
       if (/not a member|API key is scoped/i.test(errorMessage(error))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, "Failed to parse CSV", 500, error);
     }
