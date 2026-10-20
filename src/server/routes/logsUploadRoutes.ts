@@ -6,12 +6,22 @@ import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import fs from "fs";
+import path from "path";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
 import { validateUploadedFile } from "../utils/fileValidation";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
+const UPLOAD_SAFE_ROOT = path.resolve(process.cwd());
+
+function isPathWithinRoot(filePath: string, rootPath: string): boolean {
+  const resolvedFile = path.resolve(filePath);
+  const resolvedRoot = path.resolve(rootPath);
+  const relative = path.relative(resolvedRoot, resolvedFile);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
 export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContext): void {
   const { apiLogs } = ctx;
   app.get("/api/v1/logs", apiAuthenticate, async (req: express.Request, res: express.Response) => {
@@ -39,7 +49,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
 
     const validation = await validateUploadedFile(req.file.path);
     if (!validation.valid) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (isPathWithinRoot(req.file.path, UPLOAD_SAFE_ROOT) && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return sendError(res, validation.error || "Invalid file content", 400);
     }
 
@@ -147,10 +157,13 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
         }
       });
 
+      if (!isPathWithinRoot(req.file.path, UPLOAD_SAFE_ROOT)) {
+        return sendError(res, "Invalid upload file path", 400);
+      }
       fs.unlinkSync(req.file.path);
       res.json(transactions);
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (req.file && isPathWithinRoot(req.file.path, UPLOAD_SAFE_ROOT) && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       if (/not a member|API key is scoped/i.test(errorMessage(error))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, "Failed to parse CSV", 500, error);
     }
