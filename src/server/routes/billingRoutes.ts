@@ -3,7 +3,7 @@ import { planFor } from '../../lib/plans';
 import express from "express";
 import crypto from "crypto";
 import { getDb, validateWorkspaceMember, FieldValue } from "../db/firestore.ts";
-import { getStripe } from "../services/stripeService.ts";
+import { checkoutIdempotencyKey, getStripe, isIdempotencyInFlight } from "../services/stripeService.ts";
 import { getTrustedAppUrl } from "../utils/urlHelper.ts";
 import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
 import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService.ts";
@@ -37,7 +37,7 @@ billingRouter.post("/checkout", async (req: express.Request, res: express.Respon
     const workspaceId = (req.body.workspaceId as string) || requestUser(req)?.developerWorkspaceId;
     if (!workspaceId) return res.status(400).json({ status: "error", message: "Missing workspaceId" });
 
-    await authorizeWorkspace(requestUser(req), workspaceId, ['owner']);
+    const workspace = await authorizeWorkspace(requestUser(req), workspaceId, ['owner']);
 
     const stripe = getStripe();
     const { plan } = req.body;
@@ -73,10 +73,15 @@ billingRouter.post("/checkout", async (req: express.Request, res: express.Respon
           plan: plan || 'pro'
         }
       }
+    }, {
+      // INT-6: one key per workspace, plan, price and current subscription — a double click gets the same session,
+      // not two subscriptions; after a subscription ends (its id cleared by the webhook) a new checkout gets a new key
+      idempotencyKey: checkoutIdempotencyKey('subscription', workspaceId, chosen.id, priceInfo.price_data.unit_amount, String(workspace?.stripeSubscriptionId || 'none')),
     });
 
     res.json({ url: session.url });
   } catch (err) {
+    if (isIdempotencyInFlight(err)) return res.status(409).json({ status: "error", message: "This checkout is already being opened. Wait a moment and try again." });
     console.error("[Stripe] Failed:", err);
     res.status(errorStatus(err)).json({ status: "error", message: errorMessage(err) });
   }

@@ -3,20 +3,10 @@ import { z } from 'zod';
 import { getDb } from '../db/firestore';
 import { getTrustedAppUrl } from '../utils/urlHelper';
 import { calculateAmountDue, depositAppliedCents } from '../../lib/documentMath';
-import Stripe from 'stripe';
+import { checkoutIdempotencyKey, getStripe, isIdempotencyInFlight } from '../services/stripeService';
 import { publicPortalRouter } from './customerPortalRoutes';
 import { publicEstimateRouter } from './estimateSignRoutes';
 import { recordInvoiceView } from '../services/invoiceViewService';
-
-let stripeClient: Stripe | null = null;
-function getStripe(): Stripe {
-  if (!stripeClient) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error('Payments are not set up yet (STRIPE_SECRET_KEY is missing).');
-    stripeClient = new Stripe(key, { apiVersion: "2024-12-18.acacia" as any });
-  }
-  return stripeClient;
-}
 
 export const publicInvoiceRouter = express.Router();
 // the customer portal (K-27) shares this public route and its rate limit: /api/v1/invoices/public/portal/<token>
@@ -163,7 +153,8 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
     // Use configured trusted application URL to prevent host-header poisoning (#85)
     const origin = getTrustedAppUrl(req);
 
-    const idempotencyKey = `checkout_${doc.id}_${remainingBalance}_${token.slice(-16)}`;
+    // INT-6: one key per invoice and amount still due — a double click gets the same session, not a second one
+    const idempotencyKey = checkoutIdempotencyKey(doc.id, remainingBalance, token.slice(-16));
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],
@@ -196,6 +187,7 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
     res.json({ url: session.url });
 
   } catch (err) {
+    if (isIdempotencyInFlight(err)) return res.status(409).json({ error: 'This payment is already being opened. Wait a moment and try again.' });
     console.error(err);
     res.status(500).json({ error: 'Failed to create payment session' });
   }
