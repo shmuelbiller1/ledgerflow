@@ -137,6 +137,10 @@ export async function mountJourney(page: Page, options: JourneyOptions): Promise
               (captures[name] ??= []).push(JSON.parse(JSON.stringify(args)));
               return true;
             };
+          } else if (typeof value === 'string' && value === '__fn:formatCurrency') {
+            props[key] = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+          } else if (typeof value === 'string' && value === '__fn:noop') {
+            props[key] = () => {};
           } else props[key] = value;
         }
         children.push(React.createElement(Component, { key: mount.module + (mount.exportName ?? ''), onClose: noop, onBack: noop, ...props }));
