@@ -17,7 +17,7 @@
     "build": "tsx scripts/vercel-csp.ts && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=build/server.cjs",
     "lint": "npm run lint:types && npm run lint:eslint",
     "lint:types": "tsc --noEmit",
-    "lint:eslint": "eslint . --max-warnings 106",
+    "lint:eslint": "eslint . --max-warnings 105",
     "test": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic tsx --test src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts",
     "test:rules": "tsx scripts/db-test.ts rls",
     "test:e2e": "playwright test",
