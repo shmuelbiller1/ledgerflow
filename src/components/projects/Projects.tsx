@@ -12,6 +12,12 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import {
+  allProjectTemplates,
+  instantiateProjectFromTemplate,
+  projectTasksFromProject,
+  saveProjectAsTemplateMetadata,
+} from '../../lib/projectTemplates';
 import { ProjectsView } from './ProjectsView';
 function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
   const occurrences = new Map<string, number>();
@@ -70,6 +76,31 @@ function useProjectsModel() {
     status: 'active',
     budgetCents: 0
   });
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const projectTemplates = useMemo(() => allProjectTemplates(projects), [projects]);
+
+  const handleApplyTemplate = (tplId: string) => {
+    setSelectedTemplateId(tplId);
+    const tpl = projectTemplates.find(t => t.id === tplId);
+    if (!tpl) return;
+    setNewProject(prev => ({
+      ...instantiateProjectFromTemplate(tpl, prev.name?.trim() ? prev.name : tpl.name),
+    }));
+  };
+
+  const handleToggleProjectTask = async (project: Project, taskId: string) => {
+    const updatedTasks = projectTasksFromProject(project).map(t =>
+      t.id === taskId ? { ...t, done: !t.done } : t);
+    await onUpdate(project.id, {
+      metadata: { ...(project.metadata || {}), tasks: updatedTasks },
+    });
+  };
+
+  const handleSaveProjectTemplate = async (project: Project) => {
+    const nextMetadata = saveProjectAsTemplateMetadata(project, `${project.name} Template`);
+    await onUpdate(project.id, { metadata: nextMetadata });
+    toast.success(`Saved "${project.name} Template" for future projects`);
+  };
 
   const handleAddProject = async () => {
     if (!newProject.name || !onAdd) return;
@@ -215,7 +246,7 @@ function useProjectsModel() {
     return vendors.filter(v => vendorIds.has(v.id));
   }, [selectedProjectId, projects, transactions, bills, vendors]);
 
-  return { withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors };
+  return { withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, selectedTemplateId, projectTemplates, handleApplyTemplate, handleToggleProjectTask, handleSaveProjectTemplate, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors };
 }
 
 export type ProjectsModel = NonNullable<ReturnType<typeof useProjectsModel>>;

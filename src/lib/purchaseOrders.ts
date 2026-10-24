@@ -3,6 +3,7 @@
  * number, and the bill lines an order turns into (BE-11).
  */
 import type { Bill, PurchaseOrder, PurchaseOrderItem } from '../types';
+import { normalizePoApproval } from './invoiceApproval';
 import { formatCurrency } from './utils';
 
 /** What the bill should say: the received quantities when anything was received, else what was ordered. */
@@ -92,13 +93,39 @@ export function vendorsByOrders<V extends { id: string; name: string }>(vendors:
 }
 
 /**
- * Purchase requisitions (K-23): an order a bookkeeper creates is a request that waits
- * ('pending_approval') until an owner or accountant approves it (a normal approved order) or declines
- * it (cancelled, with the reason in its notes). Nobody approves their own request except the owner.
- * Nothing is received or billed while it waits.
+ * Purchase requisitions & amount thresholds (K-23, A-120):
+ * - When no PO threshold is enabled on the workspace, K-23 applies unchanged: a bookkeeper's order
+ *   waits in 'pending_approval' until an owner or accountant approves it.
+ * - When a PO approval threshold `poThresholdCents > 0` is enabled (A-120):
+ *   - Orders in the workspace currency at or below `poThresholdCents` go through without waiting
+ *     (so routine small purchases are not held up).
+ *   - Orders strictly above `poThresholdCents` (or in a foreign currency where no rate is guessed)
+ *     wait for another approver unless saved by the workspace owner.
  */
 export function orderNeedsApproval(role: string): boolean {
   return role === 'bookkeeper';
+}
+
+export function poOrderNeedsApproval(
+  role: string,
+  options?: {
+    totalAmountCents?: number;
+    settings?: unknown;
+    currency?: string;
+    workspaceCurrency?: string;
+  },
+): boolean {
+  const poRule = normalizePoApproval(options?.settings);
+  if (!poRule.enabled) {
+    return orderNeedsApproval(role);
+  }
+  if (role === 'owner') return false;
+  const foreignCurrency = Boolean(
+    options?.currency && options?.workspaceCurrency && options.currency !== options.workspaceCurrency,
+  );
+  if (foreignCurrency) return true;
+  const amount = Math.round(Number(options?.totalAmountCents) || 0);
+  return amount > poRule.thresholdCents;
 }
 
 export function awaitingApproval(po: Pick<PurchaseOrder, 'status'>): boolean {

@@ -67,6 +67,7 @@ export const WORKSPACE_PURGE_EXTRA = [
   'clientQueries',
   'stockMoves',
   'periodBalances', // L-123 balance snapshots: server-written, rebuilt from the entries, never restored
+  'stockClosings', // EG-7 stock closing snapshots: server-written, rebuilt from the stock moves, never restored
   'periodClosings', // EG-3 period-closing documents: server-written, never restored from a backup
   'repostQueue', // EG-1 repost marks: server-written, derived from the entries
   'paymentAllocations', // EG-2 payment ledger rows: server-written with each settlement

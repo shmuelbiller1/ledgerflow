@@ -126,6 +126,7 @@ const BASIS_KINDS = [...PURCHASE_KINDS, 'opening'];
 /** The replay of one item's history: the average, and what each sale, return or adjustment should have been valued at. */
 export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: string) {
   const byDate = [...moves].sort(compareMoves);
+  const undoneLanded = new Set(moves.filter(m => m.kind === 'landed-cost' && m.correctsTxId).map(m => String(m.correctsTxId)));
   let qty = 0;
   let cost = 0;
   const saleUnit = new Map<string, number>();
@@ -140,6 +141,17 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
       // its entry revalued the quantity of that day at the old average: both may now be wrong
       if (day >= fromDate && !refuse) refuse = `it was revalued on ${day}, after the change: revalue it again instead`;
       cost = Math.round(Number(m.unitCostCents) || 0);
+      continue;
+    }
+    if (m.kind === 'landed-cost') {
+      // EG-6: a landed cost split its charge between the units on hand and those sold, as the history stood when it
+      // posted. A change before it (a backdated sale or purchase) changes that split, which a cost replay cannot redo:
+      // the item is refused, to be undone and landed again. An undone landed cost (both moves) changes nothing.
+      if (undoneLanded.has(String(m.transactionId || '')) || m.correctsTxId) continue;
+      const value = Number(m.valueCents) || 0;
+      if (day >= fromDate && !refuse) refuse = `a landed cost was posted on ${day}, after the change: undo it (Landed cost → Undo) and land it again`;
+      else if (qty > 0) cost = movingAverageCents(qty, cost, value, qty);
+      else if (value !== 0 && !refuse) refuse = `a landed cost on ${day} has no stock on hand to go to in the replay: undo it and land it again`;
       continue;
     }
     const after = round6(qty + q);

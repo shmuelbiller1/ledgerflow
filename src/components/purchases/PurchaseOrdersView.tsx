@@ -11,7 +11,8 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { performThreeWayMatch } from '../../lib/threeWayMatchEngine';
 import { lotExpiryProblem, lotProblem, normalizeLot, parseSerialList, serialListProblem } from '../../lib/serialNumbers';
-import { addOrderItem, awaitingApproval, billLinesFromOrder, canChangeOrder, canDeleteOrder, canMoveDelivery, changeOrderItem, lastOrderLines, nextPoNumber, orderDecision, orderDecisionProblem, orderNeedsApproval, removeOrderItem, vendorsByOrders } from '../../lib/purchaseOrders';
+import { addOrderItem, awaitingApproval, billLinesFromOrder, canChangeOrder, canDeleteOrder, canMoveDelivery, changeOrderItem, lastOrderLines, nextPoNumber, orderDecision, orderDecisionProblem, poOrderNeedsApproval, removeOrderItem, vendorsByOrders } from '../../lib/purchaseOrders';
+import { normalizePoApproval } from '../../lib/invoiceApproval';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { isArchivedParty } from '../../lib/contacts';
 import { formatCurrency, formatDate, formatTzDate } from '../../lib/utils';
@@ -42,8 +43,6 @@ export const PurchaseOrdersView: React.FC = () => {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const role = useCurrentRole();
   const canEdit = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
-  // K-23: a bookkeeper's order is a request until an owner or accountant approves it
-  const asRequest = orderNeedsApproval(role);
   const myUid = useAuthStore(s => s.user?.uid) || '';
   const [declining, setDeclining] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -59,6 +58,19 @@ export const PurchaseOrdersView: React.FC = () => {
   const [poVendorId, setPoVendorId] = useState('');
   const [poExpectedDate, setPoExpectedDate] = useState(today);
   const [poItems, setPoItems] = useState<DraftLine[]>([newLine()]);
+  // K-23 + A-120: evaluate PO approval threshold against the draft total in the workspace currency
+  const draftPoTotalCents = useMemo(() => poItems.reduce((sum, l) => {
+    const q = Number(l.qty);
+    const p = Number(l.unitPrice);
+    return sum + (q > 0 && p > 0 ? Math.round(q * Math.round(p * 100)) : 0);
+  }, 0), [poItems]);
+  const poRule = normalizePoApproval(workspace?.invoiceApproval);
+  const asRequest = poOrderNeedsApproval(role, {
+    totalAmountCents: draftPoTotalCents,
+    settings: workspace?.invoiceApproval,
+    currency: workspace?.currency || 'USD',
+    workspaceCurrency: workspace?.currency || 'USD',
+  });
   const [receivingPO, setReceivingPO] = useState<PurchaseOrder | null>(null);
   const [receivedCondition, setReceivedCondition] = useState<GoodsReceipt['items'][number]['condition']>('good');
   const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
@@ -203,7 +215,10 @@ export const PurchaseOrdersView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="w-5 h-5" aria-hidden="true" /> Purchase orders</h1>
-          <p className="text-sm text-[var(--muted)] mt-1">Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.</p>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.
+            {poRule.enabled && poRule.thresholdCents > 0 ? ` Orders above ${formatCurrency(poRule.thresholdCents, workspace?.currency)} require approval before receiving or billing.` : ''}
+          </p>
         </div>
         {canEdit && (
           <button type="button" onClick={() => setIsCreatingPO(true)} id="create-po-btn"

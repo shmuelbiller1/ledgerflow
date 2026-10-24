@@ -29,6 +29,10 @@ const SOURCES = {
   reconciliations: { table: 'reconciliations', cap: 1000 },
   // W-02: the stock history, checked against each item's quantity
   stockMoves: { table: 'stockMoves', cap: 50000 },
+  // EG-7: the stock closings, checked against the moves they cover
+  stockClosings: { table: 'stockClosings', cap: 200 },
+  // EG-10: the payment ledger, checked against each document's amount paid
+  allocations: { table: 'paymentAllocations', cap: 50000 },
 } as const;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -57,6 +61,8 @@ export async function checkLedgerHealth(db: Firestore, workspaceId: string, now 
     return [key, snap.docs.map(d => ({ ...d.data(), id: d.id }))] as const;
   }));
   const data = Object.fromEntries(loaded) as unknown as Omit<CheckContext, 'today' | 'baseCurrency'>;
+  // EG-7: a source read up to its cap is partial: the checks over it say so instead of comparing
+  data.truncated = loaded.filter(([key, rows]) => rows.length >= SOURCES[key as keyof typeof SOURCES].cap).map(([key]) => key);
   const today = formatTzDate(now, typeof ws.timezone === 'string' ? ws.timezone : 'UTC');
   const findings = runDataChecks({ ...data, today, baseCurrency: String(ws.currency || 'USD'), dimensions: Array.isArray(ws.dimensions) ? ws.dimensions : undefined });
   const fresh = newSeriousProblems(findings, ws.ledgerHealth as LedgerHealth | undefined);

@@ -26,6 +26,7 @@ import PendingDeletionBanner from '../../components/layout/PendingDeletionBanner
 import LedgerBackupReminder from '../../components/platform/LedgerBackupReminder';
 
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
+import { useServerOpeningSync } from '../../hooks/useServerOpening';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { useAIActions } from '../../hooks/useAIActions';
 
@@ -33,6 +34,7 @@ import { useSystemActions } from '../../hooks/useSystemActions';
 
 export function RootLayout() {
   const { handleAction } = useCommandDispatcher();
+  useServerOpeningSync(); // L-123 step 3b: the server's balances behind computedAccounts
   const txActions = useTransactionActions();
   const ai = useAIActions();
   const { handleLoginPrompt, handleLogout, handleApplyAITemplate, handleSelectTemplate, handleSaveCurrentTemplate, handleCreateWorkspace } = useSystemActions();

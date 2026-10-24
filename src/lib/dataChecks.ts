@@ -6,13 +6,17 @@
  */
 import type { BankStatementLine, Bill, ChartAccount, Customer, DimensionDefinition, Invoice, Payment, RecurringTransaction, Transaction, Vendor } from '../types';
 import { isPostable, lineAmount } from './txFilters';
-import { calculateAmountDue } from './documentMath';
+import { calculateAmountDue, cashPostedWithDocumentCents, depositAppliedCents } from './documentMath';
+import { convertMinorUnits } from './currencyMinorUnits';
+import { BILL_IS_ISSUED, INVOICE_IS_ISSUED } from '../server/reports/computeReports';
 import { findTaxDifferences } from './taxRecompute';
 import { missingLabels } from './requiredLabels';
 import { labelRoleFindings } from './labelRoles';
 import { stockHistoryProblem, type StockMove } from './stockMoves';
+import { STOCK_INVARIANT_CHECKS, type StockClosing } from './stockInvariants';
 import { contactsMissingFilingDetails, itemsMissingPricing } from './dataQualityChecks';
 import { formatCurrency } from './utils';
+import { openingDebitCents, resolveAccountRole } from './accountUtils';
 import type { RecordType } from './recordLinks';
 
 export { RECORD_TABS } from './recordLinks';
@@ -61,6 +65,12 @@ export interface CheckContext {
   dimensions?: DimensionDefinition[];
   /** The stock-moves ledger (W-02); the nightly check reads it, the browser does not load it. */
   stockMoves?: StockMove[];
+  /** EG-7: the stock closing snapshots (server-only), checked against the moves they cover */
+  stockClosings?: StockClosing[];
+  /** The sources read only up to a cap, by name (nightly caps; the browser's cut collections, EG-10), never an any-collection flag. */
+  truncated?: string[];
+  /** EG-2 payment-ledger rows (`paymentAllocations`); the nightly check reads them, the browser does not. */
+  allocations?: Array<{ id: string; documentId?: string; documentType?: string; kind?: string; amountCents?: number; baseClearedCents?: number }>;
   /** Payment records (CB-23: each has its entry in the ledger). */
   payments?: Array<Partial<Payment> & { id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; paymentExchangeRate?: number; paymentDate?: string; date?: string; contactName?: string; entityName?: string }>;
 }
@@ -455,7 +465,128 @@ export const DATA_CHECKS: DataCheck[] = [
       }));
     },
   },
+  // EG-7: stock against the books, stock below zero on a day, stale stock closings (src/lib/stockInvariants.ts)
+  ...STOCK_INVARIANT_CHECKS,
+  {
+    id: 'settlement-ledger',
+    label: 'Amount paid on invoices and bills that their payment-ledger rows do not add up to (EG-10)',
+    remedy: 'Open the document and compare its payments with what it says is paid; record or void the payment that is missing or extra.',
+    run: ({ invoices, bills, allocations, truncated }) => {
+      if (!allocations) return [];
+      // with rows missing, a document's rows add up to less than it paid: not a mismatch to report
+      const cut = (truncated || []).filter(k => k === 'allocations');
+      if (cut.length) return [incompleteFinding('settlement-ledger', cut)];
+      // signed sum per document (an invoice and a bill may share an id): a reversal row is negative,
+      // so originals + reversals = the live total
+      const sums = new Map<string, number>();
+      for (const r of allocations) {
+        // a document's own `manual` / `deposit` row is the cash posted with it, counted below from the document
+        if (!r.documentId || r.kind === 'manual' || r.kind === 'deposit') continue;
+        const key = `${r.documentType}|${r.documentId}`;
+        sums.set(key, (sums.get(key) || 0) + (Number(r.amountCents) || 0));
+      }
+      const findings: CheckFinding[] = [];
+      const withoutRows: Record<'invoice' | 'bill', string[]> = { invoice: [], bill: [] };
+      for (const { d, type } of openDocuments(invoices, bills)) {
+        const paid = Math.round(paidCents(d));
+        // what was paid with the document has no payment record and so no row: the rows cover the rest
+        const withDocument = Math.round(cashPostedWithDocumentCents(d));
+        const rowsOnly = sums.get(`${type}|${d.id}`);
+        if (rowsOnly === undefined) { if (paid - withDocument !== 0) withoutRows[type].push(label(d)); continue; }
+        const rows = withDocument + rowsOnly;
+        if (rows === paid) continue;
+        findings.push({
+          id: `settlement-ledger-${type}-${d.id}`, checkId: 'settlement-ledger', severity: 'medium',
+          title: `${type === 'invoice' ? 'Invoice' : 'Bill'} ${label(d)} says ${formatCurrency(paid, d.currency)} paid, its payment-ledger rows${withDocument ? ' and the part paid with it' : ''} add up to ${formatCurrency(rows, d.currency)}`,
+          description: `Difference ${formatCurrency(paid - rows, d.currency)}.`,
+          record: { type, id: d.id },
+        });
+      }
+      for (const type of ['invoice', 'bill'] as const) {
+        const docs = withoutRows[type];
+        if (docs.length === 0) continue;
+        findings.push({
+          id: `settlement-ledger-no-rows-${type}`, checkId: 'settlement-ledger', severity: 'low',
+          title: `${docs.length} open ${type}(s) with an amount paid have no ledger rows yet, migration may not be applied`,
+          description: `Not counted as a mismatch: ${docs.slice(0, 5).join(', ')}${docs.length > 5 ? ', …' : ''}. Payments recorded before the payment ledger have no rows until the backfill runs.`,
+        });
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'control-balance',
+    label: 'Receivable or payable account balance that differs from the open invoices or bills (EG-10)',
+    remedy: 'Look for entries posted to the receivable or payable account by hand, or documents whose posting is missing (Month-end close → Postings).',
+    run: ({ invoices, bills, accounts, transactions, allocations, baseCurrency, truncated }) => {
+      // a balance over part of the entries or documents is not a difference to report
+      const cut = (truncated || []).filter(k => k === 'transactions' || k === 'accounts' || k === 'invoices' || k === 'bills');
+      const open = openDocuments(invoices, bills);
+      return (['ar', 'ap'] as const).flatMap(role => {
+        const controls = accounts.filter(a => resolveAccountRole(a) === role);
+        if (controls.length === 0) return [];
+        if (cut.length) return role === 'ar' ? [incompleteFinding('control-balance', cut)] : [];
+        const control = new Set(controls.map(a => a.id));
+        // the opening balances (debit-positive), then the entries
+        let ledger = controls.reduce((s, a) => s + openingDebitCents(a), 0);
+        for (const tx of transactions) if (isPostable(tx)) for (const l of tx.lines || []) if (control.has(l.accountId)) ledger += lineAmount(l, tx);
+        if (role === 'ap') ledger = 0 - ledger; // payables carry a credit balance
+        const type = role === 'ar' ? 'invoice' : 'bill';
+        const docs = open.filter(o => o.type === type);
+        // as posting books it: the original at the document's rate, less each settlement converted and rounded on
+        // its own (a ledger row's baseClearedCents; without rows, the amount paid in one conversion), less the deposit
+        const cleared = new Map<string, number>();
+        for (const r of allocations || []) if (r.documentType === type && r.documentId && Number.isFinite(Number(r.baseClearedCents))) cleared.set(r.documentId, (cleared.get(r.documentId) || 0) + Number(r.baseClearedCents));
+        const expected = docs.reduce((s, { d }) => {
+          const rate = Number(d.exchangeRate) > 0 ? Number(d.exchangeRate) : 1;
+          const home = (cents: number) => convertMinorUnits(cents, rate, d.currency || baseCurrency, baseCurrency);
+          const paid = paidCents(d);
+          if (calculateAmountDue({ ...d, amountPaidCents: paid }) === 0) return s;
+          // the part paid with the document is posted by the document itself (invoicePosting/billPosting), converted
+          // on its own; the payment records' part is the rows' cleared amounts, or what is left of the amount paid
+          const withDocument = cashPostedWithDocumentCents(d);
+          const records = cleared.has(d.id) && cleared.get(d.id) !== 0 ? cleared.get(d.id)! : home(Math.max(0, paid - withDocument));
+          const settled = home(withDocument) + records;
+          return s + home(Math.max(0, d.amountCents || 0)) - home(depositAppliedCents(d)) - settled;
+        }, 0);
+        if (ledger === expected) return [];
+        const name = role === 'ar' ? 'Accounts receivable' : 'Accounts payable';
+        return [{
+          id: `control-balance-${role}`, checkId: 'control-balance', severity: 'medium' as const,
+          title: `${name} is ${formatCurrency(ledger, baseCurrency)}, the open ${type}s add up to ${formatCurrency(expected, baseCurrency)}`,
+          description: `Difference ${formatCurrency(ledger - expected, baseCurrency)} over ${docs.length} open ${type}(s) (home currency).`,
+        }];
+      });
+    },
+  },
 ];
+
+/** Issued, not void or draft, invoices and bills (what the receivable and payable accounts hold), by the reports' rule. */
+function openDocuments(invoices: Invoice[], bills: Bill[]) {
+  return [
+    ...invoices.filter(d => INVOICE_IS_ISSUED.has(d.status)).map(d => ({ d, type: 'invoice' as const })),
+    ...bills.filter(d => BILL_IS_ISSUED.has(d.status)).map(d => ({ d, type: 'bill' as const })),
+  ];
+}
+
+/** What a document has paid, as posting counts it: "Mark as paid" without an amount settles what the deposit left. */
+function paidCents(d: Invoice | Bill): number {
+  if (d.status !== 'paid' && d.status !== 'partially_paid') return d.amountPaidCents || 0;
+  return cashPostedWithDocumentCents({ ...d, settledByRecordsCents: 0 });
+}
+
+/** The browser's cut collections, by name (DataHealthView); the store's any-collection flag is not used. */
+export function truncatedInputs(truncatedCollections: Record<string, boolean> | undefined): string[] {
+  return Object.keys(truncatedCollections || {}).filter(k => truncatedCollections?.[k]);
+}
+
+function incompleteFinding(checkId: string, cut: string[]): CheckFinding {
+  return {
+    id: `${checkId}-incomplete`, checkId, severity: 'low',
+    title: 'Not checked: the data read is incomplete',
+    description: `Only part of ${cut.join(', ')} was read (a limit was reached), so totals over it would show differences that are not there.`,
+  };
+}
 
 const SUSPENSE = /suspense|uncategori[sz]ed|ask my accountant|clearing/i;
 

@@ -5,11 +5,12 @@ import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import type { LedgerKey, LedgerCollectionSpec } from '../../lib/ledgerCollections';
 import type { ChartAccount, Transaction, Invoice, Bill, Customer, Vendor } from '../../types';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { foldServerOpening, openingCutoff, periodBeforeOpening } from '../../lib/serverBalances';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { dashboardReportHref, dashboardComparison, dashboardPeriod, dashboardAging, validDashboardPeriod, startingLayout, DASHBOARD_ROLES, DASHBOARD_WIDGETS } from '../../lib/dashboardOverview';
+import { dashboardReportHref, dashboardComparison, withServerBalances, dashboardPeriod, dashboardAging, validDashboardPeriod, startingLayout, DASHBOARD_ROLES, DASHBOARD_WIDGETS } from '../../lib/dashboardOverview';
 import type { DashboardRange, DashboardRole, DashboardWidget, DashboardLayout } from '../../lib/dashboardOverview';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { getIdToken } from '../../firebase';
@@ -117,11 +118,22 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     const belongs = (record: { workspaceId?: string }) => !workspaceId || record.workspaceId === workspaceId;
     return { accounts: accounts.filter(belongs), transactions: transactions.filter(belongs), invoices: invoices.filter(belongs), bills: bills.filter(belongs), customers: customers.filter(belongs), vendors: vendors.filter(belongs) };
   }, [workspaceId, accounts, transactions, invoices, bills, customers, vendors]);
-  const data = useMemo(() => valid ? dashboardComparison(scoped.accounts, scoped.transactions, period) : null, [valid, scoped, period]);
+  // L-123 step 3b: the server's balances through the oldest loaded day, folded in (src/lib/serverBalances.ts)
+  const serverOpening = useLedgerStore(state => state.serverOpening);
+  const cutoff = useMemo(() => openingCutoff(scoped.transactions), [scoped.transactions]);
+  const opening = serverOpening && (!workspaceId || serverOpening.workspaceId === workspaceId) && serverOpening.asOf === cutoff ? serverOpening : null;
+  const data = useMemo(() => {
+    if (!valid) return null;
+    const loadedOnly = dashboardComparison(scoped.accounts, scoped.transactions, period);
+    return opening ? withServerBalances(loadedOnly, dashboardComparison(scoped.accounts, foldServerOpening(scoped.transactions, opening), period), period, opening.asOf) : loadedOnly;
+  }, [valid, scoped, period, opening]);
   const ar = useMemo(() => valid ? dashboardAging(scoped.customers, scoped.invoices, 'customer', period.endDate) : { rows: [], top: [] }, [scoped, valid, period.endDate]);
   const ap = useMemo(() => valid ? dashboardAging(scoped.vendors, scoped.bills, 'vendor', period.endDate) : { rows: [], top: [] }, [scoped, valid, period.endDate]);
   const recent = useMemo(() => scoped.transactions.filter(tx => isPostable(tx) && isTransactionInDateRange(tx, period.startDate, period.endDate)).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)).slice(0, 5), [scoped, period.startDate, period.endDate]);
-  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => truncated[key] || failed[key]);
+  // with the server's balances folded in, entries past the loading cap no longer change the totals (only a period
+  // that starts on or before the server's day still reads the loaded entries alone, and says so)
+  const capCovered = !!opening && !periodBeforeOpening(period.startDate, opening);
+  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => failed[key] || (truncated[key] && !(key === 'transactions' && capCovered)));
   const owedToYou = useMemo(() => partyStats(scoped.invoices.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'customer', period.endDate).outstandingCents, [scoped.invoices, period.endDate]);
   const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate).outstandingCents, [scoped.bills, period.endDate]);
   const summaryReady = valid && data && !loading && !partial.length && (isGuest || ['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'].every(key => loaded[key as LedgerKey]));
@@ -188,7 +200,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
         </a>; })}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-[var(--muted)]">{isGuest ? 'Demo data' : 'Loaded data'} · Cash at end date; profit for selected period.</span>
+        <span className="text-xs text-[var(--muted)]" data-testid="dashboard-balances-source">{isGuest ? 'Demo data' : opening ? `Balances through ${opening.asOf} as summed by the server, plus the loaded entries` : 'Loaded data'} · Cash at end date; profit for selected period{opening && periodBeforeOpening(period.startDate, opening) ? ` (from the loaded entries: the period starts on or before ${opening.asOf}, so it may omit older entries; open the P&L report for the server's figures)` : ''}.</span>
         <a href="#tasks" className="min-h-11 inline-flex items-center px-3 border border-[var(--line)] rounded-lg font-semibold text-sm">Open tasks</a>
       </div>
       <p className="text-xs text-[var(--muted)]">Current unpaid amounts; later documents excluded. Past payments are not reconstructed.</p>

@@ -34,9 +34,13 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'customer-lifetime-value': 'Sales',
   'customer-quotes': 'Sales',
   'quote-versions': 'Sales',
+  'customer-item-codes': 'Sales',
+  'shipping-methods': 'Sales',
   'sales-tax-holidays': 'Tax',
   'purchase-trends': 'Purchases',
   'purchase-price-variance': 'Purchases',
+  'vendor-quotes-compare': 'Purchases',
+  'bill-retention': 'Purchases',
   'vendor-scorecard': 'Purchases',
   'vendor-price-history': 'Purchases',
   'three-way-match': 'Purchases',
@@ -56,6 +60,8 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'expiring-lots': 'Stock',
   'stock-transfers': 'Stock',
   'kit-assembly': 'Stock',
+  'work-orders': 'Stock',
+  'aged-inventory-by-lot': 'Stock',
   'stock-value-by-location-lot': 'Stock',
   'landed-cost-preview': 'Stock',
   'cycle-count': 'Stock',
@@ -90,6 +96,7 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'golden-tax-fixtures': 'Tax',
   'us-quarter-journey': 'Tax',
   'il-month-journey': 'Tax',
+  'il-annual-party-summary': 'Tax',
   'tax-liability-by-entity': 'Tax',
   'form-856': 'Tax',
   'vendor-1099-readiness': 'Tax',
@@ -121,33 +128,26 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'inventory-turnover': 'Analysis',
   'data-quality-checks': 'Analysis',
   'sample-year-benchmark': 'Analysis',
+  'accountant-queue': 'Analysis',
   'monthly-averages': 'Analysis',
   'income-by-source': 'Analysis',
   'record-retention-review': 'Analysis',
 };
 
-const RECENT_KEY = 'lf_recent_reports';
-function readRecentReports(): string[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
-    return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && REPORT_TABS_REGISTRY.some(r => r.id === id)))].slice(0, 5) : [];
-  } catch { return []; }
-}
-
 /** Native disclosure and select retain normal Tab, typing and platform keyboard behaviour. */
 export default function ReportPicker({ activeTab, onSelect }: { activeTab: string; onSelect: (id: string) => void }) {
   const [query, setQuery] = useState('');
-  const [recent, setRecent] = useState(readRecentReports);
-  const [storageFailed, setStorageFailed] = useState(false);
+  const recent = useUIStore(s => s.recentReports);
+  const recordRecent = useUIStore(s => s.recordRecentReport);
+  const syncStatus = useUIStore(s => s.reportPreferencesStatus);
+  const deviceError = useUIStore(s => s.reportPreferencesDeviceError);
   const pins = useUIStore(s => s.pinnedPages);
   const label = (id: string) => REPORT_TABS_REGISTRY.find(r => r.id === id)?.label.en || id;
   const filtered = REPORT_TABS_REGISTRY.filter(r => `${r.label.en} ${r.label.he} ${r.id}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const pinned = pins.filter(p => p.tab === 'reports' && p.sub && REPORT_TABS_REGISTRY.some(r => r.id === p.sub)).map(p => p.sub!);
   const select = (id: string) => {
     if (!REPORT_TABS_REGISTRY.some(r => r.id === id)) return;
-    const next = [id, ...recent.filter(r => r !== id)].slice(0, 5);
-    setRecent(next);
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); setStorageFailed(false); } catch { setStorageFailed(true); }
+    recordRecent(id);
     onSelect(id);
   };
   return <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] p-2">
@@ -171,8 +171,16 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
         <h2 className="font-semibold">{title}</h2>
         <div className="flex flex-wrap gap-2">{(ids as string[]).length ? (ids as string[]).map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>) : <p className="text-sm">{title === 'Pinned reports' ? 'Use Alt+P to pin the current report.' : 'Reports selected here appear here on this device.'}</p>}</div>
       </section>)}
-      {storageFailed && <p role="status">The report opened, but recent reports could not be saved on this device.</p>}
-      <p className="text-sm">Recent reports and existing page pins are saved on this device, not synced between devices.</p>
+      {deviceError && <p role="status">The report opened, but this browser could not keep a device copy of your recent reports and pins.</p>}
+      <p className="text-sm" role={syncStatus === 'error' ? 'status' : undefined}>
+        {syncStatus === 'loading' && 'Your device copy is ready; loading account sync for recent reports and pinned pages…'}
+        {syncStatus === 'saving' && 'Saving recent reports and pinned pages to your account…'}
+        {syncStatus === 'synced' && 'Recent reports and pinned pages sync to your account for these books.'}
+        {syncStatus === 'error' && (deviceError
+          ? 'Account sync failed, and this browser could not keep a device copy. Reconnect and try another change.'
+          : 'Saved on this device. Account sync failed and will retry after a change or when you reconnect.')}
+        {syncStatus === 'device' && 'Recent reports and pinned pages are saved on this device for these books.'}
+      </p>
     </div>
   </details>;
 }

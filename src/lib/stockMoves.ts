@@ -7,7 +7,7 @@
  * Pure: the Stock history window and the nightly check read it.
  */
 
-export type StockMoveKind = 'sale' | 'sale-reversal' | 'return' | 'return-reversal' | 'purchase' | 'purchase-reversal' | 'purchase-return' | 'purchase-return-reversal' | 'opening' | 'adjustment' | 'count' | 'manual-cogs' | 'transfer-out' | 'transfer-in' | 'revaluation' | 'cost-repost';
+export type StockMoveKind = 'sale' | 'sale-reversal' | 'return' | 'return-reversal' | 'purchase' | 'purchase-reversal' | 'purchase-return' | 'purchase-return-reversal' | 'opening' | 'adjustment' | 'count' | 'manual-cogs' | 'transfer-out' | 'transfer-in' | 'revaluation' | 'cost-repost' | 'landed-cost';
 
 export interface StockMove {
   id?: string;
@@ -72,6 +72,8 @@ export const STOCK_MOVE_LABEL: Record<StockMoveKind, string> = {
   revaluation: 'Revalued',
   // EG-1: a sale's cost corrected after a backdated purchase; no units move (quantity 0, the value change)
   'cost-repost': 'Cost corrected (repost)',
+  // EG-6: freight, duty… landed on received goods (or its undo); no units move (quantity 0, the value change)
+  'landed-cost': 'Landed cost added',
 };
 
 /** W-01: the stock with no location (made before locations were used, or never placed). */

@@ -32,6 +32,24 @@ export function dashboardComparison(accounts: ChartAccount[], transactions: Tran
   });
   return { current: dashboardFigures(accounts, transactions, period), previous: dashboardFigures(accounts, transactions, previousPeriod), previousPeriod, months };
 }
+type Figures = ReturnType<typeof dashboardFigures>;
+/**
+ * L-123 step 3b: the dashboard with the server's balances folded in (src/lib/serverBalances.ts foldServerOpening).
+ * Figures as of a date (net worth, cash, banks, assets/liabilities/equity) come from `server`; period figures
+ * (revenue, expenses, profit) too when the period starts after the server's day, else from the loaded entries.
+ */
+export function withServerBalances(loaded: ReturnType<typeof dashboardComparison>, server: ReturnType<typeof dashboardComparison>, period: DashboardPeriod, asOf: string): ReturnType<typeof dashboardComparison> {
+  const pick = (l: Figures, s: Figures, startDate: string): Figures => {
+    const period = startDate > asOf ? s : l;
+    return { ...s, revenue: period.revenue, expenses: period.expenses, profit: period.profit, summary: s.summary.map((row, i) => row.scope === 'Period activity' ? period.summary[i] : row) };
+  };
+  return {
+    ...server,
+    current: pick(loaded.current, server.current, period.startDate),
+    previous: pick(loaded.previous, server.previous, server.previousPeriod.startDate),
+    months: server.months.map((m, i) => ({ ...m, ...pick(loaded.months[i], m, `${m.label}-01`) })),
+  };
+}
 /** Current unpaid amounts aged at the selected date, not historical payment reconstruction. */
 export function dashboardAging(parties: Array<{ id: string; name: string }>, documents: Array<Invoice | Bill>, side: 'customer' | 'vendor', endDate: string) {
   const included = documents.filter(doc => !doc.date || doc.date.slice(0, 10) <= endDate);

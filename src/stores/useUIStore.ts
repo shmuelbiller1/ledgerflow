@@ -1,4 +1,11 @@
 import { parsePinned, togglePinned, type PinnedPage } from '../lib/pinnedPages';
+import {
+  MAX_RECENT_REPORTS,
+  normalizeRecentReports,
+  parseRecentReports,
+  RECENT_REPORTS_KEY,
+  type ReportPreferencesSyncStatus,
+} from '../lib/reportPreferences';
 import { create } from 'zustand';
 import type { AppTab, FilterCriteria } from '../types';
 import { parseRecordHash, recordHash } from '../lib/recordLinks';
@@ -144,9 +151,13 @@ interface UIState {
   speedDials: Record<string, string>;
   setSpeedDial: (key: string, tabId: string) => void;
   removeSpeedDial: (key: string) => void;
-  /** Pinned pages (I-21): buttons on every page, Alt+1 … Alt+9. Saved on this device. */
+  /** Pinned pages (I-21/D-47): buttons on every page, Alt+1 … Alt+9. */
   pinnedPages: PinnedPage[];
   togglePinnedPage: (page: PinnedPage) => void;
+  recentReports: string[];
+  recordRecentReport: (reportId: string) => void;
+  reportPreferencesStatus: ReportPreferencesSyncStatus;
+  reportPreferencesDeviceError: boolean;
   goToPage: (page: PinnedPage) => void;
 }
 
@@ -216,9 +227,29 @@ export const useUIStore = create<UIState>((set) => ({
   })(),
   togglePinnedPage: (page) => set((state) => {
     const pinnedPages = togglePinned(state.pinnedPages, page);
-    try { localStorage.setItem('lf_pinned_pages', JSON.stringify(pinnedPages)); } catch { /* ignore storage error */ }
-    return { pinnedPages };
+    let reportPreferencesDeviceError = false;
+    try { localStorage.setItem('lf_pinned_pages', JSON.stringify(pinnedPages)); } catch { reportPreferencesDeviceError = true; }
+    return { pinnedPages, reportPreferencesDeviceError };
   }),
+  recentReports: (() => {
+    try { return parseRecentReports(typeof window !== 'undefined' ? localStorage.getItem(RECENT_REPORTS_KEY) : null); } catch { return []; }
+  })(),
+  recordRecentReport: (reportId) => set((state) => {
+    if (normalizeRecentReports([reportId]).length === 0) return {};
+    let stored: string[] = [];
+    // Device-only mode keeps D-44's legacy initialization. Synced scopes are already hydrated and
+    // must never resurrect another scope's legacy cache when their remote list is intentionally empty.
+    if (state.reportPreferencesStatus === 'device' && state.recentReports.length === 0) {
+      try { stored = parseRecentReports(localStorage.getItem(RECENT_REPORTS_KEY)); } catch { stored = []; }
+    }
+    const current = state.recentReports.length ? state.recentReports : stored;
+    const recentReports = [reportId, ...current.filter(id => id !== reportId)].slice(0, MAX_RECENT_REPORTS);
+    let reportPreferencesDeviceError = false;
+    try { localStorage.setItem(RECENT_REPORTS_KEY, JSON.stringify(recentReports)); } catch { reportPreferencesDeviceError = true; }
+    return { recentReports, reportPreferencesDeviceError };
+  }),
+  reportPreferencesStatus: 'device',
+  reportPreferencesDeviceError: false,
   goToPage: (page) => {
     if (typeof window !== 'undefined' && window.location.hash !== `#${page.tab}`) window.location.hash = page.tab;
     set({

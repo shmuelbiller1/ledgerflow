@@ -66,4 +66,33 @@ describe('The claim form suggests the dated rate', () => {
     fireEvent.change(screen.getByLabelText('Paid on'), { target: { value: '2024-01-01' } });
     assert.match(screen.getByRole('note').textContent || '', /No table row for United States on 2024-01-01/);
   });
+
+  test('A-107: an imported GSA locality file suggests the picked locality rate over the standard one', async () => {
+    openDialog('USD');
+    fireEvent.change(screen.getByLabelText('Paid on'), { target: { value: '2026-03-15' } });
+    fireEvent.change(screen.getByLabelText('Kind, line 1'), { target: { value: 'perDiem' } });
+    fireEvent.change(screen.getByLabelText('Country, line 1'), { target: { value: 'US' } });
+    const daily = screen.getByLabelText('Daily rate, line 1') as HTMLInputElement;
+    assert.equal(daily.value, '68.00', 'before the import the standard rate is suggested');
+
+    const fy26 = [
+      'State,Destination,County / Location Defined,Season Begin,Season End,FY26 Lodging Rate,FY26 MIE',
+      'NY,New York City,"Bronx, Kings, New York, Queens, Richmond",,,342,92',
+    ].join('\n');
+    fireEvent.change(screen.getByLabelText('GSA per diem rates CSV'), {
+      target: { files: [new File([fy26], 'FY2026_PerDiemMasterRatesFile.csv', { type: 'text/csv' })] },
+    });
+    assert.match((await screen.findByText(/1 FY2026 localities read/)).textContent || '', /used for this claim only/);
+    assert.equal(daily.value, '68.00', 'the import alone never rewrites a filled rate');
+
+    fireEvent.change(daily, { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('GSA locality, line 1'), { target: { value: 'New York City, NY' } });
+    assert.equal(daily.value, '92.00', 'the picked locality rate fills the empty field');
+    assert.match(screen.getByRole('note').textContent || '', /New York City, NY locality/);
+    assert.match(screen.getByRole('note').textContent || '', /U.S. General Services Administration/);
+
+    fireEvent.change(screen.getByLabelText('GSA locality, line 1'), { target: { value: 'Nowhere, NY' } });
+    assert.match(screen.getByRole('note').textContent || '', /is not a locality in the imported FY2026 file/);
+    assert.equal(daily.value, '92.00', 'an unpicked locality never rewrites the field');
+  });
 });

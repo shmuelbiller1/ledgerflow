@@ -4,7 +4,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { getLocalDateISO } from '../../lib/utils';
-import { DATA_CHECKS, runDataChecks } from '../../lib/dataChecks';
+import { DATA_CHECKS, runDataChecks, truncatedInputs } from '../../lib/dataChecks';
 import type { CheckSeverity } from '../../lib/dataChecks';
 import type { LedgerHealth } from '../../lib/ledgerHealth';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -43,6 +43,7 @@ export default function DataHealthView() {
   const bankLines = useLedgerStore(s => s.bankLines);
   const payments = useLedgerStore(s => s.payments);
   const customers = useLedgerStore(s => s.customers);
+  const truncatedCollections = useLedgerStore(s => s.truncatedCollections);
   const vendors = useLedgerStore(s => s.vendors);
   const { loading } = useLedgerCollections('bankLines', 'bills', 'inventory', 'invoices', 'recurring', 'payments');
   useLedgerCollections('customers', 'vendors');
@@ -59,7 +60,9 @@ export default function DataHealthView() {
     recurring: recurring || [], inventory: inventory || [], bankLines: bankLines || [], payments: payments || [],
     customers: customers || [], vendors: vendors || [], workspaceCountry,
     today: getLocalDateISO(), baseCurrency, dimensions,
-  }), [transactions, accounts, invoices, bills, recurring, inventory, bankLines, payments, customers, vendors, workspaceCountry, baseCurrency, dimensions]);
+    // EG-10: the browser reads the newest records only; totals over a cut collection are not compared
+    truncated: truncatedInputs(truncatedCollections),
+  }), [truncatedCollections, transactions, accounts, invoices, bills, recurring, inventory, bankLines, payments, customers, vendors, workspaceCountry, baseCurrency, dimensions]);
 
   const byCheck = useMemo(() => DATA_CHECKS.map(check => ({ check, findings: findings.filter(f => f.checkId === check.id) })), [findings]);
   const shown = byCheck.filter(g => g.findings.length > 0 && (only === 'all' || g.check.id === only));

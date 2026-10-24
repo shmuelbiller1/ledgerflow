@@ -6,7 +6,7 @@ import { Plus, Trash2, X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { Labelled } from '../ui/Labelled';
-import { cleanContacts, parseTags } from '../../lib/contacts';
+import { cleanContacts, parseTags, STANDARD_CONTACT_ROLES } from '../../lib/contacts';
 import { DELIVERY_METHODS, preferredDelivery } from '../../lib/delivery';
 import type { DeliveryMethod } from '../../lib/delivery';
 import type { ContactPerson } from '../../lib/contacts';
@@ -245,10 +245,13 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
 
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold text-slate-700 dark:text-slate-300">People to contact</legend>
+            <datalist id={`contact-roles-${side}`}>
+              {STANDARD_CONTACT_ROLES.map(r => <option key={r} value={r} />)}
+            </datalist>
             {form.contacts.map((person, i) => (
               <div key={person.rowKey} className="grid grid-cols-2 gap-2 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
                 <input aria-label={`Contact ${i + 1} name`} placeholder="Name" value={person.name} onChange={e => setPerson(i, { name: e.target.value })} className={field} />
-                <input aria-label={`Contact ${i + 1} role`} placeholder="Role (e.g. Accounts)" value={person.role || ''} onChange={e => setPerson(i, { role: e.target.value })} className={field} />
+                <input aria-label={`Contact ${i + 1} role`} list={`contact-roles-${side}`} placeholder="Role (Billing, Shipping, AP…)" value={person.role || ''} onChange={e => setPerson(i, { role: e.target.value })} className={field} />
                 <input aria-label={`Contact ${i + 1} email`} type="email" placeholder="Email" value={person.email || ''} onChange={e => setPerson(i, { email: e.target.value })} className={field} />
                 <div className="flex gap-2">
                   <input aria-label={`Contact ${i + 1} phone`} placeholder="Phone" value={person.phone || ''} onChange={e => setPerson(i, { phone: e.target.value })} className={field} />

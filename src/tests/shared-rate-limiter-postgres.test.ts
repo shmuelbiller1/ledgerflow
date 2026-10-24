@@ -33,6 +33,10 @@ describe('S-01 shared PostgreSQL limiter', { skip: !url && 'LF_TEST_DATABASE_URL
 
   test('20 concurrent requests across instances allow exactly five', async () => {
     const config = { keyPrefix: 's01-concurrency', windowMs: 60_000, max: 5 };
+    // the window is the wall-clock minute: requests that straddle its end land in two windows and five more are
+    // allowed (one CI run saw 6), so start well inside a window
+    const intoWindow = Date.now() % config.windowMs;
+    if (intoWindow > config.windowMs - 5_000) await new Promise(r => setTimeout(r, config.windowMs - intoWindow + 50));
     const a = new SharedRateLimiter(config, first);
     const b = new SharedRateLimiter(config, second);
     const outcomes = await Promise.all(Array.from({ length: 20 }, (_, i) =>

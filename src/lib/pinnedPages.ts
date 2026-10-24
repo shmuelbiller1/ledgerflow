@@ -24,19 +24,24 @@ export function togglePinned(list: PinnedPage[], page: PinnedPage): PinnedPage[]
   return [...list, page.sub && SUB_TABS.has(page.tab) ? { tab: page.tab, sub: page.sub } : { tab: page.tab }];
 }
 
-/** Saved pins, ignoring anything malformed. */
+/** Saved pins, ignoring anything malformed. An allowlist is required for synced/untrusted data. */
+export function normalizePinned(value: unknown, validPageKeys?: ReadonlySet<string>): PinnedPage[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap(v => {
+    if (!v || typeof v !== 'object' || typeof (v as PinnedPage).tab !== 'string' || !(v as PinnedPage).tab) return [];
+    const page: PinnedPage = typeof (v as PinnedPage).sub === 'string' && (v as PinnedPage).sub ? { tab: (v as PinnedPage).tab, sub: (v as PinnedPage).sub } : { tab: (v as PinnedPage).tab };
+    const key = pageKey(page);
+    if (seen.has(key) || (validPageKeys && !validPageKeys.has(key))) return [];
+    seen.add(key);
+    return [page];
+  }).slice(0, MAX_PINNED);
+}
+
+/** Device-local pins from older versions did not have a route allowlist. */
 export function parsePinned(raw: string | null): PinnedPage[] {
   try {
-    const value: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(value)) return [];
-    const seen = new Set<string>();
-    return value.flatMap(v => {
-      if (!v || typeof v !== 'object' || typeof (v as PinnedPage).tab !== 'string' || !(v as PinnedPage).tab) return [];
-      const page: PinnedPage = typeof (v as PinnedPage).sub === 'string' && (v as PinnedPage).sub ? { tab: (v as PinnedPage).tab, sub: (v as PinnedPage).sub } : { tab: (v as PinnedPage).tab };
-      if (seen.has(pageKey(page))) return [];
-      seen.add(pageKey(page));
-      return [page];
-    }).slice(0, MAX_PINNED);
+    return normalizePinned(raw ? JSON.parse(raw) : []);
   } catch {
     return [];
   }

@@ -4,7 +4,8 @@
  * receipt draft) by line value or by quantity using BigInt largest-remainder allocation so the
  * allocated extra cents always sum to the exact extra cost.
  *
- * Preview only: nothing here posts to inventory or bills (posting is BF-04 in AI #1's lane).
+ * EG-6 (BF-04): below the preview, owners and accountants post it (LandedCostPostPanel: the server shows what will
+ * post, then posts it). The preview itself sends nothing.
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -20,8 +21,10 @@ import {
 import { findItemByBarcode, isScannerBurst, readScan } from '../../lib/barcodeScan';
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency } from '../../lib/utils';
-import type { Bill, InventoryItem, Vendor } from '../../types';
+import type { Bill, ChartAccount, InventoryItem, Vendor } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import LandedCostPostPanel from './LandedCostPostPanel';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 
 interface ReceiptOption {
   key: string;
@@ -51,6 +54,9 @@ export default function LandedCostPreviewReportView() {
   const bills = useLedgerStore(s => s.bills) as Bill[];
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const vendors = useLedgerStore(s => s.vendors) as Vendor[];
+  const accounts = useLedgerStore(s => s.accounts) as ChartAccount[];
+  const role = useCurrentRole();
+  const canPost = role === 'owner' || role === 'accountant';
 
   const wsItems = useMemo(
     () => (inventory || []).filter(i => !workspaceId || !i.workspaceId || i.workspaceId === workspaceId),
@@ -207,8 +213,8 @@ export default function LandedCostPreviewReportView() {
         <div>
           <h2>Landed cost preview on receipts</h2>
           <p className="text-sm text-[var(--muted)]">
-            Spread freight, duty and handling across receipt lines by value or by quantity. Preview only — nothing is
-            posted from this screen (posting landed cost stays on the receipt/bill path, BF-04).
+            Spread freight, duty and handling across receipt lines by value or by quantity. The preview posts nothing;
+            owners and accountants can post it below (Inventory, or cost of goods sold for units already sold).
           </p>
         </div>
         <button
@@ -353,6 +359,18 @@ export default function LandedCostPreviewReportView() {
             </table>
           </ReportTableScroll>
         </>
+      )}
+
+      {canPost && workspaceId && (
+        <LandedCostPostPanel
+          key={workspaceId}
+          workspaceId={workspaceId}
+          currency={homeCurrency}
+          bills={(bills || []).filter(b => !workspaceId || !b.workspaceId || b.workspaceId === workspaceId)}
+          accounts={(accounts || []).filter(a => !a.workspaceId || a.workspaceId === workspaceId)}
+          receipts={receipts.map(r => ({ key: r.key, label: r.label }))}
+          defaultReceiptId={selectedReceipt?.key}
+        />
       )}
     </section>
   );

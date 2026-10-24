@@ -37,6 +37,22 @@ export interface InvoiceApprovalSettings {
   enabled: boolean;
   /** Invoices above this amount, in the workspace's currency, need a signature. 0 turns the rule off. */
   thresholdCents: number;
+  /** A-120: Optional purchase-order approval threshold stored alongside invoiceApproval on the workspace. */
+  poEnabled?: boolean;
+  poThresholdCents?: number;
+}
+
+export interface PoApprovalSettings {
+  enabled: boolean;
+  thresholdCents: number;
+}
+
+/** Clean the A-120 purchase-order approval threshold stored inside workspace.invoiceApproval. */
+export function normalizePoApproval(input: unknown): PoApprovalSettings {
+  const raw = (input && typeof input === 'object' ? input : {}) as Partial<InvoiceApprovalSettings>;
+  const cents = Number(raw.poThresholdCents);
+  const thresholdCents = Number.isFinite(cents) && cents > 0 ? Math.round(cents) : 0;
+  return { enabled: Boolean(raw.poEnabled) && thresholdCents > 0, thresholdCents };
 }
 
 /** Roles allowed to sign off; the same pair that may close the books (src/lib/periodLock.ts). */
@@ -96,7 +112,12 @@ export function normalizeInvoiceApproval(input: unknown): InvoiceApprovalSetting
   const raw = (input && typeof input === 'object' ? input : {}) as Partial<InvoiceApprovalSettings>;
   const cents = Number(raw.thresholdCents);
   const thresholdCents = Number.isFinite(cents) && cents > 0 ? Math.round(cents) : 0;
-  return { enabled: Boolean(raw.enabled) && thresholdCents > 0, thresholdCents };
+  const po = normalizePoApproval(raw);
+  return {
+    enabled: Boolean(raw.enabled) && thresholdCents > 0,
+    thresholdCents,
+    ...(po.enabled || po.thresholdCents > 0 ? { poEnabled: po.enabled, poThresholdCents: po.thresholdCents } : {}),
+  };
 }
 
 /** Only these two roles sign off (a bookkeeper's own save cannot approve itself). */

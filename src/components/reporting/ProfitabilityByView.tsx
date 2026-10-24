@@ -9,22 +9,33 @@ import { formatCurrency } from '../../lib/utils';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 
 type By = 'customer' | 'item' | 'project';
-interface Line { label: string; revenueCents: number; costCents: number; marginCents: number; marginPct: number | null; estimate: boolean }
+interface Line {
+  label: string;
+  revenueCents: number;
+  costCents: number;
+  marginCents: number;
+  marginPct: number | null;
+  estimate: boolean;
+  budgetCents?: number | null;
+  budgetRemainingCents?: number | null;
+  budgetUsedPct?: number | null;
+}
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
- * Profitability (A-13, CB-08): revenue, cost, gross margin and margin % by customer, by item or by
- * project, for the period. Customer and item use the existing Sales by Item calculation; project adds
- * the labelled bills and expense lines (src/lib/projectProfitability.ts). Read-only, whole cents.
+ * Profitability (A-13, A-178, CB-08): revenue, cost, gross margin and margin % by customer, by item
+ * or by project, for the period — plus allocated project cost budget vs actual cost, remaining
+ * variance and usage % when grouped by Project (src/lib/projectProfitability.ts). Read-only, whole cents.
  */
 export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selectedYear }) => {
-  const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts');
+  const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts', 'projects');
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const inventory = useLedgerStore(s => s.inventory);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
+  const projects = useLedgerStore(s => s.projects);
   const [by, setBy] = useState<By>('customer');
   const initial = yearRange(selectedYear ?? new Date().getFullYear());
   const [startDate, setStartDate] = useState(initial.startDate || '');
@@ -42,21 +53,60 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
       return computeSalesByItem({ invoices: invoices || [], items: inventory || [], transactions: transactions || [], accounts: accounts || [], ...range }).rows
         .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
     }
-    return computeProjectProfitability({ invoices: invoices || [], transactions: transactions || [], accounts: accounts || [], items: inventory || [], ...range })
-      .map(r => ({ label: r.project, revenueCents: r.revenueCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
-  }, [by, loading, validPeriod, startDate, endDate, customers, invoices, inventory, transactions, accounts]);
+    return computeProjectProfitability({
+      invoices: invoices || [], transactions: transactions || [], accounts: accounts || [],
+      items: inventory || [], projects: projects || [], ...range,
+    }).map(r => ({
+      label: r.project,
+      revenueCents: r.revenueCents,
+      costCents: r.costCents,
+      marginCents: r.marginCents,
+      marginPct: r.marginPct,
+      estimate: r.costIsEstimate,
+      budgetCents: r.budgetCents,
+      budgetRemainingCents: r.budgetRemainingCents,
+      budgetUsedPct: r.budgetUsedPct,
+    }));
+  }, [by, loading, validPeriod, startDate, endDate, customers, invoices, inventory, transactions, accounts, projects]);
 
   const total = useMemo(() => {
     const revenue = lines.reduce((s, l) => s + l.revenueCents, 0);
     const cost = lines.reduce((s, l) => s + l.costCents, 0);
     const margin = revenue - cost;
-    return { revenue, cost, margin, pct: revenue === 0 ? null : Math.round((margin / revenue) * 10000) / 100 };
+    const budgetedLines = lines.filter(l => typeof l.budgetCents === 'number' && l.budgetCents > 0);
+    const budget = budgetedLines.reduce((s, l) => s + (l.budgetCents || 0), 0);
+    const budgetedActualCost = budgetedLines.reduce((s, l) => s + l.costCents, 0);
+    return {
+      revenue,
+      cost,
+      margin,
+      pct: revenue === 0 ? null : Math.round((margin / revenue) * 10000) / 100,
+      hasBudget: budgetedLines.length > 0,
+      budget,
+      budgetRemaining: budget - budgetedActualCost,
+      budgetUsedPct: budget > 0 ? Math.round((budgetedActualCost / budget) * 10000) / 100 : null,
+    };
   }, [lines]);
 
   const exportCsv = () => {
+    const headers = by === 'project'
+      ? ['Project', 'Revenue', 'Cost', 'Cost budget', 'Budget left / (over)', 'Budget used %', 'Margin', 'Margin %', 'Cost is an estimate']
+      : [by === 'customer' ? 'Customer' : 'Item', 'Revenue', 'Cost', 'Margin', 'Margin %', 'Cost is an estimate'];
     downloadCsv(`profitability_by_${by}_${startDate || 'all'}_${endDate || 'all'}.csv`,
-      [by === 'customer' ? 'Customer' : by === 'item' ? 'Item' : 'Project', 'Revenue', 'Cost', 'Margin', 'Margin %', 'Cost is an estimate'],
-      lines.map(l => [l.label, csvMoney(l.revenueCents), csvMoney(l.costCents), csvMoney(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
+      headers,
+      lines.map(l => by === 'project'
+        ? [
+            l.label,
+            csvMoney(l.revenueCents),
+            csvMoney(l.costCents),
+            l.budgetCents == null ? '' : csvMoney(l.budgetCents),
+            l.budgetRemainingCents == null ? '' : csvMoney(l.budgetRemainingCents),
+            l.budgetUsedPct ?? '',
+            csvMoney(l.marginCents),
+            l.marginPct ?? '',
+            l.estimate ? 'yes' : 'no',
+          ]
+        : [l.label, csvMoney(l.revenueCents), csvMoney(l.costCents), csvMoney(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
   };
 
   return (
@@ -78,7 +128,7 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
         <button type="button" onClick={exportCsv} disabled={lines.length === 0} className="min-h-[44px] px-4 py-2 rounded border border-[var(--line)] text-sm text-[var(--text)] disabled:opacity-50">Export CSV</button>
       </div>
       <p className="text-xs text-[var(--muted)]">
-        Revenue is the issued invoice lines in the period, in the base currency. Cost is the cost of goods sold posted for each line (or quantity × unit cost while none is posted; marked as an estimate){by === 'project' ? ', plus the expense lines carrying the project label' : ''}. Margin % = margin ÷ revenue.
+        Revenue is the issued invoice lines in the period, in the base currency. Cost is the cost of goods sold posted for each line (or quantity × unit cost while none is posted; marked as an estimate){by === 'project' ? ', plus the expense lines carrying the project label, set against each project\'s allocated cost budget when one is configured' : ''}. Margin % = margin ÷ revenue.
       </p>
       {!validPeriod && <p role="alert" className="text-sm text-rose-600">The start date is after the end date.</p>}
       {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
@@ -92,6 +142,13 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
                 <th scope="col" className="text-left font-semibold py-1 px-2">{by === 'customer' ? 'Customer' : by === 'item' ? 'Item' : 'Project'}</th>
                 <th scope="col" className="text-right font-semibold py-1 px-2">Revenue</th>
                 <th scope="col" className="text-right font-semibold py-1 px-2">Cost</th>
+                {by === 'project' && (
+                  <>
+                    <th scope="col" className="text-right font-semibold py-1 px-2">Cost budget</th>
+                    <th scope="col" className="text-right font-semibold py-1 px-2">Budget left</th>
+                    <th scope="col" className="text-right font-semibold py-1 px-2">Used %</th>
+                  </>
+                )}
                 <th scope="col" className="text-right font-semibold py-1 px-2">Margin</th>
                 <th scope="col" className="text-right font-semibold py-1 px-2">Margin %</th>
               </tr>
@@ -102,6 +159,15 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
                   <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{l.label}</bdi>{l.estimate && <span className="text-xs text-[var(--muted)]"> (cost estimated)</span>}</th>
                   <td className="text-right font-mono py-1 px-2">{formatCurrency(l.revenueCents)}</td>
                   <td className="text-right font-mono py-1 px-2">{formatCurrency(l.costCents)}</td>
+                  {by === 'project' && (
+                    <>
+                      <td className="text-right font-mono py-1 px-2">{l.budgetCents == null ? '—' : formatCurrency(l.budgetCents)}</td>
+                      <td className={`text-right font-mono py-1 px-2 ${typeof l.budgetRemainingCents === 'number' && l.budgetRemainingCents < 0 ? 'text-rose-600' : ''}`}>
+                        {l.budgetRemainingCents == null ? '—' : formatCurrency(l.budgetRemainingCents)}
+                      </td>
+                      <td className="text-right font-mono py-1 px-2">{l.budgetUsedPct == null ? '—' : `${l.budgetUsedPct}%`}</td>
+                    </>
+                  )}
                   <td className="text-right font-mono py-1 px-2">{formatCurrency(l.marginCents)}</td>
                   <td className="text-right font-mono py-1 px-2">{l.marginPct === null ? '—' : `${l.marginPct}%`}</td>
                 </tr>
@@ -112,6 +178,15 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
                 <th scope="row" className="text-left py-1 px-2">Total</th>
                 <td className="text-right font-mono py-1 px-2">{formatCurrency(total.revenue)}</td>
                 <td className="text-right font-mono py-1 px-2">{formatCurrency(total.cost)}</td>
+                {by === 'project' && (
+                  <>
+                    <td className="text-right font-mono py-1 px-2">{total.hasBudget ? formatCurrency(total.budget) : '—'}</td>
+                    <td className={`text-right font-mono py-1 px-2 ${total.hasBudget && total.budgetRemaining < 0 ? 'text-rose-600' : ''}`}>
+                      {total.hasBudget ? formatCurrency(total.budgetRemaining) : '—'}
+                    </td>
+                    <td className="text-right font-mono py-1 px-2">{total.budgetUsedPct == null ? '—' : `${total.budgetUsedPct}%`}</td>
+                  </>
+                )}
                 <td className="text-right font-mono py-1 px-2">{formatCurrency(total.margin)}</td>
                 <td className="text-right font-mono py-1 px-2">{total.pct === null ? '—' : `${total.pct}%`}</td>
               </tr>

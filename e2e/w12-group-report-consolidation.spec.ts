@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
+import { parse } from 'csv-parse/sync';
 import { mountJourney, settleStyles } from './support/journeyFixture';
 
 /**
@@ -218,3 +219,116 @@ test('W12 browser: fills multi-currency translation rates, shows CTA & intercomp
   expect(serious).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+const GOLD_GROUP_ID = 'grp-w12-gold';
+
+/** The independently worked W12-GOLD answer, in cents (src/tests/w12-gold.test.ts). */
+function goldSummary(translated: boolean) {
+  const parent = {
+    income: 71000, cogs: 0, grossProfit: 71000, expense: 20000, netIncome: 51000,
+    totalAssets: 151000, totalLiabilities: 0, totalEquity: 151000,
+  };
+  const daughter = {
+    income: 40000, cogs: 0, grossProfit: 40000, expense: 20000, netIncome: 20000,
+    totalAssets: 80000, totalLiabilities: 10000, totalEquity: 70000,
+  };
+  const daughterUsd = {
+    income: 44000, cogs: 0, grossProfit: 44000, expense: 22000, netIncome: 22000,
+    totalAssets: 96000, totalLiabilities: 12000, totalEquity: 84000, cta: 12000,
+  };
+  return {
+    group: { id: GOLD_GROUP_ID, name: 'Parent group' },
+    parent: { workspaceId: 'ws-parent', name: 'Parent Co' },
+    members: [
+      { workspaceId: 'ws-parent', name: 'Parent Co', currency: 'USD', isBalanced: true, ...parent, ...(translated ? { translated: { ...parent, cta: 0 } } : {}) },
+      { workspaceId: 'ws-daughter', name: 'Daughter GmbH', currency: 'EUR', isBalanced: true, share: 100, ...daughter, ...(translated ? { translated: daughterUsd } : {}) },
+    ],
+    total: translated ? {
+      currency: 'USD',
+      income: 104000, cogs: 0, grossProfit: 104000, expense: 31000, netIncome: 73000,
+      totalAssets: 236000, totalLiabilities: 0, totalEquity: 236000, cta: 12000,
+      eliminated: { assets: 11000, liabilities: 12000, difference: -1000, income: 11000, cogs: 0, expense: 11000, profitDifference: 0 },
+    } : null,
+    notIncluded: 0,
+    intercompany: { matched: 1, unmatched: [] },
+  };
+}
+
+for (const width of [1280, 390]) {
+  test(`W12-GOLD browser: worked cross-book figures and CSV agree at ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(120000);
+    await page.setViewportSize({ width, height: 900 });
+    const { errors } = await mountJourney(page, {
+      workspaceId: 'w12-gold-browser',
+      ledger: {},
+      mounts: [{ module: '/src/components/reporting/GroupSummaryReportView.tsx', props: {} }],
+      api: req => {
+        if (req.url.endsWith('/api/v1/account/groups') && req.method === 'GET') {
+          return { status: 200, json: { groups: [{ id: GOLD_GROUP_ID, name: 'Parent group', workspaceIds: ['ws-parent', 'ws-daughter'], parentId: 'ws-parent', ownership: { 'ws-daughter': 100 } }] } };
+        }
+        if (req.url.includes('/api/v1/reports/group-summary?')) {
+          const rates = new URL(req.url).searchParams.get('rates');
+          return { status: 200, json: goldSummary(Boolean(rates)) };
+        }
+        if (req.url.endsWith(`/api/v1/account/groups/${GOLD_GROUP_ID}/rates`) && req.method === 'PUT') {
+          return { status: 200, json: { group: { id: GOLD_GROUP_ID, name: 'Parent group', workspaceIds: ['ws-parent', 'ws-daughter'] } } };
+        }
+        return null;
+      },
+    });
+
+    await page.getByLabel('From', { exact: true }).fill('2026-01-01');
+    await page.getByLabel('To', { exact: true }).fill('2026-12-31');
+    await page.getByLabel('In one currency').selectOption('USD');
+    await page.getByLabel('At 2026-12-31 (assets, liabilities)').fill('1.2');
+    await page.getByLabel('Average (income, costs)').fill('1.1');
+    await page.getByLabel('Historical (equity)').fill('1');
+
+    const table = page.locator('table').first();
+    await expect(table.getByRole('columnheader', { name: 'Group total' })).toBeVisible();
+    const screenRows = await table.locator('tbody tr').evaluateAll(rows => rows.map(row => Array.from(row.children).map(cell => {
+      const copy = cell.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll('.sr-only').forEach(hidden => hidden.remove());
+      return (copy.textContent || '').replace(/\s+/g, ' ').trim();
+    })));
+    const expectedRows = [
+      ['Income', '$710.00', '$440.00', '$1,040.00'],
+      ['Cost of goods sold', '$0.00', '$0.00', '$0.00'],
+      ['Gross profit', '$710.00', '$440.00', '$1,040.00'],
+      ['Expenses', '$200.00', '$220.00', '$310.00'],
+      ['Net income', '$510.00', '$220.00', '$730.00'],
+      ['Total assets', '$1,510.00', '$960.00', '$2,360.00'],
+      ['Total liabilities', '$0.00', '$120.00', '$0.00'],
+      ['Equity (with this year’s profit)', '$1,510.00', '$840.00', '$2,360.00'],
+      ['of which translation difference', '$0.00', '$120.00', '$120.00'],
+    ];
+    expect(screenRows).toEqual(expectedRows);
+    await expect(page.getByText(/Taken out of the group total: \$110\.00 owed to the companies by each other, and \$120\.00/)).toBeVisible();
+    await expect(page.getByText(/Sales between the companies taken out: \$110\.00 of income, and \$110\.00 of costs/)).toBeVisible();
+    await expect(page.getByText(/What the companies say they owe each other differs by .*\$10\.00/)).toBeVisible();
+    await expect(page.getByText('1 matched on both sides.')).toBeVisible();
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    const download = await downloadPromise;
+    const csvText = await readFile((await download.path())!, 'utf8');
+    const csvRows = parse(csvText, { bom: true }) as string[][];
+    expect(csvRows[0]).toEqual(['Line', 'Parent Co', 'Daughter GmbH', 'Group total']);
+    expect(csvRows.slice(1, 1 + expectedRows.length)).toEqual(screenRows);
+    expect(csvRows.slice(1 + expectedRows.length, 5 + expectedRows.length)).toEqual([
+      ['Eliminated intercompany assets', '', '', '$110.00'],
+      ['Eliminated intercompany liabilities', '', '', '$120.00'],
+      ['Eliminated intercompany income', '', '', '$110.00'],
+      ['Eliminated intercompany costs', '', '', '$110.00'],
+    ]);
+
+    await settleStyles(page);
+    if (width === 390) {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    const axe = await new AxeBuilder({ page }).include('table').analyze();
+    expect(axe.violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([]);
+    await testInfo.attach(`w12-gold-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    expect(errors).toEqual([]);
+  });
+}

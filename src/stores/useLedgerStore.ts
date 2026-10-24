@@ -40,6 +40,7 @@ import type { Loan } from '../lib/loans';
 
 import { DoubleEntryValidator } from '../kernel/validation/DoubleEntryValidator';
 import type { LockException } from '../lib/periodLock';
+import { entriesAfter, openingCutoff, type ServerOpening } from '../lib/serverBalances';
 declare global {
   interface Window {
     _recomputeTimer?: ReturnType<typeof setTimeout>;
@@ -138,6 +139,8 @@ export interface LedgerState {
   optimisticIds: Set<string>;
   computedAccounts: ChartAccount[];
   totalLedgerBalance: number;
+  /** L-123 step 3b: the server's balances through the oldest loaded day (src/lib/serverBalances.ts); null = loaded entries only. */
+  serverOpening: ServerOpening | null;
   /** The last closed date for the signed-in user (hard close, or soft close for bookkeepers). */
   lockDate: string | null;
   /** Partial unlock inside the closed period (dates in it are open again). */
@@ -211,6 +214,7 @@ export interface LedgerState {
   setActivityFeed: (data: Record<string, unknown>[]) => void;
   runFullAudit: () => void;
   recomputeBalances: () => void;
+  setServerOpening: (opening: ServerOpening | null) => void;
   resetStore: () => void;
 }
 
@@ -278,6 +282,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   auditResult: null,
 
   computedAccounts: [],
+  serverOpening: null,
   totalLedgerBalance: 0,
   projectedBalanceCents: 0,
   lastActivity: '',
@@ -325,13 +330,17 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         return;
       }
 
-      const balances = LedgerEngine.computeDimensionalBalances(accounts, transactions);
+      // L-123 step 3b: with the server's answer for the current cut-off, every reader of computedAccounts (the
+      // Sidebar, the widgets, the health checks) gets the server's balance plus the loaded entries after its day
+      const opening = get().serverOpening;
+      const useOpening = !!opening && opening.asOf === openingCutoff(transactions);
+      const balances = LedgerEngine.computeDimensionalBalances(accounts, useOpening ? entriesAfter(transactions, opening.asOf) : transactions);
       let totalBal = 0;
       let changed = false;
       
       const nextComputedAccounts = accounts.map((acc, idx) => {
         const data = balances.get(acc.id);
-        const signedBalance = data?.total || 0;
+        const signedBalance = (data?.total || 0) + (useOpening ? opening.accounts[acc.id] || 0 : 0);
         const isDebit = acc.type === 'asset' || acc.type === 'expense' || acc.type === 'cost_of_goods';
         const balance = isDebit ? signedBalance : -signedBalance;
         
@@ -364,6 +373,13 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       }
       }, 10);
     }
+  },
+
+  setServerOpening: (opening) => {
+    const current = get().serverOpening;
+    if (current === opening || (current && opening && current.workspaceId === opening.workspaceId && current.asOf === opening.asOf && JSON.stringify(current.accounts) === JSON.stringify(opening.accounts))) return;
+    set({ serverOpening: opening });
+    get().recomputeBalances();
   },
 
   validateTransaction: (tx) => { 
@@ -620,6 +636,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       activityFeed: [],
       analyticalPatternCache: {},
       computedAccounts: [],
+      serverOpening: null,
       totalLedgerBalance: 0,
       projectedBalanceCents: 0,
       lastActivity: '',

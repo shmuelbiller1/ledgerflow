@@ -9,29 +9,31 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
 const th = 'font-semibold py-1 px-2';
 
 /**
- * Sales commission (P-13): for a period, each payment from a sales rep's customers applied to an
- * invoice, less its tax share, and the rep's commission on it, with each rep's total
- * (src/lib/salesReps.ts `commissionLines`). Amounts in the workspace's currency; nothing is posted.
+ * Sales commission (P-13, A-123): for a period, each payment from a sales rep's customers applied to
+ * an invoice, less its tax share, and the rep's commission on it (applying per-item-group rates when
+ * `groupRates` is recorded on the rep), with each rep's total (src/lib/salesReps.ts `commissionLines`).
+ * Amounts in the workspace's currency; nothing is posted.
  */
 export default function CommissionReportView() {
-  const { loading } = useLedgerCollections('invoices', 'payments');
+  const { loading } = useLedgerCollections('invoices', 'payments', 'inventory');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const invoices = useLedgerStore(s => s.invoices);
   const payments = useLedgerStore(s => s.payments);
+  const inventory = useLedgerStore(s => s.inventory);
   const today = getLocalDateISO();
   const [from, setFrom] = useState(`${today.slice(0, 8)}01`);
   const [to, setTo] = useState(today);
   if (!workspace) return null;
   const currency = workspace.currency || 'USD';
   const reps = workspace.salesReps || [];
-  const lines = from && to ? commissionLines(reps, invoices || [], payments || [], from, to) : [];
+  const lines = from && to ? commissionLines(reps, invoices || [], payments || [], from, to, inventory || []) : [];
   const money = (cents: number) => formatCurrency(cents, currency);
 
   return (
     <section aria-labelledby="commission-title" className="space-y-4">
       <div>
         <h2 id="commission-title" className="text-lg font-bold text-[var(--text)]">Sales commission</h2>
-        <p className="text-sm text-[var(--muted)]">What each sales rep's customers paid in the period, before tax, and the rep's commission on it.</p>
+        <p className="text-sm text-[var(--muted)]">What each sales rep&apos;s customers paid in the period, before tax, and the rep&apos;s commission on it.</p>
       </div>
       <div className="flex flex-wrap gap-3 text-sm">
         <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
@@ -42,10 +44,15 @@ export default function CommissionReportView() {
       {reps.map(rep => {
         const mine = lines.filter(l => l.repId === rep.id);
         const sum = (k: 'paidCents' | 'netCents' | 'commissionCents') => mine.reduce((s, l) => s + l[k], 0);
+        const groupSummary = rep.groupRates && Object.keys(rep.groupRates).length > 0
+          ? ` (${Object.entries(rep.groupRates).map(([g, r]) => `${g}: ${r}%`).join(', ')})`
+          : '';
         return (
           <div key={rep.id} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
             <table className="w-full text-sm">
-              <caption className="text-left font-semibold text-[var(--text)] pb-1"><bdi>{rep.name}</bdi> ({rep.commissionPercent}%): {money(sum('commissionCents'))}</caption>
+              <caption className="text-left font-semibold text-[var(--text)] pb-1">
+                <bdi>{rep.name}</bdi> ({rep.commissionPercent}%{groupSummary}): {money(sum('commissionCents'))}
+              </caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                   <th scope="col" className={`text-left ${th}`}>Paid on</th>

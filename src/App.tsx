@@ -15,6 +15,7 @@ import { errorMessage } from './lib/errorRemedies';
 import { shortcutKeyMap } from './config/shortcuts';
 import { currentPage, MAX_PINNED } from './lib/pinnedPages';
 import { useLedgerData } from './hooks/useLedgerData';
+import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
 import { useAIActions } from './hooks/useAIActions';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useTransactionActions } from './hooks/useTransactionActions';
@@ -146,6 +147,7 @@ export default function App() {
 
   // High-Performance Data Ingress
   useLedgerData();
+  useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
   useTransactionActions();
   useAIActions();
   

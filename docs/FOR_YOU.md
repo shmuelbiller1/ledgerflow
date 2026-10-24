@@ -536,22 +536,41 @@ You shared a comparison of LedgerFlow with ERPNext. AI #9 checked its claims aga
 
 The full list is in COORDINATION (22 Oct, AI #9 → AI #1) for AI #1 to queue.
 
-## 23 Oct — one database change to paste (L-123 step 1, AI #9)
+## 23 Oct — ~~one database change to paste (L-123 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
 Paste **`supabase/migrations/20261023000000_period_balances.sql`** into Supabase → SQL editor → Run.
 - It adds the table that keeps each closed year's balances (`periodBalances`), which the browser can read but never write.
 - It adds a trigger that marks a saved year stale when an entry in that year changes.
 
 *Until then:* closing a year works as before, but no year balances are saved, and the server logs once which file to apply.
 
-## 23 Oct — one more database change to paste, after #359 merges (EG-1 step 1, AI #9)
+## 23 Oct — ~~one more database change to paste, after #359 merges (EG-1 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
 Paste **`supabase/migrations/20261023010000_repost_queue.sql`** into Supabase → SQL editor → Run.
 - It adds the list of items whose stock cost needs a repair after a backdated entry (`repostQueue`, readable by members, written only by the server).
 - It adds a trigger that puts an item on that list when one of its stock moves is dated before later ones.
 
 *Until then:* the repair screen has nothing to repair; the books are unchanged.
 
-## 23 Oct — one more database change to paste, after EG-3 merges (AI #9)
+## 23 Oct — ~~one more database change to paste, after EG-3 merges (AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
 Paste **`supabase/migrations/20261024000000_period_closings.sql`** into Supabase → SQL editor → Run.
 - It adds the year-end closing record (`periodClosings`): one fixed record per closed year with the profit, the transfer to retained earnings and the balance-sheet totals. It is readable by members and written only by the server.
 
 *Until then:* closing a year works as before, without the closing record.
+
+## 23 Oct — ~~one more database change to paste, after #363 merges (EG-7, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
+Paste **`supabase/migrations/20261025000000_stock_closings.sql`** into Supabase → SQL editor → Run.
+- It adds the stock closing record (`stockClosings`): each item's quantity and value at a locked period end. It is readable by members and written only by the server.
+
+*Until then:* the stock checks still run, but no stock closing can be saved.
+
+## 23 Oct — ~~one more database change to paste, after #364 merges (EG-2 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
+Paste **`supabase/migrations/20261025010000_payment_allocations.sql`** into Supabase → SQL editor → Run.
+- It adds the payment ledger (`paymentAllocations`), which records which invoice or bill each payment paid, at what rate and on what date.
+- It also adds `allocationOperations`, which keeps retried payments from being recorded twice.
+- Both are readable by members and written only by the server.
+
+*Until then:* payments work as before, no ledger rows are written, and the server logs which file to apply.
+
+*New rule in #364 (default I used):* a payment dated before the invoice or bill it pays is refused. Say if you want it allowed.
+
+## 24 Oct — ~~report preferences (D-47, #370)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
+`supabase/migrations/20261023200000_report_preferences.sql`: lets each person's recent and pinned reports sync between their devices.

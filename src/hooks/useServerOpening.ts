@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff, type ServerOpening } from '../lib/serverBalances';
 import type { Transaction } from '../types';
@@ -37,4 +38,14 @@ export function useServerOpening(transactions: Transaction[]): ServerOpening | n
   }, [key, workspaceId, asOf]);
 
   return answer && answer.key === key ? answer.opening : null;
+}
+
+/**
+ * L-123 step 3b: mounted once (RootLayout), it keeps useLedgerStore.serverOpening on the server's answer for the
+ * loaded entries, so computedAccounts and every screen that reads it show the server's balances.
+ */
+export function useServerOpeningSync(): void {
+  const transactions = useLedgerStore(s => s.transactions);
+  const opening = useServerOpening(transactions);
+  useEffect(() => { useLedgerStore.getState().setServerOpening(opening); }, [opening]);
 }

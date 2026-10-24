@@ -176,10 +176,15 @@ export interface PerDiemSuggestion {
   matchesCurrency: boolean;
 }
 
-/** The per-diem daily allowance in force for a country and date, or null when the table has no row. */
-export function perDiemRateFor(input: { country: string; date: string; currency: string }): PerDiemSuggestion | null {
+/**
+ * The per-diem daily allowance in force for a country and date, or null when the table has no
+ * row. `extraRows` (A-107: the GSA locality rows read from the person's own GSA file) are
+ * searched first, so a chosen locality's rate is suggested over the standard rate; with no
+ * extra rows the answer is exactly the built-in table's.
+ */
+export function perDiemRateFor(input: { country: string; date: string; currency: string; extraRows?: PerDiemRow[] }): PerDiemSuggestion | null {
   const day = String(input.date || '').slice(0, 10);
-  const row = PER_DIEM_ROWS.find(r =>
+  const row = [...(input.extraRows || []), ...PER_DIEM_ROWS].find(r =>
     r.country === input.country
     && r.validFrom <= day && (!r.validTo || r.validTo >= day));
   if (!row) return null;

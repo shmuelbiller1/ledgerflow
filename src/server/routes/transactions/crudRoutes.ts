@@ -237,7 +237,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
              throw new Error(`Forbidden: Transaction status is locked (${txData?.status}).`);
            }
          
-           const revaluation = partialUpdate.status !== undefined ? revaluationEntryLock(txData) : null; // ISS-130
+           // ISS-130; EG-6 review: a partial update that changes the status, type or metadata (which could strip the
+           // entry's type and with it the lock) is refused for these entries, not only a status change
+           const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
+           const revaluation = lockedField ? revaluationEntryLock(txData) : null;
            if (revaluation) throw new Error(revaluation);
            if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
              throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');

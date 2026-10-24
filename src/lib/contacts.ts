@@ -1,13 +1,24 @@
 /**
- * Customer and vendor extras (Y-21 Y-22 Y-24 Y-25): the people to deal with at a company, tags,
- * and a notes timeline. Pure helpers shared by the contact form and the contact page.
+ * Customer and vendor extras (Y-21 Y-22 Y-24 Y-25 + A-136 contact roles): the people to deal with
+ * at a company (including standard roles: Billing, Shipping, Accounts payable, Purchasing, Owner,
+ * Other), tags, and a notes timeline. Pure helpers shared by the contact form and the contact page.
  */
+
+export const STANDARD_CONTACT_ROLES = [
+  'Billing',
+  'Shipping',
+  'Accounts payable',
+  'Purchasing',
+  'Owner',
+  'Other',
+] as const;
+export type StandardContactRole = typeof STANDARD_CONTACT_ROLES[number];
 
 export interface ContactPerson {
   name: string;
   email?: string;
   phone?: string;
-  /** e.g. "Accounts payable", "Owner" */
+  /** e.g. "Billing", "Shipping", "Accounts payable", "Owner" */
   role?: string;
 }
 
@@ -23,6 +34,35 @@ export interface ContactNote {
 export const MAX_NOTES = 200;
 export const MAX_NOTE_LENGTH = 2000;
 
+/** Canonicalize common role spellings to their standard label when matching, else keep custom role text trimmed. */
+export function canonicalContactRole(raw?: string): string {
+  const cleaned = String(raw || '').trim();
+  if (!cleaned) return '';
+  const low = cleaned.toLowerCase().replace(/[\s_-]+/g, ' ');
+  if (low === 'billing' || low === 'ar' || low === 'accounts receivable') return 'Billing';
+  if (low === 'shipping' || low === 'warehouse' || low === 'receiving' || low === 'logistics') return 'Shipping';
+  if (low === 'accounts payable' || low === 'ap' || low === 'payables') return 'Accounts payable';
+  if (low === 'purchasing' || low === 'procurement' || low === 'buyer') return 'Purchasing';
+  if (low === 'owner' || low === 'director' || low === 'ceo') return 'Owner';
+  if (low === 'other') return 'Other';
+  return cleaned;
+}
+
+/** Return all contacts matching a target role (case-insensitive canonical match). */
+export function contactsByRole(people: ContactPerson[] | undefined, role: StandardContactRole): ContactPerson[] {
+  const target = canonicalContactRole(role);
+  return (people || []).filter(p => canonicalContactRole(p.role) === target);
+}
+
+/** Resolve the preferred email for a role on a customer/vendor, falling back to the company's main email. */
+export function preferredEmailForRole(
+  party: { email?: string; contacts?: ContactPerson[] } | null | undefined,
+  role: StandardContactRole,
+): string {
+  const match = contactsByRole(party?.contacts, role).find(c => Boolean(c.email?.trim()));
+  return (match?.email || party?.email || '').trim().toLowerCase();
+}
+
 /** "vip, wholesale , VIP" → ['vip', 'wholesale']: trimmed, no empties, no repeats (any case). */
 export function parseTags(text: string): string[] {
   const seen = new Set<string>();
@@ -35,10 +75,15 @@ export function parseTags(text: string): string[] {
   return out.slice(0, 20);
 }
 
-/** Contact people with a name, fields trimmed. */
+/** Contact people with a name, fields trimmed and canonical standard role normalized when matched. */
 export function cleanContacts(people: ContactPerson[]): ContactPerson[] {
   return people
-    .map(p => ({ name: p.name.trim(), email: (p.email || '').trim().toLowerCase(), phone: (p.phone || '').trim(), role: (p.role || '').trim() }))
+    .map(p => ({
+      name: p.name.trim(),
+      email: (p.email || '').trim().toLowerCase(),
+      phone: (p.phone || '').trim(),
+      role: canonicalContactRole(p.role),
+    }))
     .filter(p => p.name)
     .map(p => Object.fromEntries(Object.entries(p).filter(([, v]) => v)) as unknown as ContactPerson)
     .slice(0, 20);

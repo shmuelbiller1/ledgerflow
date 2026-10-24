@@ -9,9 +9,10 @@ import ProjectPipeline from './ProjectPipeline';
 import { Labelled } from '../ui/Labelled';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { projectTasksFromProject } from '../../lib/projectTemplates';
 import type { ProjectsModel } from './Projects';
 
-export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors }: ProjectsModel) {
+export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, selectedTemplateId, projectTemplates, handleApplyTemplate, handleToggleProjectTask, handleSaveProjectTemplate, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors }: ProjectsModel) {
   return (
     <div className="w-full space-y-6 max-w-[1600px] mx-auto pb-12">
       {/* Header with brand gold backdrop */}
@@ -284,6 +285,44 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                     </div>
                   </div>
 
+                  {/* A-126: Project Tasks & Save as Template */}
+                  <div className="mt-5 pt-4 border-t border-[var(--line)] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">Template Tasks &amp; Budgets</h2>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveProjectTemplate(selectedProject)}
+                        className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        Save as template
+                      </button>
+                    </div>
+                    {projectTasksFromProject(selectedProject).length === 0 ? (
+                      <p className="text-[10px] text-[var(--muted)] italic">No checklist tasks attached to this project.</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {projectTasksFromProject(selectedProject).map(task => (
+                          <li key={task.id} className="flex items-center justify-between gap-2 text-xs">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={task.done}
+                                onChange={() => handleToggleProjectTask(selectedProject, task.id)}
+                                className="rounded border-slate-300"
+                              />
+                              <span className={task.done ? 'line-through text-[var(--muted)]' : 'text-[var(--text)]'}>
+                                {task.title}
+                              </span>
+                            </label>
+                            <span className="tabular-nums font-mono text-[11px] text-[var(--muted)]">
+                              {formatCurrency(task.budgetCents)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   <div className="mt-6 pt-4 border-t border-[var(--line)]">
                     <div className="min-w-0 space-y-1"><button className="disabled:cursor-not-allowed disabled:opacity-50 w-full h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold uppercase tracking-wider text-[9px] transition-all flex items-center justify-center gap-2 shadow-3xs cursor-pointer" type="button" disabled aria-describedby="brief-help" title="Project brief generation is not available. Review the project details here." aria-label="Generate Brief">
                       <BarChart3 aria-hidden="true" size={12} className="text-slate-300" />
@@ -332,6 +371,23 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
             </div>
 
             <div className="p-4 md:p-8 space-y-6">
+              <div className="space-y-2">
+                <Labelled labelClassName="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.3em] px-1" label="Project Template (Optional)">
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => handleApplyTemplate(e.target.value)}
+                    className="w-full p-4 bg-[var(--surface)] border border-[var(--line)] rounded-[32px] text-sm font-bold text-[var(--text)] focus:outline-none focus:border-indigo-600 transition-all"
+                  >
+                    <option value="">Blank project (no template)</option>
+                    {projectTemplates.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.tasks.length} tasks · {formatCurrency(tpl.budgetCents)})
+                      </option>
+                    ))}
+                  </select>
+                </Labelled>
+              </div>
+
               <div className="space-y-2">
                 <Labelled labelClassName="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.3em] px-1" label="Protocol Name">
                   <input

@@ -12,6 +12,7 @@ import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { inventoryAsOf, type InventoryAsOf } from '../../lib/inventoryAsOf';
 import type { ItemDetails } from '../../lib/stockMoves';
+import { StockClosingPanel } from './StockClosingPanel';
 
 type Row = InventoryValuationRow & { unknownReason?: string };
 /** the start of any stock history: `itemDetails` from here has nothing before it */
@@ -172,6 +173,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
           {negativeStockItems > 0 && ` ${negativeStockItems} item(s) have negative stock and are valued at 0.`}
         </p>
       )}
+      <StockClosingPanel workspaceId={workspaceId} />
     </div>
   );
 };

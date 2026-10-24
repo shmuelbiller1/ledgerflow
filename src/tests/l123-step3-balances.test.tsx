@@ -31,11 +31,15 @@ import type { Server } from 'node:http';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import Ledger from '../components/ledger/Ledger';
+import DashboardWidgets from '../components/dashboard/DashboardWidgets';
+import { useServerOpeningSync } from '../hooks/useServerOpening';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { AccountRegisterView } from '../components/finance/AccountRegisterView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { LEDGER_COLLECTIONS } from '../lib/ledgerCollections';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, getLocalDateISO } from '../lib/utils';
+import { dashboardFigures, dashboardPeriod } from '../lib/dashboardOverview';
 import { entriesAfter, openingCutoff, withServerOpening } from '../lib/serverBalances';
 import type { ChartAccount, Transaction } from '../types';
 import type { Firestore } from '../server/db/pgFirestore';
@@ -102,6 +106,31 @@ describe('L-123 step 3: browser balances from the server (screen, fetch stubbed)
     render(<Ledger />);
     await waitFor(() => assert.ok(shownIn('1000').includes(formatCurrency(2_005_000)), shownIn('1000')), { timeout: 5000 });
     assert.match(screen.getByTestId('balances-source').textContent || '', /loaded entries only/);
+  });
+
+  test('step 3b: computedAccounts (the Sidebar and every reader) and the dashboard cash total are the server\'s', async () => {
+    setComponentWorkspace('owner');
+    const Sync = () => { useServerOpeningSync(); return null; };
+    useLedgerStore.setState({ accounts: chart(ws), transactions: loaded, computedAccounts: [], serverOpening: null, invoices: [], bills: [], customers: [], vendors: [], truncatedCollections: { transactions: true } });
+    useDataNeedsStore.setState({ loaded: { transactions: true, accounts: true, invoices: true, bills: true, customers: true, vendors: true } } as never);
+    answer({ status: 'success', asOf: '2020-12-15', accounts: { [`${ws}_cash`]: 500_700, [`${ws}_sales`]: -750_900, [`${ws}_rent`]: 250_200 } });
+    render(<><Sync /><DashboardWidgets /></>);
+    const balances = () => useLedgerStore.getState().computedAccounts.map(a => a.balanceCents);
+    await waitFor(() => assert.deepEqual(balances(), [2_505_000, 3_750_000, 1_250_000]), { timeout: 5000 });
+    const cash = () => document.getElementById('dashboard-summary-balance-sheet')?.textContent || '';
+    // the dashboard's cash is as of the end of this month, and the hand-built entries run into 2028: the expected
+    // figure is every one of the 25,000 entries through that day (what the server's books say), not the loaded 20,000
+    const period = dashboardPeriod('month', getLocalDateISO(), 1);
+    const truth = dashboardFigures(chart(ws), all, period).cash, loadedOnly = dashboardFigures(chart(ws), loaded, period).cash;
+    assert.notEqual(truth, loadedOnly);
+    await waitFor(() => assert.equal(cash(), formatCurrency(truth, 'USD')), { timeout: 5000 });
+    assert.match(screen.getByTestId('dashboard-balances-source').textContent || '', /through 2020-12-15 as summed by the server/);
+    cleanup();
+    // without the server: the loaded entries alone, as before (and the cap makes the summary unavailable)
+    stubFetch(404);
+    useLedgerStore.getState().setServerOpening(null);
+    await waitFor(() => assert.deepEqual(balances(), [2_005_000, 3_000_000, 1_000_000]), { timeout: 5000 });
+    useLedgerStore.setState({ truncatedCollections: {} });
   });
 
   test('the account register header: the server through the cut-off plus the loaded entries after it', async () => {
@@ -211,6 +240,15 @@ describe('L-123 step 3: GET /api/v1/balances on a 25,000-entry ledger', { skip: 
         const debit = a.type === 'asset' || a.type === 'expense';
         const expected = (debit ? 1 : -1) * ((server[a.id] || 0) + (debit ? 1 : -1) * (a.openingBalanceCents || 0));
         await waitFor(() => assert.ok(shownIn(String(a.code)).includes(formatCurrency(expected)), `${a.name}: ${shownIn(String(a.code))} ≠ ${formatCurrency(expected)}`), { timeout: 10_000 });
+      }
+      // step 3b: computedAccounts (the Sidebar and the other readers) from the same real route
+      const Sync = () => { useServerOpeningSync(); return null; };
+      useLedgerStore.setState({ serverOpening: null, computedAccounts: [] });
+      render(<Sync />);
+      for (const a of accounts) {
+        const debit = a.type === 'asset' || a.type === 'expense';
+        const expected = (debit ? 1 : -1) * ((server[a.id] || 0) + (debit ? 1 : -1) * (a.openingBalanceCents || 0));
+        await waitFor(() => assert.equal(useLedgerStore.getState().computedAccounts.find(c => c.id === a.id)?.balanceCents, expected, a.name), { timeout: 10_000 });
       }
       // what today's browser shows from the loaded entries alone differs
       const today = withServerOpening(accounts, loaded, { workspaceId: ws, asOf: '0000-00-00', accounts: {} });

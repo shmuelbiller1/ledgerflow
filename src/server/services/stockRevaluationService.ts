@@ -70,6 +70,12 @@ export function revaluationEntryLock(entry: { metadata?: Record<string, unknown>
     const name = String(entry.metadata.itemName || entry.metadata.itemId || 'the item');
     return `This entry corrects the cost of ${name} after a backdated change (repost). It is undone only with the entry it corrects (edit or void that document); changing, voiding, deleting or reversing it here would leave the stock history and the books apart.`;
   }
+  // EG-6: a landed cost moves with its items' cost and its landed-cost stock moves; its own undo reverses both
+  if (entry?.metadata?.type === 'landed-cost' || entry?.metadata?.type === 'landed-cost-undo') {
+    return entry.metadata.type === 'landed-cost'
+      ? 'This entry is a landed cost. Undo it with its own undo (POST /api/v1/inventory/landed-cost/<entry>/undo, or Landed cost → Undo), which reverses the entry and its stock moves together; changing, voiding, deleting or reversing it here would leave the items\' cost out of step with the books.'
+      : 'This entry undoes a landed cost, together with its stock moves. It cannot be changed, voided, deleted or reversed here; land the cost again instead.';
+  }
   if (entry?.metadata?.type !== 'stock-revaluation') return null;
   const item = String(entry.metadata.itemName || entry.metadata.itemId || 'the item');
   return `This entry is a stock revaluation of ${item}. To undo it, revalue ${item} back to its earlier cost (Inventory → Revalue cost); changing, voiding, deleting or reversing the entry here would leave the item's cost out of step with the books.`;

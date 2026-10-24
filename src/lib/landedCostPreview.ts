@@ -7,7 +7,7 @@
  * cents left over go to the lines with the largest remainders (ties to the earlier line), so the
  * allocations add up to the extra cost exactly.
  */
-export type SpreadBasis = 'value' | 'quantity';
+export type SpreadBasis = 'value' | 'quantity' | 'weight';
 
 export interface LandedCostLine {
   id: string;
@@ -15,6 +15,8 @@ export interface LandedCostLine {
   quantity: number;
   /** the goods' unit cost on the receipt, whole cents */
   unitCostCents: number;
+  /** EG-6: the line's weight (any unit, the same for every line), for a spread by weight */
+  weight?: number;
 }
 
 export interface LandedCostPreviewLine extends LandedCostLine {
@@ -36,21 +38,28 @@ export interface LandedCostPreview {
 /** Why the preview cannot be worked out, in plain words, or null when it can. */
 export function landedCostProblem(lines: LandedCostLine[], extraCostCents: number, basis: SpreadBasis): string | null {
   if (!Number.isSafeInteger(extraCostCents) || extraCostCents < 0) return 'The freight and other costs are an amount of 0 or more, in whole cents.';
-  if (basis !== 'value' && basis !== 'quantity') return 'Spread the costs by value or by quantity.';
+  if (basis !== 'value' && basis !== 'quantity' && basis !== 'weight') return 'Spread the costs by value, by quantity or by weight.';
   if (!lines.length) return 'The receipt has no lines to spread the costs over.';
   for (const line of lines) {
     if (!(line.quantity > 0) || !Number.isFinite(line.quantity)) return `“${line.description}” needs a quantity above zero.`;
     if (!Number.isSafeInteger(line.unitCostCents) || line.unitCostCents < 0) return `“${line.description}” needs a unit cost of 0 or more, in whole cents.`;
+    if (basis === 'weight' && !(Number(line.weight) >= 0 && Number.isFinite(Number(line.weight)))) return `“${line.description}” needs a weight of 0 or more to spread by weight.`;
   }
   if (extraCostCents > 0) {
-    const weight = basis === 'value' ? lines.reduce((s, l) => s + Math.round(l.quantity * l.unitCostCents), 0) : lines.reduce((s, l) => s + l.quantity, 0);
-    if (!(weight > 0)) return basis === 'value' ? 'The goods have no value to spread by; spread by quantity instead.' : 'The goods have no quantity to spread by.';
+    const weight = lines.reduce((s, l) => s + weightOf(l, basis), 0);
+    if (!(weight > 0)) return basis === 'value' ? 'The goods have no value to spread by; spread by quantity instead.' : basis === 'weight' ? 'The goods have no weight to spread by.' : 'The goods have no quantity to spread by.';
   }
   return null;
 }
 
-/** The weights of each line: its goods value in cents, or its quantity. */
-const weightOf = (line: LandedCostLine, basis: SpreadBasis) => (basis === 'value' ? Math.round(line.quantity * line.unitCostCents) : line.quantity);
+/**
+ * The weights of each line, as integers for the exact spread: its goods value in cents, or its quantity or weight in
+ * millionths (EG-6: a fractional quantity such as 2.5 units, or a weight of 1.25 kg, spreads in the same ratio).
+ */
+function weightOf(line: LandedCostLine, basis: SpreadBasis): number {
+  if (basis === 'value') return Math.round(line.quantity * line.unitCostCents);
+  return Math.round((basis === 'weight' ? Number(line.weight) || 0 : line.quantity) * 1e6);
+}
 
 /** Exact largest-remainder spread of `total` cents over `weights` (integers, not all zero when total > 0). */
 export function spreadCents(total: number, weights: number[]): number[] {

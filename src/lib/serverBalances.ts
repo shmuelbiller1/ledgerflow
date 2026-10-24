@@ -9,7 +9,7 @@
  */
 import type { ChartAccount, Transaction } from '../types';
 import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
-import { transactionDate } from './txFilters';
+import { isPostable, lineAmount, transactionDate } from './txFilters';
 
 /** What the server answered: base-currency cents per account id, debit positive, entries dated ≤ asOf (no account openings). */
 export interface ServerOpening {
@@ -47,3 +47,29 @@ export function withServerOpening(accounts: ChartAccount[], transactions: Transa
   });
 }
 
+
+/** The id of the one entry that stands for the server's sum (never shown, never saved: it only feeds calculations). */
+export const SERVER_OPENING_ENTRY_ID = 'l123-server-opening';
+
+/**
+ * L-123 step 3b: the entries a balance calculation reads, with the server's answer folded in — one entry dated
+ * `opening.asOf` holding the server's sum per account, plus the loaded entries after that day. Any balance as of a
+ * date on or after `asOf` (a balance sheet, a cash total, a running chart) then equals the server's; a period that
+ * starts after `asOf` sees exactly the loaded entries. A period that starts on or before `asOf` would count the
+ * whole history in that one entry, so such a screen says so (`periodBeforeOpening`) and keeps the loaded entries.
+ */
+export function foldServerOpening(transactions: Transaction[], opening: ServerOpening | null): Transaction[] {
+  if (!opening) return transactions;
+  const lines = Object.entries(opening.accounts).filter(([, cents]) => cents).map(([accountId, amountCents]) => ({ accountId, amountCents }));
+  const total = lines.reduce((sum, l) => sum + Math.max(0, lineAmount(l)), 0);
+  const folded = {
+    id: SERVER_OPENING_ENTRY_ID, workspaceId: opening.workspaceId, date: opening.asOf, description: `Balances through ${opening.asOf} (server)`,
+    totalAmountCents: total, status: 'completed', type: 'journal', lines,
+  } as unknown as Transaction;
+  return [folded, ...entriesAfter(transactions, opening.asOf).filter(isPostable)];
+}
+
+/** True when a period starting at `startDate` reaches the day the server's sum covers (its figures would mix). */
+export function periodBeforeOpening(startDate: string, opening: ServerOpening | null): boolean {
+  return !!opening && !!startDate && startDate <= opening.asOf;
+}

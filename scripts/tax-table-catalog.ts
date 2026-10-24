@@ -307,6 +307,7 @@ export const TAX_TABLES: readonly TableSpec[] = [
 ];
 /** Non-table modules are classified so a newly added module cannot silently escape review. */
 export const NON_TABLE_MODULES: Readonly<Record<string, string>> = {
+  "gsaPerDiemImport.ts": "A-107: parses the GSA fiscal-year per diem file the person imports and converts it to dated PerDiemRows at runtime (every produced row carries the GSA source and the import day); no embedded dated source table.",
   "entityFilings.ts": "Calculation, review, profile or document helper; no embedded dated source table.",
   "filedReturns.ts": "Picks a saved filed tax return for a period; no embedded dated source table.",
   "form856.ts":"Calculation, review, profile or document helper; no embedded dated source table.",
