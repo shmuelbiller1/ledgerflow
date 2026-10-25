@@ -100,12 +100,48 @@ export function savePrintPaper(paper: PrintPaper): PrintPaper {
 /**
  * How many columns the widest header row of the report on screen has — measured at print time, so
  * a report with more columns than a portrait sheet holds turns the sheet instead of losing the
- * last ones. A screen with no table counts as 0 (portrait).
+ * last ones. Counts the table grid, not the cells: a `colSpan` counts for every column it covers
+ * and a `rowSpan` cell still occupies its column on the rows below (the comparative P&L has
+ * Account and Code spanning two header rows above five amount columns — seven columns, not five).
+ * A screen with no table counts as 0 (portrait).
  */
 export function countPrintedColumns(root: ParentNode | null | undefined): number {
   if (!root || typeof (root as ParentNode).querySelectorAll !== 'function') return 0;
-  const rows = Array.from(root.querySelectorAll('table thead tr'));
-  return rows.reduce((widest, row) => Math.max(widest, row.querySelectorAll('th, td').length), 0);
+  let widest = 0;
+  for (const head of Array.from(root.querySelectorAll('table thead'))) {
+    // columns still occupied by a cell from a previous row, by column index
+    let carried: number[] = [];
+    for (const row of Array.from(head.querySelectorAll('tr'))) {
+      const next: number[] = [];
+      let col = 0;
+      const skipOccupied = () => {
+        while (carried[col] && carried[col] > 0) {
+          next[col] = carried[col] - 1;
+          col += 1;
+        }
+      };
+      skipOccupied();
+      for (const cell of Array.from(row.querySelectorAll(':scope > th, :scope > td'))) {
+        const span = Math.max(1, Number.parseInt(cell.getAttribute('colspan') || '1', 10) || 1);
+        const rows = Math.max(1, Number.parseInt(cell.getAttribute('rowspan') || '1', 10) || 1);
+        for (let i = 0; i < span; i += 1) {
+          if (rows > 1) next[col] = rows - 1;
+          col += 1;
+        }
+        skipOccupied();
+      }
+      // columns occupied past the last cell of this row still count
+      for (let i = col; i < carried.length; i += 1) {
+        if (carried[i] > 0) {
+          next[i] = carried[i] - 1;
+          col = i + 1;
+        }
+      }
+      widest = Math.max(widest, col);
+      carried = next;
+    }
+  }
+  return widest;
 }
 
 /** One line a screen can show: which sheet and how wide the printed table area is. */

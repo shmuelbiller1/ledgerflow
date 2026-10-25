@@ -85,6 +85,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
   const entityChoices = useMemo(() => {
     const docs = [...contactDocuments.invoices, ...contactDocuments.bills, ...contactDocuments.credits];
     const labels = entityOptions(docs, entityDimensionId);
+    // a credit that credits no document and carries no label is an unlabelled document too
     const hasUnlabelled = docs.some(doc => !entityLabelOf(doc, entityDimensionId));
     return [...labels, ...(hasUnlabelled ? [UNLABELLED_ENTITY] : [])];
   }, [contactDocuments, entityDimensionId]);
@@ -265,6 +266,11 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             paymentsWithoutScope: scoped.paymentsWithoutScope,
             paymentsWithoutScopeCents: scoped.paymentsWithoutScopeCents,
             formattedMissing: scoped.paymentsWithoutScopeCents ? formatCurrency(scoped.paymentsWithoutScopeCents) : undefined,
+            allocatedElsewhereCents: scoped.allocatedElsewhereCents,
+            formattedElsewhere: scoped.allocatedElsewhereCents ? formatCurrency(scoped.allocatedElsewhereCents) : undefined,
+            unappliedCents: scoped.unappliedCents,
+            formattedUnapplied: scoped.unappliedCents ? formatCurrency(scoped.unappliedCents) : undefined,
+            mixedLabelDocuments: scoped.mixedLabelDocuments,
           })}
         </p>
       )}

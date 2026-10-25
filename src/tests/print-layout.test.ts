@@ -171,8 +171,38 @@ test('A-218: the print stylesheet keeps every column and hides navigation, butto
   assert.match(printCss, /\[data-print-root\] th,\s*\[data-print-root\] td\s*\{[^}]*white-space:\s*normal\s*!important/);
   assert.match(printCss, /\[data-print-root\] th,\s*\[data-print-root\] td\s*\{[^}]*overflow-wrap:\s*anywhere/);
   // amounts never split across lines
-  assert.match(printCss, /\[data-print-root\] \.tabular-nums[\s\S]{0,120}white-space:\s*nowrap\s*!important/);
+  // Codex review on PR #403: the no-wrap rule must sit on the monetary cells themselves (the
+  // `whitespace-nowrap` class every amount cell in StatementColumns carries, and right-aligned
+  // figure cells), because an inherited value cannot beat the explicit `normal` set on each td
+  assert.match(printCss, /\[data-print-root\] td\.whitespace-nowrap[\s\S]{0,400}white-space:\s*nowrap\s*!important/);
+  assert.match(printCss, /\[data-print-root\] td\.text-right[\s\S]{0,400}white-space:\s*nowrap\s*!important/);
+  // and that rule comes after the general wrapping rule, so it wins at equal or higher specificity
+  assert.ok(printCss.indexOf('td { white-space: normal !important') < printCss.indexOf('td.whitespace-nowrap'));
   // rows and their headings stay whole across a page break
   assert.match(printCss, /thead\s*\{[^}]*display:\s*table-header-group/);
   assert.match(printCss, /tr,\s*img,\s*svg\s*\{[^}]*break-inside:\s*avoid/);
+});
+
+test('A-218 review: spanning header cells count as the columns they cover', () => {
+  const root = document.createElement('div');
+  // the comparative P&L with "% of total": Account and Code span two rows above five grouped columns
+  root.innerHTML = `
+    <table class="tabular-nums">
+      <thead>
+        <tr><th rowspan="2">Account</th><th rowspan="2">Code</th><th colspan="2">This period</th><th colspan="2">Last period</th><th rowspan="2">Change</th></tr>
+        <tr><th>Amount</th><th>%</th><th>Amount</th><th>%</th></tr>
+      </thead>
+      <tbody><tr><td>Sales</td><td>4000</td><td>300.00</td><td>60%</td><td>250.00</td><td>55%</td><td>50.00</td></tr></tbody>
+    </table>`;
+  assert.equal(countPrintedColumns(root), 7);
+  assert.equal(choosePrintOrientation(countPrintedColumns(root)), 'landscape');
+
+  // a plain two-row header with no spans still counts its widest row
+  const plain = document.createElement('div');
+  plain.innerHTML = `<table><thead><tr><th>A</th><th>B</th></tr><tr><th>A</th><th>B</th><th>C</th></tr></thead></table>`;
+  assert.equal(countPrintedColumns(plain), 3);
+  // a nonsense colspan counts as one column
+  const odd = document.createElement('div');
+  odd.innerHTML = `<table><thead><tr><th colspan="0">A</th><th colspan="x">B</th></tr></thead></table>`;
+  assert.equal(countPrintedColumns(odd), 2);
 });

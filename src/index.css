@@ -269,7 +269,16 @@
   [data-print-root] table { width: 100% !important; table-layout: auto !important; }
   [data-print-root] th,
   [data-print-root] td { white-space: normal !important; overflow-wrap: anywhere; max-width: 100%; }
-  [data-print-root] .tabular-nums,
+  /* an amount never splits across lines: cells marked no-wrap on screen (every monetary cell in
+     StatementColumns), right-aligned figure cells, and anything set in tabular or mono figures */
+  [data-print-root] th.whitespace-nowrap,
+  [data-print-root] td.whitespace-nowrap,
+  [data-print-root] td.text-right,
+  [data-print-root] th.text-right,
+  [data-print-root] .tabular-nums td.text-right,
+  [data-print-root] .tabular-nums th.text-right,
+  [data-print-root] td.tabular-nums,
+  [data-print-root] th.tabular-nums,
   [data-print-root] .font-mono { white-space: nowrap !important; overflow-wrap: normal; }
   [data-print-root] caption { caption-side: top; text-align: start; }
 }
