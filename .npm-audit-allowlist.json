@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/npm-audit-allowlist.json",
+  "lastUpdated": "2026-10-20T00:00:00Z",
+  "description": "Allowlist for npm audit vulnerabilities accepted by the LedgerFlow team (S-25)",
+  "allow": [
+    
+  ],
+  "notes": {
+    "how-to-use": "Add vulnerability identifiers to the 'allow' array to suppress false positives",
+    "format": "'package-name:severity' or 'package-name' or '*:severity'",
+    "examples": [
+      "some-package:high",
+      "another-package",
+      "*:low"
+    ],
+    "best-practices": [
+      "Only allowlist vulnerabilities that are false positives or accepted risks",
+      "Document the reason for each allowlist entry in a comment",
+      "Review the allowlist regularly (at least quarterly)",
+      "Prefer updating dependencies over allowlisting",
+      "Each entry should include: package name, severity, reason, and expiration date"
+    ]
+  }
+}

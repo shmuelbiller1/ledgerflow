@@ -1,0 +1,157 @@
+# Gitleaks configuration for S-24: Secrets scan in CI
+#
+# Custom configuration for LedgerFlow to detect accidentally committed secrets
+# while avoiding false positives from test data and documentation.
+#
+# Run with: gitleaks detect --source . --config .gitleaks.toml
+
+[extend]
+# Use the default gitleaks rules as a base
+useDefault = true
+
+# Additional custom rules for LedgerFlow
+[[rules]]
+  id = "ledgerflow-system-salt"
+  description = "LedgerFlow SYSTEM_SALT"
+  regex = """(?i)(system[_-]?salt|salt[_-]?system)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["ledgerflow", "salt"]
+  
+[[rules]]
+  id = "ledgerflow-session-secret"
+  description = "LedgerFlow SESSION_SECRET"
+  regex = """(?i)(session[_-]?secret|secret[_-]?session)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["ledgerflow", "session"]
+
+[[rules]]
+  id = "ledgerflow-invite-secret"
+  description = "LedgerFlow INVITE_SECRET"
+  regex = """(?i)(invite[_-]?secret|secret[_-]?invite)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["ledgerflow", "invite"]
+
+[[rules]]
+  id = "ledgerflow-cron-secret"
+  description = "LedgerFlow CRON_SECRET"
+  regex = """(?i)(cron[_-]?secret|secret[_-]?cron)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["ledgerflow", "cron"]
+
+[[rules]]
+  id = "ledgerflow-encryption-secret"
+  description = "LedgerFlow ENCRYPTION_SECRET"
+  regex = """(?i)(encryption[_-]?secret|secret[_-]?encryption)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["ledgerflow", "encryption"]
+
+[[rules]]
+  id = "ledgerflow-api-key"
+  description = "LedgerFlow API Key"
+  regex = """(?i)(lf_[a-z0-9]{40,})"""
+  tags = ["ledgerflow", "api-key"]
+
+[[rules]]
+  id = "ledgerflow-workspace-id"
+  description = "LedgerFlow Workspace ID"
+  regex = """(?i)(workspace[_-]?id|ws[_-]?id)[\"'\s:=]+[a-z0-9\-]{20,}"""
+  tags = ["ledgerflow", "workspace"]
+
+[[rules]]
+  id = "stripe-webhook-secret"
+  description = "Stripe Webhook Secret"
+  regex = """(?i)whsec_[a-z0-9]{24,}"""
+  tags = ["stripe", "webhook"]
+
+[[rules]]
+  id = "stripe-secret-key"
+  description = "Stripe Secret Key"
+  regex = """(?i)sk_(live|test)_[a-z0-9]{24,}"""
+  tags = ["stripe", "api-key"]
+
+[[rules]]
+  id = "plaid-access-token"
+  description = "Plaid Access Token"
+  regex = """(?i)access[_-]?token[\"'\s:=]+[a-z0-9\-]{20,}"""
+  tags = ["plaid", "token"]
+
+[[rules]]
+  id = "plaid-client-id"
+  description = "Plaid Client ID"
+  regex = """(?i)(plaid[_-]?client[_-]?id|client[_-]?id[_-]?plaid)[\"'\s:=]+[a-z0-9\-]{20,}"""
+  tags = ["plaid", "client-id"]
+
+[[rules]]
+  id = "supabase-url"
+  description = "Supabase URL"
+  regex = """(?i)https://[a-z0-9\-]+\\.supabase\\.co"""
+  tags = ["supabase", "url"]
+  # This might be a false positive in documentation, so we allow it in some contexts
+  allow = [
+    "\.md$",
+    "\.txt$",
+    "\.json$"
+  ]
+
+[[rules]]
+  id = "supabase-anon-key"
+  description = "Supabase Anon Key"
+  regex = """(?i)eyJ[a-z0-9\-_=]+\\.eyJ[a-z0-9\-_=]+\\.[a-z0-9\-_.+/=]+"""
+  tags = ["supabase", "jwt", "anon-key"]
+
+[[rules]]
+  id = "database-password"
+  description = "Database Password"
+  regex = """(?i)(password|passwd|pwd)[\"'\s:=]+[^\"'\s]{8,}"""
+  tags = ["database", "password"]
+  # Allow in certain contexts
+  allow = [
+    "test-ledgerflow-salt",
+    "deterministic",
+    "example\.com",
+    "placeholder"
+  ]
+
+[[rules]]
+  id = "resend-api-key"
+  description = "Resend API Key"
+  regex = """(?i)re_[a-z0-9A-Z\-]{40,}"""
+  tags = ["resend", "api-key"]
+
+[[rules]]
+  id = "email-webhook-secret"
+  description = "Email Webhook Secret"
+  regex = """(?i)(email[_-]?webhook[_-]?secret|webhook[_-]?secret[_-]?email)[\"'\s:=]+[a-z0-9\-]{16,}"""
+  tags = ["email", "webhook"]
+
+# Allowlist for known false positives
+[allowlist]
+  # Test environment variables
+  paths = [
+    "test-ledgerflow-salt-32b-deterministic",
+    "SYSTEM_SALT=test-ledgerflow-salt",
+    "SESSION_SECRET=test",
+    "DATABASE_URL=postgres",
+    "supabase-config.json",
+    "\.env\.example",
+    "docs/FOR_YOU.md",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "package\.json",
+    "package-lock\.json"
+  ]
+  
+  # Specific patterns that are safe
+  regexes = [
+    "test-ledgerflow-salt",
+    "example\\.com",
+    "placeholder",
+    "dummy",
+    "sample",
+    "test[_-]?key",
+    "test[_-]?secret",
+    "test[_-]?password",
+    "changeme",
+    "your[_-]?key[_-]?here",
+    "your[_-]?secret[_-]?here",
+    "your[_-]?password[_-]?here"
+  ]
+  
+  # Allow common test patterns
+  description = "test"
