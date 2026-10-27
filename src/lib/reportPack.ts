@@ -21,7 +21,7 @@ const tbSchema = z.object({ accounts: z.array(z.object({ name: z.string(), code:
 const flowGroup = z.object({ total: amount, inflow: amount, outflow: amount, items: z.array(z.object({ name: z.string(), amount })) });
 const cfSchema = z.object({ operating: flowGroup, investing: flowGroup, financing: flowGroup, netChange: amount });
 /** C-84: the budget screen's own answer (GET /reports/budget-vs-actual), in cents, one month */
-const budgetSchema = z.array(z.object({ accountId: z.string().nullish(), accountName: z.string(), budget: amount, actual: amount, variance: amount, percent: z.number() }));
+const budgetSchema = z.array(z.object({ accountId: z.string().nullish(), accountCode: z.string().nullish(), accountName: z.string(), budget: amount, actual: amount, variance: amount, percent: z.number() }));
 /** C-84: the stock screen's own answer (GET /reports/stock-aging); quantity is units, the value is money.
  *  The age buckets are carried through: "stock on hand by age" must keep which units are old. */
 const ageBuckets = z.record(z.string(), z.number()).optional();
@@ -73,16 +73,20 @@ export function packSection(kind: PackReport, input: unknown, names: Record<stri
     // The service answers one row per saved budget and gives each row its account's whole monthly
     // actual, so two budgets on one account would count the same spending twice. The account is the
     // unit: its budgets add up, its actual counts once, and the variance follows from those two.
-    const byAccount = new Map<string, { accountName: string; budgetCents: number; actualCents: number }>();
+    const byAccount = new Map<string, { accountName: string; accountRef: string; budgetCents: number; actualCents: number }>();
     for (const line of data) {
       // keyed by the resolved account id: two accounts may share a name (older responses carry no id)
       const key = line.accountId || `name:${line.accountName}`;
-      const account = byAccount.get(key) || { accountName: line.accountName, budgetCents: 0, actualCents: line.actual };
+      const account = byAccount.get(key) || { accountName: line.accountName, accountRef: line.accountCode || line.accountId || '', budgetCents: 0, actualCents: line.actual };
       account.budgetCents += line.budget;
       byAccount.set(key, account);
     }
     let budgetTotal = 0, actualTotal = 0, over = 0;
-    for (const { accountName, ...account } of byAccount.values()) {
+    const nameCount = new Map<string, number>();
+    for (const { accountName } of byAccount.values()) nameCount.set(accountName, (nameCount.get(accountName) || 0) + 1);
+    for (const { accountName: name, accountRef, ...account } of byAccount.values()) {
+      // two accounts that share a name are told apart by their code (or id) so the pack never prints twin rows
+      const accountName = (nameCount.get(name) || 0) > 1 && accountRef ? `${name} (${accountRef})` : name;
       const variance = account.budgetCents - account.actualCents;
       row(`${accountName} · Budget`, account.budgetCents);
       row(`${accountName} · Actual`, account.actualCents);

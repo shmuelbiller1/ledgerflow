@@ -46,7 +46,7 @@ test('two budgets saved on one account keep its spending counted once', () => {
 
 test('two different accounts with the same name keep their own spending', () => {
   const answer = [
-    { accountId: 'acc-a', accountName: 'Office', budget: 2000, actual: 1000, variance: 1000, percent: 50 },
+    { accountId: 'acc-a', accountCode: '6100', accountName: 'Office', budget: 2000, actual: 1000, variance: 1000, percent: 50 },
     { accountId: 'acc-b', accountName: 'Office', budget: 4000, actual: 3000, variance: 1000, percent: 75 },
   ];
   const section = packSection('budget', answer, {});
@@ -54,7 +54,8 @@ test('two different accounts with the same name keep their own spending', () => 
   assert.equal(cents('Total budget'), 6000);
   assert.equal(cents('Total actual'), 4000, 'both accounts’ spending is counted');
   assert.equal(cents('Total variance'), 2000);
-  assert.equal(section.rows.filter(row => row.label === 'Office · Actual').length, 2);
+  assert.equal(cents('Office (6100) · Actual'), 1000, 'the code tells the twins apart');
+  assert.equal(cents('Office (acc-b) · Actual'), 3000, 'without a code the id does');
   assert.deepEqual(section.warnings, []);
 });
 
