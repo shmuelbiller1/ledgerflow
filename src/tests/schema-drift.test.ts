@@ -39,7 +39,13 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       // scheduled reports (K-28, migration 20261011000000_scheduled_reports; what was sent is server-only)
       'scheduledReports',
       // custom field definitions (A-37, migration 20261014020000_workspace_custom_fields)
-      'customFields'
+      'customFields',
+      // written only by the server; allowed so they do not block user saves, immutable for users
+      // (migration 20261027000000_server_fields_allowed)
+      'numberingSeries', 'retention', 'setupCompletedAt', 'openingBalanceDate', 'branding', 'scheduledReportsSent',
+      'closeSteps', 'ledgerHealth', 'alerts', 'alertsSent', 'payrollApproval', 'requireTwoStep', 'refuseNegativeStock',
+      'modules', 'goodsLeaveWith', 'allocationRules', 'priceLists', 'salesReps', 'twoPersonRule', 'roleDashboards',
+      'approvalDelegates', 'taxProfiles', 'brandingProfiles', 'expensePolicy', 'budgetControl'
     ];
     for (const key of expectedWorkspaceKeys) {
       assert.ok(allowed.includes(key), `workspaces allowed fields missing '${key}'`);
