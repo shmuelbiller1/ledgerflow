@@ -8,7 +8,7 @@ import { Transaction, FilterCriteria } from '../../types';
 import { toast } from 'sonner';
 
 import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
-import { gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
+import { gridFieldEditable, gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
 import { resolveAccountName, formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
@@ -291,7 +291,9 @@ function useTransactionGridModel() {
     setFocusedCell(current => reconcileGridFocus(current, transactionsWithBalance));
   }
   const onGridFocusChange = useCallback((next: GridFocus | null) => setFocusedCell(next), []);
-  const onGridEdit = useCallback((target: GridFocus) => setEditingCell({ id: target.id, field: target.field }), []);
+  const onGridEdit = useCallback((target: GridFocus) => {
+    if (gridFieldEditable(target.field, { mobile: isMobileGrid, tablet: isTabletGrid })) setEditingCell({ id: target.id, field: target.field });
+  }, [isMobileGrid, isTabletGrid]);
   const gridAnnouncement = useMemo(() => {
     if (!focusedCell) return '';
     const index = transactionsWithBalance.findIndex(t => t.id === focusedCell.id);

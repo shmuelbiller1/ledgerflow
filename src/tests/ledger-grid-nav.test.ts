@@ -1,7 +1,7 @@
 /** #104: where the ledger highlight goes, and what happens to it when the visible rows change. */
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { gridFieldLabel, gridFields, isGridNavKey, moveGridFocus, reconcileGridFocus, startGridFocus, type GridFocus } from '../lib/ledgerGridNav';
+import { gridFieldEditable, gridFieldLabel, gridFields, isGridNavKey, moveGridFocus, reconcileGridFocus, startGridFocus, type GridFocus } from '../lib/ledgerGridNav';
 
 const rows = Array.from({ length: 12 }, (_, index) => ({ id: `tx-${index}` }));
 const fields = ['date', 'description', 'category', 'amountCents', 'status'];
@@ -76,5 +76,13 @@ describe('Ledger grid navigation (#104)', () => {
     assert.equal(reconcileGridFocus(null, rows), null);
     const stillThere = at(3);
     assert.equal(reconcileGridFocus(stillThere, rows), stillThere, 'an unchanged highlight keeps its identity (no render loop)');
+  });
+
+  test('Enter edits only cells the row draws an editor for', () => {
+    const desktop = { mobile: false, tablet: false };
+    for (const field of ['description', 'amountCents', 'category', 'project']) assert.equal(gridFieldEditable(field, desktop), true, field);
+    for (const field of ['date', 'status', 'balance']) assert.equal(gridFieldEditable(field, desktop), false, field);
+    assert.equal(gridFieldEditable('category', { mobile: true, tablet: false }), false);
+    assert.equal(gridFieldEditable('project', { mobile: false, tablet: true }), false);
   });
 });

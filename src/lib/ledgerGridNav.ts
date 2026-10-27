@@ -48,6 +48,18 @@ export function gridFieldLabel(field: string): string {
 }
 
 /**
+ * Whether Enter on this cell can open an inline editor: the row draws one only for these fields
+ * (category hidden on phones, project on phones and tablets). Editing any other cell would leave the
+ * grid in edit mode with nothing to type into and nothing to close.
+ */
+export function gridFieldEditable(field: string, layout: { mobile: boolean; tablet: boolean }): boolean {
+  if (field === 'description' || field === 'amountCents') return true;
+  if (field === 'category') return !layout.mobile;
+  if (field === 'project') return !layout.mobile && !layout.tablet;
+  return false;
+}
+
+/**
  * The cell the highlight starts on when the keyboard reaches a list that has none yet — a
  * keyboard-only user pressing an arrow key must land somewhere. `end` starts on the last row
  * (End, ArrowUp, ArrowLeft). Null when there is no row or no navigable column to land on.
