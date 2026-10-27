@@ -190,10 +190,10 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
 
   return (
     <div {...overlayDialogProps} className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--surface-card)] border border-[var(--line)] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-[var(--text)]">
+      <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--panel)] border border-[var(--line)] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-[var(--text)]">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[var(--line)] bg-[var(--surface-elevated)]/50">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--line)] bg-[var(--elevated)]/50">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-[var(--brass)]/15 border border-[var(--brass)]/30 text-[var(--brass)]">
               <Filter aria-hidden="true" size={20} />
@@ -251,7 +251,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
           )}
 
           {isCreating && (
-            <div className="bg-[var(--surface-elevated)] p-5 rounded-2xl border border-[var(--brass)]/40 shadow-xs space-y-5 animate-in fade-in duration-150">
+            <div className="bg-[var(--elevated)] p-5 rounded-2xl border border-[var(--brass)]/40 shadow-xs space-y-5 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
                 <h3 className="text-sm font-bold text-[var(--brass)]">
                   {editingView ? `Edit View: ${editingView.name}` : 'Create New Saved View'}
@@ -379,7 +379,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                           filter: { ...prev.filter, searchTerm: e.target.value }
                         }))}
                         placeholder="e.g. cash, Apple, tax, payroll..."
-                        className="w-full px-3 py-1.5 text-xs bg-[var(--surface-card)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
+                        className="w-full px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
                       />
                     </Labelled>
                   </div>
@@ -398,7 +398,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             }
                           }))}
                           placeholder="0.00"
-                          className="w-full px-3 py-1.5 text-xs bg-[var(--surface-card)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
+                          className="w-full px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
                         />
                       </Labelled>
                     </div>
@@ -416,7 +416,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             }
                           }))}
                           placeholder="Unlimited"
-                          className="w-full px-3 py-1.5 text-xs bg-[var(--surface-card)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
+                          className="w-full px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
                         />
                       </Labelled>
                     </div>
@@ -431,7 +431,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             ...prev,
                             filter: { ...prev.filter, type: e.target.value }
                           }))}
-                          className="w-full px-3 py-1.5 text-xs bg-[var(--surface-card)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
+                          className="w-full px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
                         >
                           <option value="all">All Types</option>
                           <option value="income">Income / Revenue (+)</option>
@@ -448,7 +448,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             ...prev,
                             filter: { ...prev.filter, status: e.target.value }
                           }))}
-                          className="w-full px-3 py-1.5 text-xs bg-[var(--surface-card)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
+                          className="w-full px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)] outline-none"
                         >
                           <option value="all">All Statuses</option>
                           <option value="posted">Posted</option>
@@ -459,7 +459,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                   </div>
 
                   <div className="pt-2">
-                    <label htmlFor={`${formId}-deductible`} className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text-secondary)]">
+                    <label htmlFor={`${formId}-deductible`} className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text)]">
                       <input
                         id={`${formId}-deductible`}
                         type="checkbox"
@@ -521,7 +521,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                         "group flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border transition-all",
                         isActive
                           ? "bg-[var(--brass)]/10 border-[var(--brass)] shadow-xs"
-                          : "bg-[var(--surface-elevated)] border-[var(--line)] hover:border-[var(--line-strong)]"
+                          : "bg-[var(--elevated)] border-[var(--line)] hover:border-[var(--brass-line)]"
                       )}
                     >
                       <div className="flex items-start gap-3.5 flex-1 min-w-0">
@@ -554,7 +554,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             {view.description || 'Custom ledger view'}
                           </p>
 
-                          <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--text-muted)] font-mono">
+                          <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--muted)] font-mono">
                             {view.filter.searchTerm && (
                               <span>Query: <strong className="text-[var(--text)]">"{view.filter.searchTerm}"</strong></span>
                             )}
@@ -669,7 +669,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
 
         </div>
 
-        <div className="p-4 border-t border-[var(--line)] bg-[var(--surface-elevated)]/50 flex items-center justify-between text-xs text-[var(--muted)]">
+        <div className="p-4 border-t border-[var(--line)] bg-[var(--elevated)]/50 flex items-center justify-between text-xs text-[var(--muted)]">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Multiple Default Views Enabled</span>

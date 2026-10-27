@@ -50,19 +50,31 @@ describe('Saved Views manager: above the chrome, opaque (#274)', () => {
     assert.ok(overlayZ! > highestChrome, `the dialog (z-${overlayZ}) must sit above the chrome (z-${highestChrome})`);
   });
 
-  test('the dialog surface and the scroll area do not let the page behind show or scroll through', async () => {
+  test('every colour the manager paints with is declared by the theme', () => {
+    const css = read('src/index.css');
+    const used = [...read('src/components/ui/SavedViewsManagerModal.tsx').matchAll(/var\(--([a-z0-9-]+)\)/g)].map(match => match[1]);
+    const missing = [...new Set(used)].filter(name => !css.includes(`--${name}:`));
+    assert.deepEqual(missing, [], `these colours paint nothing (or the wrong colour) because the theme never declares them: ${missing.join(', ')}`);
+  });
+
+  test('the dialog surface is an opaque, defined theme colour and its scroll area contains the page', async () => {
     await act(async () => { render(<SavedViewsManagerModal isOpen onClose={() => {}} />); });
     const dialog = screen.getByRole('dialog');
     const panel = dialog.firstElementChild as HTMLElement;
-    const surface = /bg-\[var\(--([a-z-]+)\)\]/.exec(panel.className)?.[1];
-    assert.equal(surface, 'surface-card', 'the panel paints an opaque theme surface');
+    const surfaceOf = (className: string) => /bg-\[var\(--([a-z-]+)\)\]/.exec(className)?.[1];
+    const surface = surfaceOf(panel.className);
+    assert.ok(surface, 'the panel paints a theme surface');
+    // The bug: the panel painted with --surface-card, which was never declared, so it painted
+    // nothing and the dark ledger showed through. Every colour it paints with must exist.
     const css = read('src/index.css');
+    const headerTint = surfaceOf((panel.firstElementChild as HTMLElement).className);
     for (const theme of [':root', '.light']) {
       const block = new RegExp(`${theme.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] || '';
-      for (const name of ['--surface-card', '--surface-elevated']) {
-        assert.match(block, new RegExp(`${name}:\\s*var\\(--[a-z-]+\\)`), `${theme} defines ${name}`);
+      for (const name of [surface!, headerTint].filter(Boolean) as string[]) {
+        assert.match(block, new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{3,8}|var\\(--[a-z-]+\\))`), `${theme} defines --${name}`);
       }
     }
+    assert.ok(screen.getByRole('heading', { name: 'Saved Views & Default Lenses' }), 'the title keeps its own row');
     const scroller = panel.querySelector('.overflow-y-auto');
     assert.ok(scroller, 'the list scrolls inside the dialog');
     assert.match(scroller!.className, /overscroll-contain/, 'wheel at the end of the list does not scroll the page behind');

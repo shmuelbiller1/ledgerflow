@@ -41,23 +41,31 @@ its focus alone.
    edge at ~192 px, i.e. under the sidebar — which is exactly the reported "title and Close button hard
    to see near the persistent navigation". The overlay is now `z-[200]`, above every chrome layer
    (measured in the test against the highest chrome level, not a hard-coded number).
-2. **The dialog surface had no colour at all.** `SavedViewsManagerModal`, `SavedViewsBar` and
-   `DeepSearchBar` paint with `bg-[var(--surface-card)]` / `var(--surface-elevated)`, but neither
-   variable was declared anywhere in `src/index.css` — the background resolved to nothing, so the dark
-   ledger showed through the panel and the list. Both aliases are now declared for the dark (`:root`)
-   and light (`.light`) themes, pointing at the existing `--panel` / `--elevated` tokens.
+2. **The dialog surface had no colour at all.** The manager painted with
+   `bg-[var(--surface-card)]`, `var(--surface-elevated)`, `var(--line-strong)`, `var(--text-muted)` and
+   `var(--text-secondary)` — **none of which is declared anywhere in `src/index.css`** — so its panel
+   and header painted nothing and the dark ledger showed through the list. It now uses only declared
+   tokens (`--panel`, `--elevated`, `--brass-line`, `--muted`, `--text`), and a source test fails if the
+   manager ever names a colour the theme does not declare.
 
 Also: the list's scroll area is `overscroll-contain`, so a wheel gesture at the end of the list no longer
 scrolls the ledger behind the dialog. `useDialog` already supplied the dialog role, the focus trap,
 Escape and focus return.
 
-**Tests:** `src/tests/saved-views-manager-layering.test.tsx` — 3/3 (dialog/title/Close/Escape; stacking
-level above Header/Sidebar/BottomNav; opaque surface variable defined in both themes; contained scroll).
+**Tests:** `src/tests/saved-views-manager-layering.test.tsx` — 4/4 (dialog/title/Close/Escape; stacking
+level above Header/Sidebar/BottomNav; every colour the manager uses is declared; opaque surface in both
+themes; contained scroll).
 
-**Follow-up, deliberately not in this PR:** nine other variable names are referenced by components but
-never declared (`--surface-sunken`, `--text-muted`, `--text-secondary`, `--border`, `--line-strong`,
-`--accent`, `--danger`, `--negative`). Declaring them changes backgrounds and text colour on other
-screens, which would need the dark/light contrast baselines re-measured — a separate reviewed change.
+**Follow-up, deliberately not in this PR — it needs a reviewed visual baseline.** Two other components
+that share this toolbar also paint with undeclared aliases: `SavedViewsBar` (`--surface-card`,
+`--surface-elevated`) and `DeepSearchBar` (same two). Declaring those aliases in the theme is the correct
+fix, and this branch tried it: CI's visual shard then failed on **Dashboard dark at 1280 and 390**,
+because the Dashboard renders `SavedViewsBar` where the bar became opaque (≈1% of pixels). The
+`Refresh visual baselines` workflow is a human-reviewed `workflow_dispatch` (candidate images on a review
+branch), and this environment cannot dispatch workflows or run Chromium, so the alias fix and its two
+baseline images are left as a separate reviewed change. `--surface-sunken`, `--border`, `--line-strong`,
+`--text-muted`, `--text-secondary`, `--accent`, `--danger`, `--negative` are still undeclared elsewhere in
+the app for the same reason.
 
 ## #104 — ledger grid keyboard navigation
 
