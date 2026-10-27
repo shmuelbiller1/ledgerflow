@@ -31,7 +31,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
  useEffect(() => {
    if (focusedIndex < 0) return;
    listRef.current?.scrollToItem(focusedIndex, 'smart');
- }, [focusedIndex, editingId]);
+ }, [focusedIndex, editingId, viewMode]);
  return (<div className="flex-1 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
         {viewMode === 'grid' ? (
           <TransactionGridKeyboardRegion
