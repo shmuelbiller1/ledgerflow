@@ -26,10 +26,12 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
  // the highlight is logical (the list draws only the rows on screen): scroll it into view
  const listRef = useRef<List>(null);
  const focusedIndex = focusedCell?.index ?? -1;
+ // also when Enter starts an edit: the row may have been scrolled away, and its editor only exists while it is drawn
+ const editingId = editingCell?.id;
  useEffect(() => {
    if (focusedIndex < 0) return;
    listRef.current?.scrollToItem(focusedIndex, 'smart');
- }, [focusedIndex]);
+ }, [focusedIndex, editingId]);
  return (<div className="flex-1 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
         {viewMode === 'grid' ? (
           <TransactionGridKeyboardRegion
