@@ -4,6 +4,7 @@ import { X, Table, Search } from 'lucide-react';
 import { Transaction } from '../../types';
 
 import { cn, formatDate } from '../../lib/utils';
+import { lineAmount } from '../../lib/txFilters';
 import { useDialog } from '../../hooks/useDialog';
 import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -177,7 +178,7 @@ export default function DrillDownModal({ isOpen, onClose, accountName, transacti
                     // lines of those accounts (the caller passes them); a single account's drill-down
                     // keeps matching by its name or id.
                     const amount = explain?.accountIds?.length
-                      ? (tx.lines || []).filter(l => explain.accountIds.includes(l.accountId)).reduce((sum, l) => sum + l.amountCents, 0)
+                      ? (tx.lines || []).filter(l => explain.accountIds.includes(l.accountId)).reduce((sum, l) => sum + lineAmount(l, tx), 0)
                       : (() => {
                         const matchedLine = tx.lines?.find(l => l.accountName === accountName || l.accountId === accountName);
                         return matchedLine ? matchedLine.amountCents : tx.totalAmountCents;

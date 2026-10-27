@@ -485,6 +485,7 @@ reportRouter.get("/budget-vs-actual", async (req, res) => {
       });
 
       return {
+        accountId: account?.id || target || null,
         accountName: account?.name || target || 'Unknown',
         budget: b.amountCents,
         actual,
