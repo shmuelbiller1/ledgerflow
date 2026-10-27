@@ -52,6 +52,9 @@ test.describe('Transaction list', () => {
     await region.focus();
     await page.keyboard.press('ArrowDown');
     await expect(live).toHaveText(/^Row 1 of 2, Date column: /);
+    // the date cell has no inline editor: Enter must not leave the grid stuck in edit mode
+    await page.keyboard.press('Enter');
+    await expect(region).toBeFocused();
     await page.keyboard.press('ArrowRight');
     await expect(live).toHaveText(/^Row 1 of 2, Description column: /);
     await page.keyboard.press('Enter');
