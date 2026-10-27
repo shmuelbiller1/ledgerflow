@@ -2,7 +2,11 @@
 
 ## Git workflow
 
-Always commit and push directly to the main branch. Do not create feature branches or Pull Requests.
+Owner's rule (27 Oct): anything that can turn CI red (code, tests, migrations, workflows, config) goes on
+a branch with a pull request into `main`. Let CI run, read CodeRabbit's comments and fix what is real, and
+merge it yourself once CI is green. Also merge other AIs' PRs once they are green and the review comments
+are dealt with. Apply a migration to the live database only after its PR is merged. Docs-only changes
+(docs/, *.md) may still go straight to `main`. A red Vercel preview (deployment protection) does not block a merge.
 
 (This is for AI #1, the lead. Every other AI — including AI #9 and the AIs working from the fork `Chaim-Richard/ledgerflow` — works on its own branch and opens a pull request into `shmuelbiller1/ledgerflow` `main`, as `CURRENT_WORK.md` "Start of every session" says.)
 

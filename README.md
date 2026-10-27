@@ -121,7 +121,7 @@ npm run scaffold:algo <name>
 
 ---
 
-## 🔒 Security & Verification Standards
+### 🔒 Security & Verification Standards
 
 - **Server-Side API Keys:** All third-party secrets (`GEMINI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, Plaid credentials) reside exclusively server-side.
 - **Data Encryption:** Sensitive fields are encrypted using AES-256-GCM.

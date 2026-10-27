@@ -1,8 +1,11 @@
 /**
  * The database guard refuses a whole document when it has one field outside the table's allowed
  * list. That silently broke adding customers (status), applying templates (chartAccounts.role)
- * and saving the time zone. So: every field of the app's model for such a table must be allowed,
- * unless it is written only by the server (which the guard does not check) and listed here.
+ * and saving the time zone. So: every field of the app's model for such a table must be allowed.
+ * A field written only by the server must be allowed too, and unchangeable by users: the guard checks
+ * every field of the document on each user save, so one server field outside the list refused every
+ * later save of that document (27 Oct: the setup wizard could not save the business once the server
+ * had written e.g. `modules` or `setupCompletedAt`).
  */
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,6 +82,14 @@ describe('Allowed fields match the app model', () => {
       assert.ok(allowed.length > 0, `no allowed list found for ${table}`);
       const missing = interfaceFields(model).filter(f => !allowed.includes(f) && !serverOnly.includes(f));
       assert.deepEqual(missing, [], `${table} refuses these ${model} fields: ${missing.join(', ')}`);
+    });
+    if (serverOnly.length === 0) continue;
+    test(`${table}: a field only the server writes does not block user saves, and users cannot change it`, () => {
+      const { allowed, immutable } = ruleArrays(table, sql);
+      const notAllowed = serverOnly.filter(f => !allowed.includes(f));
+      assert.deepEqual(notAllowed, [], `${table}: once the server writes one of these, every user save is refused: ${notAllowed.join(', ')}`);
+      const changeable = serverOnly.filter(f => !immutable.includes(f));
+      assert.deepEqual(changeable, [], `${table}: users could change these server-only fields: ${changeable.join(', ')}`);
     });
   }
 });
