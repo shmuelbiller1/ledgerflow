@@ -179,7 +179,8 @@ changed; two were not changes to make, and say so below.
 |---|---|
 | `npx tsc --noEmit` | clean |
 | `npx eslint . --max-warnings 42` | 0 errors, **42 warnings** (exactly the existing cap; no suppression added) |
-| `npm test` (whole unit suite, no database) — run as four `--test-shard` processes | **4,016 tests: 4,013 pass, 0 real failures, 2 skipped.** One timing budget (`report-speed-12m`, "10 screen modules under 1,500 ms") failed at 1,989 ms because four shards shared the machine; it passes alone in 17.9 s (3/3). |
+| `npm test` (whole unit suite, no database) — four `--test-shard` processes, run one after another on 2 cores | **4,009 tests: 4,006 pass, 2 skipped, 0 real failures.** The one red test was `database-tests-notice` ("LF_TEST_DATABASE_URL is not set on CI"), which by design demands the URL when `CI` is set: run without `CI` it passes (1 skipped). Shards: 1,008/1,008 · 977/978 · 990/990 · 1,031/1,033 (+2 skipped). |
+| CI on this commit (`636b5d0`) | **25/25 checks pass**: four unit shards, six timezone shards, the coverage gate, five browser shards, the E2E smoke aggregate, lint/typecheck/database rules, build, CodeQL, SBOM, Vercel. |
 | `npm run build` (vite + esbuild server bundle) | passed (`built in 26.70s`) |
 | `quality-ratchet`, `bug-patterns`, `reachability-guard` | 13/13 |
 
