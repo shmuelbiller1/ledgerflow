@@ -34,11 +34,11 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
   app.set("trust proxy", 1); 
   app.use(compression());
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    contentSecurityPolicy: {
       // S-23 stage three: once the report-only summary is empty, CSP_TIGHTEN=enforce makes the
       // tightened policy the one the browser obeys (no 'unsafe-inline' script, form-action 'self').
       // It keeps reporting, so a directive that turns out to block something still says so.
-      directives: rollout === 'enforce'
+      directives: process.env.NODE_ENV === 'production' && rollout === 'enforce'
         ? helmetDirectives(tightenedCspDirectives({ ...tightened, reportUri: CSP_REPORT_PATH })) : {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.plaid.com"],
@@ -50,9 +50,9 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
         frameSrc: ["'self'", "https://*.stripe.com", "https://cdn.plaid.com"],
         frameAncestors: aiStudioProxy ? ["*"] : ["'self'"]
       }
-    } : false,
+    },
     crossOriginEmbedderPolicy: false,
-    frameguard: aiStudioProxy ? false : { action: 'sameorigin' },
+    frameguard: aiStudioProxy ? { action: 'allow-from' } : { action: 'sameorigin' },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
