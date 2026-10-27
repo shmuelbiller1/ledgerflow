@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Decimal from 'decimal.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { describeError } from './errorRemedies';
+import { civilDateParts } from './calendarDate';
 
 // Set default rounding mode to HALF_UP (standard financial rounding)
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP });
@@ -323,19 +324,28 @@ export function setDateDisplayFormat(pref: string): void {
   dateDisplay = (DATE_DISPLAY_FORMATS as readonly string[]).includes(pref) ? pref : DEFAULT_DATE_DISPLAY;
 }
 
-/** A calendar date for display, in the user's chosen format (never for inputs or files: use YYYY-MM-DD there). */
+/**
+ * A calendar date for display, in the user's chosen format (never for inputs or files: use
+ * YYYY-MM-DD there). A stored calendar date (YYYY-MM-DD) is shown exactly as written, on every
+ * device and in every workspace zone; a moment (a Date, or a timestamp with a time in it) is read
+ * in the device's zone as before (D-65).
+ */
 export function formatDate(dateStr: string | Date | undefined | null, pref: string = currentDateDisplay()): string {
   if (!dateStr) return '';
-  const d = typeof dateStr === 'string' ? parseLocalDate(dateStr) : dateStr;
-  if (isNaN(d.getTime())) return String(dateStr);
-  const y = String(d.getFullYear());
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const civil = typeof dateStr === 'string' ? civilDateParts(dateStr) : null;
+  const d = civil ? null : (typeof dateStr === 'string' ? parseLocalDate(dateStr) : dateStr);
+  if (d && isNaN(d.getTime())) return String(dateStr);
+  const year = civil ? civil.year : d!.getFullYear();
+  const monthIndex = civil ? civil.month - 1 : d!.getMonth();
+  const dayOfMonth = civil ? civil.day : d!.getDate();
+  const y = String(year);
+  const m = String(monthIndex + 1).padStart(2, '0');
+  const day = String(dayOfMonth).padStart(2, '0');
   switch (pref) {
     case 'YYYY-MM-DD': return `${y}-${m}-${day}`;
     case 'MM/DD/YYYY': return `${m}/${day}/${y}`;
     case 'DD/MM/YYYY': return `${day}/${m}/${y}`;
-    default: return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]} ${day}, ${y}`;
+    default: return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][monthIndex]} ${day}, ${y}`;
   }
 }
 

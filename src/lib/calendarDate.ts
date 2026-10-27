@@ -23,6 +23,21 @@ export function dayNumber(ymd: string): number {
   return era * 146097 + doe - 719468;
 }
 
+/**
+ * The year, month (1–12) and day written in a stored YYYY-MM-DD date, or null when the text is not
+ * a calendar date (a timestamp, free text, or an impossible day such as 2026-02-30). The parts are
+ * the ones written down: no zone is applied, so the answer is the same on every device (D-65).
+ */
+export function civilDateParts(value: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null;
+  return { year, month, day };
+}
+
 export function fromDayNumber(n: number): string {
   const z = Math.trunc(n) + 719468;
   const era = Math.floor(z / 146097);

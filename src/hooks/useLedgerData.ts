@@ -240,6 +240,7 @@ export function useLedgerData() {
   // the workspace changes, so no screen sees a stale copy; changes are fetched incrementally.
   const asked = useDataNeedsStore(s => s.asked);
   const failed = useDataNeedsStore(s => s.failed);
+  const trouble = useDataNeedsStore(s => s.trouble);
   const active = useRef(new Map<string, () => void>());
   useEffect(() => {
     const subscriptions = active.current;
@@ -260,6 +261,31 @@ export function useLedgerData() {
       }));
     }
   }, [userUid, currentWorkspaceId, asked, failed]);
+
+  // A collection that failed on connection trouble is tried again on its own (src/lib/collectionRetry.ts,
+  // #96): at the scheduled time, and at once when the browser reports it is online again or the tab
+  // becomes visible. A permission refusal is left for the person ("Try again"); nothing is retried
+  // for another workspace, because a switch clears these records (resetLoaded).
+  useEffect(() => {
+    if (!userUid || !currentWorkspaceId) return;
+    const retryNow = (immediate: boolean) => useDataNeedsStore.getState().retryTransientFailures(Date.now(), immediate);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const now = Date.now();
+    for (const plan of Object.values(trouble)) {
+      if (!plan || plan.nextRetryAt === null) continue;
+      timers.push(setTimeout(() => retryNow(false), Math.max(0, plan.nextRetryAt - now)));
+    }
+    // Back on the network: a fresh bounded cycle, even if the earlier attempts were used up.
+    const onOnline = () => useDataNeedsStore.getState().retryAfterReconnect();
+    const onVisible = () => { if (document.visibilityState === 'visible') retryNow(true); };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [userUid, currentWorkspaceId, trouble]);
 
   return null;
 }
@@ -313,7 +339,7 @@ function subscribeLedgerCollection(key: LedgerKey, workspaceId: string, onFailed
     useDataNeedsStore.getState().markLoaded(key);
   }, (err) => {
     if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-    useDataNeedsStore.getState().markFailed(key, err instanceof Error ? err.message : String(err));
+    useDataNeedsStore.getState().markFailed(key, err instanceof Error ? err.message : String(err), err);
     onFailed();
     try {
       handleFirestoreError(err, OperationType.LIST, spec.collection);

@@ -76,6 +76,8 @@
 @layer base {
   :root {
     --ink: #0A1920; --surface: #0F242D; --panel: #122A33; --elevated: #173741;
+    /* the card aliases the ledger toolbar and its dialogs use (#274) */
+    --surface-card: var(--panel); --surface-elevated: var(--elevated);
     --line: #20414B; --grid: rgba(120, 170, 175, 0.06);
     --text: #DEE8E6; --muted: #87A0A2; --faint: #7E989B;
     --brass: #D6A852; --brass-soft: rgba(214, 168, 82, 0.14); --brass-line: rgba(214, 168, 82, 0.4);
@@ -85,6 +87,8 @@
   }
   .light {
     --ink: #E7EDEB; --surface: #F4F8F7; --panel: #FFFFFF; --elevated: #FFFFFF;
+    /* the card aliases the ledger toolbar and its dialogs use (#274) */
+    --surface-card: var(--panel); --surface-elevated: var(--elevated);
     --line: #D4DEDB; --grid: rgba(20, 60, 64, 0.05);
     --text: #0E2229; --muted: #4D6564; --faint: #4F6469;
     --brass: #7A550E; --brass-soft: rgba(122, 85, 14, 0.10); --brass-line: rgba(122, 85, 14, 0.35);

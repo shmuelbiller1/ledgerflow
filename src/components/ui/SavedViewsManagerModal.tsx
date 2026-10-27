@@ -189,7 +189,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
   if (!isOpen) return null;
 
   return (
-    <div {...overlayDialogProps} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div {...overlayDialogProps} className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--surface-card)] border border-[var(--line)] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-[var(--text)]">
         
         {/* Header */}
@@ -215,7 +215,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6">
           
           {!isCreating && (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

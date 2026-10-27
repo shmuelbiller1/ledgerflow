@@ -4,7 +4,9 @@ import { TransactionTotalsRow } from './TransactionTotalsRow';
 import { Search, Sparkles, Filter, TrendingUp, ArrowUpRight, ArrowDownRight, TrendingDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
+import React, { useEffect, useRef } from 'react';
 import { TransactionColumnGrid } from './TransactionColumnGrid';
+import { TransactionGridKeyboardRegion } from './TransactionGridKeyboardRegion';
 import { gridMinWidth } from '../../lib/transactionColumns';
 
 import { cn, formatCurrency } from '../../lib/utils';
@@ -20,9 +22,26 @@ import { VirtualRow } from './TransactionGridShared';
 import type { TransactionGridModel } from './TransactionGrid';
 export function TransactionGridBody({ model }: { model: TransactionGridModel }) {
  const incomplete = useLedgerStore(state => state.isDataTruncated);
- const { naturalColumnOrder, columnOrder, stats, formId, filterCriteria, onFilterApplied, setSearchTerm, viewMode, selectedIds, setSelectedIds, sortConfig, handleSort, transactionsWithBalance, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, show, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, itemData, itemKey } = model;
+ const { naturalColumnOrder, columnOrder, stats, formId, filterCriteria, onFilterApplied, setSearchTerm, viewMode, selectedIds, setSelectedIds, sortConfig, handleSort, transactionsWithBalance, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, show, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell } = model;
+ // the highlight is logical (the list draws only the rows on screen): scroll it into view
+ const listRef = useRef<List>(null);
+ const focusedIndex = focusedCell?.index ?? -1;
+ useEffect(() => {
+   if (focusedIndex < 0) return;
+   listRef.current?.scrollToItem(focusedIndex, 'smart');
+ }, [focusedIndex]);
  return (<div className="flex-1 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
         {viewMode === 'grid' ? (
+          <TransactionGridKeyboardRegion
+            className="min-w-0"
+            rows={transactionsWithBalance}
+            fields={navigationFields}
+            focus={focusedCell}
+            inactive={Boolean(editingCell)}
+            announcement={gridAnnouncement}
+            onFocusChange={onGridFocusChange}
+            onEdit={onGridEdit}
+          >
           <div className="h-full flex flex-col" style={{ minWidth: gridMinWidth(gridCols) }}>
             <TransactionColumnGrid naturalOrder={naturalColumnOrder} order={columnOrder} data-testid="tx-header" className="grid sticky top-0 bg-slate-900 text-white/75 z-20" style={{ gridTemplateColumns: gridCols }}>
               <div className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-center">
@@ -497,6 +516,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
               <AutoSizer>
                 {({ height, width }: { height: number; width: number }) => (
                   <List
+                    ref={listRef}
                     height={height}
                     itemCount={transactionsWithBalance.length}
                     itemSize={rowHeight}
@@ -512,6 +532,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
             </div>
             <TransactionTotalsRow inflowCents={stats.inflowCents} outflowCents={stats.outflowCents} count={stats.count} incomplete={incomplete} />
           </div>
+          </TransactionGridKeyboardRegion>
         ) : (
           <PivotView pivotData={pivotData} formatCurrency={formatCurrency} />
         )}

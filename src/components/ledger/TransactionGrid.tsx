@@ -8,9 +8,10 @@ import { Transaction, FilterCriteria } from '../../types';
 import { toast } from 'sonner';
 
 import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
+import { gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
-import { resolveAccountName, formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { resolveAccountName, formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { isCashAccount, isInflow, isPostable, lineAmount } from '../../lib/txFilters';
 
@@ -277,62 +278,27 @@ function useTransactionGridModel() {
   const columnOrder = orderedGridTracks(trackLayout, hiddenColumns, columnLayout).map(([id]) => id);
   const navigationKey = columnOrder.filter(id => ['date', 'description', 'category', 'project', 'amount', 'status'].includes(id)).join(',');
 
-  // Keyboard Navigation Logic
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Native controls keep their own keyboard behavior, including Tab and Space.
-      if (e.target instanceof HTMLElement && e.target.closest('button, input, select, textarea, a, [contenteditable="true"]')) return;
-      if (editingCell) return;
-      if (!focusedCell) return;
-
-      const fields = navigationKey.split(',').map(id => id === 'amount' ? 'amountCents' : id);
-      const fieldIndex = fields.indexOf(focusedCell.field);
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const nextIndex = Math.min(transactionsWithBalance.length - 1, focusedCell.index + 1);
-        setFocusedCell({ ...focusedCell, index: nextIndex, id: transactionsWithBalance[nextIndex].id });
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const prevIndex = Math.max(0, focusedCell.index - 1);
-        setFocusedCell({ ...focusedCell, index: prevIndex, id: transactionsWithBalance[prevIndex].id });
-      } else if (e.key === 'ArrowRight' || e.key === 'Tab') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          const prevFieldIndex = fieldIndex > 0 ? fieldIndex - 1 : fields.length - 1;
-          const targetIndex = fieldIndex > 0 ? focusedCell.index : Math.max(0, focusedCell.index - 1);
-          setFocusedCell({
-            id: transactionsWithBalance[targetIndex].id,
-            field: fields[prevFieldIndex],
-            index: targetIndex
-          });
-        } else {
-          const nextFieldIndex = (fieldIndex + 1) % fields.length;
-          const targetIndex = fieldIndex < fields.length - 1 ? focusedCell.index : Math.min(transactionsWithBalance.length - 1, focusedCell.index + 1);
-          setFocusedCell({
-            id: transactionsWithBalance[targetIndex].id,
-            field: fields[nextFieldIndex],
-            index: targetIndex
-          });
-        }
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        const prevFieldIndex = fieldIndex > 0 ? fieldIndex - 1 : fields.length - 1;
-        setFocusedCell({ ...focusedCell, field: fields[prevFieldIndex] });
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        setEditingCell({ id: focusedCell.id, field: focusedCell.field });
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Option to void or clear field? Maybe just engage edit.
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Start typing to edit
-        setEditingCell({ id: focusedCell.id, field: focusedCell.field });
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedCell, editingCell, transactionsWithBalance, navigationKey]);
+  // Keyboard navigation (#104). The keys are handled by the focusable grid region in
+  // TransactionGridKeyboardRegion; this model owns the highlight and keeps it honest when the
+  // visible rows change. The old window listener prevented Tab everywhere and pointed the highlight
+  // at rows the virtualized list had not drawn.
+  const navigationFields = useMemo(() => gridFields(navigationKey), [navigationKey]);
+  // A filter, a sort or a deletion changes the visible rows: keep the highlight on its record (its
+  // index follows a sort) or drop it, never leave it pointing at a row that is no longer there.
+  const [lastRows, setLastRows] = useState(transactionsWithBalance);
+  if (lastRows !== transactionsWithBalance) {
+    setLastRows(transactionsWithBalance);
+    setFocusedCell(current => reconcileGridFocus(current, transactionsWithBalance));
+  }
+  const onGridFocusChange = useCallback((next: GridFocus | null) => setFocusedCell(next), []);
+  const onGridEdit = useCallback((target: GridFocus) => setEditingCell({ id: target.id, field: target.field }), []);
+  const gridAnnouncement = useMemo(() => {
+    if (!focusedCell) return '';
+    const index = transactionsWithBalance.findIndex(t => t.id === focusedCell.id);
+    if (index === -1) return '';
+    const tx = transactionsWithBalance[index];
+    return `Row ${index + 1} of ${transactionsWithBalance.length}: ${formatDate(tx.date)}, ${tx.description}, ${focusedCell.field}, ${formatCurrency(tx.totalAmountCents)}`;
+  }, [focusedCell, transactionsWithBalance]);
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -525,7 +491,7 @@ function useTransactionGridModel() {
     return data.transactions[index]?.id || `idx-${index}`;
   }, []);
 
-  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey };
+  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell };
 }
 
 export type TransactionGridModel = ReturnType<typeof useTransactionGridModel>;
