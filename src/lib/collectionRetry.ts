@@ -45,8 +45,12 @@ export function classifyFailure(error: unknown): FailureKind {
     const record = error as { status?: unknown; code?: unknown };
     const status = Number(record.status);
     if (status === 401 || status === 403) return 'auth';
-    const code = String(record.code ?? '');
-    if (code === '42501' || code === 'PGRST301' || code === 'PGRST302') return 'auth';
+    // Postgres' own code, PostgREST's, and the ones src/lib/db/firestore.ts hands the app:
+    // `permission-denied` / `unauthenticated`. A refusal is never worth retrying, whatever the
+    // message happens to say.
+    const code = String(record.code ?? '').toLowerCase();
+    if (['42501', 'pgrst301', 'pgrst302', 'permission-denied', 'permission_denied', 'unauthenticated', 'unauthorized']
+      .includes(code)) return 'auth';
   }
   const text = textOf(error);
   // A refusal wins over a connection word: "permission denied for table" is not worth retrying.

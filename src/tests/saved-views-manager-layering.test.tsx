@@ -50,11 +50,18 @@ describe('Saved Views manager: above the chrome, opaque (#274)', () => {
     assert.ok(overlayZ! > highestChrome, `the dialog (z-${overlayZ}) must sit above the chrome (z-${highestChrome})`);
   });
 
-  test('every colour the manager paints with is declared by the theme', () => {
+  test('every colour the manager paints with is declared by the screen themes', () => {
     const css = read('src/index.css');
+    // A declaration inside `@media print` only paints on paper: `--bg: #FFFFFF` exists there and
+    // nowhere on screen, so it must not count (that is how the manager painted nothing).
+    const screenTheme = (theme: string) =>
+      new RegExp(`${theme.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] || '';
+    const declarations = `${screenTheme(':root')} ${screenTheme('.light')}`;
+    assert.match(declarations, /--panel:/, 'the screen themes were found (the check is not vacuous)');
     const used = [...read('src/components/ui/SavedViewsManagerModal.tsx').matchAll(/var\(--([a-z0-9-]+)\)/g)].map(match => match[1]);
-    const missing = [...new Set(used)].filter(name => !css.includes(`--${name}:`));
-    assert.deepEqual(missing, [], `these colours paint nothing (or the wrong colour) because the theme never declares them: ${missing.join(', ')}`);
+    const missing = [...new Set(used)].filter(name => !new RegExp(`--${name}:`).test(declarations));
+    assert.deepEqual(missing, [], `these colours paint nothing (or the wrong colour) because no screen theme declares them: ${missing.join(', ')}`);
+    assert.ok(!used.includes('bg'), 'a print-only token is not a screen colour');
   });
 
   test('the dialog surface is an opaque, defined theme colour and its scroll area contains the page', async () => {

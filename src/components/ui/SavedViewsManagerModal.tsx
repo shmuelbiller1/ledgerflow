@@ -227,7 +227,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                   placeholder="Search saved views..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs bg-[var(--bg)] border border-[var(--line)] rounded-xl text-[var(--text)] focus:outline-none focus:border-[var(--brass)]"
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--text)] focus:outline-none focus:border-[var(--brass)]"
                 />
               </div>
 
@@ -274,7 +274,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                         value={formData.name}
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="e.g. Operating Liquidity"
-                        className="w-full px-3 py-2 text-xs bg-[var(--bg)] border border-[var(--line)] rounded-lg text-[var(--text)] focus:border-[var(--brass)] outline-none"
+                        className="w-full px-3 py-2 text-xs bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)] focus:border-[var(--brass)] outline-none"
                       />
                     </Labelled>
                   </div>
@@ -286,7 +286,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                         value={formData.description}
                         onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Short summary of this filter lens"
-                        className="w-full px-3 py-2 text-xs bg-[var(--bg)] border border-[var(--line)] rounded-lg text-[var(--text)] focus:border-[var(--brass)] outline-none"
+                        className="w-full px-3 py-2 text-xs bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)] focus:border-[var(--brass)] outline-none"
                       />
                     </Labelled>
                   </div>
@@ -311,7 +311,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                               "p-2 rounded-lg border transition-all cursor-pointer",
                               isSelected 
                                 ? "bg-[var(--brass)]/20 border-[var(--brass)] text-[var(--brass)] scale-105" 
-                                : "bg-[var(--bg)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
+                                : "bg-[var(--surface)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                             )}
                           >
                             <IconComp size={16} />
@@ -363,7 +363,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                   </div>
                 </div>
 
-                <div className="space-y-3 bg-[var(--bg)] p-4 rounded-xl border border-[var(--line)]">
+                <div className="space-y-3 bg-[var(--surface)] p-4 rounded-xl border border-[var(--line)]">
                   <h4 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Filter aria-hidden="true" size={13} className="text-[var(--brass)]" />
                     <span>Filter Rules</span>
@@ -504,7 +504,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
               </div>
 
               {filteredViews.length === 0 ? (
-                <div className="p-8 text-center bg-[var(--bg)] rounded-2xl border border-[var(--line)] text-[var(--muted)]">
+                <div className="p-8 text-center bg-[var(--surface)] rounded-2xl border border-[var(--line)] text-[var(--muted)]">
                   <AlertCircle aria-hidden="true" size={24} className="mx-auto mb-2 opacity-50" />
                   <p className="text-xs">No saved views match your search criteria.</p>
                 </div>
@@ -590,7 +590,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                               "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1",
                               isActive
                                 ? "bg-[var(--brass)] text-[var(--ink)]"
-                                : "bg-[var(--bg)] border border-[var(--line)] text-[var(--text)] hover:bg-[var(--line)]/50"
+                                : "bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] hover:bg-[var(--line)]/50"
                             )}
                           >
                             <Eye aria-hidden="true" size={12} />
@@ -606,7 +606,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                               "p-1.5 rounded-lg border text-xs transition-colors cursor-pointer",
                               view.isDefault 
                                 ? "bg-[var(--brass)]/20 border-[var(--brass)] text-[var(--brass)]" 
-                                : "bg-[var(--bg)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
+                                : "bg-[var(--surface)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                             )}
                           >
                             <Check aria-hidden="true" size={14} />
@@ -621,7 +621,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                               "p-1.5 rounded-lg border text-xs transition-colors cursor-pointer",
                               view.isPinned 
                                 ? "bg-amber-400/20 border-amber-400/40 text-amber-400" 
-                                : "bg-[var(--bg)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
+                                : "bg-[var(--surface)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                             )}
                           >
                             <Star aria-hidden="true" size={14} className={cn(view.isPinned && "fill-amber-400")} />
@@ -631,7 +631,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             onClick={() => handleDuplicate(view)}
                             aria-label={`Duplicate view ${view.name}`}
                             title="Duplicate view"
-                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                           >
                             <Copy aria-hidden="true" size={14} />
                           </button>
@@ -640,7 +640,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             onClick={() => handleStartEdit(view)}
                             aria-label={`Edit rules for view ${view.name}`}
                             title="Edit view rules"
-                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                           >
                             <Edit3 aria-hidden="true" size={14} />
                           </button>
@@ -653,7 +653,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
                             }}
                             title="Delete view"
                             aria-label={`Delete view ${view.name}`}
-                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:text-red-400 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-red-400 transition-colors cursor-pointer"
                           >
                             <Trash2 aria-hidden="true" size={14} />
                           </button>
@@ -677,7 +677,7 @@ export default function SavedViewsManagerModal({ isOpen, onClose }: SavedViewsMa
 
           <button
             onClick={onClose}
-            className="px-4 py-1.5 font-semibold bg-[var(--bg)] border border-[var(--line)] text-[var(--text)] rounded-xl hover:bg-[var(--line)]/50 transition-all cursor-pointer"
+            className="px-4 py-1.5 font-semibold bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-xl hover:bg-[var(--line)]/50 transition-all cursor-pointer"
            aria-label="Close">
             Close
           </button>

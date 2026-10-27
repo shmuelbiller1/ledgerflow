@@ -13,10 +13,11 @@ export const SCREEN_SHORTCUTS: ScreenShortcutGroup[] = [
   { id: 'transactions', title: 'Transactions — focused grid cells', shortcuts: [
     { keys: '↑ / ↓', label: 'Move to the previous / next transaction' },
     { keys: '← / →', label: 'Move between cells' },
-    { keys: 'Tab / Shift + Tab', label: 'Move forward / back between grid cells (native controls keep their normal Tab behavior)' },
+    { keys: 'Home / End', label: 'Jump to the first / last transaction' },
+    { keys: 'Tab / Shift + Tab', label: 'Leave the grid for the next / previous control (native controls keep their normal Tab behavior)' },
     { keys: 'Enter / typing', label: 'Start editing the focused cell' },
     { keys: 'Enter', label: 'Save an inline cell edit' },
-    { keys: 'Escape', label: 'Cancel an inline cell edit' },
+    { keys: 'Escape', label: 'Cancel an inline cell edit, or clear the highlighted cell' },
     { keys: 'Tab', label: 'Accept the first account suggestion while editing an account' },
   ] },
   { id: 'transaction-dialog', title: 'Transaction editor', shortcuts: [

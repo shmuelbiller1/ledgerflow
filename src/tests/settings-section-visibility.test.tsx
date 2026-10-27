@@ -17,11 +17,15 @@ const originalScrollIntoView = (Element.prototype as unknown as { scrollIntoView
 
 describe('Settings: choosing a section reveals it (#274)', () => {
   let revealed: Reveal[];
+  // kept apart from `revealed` so the existing expectations stay exactly as they were
+  let behaviors: Array<ScrollBehavior | undefined>;
   beforeEach(() => {
     revealed = [];
+    behaviors = [];
     (Element.prototype as unknown as { scrollIntoView: (options?: ScrollIntoViewOptions) => void }).scrollIntoView =
       function scrollIntoView(this: Element, options?: ScrollIntoViewOptions) {
         revealed.push({ label: this.getAttribute('aria-label') || '', block: options?.block });
+        behaviors.push(options?.behavior);
       };
     useUIStore.setState({ activeSettingsTab: 'appearance', language: 'en' });
   });
@@ -77,6 +81,16 @@ describe('Settings: choosing a section reveals it (#274)', () => {
     await act(async () => { fireEvent.click(appearance); });
     assert.equal(revealed.length, 1, 'selecting the open section re-reveals it instead of doing nothing');
     assert.equal(revealed[0].label, 'Appearance & Display settings');
+  });
+
+  test("Appearance's Reduced motion setting also turns the jump into an instant move", async () => {
+    // The operating system did not ask for less motion, the app did (Settings → Appearance).
+    useUIStore.setState({ activeSettingsTab: 'appearance', language: 'en', reduceMotion: true });
+    await renderSettings();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Developer' })); });
+    assert.equal(revealed.at(-1)?.label, 'Developer settings');
+    assert.equal(behaviors.at(-1), 'auto', 'the app setting is honoured, not just prefers-reduced-motion');
+    useUIStore.setState({ reduceMotion: false });
   });
 
   test('a search that hides groups leaves the open panel and its focus alone', async () => {

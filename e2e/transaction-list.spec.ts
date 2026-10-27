@@ -42,6 +42,28 @@ test.describe('Transaction list', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('search')).toBe('AWS');
   });
 
+  // #104 in a real browser: the grid is one keyboard region, the highlight starts from the
+  // keyboard alone, the live region names the column (not the stored field id), the cell editor
+  // hands focus back when it closes, and Tab still leaves the grid.
+  test('the keyboard walks the grid, the cell editor gives focus back, and Tab leaves', async ({ page }) => {
+    await openAllTransactions(page);
+    const region = page.getByRole('region', { name: 'Transaction list' });
+    const live = region.getByRole('status');
+    await region.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(live).toHaveText(/^Row 1 of 2, Date column: /);
+    await page.keyboard.press('ArrowRight');
+    await expect(live).toHaveText(/^Row 1 of 2, Description column: /);
+    await page.keyboard.press('Enter');
+    const editor = page.getByLabel('Transaction description');
+    await expect(editor).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(editor).toHaveCount(0);
+    await expect(region).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(region).not.toBeFocused();
+  });
+
   test('a column switched off stays off after a reload', async ({ page }) => {
     await openAllTransactions(page);
     await expect(page.getByRole('button', { name: 'Filter by project' })).toBeAttached();

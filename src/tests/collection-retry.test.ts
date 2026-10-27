@@ -32,6 +32,11 @@ describe('Live collection retry policy (#96)', () => {
     assert.equal(classifyFailure('row-level security policy for table invoices'), 'auth');
     assert.equal(classifyFailure('JWT expired'), 'auth');
     assert.equal(classifyFailure('permission denied for table bills (HTTP 503)'), 'auth', 'a refusal wins over a connection word');
+    // src/lib/db/firestore.ts hands the app these codes, not Postgres' number: a refusal stays a
+    // refusal even when the message says nothing recognisable.
+    assert.equal(classifyFailure({ code: 'permission-denied', message: 'Request refused' }), 'auth');
+    assert.equal(classifyFailure({ code: 'unauthenticated', message: 'Sign in again (request 12)' }), 'auth');
+    assert.equal(classifyFailure({ code: 'PERMISSION_DENIED', message: 'Request refused' }), 'auth');
   });
 
   test('an unknown failure is worth a bounded number of attempts, not an endless one', () => {

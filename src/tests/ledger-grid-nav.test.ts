@@ -1,7 +1,7 @@
 /** #104: where the ledger highlight goes, and what happens to it when the visible rows change. */
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { gridFields, isGridNavKey, moveGridFocus, reconcileGridFocus, type GridFocus } from '../lib/ledgerGridNav';
+import { gridFieldLabel, gridFields, isGridNavKey, moveGridFocus, reconcileGridFocus, startGridFocus, type GridFocus } from '../lib/ledgerGridNav';
 
 const rows = Array.from({ length: 12 }, (_, index) => ({ id: `tx-${index}` }));
 const fields = ['date', 'description', 'category', 'amountCents', 'status'];
@@ -14,6 +14,23 @@ describe('Ledger grid navigation (#104)', () => {
     assert.deepEqual(gridFields(''), []);
     for (const key of ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End']) assert.equal(isGridNavKey(key), true);
     for (const key of ['Tab', 'Enter', 'Escape', 'a', 'PageDown']) assert.equal(isGridNavKey(key), false);
+  });
+
+  test('a list with no highlight yet starts on its first cell (or on the last row with End)', () => {
+    assert.deepEqual(startGridFocus(rows, fields), at(0, 'date'), 'the first column of the first row');
+    assert.deepEqual(startGridFocus(rows, fields, 'end'), at(11, 'date'), 'End lands on the last row');
+    assert.equal(startGridFocus([], fields), null, 'an empty list has no cell to start on');
+    assert.equal(startGridFocus(rows, []), null, 'a list with every navigable column hidden has no cell');
+  });
+
+  test('the announced column is named the way the grid names it, never by its stored id', () => {
+    assert.equal(gridFieldLabel('amountCents'), 'Amount');
+    assert.equal(gridFieldLabel('date'), 'Date');
+    assert.equal(gridFieldLabel('description'), 'Description');
+    assert.equal(gridFieldLabel('category'), 'Category');
+    assert.equal(gridFieldLabel('project'), 'Project');
+    assert.equal(gridFieldLabel('status'), 'Status');
+    assert.equal(gridFieldLabel('notes'), 'notes', 'an unknown field is announced as it is');
   });
 
   test('arrows move one row and stop at the ends instead of running past the list', () => {

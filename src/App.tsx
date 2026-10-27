@@ -42,6 +42,7 @@ const TwoStepSetupScreen = lazy(() => import('./core/auth/TwoStepSetupScreen'));
 const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
 import CookieConsent from './components/legal/CookieConsent';
 import LegalModal from './components/legal/LegalModal';
+import { canOpenShortcutHelp } from './lib/shortcutOverlay';
 
 
 export default function App() {
@@ -218,7 +219,14 @@ const shortcutMap = useMemo(() => {
       focus: () => toggleFocusMode(),
       diagnostics: () => setDiagnosticConsoleOpen(!isDiagnosticConsoleOpen),
       architecture: () => setArchitectureOpen(!isArchitectureOpen),
-      shortcuts: () => setShortcutOverlayOpen(!isShortcutOverlayOpen),
+      // The help is a dialog too. Opening it over another dialog would put it behind that dialog's
+      // overlay (the Saved Views manager sits at z-[200], the help at z-[100]) and trap the keyboard
+      // in something the person cannot see, so a dialog that is open keeps the `?` key.
+      shortcuts: () => {
+        const modalOpen = Boolean(document.querySelector('[aria-modal="true"]'));
+        if (!canOpenShortcutHelp({ isOpen: isShortcutOverlayOpen, modalOpen })) return;
+        setShortcutOverlayOpen(!isShortcutOverlayOpen);
+      },
       pinPage: () => { const ui = useUIStore.getState(); ui.togglePinnedPage(currentPage(ui)); },
     });
     for (let n = 1; n <= MAX_PINNED; n++) {

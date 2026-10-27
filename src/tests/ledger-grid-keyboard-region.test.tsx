@@ -8,7 +8,7 @@ import './helpers/dom';
 import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TransactionGridKeyboardRegion } from '../components/ledger/TransactionGridKeyboardRegion';
 import type { GridFocus } from '../lib/ledgerGridNav';
 
@@ -98,6 +98,45 @@ describe('Ledger keyboard region (#104)', () => {
       fireEvent.keyDown(region, { key });
     }
     assert.deepEqual(changes, []);
+  });
+
+  test('with no highlight yet the first arrow key starts one, so the grid is reachable by keyboard', () => {
+    const { changes } = mount({ focus: null });
+    const region = screen.getByRole('region', { name: 'Transaction list' });
+    assert.equal(fireEvent.keyDown(region, { key: 'ArrowDown' }), false, 'the page does not scroll as well');
+    assert.deepEqual(changes, [{ id: 'tx-0', field: 'date', index: 0 }]);
+    fireEvent.keyDown(region, { key: 'End' });
+    assert.deepEqual(changes.at(-1), { id: 'tx-199', field: 'date', index: 199 }, 'End starts at the last row');
+    fireEvent.keyDown(region, { key: 'Enter' });
+    assert.equal(changes.length, 2, 'Enter alone still has no cell to edit');
+  });
+
+  test('closing an inline editor gives focus back to the grid, not to the page body', async () => {
+    // The real grid opens its editor inside this region and unmounts it on Enter/Escape.
+    const Editor = () => {
+      const [editing, setEditing] = React.useState(true);
+      return (
+        <TransactionGridKeyboardRegion
+          rows={rows}
+          fields={fields}
+          focus={{ id: 'tx-3', field: 'description', index: 3 }}
+          inactive={editing}
+          announcement=""
+          onFocusChange={() => {}}
+          onEdit={() => {}}
+        >
+          {editing && <input aria-label="Transaction description" />}
+          <button type="button" onClick={() => setEditing(false)}>Save</button>
+        </TransactionGridKeyboardRegion>
+      );
+    };
+    await act(async () => { render(<Editor />); });
+    const input = screen.getByLabelText('Transaction description');
+    input.focus();
+    assert.equal(document.activeElement, input, 'the editor holds focus while it is open');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
+    const region = screen.getByRole('region', { name: 'Transaction list' });
+    assert.equal(document.activeElement, region, 'the arrow keys keep working after Escape or save');
   });
 
   test('an open editor keeps the keys: arrows inside it are native', () => {

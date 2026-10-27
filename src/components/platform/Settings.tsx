@@ -36,9 +36,11 @@ export default function Settings() {
     if (!revealRequest) return;
     const panel = panelRef.current;
     if (!panel) return;
-    const reduceMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    // Either the app's own setting (Appearance → Reduced motion) or the operating system's.
+    const appReduceMotion = useUIStore.getState().reduceMotion;
+    const systemReduceMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    panel.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    panel.scrollIntoView?.({ block: 'start', behavior: appReduceMotion || systemReduceMotion ? 'auto' : 'smooth' });
     panel.focus({ preventScroll: true });
   }, [revealRequest]);
 

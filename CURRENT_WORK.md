@@ -24,7 +24,7 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 | PR | State |
 |---|---|
 | new (from `arena/8d145257-ledgerflow`) | E-53 IIF export + E-44/E-45/E-46/E-47 provider list imports |
-| new (from `arena/f78daa80-ledgerflow`) | Open-issue batch, 27 Oct: #274 §1 Settings section reveal + §2 Saved Views dialog surface/stacking, #104 ledger keyboard region (no window listener, no Tab capture, scroll-to-row, no empty-list crash), #96 bounded automatic live-collection retry, #342 stored-date display. Evidence: [`docs/verification/arena-open-issues-batch-2026-10-27.md`](docs/verification/arena-open-issues-batch-2026-10-27.md). No RELEASE_GATE row changes. |
+| new (from `arena/f78daa80-ledgerflow`) | Open-issue batch, 27 Oct: #274 §1 Settings section reveal + §2 Saved Views dialog surface/stacking, #104 ledger keyboard region (no window listener, no Tab capture, scroll-to-row, no empty-list crash), #96 bounded automatic live-collection retry, #342 stored-date display. Review round: every finding on the PR answered (focus return from the cell editor, Tab help text, spoken column names, keyboard start, app reduced-motion, `?` under a dialog, retries after the tab returns, adapter refusal codes, and the print-only `--bg` the manager painted with). Evidence: [`docs/verification/arena-open-issues-batch-2026-10-27.md`](docs/verification/arena-open-issues-batch-2026-10-27.md). No RELEASE_GATE row changes. |
 | **#414** (from `arena/63bdffa0-ledgerflow`) | AI #2 C-38/C-54/C-65/C-67/C-68/C-85/C-87/C-89/C-90/C-91/C-96/C-97/C-98/C-101 launch-readiness batch; review fixes and reviewed CI visual baselines included |
 
 **Waiting on you (owner)** — details in `docs/FOR_YOU.md`

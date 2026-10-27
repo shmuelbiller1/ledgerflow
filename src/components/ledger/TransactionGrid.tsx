@@ -8,7 +8,7 @@ import { Transaction, FilterCriteria } from '../../types';
 import { toast } from 'sonner';
 
 import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
-import { gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
+import { gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
 import { resolveAccountName, formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
@@ -297,7 +297,10 @@ function useTransactionGridModel() {
     const index = transactionsWithBalance.findIndex(t => t.id === focusedCell.id);
     if (index === -1) return '';
     const tx = transactionsWithBalance[index];
-    return `Row ${index + 1} of ${transactionsWithBalance.length}: ${formatDate(tx.date)}, ${tx.description}, ${focusedCell.field}, ${formatCurrency(tx.totalAmountCents)}`;
+    // The column is named the way the screen names it (a screen reader must not say "amountCents"),
+    // and it comes first: the row's facts are the same whichever cell is highlighted.
+    const column = gridFieldLabel(focusedCell.field);
+    return `Row ${index + 1} of ${transactionsWithBalance.length}, ${column} column: ${formatDate(tx.date)}, ${tx.description}, ${formatCurrency(tx.totalAmountCents)}`;
   }, [focusedCell, transactionsWithBalance]);
 
   const toggleSelection = useCallback((id: string) => {

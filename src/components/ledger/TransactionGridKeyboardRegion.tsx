@@ -1,13 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { cn } from '../../lib/utils';
-import { isGridNavKey, moveGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
+import { isGridNavKey, moveGridFocus, startGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 
 /**
  * The keyboard home of the transaction list (#104). It is one focusable region around the rows:
  *  - click a row, and focus lands on this region (not on `<body>`, which used to leave the arrow
  *    keys captured by a window listener wherever the user was);
  *  - the arrow keys move the highlighted cell, Home/End to the first/last row, Enter (or typing)
- *    opens the cell's editor, Escape clears the highlight;
+ *    opens the cell's editor, Escape clears the highlight; with no cell highlighted yet the first
+ *    arrow key starts on the first row (End starts on the last), so a keyboard-only user can enter
+ *    the list at all;
+ *  - when an inline editor closes, focus comes back here instead of falling to the page body, so
+ *    the arrow keys keep working;
  *  - Tab and Shift+Tab are never intercepted, so the list can always be left with the keyboard;
  *  - a polite live region announces the highlighted row and column, because the highlight is
  *    logical and the row may be scrolled into place in a virtualized list.
@@ -53,6 +57,19 @@ export function TransactionGridKeyboardRegion({
     latest.current = { rows, fields, focus, inactive, onFocusChange, onEdit };
   });
 
+  // An inline editor is a control inside this region; closing it (Enter saves, Escape cancels)
+  // unmounts the input and would leave focus on the page body, where the arrow keys no longer reach
+  // the grid. Take focus back — unless the person moved it somewhere else in the meantime.
+  const wasInactive = useRef(inactive);
+  useEffect(() => {
+    const wasEditing = wasInactive.current;
+    wasInactive.current = inactive;
+    if (!wasEditing || inactive) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    regionRef.current?.focus({ preventScroll: true });
+  }, [inactive]);
+
   useEffect(() => {
     const node = regionRef.current;
     if (!node) return;
@@ -69,7 +86,16 @@ export function TransactionGridKeyboardRegion({
         state.onFocusChange(null);
         return;
       }
-      if (!state.focus || !state.rows.length) return;
+      if (!state.rows.length || !state.focus) {
+        // No highlight yet: an arrow key (or Home/End) starts one, so the list is reachable with
+        // the keyboard alone. Enter and typing need a cell to act on.
+        if (!isGridNavKey(event.key)) return;
+        const started = startGridFocus(state.rows, state.fields, event.key === 'End' ? 'end' : 'start');
+        if (!started) return;
+        event.preventDefault();
+        state.onFocusChange(started);
+        return;
+      }
       if (isGridNavKey(event.key)) {
         event.preventDefault();
         state.onFocusChange(moveGridFocus(state.focus, event.key, state.fields, state.rows));

@@ -268,16 +268,18 @@ export function useLedgerData() {
   // for another workspace, because a switch clears these records (resetLoaded).
   useEffect(() => {
     if (!userUid || !currentWorkspaceId) return;
-    const retryNow = (immediate: boolean) => useDataNeedsStore.getState().retryTransientFailures(Date.now(), immediate);
+    const retryNow = () => useDataNeedsStore.getState().retryTransientFailures(Date.now());
     const timers: ReturnType<typeof setTimeout>[] = [];
     const now = Date.now();
     for (const plan of Object.values(trouble)) {
       if (!plan || plan.nextRetryAt === null) continue;
-      timers.push(setTimeout(() => retryNow(false), Math.max(0, plan.nextRetryAt - now)));
+      timers.push(setTimeout(retryNow, Math.max(0, plan.nextRetryAt - now)));
     }
-    // Back on the network: a fresh bounded cycle, even if the earlier attempts were used up.
+    // Back on the network, or back at the screen: a fresh bounded cycle, even if the earlier
+    // attempts were used up (the person is looking at the page again and would otherwise be told
+    // to press "Try again" for trouble that may be over).
     const onOnline = () => useDataNeedsStore.getState().retryAfterReconnect();
-    const onVisible = () => { if (document.visibilityState === 'visible') retryNow(true); };
+    const onVisible = () => { if (document.visibilityState === 'visible') useDataNeedsStore.getState().retryAfterReconnect(); };
     window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisible);
     return () => {

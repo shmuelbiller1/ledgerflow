@@ -33,8 +33,8 @@ interface DataNeedsState {
    */
   retryTransientFailures: (now?: number, immediate?: boolean) => void;
   /**
-   * The browser reports it is online again: connection failures start a fresh bounded cycle of
-   * attempts. A refusal is still left alone.
+   * The browser reports it is online again (or the tab comes back to the screen): connection
+   * failures start a fresh bounded cycle of attempts. A refusal is still left alone.
    */
   retryAfterReconnect: () => void;
   /** a new workspace: everything loads again */

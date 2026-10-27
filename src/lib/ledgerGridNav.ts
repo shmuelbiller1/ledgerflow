@@ -31,6 +31,38 @@ export function gridFields(navigationKey: string): string[] {
 }
 
 /**
+ * What a field is called in the live region ("amountCents" is stored that way, but nobody says it).
+ * A field with no label of its own is announced as it is stored.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  date: 'Date',
+  description: 'Description',
+  category: 'Category',
+  project: 'Project',
+  amountCents: 'Amount',
+  status: 'Status',
+};
+
+export function gridFieldLabel(field: string): string {
+  return FIELD_LABELS[field] ?? field;
+}
+
+/**
+ * The cell the highlight starts on when the keyboard reaches a list that has none yet — a
+ * keyboard-only user pressing an arrow key must land somewhere. `end` starts on the last row
+ * (End, ArrowUp, ArrowLeft). Null when there is no row or no navigable column to land on.
+ */
+export function startGridFocus(
+  rows: ReadonlyArray<{ id: string }>,
+  fields: string[],
+  edge: 'start' | 'end' = 'start',
+): GridFocus | null {
+  if (!rows.length || !fields.length) return null;
+  const index = edge === 'end' ? rows.length - 1 : 0;
+  return { id: rows[index].id, field: fields[0], index };
+}
+
+/**
  * Keep the highlight on the same record after the rows change, and let its index follow the record
  * when a sort moves it. A record that is no longer visible (filtered out, deleted) loses the
  * highlight rather than silently landing on whichever row now holds the old index.
