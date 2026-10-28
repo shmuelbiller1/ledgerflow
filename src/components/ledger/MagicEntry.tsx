@@ -1,7 +1,8 @@
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { aiService } from '../../services/aiService';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { parseNaturalLanguageEntry } from '../../lib/algorithms/nl-parser';
 import { Check, Wand2, Camera, X, Loader2, Edit2 } from 'lucide-react';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -20,6 +21,10 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
   const [, setReceiptMode] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const { handleQuickAdd, handleParseReceipt } = useTransactionActions();
+  // one id per draft: a retry after an unknown reply reuses it, so the server cannot post the entry twice
+  const operationId = useRef<string | null>(null);
+  // a changed sentence or edited amount, date or account is a new entry with a new id
+  useEffect(() => { operationId.current = null; }, [parsed]);
 
   const isModal = isOpen !== undefined;
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => onClose?.(), !!isModal && isOpen !== false);
@@ -93,11 +98,12 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
        const { accounts } = useLedgerStore.getState();
        const actionType = parsed.action || 'expense';
        const isExp = actionType === 'expense';
-       const targetAcc = accounts.find(a => resolveAccountRole(a) === (isExp ? 'expense' : 'revenue')) || accounts.find(a => a.type === (isExp ? 'expense' : 'income')) || accounts[0];
-       const cashAcc = accounts.find(a => resolveAccountRole(a) === 'cash') || accounts.find(a => isCashAccount(a)) || accounts[0];
+       const targetAcc = accounts.find(a => resolveAccountRole(a) === (isExp ? 'expense' : 'revenue')) || accounts.find(a => a.type === (isExp ? 'expense' : 'income'));
+       const cashAcc = accounts.find(a => resolveAccountRole(a) === 'cash') || accounts.find(a => isCashAccount(a));
 
-       if (!targetAcc || !cashAcc) {
-         toast.error('Cannot post transaction: No chart of accounts available.');
+       // both sides on one account would post nothing; never fall back to the first account in the chart
+       if (!targetAcc || !cashAcc || targetAcc.id === cashAcc.id) {
+         toast.error(`Cannot post this entry: add ${isExp ? 'an expense' : 'an income'} account and a cash or bank account to your chart of accounts first.`);
          return;
        }
 
@@ -106,7 +112,9 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
          toast.error('Enter an amount, for example "Paid $45 for lunch".');
          return;
        }
+       operationId.current ??= `qe-${crypto.randomUUID()}`;
        const saved = await handleQuickAdd({
+         currency: useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD',
          description: parsed.description || 'Natural Language Entry',
          totalAmountCents: amt,
          date: parsed.dateStr || getLocalDateISO(),
@@ -124,9 +132,10 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
              amountCents: isExp ? -amt : amt
            }
          ]
-       });
+       }, operationId.current);
        // handleQuickAdd says "added" itself once the server saved it
        if (!saved) return;
+       operationId.current = null;
     }
     setText('');
     setParsed(null);

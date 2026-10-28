@@ -71,4 +71,35 @@ describe('quick entry: what it sends', () => {
     assert.equal(server.saves().length, 0, 'nothing reached the server');
     assertNoSuccess(toasts);
   });
+
+  test('saving again after a failed reply sends the same id, so the server cannot post the entry twice', async () => {
+    const server = stubServer(serverScenarios.network(), { isSave: isTxSave });
+    await openAndParse();
+    await save();
+    await settle();
+    await save();
+    await settle();
+    const ids = server.saves().map(c => (c.body as { transaction: { id: string } }).transaction.id);
+    assert.equal(ids.length, 2);
+    assert.equal(ids[0], ids[1]);
+  });
+
+  test('the entry is posted in the books\' currency', async () => {
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse();
+    await save();
+    await settle();
+    assert.equal((server.saves()[0].body as { transaction: { currency: string } }).transaction.currency, 'USD');
+  });
+
+  test('without a cash account nothing is posted (never both sides on one account)', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse();
+    act(() => { useLedgerStore.setState({ accounts: standardChart().filter(a => a.id !== 'cash') }); });
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /cash or bank account/.test(t)));
+  });
 });
