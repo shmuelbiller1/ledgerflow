@@ -66,6 +66,13 @@ test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, nev
   const hebrew = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(123456.78);
   assert.equal(isAmountText(hebrew, { complete: true }), true, JSON.stringify(hebrew));
   assert.equal(parseAmountToCents(hebrew), 12345678);
+  // qualified symbols the app's own formatter emits (Codex on #430)
+  for (const pasted of ['CA$1,234.56', '1,234.56 CA$', 'A$5', '₹100', 'US$ 12.50']) {
+    assert.equal(isAmountText(pasted, { complete: true }), true, pasted);
+    assert.doesNotThrow(() => parseAmountToCents(pasted), pasted);
+  }
+  const cad = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'CAD' }).format(1234.56);
+  assert.equal(parseAmountToCents(cad), 123456, JSON.stringify(cad));
   // before a save, only a finished amount passes (CodeRabbit on #430)
   for (const unfinished of ['1,', '1,2', '1,2,3', '(100', '100)', '1,234 567']) assert.equal(isAmountText(unfinished, { complete: true }), false, unfinished);
   for (const done of ['0', '1,234.56', '1,234,567', '1 234', "1'234.50", '(100.00)', '-$99.95', '100 USD', '.5', '5.']) assert.equal(isAmountText(done, { complete: true }), true, done);
