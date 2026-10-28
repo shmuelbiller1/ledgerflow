@@ -13,6 +13,16 @@ import { isCashAccount } from '../../lib/txFilters';
 import AsyncButton from '../ui/AsyncButton';
 import { focusOnMount } from '../../lib/focusOnMount';
 
+const CURRENCY_SIGNS: Record<string, string> = { '$': 'USD', '€': 'EUR', '£': 'GBP', '₪': 'ILS', '¥': 'JPY', '₹': 'INR' };
+
+/** The currency a typed sentence names ('$80', '80 EUR'), or null when it names none. */
+function typedCurrencyOf(text: string): string | null {
+  const code = text.match(/\b(USD|EUR|GBP|ILS|NIS|JPY|INR|CAD|AUD|CHF)\b/i)?.[1]?.toUpperCase();
+  if (code) return code === 'NIS' ? 'ILS' : code;
+  const sign = text.match(/[$€£₪¥₹]/)?.[0];
+  return sign ? CURRENCY_SIGNS[sign] : null;
+}
+
 export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void; onAdd?: (data: Partial<import("../../types").Transaction> & { amount: number }) => void; categories?: string[]; accounts?: import("../../types").ChartAccount[]; projects?: string[]; autoRules?: import("../../types").AutoRule[]; patternCache?: Record<string, unknown> }) {
   const formId = useId();
   const [isAiParsing, setIsAiParsing] = useState(false);
@@ -98,8 +108,9 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
        const { accounts } = useLedgerStore.getState();
        const actionType = parsed.action || 'expense';
        const isExp = actionType === 'expense';
-       const targetAcc = accounts.find(a => resolveAccountRole(a) === (isExp ? 'expense' : 'revenue')) || accounts.find(a => a.type === (isExp ? 'expense' : 'income'));
-       const cashAcc = accounts.find(a => resolveAccountRole(a) === 'cash') || accounts.find(a => isCashAccount(a));
+       const usable = accounts.filter(a => a.isActive !== false);
+       const targetAcc = usable.find(a => resolveAccountRole(a) === (isExp ? 'expense' : 'revenue')) || usable.find(a => a.type === (isExp ? 'expense' : 'income'));
+       const cashAcc = usable.find(a => resolveAccountRole(a) === 'cash') || usable.find(a => isCashAccount(a));
 
        // both sides on one account would post nothing; never fall back to the first account in the chart
        if (!targetAcc || !cashAcc || targetAcc.id === cashAcc.id) {
@@ -112,9 +123,16 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
          toast.error('Enter an amount, for example "Paid $45 for lunch".');
          return;
        }
+       // the sentence's money is posted as-is: '$80' in euro books must not become €80
+       const booksCurrency = useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD';
+       const typedCurrency = typedCurrencyOf(text);
+       if (typedCurrency && typedCurrency !== booksCurrency) {
+         toast.error(`This amount is in ${typedCurrency} but your books are in ${booksCurrency}. Use the full entry form to record it with an exchange rate.`);
+         return;
+       }
        operationId.current ??= `qe-${crypto.randomUUID()}`;
        const saved = await handleQuickAdd({
-         currency: useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD',
+         currency: booksCurrency,
          description: parsed.description || 'Natural Language Entry',
          totalAmountCents: amt,
          date: parsed.dateStr || getLocalDateISO(),

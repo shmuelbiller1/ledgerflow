@@ -103,4 +103,26 @@ describe('quick entry: what it sends', () => {
     assert.equal(server.saves().length, 0);
     assert.ok(toasts.of('error').some(t => /cash or bank account/.test(t)));
   });
+
+  test('an amount in another currency than the books is not posted under the books\' currency', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse('paid €80 lunch card yesterday'); // the component workspace keeps USD books
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /in EUR but your books are in USD/.test(t)));
+  });
+
+  test('an inactive account is never chosen for the entry', async () => {
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse();
+    act(() => {
+      useLedgerStore.setState({ accounts: [{ ...standardChart().find(a => a.id === 'office')!, id: 'old-office', isActive: false }, ...standardChart()] });
+    });
+    await save();
+    await settle();
+    const lines = (server.saves()[0].body as { transaction: { lines: { accountId: string }[] } }).transaction.lines;
+    assert.deepEqual(lines.map(l => l.accountId), ['office', 'cash']);
+  });
 });
