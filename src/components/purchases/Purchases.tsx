@@ -40,6 +40,8 @@ import ListColumnChooser from '../ui/ListColumnChooser';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 const NO_VENDORS: Vendor[] = [];
 const NO_BILLS: Bill[] = [];
@@ -51,6 +53,8 @@ export default function Purchases() {
   const { loading } = useLedgerCollections('bills', 'vendors');
   const schedules = useLedgerStore(s => s.recurring) || [];
   useLedgerCollections('recurring');
+  // A-235: the same notice every screen uses when its data could not be loaded
+  const dataHealth = useScreenDataHealth(['bills', 'vendors', 'recurring', 'accounts']);
   const { addEntity, updateEntity, deleteEntity } = useEntityOperations();
   const currentRole = useCurrentRole();
   const canEditContacts = currentRole !== 'viewer';
@@ -216,6 +220,7 @@ export default function Purchases() {
 
   return (
     <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Purchases Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

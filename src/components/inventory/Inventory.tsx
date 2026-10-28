@@ -475,6 +475,7 @@ export default function Inventory() {
           existing={items.map(i => i.name)} onAdd={quickAddItem} />
       )}
       <div className="bg-[var(--surface)] rounded-[40px] border border-[var(--line)] overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <caption className="sr-only">Inventory items</caption>
           <thead>
@@ -686,6 +687,7 @@ export default function Inventory() {
             ))}
           </tbody>
         </table>
+        </div>
         {filteredItems.length === 0 && !loading && (
           <div className="py-20 text-center">
             <Package aria-hidden="true" size={40} className="text-zinc-200 mx-auto mb-4" />

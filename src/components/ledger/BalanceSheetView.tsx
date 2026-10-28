@@ -15,6 +15,8 @@ import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
 import { STATEMENT_COLLECTIONS, useBrowserProvenance } from '../../hooks/useBrowserProvenance';
 import { provenanceFromResponse } from '../../lib/reportProvenance';
 import { balanceEntries, opensFromServer, SERVER_OPENING_ENTRY_ID } from '../../lib/serverBalances';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 interface BalanceSheetViewProps {
   accounts: ChartAccount[];
@@ -376,5 +378,13 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
 export type BalanceSheetModel = ReturnType<typeof useBalanceSheetModel>;
 
 export default function BalanceSheetView(props: BalanceSheetViewProps) {
-  return <BalanceSheetReport {...useBalanceSheetModel(props)} />;
+  const model = useBalanceSheetModel(props);
+  // A-235: the balance sheet reads the entries and the chart of accounts
+  const dataHealth = useScreenDataHealth(['transactions', 'accounts']);
+  return (
+    <>
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
+      <BalanceSheetReport {...model} />
+    </>
+  );
 }
