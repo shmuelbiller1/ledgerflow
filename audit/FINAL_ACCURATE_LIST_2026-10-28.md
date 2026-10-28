@@ -1,10 +1,17 @@
 # The accurate list — what is actually left before launch (2026-10-28)
 
-**Status: FINAL for this pass.** This is the delta over `audit/FINAL_ACCURATE_LIST_2026-10-27.md`,
-written the next day by **AI #3 (Arena)** at the request of the owner ("work fast to get the final
-with list of stuff — hard, accurate"). Every claim below was either (a) produced by a command in
-this checkout at the pin named, (b) carried forward from the 27 Oct list with its evidence, or
-(c) explicitly marked **not verified here**.
+**Status: FINAL (closed 28 Oct 2026, 22:10 UTC).** This is the delta over
+`audit/FINAL_ACCURATE_LIST_2026-10-27.md`, written the next day by **AI #3 (Arena)** at the request of
+the owner ("work fast to get the final with list of stuff — hard, accurate"). Every claim below was
+either (a) produced by a command in this checkout at the pin named, (b) carried forward from the
+27 Oct list with its evidence, or (c) explicitly marked **not verified here**.
+
+**What "final" means here, and what it does not.** It means every row below was re-read against the
+code and re-run where this sandbox can run it, the numbers are the numbers the commands printed, and
+the gaps are named. It is **not** a claim that the product is bug-free or that the browser journeys
+ran here: the rows that need a browser are marked with the GitHub run that executed them (A-233's ten
+phone checks: run `40773947990`, five browser shards green) or **not run** (A-234's browser walk).
+The next change to `main` or to the branch makes this list out of date; re-pin before quoting it.
 
 **Browser evidence in this list:** the nine stage-A workflow rows keep the browser results recorded
 in `docs/RELEASE_GATE.md` from earlier runs; they are **not** re-run by this audit. This sandbox has
@@ -13,7 +20,13 @@ GitHub CI run rather than a local run, and the ones that never ran there are mar
 A-234's browser walk with the real Supabase row is still **not run**.
 
 - **Pinned revision:** `a7c203852b4dce2dc7b149aa04516b3387d7a243` (`main`, 28 Oct, "fix(quick entry):
-  post both lines so the server stops refusing every entry", PR #431).
+  post both lines so the server stops refusing every entry", PR #431). `main` has since moved to
+  `e60e883`; the four commits between are recorded in §2a below, and none of them changes a blocker
+  row in this list.
+- **Checked and produced through:** branch `arena/f7145642-ledgerflow`, code head `5431513` (28 Oct
+  21:58 UTC); the commits after it on that branch are documentation only. The A-233 browser evidence
+  comes from run `40773947990` (commit `e9f51bd`, which contains this pass's `f669ac0`): **all five
+  browser shards green**, so the ten 390 px checks pass.
 - **Branch this list was produced on:** `arena/f7145642-ledgerflow` (the A-230…A-235 batch, plus the
   documents). No money, posting, tax-maths, `src/server/**`, schema, migration or dependency change.
 - **Previous list:** `audit/FINAL_ACCURATE_LIST_2026-10-27.md`, pin `b4a92158` (AI #8).
@@ -64,6 +77,17 @@ The 14 open GitHub issues, checked against the code where a grep can decide it:
 **Not re-verified in this pass** (needs a browser or a database): #146, #143's CAS, #104/#96's
 browser behaviour, and the statement PDF wiring (#141).
 
+## 2a. `main` since the pin (`a7c2038` → `e60e883`) — four commits, none of them a blocker
+
+| Commit | What it does | Effect on this list |
+|---|---|---|
+| `2ce068d` | adds a post-pin delta section to `FINAL_ACCURATE_LIST_2026-10-27.md` (PR #434) | documentation only |
+| `cff5fc5` | **AF-010 F1 fixed**: a mistyped estimate price no longer freezes the price box (PR #437) | the AF-010 row below gains this sub-fix; the other AF-010 parts keep their status |
+| `eab8d04`, `e60e883` | coordination notes for A-257 and for the chromium row-target check | documentation only |
+
+Nothing in those four commits touches money, posting, tax maths, `src/server/**`, a migration or a
+dependency, and none of the B1–B6 blockers changes.
+
 ## 3. Release gate (`docs/RELEASE_GATE.md`) — unchanged rows
 
 - **Stage A (synthetic bookkeeping beta): READY.** W1, W2, W3, W4, W5, W6, W9, W10, W14 are
@@ -84,7 +108,7 @@ Evidence: [`docs/verification/ai3-a230-a235-2026-10-28.md`](../docs/verification
 | **A-230** `any` 37 → 15 | **At target outside AI #1's lane; not tunable** | All 37 `any` are in `src/server/**` (per-file list in the evidence doc). The non-server target was already 0 after A-222. The baseline stays 37 because 37 is the true count |
 | **A-231** UTC dates 6 → 0 | **0 outside the server lane; fixed one real UI "today"** | The 6 are `serverKit.ts:37–39` + `transactions/helpers.ts:25–27`. The printed page header's UTC day is now the workspace day (`getLocalDateISO()`); `postingCore.ts:75`'s UTC "today" is posting code → AI #1 |
 | **A-232** warnings → 0 in `src/components` | **Done (already 0)** | `npx eslint .` = 0 errors / 42 warnings, every one in `src/server/**`. Cap stays 42 (lowering it would fail on the server warnings) |
-| **A-233** phone layout, next ten screens | **Done in code and tests; browser result in PR #436 CI** | Items table scroll box, 44 px Budget row buttons, 44 px Projects control; the four main-tab screens (Inventory, Budgets, Projects, Credit notes) and the six that live inside another tab (Customers, Bills, Vendors, Settings → Users, Bank rules, monthly pack) each have a 390 × 844 check in `e2e/phone-main-screens.spec.ts` — the sub-tab ones open the screen by clicking what a reader clicks, then require no sideways page scroll and every scrolling box inside 390 px. The two contact lists' 44 px row targets are asserted in `src/tests/phone-tap-targets.test.tsx` (2/2, run locally). Browser checks run in PR #436 CI (no Chromium here) |
+| **A-233** phone layout, next ten screens | **Done in code and tests; browser result in PR #436 CI** | Items table scroll box, 44 px Budget row buttons, 44 px Projects control; the four main-tab screens (Inventory, Budgets, Projects, Credit notes) and the six that live inside another tab (Customers, Bills, Vendors, Settings → Users, Bank rules, monthly pack) each have a 390 × 844 check in `e2e/phone-main-screens.spec.ts` — the sub-tab ones open the screen by clicking what a reader clicks, then require no sideways page scroll and every scrolling box inside 390 px. The two contact lists' 44 px row targets are asserted in `src/tests/phone-tap-targets.test.tsx` (2/2, run locally). **Browser: PR #436 run `40773947990`, all five shards green**, so the ten checks pass; the `overflow-auto`/`overflow-x-auto` boxes and page width were measured in Chromium (no Chromium here) |
 | **A-234** set-up wizard browser test | **Component journey done, browser open** | `src/tests/setup-wizard-journey.test.tsx` (1/1; evidence from this batch's commit `10ead910`, not from the pinned revision above, which predates the test) walks all four steps, asserts the `lf_update` write carries every allowlisted workspace field (the B3 guard), the template id, the balances in cents and the first-of-month date, then re-opens the wizard and finds the saved values. The browser walk with the real Supabase row is still missing (no Chromium) |
 | **A-235** empty/loading/error states on the ten busiest screens | **Done** | One shared `ScreenDataNotice` + `useScreenDataHealth` + one label list; wired into 8 screens (Dashboard and Banking already had their own retry); **11/11 tests pass**, one per screen plus a dropped-connection case |
 
@@ -101,8 +125,13 @@ Evidence: [`docs/verification/ai3-a230-a235-2026-10-28.md`](../docs/verification
 
 - **No browser** in this environment (`~/.cache/ms-playwright` empty; the Chromium download host is
   unreachable; a bundled Chromium needs `libnss3`/`libnspr4`, which this image does not have).
-  Therefore: no Playwright spec was executed locally (CI ran them on PR #436), no screenshot was
-  inspected, and A-233's ten browser checks are **CI-only**; **A-234's browser walk is unexecuted**.
+  Therefore: no Playwright spec was executed locally. A-233's ten 390 px checks ran in GitHub CI
+  (PR #436 run `40773947990`, five shards green) and their result is read from that run, not from a
+  screenshot; **A-234's browser walk with the real Supabase row is unexecuted**, so B3's browser half
+  stays open. Two checks in the same run series failed **with no test annotation and then passed on
+  the next run** (`Playwright E2E Smoke Suite`, `Accounting & Security Test Suites (coverage gate)`;
+  both `exit code 1` at `.github:7`, no failing test named) — treated as flaky infrastructure, not as
+  a code result, and listed here rather than hidden.
 - **No database** here (`LF_TEST_DATABASE_URL` unset, no `psql`), so every database suite skips
   locally; PR CI runs them on Postgres 17.
 - **No live deployment** was touched: owner items B1/B2/B6 are exactly that.
