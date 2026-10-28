@@ -71,6 +71,10 @@ test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, nev
     assert.equal(isAmountText(pasted, { complete: true }), true, pasted);
     assert.doesNotThrow(() => parseAmountToCents(pasted), pasted);
   }
+  const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(123456.78);
+  assert.equal(isAmountText(inr, { complete: true }), true, JSON.stringify(inr));
+  assert.equal(parseAmountToCents(inr), 12345678);
+  assert.equal(isAmountText('1,23,45', { complete: true }), false, 'an unfinished lakh group');
   const cad = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'CAD' }).format(1234.56);
   assert.equal(parseAmountToCents(cad), 123456, JSON.stringify(cad));
   // before a save, only a finished amount passes (CodeRabbit on #430)

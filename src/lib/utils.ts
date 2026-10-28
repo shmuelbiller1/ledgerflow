@@ -35,9 +35,9 @@ export function isAmountText(val: string, opts: { complete?: boolean } = {}): bo
   const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
   if (!/\d/.test(inner)) return false;
   if (opts.complete) {
-    // before saving: brackets closed, digit groups of three, as a finished amount is written
+    // before saving: brackets closed, digit groups of three (or Indian lakh grouping, 1,23,456), as a finished amount is written
     if (text.startsWith('(') !== text.endsWith(')')) return false;
-    return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*(?:\d{1,3}(?:([, '])\d{3})?(?:\1\d{3})*|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner);
+    return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*(?:\d{1,3}(?:([, '])\d{3})?(?:\1\d{3})*|\d{1,2}(?:,\d{2})+,\d{3}|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner);
   }
   // while typing, digit groups may be half done ('1,', '1,2'), as they are on the way to '1,234'
   return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner);
