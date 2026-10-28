@@ -74,9 +74,19 @@ for (const screen of nextScreens) {
     await page.goto(`/#${screen.tab}`);
     await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-    const main = page.locator('#main-content');
-    const box = (await main.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(391);
+
+    // #main-content clips overflow, so the document width alone would hide a table hanging off the
+    // side. Every horizontal scroll box the screen uses has to fit the viewport itself, and the
+    // first working control has to sit fully inside it.
+    const boxes = page.locator('#main-content [class*="overflow-x-auto"]');
+    for (let i = 0; i < await boxes.count(); i++) {
+      const b = (await boxes.nth(i).boundingBox())!;
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(391.5);
+    }
+    const controls = page.locator('#main-content button:enabled, #main-content a[href]');
+    const first = (await controls.first().boundingBox())!;
+    expect(first.x).toBeGreaterThanOrEqual(-0.5);
+    expect(first.x + first.width).toBeLessThanOrEqual(391.5);
   });
 }

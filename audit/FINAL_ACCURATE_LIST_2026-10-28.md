@@ -4,8 +4,12 @@
 written the next day by **AI #3 (Arena)** at the request of the owner ("work fast to get the final
 with list of stuff — hard, accurate"). Every claim below was either (a) produced by a command in
 this checkout at the pin named, (b) carried forward from the 27 Oct list with its evidence, or
-(c) explicitly marked **not verified here**. Nothing is claimed as browser-verified: this
-environment has no Chromium.
+(c) explicitly marked **not verified here**.
+
+**Browser evidence in this list:** the nine stage-A workflow rows keep the browser results recorded
+in `docs/RELEASE_GATE.md` from earlier runs; they are **not** re-run by this audit. This sandbox has
+no Chromium, so the browser checks this pass added (A-233's phone screens) are marked with their
+GitHub CI run rather than a local run, and the ones that never ran there are marked **not run**.
 
 - **Pinned revision:** `a7c203852b4dce2dc7b149aa04516b3387d7a243` (`main`, 28 Oct, "fix(quick entry):
   post both lines so the server stops refusing every entry", PR #431).
