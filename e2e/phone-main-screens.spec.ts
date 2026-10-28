@@ -45,3 +45,38 @@ for (const screen of screens) {
     }
   });
 }
+
+/**
+ * A-233: the next ten screens at 390 px. The four with their own tab are checked end to end here —
+ * the heading fits, the page never scrolls sideways and the card/list boxes keep their own scroll.
+ * The six that live inside another tab (Customers and Bills in Money In/Out, Vendors, Credit notes'
+ * vendor half, Bank rules, Settings → Users and the monthly pack) are covered by the same CSS rule
+ * (`min-h-11` targets and `overflow-x-auto` boxes were put on them in A-233) and by
+ * `phone-targets.spec.ts` for the shared controls; each gets its own tab-level check when its
+ * sub-tab navigation is stable to address from a URL.
+ */
+const nextScreens = [
+  { tab: 'inventory', heading: 'Inventory' },
+  { tab: 'budgets', heading: 'Budget Protocol' },
+  { tab: 'projects', heading: 'Project & Initiative Tracking' },
+  { tab: 'credit-notes', heading: 'Credit Notes & Vendor Credits' },
+];
+
+for (const screen of nextScreens) {
+  test(`${screen.tab}: heading and layout hold at 390px without page overflow`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
+    await page.addInitScript(() => {
+      localStorage.setItem('isGuest', 'true');
+      localStorage.setItem('has_seen_onboarding', 'true');
+      window.print = () => {};
+    });
+    await page.goto(`/#${screen.tab}`);
+    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    const main = page.locator('#main-content');
+    const box = (await main.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(391);
+  });
+}

@@ -50,6 +50,8 @@ import { StageChip } from '../collaboration/StageChip';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 export default function Sales() {
   const user = useAuthStore(s => s.user);
@@ -57,6 +59,8 @@ export default function Sales() {
   const customers = useLedgerStore(s => s.customers);
   const accounts = useLedgerStore(s => s.accounts);
   const { loading } = useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
+  // A-235: one shared notice when what this screen needs could not be loaded, with "Try again"
+  const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments']);
   const { addEntity, updateEntity } = useEntityOperations();
   const canEditContacts = useCurrentRole() !== 'viewer';
   const [spreadingInvoice, setSpreadingInvoice] = useState<Invoice | null>(null);
@@ -251,6 +255,7 @@ export default function Sales() {
 
   return (
     <div className="space-y-8 pb-12">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Rule Header with brand gold backdrop */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[var(--brass-soft)] via-[var(--surface)]/40 to-[var(--panel)] p-6 rounded-2xl border border-[var(--brass-line)]/50 shadow-sm">
         <div className="absolute -top-16 -left-16 w-56 h-56 bg-[var(--brass)] opacity-10 rounded-full blur-3xl hidden md:block pointer-events-none" />

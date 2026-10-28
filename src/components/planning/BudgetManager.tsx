@@ -219,7 +219,7 @@ export default function BudgetManager() {
                       setEditingBudget(b.id);
                       setIsAdding(true);
                     }}
-                    className="p-2 text-[var(--muted)] hover:text-indigo-600 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg p-2 text-[var(--muted)] hover:text-indigo-600 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Edit2 aria-hidden="true" size={16} />
                   </button>
@@ -235,7 +235,7 @@ export default function BudgetManager() {
                         toast.success('Budget deleted');
                       }
                     }}
-                    className="p-2 text-[var(--muted)] hover:text-rose-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg p-2 text-[var(--muted)] hover:text-rose-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Trash2 aria-hidden="true" size={16} />
                   </button>

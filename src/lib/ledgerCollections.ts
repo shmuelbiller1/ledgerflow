@@ -53,6 +53,27 @@ export const LEDGER_COLLECTIONS = {
 
 export type LedgerKey = keyof typeof LEDGER_COLLECTIONS;
 
+/**
+ * What each collection is called on screen (plural, plain words). One list for the data status bar
+ * and for the notice a screen shows when its data could not be loaded (A-235), so the words a
+ * reader sees are the same everywhere.
+ */
+export const COLLECTION_LABELS: Record<LedgerKey, string> = {
+  transactions: 'entries', accounts: 'accounts', taxRates: 'tax codes', autoRules: 'rules',
+  customers: 'customers', vendors: 'vendors', invoices: 'invoices', creditNotes: 'credit notes',
+  payments: 'payments', estimates: 'estimates', bills: 'bills', vendorCredits: 'vendor credits',
+  inventory: 'items', budgets: 'budgets', projects: 'projects', journalEntries: 'journal entries',
+  payRuns: 'pay runs', employees: 'employees', bankLines: 'bank lines', reconciliations: 'reconciliations',
+  auditLogs: 'activity', recurring: 'recurring schedules', assets: 'fixed assets', loans: 'loans',
+  scenarios: 'scenarios',
+};
+
+/** "customers", "customers and vendors", "entries, accounts and bills" */
+export function collectionList(keys: readonly LedgerKey[]): string {
+  const labels = keys.map(k => COLLECTION_LABELS[k]);
+  return labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
 /** Loaded as soon as a workspace opens. */
 export const CORE_KEYS: readonly LedgerKey[] = ['transactions', 'accounts', 'projects', 'journalEntries', 'taxRates', 'autoRules'];
 
