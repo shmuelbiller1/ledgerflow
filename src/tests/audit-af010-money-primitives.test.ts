@@ -45,22 +45,21 @@ test('AF-010-F1: the two allocateCents primitives have silently different contra
   }
 });
 
-test('AF-010-F2: utils.parseAmountToCents loses the sign of parenthesized accounting negatives', () => {
-  // The bank CSV path has its own guarded parser (below), so this reaches the app through UI money
-  // fields and any caller that reuses the utils helper. An accountant typing (500.00) records +500.
-  assert.equal(parseAmountToCents('(100.00)'), 10000, 'OBSERVED DEFECT: parentheses stripped, sign lost');
-  assert.equal(parseAmountToCents('(0.01)'), 1, 'OBSERVED DEFECT: one cent the wrong way');
+test('AF-010-F2: utils.parseAmountToCents reads parenthesized accounting negatives as negative', () => {
+  // fixed 28 Oct: an accountant typing (500.00) records -500, as the other two parsers do
+  assert.equal(parseAmountToCents('(100.00)'), -10000);
+  assert.equal(parseAmountToCents('(0.01)'), -1);
+  assert.equal(parseAmountToCents('($1,234.56)'), -123456);
   // the other two primitives get parentheses right
   assert.equal(bankCsvAmountCents('(100.00)'), -10000);
   assert.equal(TruthEngine.parseAmountToCents('(100.00)'), -10000);
 });
 
-test('AF-010-F3: utils.parseAmountToCents throws on malformed text instead of returning 0', () => {
-  // A render-path caller (e.g. useMemo in a money dialog) typing "1.2.3" hits a DecimalError and
-  // trips the screen error boundary rather than showing a validation message.
-  assert.throws(() => parseAmountToCents('1.2.3'), /Invalid argument/);
-  assert.throws(() => parseAmountToCents('1-2'), /Invalid argument/);
-  assert.throws(() => parseAmountToCents('--5'), /Invalid argument/);
+test('AF-010-F3: utils.parseAmountToCents returns 0 for malformed text instead of throwing', () => {
+  // fixed 28 Oct: a render-path caller typing "1.2.3" no longer trips the screen error boundary
+  assert.equal(parseAmountToCents('1.2.3'), 0);
+  assert.equal(parseAmountToCents('1-2'), 0);
+  assert.equal(parseAmountToCents('--5'), 0);
   // TruthEngine wraps the same class of failure in its own integrity error; OrZero swallows it
   assert.throws(() => TruthEngine.parseAmountToCents('1.2.3'), /Invalid amount format/);
   assert.equal(TruthEngine.parseAmountToCentsOrZero('1.2.3'), 0);
@@ -77,8 +76,9 @@ test('AF-010-F4: utils.parseAmountToCents boundary table', () => {
   assert.ok(parseAmountToCents('-0') === 0, '-0 is numerically zero (strictEqual would see -0)');
   // non-Latin digits are stripped to a silent zero
   assert.equal(parseAmountToCents('۱۲۳'), 0, 'OBSERVED: Arabic-Indic digits become 0, not a refusal');
-  // Infinity is not an integer cent; document the passthrough so callers cannot assume integer output
-  assert.equal(Number.isFinite(parseAmountToCents(Infinity)), false, 'OBSERVED: Infinity passes through');
+  // fixed 28 Oct: a non-finite number is no amount
+  assert.equal(parseAmountToCents(Infinity), 0);
+  assert.equal(parseAmountToCents(-Infinity), 0);
 });
 
 test('AF-010: TruthEngine parser handles the notations the utils parser cannot', () => {

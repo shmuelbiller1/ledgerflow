@@ -22,12 +22,18 @@ export { roundCents, calculateFXCents } from './cents';
 export function parseAmountToCents(val: string | number | undefined | null): number {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') {
-    if (isNaN(val)) return 0;
+    if (!Number.isFinite(val)) return 0;
     return new Decimal(val).mul(100).round().toNumber();
   }
-  const cleanStr = String(val).replace(/[^0-9.-]/g, '');
+  const text = String(val).trim();
+  // AF-010-F2: an accountant's (100.00) is a negative amount
+  const bracketed = /^\(.*\)$/.test(text);
+  const cleanStr = text.replace(/[^0-9.-]/g, '');
   if (!cleanStr || cleanStr === '-') return 0;
-  return new Decimal(cleanStr).mul(100).round().toNumber();
+  // AF-010-F3: text that is not one number ('1.2.3', '1-2', '--5') is no amount, not a crash
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) return 0;
+  const cents = new Decimal(cleanStr).mul(100).round().toNumber();
+  return bracketed ? -Math.abs(cents) : cents;
 }
 
 /** Known 3-decimal currencies per ISO 4217 (KWD, BHD, OMR, JOD, TND, LYD, IQD); one list with the storage rule (BM-04). */
