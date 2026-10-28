@@ -500,6 +500,7 @@ before:
 - [ ] **A-233 Phone layout, next ten screens** (390 px, after A-225's ten): Customers, Vendors, Items, Bills, Credit notes, Bank rules, Budgets, Projects, Settings → Users, the monthly pack; no sideways page scroll, 44 px targets, one browser test each.
 - [ ] **A-234 Set-up wizard browser test** — new workspace → Your business → Chart of accounts → Opening balances → Done, saving at each step, then reopen and see the saved values (guards the save bug fixed on 27 Oct by migration `20261027000000_server_fields_allowed`).
 - [ ] **A-235 Empty, loading and error states on the ten busiest screens** — one shared pattern (A-54/C-91's report empty state), a retry button on load errors, a test per screen with the network failing.
+- [ ] **A-257 Follow-ups from CodeRabbit on PR #436** (Claude, 28 Oct): (1) a retry (`retry`, `retryTransientFailures`, `retryAfterReconnect` in `useDataNeedsStore`) clears `failed` but leaves `loaded` true, so the screen notice disappears while the reload is still in flight. Set `loaded[key] = false` on each retry and test that the screen shows loading until the new data arrives. (2) Add `accounts` to the health keys of TaxManager, Purchases and Sales, and drop `reconciliations` from Reconciliation's list if the screen does not read it.
 
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
 
