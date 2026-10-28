@@ -27,7 +27,7 @@ are Yes/Yes/Yes on `main`. What is left is **not code in an AI's queue** except 
 |---|---|---|---|
 | **B1** | **Owner actions in Vercel/Supabase**: rotate `SESSION_SECRET`, `INVITE_SECRET`, `CRON_SECRET`, `SYSTEM_SALT`; set `DATABASE_CA_CERT`; deployment protection off for testers; real email sender; try sign-up on the live site | **Unchanged — owner only.** `docs/FOR_YOU.md` items 2–8 | Owner |
 | **B2** | **Three migrations confirmed applied** (`20261020120000_inventory_cost_server_only.sql`, `20261021010000_inventory_cost_editable_at_zero.sql`, `20261022000000_rma_server_only.sql`) | **Unchanged — needs a Supabase check**; the other 42 are recorded applied | Owner |
-| **B3** | **First-run save bug (wizard)** | Fixed in code on 27 Oct by migration `20261027000000_server_fields_allowed`; the **journey that proves it is not written** (A-234 below) | AI #3 (A-234) |
+| **B3** | **First-run save bug (wizard)** | Fixed in code on 27 Oct by migration `20261027000000_server_fields_allowed`; the component journey that guards it now exists and passes (A-234 below); the **browser walk with the real row is still missing** | AI #3 (A-234) |
 | **B4** | **TaxManager tax-year filter** (a Jan-1 entry in an Israeli book filed in the previous year on a US laptop) | **Fixed** — `TaxManager.tsx:205` now filters with `civilYear(tx.date)` (PR #426). Verified by grep at this pin | done |
 | **B5** | **Report cache served before membership** (AF-015) | **Fixed** — `reportRoutes.ts` authorises the workspace before reading the cache (PR #427). Verified by reading the code at this pin | done |
 | **B6** | **Test-environment banner (G-05)** | Code present (`src/components/support/TestEnvironmentBanner.tsx`); **seen on the tester deployment: not verified** (no browser here) | Owner/verification |
@@ -80,7 +80,7 @@ Evidence: [`docs/verification/ai3-a230-a235-2026-10-28.md`](../docs/verification
 | **A-231** UTC dates 6 → 0 | **0 outside the server lane; fixed one real UI "today"** | The 6 are `serverKit.ts:37–39` + `transactions/helpers.ts:25–27`. The printed page header's UTC day is now the workspace day (`getLocalDateISO()`); `postingCore.ts:75`'s UTC "today" is posting code → AI #1 |
 | **A-232** warnings → 0 in `src/components` | **Done (already 0)** | `npx eslint .` = 0 errors / 42 warnings, every one in `src/server/**`. Cap stays 42 (lowering it would fail on the server warnings) |
 | **A-233** phone layout, next ten screens | **Half done** | Items table scroll box, 44 px Budget row buttons, 44 px Projects control; four main-tab screens added to `e2e/phone-main-screens.spec.ts`; **not executed** (no Chromium) and the six sub-tab screens still need their own browser check |
-| **A-234** set-up wizard browser test | **Not done** | No browser here. Existing coverage is 3 component tests; the "save each step → reopen → values still there" journey is missing and is the guard for B3 |
+| **A-234** set-up wizard browser test | **Component journey done, browser open** | `src/tests/setup-wizard-journey.test.tsx` (1/1) walks all four steps, asserts the `lf_update` write carries every allowlisted workspace field (the B3 guard), the template id, the balances in cents and the first-of-month date, then re-opens the wizard and finds the saved values. The browser walk with the real Supabase row is still missing (no Chromium) |
 | **A-235** empty/loading/error states on the ten busiest screens | **Done** | One shared `ScreenDataNotice` + `useScreenDataHealth` + one label list; wired into 8 screens (Dashboard and Banking already had their own retry); **11/11 tests pass**, one per screen plus a dropped-connection case |
 
 ## 5. Where the documents still disagree with the code
@@ -108,8 +108,8 @@ Evidence: [`docs/verification/ai3-a230-a235-2026-10-28.md`](../docs/verification
 
 1. Owner: B1 (secrets, `DATABASE_CA_CERT`, deployment protection, email sender) and B2 (three
    migrations) — nothing else can be tested for real until these are true.
-2. AI #3: **A-234** — the wizard save→reopen journey (in a browser, or a component test that
-   re-mounts the wizard against a stubbed workspace).
+2. AI #3: **A-234** — run the wizard journey in a browser with the real row (the component journey
+   already exists and passes).
 3. AI #3: the other half of **A-233** — the six sub-tab screens at 390 px, in a browser.
 4. AI #1: **#151 (AF-001)** — the Plaid cursor must not advance before the bank lines are durable.
 5. AI #1: **#141** — an `entity` argument for `loadStatement` so the statement's PDF/JSON match the
