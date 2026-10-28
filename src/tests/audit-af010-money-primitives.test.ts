@@ -62,6 +62,9 @@ test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, nev
   // half-typed amounts never throw while a screen renders them (Codex on #430)
   for (const draft of ['1,', '1,2', '1,23', '(1', '(100', '-', '$', '1.']) assert.doesNotThrow(() => parseAmountToCents(draft), draft);
   assert.equal(parseAmountToCents('(100'), -10000, 'an unclosed bracket already reads negative');
+  // before a save, only a finished amount passes (CodeRabbit on #430)
+  for (const unfinished of ['1,', '1,2', '1,2,3', '(100', '100)', '1,234 567']) assert.equal(isAmountText(unfinished, { complete: true }), false, unfinished);
+  for (const done of ['0', '1,234.56', '1,234,567', '1 234', "1'234.50", '(100.00)', '-$99.95', '100 USD', '.5', '5.']) assert.equal(isAmountText(done, { complete: true }), true, done);
   for (const typo of ['1.2.3', '1-2', '--5', '(1+2)', 'abc', '']) assert.equal(isAmountText(typo), false, typo);
   for (const amount of ['0', '0.00', '1,234.56', '-$99.95', '(100.00)', '.5', '5.', 'USD 12.50', '₪40', '100 USD', '1 234.56', "1'234.50", '+5', '12.50 CR']) assert.equal(isAmountText(amount), true, amount);
   // TruthEngine wraps the same class of failure in its own integrity error; OrZero swallows it

@@ -31,7 +31,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
   const open = (next: 'cost' | 'service') => { setAmount(''); setNote(''); setDate(today); setMode(next); };
 
   const addCost = async () => {
-    const cents = isAmountText(amount) ? parseAmountToCents(amount) : 0;
+    const cents = isAmountText(amount, { complete: true }) ? parseAmountToCents(amount) : 0;
     if (!(cents > 0)) { toast.error('Enter what it cost'); return; }
     setBusy(true);
     try {
@@ -58,7 +58,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
   };
 
   const placeInService = async () => {
-    if (salvage.trim() && !isAmountText(salvage)) { toast.error('Enter the salvage value as an amount'); return; }
+    if (salvage.trim() && !isAmountText(salvage, { complete: true })) { toast.error('Enter the salvage value as an amount'); return; }
     setBusy(true);
     try {
       const data = await call('POST', { date, assetAccountId: accountId, usefulLifeYears: Number(years), salvageValueCents: parseAmountToCents(salvage) || 0 });

@@ -146,7 +146,7 @@ export default function PettyCashView() {
   const spendDraft = {
     boxAccountId,
     categoryAccountId: spend.categoryAccountId,
-    amountCents: spend.amount.trim() && isAmountText(spend.amount) ? parseAmountToCents(spend.amount) : 0,
+    amountCents: spend.amount.trim() && isAmountText(spend.amount, { complete: true }) ? parseAmountToCents(spend.amount) : 0,
     date: spend.date,
     note: spend.note,
     receipt: spend.receipt,
@@ -154,11 +154,11 @@ export default function PettyCashView() {
   const topUpDraft = {
     boxAccountId,
     bankAccountId: topUp.bankAccountId,
-    amountCents: topUp.amount.trim() && isAmountText(topUp.amount) ? parseAmountToCents(topUp.amount) : 0,
+    amountCents: topUp.amount.trim() && isAmountText(topUp.amount, { complete: true }) ? parseAmountToCents(topUp.amount) : 0,
     date: topUp.date,
   };
   // a typo is no count: NaN is refused by countProblem, where 0 would record the whole balance as short
-  const countedCents = count.counted.trim() && isAmountText(count.counted) ? parseAmountToCents(count.counted) : NaN;
+  const countedCents = count.counted.trim() && isAmountText(count.counted, { complete: true }) ? parseAmountToCents(count.counted) : NaN;
   const countDraft = {
     boxAccountId,
     overShortAccountId: overShortAccounts.some(a => a.id === preference.overShortAccountId) ? preference.overShortAccountId || '' : '',

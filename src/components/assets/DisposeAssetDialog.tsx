@@ -45,7 +45,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
   const [saving, setSaving] = useState(false);
 
   // a typo is not 'scrapped for nothing': the button stays off until the amount reads as one
-  const receivedProblem = received.trim() !== '' && !isAmountText(received);
+  const receivedProblem = received.trim() !== '' && !isAmountText(received, { complete: true });
   const proceedsCents = receivedProblem ? 0 : parseAmountToCents(received) || 0;
   const posted = asset.accumulatedDepreciationCents || 0;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);

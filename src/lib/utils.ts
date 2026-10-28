@@ -24,12 +24,18 @@ export { roundCents, calculateFXCents } from './cents';
  * grouped with commas), an optional decimal part, optionally in accounting brackets. "1.2.3", "1-2" and
  * "(1+2)" are not.
  */
-export function isAmountText(val: string): boolean {
+export function isAmountText(val: string, opts: { complete?: boolean } = {}): boolean {
+  const text = String(val).trim();
   // an opening bracket may still be waiting for its closing one while the amount is typed
-  const inner = String(val).trim().replace(/^\(/, '').replace(/\)$/, '').trim();
-  // digit groups may be half typed ('1,', '1,2'), as they are on the way to '1,234'
-  return /\d/.test(inner)
-    && /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner);
+  const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
+  if (!/\d/.test(inner)) return false;
+  if (opts.complete) {
+    // before saving: brackets closed, digit groups of three, as a finished amount is written
+    if (text.startsWith('(') !== text.endsWith(')')) return false;
+    return /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d{1,3}(?:([, '])\d{3})?(?:\1\d{3})*|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner);
+  }
+  // while typing, digit groups may be half done ('1,', '1,2'), as they are on the way to '1,234'
+  return /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner);
 }
 
 export function parseAmountToCents(val: string | number | undefined | null): number {
