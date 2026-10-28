@@ -142,6 +142,7 @@ describe('The route', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATA
     }
     await db.collection('documents').doc(`${ws}_doc1`).set({ workspaceId: ws, linkedId: `${ws}_inv`, name: 'contract.pdf', uid: 'owner-1' });
     const app = express();
+    app.use(express.json());
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
     app.use('/api/v1/reports', reportRouter);
     server = app.listen(0);
@@ -164,5 +165,21 @@ describe('The route', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATA
     assert.equal(lines.find(l => l.document.type === 'invoice')!.attachments, 1);
     assert.equal((await get(`workspaceId=${ws}&accountIds=${ws}_sales`, 'stranger')).status, 403);
     assert.equal((await get(`workspaceId=${ws}`)).status, 400);
+  });
+
+  test('a total over a large chart of accounts is asked in the body, past what fits in a link', async () => {
+    const post = async (body: unknown, uid = 'owner-1') => {
+      const res = await fetch(`${base}/api/v1/reports/explain`, { method: 'POST', headers: { 'x-test-uid': uid, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return { status: res.status, body: await res.json() as Record<string, unknown> };
+    };
+    // 300 account ids are far more than the 4,000 characters a link takes
+    const accountIds = [`${ws}_sales`, ...Array.from({ length: 299 }, (_, i) => `${ws}_unused_account_${i}`)];
+    assert.ok(accountIds.join(',').length > 4000);
+    const res = await post({ workspaceId: ws, accountIds, startDate: '2026-03-01', endDate: '2026-03-31' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.totalCents, -3000, 'the same lines as the short request');
+    assert.equal(res.body.entries, 30);
+    assert.equal((await post({ workspaceId: ws, accountIds }, 'stranger')).status, 403);
+    assert.equal((await post({ workspaceId: ws, accountIds: [] })).status, 400);
   });
 });

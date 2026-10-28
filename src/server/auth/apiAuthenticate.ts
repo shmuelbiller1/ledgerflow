@@ -82,6 +82,11 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
           return "brain:analyze";
         }
         
+        // the explanation is posted only because its account list can be too long for a link; it reads
+        if (cleanPath.endsWith("/reports/explain")) {
+          return "read:transactions";
+        }
+
         const isWrite = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
         
         if (cleanPath.includes("/transactions")) {
