@@ -9,7 +9,7 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { getIdToken } from '../../firebase';
 import { depreciationThrough } from '../../lib/depreciationEngine';
-import { formatCurrency, formatDate, formatTzDate, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, formatDate, formatTzDate, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DisposeAssetDialog from './DisposeAssetDialog';
 import TransferAssetDialog from './TransferAssetDialog';
@@ -150,7 +150,7 @@ export const FixedAssetsView: React.FC = () => {
     const salvage = parseAmountToCents(form.salvage);
     const years = Number(form.years);
     if (!form.name.trim() || cost <= 0) return toast.error('Enter the asset name and its cost');
-    if (salvage < 0 || salvage > cost) return toast.error('The salvage value must be between 0 and the cost');
+    if ((form.salvage.trim() && !isAmountText(form.salvage)) || salvage < 0 || salvage > cost) return toast.error('The salvage value must be between 0 and the cost');
     if (!(years > 0 && years <= 100)) return toast.error('Useful life must be between 0 and 100 years');
     if (!form.expenseAccountId || !form.accumulatedAccountId) return toast.error('Choose the depreciation expense and accumulated depreciation accounts');
     if (form.building && !form.assetAccountId) return toast.error('Choose the construction-in-progress account its costs are posted to');

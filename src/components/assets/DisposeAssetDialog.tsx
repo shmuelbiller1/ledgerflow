@@ -6,7 +6,7 @@ import { getIdToken } from '../../firebase';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { disposalGainLoss, partialDisposalInput, portionOf, portionProblem } from '../../lib/assetDisposal';
 import { isCashAccount } from '../../lib/txFilters';
-import { formatCurrency, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, isAmountText, parseAmountToCents } from '../../lib/utils';
 import type { ChartAccount, FixedAsset } from '../../types';
 
 /**
@@ -44,6 +44,8 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
   const [percentText, setPercentText] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // a typo is not 'scrapped for nothing': the button stays off until the amount reads as one
+  const receivedProblem = received.trim() !== '' && !isAmountText(received);
   const proceedsCents = parseAmountToCents(received) || 0;
   const posted = asset.accumulatedDepreciationCents || 0;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
@@ -155,7 +157,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
           </p>
           <div className="flex justify-end gap-3 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg text-[var(--text)] hover:bg-[var(--ink)]">Cancel</button>
-            <button type="button" disabled={saving || !validDate || Boolean(partProblem)} onClick={submit} className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-700 text-white disabled:opacity-50">
+            <button type="button" disabled={saving || !validDate || Boolean(partProblem) || receivedProblem} onClick={submit} className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-700 text-white disabled:opacity-50">
               {saving ? 'Posting…' : proceedsCents > 0 ? 'Record the sale' : 'Record as scrapped'}
             </button>
           </div>
