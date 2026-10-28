@@ -4,7 +4,7 @@
  * transaction. Protocol interrupted. Invalid transaction structure: at least 2 lines required."
  * These tests render the window, save through the real handleQuickAdd and stub only the server.
  */
-import { describeSaveFailures, standardChart, stubServer, serverScenarios, captureToasts, settle, assertNoSuccess, type ServerCall } from './helpers/failureHarness';
+import { describeSaveFailures, standardChart, stubServer, serverScenarios, captureToasts, settle, assertNoSuccess, switchWorkspace, type ServerCall } from './helpers/failureHarness';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import test, { afterEach, beforeEach, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -175,5 +175,21 @@ describe('quick entry: what it sends', () => {
     await settle();
     assert.equal(server.saves().length, 0);
     assert.ok(toasts.of('error').some(t => /in BRL but your books are in USD/.test(t)));
+  });
+
+  test('a save that finishes after the user opened other books does not close or clear the window', async () => {
+    const server = stubServer(serverScenarios.slow(), { isSave: isTxSave });
+    let closed = 0;
+    mock.method(aiService, 'parseMagicEntry', async () => null);
+    useLedgerStore.setState({ accounts: standardChart(), transactions: [] });
+    render(<MagicEntry isOpen onClose={() => { closed += 1; }} />);
+    fireEvent.change(screen.getByLabelText('Describe the transaction'), { target: { value: SENTENCE } });
+    await act(async () => { await new Promise(r => setTimeout(r, 900)); });
+    await save();
+    await server.saveSent;
+    await switchWorkspace();
+    server.answer({ status: 200, body: { status: 'success' } });
+    await settle();
+    assert.equal(closed, 0, 'the old save did not close the window');
   });
 });

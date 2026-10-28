@@ -3,6 +3,7 @@ import React, { useState, useEffect, useId, useRef } from 'react';
 import { aiService } from '../../services/aiService';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { workspaceChangedSince } from '../../lib/saveWorkspace';
 import { parseNaturalLanguageEntry } from '../../lib/algorithms/nl-parser';
 import { Check, Wand2, Camera, X, Loader2, Edit2 } from 'lucide-react';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -155,6 +156,7 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
          toast.error(`Quick entry works with two-decimal currencies. Use the full entry form for ${booksCurrency} books.`);
          return;
        }
+       const savedIn = useAuthStore.getState().currentWorkspaceId;
        operationId.current ??= `qe-${crypto.randomUUID()}`;
        const saved = await handleQuickAdd({
          currency: booksCurrency,
@@ -178,6 +180,8 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
        }, operationId.current);
        // handleQuickAdd says "added" itself once the server saved it
        if (!saved) return;
+       // a reply after the user opened other books belongs to the old window: leave the new one and its draft alone
+       if (workspaceChangedSince(savedIn)) return;
        operationId.current = null;
     }
     setText('');
