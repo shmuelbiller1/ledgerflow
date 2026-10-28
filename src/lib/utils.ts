@@ -25,10 +25,11 @@ export { roundCents, calculateFXCents } from './cents';
  * "(1+2)" are not.
  */
 export function isAmountText(val: string): boolean {
-  const text = String(val).trim();
-  const inner = /^\((.*)\)$/.exec(text)?.[1] ?? text;
+  // an opening bracket may still be waiting for its closing one while the amount is typed
+  const inner = String(val).trim().replace(/^\(/, '').replace(/\)$/, '').trim();
+  // digit groups may be half typed ('1,', '1,2'), as they are on the way to '1,234'
   return /\d/.test(inner)
-    && /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d{1,3}(?:[, ']\d{3})+|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner.trim());
+    && /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner);
 }
 
 export function parseAmountToCents(val: string | number | undefined | null): number {
