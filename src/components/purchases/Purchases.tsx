@@ -34,7 +34,7 @@ import { attachFiles, attachSummary } from '../../services/attachmentActions';
 import OpeningDocumentsDialog from '../common/OpeningDocumentsDialog';
 import { deleteWithUndo } from '../../lib/undoableDelete';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { LoadingState } from '../ui/LoadingState';
+import { CollectionEmptyState } from '../ui/CollectionEmptyState';
 import { EmptyState } from '../ui/EmptyState';
 import ListColumnChooser from '../ui/ListColumnChooser';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
@@ -473,16 +473,8 @@ export default function Purchases() {
                     </td>
                   </tr>
                 )}
-
-                {loading && filteredBills.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-[var(--muted)] dark:text-slate-400">
-                      <LoadingState what="bills" />
-                    </td>
-                  </tr>
-                )}
               </tbody>
-              <DocumentTotalsFoot docs={filteredBills} homeCurrency={homeCurrency} colSpan={8} noun="bill" />
+              {!loading && <DocumentTotalsFoot docs={filteredBills} homeCurrency={homeCurrency} colSpan={8} noun="bill" />}
             </table>
           </div>
         ) : (
@@ -539,36 +531,32 @@ export default function Purchases() {
                     {canEditContacts && <td className="p-4 text-right"><PartyRowActions side="vendor" party={v} /></td>}
                   </tr>
                 ))}
-
-                {loading && filteredVendors.length === 0 && (
-                  <tr>
-                    <td colSpan={canEditContacts ? 6 : 5} className="p-8 text-center text-[var(--muted)] dark:text-slate-400">
-                      <LoadingState what="vendors" />
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
         )}
-        {activeSubTab === 'bills' && !loading && filteredBills.length === 0 && (
+        {activeSubTab === 'bills' && filteredBills.length === 0 && (
           <div className="p-3 sm:p-8">
-            <EmptyState
-              title={searchTerm ? 'No bills match your search' : 'No bills yet'}
-              description={searchTerm ? 'Try another vendor, number, or clear the search.' : 'Record your first bill to track what the business owes.'}
-              actionLabel={searchTerm ? 'Clear search' : 'Record first bill'}
-              onAction={() => searchTerm ? setSearchTerm('') : setIsBillModalOpen(true)}
-            />
+            <CollectionEmptyState keys={['bills', 'vendors']} loading={loading} what={activeSubTab}>
+              <EmptyState
+                title={searchTerm ? 'No bills match your search' : 'No bills yet'}
+                description={searchTerm ? 'Try another vendor, number, or clear the search.' : 'Record your first bill to track what the business owes.'}
+                actionLabel={searchTerm ? 'Clear search' : 'Record first bill'}
+                onAction={() => searchTerm ? setSearchTerm('') : setIsBillModalOpen(true)}
+              />
+            </CollectionEmptyState>
           </div>
         )}
-        {activeSubTab === 'vendors' && !loading && filteredVendors.length === 0 && (
+        {activeSubTab === 'vendors' && filteredVendors.length === 0 && (
           <div className="p-3 sm:p-8">
-            <EmptyState
-              title={searchTerm ? 'No vendors match your search' : 'No vendors yet'}
-              description={searchTerm ? 'Try another name or clear the search.' : 'Add a vendor before recording their first bill.'}
-              actionLabel={searchTerm ? 'Clear search' : 'Add first vendor'}
-              onAction={() => searchTerm ? setSearchTerm('') : setIsVendorModalOpen(true)}
-            />
+            <CollectionEmptyState keys={['bills', 'vendors']} loading={loading} what={activeSubTab}>
+              <EmptyState
+                title={searchTerm ? 'No vendors match your search' : 'No vendors yet'}
+                description={searchTerm ? 'Try another name or clear the search.' : 'Add a vendor before recording their first bill.'}
+                actionLabel={searchTerm ? 'Clear search' : 'Add first vendor'}
+                onAction={() => searchTerm ? setSearchTerm('') : setIsVendorModalOpen(true)}
+              />
+            </CollectionEmptyState>
           </div>
         )}
       </div>

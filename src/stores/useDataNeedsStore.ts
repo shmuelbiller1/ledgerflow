@@ -59,6 +59,9 @@ export const useDataNeedsStore = create<DataNeedsState>((set) => ({
     return { loaded: { ...state.loaded, [key]: true }, failed, trouble };
   }),
   markFailed: (key, message, error) => set((state) => ({
+    // A previous snapshot is no longer a confirmed live read. Keep its cached rows,
+    // but don't treat it as fully loaded while a retry is pending.
+    loaded: { ...state.loaded, [key]: false },
     failed: { ...state.failed, [key]: message },
     trouble: { ...state.trouble, [key]: planRetry(error ?? message, state.trouble[key]?.attempts ?? 0, Date.now()) },
   })),

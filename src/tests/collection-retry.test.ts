@@ -81,10 +81,12 @@ describe('Live collection retry state (#96)', () => {
   test('a failure is shown, planned, and cleared when the collection finally loads', () => {
     const store = useDataNeedsStore.getState();
     const before = Date.now();
+    store.markLoaded('invoices');
     store.markFailed('invoices', 'Failed to fetch', new TypeError('Failed to fetch'));
     const after = Date.now();
     let state = useDataNeedsStore.getState();
     assert.equal(state.failed.invoices, 'Failed to fetch');
+    assert.equal(state.loaded.invoices, false, 'an interrupted live read is not fully loaded');
     const plan = state.trouble.invoices!;
     assert.equal(plan.kind, 'transient');
     assert.equal(plan.attempts, 1);

@@ -49,7 +49,7 @@ import InvoiceApprovalFlag from './InvoiceApprovalFlag';
 import { StageChip } from '../collaboration/StageChip';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { LoadingState } from '../ui/LoadingState';
+import { CollectionEmptyState } from '../ui/CollectionEmptyState';
 
 export default function Sales() {
   const user = useAuthStore(s => s.user);
@@ -639,19 +639,19 @@ export default function Sales() {
                 {filteredInvoices.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-12">
-                      {loading ? <LoadingState what="invoices" /> : (
+                      <CollectionEmptyState keys={['creditNotes', 'customers', 'invoices', 'payments']} loading={loading} what="invoices">
                         <EmptyState
                           title={searchTerm ? 'No invoices match your search' : 'No invoices yet'}
                           description={searchTerm ? 'Try another name or number.' : 'Create your first invoice to bill a customer.'}
                           actionLabel="Create invoice"
                           onAction={() => setIsInvoiceModalOpen(true)}
                         />
-                      )}
+                      </CollectionEmptyState>
                     </td>
                   </tr>
                 )}
               </tbody>
-              <DocumentTotalsFoot docs={filteredInvoices} homeCurrency={homeCurrency} colSpan={8} noun="invoice" />
+              {!loading && <DocumentTotalsFoot docs={filteredInvoices} homeCurrency={homeCurrency} colSpan={8} noun="invoice" />}
             </table>
           </div>
         </div>
@@ -738,14 +738,14 @@ export default function Sales() {
                 {shownCustomers.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-6">
-                      {loading ? <LoadingState what="customers" /> : (
+                      <CollectionEmptyState keys={['creditNotes', 'customers', 'invoices', 'payments']} loading={loading} what="customers">
                         <EmptyState
                           title={customers.length === 0 ? 'No customers yet' : 'No customers match these filters'}
                           description={customers.length === 0 ? 'Add a customer before creating their first invoice.' : 'Choose another tag or show archived customers.'}
                           actionLabel={customers.length === 0 ? 'Add first customer' : undefined}
                           onAction={customers.length === 0 ? () => setIsCustomerModalOpen(true) : undefined}
                         />
-                      )}
+                      </CollectionEmptyState>
                     </td>
                   </tr>
                 )}

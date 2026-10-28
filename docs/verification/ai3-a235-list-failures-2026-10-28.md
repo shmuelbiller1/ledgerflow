@@ -1,0 +1,7 @@
+# AI #3 — A-235 partial: sales and purchases list failures
+
+On branch `arena/d5a40b6f-ledgerflow`, based on `b461c0a`. A-235 is **not complete**: this covers four list tabs (invoices, customers, bills, vendors), not ten screens, and is component-level rather than network-failure browser evidence.
+
+A shared `CollectionEmptyState` distinguishes failure, loading and a genuinely empty list. Failed dependencies show an actionable retry; retry clears only those dependencies. A live collection failure now clears its loaded flag without discarding cached rows. This keeps a retry in the loading state until a new snapshot arrives, including when a previously successful subscription later fails. The invoice and bill list total rows are withheld while their dependencies are not loaded; cached rows remain visible and the existing global data status bar reports failures. This does not modify accounting calculations or writes.
+
+Verification: targeted retry/store/dashboard/list tests: 30/30 passed before the final additional stale-total test; sales/purchases state suite after that addition: 6/6 passed. TypeScript and changed-file ESLint passed after the display and test additions. Full unit suite started with concurrency limited to 4 and no local Postgres; any result cannot establish database coverage. Browser execution unavailable locally because Chromium is not installed and its download host is inaccessible. Node 22 is installed here; the repository requests Node 24. No RELEASE_GATE row is changed or claimed.
