@@ -105,10 +105,12 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
   const result = ReportRangeSchema.safeParse(req.query);
   if (!result.success) return sendError(res, "Invalid parameters", 400, result.error.issues);
   const { workspaceId, startDate, endDate } = result.data;
-  const cacheKey = getCacheKey(req);
-  const cached = REPORT_CACHE.get(cacheKey);
-  if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
   try {
+    // AF-015: membership first, so someone removed from the workspace is not served its cached figures
+    await authorizeWorkspace(authReq, workspaceId);
+    const cacheKey = getCacheKey(req);
+    const cached = REPORT_CACHE.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
     // N-08: on cash basis, invoices and bills count when paid (cashBasis.ts): their postings may be
     // older than the period, so the whole history up to the end is read, with the payments
     if (req.query.basis === 'cash') {
@@ -124,7 +126,7 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
     remember(cacheKey, pl);
     res.json(withProvenance(pl));
   } catch (error) {
-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
     if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
     sendError(res, "Internal Reporting Error", 500, errorMessage(error));
   }
