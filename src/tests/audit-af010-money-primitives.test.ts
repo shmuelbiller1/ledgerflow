@@ -139,6 +139,7 @@ test('AF-010: readAmountCents reads a finished amount and gives null (never 0, n
   assert.equal(readAmountCents('(100)'), -10000);
   assert.equal(readAmountCents('CHF1’234.56'), 123456);
   assert.equal(readAmountCents('CA$1,234.56'), 123456);
+  assert.equal(readAmountCents('CA\u200F$1,234.56'), 123456); // a pasted direction mark between code and symbol
   assert.equal(readAmountCents('1,234.56 USD'), 123456);
   for (const bad of ['', '   ', null, undefined, '1.2.3', '1-2', '(1+2)', '1,', '1,2', '(100', 'abc', '100k', '5 m', '2kg']) {
     assert.equal(readAmountCents(bad as string), null, String(bad));

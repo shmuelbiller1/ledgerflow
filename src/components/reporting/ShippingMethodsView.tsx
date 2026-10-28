@@ -37,6 +37,8 @@ export default function ShippingMethodsView() {
   const [currency, setCurrency] = useState(workspaceCurrency);
   const [rateInput, setRateInput] = useState('');
   const [freeAboveInput, setFreeAboveInput] = useState('');
+  // the field whose amount could not be read, shown next to it as well as in the toast
+  const [amountError, setAmountError] = useState<{ field: 'rate' | 'free'; message: string } | null>(null);
   const [minDays, setMinDays] = useState('');
   const [maxDays, setMaxDays] = useState('');
   const [calcSubtotalInput, setCalcSubtotalInput] = useState('100.00');
@@ -54,12 +56,17 @@ export default function ShippingMethodsView() {
     e.preventDefault();
     const rateCents = readAmountCents(rateInput);
     const freeAboveCents = freeAboveInput.trim() === '' ? null : readAmountCents(freeAboveInput);
+    setAmountError(null);
     if (rateCents === null) {
-      toast.error('Enter the rate as an amount, for example 12.50');
+      const message = 'Enter the rate as an amount, for example 12.50';
+      setAmountError({ field: 'rate', message });
+      toast.error(message);
       return;
     }
     if (freeAboveInput.trim() !== '' && freeAboveCents === null) {
-      toast.error('Enter the free-shipping threshold as an amount, for example 100.00, or leave it empty');
+      const message = 'Enter the free-shipping threshold as an amount, for example 100.00, or leave it empty';
+      setAmountError({ field: 'free', message });
+      toast.error(message);
       return;
     }
     const min = minDays.trim() === '' ? undefined : Number(minDays);
@@ -162,11 +169,13 @@ export default function ShippingMethodsView() {
             </div>
             <div>
               <label htmlFor="sm-rate" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Standard rate</label>
-              <input id="sm-rate" type="text" inputMode="decimal" placeholder="14.95" value={rateInput} onChange={e => setRateInput(e.target.value)} className={field} />
+              <input id="sm-rate" type="text" inputMode="decimal" placeholder="14.95" value={rateInput} onChange={e => { setRateInput(e.target.value); setAmountError(null); }} className={field} aria-invalid={amountError?.field === 'rate'} aria-describedby={amountError?.field === 'rate' ? 'sm-rate-error' : undefined} />
+              {amountError?.field === 'rate' && <p id="sm-rate-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{amountError.message}</p>}
             </div>
             <div>
               <label htmlFor="sm-free" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Free above (optional)</label>
-              <input id="sm-free" type="text" inputMode="decimal" placeholder="150.00" value={freeAboveInput} onChange={e => setFreeAboveInput(e.target.value)} className={field} />
+              <input id="sm-free" type="text" inputMode="decimal" placeholder="150.00" value={freeAboveInput} onChange={e => { setFreeAboveInput(e.target.value); setAmountError(null); }} className={field} aria-invalid={amountError?.field === 'free'} aria-describedby={amountError?.field === 'free' ? 'sm-free-error' : undefined} />
+              {amountError?.field === 'free' && <p id="sm-free-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{amountError.message}</p>}
             </div>
             <div>
               <label htmlFor="sm-min" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Min days</label>
