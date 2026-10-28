@@ -11,9 +11,12 @@ export default function Reconciliation() {
   const dataHealth = useScreenDataHealth(['transactions', 'accounts', 'bankLines', 'reconciliations']);
   return (
     <div>
-      <div className="px-4 pt-4 sm:px-6 lg:px-8">
-        <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="reconciliation" />
-      </div>
+      {/* only when something failed: a permanently padded block would move the screen down */}
+      {dataHealth.failedKeys.length > 0 && (
+        <div className="px-4 pt-4 sm:px-6 lg:px-8">
+          <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="reconciliation" />
+        </div>
+      )}
       <ReconciliationView {...model} />
     </div>
   );
