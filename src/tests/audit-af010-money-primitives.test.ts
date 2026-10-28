@@ -77,6 +77,11 @@ test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, nev
   assert.equal(isAmountText('1,23,45', { complete: true }), false, 'an unfinished lakh group');
   const cad = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'CAD' }).format(1234.56);
   assert.equal(parseAmountToCents(cad), 123456, JSON.stringify(cad));
+  // the minus may follow the currency, as de-CH writes it (Codex on #430)
+  const chf = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' }).format(-123.45);
+  assert.equal(parseAmountToCents(chf), -12345, JSON.stringify(chf));
+  assert.equal(isAmountText(chf, { complete: true }), true, JSON.stringify(chf));
+  assert.equal(parseAmountToCents('CHF-123.45'), -12345);
   // before a save, only a finished amount passes (CodeRabbit on #430)
   for (const unfinished of ['1,', '1,2', '1,2,3', '(100', '100)', '1,234 567']) assert.equal(isAmountText(unfinished, { complete: true }), false, unfinished);
   for (const done of ['0', '1,234.56', '1,234,567', '1 234', "1'234.50", '(100.00)', '-$99.95', '100 USD', '.5', '5.']) assert.equal(isAmountText(done, { complete: true }), true, done);
