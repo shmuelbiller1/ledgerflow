@@ -24,8 +24,13 @@ export { roundCents, calculateFXCents } from './cents';
  * grouped with commas), an optional decimal part, optionally in accounting brackets. "1.2.3", "1-2" and
  * "(1+2)" are not.
  */
+/** Amount text as typed or pasted: direction marks dropped (he-IL money text carries them), no-break spaces made plain. */
+function plainAmountText(val: string): string {
+  return String(val).replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').replace(/[\u00A0\u202F]/g, ' ').trim();
+}
+
 export function isAmountText(val: string, opts: { complete?: boolean } = {}): boolean {
-  const text = String(val).trim();
+  const text = plainAmountText(val);
   // an opening bracket may still be waiting for its closing one while the amount is typed
   const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
   if (!/\d/.test(inner)) return false;
@@ -44,7 +49,7 @@ export function parseAmountToCents(val: string | number | undefined | null): num
     if (!Number.isFinite(val)) return 0;
     return new Decimal(val).mul(100).round().toNumber();
   }
-  const text = String(val).trim();
+  const text = plainAmountText(val);
   // text without a digit ('abc') has always been no amount
   if (!/\d/.test(text)) return 0;
   // AF-010-F3: a typo with digits ('1.2.3', '(1+2)') is refused with a plain error, never read as another

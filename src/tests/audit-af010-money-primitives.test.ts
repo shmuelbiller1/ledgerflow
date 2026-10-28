@@ -62,6 +62,10 @@ test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, nev
   // half-typed amounts never throw while a screen renders them (Codex on #430)
   for (const draft of ['1,', '1,2', '1,23', '(1', '(100', '-', '$', '1.']) assert.doesNotThrow(() => parseAmountToCents(draft), draft);
   assert.equal(parseAmountToCents('(100'), -10000, 'an unclosed bracket already reads negative');
+  // he-IL money text carries direction marks and a no-break space (CodeRabbit on #430)
+  const hebrew = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(123456.78);
+  assert.equal(isAmountText(hebrew, { complete: true }), true, JSON.stringify(hebrew));
+  assert.equal(parseAmountToCents(hebrew), 12345678);
   // before a save, only a finished amount passes (CodeRabbit on #430)
   for (const unfinished of ['1,', '1,2', '1,2,3', '(100', '100)', '1,234 567']) assert.equal(isAmountText(unfinished, { complete: true }), false, unfinished);
   for (const done of ['0', '1,234.56', '1,234,567', '1 234', "1'234.50", '(100.00)', '-$99.95', '100 USD', '.5', '5.']) assert.equal(isAmountText(done, { complete: true }), true, done);
