@@ -12,7 +12,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../lib/utils';
 import {
   quoteShippingCharge,
   SHIPPING_METHODS_CSV_HEADERS,
@@ -47,12 +47,16 @@ export default function ShippingMethodsView() {
     [inventory, workspaceCurrency],
   );
 
-  const calcSubtotalCents = parseAmountToCents(calcSubtotalInput);
+  const calcSubtotalCents = readAmountCents(calcSubtotalInput) ?? 0;
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rateCents = parseAmountToCents(rateInput);
-    const freeAboveCents = freeAboveInput.trim() === '' ? null : parseAmountToCents(freeAboveInput);
+    const rateCents = readAmountCents(rateInput);
+    const freeAboveCents = freeAboveInput.trim() === '' ? null : readAmountCents(freeAboveInput);
+    if (rateCents === null || (freeAboveInput.trim() !== '' && freeAboveCents === null)) {
+      toast.error('Enter the rate as an amount, for example 12.50');
+      return;
+    }
     const min = minDays.trim() === '' ? undefined : Number(minDays);
     const max = maxDays.trim() === '' ? undefined : Number(maxDays);
     const problem = shippingMethodProblem({ name, rateCents, freeAboveCents, minDays: min, maxDays: max });

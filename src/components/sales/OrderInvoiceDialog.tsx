@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
-import { formatCurrency, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../lib/utils';
 import { type OrderPart, type OrderProgress, hasItemLines, orderLineProgress, orderPartInvoice, partCents, partLabel, partProblem } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
 import type { Milestone } from '../../lib/milestones';
@@ -38,7 +38,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
   const [milestone, setMilestone] = useState<Milestone | null>(null);
   const { dialogProps, titleId } = useDialog(onClose, true);
   const part: OrderPart = mode === 'quantities' ? { mode, quantities: quantities.map(q => (q.trim() === '' ? 0 : Number(q))) }
-    : mode === 'rest' ? { mode } : mode === 'percent' ? { mode, percent: Number(percent) } : { mode, cents: parseAmountToCents(amount) };
+    : mode === 'rest' ? { mode } : mode === 'percent' ? { mode, percent: Number(percent) } : { mode, cents: readAmountCents(amount) ?? 0 };
   const problem = partProblem(part, progress, estimate);
   const cents = problem ? 0 : partCents(part, progress, estimate);
   const preview = problem ? [] : orderPartInvoice(estimate, progress, cents, partLabel(part, estimate, progress), part).items || [];

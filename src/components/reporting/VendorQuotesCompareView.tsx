@@ -11,7 +11,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import {
   compareVendorQuotes,
   VENDOR_QUOTES_CSV_HEADERS,
@@ -63,7 +63,11 @@ export default function VendorQuotesCompareView() {
       toast.error('Choose an item first.');
       return;
     }
-    const unitPriceCents = parseAmountToCents(priceInput);
+    const unitPriceCents = readAmountCents(priceInput);
+    if (unitPriceCents === null) {
+      toast.error('Enter the unit price, for example 4.20');
+      return;
+    }
     const moq = Number(minOrderQty);
     const lead = leadDays.trim() === '' ? undefined : Number(leadDays);
     const problem = vendorQuoteProblem({

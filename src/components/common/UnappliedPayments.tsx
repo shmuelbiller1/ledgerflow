@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { getIdToken } from '../../firebase';
-import { formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { applicableDocuments, suggestApplication, unappliedPayments, type AdvancePayment, type ApplicableDocument } from '../../lib/advancePayments';
 
 const centsText = (cents: number) => (cents / 100).toFixed(2);
@@ -53,8 +53,10 @@ export default function UnappliedPayments({ side, partyId }: { side: 'customer' 
     setOpenId(p.id);
   };
   const chosen = documents
-    .map(d => ({ documentId: d.doc.id, documentType: docWord as 'invoice' | 'bill', amountCents: parseAmountToCents(amounts[d.doc.id]), dueCents: d.dueCents }))
+    .map(d => ({ documentId: d.doc.id, documentType: docWord as 'invoice' | 'bill', amountCents: readAmountCents(amounts[d.doc.id]) ?? 0, dueCents: d.dueCents }))
     .filter(a => a.amountCents > 0);
+  // a typed amount that is not an amount ('1.2.3') is refused, not dropped as if left blank
+  const badAmount = documents.some(d => (amounts[d.doc.id] || '').trim() !== '' && readAmountCents(amounts[d.doc.id]) === null);
   const total = chosen.reduce((sum, a) => sum + a.amountCents, 0);
   const tooMuch = open ? total > open.unappliedCents : false;
   const overDue = chosen.find(a => a.amountCents > a.dueCents);
@@ -62,6 +64,7 @@ export default function UnappliedPayments({ side, partyId }: { side: 'customer' 
 
   const apply = async () => {
     if (!open || busy) return;
+    if (badAmount) return toast.error('One of the amounts is not a number. Correct it, then apply.');
     if (chosen.length === 0) return toast.error(`Enter an amount on at least one ${docWord}`);
     if (tooMuch || overDue) return;
     setBusy(true);

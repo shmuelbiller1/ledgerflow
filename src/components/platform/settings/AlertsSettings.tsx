@@ -5,7 +5,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken } from '../../../firebase';
 import { alertSettingsProblem, DEFAULT_CLOSE_REMINDER_DAY, type AlertSettings } from '../../../lib/bookAlerts';
-import { formatCurrency, parseAmountToCents } from '../../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../../lib/utils';
 
 /**
  * Settings → Alerts (S-08, S-10, S-11): what the nightly check tells owners and accountants about
@@ -34,10 +34,10 @@ export default function AlertsSettings() {
     if (!workspace?.id) return;
     const alerts: AlertSettings = {
       closeReminderDay: remind ? Number(day) : null,
-      cashLowCents: cashOn ? parseAmountToCents(cash) : null,
+      cashLowCents: cashOn ? readAmountCents(cash) ?? NaN : null,
       budgetAlerts: budgets,
     };
-    if (cashOn && !cash.trim()) { toast.error('Enter the cash amount to be told about'); return; }
+    if (cashOn && (!cash.trim() || readAmountCents(cash) === null)) { toast.error('Enter the cash amount to be told about'); return; }
     const problem = alertSettingsProblem(alerts);
     if (problem) { toast.error(problem); return; }
     setBusy(true);

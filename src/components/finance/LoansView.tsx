@@ -21,7 +21,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { db, getIdToken } from '../../firebase';
 import { collection, doc, updateDoc } from '../../lib/db/firestore';
-import { addToDateISO, cn, formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { addToDateISO, cn, formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { isPostable } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
@@ -72,7 +72,7 @@ function emptyForm(): LoanForm {
 function asDraft(form: LoanForm): LoanDraft {
   return {
     lender: form.lender,
-    principalCents: form.principal.trim() ? parseAmountToCents(form.principal) : 0,
+    principalCents: form.principal.trim() ? readAmountCents(form.principal) ?? NaN : 0,
     annualRate: form.ratePercent.trim() ? Number(form.ratePercent) / 100 : NaN,
     termMonths: Number(form.termMonths),
     startDate: form.startDate,

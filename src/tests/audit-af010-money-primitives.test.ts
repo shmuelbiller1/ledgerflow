@@ -132,3 +132,13 @@ test('AF-010-F3: a sum with a currency between the numbers is refused; Swiss ’
   assert.equal(isAmountText('CHF1’234.56', { complete: true }), true);
   assert.equal(parseAmountToCents('CHF1’234.56'), 123456);
 });
+
+test('AF-010: readAmountCents reads a finished amount and gives null (never 0, never a throw) for a typo or a blank', async () => {
+  const { readAmountCents } = await import('../lib/utils');
+  assert.equal(readAmountCents('1,234.56'), 123456);
+  assert.equal(readAmountCents('(100)'), -10000);
+  assert.equal(readAmountCents('CHF1’234.56'), 123456);
+  for (const bad of ['', '   ', null, undefined, '1.2.3', '1-2', '(1+2)', '1,', '1,2', '(100', 'abc']) {
+    assert.equal(readAmountCents(bad as string), null, String(bad));
+  }
+});

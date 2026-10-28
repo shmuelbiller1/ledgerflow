@@ -8,7 +8,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { getIdToken } from '../../firebase';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { advanceAccount } from '../../lib/advancePayments';
-import { formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import type { Estimate } from '../../types';
 
 const field = 'w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]';
@@ -34,7 +34,7 @@ export default function EstimateDepositDialog({ estimate, onClose }: { estimate:
   const [method, setMethod] = useState('bank_transfer');
   const [saving, setSaving] = useState(false);
   const { dialogProps, titleId } = useDialog(onClose, true);
-  const cents = parseAmountToCents(amount);
+  const cents = readAmountCents(amount) ?? 0;
   const problem = cents <= 0 ? 'Enter the deposit' : cents > estimate.amountCents ? 'That is more than the estimate' : !cashAccountId ? 'Choose the bank account it came into' : null;
 
   const save = async () => {

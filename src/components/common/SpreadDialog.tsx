@@ -4,7 +4,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { getIdToken } from '../../firebase';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import { formatCurrency, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../lib/utils';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from '../../lib/accountDefaults';
 import { deferredRevenueAccount, documentLine, prepaidAccount, spreadPlan, spreadProblem } from '../../lib/prepaidSchedule';
 import type { ChartAccount } from '../../types';
@@ -72,7 +72,7 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
   const [startMonth, setStartMonth] = useState(date.slice(0, 7));
   const [busy, setBusy] = useState(false);
 
-  const input = { date, amountCents: parseAmountToCents(amount), months: Number(months), startMonth };
+  const input = { date, amountCents: readAmountCents(amount) ?? NaN, months: Number(months), startMonth };
   const problem = spreadProblem(input, docBaseCents, kind)
     || (!accountId ? `Choose the ${side.accountLabel.toLowerCase()}` : null)
     || (!holdAccountId ? `Choose the ${side.holdName} account` : null);

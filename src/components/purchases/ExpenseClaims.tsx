@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Receipt, Plus, Trash2, X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import { formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { claimOf, claimProblem, decimalNumber, decisionProblem, mileageLine, perDiemLine, rateInThousandths, workedLineProblem, type ClaimLine, type ClaimLineKind, type DistanceUnit } from '../../lib/expenseClaims';
 import { parseCorporateCardCsv, type CorporateCardImportResult } from '../../lib/corporateCardImport';
 import { mileageRateFor, perDiemRateFor, rateSuggestionText, COUNTRY_NAMES, type PerDiemRow, type RateCountry } from '../../lib/tax/expenseRateTables';
@@ -22,7 +22,7 @@ function savedRates(): SavedRates {
 }
 function saveRates(lines: DraftLine[]) {
   const mileage = lines.find(l => l.kind === 'mileage' && rateInThousandths(l.rate) > 0);
-  const perDiem = lines.find(l => l.kind === 'perDiem' && parseAmountToCents(l.rate) > 0);
+  const perDiem = lines.find(l => l.kind === 'perDiem' && (readAmountCents(l.rate) ?? 0) > 0);
   if (!mileage && !perDiem) return;
   try {
     localStorage.setItem(RATES_KEY, JSON.stringify({ ...savedRates(), ...(mileage ? { mileageRate: mileage.rate, unit: mileage.unit } : {}), ...(perDiem ? { dailyRate: perDiem.rate } : {}) }));
@@ -37,10 +37,10 @@ function toClaimLine(l: DraftLine, currency: string): { line: ClaimLine; problem
     return { line: mileageLine({ purpose: l.description, from: l.from, to: l.to, unit: l.unit, accountId: l.accountId, currency, ...input }), problem: workedLineProblem('mileage', input) };
   }
   if (l.kind === 'perDiem') {
-    const input = { days: decimalNumber(l.days), dailyRateCents: parseAmountToCents(l.rate) };
+    const input = { days: decimalNumber(l.days), dailyRateCents: readAmountCents(l.rate) ?? 0 };
     return { line: perDiemLine({ purpose: l.description, accountId: l.accountId, currency, ...input }), problem: workedLineProblem('perDiem', input) };
   }
-  return { line: { description: l.description, accountId: l.accountId, amountCents: parseAmountToCents(l.amount) }, problem: null };
+  return { line: { description: l.description, accountId: l.accountId, amountCents: readAmountCents(l.amount) ?? 0 }, problem: l.amount.trim() !== '' && readAmountCents(l.amount) === null ? 'Enter the amount as a number' : null };
 }
 
 interface Props {

@@ -10,7 +10,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import {
   BILL_RETENTION_CSV_HEADERS,
   billRetentionCsvRows,
@@ -52,7 +52,11 @@ export default function BillRetentionReportView() {
       toast.error('Choose an issued bill first.');
       return;
     }
-    const heldCents = parseAmountToCents(heldInput);
+    const heldCents = readAmountCents(heldInput);
+    if (heldCents === null) {
+      toast.error('Enter the amount held back, for example 500.00');
+      return;
+    }
     const problem = retentionInputProblem({
       billAmountCents: targetBill.amountCents || 0,
       heldCents,
