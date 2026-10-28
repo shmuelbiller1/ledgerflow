@@ -28,7 +28,7 @@ export function isAmountText(val: string): boolean {
   const text = String(val).trim();
   const inner = /^\((.*)\)$/.exec(text)?.[1] ?? text;
   return /\d/.test(inner)
-    && /^-?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d{1,3}(?:[, ']\d{3})+|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner.trim());
+    && /^[-+]?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d{1,3}(?:[, ']\d{3})+|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner.trim());
 }
 
 export function parseAmountToCents(val: string | number | undefined | null): number {
@@ -37,10 +37,12 @@ export function parseAmountToCents(val: string | number | undefined | null): num
     if (!Number.isFinite(val)) return 0;
     return new Decimal(val).mul(100).round().toNumber();
   }
-  // AF-010-F3: text that is not one amount ('1.2.3', '(1+2)') is no amount, not a crash; callers that save
-  // money check isAmountText first, so a typo is refused rather than recorded as zero
-  if (!isAmountText(val)) return 0;
   const text = String(val).trim();
+  // text without a digit ('abc') has always been no amount
+  if (!/\d/.test(text)) return 0;
+  // AF-010-F3: a typo with digits ('1.2.3', '(1+2)') is refused with a plain error, never read as another
+  // number or as 0: many savers accept 0, so a silent 0 would save it. Render paths check isAmountText first.
+  if (!isAmountText(text)) throw new Error(`"${text}" is not an amount`);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
   if (!cleanStr || cleanStr === '-' || !/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) return 0;
   const cents = new Decimal(cleanStr).mul(100).round().toNumber();

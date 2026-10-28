@@ -55,15 +55,12 @@ test('AF-010-F2: utils.parseAmountToCents reads parenthesized accounting negativ
   assert.equal(TruthEngine.parseAmountToCents('(100.00)'), -10000);
 });
 
-test('AF-010-F3: utils.parseAmountToCents returns 0 for malformed text instead of throwing', () => {
-  // fixed 28 Oct: a render-path caller typing "1.2.3" no longer trips the screen error boundary
-  assert.equal(parseAmountToCents('1.2.3'), 0);
-  assert.equal(parseAmountToCents('1-2'), 0);
-  assert.equal(parseAmountToCents('--5'), 0);
-  assert.equal(parseAmountToCents('(1+2)'), 0, 'checked before the operators are stripped');
-  // savers tell a typo from a real zero
+test('AF-010-F3: utils.parseAmountToCents refuses a typo with a plain error, never another number or 0', () => {
+  // savers that accept 0 (prices, budgets, proceeds) must not record a typo as 0; render paths use isAmountText
+  for (const typo of ['1.2.3', '1-2', '--5', '(1+2)']) assert.throws(() => parseAmountToCents(typo), /is not an amount/, typo);
+  assert.equal(parseAmountToCents('abc'), 0, 'text without a digit is still no amount');
   for (const typo of ['1.2.3', '1-2', '--5', '(1+2)', 'abc', '']) assert.equal(isAmountText(typo), false, typo);
-  for (const amount of ['0', '0.00', '1,234.56', '-$99.95', '(100.00)', '.5', '5.', 'USD 12.50', '₪40', '100 USD', '1 234.56', "1'234.50"]) assert.equal(isAmountText(amount), true, amount);
+  for (const amount of ['0', '0.00', '1,234.56', '-$99.95', '(100.00)', '.5', '5.', 'USD 12.50', '₪40', '100 USD', '1 234.56', "1'234.50", '+5', '12.50 CR']) assert.equal(isAmountText(amount), true, amount);
   // TruthEngine wraps the same class of failure in its own integrity error; OrZero swallows it
   assert.throws(() => TruthEngine.parseAmountToCents('1.2.3'), /Invalid amount format/);
   assert.equal(TruthEngine.parseAmountToCentsOrZero('1.2.3'), 0);

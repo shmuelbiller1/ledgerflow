@@ -146,11 +146,13 @@ export const FixedAssetsView: React.FC = () => {
   };
 
   const saveAsset = async () => {
+    if (!isAmountText(form.cost)) return toast.error('Enter the asset name and its cost');
+    if (form.salvage.trim() && !isAmountText(form.salvage)) return toast.error('The salvage value must be between 0 and the cost');
     const cost = parseAmountToCents(form.cost);
     const salvage = parseAmountToCents(form.salvage);
     const years = Number(form.years);
     if (!form.name.trim() || cost <= 0) return toast.error('Enter the asset name and its cost');
-    if ((form.salvage.trim() && !isAmountText(form.salvage)) || salvage < 0 || salvage > cost) return toast.error('The salvage value must be between 0 and the cost');
+    if (salvage < 0 || salvage > cost) return toast.error('The salvage value must be between 0 and the cost');
     if (!(years > 0 && years <= 100)) return toast.error('Useful life must be between 0 and 100 years');
     if (!form.expenseAccountId || !form.accumulatedAccountId) return toast.error('Choose the depreciation expense and accumulated depreciation accounts');
     if (form.building && !form.assetAccountId) return toast.error('Choose the construction-in-progress account its costs are posted to');

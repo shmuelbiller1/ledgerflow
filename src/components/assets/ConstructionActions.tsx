@@ -31,7 +31,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
   const open = (next: 'cost' | 'service') => { setAmount(''); setNote(''); setDate(today); setMode(next); };
 
   const addCost = async () => {
-    const cents = parseAmountToCents(amount);
+    const cents = isAmountText(amount) ? parseAmountToCents(amount) : 0;
     if (!(cents > 0)) { toast.error('Enter what it cost'); return; }
     setBusy(true);
     try {

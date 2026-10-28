@@ -46,7 +46,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
 
   // a typo is not 'scrapped for nothing': the button stays off until the amount reads as one
   const receivedProblem = received.trim() !== '' && !isAmountText(received);
-  const proceedsCents = parseAmountToCents(received) || 0;
+  const proceedsCents = receivedProblem ? 0 : parseAmountToCents(received) || 0;
   const posted = asset.accumulatedDepreciationCents || 0;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
   const depreciation = validDate ? Math.max(posted, depreciationThrough(asset, date.slice(0, 7))) : posted;
