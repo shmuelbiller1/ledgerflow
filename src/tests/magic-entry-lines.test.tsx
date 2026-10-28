@@ -166,4 +166,14 @@ describe('quick entry: what it sends', () => {
     assert.equal(server.saves().length, 0);
     assert.ok(toasts.of('error').some(t => /in SEK but your books are in USD/.test(t)));
   });
+
+  test('a dollar sign with a prefix names its own currency (R$ is reais, not dollars)', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse('paid R$80 lunch cash today');
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /in BRL but your books are in USD/.test(t)));
+  });
 });

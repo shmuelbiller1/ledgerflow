@@ -15,6 +15,7 @@ import AsyncButton from '../ui/AsyncButton';
 import { focusOnMount } from '../../lib/focusOnMount';
 
 const CURRENCY_SIGNS: Record<string, string> = { '€': 'EUR', '£': 'GBP', '₪': 'ILS', '¥': 'JPY', '₹': 'INR' };
+const PREFIXED_DOLLARS: Record<string, string> = { US: 'USD', C: 'CAD', CA: 'CAD', A: 'AUD', AU: 'AUD', NZ: 'NZD', HK: 'HKD', S: 'SGD', SG: 'SGD', R: 'BRL', MX: 'MXN' };
 const DOLLAR_BOOKS = new Set(['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD']);
 
 /**
@@ -33,7 +34,9 @@ function typedCurrencyProblem(text: string, books: string): string | null {
     if (getIsoCurrency(code)) named.add(code);
   }
   for (const m of text.matchAll(/[€£₪¥₹]/g)) named.add(CURRENCY_SIGNS[m[0]]);
-  const dollar = /\$/.test(text);
+  // a dollar sign with letters in front names its currency ('R$' reais, 'CA$', 'MX$'); an unknown prefix is refused
+  for (const m of text.matchAll(/\b([A-Za-z]{1,3})\$/g)) named.add(PREFIXED_DOLLARS[m[1].toUpperCase()] ?? `${m[1].toUpperCase()}$`);
+  const dollar = /(?<![A-Za-z])\$/.test(text);
   if (named.size > 1 || (dollar && [...named].some(c => !DOLLAR_BOOKS.has(c)))) return 'This sentence names more than one currency. Enter one amount in one currency.';
   const currency = [...named][0] ?? (dollar ? (DOLLAR_BOOKS.has(books) ? books : 'USD') : null);
   if (currency && currency !== books) return `This amount is in ${currency} but your books are in ${books}. Use the full entry form to record it with an exchange rate.`;
