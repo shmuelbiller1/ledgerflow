@@ -125,8 +125,8 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
            }
          ]
        });
+       // handleQuickAdd says "added" itself once the server saved it
        if (!saved) return;
-       toast.success('Transaction saved to General Ledger!');
     }
     setText('');
     setParsed(null);

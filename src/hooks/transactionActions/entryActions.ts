@@ -4,6 +4,7 @@ import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { Transaction, TransactionLine } from '../../types';
 import { toast } from 'sonner';
+import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import { showBudgetWarnings } from '../../lib/budgetWarnings';
 import { safeAsync, getLocalDateISO } from '../../lib/utils';
 import { OperationType } from '../../lib/firebaseUtils';
@@ -135,18 +136,6 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       lines: balancedData.lines || []
     };
 
-    // --- Persistent Rule Learning ---
-    if (optimisticTx.description && optimisticTx.lines && optimisticTx.lines.length > 0) {
-      optimisticTx.lines.forEach((line) => {
-        if (line.accountName && line.accountName !== 'Uncategorized' && line.accountName !== 'Manual Review') {
-          const searchDesc = line.description || (optimisticTx.lines.length === 1 ? optimisticTx.description : undefined);
-          if (searchDesc) {
-            recordRulePattern(searchDesc, line.accountId || 'unassigned', line.accountName, line.tags, line.dimensions);
-          }
-        }
-      });
-    }
-
     // Double-Entry Integrity Check
     const balance = optimisticTx.lines?.reduce((sum, l) => sum + (l.amountCents || 0), 0) || 0;
     if (balance !== 0) {
@@ -197,6 +186,22 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     }
     if (!err) {
       incrementTransaction();
+      if (workspaceChangedSince(currentWorkspaceId)) {
+        // the reply came after the user opened other books: say where it was saved, not "added" here (PREV-5)
+        toast.info(savedInOtherWorkspace('The transaction', currentWorkspaceId));
+        return true;
+      }
+      // learn categorising rules only from an entry the server saved, in the books it was saved in
+      if (optimisticTx.description && optimisticTx.lines && optimisticTx.lines.length > 0) {
+        optimisticTx.lines.forEach((line) => {
+          if (line.accountName && line.accountName !== 'Uncategorized' && line.accountName !== 'Manual Review') {
+            const searchDesc = line.description || (optimisticTx.lines.length === 1 ? optimisticTx.description : undefined);
+            if (searchDesc) {
+              recordRulePattern(searchDesc, line.accountId || 'unassigned', line.accountName, line.tags, line.dimensions);
+            }
+          }
+        });
+      }
       toast.success('Transaction added and certified', {
         duration: UNDO_WINDOW_MS,
         action: {
