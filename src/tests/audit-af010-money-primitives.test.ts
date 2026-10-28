@@ -126,3 +126,9 @@ test('AF-010: bankCsvAmountCents refuses ambiguity and never invents a sign', ()
   assert.equal(bankCsvAmountCents(''), null);
   assert.equal(bankCsvAmountCents(undefined), null);
 });
+
+test('AF-010-F3: a sum with a currency between the numbers is refused; Swiss ’ grouping is an amount', () => {
+  for (const sum of ['1 + $2', '1+ USD 2', '$1 * $2']) assert.throws(() => parseAmountToCents(sum), /is not an amount/, sum);
+  assert.equal(isAmountText('CHF1’234.56', { complete: true }), true);
+  assert.equal(parseAmountToCents('CHF1’234.56'), 123456);
+});

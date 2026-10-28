@@ -26,7 +26,7 @@ export { roundCents, calculateFXCents } from './cents';
  */
 /** Amount text as typed or pasted: direction marks dropped (he-IL money text carries them), no-break spaces made plain. */
 function plainAmountText(val: string): string {
-  return String(val).replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').replace(/[\u00A0\u202F]/g, ' ').trim();
+  return String(val).replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').replace(/[\u00A0\u202F]/g, ' ').replace(/\u2019/g, "'").trim();
 }
 
 export function isAmountText(val: string, opts: { complete?: boolean } = {}): boolean {
@@ -57,7 +57,8 @@ export function parseAmountToCents(val: string | number | undefined | null): num
   // AF-010-F3: text that is one number in any format the app writes or a person pastes ('CHF-123.45',
   // '₹1,23,456.78', '1 234,00 €') reads as before; a typo that leaves no single number ('1.2.3', '--5', '1-2')
   // or a sum ('(1+2)') is refused with a plain error, never read as another number or as 0.
-  if (/\d\s*[+*/×÷=]\s*[\d(]/.test(text)) throw new Error(`"${text}" is not an amount`);
+  // a currency or code between the numbers ('1 + $2') is still a sum
+  if (/\d[\s\p{L}\p{Sc}]*[+*/×÷=][\s\p{L}\p{Sc}(]*\d/u.test(text)) throw new Error(`"${text}" is not an amount`);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
   if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) throw new Error(`"${text}" is not an amount`);
   const cents = new Decimal(cleanStr).mul(100).round().toNumber();
