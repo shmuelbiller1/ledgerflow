@@ -15,11 +15,18 @@ afterEach(() => cleanup());
 
 test('a mistyped price is kept as typed, adds nothing to the total and blocks saving', () => {
   let lines: Array<Record<string, unknown>> = [{ id: 'e1', description: 'Setup', quantity: 2, quantityText: '2', rateCents: 0, amountCents: 0, accountId: '', priceText: '' }];
-  render(<EstimateLinesEditor lines={lines as never} onChange={next => { lines = next as never; }} currency="USD" />);
-  fireEvent.change(screen.getByLabelText(/^Price, line 1/), { target: { value: '1.2.3' } });
+  function Harness() {
+    const [state, setState] = React.useState(lines);
+    return <EstimateLinesEditor lines={state as never} onChange={next => { lines = next as never; setState(lines); }} currency="USD" />;
+  }
+  render(<Harness />);
+  const price = () => screen.getByLabelText(/^Price, line 1/) as HTMLInputElement;
+  fireEvent.change(price(), { target: { value: '1.2.3' } });
+  assert.equal(price().value, '1.2.3');
   assert.equal(lines[0].priceText, '1.2.3');
   assert.equal(lines[0].amountCents, 0);
   assert.match(String(estimateLinesProblem(lines as never)), /Enter the price/);
-  fireEvent.change(screen.getByLabelText(/^Price, line 1/), { target: { value: '12.50' } });
+  fireEvent.change(price(), { target: { value: '12.50' } });
   assert.deepEqual([lines[0].rateCents, lines[0].amountCents], [1250, 2500]);
+  assert.doesNotMatch(String(estimateLinesProblem(lines as never)), /Enter the price/);
 });
