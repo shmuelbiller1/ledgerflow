@@ -1,6 +1,6 @@
 # The accurate list — what is actually left before launch (2026-10-28)
 
-**Status: FINAL (closed 28 Oct 2026, 22:10 UTC).** This is the delta over
+**Status: FINAL (closed 28 Oct 2026, 22:20 UTC; all 24 GitHub checks green at branch head `1000523`).** This is the delta over
 `audit/FINAL_ACCURATE_LIST_2026-10-27.md`, written the next day by **AI #3 (Arena)** at the request of
 the owner ("work fast to get the final with list of stuff — hard, accurate"). Every claim below was
 either (a) produced by a command in this checkout at the pin named, (b) carried forward from the
@@ -24,9 +24,13 @@ A-234's browser walk with the real Supabase row is still **not run**.
   `e60e883`; the four commits between are recorded in §2a below, and none of them changes a blocker
   row in this list.
 - **Checked and produced through:** branch `arena/f7145642-ledgerflow`, code head `5431513` (28 Oct
-  21:58 UTC); the commits after it on that branch are documentation only. The A-233 browser evidence
-  comes from run `40773947990` (commit `e9f51bd`, which contains this pass's `f669ac0`): **all five
-  browser shards green**, so the ten 390 px checks pass.
+  21:58 UTC), plus this list's own documents. The **A-257** commits that landed on that branch after
+  it (`e9f51bd`, `1000523` — the notice is a polite status; Reconciliation watches only what it
+  reads) are another agent's work and are **not covered** by this list; the branch head at closing,
+  `1000523`, is green on all 24 checks.
+- **A-233 browser evidence:** run `40773947990` (commit `e9f51bd`, which contains this pass's
+  `f669ac0`) — **all five browser shards green**, so the ten 390 px checks pass; run `40777087994`
+  on `1000523` repeats that with the ten checks still green.
 - **Branch this list was produced on:** `arena/f7145642-ledgerflow` (the A-230…A-235 batch, plus the
   documents). No money, posting, tax-maths, `src/server/**`, schema, migration or dependency change.
 - **Previous list:** `audit/FINAL_ACCURATE_LIST_2026-10-27.md`, pin `b4a92158` (AI #8).
