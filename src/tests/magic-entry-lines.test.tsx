@@ -125,4 +125,18 @@ describe('quick entry: what it sends', () => {
     const lines = (server.saves()[0].body as { transaction: { lines: { accountId: string }[] } }).transaction.lines;
     assert.deepEqual(lines.map(l => l.accountId), ['office', 'cash']);
   });
+
+  test('books in a currency without two decimals (JPY) are sent to the full form, never scaled by 100', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse('paid 80 lunch cash today');
+    const { useAuthStore } = await import('../stores/useAuthStore');
+    act(() => {
+      useAuthStore.setState({ workspaces: useAuthStore.getState().workspaces.map(w => ({ ...w, currency: 'JPY' })) });
+    });
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /two-decimal currencies/.test(t)));
+  });
 });

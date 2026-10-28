@@ -7,7 +7,7 @@ import { parseNaturalLanguageEntry } from '../../lib/algorithms/nl-parser';
 import { Check, Wand2, Camera, X, Loader2, Edit2 } from 'lucide-react';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { toast } from 'sonner';
-import { getLocalDateISO, formatCurrency } from '../../lib/utils';
+import { getLocalDateISO, formatCurrency, getCurrencyFractionDigits } from '../../lib/utils';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isCashAccount } from '../../lib/txFilters';
 import AsyncButton from '../ui/AsyncButton';
@@ -128,6 +128,11 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
        const typedCurrency = typedCurrencyOf(text);
        if (typedCurrency && typedCurrency !== booksCurrency) {
          toast.error(`This amount is in ${typedCurrency} but your books are in ${booksCurrency}. Use the full entry form to record it with an exchange rate.`);
+         return;
+       }
+       // quick entry reads amounts in cents; books kept in whole yen or in 3-decimal units would be scaled wrongly
+       if (getCurrencyFractionDigits(booksCurrency) !== 2) {
+         toast.error(`Quick entry works with two-decimal currencies. Use the full entry form for ${booksCurrency} books.`);
          return;
        }
        operationId.current ??= `qe-${crypto.randomUUID()}`;
