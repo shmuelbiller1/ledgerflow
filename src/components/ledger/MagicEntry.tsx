@@ -12,7 +12,7 @@ import { isCashAccount } from '../../lib/txFilters';
 import AsyncButton from '../ui/AsyncButton';
 import { focusOnMount } from '../../lib/focusOnMount';
 
-export default function MagicEntry({ isOpen, onClose, onAdd }: { isOpen?: boolean; onClose?: () => void; onAdd?: (data: Partial<import("../../types").Transaction> & { amount: number }) => void; categories?: string[]; accounts?: import("../../types").ChartAccount[]; projects?: string[]; autoRules?: import("../../types").AutoRule[]; patternCache?: Record<string, unknown> }) {
+export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void; onAdd?: (data: Partial<import("../../types").Transaction> & { amount: number }) => void; categories?: string[]; accounts?: import("../../types").ChartAccount[]; projects?: string[]; autoRules?: import("../../types").AutoRule[]; patternCache?: Record<string, unknown> }) {
   const formId = useId();
   const [isAiParsing, setIsAiParsing] = useState(false);
   const [text, setText] = useState('');
@@ -87,14 +87,9 @@ export default function MagicEntry({ isOpen, onClose, onAdd }: { isOpen?: boolea
 
   const handleSave = async () => {
     if (!parsed) return;
-    if (onAdd) {
-       onAdd({
-         description: parsed.description,
-         amount: parsed.amount,
-         date: parsed.dateStr,
-         type: parsed.action as import("../../types").Transaction['type']
-       });
-    } else {
+    {
+       // the quick-entry window used to hand only { amount } to onAdd, which the save ignores: the entry
+       // reached the server with no lines and was refused ('at least 2 lines required'). Build both lines here.
        const { accounts } = useLedgerStore.getState();
        const actionType = parsed.action || 'expense';
        const isExp = actionType === 'expense';
@@ -107,7 +102,11 @@ export default function MagicEntry({ isOpen, onClose, onAdd }: { isOpen?: boolea
        }
 
        const amt = Math.abs(parsed.amount || 0);
-       await handleQuickAdd({
+       if (!amt) {
+         toast.error('Enter an amount, for example "Paid $45 for lunch".');
+         return;
+       }
+       const saved = await handleQuickAdd({
          description: parsed.description || 'Natural Language Entry',
          totalAmountCents: amt,
          date: parsed.dateStr || getLocalDateISO(),
@@ -115,7 +114,8 @@ export default function MagicEntry({ isOpen, onClose, onAdd }: { isOpen?: boolea
          lines: [
            {
              accountId: targetAcc.id,
-             accountName: parsed.description || targetAcc.name,
+             accountName: targetAcc.name,
+             description: parsed.description,
              amountCents: isExp ? amt : -amt
            },
            {
@@ -125,6 +125,7 @@ export default function MagicEntry({ isOpen, onClose, onAdd }: { isOpen?: boolea
            }
          ]
        });
+       if (!saved) return;
        toast.success('Transaction saved to General Ledger!');
     }
     setText('');

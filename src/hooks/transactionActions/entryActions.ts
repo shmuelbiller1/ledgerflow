@@ -111,6 +111,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       ...data,
       lines: processedLines
     };
+    // an entry needs two sides; say so here instead of the server's 'Protocol interrupted … 2 lines required'
+    if (processedLines.length < 2) {
+      toast.error('This entry has no amount or accounts to post. Enter an amount and an account, then save again.');
+      return false;
+    }
 
     // Create optimistic ID
     const tempId = operationId || `temp-${crypto.randomUUID().split('-')[0]}`;
