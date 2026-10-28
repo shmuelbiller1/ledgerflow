@@ -156,4 +156,14 @@ describe('quick entry: what it sends', () => {
     await settle();
     assert.equal((server.saves()[0]?.body as { transaction: { currency: string } } | undefined)?.transaction.currency, 'CAD');
   });
+
+  test('any ISO currency code next to the amount is checked, not only a short list (80 SEK in USD books)', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse('paid 80 SEK lunch cash today');
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /in SEK but your books are in USD/.test(t)));
+  });
 });

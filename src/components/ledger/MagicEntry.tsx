@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getLocalDateISO, formatCurrency, getCurrencyFractionDigits } from '../../lib/utils';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isCashAccount } from '../../lib/txFilters';
+import { getIsoCurrency } from '../../lib/isoCurrencyReference';
 import AsyncButton from '../ui/AsyncButton';
 import { focusOnMount } from '../../lib/focusOnMount';
 
@@ -22,7 +23,15 @@ const DOLLAR_BOOKS = new Set(['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD']);
  */
 function typedCurrencyProblem(text: string, books: string): string | null {
   const named = new Set<string>();
-  for (const m of text.matchAll(/\b(USD|EUR|GBP|ILS|NIS|JPY|INR|CAD|AUD|CHF|NZD|SGD|HKD)\b/gi)) named.add(m[1].toUpperCase() === 'NIS' ? 'ILS' : m[1].toUpperCase());
+  // any ISO 4217 code written next to the amount ('80 SEK', 'BRL 80'), or in capitals anywhere ('from USD account')
+  const codeWords = [
+    ...[...text.matchAll(/\d\s*([A-Za-z]{3})\b|\b([A-Za-z]{3})\s*\d/g)].map(m => m[1] || m[2]),
+    ...[...text.matchAll(/\b([A-Z]{3})\b/g)].map(m => m[1]),
+  ];
+  for (const w of codeWords) {
+    const code = w.toUpperCase() === 'NIS' ? 'ILS' : w.toUpperCase();
+    if (getIsoCurrency(code)) named.add(code);
+  }
   for (const m of text.matchAll(/[€£₪¥₹]/g)) named.add(CURRENCY_SIGNS[m[0]]);
   const dollar = /\$/.test(text);
   if (named.size > 1 || (dollar && [...named].some(c => !DOLLAR_BOOKS.has(c)))) return 'This sentence names more than one currency. Enter one amount in one currency.';
