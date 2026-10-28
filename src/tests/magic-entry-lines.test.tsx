@@ -72,16 +72,17 @@ describe('quick entry: what it sends', () => {
     assertNoSuccess(toasts);
   });
 
-  test('saving again after a failed reply sends the same id, so the server cannot post the entry twice', async () => {
+  test('saving again after a failed reply sends the identical request (same id and time), so the server replays it instead of posting twice', async () => {
     const server = stubServer(serverScenarios.network(), { isSave: isTxSave });
     await openAndParse();
     await save();
     await settle();
     await save();
     await settle();
-    const ids = server.saves().map(c => (c.body as { transaction: { id: string } }).transaction.id);
-    assert.equal(ids.length, 2);
-    assert.equal(ids[0], ids[1]);
+    // the server compares the whole request with the one it holds for the id, so the retry must be identical
+    const bodies = server.saves().map(c => JSON.stringify(c.body));
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0], bodies[1]);
   });
 
   test('the entry is posted in the books\' currency', async () => {

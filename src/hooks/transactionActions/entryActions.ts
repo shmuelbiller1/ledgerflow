@@ -16,6 +16,12 @@ import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
+/**
+ * The time a retried entry was first sent, by operation id. The server compares a retry with the request it
+ * already holds for that id; a fresh createdAt would make a lost-reply retry look like a different request (409).
+ */
+const firstSentAt = new Map<string, string>();
+
 export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, rules: RuleActions) {
   const { user, currentWorkspaceId, setTransactions, accounts, setIsSyncing, recordAudit, isPeriodLocked } = ctx;
   const { recordRulePattern, balanceTransactionLines } = posting;
@@ -162,8 +168,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         workspaceId: currentWorkspaceId,
         status: 'completed',
         type: 'actual',
-        createdAt: new Date().toISOString()
+        createdAt: operationId ? firstSentAt.get(operationId) ?? new Date().toISOString() : new Date().toISOString()
       };
+      if (operationId) firstSentAt.set(operationId, finalTx.createdAt);
       // Let's preserve the optimistic ID
       finalTx.id = optimisticTx.id;
       
@@ -185,6 +192,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       err = e;
     }
     if (!err) {
+      if (operationId) firstSentAt.delete(operationId);
       incrementTransaction();
       if (workspaceChangedSince(currentWorkspaceId)) {
         // the reply came after the user opened other books: say where it was saved, not "added" here (PREV-5)
