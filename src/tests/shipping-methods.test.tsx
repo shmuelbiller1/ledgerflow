@@ -2,7 +2,7 @@ import './helpers/dom';
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { quoteShippingCharge, shippingMethodsFromInventory } from '../lib/shippingMethods';
 import ShippingMethodsView from '../components/reporting/ShippingMethodsView';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -43,5 +43,15 @@ describe('A-124 shipping methods and rates table', () => {
     render(<ShippingMethodsView />);
     assert.ok(screen.getByText('Shipping Methods & Rates'));
     assert.ok(screen.getByText('Free threshold met'));
+  });
+
+  test('AF-010: a mistyped calculator subtotal shows an error, not a fee worked out from 0', () => {
+    useAuthStore.setState({ isGuest: true, user: null, currentWorkspaceId: null } as never);
+    render(<ShippingMethodsView />);
+    assert.equal(screen.queryByText(/Enter the subtotal as an amount/), null);
+    fireEvent.change(screen.getByLabelText(/Preview order subtotal/), { target: { value: '100.0.0' } });
+    assert.equal(screen.getByText(/Enter the subtotal as an amount/).getAttribute('role'), 'alert');
+    fireEvent.change(screen.getByLabelText(/Preview order subtotal/), { target: { value: '100.00' } });
+    assert.equal(screen.queryByText(/Enter the subtotal as an amount/), null);
   });
 });
