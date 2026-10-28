@@ -139,4 +139,21 @@ describe('quick entry: what it sends', () => {
     assert.equal(server.saves().length, 0);
     assert.ok(toasts.of('error').some(t => /two-decimal currencies/.test(t)));
   });
+
+  test('two currencies in one sentence are refused; a bare $ fits any dollar books', async () => {
+    const toasts = captureToasts();
+    const server = stubServer(serverScenarios.ok(), { isSave: isTxSave });
+    await openAndParse('paid €80 from USD account');
+    await save();
+    await settle();
+    assert.equal(server.saves().length, 0);
+    assert.ok(toasts.of('error').some(t => /more than one currency/.test(t)));
+    cleanup();
+    const { useAuthStore } = await import('../stores/useAuthStore');
+    await openAndParse();
+    act(() => { useAuthStore.setState({ workspaces: useAuthStore.getState().workspaces.map(w => ({ ...w, currency: 'CAD' })) }); });
+    await save();
+    await settle();
+    assert.equal((server.saves()[0]?.body as { transaction: { currency: string } } | undefined)?.transaction.currency, 'CAD');
+  });
 });

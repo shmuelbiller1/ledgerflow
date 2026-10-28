@@ -13,14 +13,22 @@ import { isCashAccount } from '../../lib/txFilters';
 import AsyncButton from '../ui/AsyncButton';
 import { focusOnMount } from '../../lib/focusOnMount';
 
-const CURRENCY_SIGNS: Record<string, string> = { '$': 'USD', '€': 'EUR', '£': 'GBP', '₪': 'ILS', '¥': 'JPY', '₹': 'INR' };
+const CURRENCY_SIGNS: Record<string, string> = { '€': 'EUR', '£': 'GBP', '₪': 'ILS', '¥': 'JPY', '₹': 'INR' };
+const DOLLAR_BOOKS = new Set(['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD']);
 
-/** The currency a typed sentence names ('$80', '80 EUR'), or null when it names none. */
-function typedCurrencyOf(text: string): string | null {
-  const code = text.match(/\b(USD|EUR|GBP|ILS|NIS|JPY|INR|CAD|AUD|CHF)\b/i)?.[1]?.toUpperCase();
-  if (code) return code === 'NIS' ? 'ILS' : code;
-  const sign = text.match(/[$€£₪¥₹]/)?.[0];
-  return sign ? CURRENCY_SIGNS[sign] : null;
+/**
+ * Whether the currencies a typed sentence names ('$80', '80 EUR') all fit books kept in `books`.
+ * A bare '$' is any dollar, so it fits dollar books; two different markers never fit.
+ */
+function typedCurrencyProblem(text: string, books: string): string | null {
+  const named = new Set<string>();
+  for (const m of text.matchAll(/\b(USD|EUR|GBP|ILS|NIS|JPY|INR|CAD|AUD|CHF|NZD|SGD|HKD)\b/gi)) named.add(m[1].toUpperCase() === 'NIS' ? 'ILS' : m[1].toUpperCase());
+  for (const m of text.matchAll(/[€£₪¥₹]/g)) named.add(CURRENCY_SIGNS[m[0]]);
+  const dollar = /\$/.test(text);
+  if (named.size > 1 || (dollar && [...named].some(c => !DOLLAR_BOOKS.has(c)))) return 'This sentence names more than one currency. Enter one amount in one currency.';
+  const currency = [...named][0] ?? (dollar ? (DOLLAR_BOOKS.has(books) ? books : 'USD') : null);
+  if (currency && currency !== books) return `This amount is in ${currency} but your books are in ${books}. Use the full entry form to record it with an exchange rate.`;
+  return null;
 }
 
 export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void; onAdd?: (data: Partial<import("../../types").Transaction> & { amount: number }) => void; categories?: string[]; accounts?: import("../../types").ChartAccount[]; projects?: string[]; autoRules?: import("../../types").AutoRule[]; patternCache?: Record<string, unknown> }) {
@@ -125,9 +133,9 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
        }
        // the sentence's money is posted as-is: '$80' in euro books must not become €80
        const booksCurrency = useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD';
-       const typedCurrency = typedCurrencyOf(text);
-       if (typedCurrency && typedCurrency !== booksCurrency) {
-         toast.error(`This amount is in ${typedCurrency} but your books are in ${booksCurrency}. Use the full entry form to record it with an exchange rate.`);
+       const currencyProblem = typedCurrencyProblem(text, booksCurrency);
+       if (currencyProblem) {
+         toast.error(currencyProblem);
          return;
        }
        // quick entry reads amounts in cents; books kept in whole yen or in 3-decimal units would be scaled wrongly
