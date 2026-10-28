@@ -1,0 +1,9 @@
+# AI #3 setup wizard regression coverage — 28 October 2026
+
+Base: `b461c0a246a948504e6ed73d2584433fe470edcc`. This is partial A-234, not a completed release gate.
+
+The existing W1 browser fixture leaves business fields unchanged, so it never exercises the business save. Added component coverage for the `lf_update` workspace request (trimmed name, currency, timezone and fiscal start), restoring values from the updated browser store after remount, refusal retaining the draft and permitting retry, and chart/opening-balance failures retaining selections for retry. These are mocked write boundaries: remount reads the browser store, not a database. The existing `setup-wizard-workspace-save.test.ts` covers the migration with real Postgres when `LF_TEST_DATABASE_URL` is configured, but it was not run against Postgres here.
+
+Checks: setup wizard component suite 6/6; TypeScript check passed; changed-file ESLint passed. `eslint src/components -f json` reports zero component warnings (A-232's component target already holds on this base; no reduction to the overall budget is justified because remaining warnings are elsewhere). Full unit suite was started without a database and stopped before completion; no full-suite pass is claimed. Browser execution was unavailable: Chromium is not installed and the Playwright CDN is inaccessible from this environment. Node here is 22; the project requires Node 24.
+
+Still needed for A-234: an actual browser journey with persisted backend writes, including reopening from durable data and testing the migrated database path. No workflow release status is changed. A-230 and A-231 require care: the quality metric counts explicit `: any`/`as any` and UTC accessor tokens, not `z.any()` or `toISOString()`; UTC calendar arithmetic is not interchangeable with local-day 'today'. Server and posting behavior remain AI #1's lane.

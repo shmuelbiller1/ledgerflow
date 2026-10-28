@@ -11,6 +11,7 @@ import SetupWizard from '../components/onboarding/SetupWizard';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import type { Workspace } from '../types';
+import { db } from '../firebase';
 import { makeChartAccount } from './fixtures';
 
 const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -59,6 +60,85 @@ describe('Setup wizard', () => {
     await act(async () => { fireEvent.click(screen.getByText('Go to the dashboard')); });
     assert.ok(done);
     assert.ok(useAuthStore.getState().workspaces[0].setupCompletedAt);
+  });
+
+  test('business details are sent to the workspace write boundary and restored when the wizard is reopened', async () => {
+    const originalClient = db.client;
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    Object.assign(db, { client: () => ({ rpc: async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args });
+      return { error: null };
+    } }) });
+    try {
+      const view = render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
+      fireEvent.change(screen.getByLabelText('Business name'), { target: { value: '  Biller Books  ' } });
+      fireEvent.change(screen.getByLabelText('Home currency'), { target: { value: 'ILS' } });
+      fireEvent.change(screen.getByLabelText('Financial year starts in'), { target: { value: '4' } });
+      fireEvent.change(screen.getByLabelText('Time zone'), { target: { value: 'UTC' } });
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      assert.ok(screen.getByRole('heading', { name: 'Chart of accounts' }));
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].fn, 'lf_update');
+      assert.equal(calls[0].args.p_table, 'workspaces');
+      assert.equal(calls[0].args.p_id, 'w1');
+      assert.deepEqual({ ...(calls[0].args.p_set as object), updatedAt: undefined }, {
+        name: 'Biller Books', currency: 'ILS', timezone: 'UTC', fiscalYearStartMonth: 4, fiscalYearStartDay: 1, updatedAt: undefined,
+      });
+      view.unmount();
+      render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
+      assert.equal((screen.getByLabelText('Business name') as HTMLInputElement).value, 'Biller Books');
+      assert.equal((screen.getByLabelText('Home currency') as HTMLSelectElement).value, 'ILS');
+      assert.equal((screen.getByLabelText('Financial year starts in') as HTMLSelectElement).value, '4');
+      assert.equal((screen.getByLabelText('Time zone') as HTMLSelectElement).value, 'UTC');
+    } finally { Object.assign(db, { client: originalClient }); }
+  });
+
+  test('a refused business save keeps the draft on the first step and allows retry', async () => {
+    const originalClient = db.client;
+    let attempts = 0;
+    Object.assign(db, { client: () => ({ rpc: async () => ({ error: ++attempts === 1 ? { code: '42501', message: 'refused' } : null }) }) });
+    try {
+      render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
+      fireEvent.change(screen.getByLabelText('Business name'), { target: { value: 'Unsaved draft' } });
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      assert.ok(screen.getByRole('heading', { name: 'Your business' }));
+      assert.equal((screen.getByLabelText('Business name') as HTMLInputElement).value, 'Unsaved draft');
+      assert.equal(useAuthStore.getState().workspaces[0].name, 'Acme');
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      assert.equal(attempts, 2);
+      assert.ok(screen.getByRole('heading', { name: 'Chart of accounts' }));
+      assert.equal(useAuthStore.getState().workspaces[0].name, 'Unsaved draft');
+    } finally { Object.assign(db, { client: originalClient }); }
+  });
+
+  test('chart and opening balance failures keep the user on the same step with their selections', async () => {
+    const originalFetch = globalThis.fetch;
+    const attempts: Record<string, number> = {};
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const path = String(input).split('/').pop()!;
+      attempts[path] = (attempts[path] || 0) + 1;
+      const ok = attempts[path] > 1;
+      return new Response(JSON.stringify(ok ? { debitsCents: 100000, equityCents: 100000 } : { message: 'Not saved' }), {
+        status: ok ? 200 : 500, headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+    try {
+      render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      fireEvent.click(screen.getByLabelText('Creative Project'));
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      assert.ok(screen.getByRole('heading', { name: 'Chart of accounts' }));
+      assert.equal((screen.getByLabelText('Creative Project') as HTMLInputElement).checked, true);
+      await act(async () => { fireEvent.click(screen.getByText('Next')); });
+      assert.ok(screen.getByRole('heading', { name: 'Opening balances' }));
+      fireEvent.change(screen.getByLabelText(/Checking/), { target: { value: '1000' } });
+      await act(async () => { fireEvent.click(screen.getByText('Record opening balances')); });
+      assert.ok(screen.getByRole('heading', { name: 'Opening balances' }));
+      assert.equal((screen.getByLabelText(/Checking/) as HTMLInputElement).value, '1000');
+      await act(async () => { fireEvent.click(screen.getByText('Record opening balances')); });
+      assert.ok(screen.getByRole('heading', { name: 'Your books are set up' }));
+      assert.deepEqual(attempts, { 'apply-template': 2, 'opening-balances': 2 });
+    } finally { globalThis.fetch = originalFetch; }
   });
 
   test('skip: marks the setup done on the server', async () => {
