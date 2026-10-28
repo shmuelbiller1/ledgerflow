@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import type { ChartAccount } from '../../types';
 import { accountGroupLayout, groupSubtotals, toggleAccountGroup, visibleGroupRows } from '../../lib/accountGroups';
 import { AccountGroupRow, AccountGroupSubtotal } from './AccountGroupControls';
-import { isPostable, isTransactionInDateRange } from '../../lib/txFilters';
+import { isEarningsAccount, isPostable, isTransactionInDateRange } from '../../lib/txFilters';
 import { motion } from 'motion/react';
 import MonthNavigator from '../ui/MonthNavigator';
 import DrillDownModal from '../layout/DrillDownModal';
@@ -28,10 +28,8 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
     if (target) setDrillDownTarget(target);
   };
   const totalIds = (section?: Record<string, number>) => Object.keys(section || {});
-  /** the income, cost of goods and expense accounts whose balances make the earnings on this date */
-  const earningsAccountIds = accounts
-    .filter(account => account.type === 'income' || account.type === 'expense' || account.type === 'cost_of_goods')
-    .map(account => account.id);
+  /** the accounts whose balances make the earnings on this date (the same rule as calculateNetIncome) */
+  const earningsAccountIds = accounts.filter(isEarningsAccount).map(account => account.id);
   const cashReason = 'Cash basis totals include the server’s cash adjustments; switch to accrual to open the entries.';
   const entriesLink = "min-h-11 px-1 text-[9px] font-bold uppercase tracking-wider text-[var(--muted)] underline decoration-dotted underline-offset-2 hover:text-indigo-500 focus-visible:text-indigo-500 disabled:no-underline disabled:opacity-60 self-end";
   // Account groups (K-14): the same accounts, a group's children indented under their parent with a

@@ -319,6 +319,12 @@ export function runningBalances(chronological: Transaction[], accountMap: Map<st
   return out;
 }
 
+/** The accounts whose lines make the earnings (calculateNetIncome): income, revenue, cost of goods and expenses. */
+export function isEarningsAccount(acc: Pick<ChartAccount, 'type' | 'category' | 'role'>): boolean {
+  return acc.type === 'income' || acc.type === 'revenue' || acc.type === 'expense' || acc.type === 'cost_of_goods'
+    || acc.category === 'COGS' || acc.category === 'Direct Costs' || acc.role === 'cogs';
+}
+
 /**
  * Pure math P&L & Net Income calculator
  */
