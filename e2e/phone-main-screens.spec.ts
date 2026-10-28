@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const screens = [
   { tab: 'dashboard', heading: 'Real-Time Financial Ledger', action: 'Add Entry' },
@@ -89,5 +89,91 @@ for (const screen of nextScreens) {
     const first = (await controls.first().boundingBox())!;
     expect(first.x).toBeGreaterThanOrEqual(-0.5);
     expect(first.x + first.width).toBeLessThanOrEqual(391.5);
+  });
+}
+
+/**
+ * A-233, the six screens that live inside another tab: Customers (Sales), Bills and Vendors
+ * (Purchases), Settings → Users and Settings → Bank rules, and the monthly report pack. Each is
+ * opened the way a reader opens it — the tab, then the sub-tab button — and held to the same rule
+ * as the screens above: nothing scrolls sideways, and every box that scrolls on the screen fits
+ * the 390 px column (otherwise the table is clipped and the right-hand column is unreachable).
+ *
+ * The 44 px targets of the Customers and Vendors rows are checked in
+ * `src/tests/phone-tap-targets.test.tsx`: a guest workspace has no contacts, so there is no row
+ * to measure here, and the class (`min-h-11 min-w-11`) is the contract jsdom can check.
+ */
+const innerScreens = [
+  {
+    name: 'sales → customers',
+    tab: 'sales',
+    async open(page: Page) {
+      await page.getByRole('button', { name: 'Customers & Clients', exact: true }).click();
+      await expect(page.locator('[data-list-columns="sales-customers"]')).toBeVisible();
+    },
+  },
+  {
+    name: 'purchases → bills',
+    tab: 'purchases',
+    async open(page: Page) {
+      await expect(page.locator('[data-list-columns="purchase-bills"]')).toBeVisible();
+    },
+  },
+  {
+    name: 'purchases → vendors',
+    tab: 'purchases',
+    async open(page: Page) {
+      await page.getByRole('button', { name: /^Vendors/ }).click();
+      await expect(page.locator('[data-list-columns="purchase-vendors"]')).toBeVisible();
+    },
+  },
+  {
+    name: 'settings → users',
+    tab: 'settings',
+    async open(page: Page) {
+      await page.getByRole('button', { name: 'Team & Invites', exact: true }).click();
+      await expect(page.getByRole('region', { name: 'Team & Invites settings' })).toBeVisible();
+    },
+  },
+  {
+    name: 'settings → bank rules',
+    tab: 'settings',
+    async open(page: Page) {
+      await page.getByRole('button', { name: 'Rules & Automation', exact: true }).click();
+      await expect(page.getByRole('region', { name: 'Rules & Automation settings' })).toBeVisible();
+    },
+  },
+  {
+    name: 'reports → monthly pack',
+    tab: 'reports',
+    async open(page: Page) {
+      await page.getByRole('button', { name: 'Report pack', exact: true }).first().click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      const box = (await dialog.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(391.5);
+    },
+  },
+];
+
+for (const screen of innerScreens) {
+  test(`${screen.name}: opens at 390px, nothing scrolls sideways, every scrolling box fits`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
+    await page.addInitScript(() => {
+      localStorage.setItem('isGuest', 'true');
+      localStorage.setItem('has_seen_onboarding', 'true');
+      window.print = () => {};
+    });
+    await page.goto(`/#${screen.tab}`);
+    await screen.open(page);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    const boxes = page.locator('#main-content [class*="overflow-x-auto"], #main-content [class*="overflow-auto"]');
+    for (let i = 0; i < await boxes.count(); i++) {
+      const b = (await boxes.nth(i).boundingBox())!;
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(391.5);
+    }
   });
 }
