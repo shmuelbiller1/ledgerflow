@@ -60,7 +60,7 @@ export default function Sales() {
   const accounts = useLedgerStore(s => s.accounts);
   const { loading } = useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   // A-235: one shared notice when what this screen needs could not be loaded, with "Try again"
-  const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments']);
+  const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments', 'accounts']);
   const { addEntity, updateEntity } = useEntityOperations();
   const canEditContacts = useCurrentRole() !== 'viewer';
   const [spreadingInvoice, setSpreadingInvoice] = useState<Invoice | null>(null);

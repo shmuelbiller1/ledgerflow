@@ -54,7 +54,7 @@ export default function Purchases() {
   const schedules = useLedgerStore(s => s.recurring) || [];
   useLedgerCollections('recurring');
   // A-235: the same notice every screen uses when its data could not be loaded
-  const dataHealth = useScreenDataHealth(['bills', 'vendors', 'recurring']);
+  const dataHealth = useScreenDataHealth(['bills', 'vendors', 'recurring', 'accounts']);
   const { addEntity, updateEntity, deleteEntity } = useEntityOperations();
   const currentRole = useCurrentRole();
   const canEditContacts = currentRole !== 'viewer';

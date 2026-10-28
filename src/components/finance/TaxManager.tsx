@@ -168,7 +168,7 @@ export default function TaxManager({
 }: TaxManagerProps = {}) {
   const transactions = useLedgerStore(state => state.transactions || []);
   // A-235: the tax figures read the entries and the tax codes
-  const dataHealth = useScreenDataHealth(['transactions', 'taxRates']);
+  const dataHealth = useScreenDataHealth(['transactions', 'taxRates', 'accounts']);
   // The screen is opened from the menu with no props: it reads the workspace's own tax codes and
   // accounts and saves through the normal path (it showed no codes and Add/Edit/Delete did
   // nothing before; L-184)

@@ -10,7 +10,8 @@ export default function Reconciliation() {
   // them did not arrive, say so above the screen instead of showing an empty match list.
   const dataHealth = useScreenDataHealth(['transactions', 'accounts', 'bankLines', 'reconciliations']);
   return (
-    <div>
+    // keeps ReconciliationView a growing flex child, so its match panes stay bounded and scroll inside
+    <div className="flex min-h-0 flex-1 flex-col h-full">
       {/* only when something failed: a permanently padded block would move the screen down */}
       {dataHealth.failedKeys.length > 0 && (
         <div className="px-4 pt-4 sm:px-6 lg:px-8">
