@@ -86,7 +86,7 @@ browser behaviour, and the statement PDF wiring (#141).
 | Commit | What it does | Effect on this list |
 |---|---|---|
 | `2ce068d` | adds a post-pin delta section to `FINAL_ACCURATE_LIST_2026-10-27.md` (PR #434) | documentation only |
-| `cff5fc5` | **AF-010 F1 fixed**: a mistyped estimate price no longer freezes the price box (PR #437) | the AF-010 row below gains this sub-fix; the other AF-010 parts keep their status |
+| `cff5fc5` | **AF-010 F1 fixed**: a mistyped estimate price no longer freezes the price box (PR #437) | AF-010 as a whole is tracked in the 27 Oct list; this closes one sub-finding (F1) and leaves the rest of AF-010 where that list has it |
 | `eab8d04`, `e60e883` | coordination notes for A-257 and for the chromium row-target check | documentation only |
 
 Nothing in those four commits touches money, posting, tax maths, `src/server/**`, a migration or a
