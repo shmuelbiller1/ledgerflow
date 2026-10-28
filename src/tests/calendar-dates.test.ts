@@ -7,6 +7,7 @@
 import test, { after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { addToDateISO, calendarDateISO, getLocalDateISO, monthBoundsISO } from '../lib/utils';
+import { civilYear } from '../lib/calendarDate';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Workspace } from '../types';
 
@@ -41,4 +42,13 @@ describe('Calendar dates', () => {
     assert.equal(getLocalDateISO(firstOfMarch), '2026-02-28', 'the old way: a day early (why L-80 exists)');
     assert.deepEqual(monthBoundsISO(calendarDateISO(firstOfMarch)), { start: '2026-03-01', end: '2026-03-31' });
   });
+});
+
+test('a stored date counts in its own year on every device (AF-011: the tax year filter)', () => {
+  // parseLocalDate('2026-01-01').getFullYear() is 2025 on a device west of the workspace; the text is not
+  assert.equal(civilYear('2026-01-01'), 2026);
+  assert.equal(civilYear('2025-12-31'), 2025);
+  assert.equal(civilYear('2026-01-01T00:30:00+13:00'), 2026, 'a stored timestamp keeps its written year');
+  assert.equal(civilYear(''), null);
+  assert.equal(civilYear(undefined), null);
 });

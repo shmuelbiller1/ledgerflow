@@ -38,6 +38,12 @@ export function civilDateParts(value: string): { year: number; month: number; da
   return { year, month, day };
 }
 
+/** The year a stored date is in, read from its own text ('2026-01-01' is 2026 on every device and in every zone). */
+export function civilYear(value: string | null | undefined): number | null {
+  const match = /^(\d{4})-/.exec(String(value ?? '').trim());
+  return match ? Number(match[1]) : null;
+}
+
 export function fromDayNumber(n: number): string {
   const z = Math.trunc(n) + 719468;
   const era = Math.floor(z / 146097);

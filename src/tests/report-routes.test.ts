@@ -131,6 +131,19 @@ describe('Report routes', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () =
     }
   });
 
+  test('P&L: someone removed from the workspace is refused, even while the figures are cached (AF-015)', async () => {
+    const path = `/profit-and-loss?workspaceId=${ws}&startDate=2026-05-01&endDate=2026-05-31&_read=af015`;
+    const as = (uid: string) => fetch(`${base}/api/v1/reports${path}`, { headers: { 'x-test-uid': uid } });
+    await db.collection('workspaces').doc(ws).update({ members: ['owner-1', 'member-2'] });
+    try {
+      assert.equal((await as('member-2')).status, 200, 'a member reads it, and it is cached');
+      await db.collection('workspaces').doc(ws).update({ members: ['owner-1'] });
+      assert.equal((await as('member-2')).status, 403, 'the cached answer is not served once membership is gone');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ members: ['owner-1'] });
+    }
+  });
+
   test('balance sheet: fresh then cached, same figures (bank -1100)', async () => {
     const path = `/balance-sheet?workspaceId=${ws}&endDate=2026-05-31&_read=aud10-bs`;
     const first = await get(path);

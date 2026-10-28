@@ -17,7 +17,8 @@ import {
   Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { parseLocalDate, cn, formatCurrency, workspaceYearMonth } from '../../lib/utils';
+import { cn, formatCurrency, workspaceYearMonth } from '../../lib/utils';
+import { civilYear } from '../../lib/calendarDate';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import AsyncButton from '../ui/AsyncButton';
 import InlineEdit from '../ui/InlineEdit';
@@ -197,7 +198,7 @@ export default function TaxManager({
   const { activity, serverMonths } = useServerActivity(`${selectedYear}-01-01`, `${selectedYear}-12-31`);
   const taxMetrics = useMemo(() => {
     const fromServer = serverMonths ? yearFigures(activity, selectedYear, accounts) : null;
-    const yearTransactions = (transactions || []).filter(tx => isPostable(tx) && parseLocalDate(tx.date).getFullYear() === selectedYear);
+    const yearTransactions = (transactions || []).filter(tx => isPostable(tx) && civilYear(tx.date) === selectedYear);
     const accountById = new Map(accounts.map(a => [a.id, a]));
     
     const grossIncome = fromServer ? fromServer.grossIncome : yearTransactions
