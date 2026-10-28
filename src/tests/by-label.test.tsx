@@ -60,9 +60,11 @@ describe('Profit by label', () => {
     useLedgerStore.setState({ dimensionNodes: [{ id: 'P5', dimensionId: 'property', description: 'Property 5' }] as never });
     const report = profitByLabel(accounts, transactions, 'property', '2026-03-01', '2026-03-31');
     const asked: string[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    let explainBody: { accountIds?: string[]; labelDimension?: string; labelValue?: string } = {};
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       asked.push(url);
+      if (url.startsWith('/api/v1/reports/explain') && typeof init?.body === 'string') explainBody = JSON.parse(init.body);
       const body = url.startsWith('/api/v1/reports/explain') ? { lines: [], totalCents: -200000, entries: 1 } : report;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
@@ -74,8 +76,7 @@ describe('Profit by label', () => {
     assert.match(screen.getByRole('rowheader', { name: 'Net income' }).parentElement!.textContent || '', /\$2,000\.00\$550\.00-\$15\.00\$2,535\.00/);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Rent received for Property 5: open the entries/ })); });
     await waitFor(() => assert.ok(asked.some(u => u.startsWith('/api/v1/reports/explain'))));
-    const explain = new URLSearchParams(asked.find(u => u.startsWith('/api/v1/reports/explain'))!.split('?')[1]);
-    assert.deepEqual([explain.get('accountIds'), explain.get('labelDimension'), explain.get('labelValue')], ['rent-in', 'property', 'P5']);
+    assert.deepEqual([explainBody.accountIds, explainBody.labelDimension, explainBody.labelValue], [['rent-in'], 'property', 'P5']);
   });
 
   test('no labels yet: says where to add one, and asks nothing', async () => {

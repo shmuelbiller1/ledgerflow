@@ -262,19 +262,15 @@ reportRouter.get("/stock-aging", async (req, res) => {
   }
 });
 
-reportRouter.get("/explain", async (req, res) => {
-  const authReq = req as AuthenticatedRequest;
-  const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-  const parsed = z.object({
-    workspaceId: z.string().min(1), accountIds: z.string().min(1).max(4000), startDate: day.optional(), endDate: day.optional(),
-    labelDimension: z.string().max(100).optional(), labelValue: z.string().max(200).optional(),
-  }).safeParse(req.query);
-  if (!parsed.success) return sendError(res, "Say which accounts and which period", 400, parsed.error.issues);
-  const q = parsed.data;
+const explainDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const explainFilters = { startDate: explainDay.optional(), endDate: explainDay.optional(), labelDimension: z.string().max(100).optional(), labelValue: z.string().max(200).optional() };
+type ExplainQuery = { workspaceId: string; accountIds: string[]; startDate?: string; endDate?: string; labelDimension?: string; labelValue?: string };
+
+async function sendExplanation(authReq: AuthenticatedRequest, res: express.Response, q: ExplainQuery) {
   try {
     const { accounts, transactions } = await getReportContext(authReq, q.workspaceId, undefined, q.endDate);
     const explanation = explainFigure(accounts, transactions, {
-      accountIds: q.accountIds.split(',').filter(Boolean), ...(q.startDate ? { startDate: q.startDate } : {}), ...(q.endDate ? { endDate: q.endDate } : {}),
+      accountIds: q.accountIds, ...(q.startDate ? { startDate: q.startDate } : {}), ...(q.endDate ? { endDate: q.endDate } : {}),
       ...(q.labelDimension && q.labelValue ? { label: { dimensionId: q.labelDimension, value: q.labelValue } } : {}),
     });
     // attached files, counted without reading them
@@ -290,6 +286,19 @@ reportRouter.get("/explain", async (req, res) => {
     if (/not found/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
     sendError(res, "Could not explain this number", 500, errorMessage(error));
   }
+}
+
+reportRouter.get("/explain", async (req, res) => {
+  const parsed = z.object({ workspaceId: z.string().min(1), accountIds: z.string().min(1).max(4000), ...explainFilters }).safeParse(req.query);
+  if (!parsed.success) return sendError(res, "Say which accounts and which period", 400, parsed.error.issues);
+  await sendExplanation(req as AuthenticatedRequest, res, { ...parsed.data, accountIds: parsed.data.accountIds.split(',').filter(Boolean) });
+});
+
+/** The same, with the accounts in the body: a total over a large chart of accounts does not fit in a link. Reads only. */
+reportRouter.post("/explain", async (req, res) => {
+  const parsed = z.object({ workspaceId: z.string().min(1).max(200), accountIds: z.array(z.string().min(1).max(200)).min(1).max(5000), ...explainFilters }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, "Say which accounts and which period", 400, parsed.error.issues);
+  await sendExplanation(req as AuthenticatedRequest, res, parsed.data);
 });
 
 /** CB-25: the profit and loss split by the values of one label, adding back to the P&L (byLabel.ts). */

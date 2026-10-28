@@ -31,7 +31,9 @@ describe('Explain this number', () => {
     render(<DrillDownModal isOpen onClose={() => {}} accountName="Sales" transactions={[]} formatCurrency={money} from="Profit & Loss"
       explain={{ accountIds: ['sales'], startDate: '2026-03-01', endDate: '2026-03-31', expectedCents: 12000, sign: -1 }} />);
     await waitFor(() => assert.ok(screen.getByText('Consulting')));
-    assert.equal(calls[0].url, '/api/v1/reports/explain?workspaceId=component-workspace&accountIds=sales&startDate=2026-03-01&endDate=2026-03-31');
+    assert.equal(calls[0].url, '/api/v1/reports/explain');
+    assert.equal(calls[0].method, 'POST', 'the accounts go in the body, so a large chart of accounts fits');
+    assert.deepEqual(calls[0].body, { workspaceId: 'component-workspace', accountIds: ['sales'], startDate: '2026-03-01', endDate: '2026-03-31' });
     assert.ok(screen.getByText('$100.00'), 'in the report\'s sign');
     assert.ok(screen.getByText('$120.00'), 'the total');
     assert.ok(screen.getByText('Matched'));

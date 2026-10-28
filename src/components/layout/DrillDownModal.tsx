@@ -35,12 +35,13 @@ function Explained({ request, formatCurrency, onOpen, onFail }: { request: Expla
   const openRecord = useUIStore(s => s.openRecord);
   const [data, setData] = React.useState<Explanation | null>(null);
   const sign = request.sign || 1;
-  const query = workspaceId ? new URLSearchParams({ workspaceId, accountIds: request.accountIds.join(','), ...(request.startDate ? { startDate: request.startDate } : {}), ...(request.endDate ? { endDate: request.endDate } : {}), ...(request.labelFilter ? { labelDimension: request.labelFilter.dimensionId, labelValue: request.labelFilter.value } : {}) }).toString() : '';
+  // sent in the body: a total over a large chart of accounts is too long for a link
+  const query = workspaceId ? JSON.stringify({ workspaceId, accountIds: request.accountIds, ...(request.startDate ? { startDate: request.startDate } : {}), ...(request.endDate ? { endDate: request.endDate } : {}), ...(request.labelFilter ? { labelDimension: request.labelFilter.dimensionId, labelValue: request.labelFilter.value } : {}) }) : '';
   React.useEffect(() => {
     if (!query) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/reports/explain?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
+      const res = await fetch('/api/v1/reports/explain', { method: 'POST', headers: { Authorization: `Bearer ${await getIdToken()}`, 'Content-Type': 'application/json' }, body: query });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(body.lines)) throw new Error(body.message || 'The entries could not be loaded');
       return body as Explanation;
