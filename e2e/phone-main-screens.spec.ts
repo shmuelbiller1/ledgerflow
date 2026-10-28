@@ -77,14 +77,15 @@ for (const screen of nextScreens) {
 
     // #main-content clips overflow, so the document width alone would hide a table hanging off the
     // side. Every horizontal scroll box the screen uses has to fit the viewport itself, and the
-    // first working control has to sit fully inside it.
+    // first working control of the screen itself (not the shared Help button rendered above every
+    // screen) has to sit fully inside it.
     const boxes = page.locator('#main-content [class*="overflow-x-auto"]');
     for (let i = 0; i < await boxes.count(); i++) {
       const b = (await boxes.nth(i).boundingBox())!;
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.width).toBeLessThanOrEqual(391.5);
     }
-    const controls = page.locator('#main-content button:enabled, #main-content a[href]');
+    const controls = page.locator('#main-content button:enabled:not([aria-label^="Help for"]), #main-content a[href]');
     const first = (await controls.first().boundingBox())!;
     expect(first.x).toBeGreaterThanOrEqual(-0.5);
     expect(first.x + first.width).toBeLessThanOrEqual(391.5);
