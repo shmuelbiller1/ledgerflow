@@ -6,9 +6,9 @@ import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 export default function Reconciliation() {
   const model = useReconciliationModel();
-  // A-235: matching reads entries, accounts, the bank feed and saved reconciliations. When one of
+  // A-235: matching reads entries, accounts and the bank feed (not saved reconciliations). When one of
   // them did not arrive, say so above the screen instead of showing an empty match list.
-  const dataHealth = useScreenDataHealth(['transactions', 'accounts', 'bankLines', 'reconciliations']);
+  const dataHealth = useScreenDataHealth(['transactions', 'accounts', 'bankLines']);
   return (
     // keeps ReconciliationView a growing flex child, so its match panes stay bounded and scroll inside
     <div className="flex min-h-0 flex-1 flex-col h-full">
