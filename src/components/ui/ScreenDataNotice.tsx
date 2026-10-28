@@ -26,7 +26,8 @@ export function ScreenDataNotice({ failedKeys, message, onRetry, what }: ScreenD
   const names = collectionList(failedKeys);
   return (
     <div
-      role="alert"
+      // status, not alert: the global DataStatusBar already announces the same failure as an alert
+      role="status"
       data-screen-data-notice
       className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-start"
     >

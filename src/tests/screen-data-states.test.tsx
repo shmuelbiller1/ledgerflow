@@ -61,9 +61,9 @@ afterEach(async () => {
   await getSupabase().auth.dispose();
 });
 
-/** the shared notice, whatever else on the page is an alert */
+/** the shared notice (a polite status: the global data bar is the alert), whatever else is on the page */
 function dataNotice(): HTMLElement | undefined {
-  return screen.queryAllByRole('alert').find(el => el.matches('[data-screen-data-notice]'));
+  return screen.queryAllByRole('status').find(el => el.matches('[data-screen-data-notice]'));
 }
 
 /** a real year of books for the three report screens (their statement renderer reads a full model) */
@@ -126,7 +126,7 @@ describe('A-235: every busiest screen reports a failed load with one shared retr
   test('Banking: a chart of accounts that could not be read keeps its own retry', async () => {
     render(<Banking />);
     await failCollections('accounts');
-    const alert = screen.getAllByRole('alert').find(el => /couldn't load your bank accounts/i.test(el.textContent || ''));
+    const alert = [...screen.queryAllByRole('alert'), ...screen.queryAllByRole('status')].find(el => /couldn't load your bank accounts/i.test(el.textContent || ''));
     assert.ok(alert, 'the bank accounts panel says the chart of accounts could not be read');
     await act(async () => { fireEvent.click(within(alert!).getByRole('button', { name: 'Try again' })); });
     assert.equal(useDataNeedsStore.getState().failed.accounts, undefined);
