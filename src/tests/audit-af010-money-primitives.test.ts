@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAmountToCents } from '../lib/utils';
+import { isAmountText, parseAmountToCents } from '../lib/utils';
 import { bankCsvAmountCents } from '../lib/bankCsvRows';
 import { allocateCents as canonicalAlloc } from '../lib/Allocation';
 import { allocateCents as kernelAlloc } from '../kernel/templates/TransactionTemplates';
@@ -60,6 +60,10 @@ test('AF-010-F3: utils.parseAmountToCents returns 0 for malformed text instead o
   assert.equal(parseAmountToCents('1.2.3'), 0);
   assert.equal(parseAmountToCents('1-2'), 0);
   assert.equal(parseAmountToCents('--5'), 0);
+  assert.equal(parseAmountToCents('(1+2)'), 0, 'checked before the operators are stripped');
+  // savers tell a typo from a real zero
+  for (const typo of ['1.2.3', '1-2', '--5', '(1+2)', 'abc', '']) assert.equal(isAmountText(typo), false, typo);
+  for (const amount of ['0', '0.00', '1,234.56', '-$99.95', '(100.00)', '.5', '5.', 'USD 12.50', '₪40', '100 USD', '1 234.56', "1'234.50"]) assert.equal(isAmountText(amount), true, amount);
   // TruthEngine wraps the same class of failure in its own integrity error; OrZero swallows it
   assert.throws(() => TruthEngine.parseAmountToCents('1.2.3'), /Invalid amount format/);
   assert.equal(TruthEngine.parseAmountToCentsOrZero('1.2.3'), 0);

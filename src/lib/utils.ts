@@ -19,21 +19,33 @@ export { roundCents, calculateFXCents } from './cents';
 /**
  * Safely parses string or numeric monetary inputs into integer cents without floating point precision errors.
  */
+/**
+ * Whether typed text is one amount: an optional sign, currency symbol or code, digits (thousands may be
+ * grouped with commas), an optional decimal part, optionally in accounting brackets. "1.2.3", "1-2" and
+ * "(1+2)" are not.
+ */
+export function isAmountText(val: string): boolean {
+  const text = String(val).trim();
+  const inner = /^\((.*)\)$/.exec(text)?.[1] ?? text;
+  return /\d/.test(inner)
+    && /^-?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?\s*(?:\d{1,3}(?:[, ']\d{3})+|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}|[$€£₪¥])?$/.test(inner.trim());
+}
+
 export function parseAmountToCents(val: string | number | undefined | null): number {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') {
     if (!Number.isFinite(val)) return 0;
     return new Decimal(val).mul(100).round().toNumber();
   }
+  // AF-010-F3: text that is not one amount ('1.2.3', '(1+2)') is no amount, not a crash; callers that save
+  // money check isAmountText first, so a typo is refused rather than recorded as zero
+  if (!isAmountText(val)) return 0;
   const text = String(val).trim();
-  // AF-010-F2: an accountant's (100.00) is a negative amount
-  const bracketed = /^\(.*\)$/.test(text);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
-  if (!cleanStr || cleanStr === '-') return 0;
-  // AF-010-F3: text that is not one number ('1.2.3', '1-2', '--5') is no amount, not a crash
-  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) return 0;
+  if (!cleanStr || cleanStr === '-' || !/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) return 0;
   const cents = new Decimal(cleanStr).mul(100).round().toNumber();
-  return bracketed ? -Math.abs(cents) : cents;
+  // AF-010-F2: an accountant's (100.00) is a negative amount
+  return text.startsWith('(') ? -Math.abs(cents) : cents;
 }
 
 /** Known 3-decimal currencies per ISO 4217 (KWD, BHD, OMR, JOD, TND, LYD, IQD); one list with the storage rule (BM-04). */

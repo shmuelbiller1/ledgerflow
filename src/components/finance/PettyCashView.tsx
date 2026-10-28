@@ -19,7 +19,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { getIdToken } from '../../firebase';
-import { cn, formatCurrency, getLocalDateISO, parseAmountToCents } from '../../lib/utils';
+import { cn, formatCurrency, getLocalDateISO, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { EmptyState } from '../ui/EmptyState';
 import {
   boxSentence,
@@ -146,7 +146,7 @@ export default function PettyCashView() {
   const spendDraft = {
     boxAccountId,
     categoryAccountId: spend.categoryAccountId,
-    amountCents: spend.amount.trim() ? parseAmountToCents(spend.amount) : 0,
+    amountCents: spend.amount.trim() && isAmountText(spend.amount) ? parseAmountToCents(spend.amount) : 0,
     date: spend.date,
     note: spend.note,
     receipt: spend.receipt,
@@ -154,10 +154,11 @@ export default function PettyCashView() {
   const topUpDraft = {
     boxAccountId,
     bankAccountId: topUp.bankAccountId,
-    amountCents: topUp.amount.trim() ? parseAmountToCents(topUp.amount) : 0,
+    amountCents: topUp.amount.trim() && isAmountText(topUp.amount) ? parseAmountToCents(topUp.amount) : 0,
     date: topUp.date,
   };
-  const countedCents = count.counted.trim() ? parseAmountToCents(count.counted) : NaN;
+  // a typo is no count: NaN is refused by countProblem, where 0 would record the whole balance as short
+  const countedCents = count.counted.trim() && isAmountText(count.counted) ? parseAmountToCents(count.counted) : NaN;
   const countDraft = {
     boxAccountId,
     overShortAccountId: overShortAccounts.some(a => a.id === preference.overShortAccountId) ? preference.overShortAccountId || '' : '',
