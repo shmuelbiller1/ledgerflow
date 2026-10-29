@@ -29,8 +29,18 @@ function plainAmountText(val: string): string {
   return String(val).replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').replace(/[\u00A0\u202F]/g, ' ').replace(/\u2019/g, "'").trim();
 }
 
+/**
+ * AF-011: many locales write the decimal with a comma ('12,50', '1.234,56', '1 234,56 €'). The comma is the
+ * decimal point only when it is the last separator and exactly two digits follow it; '12,345' keeps its
+ * en-US reading (twelve thousand) and '1,2' is still being typed, on its way to '1,234'.
+ */
+function decimalCommaAsPoint(text: string): string {
+  const m = text.match(/^([^\d,.]*)(\d{1,3}(?:\.\d{3})+|\d{1,3}(?:[ ']\d{3})+|\d+),(\d{2})([^\d,.]*)$/);
+  return m ? `${m[1]}${m[2].replace(/\./g, '')}.${m[3]}${m[4]}` : text;
+}
+
 export function isAmountText(val: string, opts: { complete?: boolean } = {}): boolean {
-  const text = plainAmountText(val);
+  const text = decimalCommaAsPoint(plainAmountText(val));
   // an opening bracket may still be waiting for its closing one while the amount is typed
   const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
   if (!/\d/.test(inner)) return false;
@@ -51,7 +61,7 @@ export function parseAmountToCents(val: string | number | undefined | null): num
     if (!Number.isFinite(val)) return 0;
     return new Decimal(val).mul(100).round().toNumber();
   }
-  const text = plainAmountText(val);
+  const text = decimalCommaAsPoint(plainAmountText(val));
   // text without a digit ('abc') has always been no amount
   if (!/\d/.test(text)) return 0;
   // AF-010-F3: text that is one number in any format the app writes or a person pastes ('CHF-123.45',
