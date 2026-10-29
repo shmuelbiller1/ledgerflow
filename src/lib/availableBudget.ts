@@ -7,8 +7,7 @@
 import type { ChartAccount, Transaction } from '../types';
 import { budgetMonthAmount, computeBudgetActual, type SavedBudget } from './budgetActual';
 import { budgetPeriodMonths } from './bookAlerts';
-import { naturalNet, sumActivity, type ActivityByMonth } from './periodActivity';
-import { lineAmount, transactionDate, isPostable } from './txFilters';
+import { naturalNet, sumActivity, withoutReplacedPostings, type ActivityByMonth } from './periodActivity';
 
 export interface AvailableBudget {
   name: string;
@@ -47,8 +46,9 @@ export function availableBudget(input: {
   excludeDocumentId?: string;
   /**
    * L-123 step 3e: the activity per month that includes the server's months (useServerActivity), given only when the
-   * loaded entries are capped: spent is then the account's net movement in the period from it, less the edited
-   * document's own loaded lines. Without it, spent is summed from the loaded entries as before.
+   * loaded entries are capped: spent is then the account's net movement in the period from it. That activity already
+   * leaves the edited document out, on the server's months too (useServerActivity's excludeDocumentId), so a posting
+   * older than the loaded entries is not counted twice. Without it, spent is summed from the loaded entries as before.
    */
   activity?: ActivityByMonth;
 }): AvailableBudget | null {
@@ -57,8 +57,7 @@ export function availableBudget(input: {
   const account = input.accounts.find(a => a.id === input.accountId);
   if (!account) return null;
   const exclude = input.excludeDocumentId;
-  const isExcluded = (t: Transaction) => !!exclude && (t.id === exclude || t.metadata?.billId === exclude || t.metadata?.invoiceId === exclude);
-  const transactions = exclude ? input.transactions.filter(t => !isExcluded(t)) : input.transactions;
+  const transactions = exclude ? withoutReplacedPostings(input.transactions, exclude) : input.transactions;
   for (const budget of input.budgets) {
     if (budget.targetType !== 'account') continue;
     const target = String(budget.targetId).toLocaleLowerCase();
@@ -69,10 +68,7 @@ export function availableBudget(input: {
     if (budgetCents <= 0) continue;
     if (input.activity) {
       const [first, last] = [months[0], months[months.length - 1]];
-      const own = exclude ? input.transactions.filter(t => isExcluded(t) && isPostable(t)
-        && transactionDate(t).slice(0, 7) >= first && transactionDate(t).slice(0, 7) <= last) : [];
-      const ownNet = own.reduce((sum, t) => sum + (t.lines || []).filter(l => l?.accountId === account.id).reduce((s2, l) => s2 + lineAmount(l, t), 0), 0);
-      const spentCents = naturalNet(account, sumActivity(input.activity, first, last, id => id === account.id, a => a.net) - ownNet);
+      const spentCents = naturalNet(account, sumActivity(input.activity, first, last, id => id === account.id, a => a.net));
       const leftCents = budgetCents - spentCents;
       return { name: budget.name || account.name, period: label(months), budgetCents, spentCents, leftCents, wouldExceed: (input.addingCents || 0) > leftCents };
     }
