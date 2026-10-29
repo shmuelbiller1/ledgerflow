@@ -141,6 +141,15 @@ async function storePlaidChunk(db: Firestore, input: {
       ...(input.removed || []).map(txId => ({ kind: 'removed' as const, line: undefined, id: `plaid_${crypto.createHash('sha256').update(`${input.workspaceId}:${txId}`).digest('hex').slice(0, 40)}` })),
     ];
     const changeSnaps = changes.length > 0 ? await t.getAll(...changes.map(c => db.collection('bankLines').doc(c.id))) : [];
+    // (CodeRabbit on #439) a correction for a row that was never stored is the only copy Plaid will send
+    // once the cursor moves: it is stored as a new line, never dropped
+    const batchIds = new Set(write.map(l => l.id));
+    changes.forEach((change, i) => {
+      if (change.kind === 'modified' && change.line && !changeSnaps[i]?.exists && !batchIds.has(change.id) && !seen.has(change.line.importIdentity)) {
+        write.push(change.line);
+        batchIds.add(change.id);
+      }
+    });
     const rules = await prepareBankRuleSuggestions(db, t, input.workspaceId, write);
     const now = new Date().toISOString();
     for (const line of write) {

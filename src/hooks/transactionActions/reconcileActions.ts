@@ -94,6 +94,9 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         date: bankLine.date,
         description: bankLine.description,
         totalAmountCents: Math.abs(bankLine.amountCents),
+        // the entry is in the line's currency, else the books' (the server's default is USD) (CodeRabbit on #439)
+        currency: (bankLine as { currency?: string }).currency
+          || (useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId) as { currency?: string } | undefined)?.currency || 'USD',
         status: 'reconciled',
         type: 'actual',
         createdAt: new Date().toISOString(),
@@ -162,7 +165,9 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
       // a line in another currency waits for a person: its amount is not in the books' currency (AF-001)
       const home = (useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId) as { currency?: string } | undefined)?.currency || 'USD';
       const bankLines = (scope?.bankLines ?? loaded.bankLines ?? []).filter(l => l.status === 'pending'
-        && (!(l as { currency?: string }).currency || String((l as { currency?: string }).currency).toUpperCase() === home.toUpperCase()));
+        && (!(l as { currency?: string }).currency || String((l as { currency?: string }).currency).toUpperCase() === home.toUpperCase())
+        // a Plaid line from an account not tied to a ledger account has no bank to match against (CodeRabbit on #439)
+        && !((l as { source?: string }).source === 'plaid' && !l.accountId));
       const transactions = (scope?.transactions ?? loaded.transactions ?? [])
         .filter(t => t.status !== 'reconciled' && t.status !== 'void');
       
@@ -188,6 +193,9 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
             return acc && resolveAccountRole(acc) === 'cash';
           }) || [];
           const cashDelta = cashLines.reduce((s, l) => s + lineAmount(l, tx), 0);
+
+          // a line from one bank account is never matched to money that moved through another (CodeRabbit on #439)
+          if (bl.accountId && cashLines.length > 0 && !cashLines.some(l => l.accountId === bl.accountId)) return;
 
           // If transaction has explicit cash lines, cash movement direction MUST match bank line sign!
           if (cashDelta !== 0 && Math.sign(cashDelta) !== Math.sign(bl.amountCents)) {

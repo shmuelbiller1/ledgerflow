@@ -216,4 +216,13 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     );
     assert.equal((await db.collection('bankLines').doc(`eur_${suffix}`).get()).data()?.status, 'pending');
   });
+
+  test('a correction for a row never stored becomes a new line instead of being lost (CodeRabbit on #439)', async () => {
+    const { storePlaidSync, plaidRowsAsBankLines } = await import('../server/services/plaidIngest');
+    const modified = plaidRowsAsBankLines([{ transaction_id: 'tx-orphan', date: '2026-10-28', name: 'Only the correction', amount: 4 }], { id: bankId }, ws);
+    const r = await storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines: [], modified, bankUpdate: { syncCursor: 'c-orphan' } });
+    assert.equal(r.stored, 1);
+    const line = (await db.collection('bankLines').where('workspaceId', '==', ws).where('importIdentity', '==', 'plaid:tx-orphan').get()).docs[0]?.data();
+    assert.deepEqual([line?.description, line?.amountCents, line?.status], ['Only the correction', -400, 'pending']);
+  });
 });
