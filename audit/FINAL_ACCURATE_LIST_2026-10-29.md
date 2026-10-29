@@ -8,7 +8,7 @@ at the bottom; do not silently rewrite statuses.
 | | |
 |---|---|
 | **Code pin (main base)** | `8a30819d9457431a4f4dc2635eaddac7d0132dd7` — "A-257 reload-notice, A-258 no lint suppressions, A-262 empty states…" PR **#440** |
-| **This session's head** | FINAL_HEAD_TODO (branch `arena/9bc00485-ledgerflow`, PR **#446**) |
+| **This session's head** | `42f4aaae0c490995add61a2f4605cae8e80500f3` (branch `arena/9bc00485-ledgerflow`, PR **#446**) |
 | **Supersedes** | `audit/FINAL_ACCURATE_LIST_2026-10-28.md` (FINAL at pin `a7c2038`) — kept as history, not edited |
 | **Author** | AI #3 (Arena), staying in its lane: no money/posting/tax/`src/server/**` edits |
 | **Evidence for this session** | `docs/verification/ai3-a259-a261-a234-2026-10-29.md`; CI runs named below |
