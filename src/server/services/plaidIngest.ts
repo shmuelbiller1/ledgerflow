@@ -104,16 +104,22 @@ export async function storePlaidSync(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate: Record<string, unknown>;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
-  // (Codex on #439) a long first history is stored in bounded chunks; every chunk but the last carries no
-  // cursor, so the cursor still never moves past a row that is not stored. A failure after some chunks
-  // keeps those rows; the next sync brings them again and they are skipped as already stored.
-  const chunks: PlaidBankLine[][] = [];
-  for (let i = 0; i < input.lines.length; i += PLAID_STORE_CHUNK) chunks.push(input.lines.slice(i, i + PLAID_STORE_CHUNK));
-  if (chunks.length === 0) chunks.push([]);
+  // (Codex on #439) a long history is stored in bounded chunks; every chunk but the last carries no cursor,
+  // so the cursor still never moves past a row that is not stored. A failure after some chunks keeps
+  // those rows; the next sync brings them again and they are skipped as already stored.
+  // corrections and deletions are chunked too (Codex on #439): applying one twice changes nothing, so a
+  // retry after a part-done run is safe; only the very last transaction carries the cursor
+  type Chunk = { lines: PlaidBankLine[]; modified: PlaidBankLine[]; removed: string[] };
+  const chunks: Chunk[] = [];
+  const slices = <T>(list: T[]) => { const out: T[][] = []; for (let i = 0; i < list.length; i += PLAID_STORE_CHUNK) out.push(list.slice(i, i + PLAID_STORE_CHUNK)); return out; };
+  for (const lines of slices(input.lines)) chunks.push({ lines, modified: [], removed: [] });
+  for (const modified of slices(input.modified || [])) chunks.push({ lines: [], modified, removed: [] });
+  for (const removed of slices(input.removed || [])) chunks.push({ lines: [], modified: [], removed });
+  if (chunks.length === 0) chunks.push({ lines: [], modified: [], removed: [] });
   const total = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
   for (let c = 0; c < chunks.length; c++) {
     const last = c === chunks.length - 1;
-    const r = await storePlaidChunk(db, { ...input, lines: chunks[c], ...(last ? {} : { modified: [], removed: [], bankUpdate: undefined }) });
+    const r = await storePlaidChunk(db, { ...input, ...chunks[c], bankUpdate: last ? input.bankUpdate : undefined });
     total.stored += r.stored; total.corrected += r.corrected; total.removed += r.removed; total.flagged += r.flagged;
   }
   return total;

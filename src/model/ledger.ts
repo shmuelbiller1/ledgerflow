@@ -433,6 +433,10 @@ export interface BankStatementLine {
   importIdentity?: string;
   /** EG-9: what the bank rules suggest (server-written; nothing is posted until accepted) */
   suggestion?: import('../lib/bankRules').BankRuleSuggestion | null;
+  /** AF-001: the line's own currency (a Plaid row may differ from the books'); amountCents is in its minor units */
+  currency?: string;
+  /** AF-001: where the line came from ('plaid' for the bank feed) */
+  source?: string;
 }
 
 export interface FilterCriteria {

@@ -209,7 +209,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       </button>
                       <div className="flex flex-col items-end shrink-0 ml-4">
                          <span className="text-md font-mono font-bold tabular-nums tracking-tight">
-                          {formatCurrency(btx.amountCents)}
+                          {formatCurrency(btx.amountCents, btx.currency)}
                         </span>
                         <div className="flex gap-1 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                            <button type="button" onClick={(e) => { e.stopPropagation(); setBankLineAction({ mode: 'pay', line: btx }); }} className="p-1 px-2 text-[9px] font-bold text-[var(--muted)] hover:text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded cursor-pointer uppercase tracking-wider" title={btx.amountCents > 0 ? 'This deposit pays invoices' : 'This payment pays bills'}>
@@ -358,7 +358,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                  <span className="px-2 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[7px] font-black uppercase tracking-wider">Cleared</span>
                                </div>
                                <h4 className="font-extrabold text-sm text-[var(--text)] min-w-0"><BankLineName text={line.description} /></h4>
-                               <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 tabular-nums">Statement amount: {formatCurrency(line.amountCents)}</p>
+                               <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 tabular-nums">Statement amount: {formatCurrency(line.amountCents, line.currency)}</p>
                              </button>
 
                              {/* Connector Node */}
@@ -420,7 +420,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                   <BankLineName text={selectedBankLine.description} className="text-md font-bold mt-1 tracking-tight" />
                   <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                     <span className="text-[10px] font-mono text-[var(--muted)]">{selectedBankLine.date}</span>
-                    <span className="text-sm font-bold font-mono text-[var(--text)] tabular-nums">{formatCurrency(selectedBankLine.amountCents)}</span>
+                    <span className="text-sm font-bold font-mono text-[var(--text)] tabular-nums">{formatCurrency(selectedBankLine.amountCents, selectedBankLine.currency)}</span>
                   </div>
                 </div>
 
@@ -654,7 +654,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                 <div className="md:col-span-5 overflow-hidden">
                                    <span className="text-[8px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Bank statement line</span>
                                    <div className="font-bold text-[var(--text)] text-sm"><BankLineName text={btx.description} /></div>
-                                   <p className="text-[10px] font-semibold text-[var(--muted)] font-mono mt-0.5">{btx.date} • {formatCurrency(btx.amountCents)}</p>
+                                   <p className="text-[10px] font-semibold text-[var(--muted)] font-mono mt-0.5">{btx.date} • {formatCurrency(btx.amountCents, btx.currency)}</p>
                                 </div>
 
                                 {/* Flow indicator status line */}
