@@ -9,11 +9,14 @@ import { mountJourney } from './support/journeyFixture';
  * this spec measures the pixels, with one customer and one vendor actually listed.
  *
  * The A-233 contract this enforces: the row's actions live in a horizontal scroll box that fits
- * the phone, so the reader scrolls the box — never the page — to reach them. The spec scrolls that
- * box itself (programmatic `scrollIntoViewIfNeeded` moves the page on this fixed-position screen
- * and leaves the button pinned off-viewport, which is precisely the untestable-by-layout-box trap
- * CodeRabbit #440's note is about): a button that is invisible, unscrollable-to or clipped fails,
- * even when its layout `boundingBox()` happens to fit.
+ * the phone, so the reader scrolls the box — never the page — to reach them. The spec asks
+ * Playwright to scroll and hit-test each button (`click({ trial: true })` — a clipped or
+ * unreachable button cannot be trial-clicked), then measures the rendered box and requires full
+ * viewport intersection (`toBeInViewport({ ratio: 1 })`), so a button passes only if it is big,
+ * reachable and fully visible. The scroll box itself is located by its `data-list-columns` marker
+ * and required to fit the viewport. Page-level sideways scroll is a shell property and lives in
+ * `e2e/phone-main-screens.spec.ts` (real routes); the fixture page deliberately mounts the screen
+ * without the app shell.
  */
 
 const WIDTH = 390;
@@ -35,12 +38,12 @@ async function ancestorDump(button: Locator): Promise<string> {
   });
 }
 
-/** The A-233 contract on screen: a real 44 px box, reachable with the page, fully visible. */
+/** The A-233 contract on screen: a real 44 px box, scroll-reachable inside its own box, fully visible. */
 async function expect44px(button: Locator, name: string) {
   await expect(button, `${name} is on the screen`).toHaveCount(1);
   // Playwright's own actionability check does the scrolling it stands behind (children of inner
-  // scroll boxes included) and verifies the button is hit-testable where it lands — a clipped or
-  // off-viewport button fails here with the actionable-not-reachable error.
+  // scroll boxes included) and requires the button to be hit-testable where it lands — a clipped
+  // or unreachable button fails here with the actionable-not-reachable error.
   await button.click({ trial: true });
 
   const box = await button.boundingBox();
@@ -59,27 +62,17 @@ async function expect44px(button: Locator, name: string) {
   await expect(button, `${name} is fully visible, not clipped by an ancestor | ${geom}`).toBeInViewport({ ratio: 1 });
 }
 
-/** The page itself fits the phone on these screens (A-233): the lists carry their own scroll. */
-async function expectNoSidewaysPageScroll(page: import('@playwright/test').Page) {
-  // settle first, then measure once with the dump riding in the error message (CI annotations)
-  await expect
-    .poll(async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), { timeout: 10_000 })
-    .toBeLessThanOrEqual(1)
-    .catch(() => {});
-  const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  const wide = over > 1 ? await page.evaluate((width) => {
-    const out: string[] = [];
-    for (const el of document.querySelectorAll<HTMLElement>('#root *')) {
-      const r = el.getBoundingClientRect();
-      if (r.right > width + 1 && out.length < 10) {
-        out.push(
-          `${el.tagName}.${String(el.className).split(' ').slice(0, 2).join('.')}[${Math.round(r.left)}-${Math.round(r.right)}]`,
-        );
-      }
-    }
-    return out.join(' | ');
-  }, WIDTH) : '';
-  expect(over, `page fits the ${WIDTH} px phone; elements past the edge: ${wide}`).toBeLessThanOrEqual(1);
+/** The list's own scroll box (A-233) is present and itself fits the phone. */
+async function expectScrollBoxFits(page: import('@playwright/test').Page, scope: string) {
+  const listBox = page.locator(`[data-list-columns="${scope}"]`);
+  await expect(listBox, `the ${scope} scroll box is on the screen`).toHaveCount(1);
+  const b = (await listBox.boundingBox())!;
+  expect(b, `the ${scope} scroll box has a rendered box`).not.toBeNull();
+  expect(b.x, `${scope}: the scroll box does not start past the left edge`).toBeGreaterThanOrEqual(-0.5);
+  expect(
+    b.x + b.width,
+    `${scope}: the scroll box itself fits the ${WIDTH} px viewport`,
+  ).toBeLessThanOrEqual(WIDTH + 1);
 }
 
 test.use({ reducedMotion: 'reduce' });
@@ -96,11 +89,10 @@ test('a customer row at 390 px: Enter Invoice, Archive and Delete measure 44 px 
   });
   await page.getByRole('button', { name: 'Customers & Clients', exact: true }).click();
   await expect(page.getByText('Acme Corp', { exact: true }).first()).toBeVisible();
-  await expectNoSidewaysPageScroll(page);
+  await expectScrollBoxFits(page, 'sales-customers');
   await expect44px(page.locator('button[title="Enter Invoice"]'), 'Enter Invoice');
   await expect44px(page.getByRole('button', { name: 'Archive Acme Corp', exact: true }), 'Archive Acme Corp');
   await expect44px(page.getByRole('button', { name: 'Delete Acme Corp', exact: true }), 'Delete Acme Corp');
-  await expectNoSidewaysPageScroll(page);
   expect(errors).toEqual([]);
 });
 
@@ -116,9 +108,8 @@ test('a vendor row at 390 px: Archive and Delete measure 44 px and are not clipp
   });
   await page.getByRole('button', { name: /^Vendors/ }).click();
   await expect(page.getByText('Parts Ltd', { exact: true }).first()).toBeVisible();
-  await expectNoSidewaysPageScroll(page);
+  await expectScrollBoxFits(page, 'purchase-vendors');
   await expect44px(page.getByRole('button', { name: 'Archive Parts Ltd', exact: true }), 'Archive Parts Ltd');
   await expect44px(page.getByRole('button', { name: 'Delete Parts Ltd', exact: true }), 'Delete Parts Ltd');
-  await expectNoSidewaysPageScroll(page);
   expect(errors).toEqual([]);
 });
