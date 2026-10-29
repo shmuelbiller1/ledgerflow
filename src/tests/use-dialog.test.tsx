@@ -88,6 +88,42 @@ describe('useDialog', () => {
     assert.equal(outer, 0);
   });
 
+  test('Escape still closes it after focus drifted out of the dialog (#146)', () => {
+    let closed = 0;
+    render(<Page onClose={() => { closed++; }} />);
+    const opener = screen.getByText('Open');
+    opener.focus();
+    fireEvent.click(opener);
+    assert.ok(screen.getByRole('dialog'));
+    // the control that held focus is gone (a Save button after its save): focus falls to the body
+    (document.activeElement as HTMLElement).blur();
+    assert.equal(document.activeElement, document.body);
+    act(() => { fireEvent.keyDown(document.body, { key: 'Escape' }); });
+    assert.equal(closed, 1, 'the modal answers Escape even when the event starts outside it');
+    assert.equal(screen.queryByRole('dialog'), null);
+    assert.equal(document.activeElement, opener, 'focus still returns to the opener');
+  });
+
+  test('drifted-focus Escape closes nested dialogs one at a time, the topmost first', () => {
+    let outer = 0;
+    let inner = 0;
+    function Nested() {
+      const [innerOpen, setInnerOpen] = useState(true);
+      return (
+        <Dialog title="Outer" onClose={() => { outer++; }}>
+          {innerOpen && <Dialog title="Inner" onClose={() => { inner++; setInnerOpen(false); }} />}
+        </Dialog>
+      );
+    }
+    render(<Nested />);
+    (document.activeElement as HTMLElement).blur();
+    act(() => { fireEvent.keyDown(document.body, { key: 'Escape' }); });
+    assert.equal(inner, 1, 'the first drifted Escape closes the inner dialog');
+    assert.equal(outer, 0, '…and not the one under it in the same key press');
+    act(() => { fireEvent.keyDown(document.body, { key: 'Escape' }); });
+    assert.equal(outer, 1, 'the next drifted Escape reaches the outer dialog');
+  });
+
   test('the money dialogs use it', () => {
     const files = [
       'src/components/sales/InvoiceModal.tsx', 'src/components/purchases/BillModal.tsx', 'src/components/sales/ReceivePaymentModal.tsx',

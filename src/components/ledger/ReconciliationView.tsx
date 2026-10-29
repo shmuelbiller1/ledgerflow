@@ -4,9 +4,9 @@ import { useState, useMemo } from 'react';
 import { CreateFromBankLine } from './CreateFromBankLine';
 import { ArrowLeftRight, Sparkles, Search, AlertCircle, ArrowRight, ShieldCheck, Zap, RefreshCw, Link as LinkIcon, X, Check, Loader2, Lock, History, Info, Layers, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { parseLocalDate, cn, formatCurrency, resolveAccountName, formatDate } from '../../lib/utils';
+import { cn, formatCurrency, resolveAccountName, formatDate } from '../../lib/utils';
+import { civilMonthDay } from '../../lib/calendarDate';
 
-import { format } from 'date-fns';
 
 import AsyncButton from '../ui/AsyncButton';
 import BankLineActionDialog from './BankLineActionDialog';
@@ -282,7 +282,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       <div className="text-left flex flex-col gap-1 overflow-hidden pl-1">
                         <div className="flex items-center gap-2">
                           <span className={cn("text-[8px] font-semibold uppercase tracking-wider font-mono", isSelected ? "text-emerald-200" : "text-[var(--muted)]")}>
-                            {format(parseLocalDate(ltx.date), 'MMM dd')} • {resolveAccountName(accounts, ltx.lines?.[0]?.accountId, ltx.lines?.[0]?.accountName)}
+                            {civilMonthDay(ltx.date)} • {resolveAccountName(accounts, ltx.lines?.[0]?.accountId, ltx.lines?.[0]?.accountName)}
                           </span>
                           {isPossibleMatch && !isSelected && <Zap aria-hidden="true" size={10} className="text-emerald-500 animate-pulse" />}
                         </div>

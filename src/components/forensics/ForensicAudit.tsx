@@ -12,9 +12,9 @@ import {
   Brain,
   History
 } from 'lucide-react';
-import { parseLocalDate, cn } from '../../lib/utils';
+import { cn } from '../../lib/utils';
+import { civilDayOfMonth, civilMonthYear } from '../../lib/calendarDate';
 import { isPostable, lineAmount } from '../../lib/txFilters';
-import { format } from 'date-fns';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 
@@ -210,7 +210,7 @@ const ForensicAudit = React.memo(() => {
                  <div key={t.id} className="p-6 bg-[var(--ink)] rounded-[32px] border border-[var(--line)] flex items-center justify-between group hover:border-indigo-600 transition-all">
                     <div className="flex items-center gap-6">
                        <div className="w-12 h-12 bg-[var(--surface)] rounded-[32px] flex items-center justify-center text-[var(--text)] border border-[var(--line)] font-black text-sm">
-                          {format(parseLocalDate(t.date), 'dd')}
+                          {civilDayOfMonth(t.date)}
                        </div>
                        <div>
                           <p className="text-sm font-black text-[var(--text)] tracking-tight">{t.description}</p>
@@ -223,7 +223,7 @@ const ForensicAudit = React.memo(() => {
                        <p className="text-lg font-black text-[var(--text)] mono-value tabular-nums">{CURRENCY.format(Math.abs(t.totalAmountCents) / 100)}</p>
                        <p className="text-[9px] font-black text-[var(--muted)] flex items-center justify-end gap-1 mt-1">
                           <History size={10} />
-                          {format(parseLocalDate(t.date), 'MMM yyyy')}
+                          {civilMonthYear(t.date)}
                        </p>
                     </div>
                  </div>

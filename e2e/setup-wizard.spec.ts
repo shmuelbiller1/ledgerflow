@@ -118,6 +118,7 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
 
   // ---- Re-open the wizard fresh: it reads back what step 1 saved, not an empty form.
   await remountJourney(page, []);
+  await expect(page.getByRole('heading', { name: 'Your books are set up' })).toHaveCount(0);
   await remountJourney(page, [WIZARD]);
   await expect(page.getByRole('heading', { name: 'Your business' })).toBeVisible();
   await expect(page.getByLabel('Business name')).toHaveValue('Northwind Ltd');
