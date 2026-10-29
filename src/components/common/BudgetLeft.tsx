@@ -27,7 +27,7 @@ export function BudgetLeft({ accountId, date, addingCents = 0, excludeDocumentId
   const transactions = useLedgerStore(s => s.transactions);
   // L-123 step 3e: when the loaded entries are capped, the months they may miss are the server's
   const [from, to] = budgetWindow(date);
-  const { activity, serverMonths } = useServerActivity(from, to);
+  const { activity, serverMonths } = useServerActivity(from, to, excludeDocumentId);
   const left = useMemo(() => availableBudget({ budgets: budgets || [], accounts: accounts || [], transactions: transactions || [], accountId, date, addingCents, excludeDocumentId, ...(serverMonths ? { activity } : {}) }),
     [budgets, accounts, transactions, accountId, date, addingCents, excludeDocumentId, serverMonths, activity]);
   if (!left) return null;

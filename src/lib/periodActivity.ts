@@ -54,6 +54,10 @@ export interface ServerActivity { workspaceId: string; from: string; to: string;
  * month (the oldest loaded day, `openingCutoff`) replaced by the server's, when the server answered for this
  * workspace and range. Without an answer (not capped, not yet arrived, unreachable), the loaded entries' fold alone.
  */
+/** An entry that belongs to document `id`: the document's own posting, or one made for it (a bill's or an invoice's). */
+export const ofDocument = (t: Transaction, id: string): boolean =>
+  t.id === id || t.metadata?.billId === id || t.metadata?.invoiceId === id;
+
 export function mergedActivity(loaded: Transaction[], server: ServerActivity | null, from: string, to: string, cutoff: string, workspaceId?: string): ActivityByMonth {
   const own = activityByMonth(loaded, from, to);
   if (!server || !cutoff || server.from !== from || server.to !== to || (workspaceId && server.workspaceId !== workspaceId)) return own;

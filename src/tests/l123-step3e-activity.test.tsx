@@ -26,6 +26,10 @@
  *     3 entries, net impact −(−1,000 + 450) = 550, 1 unbalanced (loaded: nothing)
  *   CashFlowPredictor trend, February (the oldest loaded month): 1,300 (loaded −900)
  *   BudgetLeft, Rent with a quarterly budget of 2,000 from Y-01: spent 1,450, left 550 (loaded: spent 1,000, left 1,000)
+ *   BudgetLeft while editing a document, which is left out on both sides (server months and loaded ones):
+ *     E6 (loaded, rent 400): spent 1,450 − 400 = 1,050
+ *     E2 (January, not loaded, rent 400): spent 50 + 400 + 600 = 1,050, left 950. Leaving it out only of the loaded
+ *     entries (the bug) kept it in the server's January: 1,450, left 550, so the unchanged 400 "would exceed" 550 − …
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -134,7 +138,15 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.equal(availableBudget(base)!.leftCents, 1000);
     assert.equal(availableBudget({ ...base, activity })!.spentCents, 1450);
     assert.equal(availableBudget({ ...base, activity })!.leftCents, 550);
-    assert.equal(availableBudget({ ...base, activity, excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400) is the document being edited');
+    // the activity useServerActivity gives while a document is edited: that document left out on both sides
+    const without = (id: string) => {
+      const others = (list: Transaction[]) => list.filter(t => t.id !== id);
+      const months = activityByMonth(others(entries(ws)), from, to);
+      return mergedActivity(others(loaded), { workspaceId: ws, from, to, months }, from, to, openingCutoff(others(loaded)), ws);
+    };
+    assert.equal(availableBudget({ ...base, activity: without(`${ws}_e6`), excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400, loaded) is being edited');
+    const e2 = availableBudget({ ...base, activity: without(`${ws}_e2`), excludeDocumentId: `${ws}_e2`, addingCents: 400 })!;
+    assert.deepEqual([e2.spentCents, e2.leftCents, e2.wouldExceed], [1050, 950, false], 'E2 (January, not loaded) is being edited: counted once, as its new amount');
   });
 
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
@@ -247,5 +259,14 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
     assert.equal((await get({ workspaceId: ws, from: '2010-01-01', to })).status, 400, 'more than three years');
     assert.equal((await get({ workspaceId: 'ws_missing_l123e', from, to })).status, 404);
+  });
+
+  test('excludeDocumentId leaves the edited document out of the server\'s months', async () => {
+    const res = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+    assert.equal(res.status, 200);
+    const jan = res.body.months[`${Y}-01`];
+    assert.deepEqual([jan.entries, jan.accounts[`${ws}_rent`].net, jan.accounts[`${ws}_cash`].net], [2, 50, 1100], 'E2 (rent 400 / cash −400) is not counted');
+    assert.deepEqual(res.body.months[`${Y}-02`], truth(ws)[`${Y}-02`], 'other months as before');
+    assert.equal((await get({ workspaceId: ws, from, to, excludeDocumentId: 'x'.repeat(201) })).status, 400);
   });
 });
