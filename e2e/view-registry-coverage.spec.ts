@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
+import { waitForFiniteAnimations } from './support/a11yGate';
 
 let a11yBaseline: Record<string, number> = {};
 try {
@@ -16,6 +17,7 @@ try {
 test.describe('View Registry & Navigation Coverage Suite', () => {
 
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => {
       localStorage.setItem('isGuest', 'true');
       localStorage.setItem('has_seen_onboarding', 'true');
@@ -53,6 +55,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
       if (await btn.isVisible()) {
         await btn.click();
         await page.waitForTimeout(500);
+        await waitForFiniteAnimations(page);
 
         // Assert that the page renders without crashing or showing error boundaries
         await expect(page.locator('body')).toBeVisible();

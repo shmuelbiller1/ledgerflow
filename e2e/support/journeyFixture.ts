@@ -105,9 +105,10 @@ export async function mountJourney(page: Page, options: JourneyOptions): Promise
     refresh.default.injectIntoGlobalHook(window);
     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
 
-    const [{ default: React }, { default: { createRoot } }, { useAuthStore }, { useLedgerStore }, { useDataNeedsStore }] = await Promise.all([
+    const [{ default: React }, { default: { createRoot } }, { MotionConfig }, { useAuthStore }, { useLedgerStore }, { useDataNeedsStore }] = await Promise.all([
       import('/node_modules/.vite/deps/react.js'),
       import('/node_modules/.vite/deps/react-dom_client.js'),
+      import('/node_modules/.vite/deps/motion_react.js'),
       import('/src/stores/useAuthStore.ts'),
       import('/src/stores/useLedgerStore.ts'),
       import('/src/stores/useDataNeedsStore.ts'),
@@ -154,7 +155,7 @@ export async function mountJourney(page: Page, options: JourneyOptions): Promise
         }
         children.push(React.createElement(Component, { key: mount.module + (mount.exportName ?? ''), onClose: noop, onBack: noop, ...props }));
       }
-      root.render(React.createElement(React.Fragment, null, ...children));
+      root.render(React.createElement(MotionConfig, { reducedMotion: 'always' }, React.createElement(React.Fragment, null, ...children)));
     };
     (window as unknown as { __journeyRender: typeof renderMounts }).__journeyRender = renderMounts;
     await renderMounts(mounts);
