@@ -64,6 +64,22 @@ async function expectNoSidewaysPageScroll(page: import('@playwright/test').Page)
   await expect
     .poll(async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
     .toBeLessThanOrEqual(1);
+  if ((await page.evaluate(() => document.documentElement.scrollWidth)) > WIDTH + 1) {
+    // dump the elements that stick out — the CI annotation carries this message
+    const wide = await page.evaluate((width) => {
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>('#root *')) {
+        const r = el.getBoundingClientRect();
+        if (r.right > width + 1 && out.length < 10) {
+          out.push(
+            `${el.tagName}.${String(el.className).split(' ').slice(0, 2).join('.')}[${Math.round(r.left)}-${Math.round(r.right)}]`,
+          );
+        }
+      }
+      return out.join(' | ');
+    }, WIDTH);
+    throw new Error(`page is wider than ${WIDTH} px; elements past the edge: ${wide}`);
+  }
 }
 
 test.use({ reducedMotion: 'reduce' });
