@@ -107,7 +107,8 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
 
       // AF-001: the server already stored these rows as bank lines (with the cursor, in one transaction);
       // booking them again here would make a second record of the same bank event (Codex on #439)
-      const count = Array.isArray(data.transactions) ? data.transactions.length : 0;
+      // the lines actually added, not Plaid's raw rows (card holds and rows already stored are not new lines)
+      const count = typeof data.storedLines === 'number' ? data.storedLines : 0;
       if (count > 0) toast.success(`${count} bank line(s) downloaded. Review and match them in Banking → Reconciliation.`);
       else toast.info('Bank feed synced. No new bank lines.');
       onClose();

@@ -34,6 +34,13 @@ async function readPendingLine(db: Firestore, t: FirebaseTx, workspaceId: string
   if (line.status !== 'pending') throw new BankLineError(409, `This bank line is already ${line.status}`);
   const amountCents = Number(line.amountCents);
   if (!Number.isSafeInteger(amountCents) || amountCents === 0) throw new BankLineError(400, 'This bank line has no amount');
+  // AF-001 (Codex on #439): a line in another currency holds that currency's minor units; paying or splitting
+  // it here would book them as the books' own money, so it waits for a conversion
+  const lineCurrency = String(line.currency || '').toUpperCase();
+  if (lineCurrency) {
+    const home = String((await t.get(db.collection('workspaces').doc(workspaceId))).data()?.currency || 'USD').toUpperCase();
+    if (lineCurrency !== home) throw new BankLineError(409, `This bank line is in ${lineCurrency}, not ${home}; it can't be booked until it is converted`);
+  }
   return { ref, line, amountCents };
 }
 

@@ -97,8 +97,30 @@ export function plaidRowsAsBankLines(rows: unknown[], connection: PlaidConnectio
  * matched to a posted entry is never changed here: it is flagged (`bankChange`) for someone to review.
  * Either all of it is kept or none, so a failure repeats the same rows on the next sync.
  */
+/** Rows stored per database transaction, so a first sync of a busy account is never one huge write. */
+export const PLAID_STORE_CHUNK = 500;
+
 export async function storePlaidSync(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate: Record<string, unknown>;
+  modified?: PlaidBankLine[]; removed?: string[];
+}): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
+  // (Codex on #439) a long first history is stored in bounded chunks; every chunk but the last carries no
+  // cursor, so the cursor still never moves past a row that is not stored. A failure after some chunks
+  // keeps those rows; the next sync brings them again and they are skipped as already stored.
+  const chunks: PlaidBankLine[][] = [];
+  for (let i = 0; i < input.lines.length; i += PLAID_STORE_CHUNK) chunks.push(input.lines.slice(i, i + PLAID_STORE_CHUNK));
+  if (chunks.length === 0) chunks.push([]);
+  const total = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
+  for (let c = 0; c < chunks.length; c++) {
+    const last = c === chunks.length - 1;
+    const r = await storePlaidChunk(db, { ...input, lines: chunks[c], ...(last ? {} : { modified: [], removed: [], bankUpdate: undefined }) });
+    total.stored += r.stored; total.corrected += r.corrected; total.removed += r.removed; total.flagged += r.flagged;
+  }
+  return total;
+}
+
+async function storePlaidChunk(db: Firestore, input: {
+  workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate?: Record<string, unknown>;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
   const result = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
@@ -139,11 +161,12 @@ export async function storePlaidSync(db: Firestore, input: {
         t.delete(ref);
         result.removed += 1;
       } else if (change.line) {
-        t.update(ref, { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency, updatedAt: now });
+        // (Codex on #439) the rule suggestion was made for the old text and amount: it is dropped, not offered
+        t.update(ref, { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency, suggestion: null, updatedAt: now });
         result.corrected += 1;
       }
     });
-    t.update(db.collection('banks').doc(input.bankRef.id), input.bankUpdate);
+    if (input.bankUpdate) t.update(db.collection('banks').doc(input.bankRef.id), input.bankUpdate);
     result.stored = write.length;
   });
   return result;

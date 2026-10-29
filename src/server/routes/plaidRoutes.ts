@@ -234,6 +234,8 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     // Z-28: a bank that fails another way is said and kept in its log; the others still sync
     const failed: { bankId: string; institutionName: string; error: string }[] = [];
     let answered = 0;
+    // bank lines actually added (Plaid's raw rows include card holds and rows already stored)
+    let storedLines = 0;
     for (const doc of banksSnap.docs) {
       const bank = doc.data();
       try {
@@ -270,7 +272,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         // its Plaid account, so a second account of the same bank login is never booked to this one
         const connection = { id: doc.id, accountId: bank.accountId, plaidAccountId: bank.plaidAccountId, workspaceCurrency };
         const plaidAccountId = plaidAccountFor(connection, [...added, ...pageModified]);
-        await storePlaidSync(db, {
+        const saved = await storePlaidSync(db, {
           workspaceId: body.workspaceId, uid: (req as AuthedRequest).user?.uid || '', bankRef: doc.ref,
           lines: plaidRowsAsBankLines(added, connection, body.workspaceId, plaidAccountId),
           modified: plaidRowsAsBankLines(pageModified, connection, body.workspaceId, plaidAccountId),
@@ -284,6 +286,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         });
         // only rows that are now stored are reported, so a failed store is never a "synchronized" (Codex on #439)
         answered += 1;
+        storedLines += saved.stored;
         transactions.push(...added);
         modified.push(...pageModified);
         removed.push(...pageRemoved);
@@ -312,7 +315,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     }
     // every connection failed: the sync failed (as before), with each one's reason kept in its log
     if (failed.length > 0 && answered === 0 && needsReconnect.length === 0) return sendError(res, "Could not sync the bank feed", 502);
-    res.json({ success: transactions.length > 0, transactions, modified, removed, needsReconnect, failed, banks: banksSnap.size });
+    res.json({ success: transactions.length > 0, transactions, modified, removed, storedLines, needsReconnect, failed, banks: banksSnap.size });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/not a member|Unauthorized|not found/i.test(message)) return sendError(res, message, 403);

@@ -169,4 +169,51 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.deepEqual([kept?.status, kept?.matchedTransactionId, kept?.bankChange], ['matched', 'tx-posted-1', 'removed'], 'a posted line is kept and flagged');
     assert.equal((await bank(bankId)).syncCursor, 'c5');
   });
+
+  test('a long first history is stored in bounded chunks; the cursor still moves only with the last one (Codex on #439)', async () => {
+    const { storePlaidSync, plaidRowsAsBankLines, PLAID_STORE_CHUNK } = await import('../server/services/plaidIngest');
+    const rows = Array.from({ length: PLAID_STORE_CHUNK + 20 }, (_, i) => ({ transaction_id: `bulk-${i}`, date: '2026-09-01', name: `Row ${i}`, amount: 1 }));
+    const lines = plaidRowsAsBankLines(rows, { id: bankId }, ws);
+    const count = async () => (await db.pool.query(`select count(*)::int as n from public."bankLines" where workspace_id = $1 and data->>'importIdentity' like 'plaid:bulk-%'`, [ws])).rows[0].n;
+    // the cursor update fails (no such bank): the first full chunk is kept, the cursor is not saved
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: `missing_${suffix}` }, lines, bankUpdate: { syncCursor: 'bulk' } }));
+    assert.equal(await count(), PLAID_STORE_CHUNK, 'earlier chunks stay stored');
+    const before = (await bank(bankId)).syncCursor;
+    // the retry skips what is stored, adds the rest and saves the cursor
+    const done = await storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines, bankUpdate: { syncCursor: 'bulk' } });
+    assert.equal(done.stored, 20);
+    assert.equal(await count(), PLAID_STORE_CHUNK + 20);
+    assert.notEqual(before, 'bulk');
+    assert.equal((await bank(bankId)).syncCursor, 'bulk');
+  });
+
+  test('the sync reports the bank lines it actually added, and a correction drops the old rule suggestion (Codex on #439)', async () => {
+    const { setPlaidClientForTests } = await import('../server/routes/plaidRoutes');
+    let page = { added: [{ transaction_id: 'tx-count', date: '2026-10-27', name: 'Counted', amount: 2 }, { transaction_id: 'tx-hold-2', date: '2026-10-27', name: 'Hold', amount: 2, pending: true }], modified: [] as unknown[] };
+    setPlaidClientForTests({
+      linkTokenCreate: (async () => ({ data: { link_token: 'l' } })) as never,
+      itemPublicTokenExchange: (async () => ({ data: { access_token: 'access-af001', item_id: 'item-af001' } })) as never,
+      transactionsGet: (async () => ({ data: { transactions: [] } })) as never,
+      transactionsSync: (async () => ({ data: { ...page, removed: [], has_more: false, next_cursor: 'c-count' } })) as never,
+    });
+    const first = await sync();
+    assert.equal(first.body.storedLines, 1, 'a card hold is a Plaid row but not a bank line');
+    const line = (await db.collection('bankLines').where('workspaceId', '==', ws).where('importIdentity', '==', 'plaid:tx-count').get()).docs[0];
+    await line.ref.update({ suggestion: { accountId: 'acc-old' } });
+    page = { added: [], modified: [{ transaction_id: 'tx-count', date: '2026-10-27', name: 'Counted, renamed', amount: 3 }] };
+    assert.equal((await sync()).body.storedLines, 0);
+    const after = (await line.ref.get()).data();
+    assert.deepEqual([after?.description, after?.amountCents, after?.suggestion], ['Counted, renamed', -300, null]);
+  });
+
+  test('a bank line in another currency is not paid or split as home-currency money (Codex on #439)', async () => {
+    const { splitBankLine } = await import('../server/services/bankLineService');
+    await db.collection('workspaces').doc(ws).update({ currency: 'USD' });
+    await db.collection('bankLines').doc(`eur_${suffix}`).set({ workspaceId: ws, status: 'pending', amountCents: -1050, currency: 'EUR', date: '2026-10-20', description: 'Paris' });
+    await assert.rejects(
+      splitBankLine(db, { workspaceId: ws, uid: 'owner-1', bankLineId: `eur_${suffix}`, splits: [{ accountId: 'acc-x', amountCents: 1050 }] } as never),
+      /in EUR, not USD/,
+    );
+    assert.equal((await db.collection('bankLines').doc(`eur_${suffix}`).get()).data()?.status, 'pending');
+  });
 });
