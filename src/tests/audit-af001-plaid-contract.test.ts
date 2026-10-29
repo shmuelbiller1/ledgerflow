@@ -39,7 +39,7 @@ test('AF-001-F3: the legacy feed importer no longer books the rows the server al
   // the rows are bank lines on the server; mapping them into the review list would book them twice (Codex on #439)
   assert.equal(/data\.transactions\s*\|\|\s*\[\]\)\.map/.test(importer), false, 'returned rows are not staged for a second import');
   assert.equal(/data\.modified|data\.removed/.test(importer), false,
-    'OPEN: bank-side modifications and deletions are not yet applied to stored lines');
+    'the importer does not handle bank corrections itself: the server applies them to stored lines (plaid-sync-ingest.test.ts)');
   assert.match(importer, /accountId:\s*'offset-bank'/, 'OPEN: the CSV path still emits the placeholder offset-bank account id');
 });
 

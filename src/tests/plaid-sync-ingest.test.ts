@@ -116,4 +116,57 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.equal((await lines()).filter(l => l.importIdentity === 'plaid:tx-late').length, 1);
     assert.equal((await bank(bankId)).syncCursor, 'c3');
   });
+
+  test('a second account of the same bank login, or another currency, is stored without a ledger account (CodeRabbit on #439)', async () => {
+    const { plaidRowsAsBankLines, plaidAccountFor } = await import('../server/services/plaidIngest');
+    const connection = { id: 'b1', accountId: 'acc-checking', workspaceCurrency: 'USD' };
+    const rows = [
+      { transaction_id: 'a', account_id: 'plaid-chk', date: '2026-10-01', name: 'A', amount: 1 },
+      { transaction_id: 'b', account_id: 'plaid-sav', date: '2026-10-01', name: 'B', amount: 2 },
+    ];
+    // two Plaid accounts and none saved: neither is assumed to be the ledger account
+    assert.equal(plaidAccountFor(connection, rows), undefined);
+    assert.deepEqual(plaidRowsAsBankLines(rows, connection, ws).map(l => l.accountId), [undefined, undefined]);
+    // once the connection is tied to its Plaid account, only that account's rows get the ledger account
+    const tied = { ...connection, plaidAccountId: 'plaid-chk' };
+    assert.deepEqual(plaidRowsAsBankLines(rows, tied, ws).map(l => [l.plaidAccountId, l.accountId]), [['plaid-chk', 'acc-checking'], ['plaid-sav', undefined]]);
+    // a row in another currency keeps its own currency and decimals and is left for review
+    const [eur, kwd] = plaidRowsAsBankLines([
+      { transaction_id: 'e', account_id: 'plaid-chk', date: '2026-10-01', name: 'E', amount: 10.5, iso_currency_code: 'EUR' },
+      { transaction_id: 'k', account_id: 'plaid-chk', date: '2026-10-01', name: 'K', amount: 1.234, iso_currency_code: 'KWD' },
+    ], tied, ws);
+    assert.deepEqual([eur.currency, eur.amountCents, eur.accountId], ['EUR', -1050, undefined]);
+    assert.deepEqual([kwd.currency, kwd.amountCents], ['KWD', -1234], 'three-decimal currency in its own minor units');
+  });
+
+  test('a bank correction updates a pending line, a deletion removes it, a matched line is only flagged (CodeRabbit on #439)', async () => {
+    pages.c3 = { next: 'c4', added: [
+      { transaction_id: 'tx-fix', date: '2026-10-26', name: 'Typo shop', amount: 9 },
+      { transaction_id: 'tx-drop', date: '2026-10-26', name: 'Dropped', amount: 5 },
+      { transaction_id: 'tx-booked', date: '2026-10-26', name: 'Booked', amount: 20 },
+    ] };
+    assert.equal((await sync()).status, 200);
+    const byIdentity = async (id: string) => (await db.collection('bankLines').where('workspaceId', '==', ws).where('importIdentity', '==', `plaid:${id}`).get()).docs[0];
+    const booked = await byIdentity('tx-booked');
+    await booked.ref.update({ status: 'matched', matchedTransactionId: 'tx-posted-1' });
+    // the next page corrects one row and removes the other two
+    const { setPlaidClientForTests } = await import('../server/routes/plaidRoutes');
+    setPlaidClientForTests({
+      linkTokenCreate: (async () => ({ data: { link_token: 'l' } })) as never,
+      itemPublicTokenExchange: (async () => ({ data: { access_token: 'access-af001', item_id: 'item-af001' } })) as never,
+      transactionsGet: (async () => ({ data: { transactions: [] } })) as never,
+      transactionsSync: (async () => ({ data: {
+        added: [], has_more: false, next_cursor: 'c5',
+        modified: [{ transaction_id: 'tx-fix', date: '2026-10-26', name: 'Right shop', amount: 9.5 }],
+        removed: [{ transaction_id: 'tx-drop' }, { transaction_id: 'tx-booked' }],
+      } })) as never,
+    });
+    assert.equal((await sync()).status, 200);
+    const fixed = (await byIdentity('tx-fix'))?.data();
+    assert.deepEqual([fixed?.description, fixed?.amountCents, fixed?.status], ['Right shop', -950, 'pending']);
+    assert.equal(await byIdentity('tx-drop'), undefined, 'a pending line the bank deleted is gone');
+    const kept = (await byIdentity('tx-booked'))?.data();
+    assert.deepEqual([kept?.status, kept?.matchedTransactionId, kept?.bankChange], ['matched', 'tx-posted-1', 'removed'], 'a posted line is kept and flagged');
+    assert.equal((await bank(bankId)).syncCursor, 'c5');
+  });
 });

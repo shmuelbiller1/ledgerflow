@@ -97,5 +97,11 @@ Proof: `src/tests/plaid-sync-ingest.test.ts`, run against a real database:
 
 `audit-af001-plaid-contract.test.ts` F1 now pins this contract in the source.
 
-Still open, separately (F3): bank-side `modified` and `removed` rows are not yet applied to existing pending lines, and the
-legacy Bank Feed Import dialog still books rows straight to a placeholder `offset-bank` account.
+Review follow-ups in the same PR (#439):
+- `/sync` is a writer action (owner, accountant, bookkeeper).
+- Only stored rows count as synced.
+- Bank Feed Import no longer books the stored rows a second time.
+- Bank-side `modified` rows update a line still pending and unmatched, and `removed` rows delete one. A line already matched to a posted entry is only flagged (`bankChange`, `bankCorrection`) for review.
+- Each line keeps its Plaid `account_id` and currency. The connection's ledger account is set only for rows of the Plaid account it is tied to (saved on the first sync where all rows share one account) and in the books' currency.
+
+Still open: the CSV path of the legacy Bank Feed Import dialog books to a placeholder `offset-bank` account.

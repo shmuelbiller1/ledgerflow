@@ -8,7 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
-import { plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
+import { plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -221,6 +221,8 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     let query = db.collection("banks").where("workspaceId", "==", body.workspaceId);
     if (body.accountId) query = query.where("accountId", "==", body.accountId);
     const banksSnap = await query.get();
+    // the books' currency: a row in another currency is stored for review, never as home-currency money
+    const workspaceCurrency = String((await db.collection("workspaces").doc(body.workspaceId).get()).data()?.currency || 'USD');
 
     const today = new Date();
     const thirtyDaysAgo = new Date();
@@ -264,10 +266,21 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         const syncedAt = new Date().toISOString();
         // AF-001: the new rows become bank lines in the same transaction that moves the cursor, so a
         // failure leaves the cursor where it was and the next sync brings the same rows again
+        // (CodeRabbit on #439) corrections and deletions travel with the cursor too, and each row keeps
+        // its Plaid account, so a second account of the same bank login is never booked to this one
+        const connection = { id: doc.id, accountId: bank.accountId, plaidAccountId: bank.plaidAccountId, workspaceCurrency };
+        const plaidAccountId = plaidAccountFor(connection, [...added, ...pageModified]);
         await storePlaidSync(db, {
           workspaceId: body.workspaceId, uid: (req as AuthedRequest).user?.uid || '', bankRef: doc.ref,
-          lines: plaidRowsAsBankLines(added, { id: doc.id, accountId: bank.accountId }, body.workspaceId),
-          bankUpdate: { status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt, ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}), syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }) },
+          lines: plaidRowsAsBankLines(added, connection, body.workspaceId, plaidAccountId),
+          modified: plaidRowsAsBankLines(pageModified, connection, body.workspaceId, plaidAccountId),
+          removed: pageRemoved,
+          bankUpdate: {
+            status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt,
+            ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}),
+            ...(plaidAccountId && !bank.plaidAccountId ? { plaidAccountId } : {}),
+            syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }),
+          },
         });
         // only rows that are now stored are reported, so a failed store is never a "synchronized" (Codex on #439)
         answered += 1;
