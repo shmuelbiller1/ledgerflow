@@ -12,6 +12,8 @@ import { calculateDueDate } from '../../lib/paymentTerms';
 import { entryValueCents, formatDuration, invoiceLinesFromTime, MAX_DESCRIPTION, parseDuration, STATUS_LABEL, timeProblem, type TimeEntry, type TimeRates } from '../../lib/timeEntries';
 import { useHandOvers } from './useHandOvers';
 import TimeRatesPanel from './TimeRatesPanel';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import TimeTimer from './TimeTimer';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
@@ -32,7 +34,8 @@ async function call(workspaceId: string, path: string, method = 'GET', body?: un
  * draft invoice for its customer (src/lib/timeEntries.ts, src/server/services/timeService.ts).
  */
 export default function TimeView() {
-  useLedgerCollections('customers', 'projects');
+  // the log-time form offers the customers and projects it labels time with
+  const { loading } = useLedgerCollections('customers', 'projects');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const uid = useAuthStore(s => s.user?.uid) || '';
   const role = useCurrentRole();
@@ -169,7 +172,7 @@ export default function TimeView() {
         </fieldset>
 
         {failed && <p role="alert" className="text-sm text-rose-600">{failed}</p>}
-        {!entries && !failed && <p role="status" className="text-sm text-[var(--muted)]">Loading…</p>}
+        {!entries && !failed && <LoadingState what="logged time" />}
 
         {mineOpen.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -204,7 +207,16 @@ export default function TimeView() {
               <th scope="col" className="text-right p-2">Hours</th>{rates && <th scope="col" className="text-right p-2">Value</th>}<th scope="col" className="text-left p-2">Status</th><th scope="col"><span className="sr-only">Remove</span></th>
             </tr></thead>
             <tbody>
-              {all.length === 0 && <tr><td colSpan={7} className="p-3 text-[var(--muted)]">No time logged yet.</td></tr>}
+              {all.length === 0 && (
+                <tr><td colSpan={7}>
+                  {loading ? <LoadingState what="logged time" /> : (
+                    <EmptyState
+                      title="No time logged yet"
+                      description="Hours logged above show here with their status; billable time can then be priced and pulled onto an invoice."
+                    />
+                  )}
+                </td></tr>
+              )}
               {all.map(e => (
                 <tr key={e.id} className="border-b border-[var(--line)]/50">
                   <td className="p-2 font-mono">{e.date}</td>{canApprove && <td className="p-2"><bdi>{personName(e.person)}</bdi></td>}

@@ -146,6 +146,54 @@ describe('Live collection retry state (#96)', () => {
     assert.equal(useDataNeedsStore.getState().trouble.invoices?.attempts, 1);
   });
 
+  test('A-257: every retry path marks the collection loading again until the fresh snapshot arrives', () => {
+    // "Try again" (a collection that had loaded earlier, then its read failed mid-session)
+    useDataNeedsStore.getState().markLoaded('invoices');
+    useDataNeedsStore.getState().markFailed('invoices', 'Failed to fetch', new TypeError('Failed to fetch'));
+    useDataNeedsStore.getState().retry('invoices');
+    let state = useDataNeedsStore.getState();
+    assert.equal(state.failed.invoices, undefined, 'the failure is cleared');
+    assert.equal(state.loaded.invoices, false, 'loading again — the screen must not quietly show the stale list');
+    useDataNeedsStore.getState().markLoaded('invoices');
+    assert.equal(useDataNeedsStore.getState().loaded.invoices, true, 'ready once the new read arrives');
+
+    // the scheduled automatic retry
+    useDataNeedsStore.getState().markLoaded('bills');
+    useDataNeedsStore.getState().markFailed('bills', 'Failed to fetch', new TypeError('Failed to fetch'));
+    const plan = useDataNeedsStore.getState().trouble.bills!;
+    useDataNeedsStore.getState().retryTransientFailures(plan.nextRetryAt!);
+    state = useDataNeedsStore.getState();
+    assert.equal(state.failed.bills, undefined);
+    assert.equal(state.loaded.bills, false, 'the automatic retry also reads as loading');
+    useDataNeedsStore.getState().markLoaded('bills');
+    assert.equal(useDataNeedsStore.getState().loaded.bills, true);
+
+    // back online / back at the tab
+    useDataNeedsStore.getState().markLoaded('bankLines');
+    useDataNeedsStore.getState().markFailed('bankLines', 'Failed to fetch', new TypeError('Failed to fetch'));
+    useDataNeedsStore.getState().retryAfterReconnect();
+    state = useDataNeedsStore.getState();
+    assert.equal(state.failed.bankLines, undefined);
+    assert.equal(state.loaded.bankLines, false, 'the reconnect retry also reads as loading');
+
+    // a refusal is still left alone — it is not loading, it waits for the person
+    useDataNeedsStore.getState().markLoaded('customers');
+    useDataNeedsStore.getState().markFailed('customers', 'permission denied for table customers', { code: '42501', message: 'permission denied' });
+    useDataNeedsStore.getState().retryAfterReconnect();
+    state = useDataNeedsStore.getState();
+    assert.equal(state.failed.customers, 'permission denied for table customers', 'a refusal keeps "Try again"');
+    assert.equal(state.loaded.customers, true, 'its data was present and stays marked ready');
+  });
+
+  test('A-257: "Try again" on a collection that never failed is a no-op — its live data stays marked loaded', () => {
+    useDataNeedsStore.getState().markLoaded('payments');
+    const before = useDataNeedsStore.getState();
+    useDataNeedsStore.getState().retry('payments');
+    const after = useDataNeedsStore.getState();
+    assert.equal(after, before, 'nothing failed: nothing is cleared and nothing reloads');
+    assert.equal(after.loaded.payments, true, 'a healthy live collection is not sent back to loading');
+  });
+
   test('coming back online starts a fresh bounded cycle, but a refusal is not retried', () => {
     for (let i = 0; i < AUTO_RETRY_LIMIT; i++) useDataNeedsStore.getState().markFailed('invoices', 'Failed to fetch');
     useDataNeedsStore.getState().markFailed('bills', 'permission denied for table bills', { code: '42501' });

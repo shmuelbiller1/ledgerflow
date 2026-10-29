@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Undo2 } from 'lucide-react';
 import { JournalEntry } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 
 /** A journal entry as the list shows it: what kind it is and how it relates to reversals. */
 export type JournalListEntry = JournalEntry & {
@@ -20,6 +22,10 @@ interface JournalViewProps {
   canEdit?: boolean;
   onReverse?: (entry: JournalListEntry, date: string, reason: string) => Promise<unknown> | unknown;
   onDuplicate?: (entry: JournalListEntry) => void;
+  /** opens the journal-entry form — the empty list's "Add your first journal entry" action (A-262) */
+  onAddEntry?: () => void;
+  /** the entries are still loading: show that, not "no entries yet" (CodeRabbit #440) */
+  loading?: boolean;
 }
 
 const PAGE = 200;
@@ -40,7 +46,7 @@ function keyedLines<L extends { accountId: string; debit: number; credit: number
  * opens to its lines; a manual entry can be reversed (a mirror entry on the chosen day, through the
  * server) or duplicated into a new entry. Totals are what the list shows — nothing else is claimed.
  */
-export default function JournalView({ journalEntries = [], formatCurrency, canEdit = false, onReverse, onDuplicate }: JournalViewProps) {
+export default function JournalView({ journalEntries = [], formatCurrency, canEdit = false, onReverse, onDuplicate, onAddEntry, loading = false }: JournalViewProps) {
   const [manualOnly, setManualOnly] = useState(true);
   const [adjustingOnly, setAdjustingOnly] = useState(false);
   const [search, setSearch] = useState('');
@@ -85,11 +91,27 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
         </div>
       </div>
 
-      {entries.length === 0 ? (
-        <p className="p-8 text-center text-sm text-[var(--muted)]">
-          {manualOnly ? 'No journal entries typed in by hand yet. "Journal Entry" above adds one.' : 'No entries match.'}
-        </p>
-      ) : (
+      {entries.length === 0 && loading ? <LoadingState what="journal entries" /> : entries.length === 0 ? (() => {
+        // Distinguish "the journal is empty" from "the filters hide existing entries" (CodeRabbit
+        // #440): the hand-typed action only makes sense when no manual entries exist at all.
+        const unfilteredManual = journalEntries.filter(e => !manualOnly || e.kind === 'journal');
+        const hidExisting = unfilteredManual.length > 0;
+        const title = hidExisting
+          ? (manualOnly ? 'No manual entries match these filters' : 'No entries match')
+          : (manualOnly ? 'No journal entries typed in by hand yet' : 'No entries match');
+        return (
+          <EmptyState
+            title={title}
+            description={hidExisting
+              ? 'Entries exist beyond these filters — widen the search or the filters above.'
+              : manualOnly
+                ? 'Adjustments you type yourself — accruals, corrections, openings — are listed here once added.'
+                : 'Choose another search or filter, or widen the list with the filters above.'}
+            actionLabel={!hidExisting && manualOnly && canEdit && onAddEntry ? 'Add your first journal entry' : undefined}
+            onAction={!hidExisting && manualOnly && canEdit ? onAddEntry : undefined}
+          />
+        );
+      })() : (
         <ul className="divide-y divide-[var(--line)]">
           {entries.slice(0, shown).map(e => {
             const isOpen = open === e.id;

@@ -48,6 +48,7 @@ import { defaultOffsetAccount, inventoryAccountsOf } from '../../lib/inventoryAc
 import { adjustStockRequest, countStockRequest } from '../../services/stockRequests';
 import InlineEdit from '../ui/InlineEdit';
 import InlineAdd from '../ui/InlineAdd';
+import { EmptyState } from '../ui/EmptyState';
 import CogsDialog from './CogsDialog';
 import StockPolicySwitch from './StockPolicySwitch';
 import StockHistoryDialog from './StockHistoryDialog';
@@ -689,10 +690,19 @@ export default function Inventory() {
         </table>
         </div>
         {filteredItems.length === 0 && !loading && (
-          <div className="py-20 text-center">
-            <Package aria-hidden="true" size={40} className="text-zinc-200 mx-auto mb-4" />
-            <p className="text-sm text-zinc-400 font-bold uppercase tracking-widest">No inventory items found</p>
-          </div>
+          items.length === 0 ? (
+            <EmptyState
+              title="No items yet"
+              description="Items are what you sell or buy — stock, services, parts. Each can carry price, cost and stock level."
+              actionLabel={canChangeStock ? 'Add your first item' : undefined}
+              onAction={canChangeStock ? () => setIsAdding(true) : undefined}
+            />
+          ) : (
+            <EmptyState
+              title="No items match these filters"
+              description="Choose another search, category or tax category above to widen the list."
+            />
+          )
         )}
       </div>
 

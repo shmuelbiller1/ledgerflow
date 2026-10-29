@@ -26,8 +26,11 @@ import { db } from '../../firebase';
 import { toast } from 'sonner';
 import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { Labelled } from '../ui/Labelled';
 import BudgetControlSetting from './BudgetControlSetting';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 
 
 
@@ -41,7 +44,12 @@ export default function BudgetManager() {
   const setBudgets = useLedgerStore((s) => s.setBudgets);
   const transactions = useLedgerStore((s) => s.transactions);
   const accounts = useLedgerStore((s) => s.accounts);
-  useLedgerCollections('budgets');
+  const { loading } = useLedgerCollections('budgets');
+  // A signed-in viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
+  // A guest owns their local sandbox, so guests keep the write affordances exactly as before
+  // (useCurrentRole resolves a guest to 'viewer' — there is no workspace row to read a role from).
+  const budgetRole = useCurrentRole();
+  const canWriteBudget = isGuest || budgetRole !== 'viewer';
   const [isAdding, setIsAdding] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setIsAdding(false), isAdding);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -55,6 +63,10 @@ export default function BudgetManager() {
 
   const handleAddBudget = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteBudget) {
+      toast.error('Viewers cannot change budgets');
+      return;
+    }
     const workspaceId = currentWorkspaceId || (isGuest ? 'default' : null);
     if (!workspaceId) {
       toast.error('Workspace context missing');
@@ -163,13 +175,15 @@ export default function BudgetManager() {
           <BudgetControlSetting />
         </div>
 
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-slate-900/90 transition-all shadow-2xl"
-        >
-          <Plus aria-hidden="true" size={18} />
-          Define Target
-        </button>
+        {canWriteBudget && (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-slate-900/90 transition-all shadow-2xl"
+          >
+            <Plus aria-hidden="true" size={18} />
+            Define Target
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -206,6 +220,7 @@ export default function BudgetManager() {
                       Stable Allocation
                     </div>
                   )}
+                  {canWriteBudget && (<>
                   <button 
                     aria-label={`Edit budget for ${b.targetId}`}
                     onClick={() => {
@@ -226,6 +241,11 @@ export default function BudgetManager() {
                   <button 
                     aria-label={`Delete budget for ${b.targetId}`}
                     onClick={async () => {
+                      // the button is hidden from viewers; refuse defensively too (CodeRabbit #440)
+                      if (!canWriteBudget) {
+                        toast.error('Viewers cannot change budgets');
+                        return;
+                      }
                       if (await safeConfirm('Delete budget?')) {
                         if (isGuest || !user) {
                           setBudgets(budgets.filter(item => item.id !== b.id));
@@ -239,6 +259,7 @@ export default function BudgetManager() {
                   >
                     <Trash2 aria-hidden="true" size={16} />
                   </button>
+                  </>)}
                 </div>
               </div>
 
@@ -290,7 +311,7 @@ export default function BudgetManager() {
                     <Layers aria-hidden="true" size={14} className="text-[var(--muted)] opacity-30" />
                     <span className="text-[9px] font-black text-[var(--muted)] uppercase tracking-widest opacity-30">Analytical Snapshot Matrix</span>
                  </div>
-                 <button 
+                 {canWriteBudget && <button 
                    onClick={() => {
                      setNewBudget({
                        targetId: b.targetId,
@@ -306,30 +327,22 @@ export default function BudgetManager() {
                    aria-label="Edit budget objective"
                  >
                     <ArrowUpRight aria-hidden="true" size={18} />
-                 </button>
+                 </button>}
               </div>
             </motion.div>
           );
         })}
 
         {budgets.length === 0 && (
-          <div className="col-span-full py-32 text-center bg-[var(--surface)] rounded-[32px] border border-dashed border-[var(--line)] relative overflow-hidden group">
-            <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-            <div className="relative z-10 flex flex-col items-center gap-6">
-              <div className="w-24 h-24 bg-slate-200/20 rounded-[32px] flex items-center justify-center text-slate-500/30">
-                <Target aria-hidden="true" size={48} />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black text-[var(--text)] uppercase tracking-tighter italic">Zero Objectives Detected</h2>
-                <p className="text-sm font-black text-slate-500/40 uppercase tracking-widest truncate">Initialize target matrix to begin forensic consumption mapping.</p>
-              </div>
-              <button 
-                onClick={() => setIsAdding(true)}
-                className="mt-4 px-10 py-5 bg-slate-900 text-white rounded-[32px] text-sm font-medium uppercase tracking-wider hover:translate-y-[-2px] transition-all shadow-2xl"
-              >
-                Sync First Target
-              </button>
-            </div>
+          <div className="col-span-full">
+            {loading ? <LoadingState what="budgets" /> : (
+              <EmptyState
+                title="No budgets yet"
+                description="A budget sets what an account or a project may spend in a month; Budget vs Actual then compares it with what happened."
+                actionLabel={canWriteBudget ? 'Add your first budget' : undefined}
+                onAction={canWriteBudget ? () => setIsAdding(true) : undefined}
+              />
+            )}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@ import { formatCurrency } from '../../../lib/utils';
 import { SlidersHorizontal, Plus, Play, Trash2, Copy, CheckCircle2, AlertCircle, Filter, Tag, RotateCw, Search, Eye, Check, X, Sparkles } from 'lucide-react';
 import InlineEdit from '../../ui/InlineEdit';
 import { Labelled } from '../../ui/Labelled';
+import { EmptyState } from '../../ui/EmptyState';
 import type { RulesSettingsModel } from './RulesSettings';
 
 export function RulesSettingsView({ formError, draftActionPreview, formTargetAccountId, setFormTargetAccountId, formBankAccountId, setFormBankAccountId, formTransactionKind, setFormTransactionKind, chartAccounts, bankAccounts, applyError, canEditRules, disabledGroups, groupError, handleToggleGroup, handleRenameGroup, setRulePriority, isUpdatingGroup, formPriority, setFormPriority, withOccurrenceKeys, formId, currentRole, canBuildRules, autoRules, selectedGroup, setSelectedGroup, searchQuery, setSearchQuery, isCreatingRule, setIsCreatingRule, overlay2DialogProps, overlay2TitleId, editingRule, aiSentence, setAiSentence, isGeneratingAiRule, aiError, aiPreview, setAiPreview, dryRunResult, isTestingRule, setIsTestingRule, overlay1DialogProps, overlay1TitleId, isApplyingExisting, applySuccessMessage, setApplySuccessMessage, formName, setFormName, formGroup, setFormGroup, formDescContains, setFormDescContains, formVendor, setFormVendor, formCategory, setFormCategory, formAmountThreshold, setFormAmountThreshold, formTargetCategory, setFormTargetCategory, formTargetClass, setFormTargetClass, formTargetLocation, setFormTargetLocation, formAddTags, setFormAddTags, formFlagForReview, setFormFlagForReview, formStopOnMatch, setFormStopOnMatch, singleRuleTestResult, groups, filteredRules, handleToggleActive, handleDeleteRule, handleDuplicateRule, openCreateModal, openEditModal, handleSaveRule, handleTestSingleRule, handleGenerateAiRule, handleSaveAiRule, handleRunDryRun, handleApplyToExisting }: RulesSettingsModel) {
@@ -219,21 +220,12 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
 
       {/* Rules Table */}
       {filteredRules.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 p-6">
-          <SlidersHorizontal aria-hidden="true" className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
-          <h3 className="text-sm font-semibold text-neutral-800">No automation rules configured</h3>
-          <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
-            Create deterministic rules to automatically match incoming transactions, assign chart-of-accounts categories, and append analytical coordinates.
-          </p>
-          <button
-            disabled={!canEditRules}
-            onClick={openCreateModal}
-            className="mt-4 px-4 py-2 text-xs font-semibold bg-neutral-900 text-white rounded-lg inline-flex items-center gap-1.5"
-          >
-            <Plus aria-hidden="true" className="w-3.5 h-3.5" />
-            Add First Rule
-          </button>
-        </div>
+        <EmptyState
+          title={autoRules.length === 0 ? 'No automation rules yet' : 'No rules match the search'}
+          description="A rule matches incoming bank lines on your words and files them — assigns the account, the contact and the labels — so the bank feed needs less handling."
+          actionLabel={autoRules.length === 0 && canEditRules ? 'Add your first rule' : undefined}
+          onAction={autoRules.length === 0 && canEditRules ? openCreateModal : undefined}
+        />
       ) : (
         <div role="region" aria-label="Automation rules table" tabIndex={0} className="bg-white border border-neutral-200 rounded-lg overflow-x-auto shadow-xs">
           <table className="w-full text-left text-xs">

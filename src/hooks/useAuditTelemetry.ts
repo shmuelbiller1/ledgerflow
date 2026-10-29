@@ -8,6 +8,15 @@ import { isPostable } from '../lib/txFilters';
 import { resolveAccountRole } from '../lib/accountUtils';
 
 /**
+ * A pure pseudo-uniform in [0, 1) from two coordinates (sine-hash). Deterministic, so the runway
+ * simulation inside the memo below is render-pure: identical books always show identical figures.
+ */
+function uniform01(a: number, b: number): number {
+  const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453123;
+  return x - Math.floor(x);
+}
+
+/**
  * High-Performance Single-Pass Financial Telemetry Hook
  * Optimized for maximum efficiency and architectural clarity.
  * Provides real-time financial health monitoring.
@@ -283,11 +292,13 @@ export function useAuditTelemetry(transactions: Transaction[] = [], accounts: Ch
          let simCash = metrics.kpis.totalCash;
          let months = 0;
          while (simCash > 0 && months < 60) {
-            // Speed optimization: reuse normal distribution logic
-            // eslint-disable-next-line react-hooks/purity
-            const u = 1 - (typeof window !== 'undefined' ? Math.random() : 0.5);
-            // eslint-disable-next-line react-hooks/purity
-            const v = 1 - (typeof window !== 'undefined' ? Math.random() : 0.5);
+            // Deterministic uniforms (pure): the same books give the same forecast on every
+            // render and in every environment — a Monte Carlo here may not depend on render-time
+            // Math.random() (react-hooks/purity), and the old `window` branch diverged server/client.
+            // The month index is part of the coordinates: each simulated month draws its own shock,
+            // as before — a per-simulation stream would correlate every month and squeeze the percentiles.
+            const u = 1 - uniform01(t, months * 2 + 1);
+            const v = 1 - uniform01(t, months * 2 + 2);
             const z = Math.sqrt(-2.0 * Math.log(u || 1e-10)) * Math.cos(twoPi * v);
             
             const simMonthExp = monthlyExpenses + (z * stdDevExpenses);
