@@ -50,6 +50,8 @@ import { StageChip } from '../collaboration/StageChip';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 export default function Sales() {
   const user = useAuthStore(s => s.user);
@@ -57,6 +59,8 @@ export default function Sales() {
   const customers = useLedgerStore(s => s.customers);
   const accounts = useLedgerStore(s => s.accounts);
   const { loading } = useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
+  // A-235: one shared notice when what this screen needs could not be loaded, with "Try again"
+  const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments', 'accounts']);
   const { addEntity, updateEntity } = useEntityOperations();
   const canEditContacts = useCurrentRole() !== 'viewer';
   const [spreadingInvoice, setSpreadingInvoice] = useState<Invoice | null>(null);
@@ -251,6 +255,7 @@ export default function Sales() {
 
   return (
     <div className="space-y-8 pb-12">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Rule Header with brand gold backdrop */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[var(--brass-soft)] via-[var(--surface)]/40 to-[var(--panel)] p-6 rounded-2xl border border-[var(--brass-line)]/50 shadow-sm">
         <div className="absolute -top-16 -left-16 w-56 h-56 bg-[var(--brass)] opacity-10 rounded-full blur-3xl hidden md:block pointer-events-none" />
@@ -701,7 +706,7 @@ export default function Sales() {
                             <ArchivedBadge party={cust} />
                             <button type="button"
                               onClick={(e) => { e.stopPropagation(); updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`); }}
-                              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
+                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
@@ -729,7 +734,7 @@ export default function Sales() {
                     <td className="p-4 md:p-8">
                       <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all justify-end">
                         
-                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
+                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
                         {canEditContacts && <PartyRowActions side="customer" party={cust} />}
                       </div>
                     </td>

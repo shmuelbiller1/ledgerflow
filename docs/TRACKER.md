@@ -1828,3 +1828,7 @@ posting, tax maths, `src/server/`, schema, dependency or quality-baseline change
 - [~] **C-88** PDF consistency: Reports and report packs share their heading/cover; specialized server PDF routes remain separate.
 
 Review round (26 Oct): saved-view comparison/period restore, private query-key allowlisting, blocked-storage drafts, structural report-row detection, incomplete-history empty wording, exact formula-safe Excel headers, the ToolSandbox algorithm period, glossary Hebrew/search and the duplicate CF-06 row were corrected with focused tests. CI workflow `40424080429` refreshed and checked all 40 visual references; 18 intentional PNG changes were reviewed. Details in `docs/verification/ai2-launch-batch-2026-10-26.md` §5.
+
+## Money input fixes (AI #1, 28–29 Oct)
+- [x] **AF-010** typed amounts: `readAmountCents` on ten screens (#432); quick entry always posts two lines (#431); a mistyped estimate price no longer freezes the price box (#437).
+- [x] **AF-011** decimal comma: `12,50` read 1,250.00 and `1.234,56` read 1.23. Now `1.234,56`, `1 234,56` and `1234,56` read as the decimal everywhere, and `12,50` / `1,23` finish as a decimal only in comma-decimal books, so an en-US save still refuses a half-typed `1,234` (#438).

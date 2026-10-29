@@ -1,7 +1,7 @@
 import PinnedPagesBar from '../../components/layout/PinnedPagesBar';
 import type { FilterCriteria } from '../../types';
 import React, { Suspense } from 'react';
-import { cn } from '../../lib/utils';
+import { cn, getLocalDateISO } from '../../lib/utils';
 
 import Sidebar from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Header';
@@ -160,7 +160,7 @@ export function RootLayout() {
         <div id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar focus:outline-none">
           {/* A-17: printed at the top of every page of a printout (hidden on screen) */}
           <div className="print-only-title px-2 pb-2 text-sm font-semibold border-b border-[var(--line)] mb-3" aria-hidden="true">
-            {workspaces.find(w => w.id === currentWorkspaceId)?.name || 'LedgerFlow'} · {new Date().toISOString().slice(0, 10)}
+            {workspaces.find(w => w.id === currentWorkspaceId)?.name || 'LedgerFlow'} · {getLocalDateISO()}
           </div>
           <MainViewSwitcher activeTab={activeTab as unknown as string} />
         </div>

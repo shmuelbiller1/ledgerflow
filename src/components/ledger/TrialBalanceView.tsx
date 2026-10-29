@@ -23,6 +23,8 @@ import { provenanceFromResponse } from '../../lib/reportProvenance';
 import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import { useBalanceEntries } from '../../hooks/useBalanceEntries';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /** the trial balance worked out here also reads the journal entries */
 const TB_COLLECTIONS = [...STATEMENT_COLLECTIONS, 'journalEntries'] as const;
@@ -44,6 +46,8 @@ type SortDir = 'asc' | 'desc';
 export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown }: TrialBalanceViewProps) {
   const transactions = useLedgerStore(s => s.transactions || []);
   const journalEntries = useLedgerStore(s => s.journalEntries || []);
+  // A-235: the trial balance reads the chart of accounts, the entries and the journal entries
+  const dataHealth = useScreenDataHealth(['accounts', 'transactions', 'journalEntries']);
   
   const [asOfDate, setAsOfDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   // L-123 step 3c: the browser-side sum reads the server's balances through the oldest loaded day
@@ -338,6 +342,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
 
   return (
     <div className="space-y-4">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="tb-statement-provenance" provenance={provenance} onRefresh={loadServerReport} busy={loadingStates.trialBalance} />
       {!(isServerAuthoritative && serverData) && serverAsOf && (

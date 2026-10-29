@@ -25,7 +25,20 @@ import type { ChartAccount, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth } from '../../lib/periodActivity';
+import { activityByMonth, type ActivityByMonth, withoutReplacedPostings } from '../../lib/periodActivity';
+
+/** Every entry of document `id` at any date: its own posting and the ones made for it as a bill or an invoice. */
+async function documentHistory(db: Firestore, workspaceId: string, id: string): Promise<Entry[]> {
+  const tx = db.collection('transactions').where('workspaceId', '==', workspaceId);
+  const [bills, invoices, own] = await Promise.all([
+    tx.where('metadata.billId', '==', id).get(), tx.where('metadata.invoiceId', '==', id).get(), db.collection('transactions').doc(id).get(),
+  ]);
+  const seen = new Map<string, Entry>();
+  for (const d of [...bills.docs, ...invoices.docs]) seen.set(d.id, entryOf(d));
+  const ownData = own.exists ? own.data() as Transaction : null;
+  if (ownData && ownData.workspaceId === workspaceId) seen.set(own.id, { ...ownData, id: own.id });
+  return [...seen.values()];
+}
 import { computeTopExpensesAndIncome, type TopLineItem } from '../../lib/reportGenerators';
 
 export const UNASSIGNED = 'Unassigned';
@@ -318,11 +331,15 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
  * L-123 step 3e: activity per account per month (net, gross debits, gross credits) and entry counts over every
  * postable entry dated `from`…`to` (src/lib/periodActivity.ts). Reads the entries of the range only, no snapshot.
  */
-export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ months: ActivityByMonth; entriesRead: number }> {
+/** `excludeDocumentId`: the document being edited; the postings its save would replace are left out (BudgetLeft counts its new amount). */
+export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string): Promise<{ months: ActivityByMonth; entriesRead: number }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`An activity range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const snap = await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get();
   const entries = snap.docs.map(entryOf);
-  return { months: activityByMonth(entries, from, to), entriesRead: entries.length };
+  const counted = excludeDocumentId
+    // which postings a save replaces depends on reversals at any date, not only those inside the range
+    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId)) : entries;
+  return { months: activityByMonth(counted, from, to), entriesRead: entries.length };
 }
 
 /**

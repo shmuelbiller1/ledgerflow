@@ -31,6 +31,8 @@ import type { TaxComponent, TaxTreatment } from '../../lib/taxCodes';
 import { isIncomeAccount } from '../../lib/accountUtils';
 import { useServerActivity } from '../../hooks/useServerActivity';
 import { sumActivity, type ActivityByMonth } from '../../lib/periodActivity';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /**
  * L-123 step 3e: the year's gross income, expenses and sales tax from activity per account per month: a line's
@@ -165,6 +167,8 @@ export default function TaxManager({
   onDeleteTaxRate: onDeleteProp
 }: TaxManagerProps = {}) {
   const transactions = useLedgerStore(state => state.transactions || []);
+  // A-235: the tax figures read the entries and the tax codes
+  const dataHealth = useScreenDataHealth(['transactions', 'taxRates', 'accounts']);
   // The screen is opened from the menu with no props: it reads the workspace's own tax codes and
   // accounts and saves through the normal path (it showed no codes and Add/Edit/Delete did
   // nothing before; L-184)
@@ -253,6 +257,7 @@ export default function TaxManager({
 
   return (
     <div className="space-y-12 p-4 md:p-6 lg:p-10 w-full max-w-[1550px] mx-auto pb-20 animate-in fade-in duration-500">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Rule Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-[var(--line)] pb-8">
         <div>
