@@ -11,6 +11,7 @@ import { getIdToken } from '../../firebase';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { formatCurrency, formatDate, formatTzDate, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useDialog } from '../../hooks/useDialog';
 import DisposeAssetDialog from './DisposeAssetDialog';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
@@ -53,6 +54,7 @@ export const FixedAssetsView: React.FC = () => {
   const [runMonth, setRunMonth] = useState(() => previousMonth(today));
   const [running, setRunning] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const { dialogProps: addAssetDialogProps, titleId: addAssetTitleId } = useDialog(() => setIsAdding(false), isAdding);
   // X-03: the asset being sold or scrapped, and the one whose disposal is being undone
   const [disposing, setDisposing] = useState<FixedAsset | null>(null);
   const [moving, setMoving] = useState<FixedAsset | null>(null);
@@ -359,10 +361,10 @@ export const FixedAssetsView: React.FC = () => {
       )}
 
       {isAdding && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="add-asset-title">
+        <div {...addAssetDialogProps} className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
             <div className="p-4 border-b border-[var(--line)] flex items-center justify-between">
-              <h2 id="add-asset-title" className="text-sm font-bold text-[var(--text)]">Add a fixed asset</h2>
+              <h2 id={addAssetTitleId} className="text-sm font-bold text-[var(--text)]">Add a fixed asset</h2>
               <button type="button" onClick={() => setIsAdding(false)} className="p-1.5 text-[var(--muted)] rounded-md" aria-label="Close">
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>

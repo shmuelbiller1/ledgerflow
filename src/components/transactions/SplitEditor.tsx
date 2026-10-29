@@ -196,7 +196,7 @@ export default function SplitEditor({
                     <button 
                       aria-label={`Remove split line ${idx + 1}`}
                       onClick={() => removeLine(idx)}
-                      className="text-[var(--muted)] hover:text-rose-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 flex items-center justify-center hover:bg-rose-50/10 rounded-lg"
+                      className="text-[var(--muted)] hover:text-rose-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-all p-2 flex items-center justify-center hover:bg-rose-50/10 rounded-lg"
                     >
                       <Trash2 aria-hidden="true" size={16} />
                     </button>

@@ -8,6 +8,7 @@ import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useDialog } from '../../hooks/useDialog';
 
 export interface CreditActionTarget {
   kind: 'customer' | 'vendor';
@@ -34,6 +35,7 @@ export default function CreditActionDialog({ target, onClose }: { target: Credit
   const [amount, setAmount] = useState((target.remainingCents / 100).toFixed(2));
   const [date, setDate] = useState(getLocalDateISO());
   const [busy, setBusy] = useState(false);
+  const { dialogProps, titleId } = useDialog(onClose);
 
   const openDocuments = useMemo(() => {
     const docs: { id: string; number?: string; status: string; currency?: string; amountCents: number; amountPaidCents?: number; party?: string }[] =
@@ -79,10 +81,10 @@ export default function CreditActionDialog({ target, onClose }: { target: Credit
 
   const title = `${target.mode === 'apply' ? 'Apply' : 'Refund'} ${target.number || 'credit'}`;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="credit-action-title">
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <form onSubmit={submit} className="w-full max-w-md space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
-          <h2 id="credit-action-title" className="text-lg font-bold">{title}</h2>
+          <h2 id={titleId} className="text-lg font-bold">{title}</h2>
           <p className="text-xs text-[var(--muted)]">{target.partyName} · {formatCurrency(target.remainingCents)} left</p>
         </div>
         {target.mode === 'apply' ? (
