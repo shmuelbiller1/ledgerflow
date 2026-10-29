@@ -241,6 +241,10 @@ export default function BudgetManager() {
                   <button 
                     aria-label={`Delete budget for ${b.targetId}`}
                     onClick={async () => {
+                      if (!canWriteBudget) {
+                        toast.error('Viewers cannot change budgets');
+                        return;
+                      }
                       if (await safeConfirm('Delete budget?')) {
                         if (isGuest || !user) {
                           setBudgets(budgets.filter(item => item.id !== b.id));
