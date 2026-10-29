@@ -125,7 +125,7 @@ test('A-259 Banking: bank account list → Make deposit dialog → Escape → fo
     ledger: {
       accounts: [
         BANK(workspaceId),
-        { id: 'undeposited', uid: 'journey-user', workspaceId, code: '1050', name: 'Undeposited Funds', type: 'asset', category: 'Cash' },
+        { id: 'undeposited', uid: 'journey-user', workspaceId, code: '1050', name: 'Undeposited Funds', type: 'asset', category: 'Other Assets' },
       ],
       payments: [],
     },
@@ -134,7 +134,7 @@ test('A-259 Banking: bank account list → Make deposit dialog → Escape → fo
   await expect(page.getByRole('heading', { name: 'Bank & Institution Connections' })).toBeVisible();
   await expect(page.getByText('Operating Bank', { exact: true })).toBeVisible();
   // The account card's own action takes focus and shows its ring…
-  const sync = page.getByRole('button', { name: /Sync Feed/ });
+  const sync = page.getByRole('button', { name: 'Sync Feed', exact: true }).first();
   await sync.focus();
   await expect(sync).toBeFocused();
   // …and the deposit dialog (wired to the shared dialog contract by A-259) round-trips by keyboard.

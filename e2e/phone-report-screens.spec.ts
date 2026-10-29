@@ -119,7 +119,7 @@ const reports = [
     id: 'balance-sheet', label: 'Balance Sheet',
     async ready(page: Page) {
       await expect(page.getByRole('heading', { name: 'Assets', exact: true })).toBeVisible();
-      await expect44px(page.getByLabel('Reporting period start date'), 'Balance sheet start date', { width: false });
+      await expect44px(page.getByLabel('As Of Reporting Date'), 'Balance sheet as-of date', { width: false });
     },
   },
   {
