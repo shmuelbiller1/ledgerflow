@@ -295,8 +295,10 @@ export function useAuditTelemetry(transactions: Transaction[] = [], accounts: Ch
             // Deterministic uniforms (pure): the same books give the same forecast on every
             // render and in every environment — a Monte Carlo here may not depend on render-time
             // Math.random() (react-hooks/purity), and the old `window` branch diverged server/client.
-            const u = 1 - uniform01(t, 1);
-            const v = 1 - uniform01(t, 2);
+            // The month index is part of the coordinates: each simulated month draws its own shock,
+            // as before — a per-simulation stream would correlate every month and squeeze the percentiles.
+            const u = 1 - uniform01(t, months * 2 + 1);
+            const v = 1 - uniform01(t, months * 2 + 2);
             const z = Math.sqrt(-2.0 * Math.log(u || 1e-10)) * Math.cos(twoPi * v);
             
             const simMonthExp = monthlyExpenses + (z * stdDevExpenses);

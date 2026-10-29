@@ -385,8 +385,8 @@ export default function EstimatesView() {
           <EmptyState
             title="No estimates yet"
             description="An estimate quotes a price before the sale; once accepted it becomes the invoice without retyping."
-            actionLabel="Add your first estimate"
-            onAction={() => setIsCreating(true)}
+            actionLabel={canWrite ? 'Add your first estimate' : undefined}
+            onAction={canWrite ? () => setIsCreating(true) : undefined}
           />
         ) : (
           <table className="w-full text-left text-xs">

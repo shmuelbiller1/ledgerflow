@@ -88,16 +88,27 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
         </div>
       </div>
 
-      {entries.length === 0 ? (
-        <EmptyState
-          title={manualOnly ? 'No journal entries typed in by hand yet' : 'No entries match'}
-          description={manualOnly
-            ? 'Adjustments you type yourself — accruals, corrections, openings — are listed here once added.'
-            : 'Choose another search or filter, or widen the list with the filters above.'}
-          actionLabel={manualOnly && canEdit && onAddEntry ? 'Add your first journal entry' : undefined}
-          onAction={manualOnly && canEdit ? onAddEntry : undefined}
-        />
-      ) : (
+      {entries.length === 0 ? (() => {
+        // Distinguish "the journal is empty" from "the filters hide existing entries" (CodeRabbit
+        // #440): the hand-typed action only makes sense when no manual entries exist at all.
+        const unfilteredManual = journalEntries.filter(e => !manualOnly || e.kind === 'journal');
+        const hidExisting = unfilteredManual.length > 0;
+        const title = hidExisting
+          ? (manualOnly ? 'No manual entries match these filters' : 'No entries match')
+          : (manualOnly ? 'No journal entries typed in by hand yet' : 'No entries match');
+        return (
+          <EmptyState
+            title={title}
+            description={hidExisting
+              ? 'Entries exist beyond these filters — widen the search or the filters above.'
+              : manualOnly
+                ? 'Adjustments you type yourself — accruals, corrections, openings — are listed here once added.'
+                : 'Choose another search or filter, or widen the list with the filters above.'}
+            actionLabel={!hidExisting && manualOnly && canEdit && onAddEntry ? 'Add your first journal entry' : undefined}
+            onAction={!hidExisting && manualOnly && canEdit ? onAddEntry : undefined}
+          />
+        );
+      })() : (
         <ul className="divide-y divide-[var(--line)]">
           {entries.slice(0, shown).map(e => {
             const isOpen = open === e.id;

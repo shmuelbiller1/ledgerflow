@@ -256,6 +256,10 @@ export default function Sales() {
   return (
     <div className="space-y-8 pb-12">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
+      {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
+      {loading && (invoices.length > 0 || customers.length > 0) && (
+        <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
+      )}
       {/* Rule Header with brand gold backdrop */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[var(--brass-soft)] via-[var(--surface)]/40 to-[var(--panel)] p-6 rounded-2xl border border-[var(--brass-line)]/50 shadow-sm">
         <div className="absolute -top-16 -left-16 w-56 h-56 bg-[var(--brass)] opacity-10 rounded-full blur-3xl hidden md:block pointer-events-none" />

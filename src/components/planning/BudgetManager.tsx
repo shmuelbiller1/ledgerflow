@@ -26,6 +26,7 @@ import { db } from '../../firebase';
 import { toast } from 'sonner';
 import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { Labelled } from '../ui/Labelled';
 import BudgetControlSetting from './BudgetControlSetting';
 import { EmptyState } from '../ui/EmptyState';
@@ -44,6 +45,8 @@ export default function BudgetManager() {
   const transactions = useLedgerStore((s) => s.transactions);
   const accounts = useLedgerStore((s) => s.accounts);
   const { loading } = useLedgerCollections('budgets');
+  // A viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
+  const canWriteBudget = useCurrentRole() !== 'viewer';
   const [isAdding, setIsAdding] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setIsAdding(false), isAdding);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -165,13 +168,15 @@ export default function BudgetManager() {
           <BudgetControlSetting />
         </div>
 
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-slate-900/90 transition-all shadow-2xl"
-        >
-          <Plus aria-hidden="true" size={18} />
-          Define Target
-        </button>
+        {canWriteBudget && (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-slate-900/90 transition-all shadow-2xl"
+          >
+            <Plus aria-hidden="true" size={18} />
+            Define Target
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -320,8 +325,8 @@ export default function BudgetManager() {
               <EmptyState
                 title="No budgets yet"
                 description="A budget sets what an account or a project may spend in a month; Budget vs Actual then compares it with what happened."
-                actionLabel="Add your first budget"
-                onAction={() => setIsAdding(true)}
+                actionLabel={canWriteBudget ? 'Add your first budget' : undefined}
+                onAction={canWriteBudget ? () => setIsAdding(true) : undefined}
               />
             )}
           </div>
