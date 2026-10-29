@@ -1,11 +1,10 @@
 /**
  * Independent audit Pass A — AF-001 durable bank cursor.
- * The route's pagination helper (syncAllPages) already has executable tests in
- * plaid-sync-cursor.test.ts. This test pins the DURABILITY CONTRACT around it: the /sync route
- * advances syncCursor in the banks document while the route itself never writes bankLines, and
- * neither browser caller persists the returned added/modified/removed rows on the "Sync Feed"
- * path. When server-side durable ingestion is implemented (the fix, owned by AI #1), these
- * assertions must change deliberately and this audit entry closed.
+ * The route's pagination helper (syncAllPages) has executable tests in plaid-sync-cursor.test.ts.
+ * Fixed (#151, AI #1): /sync stores the downloaded rows as bank lines in the same database
+ * transaction that moves syncCursor (src/server/services/plaidIngest.ts; behaviour proved against a
+ * real database in plaid-sync-ingest.test.ts). This file pins that contract in the source so the
+ * cursor can never again be saved on its own.
  * Evidence: audit/function-audit/AF-001-bank-cursor-durability.md
  */
 import { test } from 'node:test';
@@ -16,31 +15,32 @@ import path from 'node:path';
 const root = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 
-test('AF-001-F1: /sync persists syncCursor but the route writes no bankLines', () => {
+test('AF-001-F1 (fixed): /sync saves syncCursor only together with the rows, in one transaction', () => {
   const route = read('src/server/routes/plaidRoutes.ts');
-  // the cursor is advanced inside the per-bank success update, before the HTTP response is sent
-  assert.match(route, /syncCursor:\s*nextCursor/, 'cursor advancement still present');
-  assert.match(route, /doc\.ref\.update\(\{[\s\S]*syncCursor/, 'cursor saved in the banks doc update');
-  // no durable ingestion of the downloaded rows exists in the route
-  assert.equal(/collection\(["']bankLines["']\)/.test(route), false, 'route must not write bankLines until durable ingestion exists');
-  assert.equal(/bankLines/.test(route), false, 'no bankLines reference at all in the plaid route today');
+  const ingest = read('src/server/services/plaidIngest.ts');
+  // the cursor is part of the update handed to storePlaidSync, never a bank update of its own
+  assert.match(route, /storePlaidSync\(db,[\s\S]*bankUpdate:[\s\S]*syncCursor:\s*nextCursor/, 'cursor travels with the rows');
+  assert.equal(/doc\.ref\.update\(\{[^}]*syncCursor/.test(route), false, 'no bank update saves the cursor on its own');
+  // the rows and the cursor are written inside one runTransaction
+  assert.match(ingest, /runTransaction\(async \(t\) => \{[\s\S]*t\.create\(db\.collection\('bankLines'\)[\s\S]*t\.update\(db\.collection\('banks'\)/, 'lines and cursor in one transaction');
 });
 
-test('AF-001-F2: the Banking screen "Sync Feed" path never persists returned rows', () => {
+test('AF-001-F2: the Banking screen "Sync Feed" path needs no rows of its own (the server stores them)', () => {
   const banking = read('src/components/banking/Banking.tsx');
   assert.match(banking, /fetch\('\/api\/v1\/plaid\/sync'/, 'the sync call exists');
   // the payload fields exist in the response but only toasts are derived from them
   assert.equal(/data\.transactions|data\.modified|data\.removed/.test(banking), false,
-    'OBSERVED GAP: returned added/modified/removed rows are not consumed or persisted on this screen');
+    'the screen only reports the result; the rows are already bank lines on the server (F1)');
 });
 
-test('AF-001-F3: the legacy feed importer ignores modified/removed and only stages added rows for review', () => {
+test('AF-001-F3: the legacy feed importer no longer books the rows the server already stored', () => {
   const importer = read('src/components/ledger/BankFeedImport.tsx');
   assert.match(importer, /fetch\('\/api\/v1\/plaid\/sync'/, 'the importer calls sync');
-  assert.match(importer, /data\.transactions\s*\|\|\s*\[\]/, 'only added rows are mapped into the review list');
+  // the rows are bank lines on the server; mapping them into the review list would book them twice (Codex on #439)
+  assert.equal(/data\.transactions\s*\|\|\s*\[\]\)\.map/.test(importer), false, 'returned rows are not staged for a second import');
   assert.equal(/data\.modified|data\.removed/.test(importer), false,
-    'OBSERVED GAP: bank-side modifications and deletions are never applied');
-  assert.match(importer, /accountId:\s*'offset-bank'/, 'legacy importer still emits the hardcoded offset-bank account id');
+    'the importer does not handle bank corrections itself: the server applies them to stored lines (plaid-sync-ingest.test.ts)');
+  assert.match(importer, /accountId:\s*'offset-bank'/, 'OPEN: the CSV path still emits the placeholder offset-bank account id');
 });
 
 test('AF-001-F4: a healthy sync with zero changes still reports success:false in the JSON contract', () => {

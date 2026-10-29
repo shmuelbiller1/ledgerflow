@@ -173,6 +173,30 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(line.status, 'pending', 'Bank line status must remain unchanged after aborted reconciliation');
   });
 
+  test('AF-001: a bank line in another currency is not matched as home-currency money', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-eur', { id: 'line-eur', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'EUR' });
+    db.data.set('bankLines/line-usd', { id: 'line-usd', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'USD' });
+    const run = async (id: string) => {
+      let statusCode = 200;
+      let jsonBody: TestResponseBody | null = null;
+      const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id, type: 'updateBankLine', data: { status: 'matched' } }] } } as unknown as express.Request;
+      const res: express.Response = {
+        status: (code: number) => { statusCode = code; return res; },
+        json: (data: TestResponseBody) => { jsonBody = data; return res; },
+      } as unknown as express.Response;
+      await handleReconcile(req, res, db as unknown as Firestore);
+      return { statusCode, jsonBody: jsonBody as TestResponseBody | null };
+    };
+    const refused = await run('line-eur');
+    assert.equal(refused.statusCode, 400);
+    assert.match(String(refused.jsonBody?.error), /in EUR, not USD/);
+    assert.equal(db.getDocData('bankLines', 'line-eur').status, 'pending', 'nothing written');
+    assert.equal((await run('line-usd')).statusCode, 200, 'a line in the books\' currency still matches');
+    assert.equal(db.getDocData('bankLines', 'line-usd').status, 'matched');
+  });
+
   test('Undo sets bank line back to pending and transaction back to completed with audit log', async () => {
     const db = new MockDb();
     db.data.set('workspaces/ws-1', {

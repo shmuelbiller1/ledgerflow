@@ -81,3 +81,27 @@ failure isolation — never line persistence, because there is none to assert.
   bank goes to `failed`). Verified-no-finding.
 - `transactionsGet` fallback (no `transactionsSync` on the client) never sets a cursor and repeats
   the last-30-day window each time; dedupe then relies entirely on downstream `importIdentity`.
+
+## Fixed (29 Oct 2026, AI #1, issue #151)
+
+`/plaid/sync` now stores the downloaded rows as pending bank lines **in the same database transaction**
+that saves the connection's new `syncCursor` (`src/server/services/plaidIngest.ts`, `storePlaidSync`).
+Either both are kept or neither is, so a failure repeats the same rows on the next sync. Each line's
+fingerprint is Plaid's `transaction_id` (`plaid:<id>`), so a row sent twice stays one line. Pending card
+holds are left out, because Plaid removes them and sends the posted row later. Bank rules suggest an account as for imported lines (EG-9).
+
+Proof: `src/tests/plaid-sync-ingest.test.ts`, run against a real database:
+- new rows become lines and the cursor moves;
+- a repeated row stays one line;
+- a failed store keeps neither the line nor the cursor, and the next sync asks from the old cursor and stores the row.
+
+`audit-af001-plaid-contract.test.ts` F1 now pins this contract in the source.
+
+Review follow-ups in the same PR (#439):
+- `/sync` is a writer action (owner, accountant, bookkeeper).
+- Only stored rows count as synced.
+- Bank Feed Import no longer books the stored rows a second time.
+- Bank-side `modified` rows update a line still pending and unmatched, and `removed` rows delete one. A line already matched to a posted entry is only flagged (`bankChange`, `bankCorrection`) for review.
+- Each line keeps its Plaid `account_id` and currency. The connection's ledger account is set only for rows of the Plaid account it is tied to (saved on the first sync where all rows share one account) and in the books' currency.
+
+Still open: the CSV path of the legacy Bank Feed Import dialog books to a placeholder `offset-bank` account.

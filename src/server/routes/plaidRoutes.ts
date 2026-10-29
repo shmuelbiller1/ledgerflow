@@ -8,6 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
+import { plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -206,7 +207,8 @@ export async function syncAllPages(call: SyncCall, accessToken: string, cursor: 
 const syncSchema = z.object({ workspaceId: z.string().min(1), accountId: z.string().min(1).optional() });
 
 /** Last 30 days of transactions from this workspace's connections (optionally one bank account). */
-plaidRouter.post("/sync", async (req, res) => {
+// AF-001: a sync stores bank lines, so it is a write to the books (owner, accountant, bookkeeper)
+plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
   let body: z.infer<typeof syncSchema>;
   try {
     body = syncSchema.parse(req.body);
@@ -219,6 +221,8 @@ plaidRouter.post("/sync", async (req, res) => {
     let query = db.collection("banks").where("workspaceId", "==", body.workspaceId);
     if (body.accountId) query = query.where("accountId", "==", body.accountId);
     const banksSnap = await query.get();
+    // the books' currency: a row in another currency is stored for review, never as home-currency money
+    const workspaceCurrency = String((await db.collection("workspaces").doc(body.workspaceId).get()).data()?.currency || 'USD');
 
     const today = new Date();
     const thirtyDaysAgo = new Date();
@@ -230,19 +234,24 @@ plaidRouter.post("/sync", async (req, res) => {
     // Z-28: a bank that fails another way is said and kept in its log; the others still sync
     const failed: { bankId: string; institutionName: string; error: string }[] = [];
     let answered = 0;
+    // bank lines actually added (Plaid's raw rows include card holds and rows already stored)
+    let storedLines = 0;
     for (const doc of banksSnap.docs) {
       const bank = doc.data();
       try {
         const accessToken = SecurityService.decryptSensitiveField(bank.access_token);
         let lineCount: number;
         let nextCursor: string | undefined;
+        let added: unknown[];
+        let pageModified: unknown[] = [];
+        let pageRemoved: string[] = [];
         if (plaidClient.transactionsSync) {
           // AU-1: /transactions/sync from the connection's saved cursor — only what changed since the
-          // last sync; the cursor is saved only after every page arrived, so a failure repeats safely
+          // last sync; the cursor is saved only after every page arrived and its rows are stored (AF-001)
           const page = await syncAllPages(plaidClient.transactionsSync.bind(plaidClient), accessToken, typeof bank.syncCursor === 'string' ? bank.syncCursor : undefined);
-          transactions.push(...page.added);
-          modified.push(...page.modified);
-          removed.push(...page.removed);
+          added = page.added;
+          pageModified = page.modified;
+          pageRemoved = page.removed;
           lineCount = page.added.length + page.modified.length;
           nextCursor = page.cursor;
         } else {
@@ -251,14 +260,37 @@ plaidRouter.post("/sync", async (req, res) => {
             start_date: getLocalDateISO(thirtyDaysAgo),
             end_date: getLocalDateISO(today),
           });
-          transactions.push(...response.data.transactions);
+          added = response.data.transactions;
           lineCount = response.data.transactions.length;
         }
-        answered += 1;
         // the last time this connection answered (BC-11: the dashboard's bank feed health); a failed or
         // expired sync leaves it where it was. Z-29: each attempt goes in the connection's sync log
         const syncedAt = new Date().toISOString();
-        await doc.ref.update({ status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt, ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}), syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }) });
+        // AF-001: the new rows become bank lines in the same transaction that moves the cursor, so a
+        // failure leaves the cursor where it was and the next sync brings the same rows again
+        // (CodeRabbit on #439) corrections and deletions travel with the cursor too, and each row keeps
+        // its Plaid account, so a second account of the same bank login is never booked to this one
+        const connection = { id: doc.id, accountId: bank.accountId, plaidAccountId: bank.plaidAccountId, workspaceCurrency };
+        const plaidAccountId = plaidAccountFor(connection, [...added, ...pageModified]);
+        const saved = await storePlaidSync(db, {
+          workspaceId: body.workspaceId, uid: (req as AuthedRequest).user?.uid || '', bankRef: doc.ref,
+          lines: plaidRowsAsBankLines(added, connection, body.workspaceId, plaidAccountId),
+          modified: plaidRowsAsBankLines(pageModified, connection, body.workspaceId, plaidAccountId),
+          removed: pageRemoved,
+          expectedCursor: typeof bank.syncCursor === 'string' ? bank.syncCursor : undefined,
+          bankUpdate: {
+            status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt,
+            ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}),
+            ...(plaidAccountId && !bank.plaidAccountId ? { plaidAccountId } : {}),
+            syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }),
+          },
+        });
+        // only rows that are now stored are reported, so a failed store is never a "synchronized" (Codex on #439)
+        answered += 1;
+        storedLines += saved.stored;
+        transactions.push(...added);
+        modified.push(...pageModified);
+        removed.push(...pageRemoved);
       } catch (err) {
         const code = plaidErrorCode(err);
         const now = new Date().toISOString();
@@ -284,7 +316,7 @@ plaidRouter.post("/sync", async (req, res) => {
     }
     // every connection failed: the sync failed (as before), with each one's reason kept in its log
     if (failed.length > 0 && answered === 0 && needsReconnect.length === 0) return sendError(res, "Could not sync the bank feed", 502);
-    res.json({ success: transactions.length > 0, transactions, modified, removed, needsReconnect, failed, banks: banksSnap.size });
+    res.json({ success: transactions.length > 0, transactions, modified, removed, storedLines, needsReconnect, failed, banks: banksSnap.size });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/not a member|Unauthorized|not found/i.test(message)) return sendError(res, message, 403);

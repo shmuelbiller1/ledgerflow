@@ -11,7 +11,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 
 export interface BankLineActionTarget {
   mode: 'pay' | 'split';
-  line: { id: string; date: string; description: string; amountCents: number; accountId?: string };
+  line: { id: string; date: string; description: string; amountCents: number; accountId?: string; currency?: string };
 }
 
 const OPEN = (status: string) => !['draft', 'void', 'cancelled', 'rejected', 'paid'].includes(status);
@@ -91,7 +91,7 @@ export default function BankLineActionDialog({ target, onClose }: { target: Bank
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
           <h2 id="bank-line-title" className="text-lg font-bold">{title}</h2>
-          <p className="text-xs text-[var(--muted)]">{line.date} · {line.description} · {formatCurrency(line.amountCents)}</p>
+          <p className="text-xs text-[var(--muted)]">{line.date} · {line.description} · {formatCurrency(line.amountCents, line.currency)}</p>
         </div>
         <div className="space-y-1">
           <label htmlFor="bank-line-account" className="text-xs font-bold">Bank account</label>

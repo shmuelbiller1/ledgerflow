@@ -2,6 +2,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { collection, doc } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { db } from '../../firebase';
 import { Transaction, BankStatementLine } from '../../types';
 import { toast } from 'sonner';
@@ -78,8 +79,16 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
       const tags = chosen.tags && chosen.tags.length ? chosen.tags : undefined;
       const dimensions = chosen.dimensions && Object.keys(chosen.dimensions).length ? chosen.dimensions : undefined;
 
-      const rawLines = [{ accountId: target.id, accountName: target.name || 'General Expense', amountCents: bankLine.amountCents, ...(tags ? { tags } : {}), ...(dimensions ? { dimensions } : {}) }];
-      const balancedLines = balanceTransactionLines(rawLines, bankLine.amountCents);
+      // the balancing line goes to the bank line's own account, never the first cash account (CodeRabbit on #439)
+      const bankAccount = bankLine.accountId
+        ? accounts.find(a => a.id === bankLine.accountId && resolveAccountRole(a) === 'cash')
+        : undefined;
+      if (bankLine.accountId && !bankAccount) throw new Error('The bank line\'s account is not available as a cash account.');
+      const rawLines: Array<Record<string, unknown> & { accountId: string; amountCents: number }> = [{ accountId: target.id, accountName: target.name || 'General Expense', amountCents: bankLine.amountCents, ...(tags ? { tags } : {}), ...(dimensions ? { dimensions } : {}) }];
+      if (bankAccount && bankLine.amountCents !== 0) {
+        rawLines.push({ accountId: bankAccount.id, accountName: bankAccount.name, amountCents: -bankLine.amountCents, description: 'Bank Settlement' });
+      }
+      const balancedLines = balanceTransactionLines(rawLines as never, bankLine.amountCents);
       const ruleIds = bankLine.suggestion?.ruleIds;
       const metadata = {
         ...(chosen.contactId ? { contactId: chosen.contactId, ...(chosen.contactKind ? { contactKind: chosen.contactKind } : {}) } : {}),
@@ -93,6 +102,9 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         date: bankLine.date,
         description: bankLine.description,
         totalAmountCents: Math.abs(bankLine.amountCents),
+        // the entry is in the line's currency, else the books' (the server's default is USD) (CodeRabbit on #439)
+        currency: (bankLine as { currency?: string }).currency
+          || (useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId) as { currency?: string } | undefined)?.currency || 'USD',
         status: 'reconciled',
         type: 'actual',
         createdAt: new Date().toISOString(),
@@ -158,7 +170,12 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
     
     try {
       const loaded = useLedgerStore.getState();
-      const bankLines = (scope?.bankLines ?? loaded.bankLines ?? []).filter(l => l.status === 'pending');
+      // a line in another currency waits for a person: its amount is not in the books' currency (AF-001)
+      const home = (useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId) as { currency?: string } | undefined)?.currency || 'USD';
+      const bankLines = (scope?.bankLines ?? loaded.bankLines ?? []).filter(l => l.status === 'pending'
+        && (!(l as { currency?: string }).currency || String((l as { currency?: string }).currency).toUpperCase() === home.toUpperCase())
+        // a Plaid line from an account not tied to a ledger account has no bank to match against (CodeRabbit on #439)
+        && !((l as { source?: string }).source === 'plaid' && !l.accountId));
       const transactions = (scope?.transactions ?? loaded.transactions ?? [])
         .filter(t => t.status !== 'reconciled' && t.status !== 'void');
       
@@ -184,6 +201,9 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
             return acc && resolveAccountRole(acc) === 'cash';
           }) || [];
           const cashDelta = cashLines.reduce((s, l) => s + lineAmount(l, tx), 0);
+
+          // a line from one bank account is never matched to money that moved through another (CodeRabbit on #439)
+          if (bl.accountId && cashLines.length > 0 && !cashLines.some(l => l.accountId === bl.accountId)) return;
 
           // If transaction has explicit cash lines, cash movement direction MUST match bank line sign!
           if (cashDelta !== 0 && Math.sign(cashDelta) !== Math.sign(bl.amountCents)) {

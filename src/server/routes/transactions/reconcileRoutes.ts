@@ -118,6 +118,13 @@ export async function handleReconcile(req: express.Request, res: express.Respons
             }
             const lineRef = db.collection('bankLines').doc(op.id);
             const validatedData = BankLineUpdateSchema.parse(op.data);
+            // a bank line in another currency is not matched as home-currency money: its amount needs a
+            // conversion first (AF-001 follow-up, CodeRabbit on #439)
+            const lineCurrency = String(lineSnap.data()?.currency || '').toUpperCase();
+            const homeCurrency = String(wsData?.currency || 'USD').toUpperCase();
+            if (validatedData.status === 'matched' && lineCurrency && lineCurrency !== homeCurrency) {
+              throw new Error(`Bank line ${op.id} is in ${lineCurrency}, not ${homeCurrency}; it can't be matched until it is converted`);
+            }
             writes.push(() => t.update(lineRef, { ...validatedData, updatedAt: FieldValue.serverTimestamp() }));
           } else if (op.type === 'updateTransaction') {
             const txSnap = txSnaps.get(op.id);
