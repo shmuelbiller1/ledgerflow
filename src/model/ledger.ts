@@ -429,6 +429,9 @@ export interface BankStatementLine {
   exchangeRate?: number;
   matchedTransactionId?: string;
   status: 'pending' | 'matched' | 'ignored';
+  /** the bank corrected ('modified') or withdrew ('removed') this line after it was matched: review it */
+  bankChange?: 'modified' | 'removed';
+  bankCorrection?: { date: string; description: string; amountCents: number; currency?: string };
   /** EG-9: the statement line's source fingerprint; one bank line per fingerprint */
   importIdentity?: string;
   /** EG-9: what the bank rules suggest (server-written; nothing is posted until accepted) */

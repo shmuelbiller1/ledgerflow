@@ -277,6 +277,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
           lines: plaidRowsAsBankLines(added, connection, body.workspaceId, plaidAccountId),
           modified: plaidRowsAsBankLines(pageModified, connection, body.workspaceId, plaidAccountId),
           removed: pageRemoved,
+          expectedCursor: typeof bank.syncCursor === 'string' ? bank.syncCursor : undefined,
           bankUpdate: {
             status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt,
             ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}),

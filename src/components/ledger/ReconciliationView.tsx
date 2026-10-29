@@ -356,9 +356,17 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                <div className="flex items-center gap-2 flex-wrap mb-1">
                                  <span className="text-[8px] font-black uppercase text-[var(--muted)] font-mono tracking-wider">{line.date}</span>
                                  <span className="px-2 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[7px] font-black uppercase tracking-wider">Cleared</span>
+                                 {line.bankChange && (
+                                   <span role="status" className="px-2 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[7px] font-black uppercase tracking-wider">
+                                     {line.bankChange === 'removed' ? 'Bank withdrew this line: review' : 'Bank changed this line: review'}
+                                   </span>
+                                 )}
                                </div>
                                <h4 className="font-extrabold text-sm text-[var(--text)] min-w-0"><BankLineName text={line.description} /></h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 tabular-nums">Statement amount: {formatCurrency(line.amountCents, line.currency)}</p>
+                               {line.bankCorrection && (
+                                 <p className="text-[10px] text-amber-800 font-mono mt-0.5 tabular-nums">Bank now says: {line.bankCorrection.date} · {line.bankCorrection.description} · {formatCurrency(line.bankCorrection.amountCents, line.bankCorrection.currency || line.currency)}</p>
+                               )}
                              </button>
 
                              {/* Connector Node */}

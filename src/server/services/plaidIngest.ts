@@ -102,6 +102,8 @@ export const PLAID_STORE_CHUNK = 500;
 
 export async function storePlaidSync(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate: Record<string, unknown>;
+  /** the cursor this sync started from: the cursor write is refused if another sync has moved the bank on */
+  expectedCursor?: string;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
   // (Codex on #439) a long history is stored in bounded chunks; every chunk but the last carries no cursor,
@@ -127,11 +129,20 @@ export async function storePlaidSync(db: Firestore, input: {
 
 async function storePlaidChunk(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate?: Record<string, unknown>;
+  expectedCursor?: string;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
   const result = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
   await db.runTransaction(async (t) => {
     // reads first (the transaction refuses a read after a write)
+    // (CodeRabbit on #439) two overlapping syncs: the one that commits last must not put an older cursor back
+    if (input.bankUpdate && 'expectedCursor' in input) {
+      const bankNow = await t.get(db.collection('banks').doc(input.bankRef.id));
+      const savedCursor = (bankNow.data() as { syncCursor?: unknown } | undefined)?.syncCursor;
+      if ((typeof savedCursor === 'string' ? savedCursor : undefined) !== input.expectedCursor) {
+        throw new Error('The bank was synced by another request meanwhile. Sync again.');
+      }
+    }
     const seen = await existingImportIdentities(db, t, input.workspaceId, input.lines);
     const inBatch = new Set<string>();
     const fresh = input.lines.filter(line => {

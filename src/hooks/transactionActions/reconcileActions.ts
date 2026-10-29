@@ -79,8 +79,16 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
       const tags = chosen.tags && chosen.tags.length ? chosen.tags : undefined;
       const dimensions = chosen.dimensions && Object.keys(chosen.dimensions).length ? chosen.dimensions : undefined;
 
-      const rawLines = [{ accountId: target.id, accountName: target.name || 'General Expense', amountCents: bankLine.amountCents, ...(tags ? { tags } : {}), ...(dimensions ? { dimensions } : {}) }];
-      const balancedLines = balanceTransactionLines(rawLines, bankLine.amountCents);
+      // the balancing line goes to the bank line's own account, never the first cash account (CodeRabbit on #439)
+      const bankAccount = bankLine.accountId
+        ? accounts.find(a => a.id === bankLine.accountId && resolveAccountRole(a) === 'cash')
+        : undefined;
+      if (bankLine.accountId && !bankAccount) throw new Error('The bank line\'s account is not available as a cash account.');
+      const rawLines: Array<Record<string, unknown> & { accountId: string; amountCents: number }> = [{ accountId: target.id, accountName: target.name || 'General Expense', amountCents: bankLine.amountCents, ...(tags ? { tags } : {}), ...(dimensions ? { dimensions } : {}) }];
+      if (bankAccount && bankLine.amountCents !== 0) {
+        rawLines.push({ accountId: bankAccount.id, accountName: bankAccount.name, amountCents: -bankLine.amountCents, description: 'Bank Settlement' });
+      }
+      const balancedLines = balanceTransactionLines(rawLines as never, bankLine.amountCents);
       const ruleIds = bankLine.suggestion?.ruleIds;
       const metadata = {
         ...(chosen.contactId ? { contactId: chosen.contactId, ...(chosen.contactKind ? { contactKind: chosen.contactKind } : {}) } : {}),

@@ -217,6 +217,16 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.equal((await db.collection('bankLines').doc(`eur_${suffix}`).get()).data()?.status, 'pending');
   });
 
+  test('an older sync that commits last cannot put its cursor back (CodeRabbit on #439)', async () => {
+    const { storePlaidSync } = await import('../server/services/plaidIngest');
+    const saved = (await bank(bankId)).syncCursor as string | undefined;
+    // this request started before another sync moved the bank on: it expected a cursor that is no longer saved
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines: [], expectedCursor: 'stale-cursor', bankUpdate: { syncCursor: 'older' } }), /synced by another request/);
+    assert.equal((await bank(bankId)).syncCursor, saved, 'the newer cursor stays');
+    const ok = await storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines: [], expectedCursor: saved, bankUpdate: { syncCursor: saved } });
+    assert.equal(ok.stored, 0);
+  });
+
   test('a correction for a row never stored becomes a new line instead of being lost (CodeRabbit on #439)', async () => {
     const { storePlaidSync, plaidRowsAsBankLines } = await import('../server/services/plaidIngest');
     const modified = plaidRowsAsBankLines([{ transaction_id: 'tx-orphan', date: '2026-10-28', name: 'Only the correction', amount: 4 }], { id: bankId }, ws);
