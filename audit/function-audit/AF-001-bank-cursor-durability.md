@@ -81,3 +81,21 @@ failure isolation — never line persistence, because there is none to assert.
   bank goes to `failed`). Verified-no-finding.
 - `transactionsGet` fallback (no `transactionsSync` on the client) never sets a cursor and repeats
   the last-30-day window each time; dedupe then relies entirely on downstream `importIdentity`.
+
+## Fixed (29 Oct 2026, AI #1, issue #151)
+
+`/plaid/sync` now stores the downloaded rows as pending bank lines **in the same database transaction**
+that saves the connection's new `syncCursor` (`src/server/services/plaidIngest.ts`, `storePlaidSync`).
+Either both are kept or neither is, so a failure repeats the same rows on the next sync. Each line's
+fingerprint is Plaid's `transaction_id` (`plaid:<id>`), so a row sent twice stays one line. Pending card
+holds are left out, because Plaid removes them and sends the posted row later. Bank rules suggest an account as for imported lines (EG-9).
+
+Proof: `src/tests/plaid-sync-ingest.test.ts`, run against a real database:
+- new rows become lines and the cursor moves;
+- a repeated row stays one line;
+- a failed store keeps neither the line nor the cursor, and the next sync asks from the old cursor and stores the row.
+
+`audit-af001-plaid-contract.test.ts` F1 now pins this contract in the source.
+
+Still open, separately (F3): bank-side `modified` and `removed` rows are not yet applied to existing pending lines, and the
+legacy Bank Feed Import dialog still books rows straight to a placeholder `offset-bank` account.

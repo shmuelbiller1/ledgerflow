@@ -8,6 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
+import { plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -236,10 +237,12 @@ plaidRouter.post("/sync", async (req, res) => {
         const accessToken = SecurityService.decryptSensitiveField(bank.access_token);
         let lineCount: number;
         let nextCursor: string | undefined;
+        let added: unknown[];
         if (plaidClient.transactionsSync) {
           // AU-1: /transactions/sync from the connection's saved cursor — only what changed since the
-          // last sync; the cursor is saved only after every page arrived, so a failure repeats safely
+          // last sync; the cursor is saved only after every page arrived and its rows are stored (AF-001)
           const page = await syncAllPages(plaidClient.transactionsSync.bind(plaidClient), accessToken, typeof bank.syncCursor === 'string' ? bank.syncCursor : undefined);
+          added = page.added;
           transactions.push(...page.added);
           modified.push(...page.modified);
           removed.push(...page.removed);
@@ -251,6 +254,7 @@ plaidRouter.post("/sync", async (req, res) => {
             start_date: getLocalDateISO(thirtyDaysAgo),
             end_date: getLocalDateISO(today),
           });
+          added = response.data.transactions;
           transactions.push(...response.data.transactions);
           lineCount = response.data.transactions.length;
         }
@@ -258,7 +262,13 @@ plaidRouter.post("/sync", async (req, res) => {
         // the last time this connection answered (BC-11: the dashboard's bank feed health); a failed or
         // expired sync leaves it where it was. Z-29: each attempt goes in the connection's sync log
         const syncedAt = new Date().toISOString();
-        await doc.ref.update({ status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt, ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}), syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }) });
+        // AF-001: the new rows become bank lines in the same transaction that moves the cursor, so a
+        // failure leaves the cursor where it was and the next sync brings the same rows again
+        await storePlaidSync(db, {
+          workspaceId: body.workspaceId, uid: (req as AuthedRequest).user?.uid || '', bankRef: doc.ref,
+          lines: plaidRowsAsBankLines(added, { id: doc.id, accountId: bank.accountId }, body.workspaceId),
+          bankUpdate: { status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt, ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}), syncLog: appendSyncLog(bank.syncLog, { at: syncedAt, result: 'ok', lines: lineCount }) },
+        });
       } catch (err) {
         const code = plaidErrorCode(err);
         const now = new Date().toISOString();
