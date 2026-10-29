@@ -45,8 +45,11 @@ export default function BudgetManager() {
   const transactions = useLedgerStore((s) => s.transactions);
   const accounts = useLedgerStore((s) => s.accounts);
   const { loading } = useLedgerCollections('budgets');
-  // A viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
-  const canWriteBudget = useCurrentRole() !== 'viewer';
+  // A signed-in viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
+  // A guest owns their local sandbox, so guests keep the write affordances exactly as before
+  // (useCurrentRole resolves a guest to 'viewer' — there is no workspace row to read a role from).
+  const budgetRole = useCurrentRole();
+  const canWriteBudget = isGuest || budgetRole !== 'viewer';
   const [isAdding, setIsAdding] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setIsAdding(false), isAdding);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);

@@ -26,9 +26,14 @@ async function expect44px(button: Locator, name: string) {
     const inside = (r: DOMRect) => r.left >= 0 && r.right <= width + 0.5;
     const rect = el.getBoundingClientRect();
     if (inside(rect)) return { state: 'already-visible' as const };
-    // Walk up to the first ancestor that can actually scroll horizontally — the A-233 scroll box.
+    // Walk up to the first ancestor that is set to scroll horizontally — the A-233 scroll box
+    // (an overflow:visible wrapper can also report scrollWidth > clientWidth when a badge or
+    // shadow sticks out, but assigning its scrollLeft is a no-op — the computed overflow style
+    // is what tells a real scroll box apart).
     let box: HTMLElement | null = el.parentElement;
-    while (box && box !== document.body && box !== document.documentElement && box.scrollWidth <= box.clientWidth + 1) {
+    while (box && box !== document.body && box !== document.documentElement) {
+      const overflowX = getComputedStyle(box).overflowX;
+      if ((overflowX === 'auto' || overflowX === 'scroll') && box.scrollWidth > box.clientWidth + 1) break;
       box = box.parentElement;
     }
     if (!box || box === document.body || box === document.documentElement) return { state: 'no-scroll-box' as const };
@@ -37,13 +42,23 @@ async function expect44px(button: Locator, name: string) {
     // Scroll the box, not the page, until the button's left edge sits at the box's left edge.
     box.scrollTo({ left: before + (rect.left - boxRect.left), behavior: 'instant' });
     const after = box.scrollLeft;
-    return { state: 'scrolled' as const, boxFits: boxRect.left >= 0 && boxRect.right <= width + 0.5, before, after };
+    return {
+      state: after === before ? ('scroll-stuck' as const) : ('scrolled' as const),
+      boxFits: boxRect.left >= 0 && boxRect.right <= width + 0.5,
+      boxClass: box.className,
+      before,
+      after,
+    };
   }, WIDTH);
 
   expect(
     scrolled.state,
     `${name} is behind the table's edge and no inner scroll box reaches it — the A-233 scroll box is missing`,
   ).not.toBe('no-scroll-box');
+  expect(
+    scrolled.state,
+    `${name}: the scroll box ("${scrolled.boxClass}") did not move (scrollLeft ${scrolled.before} → ${scrolled.after})`,
+  ).not.toBe('scroll-stuck');
   if (scrolled.state === 'scrolled') {
     expect(scrolled.boxFits, `${name}'s scroll box itself must fit the ${WIDTH} px phone`).toBe(true);
   }
