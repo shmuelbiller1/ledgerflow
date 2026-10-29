@@ -14,6 +14,7 @@ import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { EmptyState } from '../ui/EmptyState';
 import { Labelled } from '../ui/Labelled';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { convertEstimateToInvoice } from '../../lib/estimateConverter';
@@ -381,9 +382,12 @@ export default function EstimatesView() {
       {/* Estimates Table */}
       <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
         {loading ? <LoadingState what="estimates" /> : estimates.length === 0 ? (
-          <div className="p-8 text-center text-xs text-[var(--muted)]">
-            No estimates found. Click "New Estimate" to create one.
-          </div>
+          <EmptyState
+            title="No estimates yet"
+            description="An estimate quotes a price before the sale; once accepted it becomes the invoice without retyping."
+            actionLabel="Add your first estimate"
+            onAction={() => setIsCreating(true)}
+          />
         ) : (
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Estimates</caption>

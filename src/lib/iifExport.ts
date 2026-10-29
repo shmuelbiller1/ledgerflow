@@ -39,13 +39,17 @@ export interface IifExportResult {
 }
 
 /** Tabs, line breaks and control characters out of one cell (IIF has no quoting). */
-const cell = (value: unknown): string =>
-  String(value ?? '')
-    .replace(/[\t\r\n]+/g, ' ')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .replace(/ +/g, ' ')
-    .trim();
+const cell = (value: unknown): string => {
+  const spaced = String(value ?? '').replace(/[\t\r\n]+/g, ' ');
+  // The remaining C0 controls and DEL go by code point instead of a control-character regex;
+  // a for…of loop keeps astral characters whole, exactly as the old code-unit ranges did.
+  let clean = '';
+  for (const ch of spaced) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 32 && code !== 127) clean += ch;
+  }
+  return clean.replace(/ +/g, ' ').trim();
+};
 
 /** Item catalogue money, exactly as stored: integer cents → a plain decimal figure. */
 const money = (cents: unknown): string => {

@@ -12,6 +12,8 @@ import { depreciationThrough } from '../../lib/depreciationEngine';
 import { formatCurrency, formatDate, formatTzDate, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DisposeAssetDialog from './DisposeAssetDialog';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import TransferAssetDialog from './TransferAssetDialog';
 import AssetLabels from './AssetLabels';
 import { assetMatches, missingTags } from '../../lib/assetTags';
@@ -41,7 +43,7 @@ export const FixedAssetsView: React.FC = () => {
   const assets = useLedgerStore(s => s.assets) as FixedAsset[] | undefined;
   const accounts = useLedgerStore(s => s.accounts) as ChartAccount[] | undefined;
   const bills = useLedgerStore(s => s.bills);
-  useLedgerCollections('assets', 'bills');
+  const { loading } = useLedgerCollections('assets', 'bills');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const { addEntity, updateEntity } = useEntityOperations();
   const role = useCurrentRole();
@@ -249,11 +251,15 @@ export const FixedAssetsView: React.FC = () => {
       {labels && <AssetLabels assets={shown} company={workspace?.name || ''} onClose={() => setLabels(false)} />}
 
       {list.length === 0 ? (
-        <div className="text-center py-12 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-          <Building className="w-8 h-8 text-[var(--muted)] mx-auto mb-3" aria-hidden="true" />
-          <h2 className="text-sm font-semibold text-[var(--text)]">No fixed assets yet</h2>
-          <p className="text-xs text-[var(--muted)] mt-1 max-w-md mx-auto">Add equipment, vehicles or computers; the month-end run posts their depreciation.</p>
-        </div>
+        // a register the session already knows is empty gets the words; still arriving gets the spinner
+        loading ? <LoadingState what="assets" /> : (
+          <EmptyState
+            title="No fixed assets yet"
+            description="Equipment, vehicles or computers the business bought show here; the month-end close posts their depreciation."
+            actionLabel={canWrite ? 'Add your first asset' : undefined}
+            onAction={canWrite ? () => setIsAdding(true) : undefined}
+          />
+        )
       ) : (
         <div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-x-auto">
           <table className="w-full text-left text-xs">

@@ -7,6 +7,7 @@ import { WorkspaceRole, ROLE_DESCRIPTIONS, useCurrentRole } from '../../../hooks
 import { WorkspaceInvite, AuditLog } from '../../../types';
 import { RequireRole } from '../../ui/RequireRole';
 import InlineEdit from '../../ui/InlineEdit';
+import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
 
 export default function TeamSettings() {
@@ -383,9 +384,10 @@ function ScopedTeamSettings() {
             })}
 
             {members.length === 0 && (
-              <div className="py-6 text-center text-xs text-[var(--muted)] italic">
-                No additional bookkeepers or team members joined yet. Send an invitation above to collaborate.
-              </div>
+              <EmptyState
+                title="No team members yet"
+                description="Bookkeepers and accountants you invite show here with their role and activity. Send an invitation above to collaborate."
+              />
             )}
           </div>
         )}

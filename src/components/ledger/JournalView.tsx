@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Undo2 } from 'lucide-react';
 import { JournalEntry } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
+import { EmptyState } from '../ui/EmptyState';
 
 /** A journal entry as the list shows it: what kind it is and how it relates to reversals. */
 export type JournalListEntry = JournalEntry & {
@@ -20,6 +21,8 @@ interface JournalViewProps {
   canEdit?: boolean;
   onReverse?: (entry: JournalListEntry, date: string, reason: string) => Promise<unknown> | unknown;
   onDuplicate?: (entry: JournalListEntry) => void;
+  /** opens the journal-entry form — the empty list's "Add your first journal entry" action (A-262) */
+  onAddEntry?: () => void;
 }
 
 const PAGE = 200;
@@ -40,7 +43,7 @@ function keyedLines<L extends { accountId: string; debit: number; credit: number
  * opens to its lines; a manual entry can be reversed (a mirror entry on the chosen day, through the
  * server) or duplicated into a new entry. Totals are what the list shows — nothing else is claimed.
  */
-export default function JournalView({ journalEntries = [], formatCurrency, canEdit = false, onReverse, onDuplicate }: JournalViewProps) {
+export default function JournalView({ journalEntries = [], formatCurrency, canEdit = false, onReverse, onDuplicate, onAddEntry }: JournalViewProps) {
   const [manualOnly, setManualOnly] = useState(true);
   const [adjustingOnly, setAdjustingOnly] = useState(false);
   const [search, setSearch] = useState('');
@@ -86,9 +89,14 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
       </div>
 
       {entries.length === 0 ? (
-        <p className="p-8 text-center text-sm text-[var(--muted)]">
-          {manualOnly ? 'No journal entries typed in by hand yet. "Journal Entry" above adds one.' : 'No entries match.'}
-        </p>
+        <EmptyState
+          title={manualOnly ? 'No journal entries typed in by hand yet' : 'No entries match'}
+          description={manualOnly
+            ? 'Adjustments you type yourself — accruals, corrections, openings — are listed here once added.'
+            : 'Choose another search or filter, or widen the list with the filters above.'}
+          actionLabel={manualOnly && canEdit && onAddEntry ? 'Add your first journal entry' : undefined}
+          onAction={manualOnly && canEdit ? onAddEntry : undefined}
+        />
       ) : (
         <ul className="divide-y divide-[var(--line)]">
           {entries.slice(0, shown).map(e => {

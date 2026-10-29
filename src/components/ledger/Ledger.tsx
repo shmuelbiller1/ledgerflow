@@ -392,17 +392,19 @@ const Ledger = React.memo(() => {
             <p className="text-[11px] text-[var(--muted)] mb-2" data-testid="balances-source">{balancesNote}</p>
           )}
           {activeSubTab === 'coa' && (
-            <ChartOfAccountsView 
-              accounts={accounts} 
-              searchTerm={searchTerm} 
+            <ChartOfAccountsView
+              accounts={accounts}
+              searchTerm={searchTerm}
               formatCurrency={formatCurrency}
               onDrillDown={(name) => onAction('drill-down', { account: name })}
+              onAddAccount={ledgerRole !== 'viewer' ? () => setActiveModal('account') : undefined}
               onDeleteAccount={onDeleteAccount}
             />
           )}
           {activeSubTab === 'journal' && (
             <JournalView journalEntries={journalEntries} formatCurrency={formatCurrency}
               canEdit={ledgerRole !== 'viewer'}
+              onAddEntry={() => setActiveModal('journal')}
               onReverse={(entry, date, reason) => txActions.handleReverseTransaction(entry.id, date, reason)}
               onDuplicate={entry => { setDuplicateOf(entry); setActiveModal('journal'); }} />
           )}

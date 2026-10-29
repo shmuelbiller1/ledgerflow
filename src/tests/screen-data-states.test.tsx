@@ -195,6 +195,22 @@ describe('A-235: every busiest screen reports a failed load with one shared retr
     assert.equal(useDataNeedsStore.getState().failed.accounts, undefined);
   });
 
+  test('A-257: after "Try again" the list reads loading until the fresh data arrives — not the stale empty list', async () => {
+    render(<Sales />);
+    // invoices had loaded earlier in the session, then the live read failed
+    await failCollections('invoices');
+    assert.match(dataNotice()!.textContent || '', /Couldn't load invoices/);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try again' })); });
+    assert.equal(useDataNeedsStore.getState().failed.invoices, undefined, 'the failure is cleared so the subscription starts over');
+    assert.equal(useDataNeedsStore.getState().loaded.invoices, false, 'the collection is loading again');
+    assert.ok(screen.getByText('Loading invoices…'), 'the screen shows loading, not "No invoices yet"');
+    assert.equal(dataNotice(), undefined, 'the notice is gone: the retry is in flight');
+    // the fresh snapshot arrives (useLedgerData markLoaded)
+    await act(async () => { useDataNeedsStore.getState().markLoaded('invoices'); });
+    assert.equal(screen.queryByText('Loading invoices…'), null, 'loading ends when the new data is here');
+    assert.match(screen.getByText('No invoices yet').textContent || '', /No invoices yet/, 'and the empty state is honest again');
+  });
+
   test('a dropped connection keeps the reader on the screen: the loading state is not mistaken for "nothing here"', async () => {
     useDataNeedsStore.setState({ loaded: { transactions: true, accounts: true }, failed: {} });
     render(<Sales />);
