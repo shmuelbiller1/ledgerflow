@@ -120,6 +120,7 @@ const Ledger = React.memo(() => {
   useLedgerStore(s => s.budgets);
   useLedgerStore(s => s.taxRates);
   useLedgerCollections('auditLogs', 'bankLines', 'budgets', 'reconciliations');
+  const { loading: transactionsLoading } = useLedgerCollections('transactions');
   const { handleAction: onAction } = useCommandDispatcher();
   const txActions = useTransactionActions();
   const { addEntity, updateEntity } = useEntityOperations();
@@ -402,7 +403,7 @@ const Ledger = React.memo(() => {
             />
           )}
           {activeSubTab === 'journal' && (
-            <JournalView journalEntries={journalEntries} formatCurrency={formatCurrency}
+            <JournalView journalEntries={journalEntries} formatCurrency={formatCurrency} loading={transactionsLoading}
               canEdit={ledgerRole !== 'viewer'}
               onAddEntry={() => setActiveModal('journal')}
               onReverse={(entry, date, reason) => txActions.handleReverseTransaction(entry.id, date, reason)}

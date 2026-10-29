@@ -63,6 +63,10 @@ export default function BudgetManager() {
 
   const handleAddBudget = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteBudget) {
+      toast.error('Viewers cannot change budgets');
+      return;
+    }
     const workspaceId = currentWorkspaceId || (isGuest ? 'default' : null);
     if (!workspaceId) {
       toast.error('Workspace context missing');
@@ -216,6 +220,7 @@ export default function BudgetManager() {
                       Stable Allocation
                     </div>
                   )}
+                  {canWriteBudget && (<>
                   <button 
                     aria-label={`Edit budget for ${b.targetId}`}
                     onClick={() => {
@@ -249,6 +254,7 @@ export default function BudgetManager() {
                   >
                     <Trash2 aria-hidden="true" size={16} />
                   </button>
+                  </>)}
                 </div>
               </div>
 
@@ -300,7 +306,7 @@ export default function BudgetManager() {
                     <Layers aria-hidden="true" size={14} className="text-[var(--muted)] opacity-30" />
                     <span className="text-[9px] font-black text-[var(--muted)] uppercase tracking-widest opacity-30">Analytical Snapshot Matrix</span>
                  </div>
-                 <button 
+                 {canWriteBudget && <button 
                    onClick={() => {
                      setNewBudget({
                        targetId: b.targetId,
@@ -316,7 +322,7 @@ export default function BudgetManager() {
                    aria-label="Edit budget objective"
                  >
                     <ArrowUpRight aria-hidden="true" size={18} />
-                 </button>
+                 </button>}
               </div>
             </motion.div>
           );

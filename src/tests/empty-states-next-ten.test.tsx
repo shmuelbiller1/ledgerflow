@@ -96,6 +96,9 @@ describe('A-262: helpful empty states on the next ten screens', () => {
     cleanup();
     render(<JournalView journalEntries={[]} formatCurrency={money} />);
     assert.equal(screen.queryByRole('button', { name: 'Add your first journal entry' }), null, 'no action where editing is not allowed');
+    cleanup();
+    render(<JournalView journalEntries={[]} formatCurrency={money} canEdit loading onAddEntry={() => {}} />);
+    assert.equal(screen.queryByRole('button', { name: 'Add your first journal entry' }), null, 'while loading: no "empty" state yet');
   });
 
   test('Chart of accounts: an empty chart says what it posts to and offers the first account', async () => {
