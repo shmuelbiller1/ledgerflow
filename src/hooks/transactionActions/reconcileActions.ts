@@ -2,6 +2,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { collection, doc } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { db } from '../../firebase';
 import { Transaction, BankStatementLine } from '../../types';
 import { toast } from 'sonner';
@@ -158,7 +159,10 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
     
     try {
       const loaded = useLedgerStore.getState();
-      const bankLines = (scope?.bankLines ?? loaded.bankLines ?? []).filter(l => l.status === 'pending');
+      // a line in another currency waits for a person: its amount is not in the books' currency (AF-001)
+      const home = (useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId) as { currency?: string } | undefined)?.currency || 'USD';
+      const bankLines = (scope?.bankLines ?? loaded.bankLines ?? []).filter(l => l.status === 'pending'
+        && (!(l as { currency?: string }).currency || String((l as { currency?: string }).currency).toUpperCase() === home.toUpperCase()));
       const transactions = (scope?.transactions ?? loaded.transactions ?? [])
         .filter(t => t.status !== 'reconciled' && t.status !== 'void');
       
