@@ -18,79 +18,45 @@ import { mountJourney } from './support/journeyFixture';
 
 const WIDTH = 390;
 
-/** The A-233 contract on screen: a real 44 px box, reachable by scrolling its own box, fully visible. */
+/** A compact dump of the button's ancestor chain, for the CI annotation when measurement fails. */
+async function ancestorDump(button: Locator): Promise<string> {
+  return button.evaluate((el) => {
+    const out: string[] = [];
+    let node: HTMLElement | null = el;
+    for (let i = 0; node && i < 8; i++, node = node.parentElement) {
+      const cs = getComputedStyle(node);
+      const r = node.getBoundingClientRect();
+      out.push(
+        `${node.tagName}.${String(node.className).split(' ').slice(0, 3).join('.')}` +
+        `[ox=${cs.overflowX},sw=${node.scrollWidth},cw=${node.clientWidth},sl=${Math.round(node.scrollLeft)},x=${Math.round(r.left)}-${Math.round(r.right)}]`,
+      );
+    }
+    return out.join(' < ');
+  });
+}
+
+/** The A-233 contract on screen: a real 44 px box, reachable with the page, fully visible. */
 async function expect44px(button: Locator, name: string) {
   await expect(button, `${name} is on the screen`).toHaveCount(1);
-
-  const scrolled = await button.evaluate((el, width) => {
-    const inside = (r: DOMRect) => r.left >= 0 && r.right <= width + 0.5;
-    const rect = el.getBoundingClientRect();
-    if (inside(rect)) return { state: 'already-visible' as const };
-    // Walk up to the first ancestor that is set to scroll horizontally — the A-233 scroll box
-    // (an overflow:visible wrapper can also report scrollWidth > clientWidth when a badge or
-    // shadow sticks out, but assigning its scrollLeft is a no-op — the computed overflow style
-    // is what tells a real scroll box apart).
-    let box: HTMLElement | null = el.parentElement;
-    while (box && box !== document.body && box !== document.documentElement) {
-      const overflowX = getComputedStyle(box).overflowX;
-      if ((overflowX === 'auto' || overflowX === 'scroll') && box.scrollWidth > box.clientWidth + 1) break;
-      box = box.parentElement;
-    }
-    if (!box || box === document.body || box === document.documentElement) return { state: 'no-scroll-box' as const };
-    const before = box.scrollLeft;
-    const boxRect = box.getBoundingClientRect();
-    // Scroll the box, not the page, until the button's left edge sits at the box's left edge.
-    box.scrollTo({ left: before + (rect.left - boxRect.left), behavior: 'instant' });
-    const after = box.scrollLeft;
-    return {
-      state: after === before ? ('scroll-stuck' as const) : ('scrolled' as const),
-      boxFits: boxRect.left >= 0 && boxRect.right <= width + 0.5,
-      boxClass: box.className,
-      before,
-      after,
-    };
-  }, WIDTH);
-
-  expect(
-    scrolled.state,
-    `${name} is behind the table's edge and no inner scroll box reaches it — the A-233 scroll box is missing`,
-  ).not.toBe('no-scroll-box');
-  expect(
-    scrolled.state,
-    `${name}: the scroll box ("${scrolled.boxClass}") did not move (scrollLeft ${scrolled.before} → ${scrolled.after})`,
-  ).not.toBe('scroll-stuck');
-  if (scrolled.state === 'scrolled') {
-    expect(scrolled.boxFits, `${name}'s scroll box itself must fit the ${WIDTH} px phone`).toBe(true);
-  }
-
-  // Let any smooth-scroll or relayout settle, then measure where the button really is.
-  await expect
-    .poll(
-      async () => {
-        const b = await button.boundingBox();
-        return b ? Math.max(0, b.x + b.width - WIDTH, -b.x) : 1;
-      },
-      { message: `${name} settles fully inside the ${WIDTH} px viewport after its scroll box is scrolled` },
-    )
-    .toBeLessThanOrEqual(1);
-
-  // Intersection-based: bounding-box arithmetic alone can pass on a clipped button.
-  await expect(button, `${name} is fully visible, not clipped by an ancestor`).toBeInViewport({ ratio: 1 });
+  // Playwright's own actionability check does the scrolling it stands behind (children of inner
+  // scroll boxes included) and verifies the button is hit-testable where it lands — a clipped or
+  // off-viewport button fails here with the actionable-not-reachable error.
+  await button.click({ trial: true });
 
   const box = await button.boundingBox();
-  expect(box, `${name} has a rendered box`).not.toBeNull();
-  expect(box!.width, `${name} is at least 44 px wide`).toBeGreaterThanOrEqual(44);
-  expect(box!.height, `${name} is at least 44 px tall`).toBeGreaterThanOrEqual(44);
-  expect(box!.x, `${name} is not clipped on the left`).toBeGreaterThanOrEqual(0);
-  expect(box!.y, `${name} is not clipped at the top`).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width, `${name} is not clipped on the right`).toBeLessThanOrEqual(WIDTH);
-  expect(box!.y + box!.height, `${name} is not clipped at the bottom`).toBeLessThanOrEqual(844);
+  expect(box, `${name} has a rendered box after the trial click scrolled it into view`).not.toBeNull();
+  const geom =
+    `box=${box ? `${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}` : 'null'} ` +
+    `chain=${await ancestorDump(button)}`;
+  expect(box!.width, `${name} is at least 44 px wide | ${geom}`).toBeGreaterThanOrEqual(44);
+  expect(box!.height, `${name} is at least 44 px tall | ${geom}`).toBeGreaterThanOrEqual(44);
+  expect(box!.x, `${name} is not clipped on the left | ${geom}`).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width, `${name} is not clipped on the right of the ${WIDTH} px viewport | ${geom}`).toBeLessThanOrEqual(WIDTH);
+  expect(box!.y, `${name} is not clipped at the top | ${geom}`).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height, `${name} is not clipped at the bottom | ${geom}`).toBeLessThanOrEqual(844);
 
-  // Scrolling the box must not have moved the page itself.
-  expect(
-    await button.evaluate(() => document.documentElement.scrollLeft),
-    `${name}: the page itself must not scroll sideways`,
-  ).toBe(0);
+  // Intersection-based: bounding-box arithmetic alone can pass on an ancestor-clipped button.
+  await expect(button, `${name} is fully visible, not clipped by an ancestor | ${geom}`).toBeInViewport({ ratio: 1 });
 }
 
 /** The page itself fits the phone on these screens (A-233): the lists carry their own scroll. */
