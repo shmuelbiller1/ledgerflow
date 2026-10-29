@@ -20,7 +20,6 @@ import PlaidConnectButton from '../finance/PlaidConnectButton';
 interface BankFeedRow {
   id: string; date: string; description: string; amountCents: number; category?: string; accountId?: string; confidence?: number; matchSource?: string; dimensions?: Record<string, string>;
 }
-interface PlaidFeedRow { date: string; name?: string; merchant_name?: string; amount: number; transaction_id: string }
 
 interface BankFeedImportProps {
   workspaceId: string;
@@ -105,16 +104,13 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
       if (Array.isArray(data.failed) && data.failed.length > 0) {
         toast.warning(`${data.failed.length} bank connection(s) could not be synced: see Banking → Connected banks for why.`);
       }
-      
-      const mappedFormat = (data.transactions || []).map((t: PlaidFeedRow) => ({
-        date: t.date,
-        description: t.name || t.merchant_name || 'Plaid Transaction',
-        amountCents: Math.round(t.amount * -100), // Plaid positive is expense
-        id: t.transaction_id
-      }));
 
-      setRawTransactions(mappedFormat);
-      handleAutoMap(mappedFormat);
+      // AF-001: the server already stored these rows as bank lines (with the cursor, in one transaction);
+      // booking them again here would make a second record of the same bank event (Codex on #439)
+      const count = Array.isArray(data.transactions) ? data.transactions.length : 0;
+      if (count > 0) toast.success(`${count} bank line(s) downloaded. Review and match them in Banking → Reconciliation.`);
+      else toast.info('Bank feed synced. No new bank lines.');
+      onClose();
     } catch (err) {
       reportError(err, OperationType.SYNC, 'plaid_sync');
     } finally {

@@ -98,7 +98,9 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
   });
 
   test("sync returns only this workspace's banks and flags the expired login", async () => {
-    const res = await call('view-1', 'POST', 'sync', { workspaceId: ws });
+    // AF-001: a sync stores bank lines, so a viewer may not run it (Codex on #439)
+    assert.equal((await call('view-1', 'POST', 'sync', { workspaceId: ws })).status, 403);
+    const res = await call('book-1', 'POST', 'sync', { workspaceId: ws });
     assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.deepEqual((res.body.transactions as { transaction_id: string }[]).map(t => t.transaction_id), ['tx-access-good']);
     assert.deepEqual(res.body.needsReconnect, [{ bankId: expiredBankId, institutionName: 'Old Bank' }]);

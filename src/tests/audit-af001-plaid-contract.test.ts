@@ -33,13 +33,14 @@ test('AF-001-F2: the Banking screen "Sync Feed" path needs no rows of its own (t
     'the screen only reports the result; the rows are already bank lines on the server (F1)');
 });
 
-test('AF-001-F3: the legacy feed importer ignores modified/removed and only stages added rows for review', () => {
+test('AF-001-F3: the legacy feed importer no longer books the rows the server already stored', () => {
   const importer = read('src/components/ledger/BankFeedImport.tsx');
   assert.match(importer, /fetch\('\/api\/v1\/plaid\/sync'/, 'the importer calls sync');
-  assert.match(importer, /data\.transactions\s*\|\|\s*\[\]/, 'only added rows are mapped into the review list');
+  // the rows are bank lines on the server; mapping them into the review list would book them twice (Codex on #439)
+  assert.equal(/data\.transactions\s*\|\|\s*\[\]\)\.map/.test(importer), false, 'returned rows are not staged for a second import');
   assert.equal(/data\.modified|data\.removed/.test(importer), false,
-    'OBSERVED GAP: bank-side modifications and deletions are never applied');
-  assert.match(importer, /accountId:\s*'offset-bank'/, 'legacy importer still emits the hardcoded offset-bank account id');
+    'OPEN: bank-side modifications and deletions are not yet applied to stored lines');
+  assert.match(importer, /accountId:\s*'offset-bank'/, 'OPEN: the CSV path still emits the placeholder offset-bank account id');
 });
 
 test('AF-001-F4: a healthy sync with zero changes still reports success:false in the JSON contract', () => {
