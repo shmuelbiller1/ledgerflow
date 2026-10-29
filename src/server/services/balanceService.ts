@@ -25,7 +25,7 @@ import type { ChartAccount, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth, ofDocument } from '../../lib/periodActivity';
+import { activityByMonth, type ActivityByMonth, withoutReplacedPostings } from '../../lib/periodActivity';
 import { computeTopExpensesAndIncome, type TopLineItem } from '../../lib/reportGenerators';
 
 export const UNASSIGNED = 'Unassigned';
@@ -318,12 +318,12 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
  * L-123 step 3e: activity per account per month (net, gross debits, gross credits) and entry counts over every
  * postable entry dated `from`…`to` (src/lib/periodActivity.ts). Reads the entries of the range only, no snapshot.
  */
-/** `excludeDocumentId`: the document being edited, whose own postings are left out (BudgetLeft counts its new amount). */
+/** `excludeDocumentId`: the document being edited; the postings its save would replace are left out (BudgetLeft counts its new amount). */
 export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string): Promise<{ months: ActivityByMonth; entriesRead: number }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`An activity range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const snap = await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get();
   const entries = snap.docs.map(entryOf);
-  const counted = excludeDocumentId ? entries.filter(e => !ofDocument(e, excludeDocumentId)) : entries;
+  const counted = excludeDocumentId ? withoutReplacedPostings(entries, excludeDocumentId) : entries;
   return { months: activityByMonth(counted, from, to), entriesRead: entries.length };
 }
 

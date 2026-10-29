@@ -7,7 +7,7 @@
 import type { ChartAccount, Transaction } from '../types';
 import { budgetMonthAmount, computeBudgetActual, type SavedBudget } from './budgetActual';
 import { budgetPeriodMonths } from './bookAlerts';
-import { naturalNet, ofDocument, sumActivity, type ActivityByMonth } from './periodActivity';
+import { naturalNet, sumActivity, withoutReplacedPostings, type ActivityByMonth } from './periodActivity';
 
 export interface AvailableBudget {
   name: string;
@@ -57,7 +57,7 @@ export function availableBudget(input: {
   const account = input.accounts.find(a => a.id === input.accountId);
   if (!account) return null;
   const exclude = input.excludeDocumentId;
-  const transactions = exclude ? input.transactions.filter(t => !ofDocument(t, exclude)) : input.transactions;
+  const transactions = exclude ? withoutReplacedPostings(input.transactions, exclude) : input.transactions;
   for (const budget of input.budgets) {
     if (budget.targetType !== 'account') continue;
     const target = String(budget.targetId).toLocaleLowerCase();

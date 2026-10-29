@@ -149,6 +149,19 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.deepEqual([e2.spentCents, e2.leftCents, e2.wouldExceed], [1050, 950, false], 'E2 (January, not loaded) is being edited: counted once, as its new amount');
   });
 
+  test('BudgetLeft leaves out only the posting the save replaces: a reversal stays', () => {
+    // bill B posted P1 on Y-1-12-20 (rent 400); an edit on a locked day reversed it with R1 on Y-02-05 and posted
+    // P2 on Y-02-05 (rent 400). Editing B again replaces P2 only: R1 (−400 in this quarter) stays in the books, so
+    // the quarter's spent is −400 (natural sign), not 0 as when every entry tagged B was left out.
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id, workspaceId: ws, uid: 'owner-1', date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: 'B', ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    }) as unknown as Transaction;
+    const book = [tx('P1', `${Number(Y) - 1}-12-20`, 400, {}), tx('R1', `${Y}-02-05`, -400, { isReversal: true, reversesTxId: 'P1' }), tx('P2', `${Y}-02-05`, 400, {})];
+    const left = availableBudget({ budgets: [budget], accounts, transactions: book, accountId: `${ws}_rent`, date: `${Y}-02-20`, excludeDocumentId: 'B' })!;
+    assert.deepEqual([left.spentCents, left.leftCents], [-400, 2400]);
+  });
+
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, taxRates: [], budgets: [budget], truncatedCollections: {} } as never);

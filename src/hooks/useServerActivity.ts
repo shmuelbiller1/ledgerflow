@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
-import { mergedActivity, ofDocument, overlapRevision, type ActivityByMonth, type ServerActivity } from '../lib/periodActivity';
+import { mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type ServerActivity } from '../lib/periodActivity';
 
 /**
  * L-123 step 3e: the activity per account per month over `from`…`to` that a period screen sums
@@ -12,11 +12,11 @@ import { mergedActivity, ofDocument, overlapRevision, type ActivityByMonth, type
  * range reaches the oldest loaded day's month is the server asked (GET /api/v1/balances/activity); otherwise, and
  * until it answers or when it cannot be reached, the loaded entries' fold, so the figures are as before.
  * `serverMonths` says whether any month came from the server. `excludeDocumentId`: the document being edited; its
- * own postings are left out on both sides, the server's months and the loaded ones.
+ * postings its save would replace are left out on both sides, the server's months and the loaded ones.
  */
 export function useServerActivity(from: string, to: string, excludeDocumentId?: string): { activity: ActivityByMonth; serverMonths: boolean } {
   const allTransactions = useLedgerStore(s => s.transactions);
-  const transactions = useMemo(() => (excludeDocumentId ? (allTransactions || []).filter(t => !ofDocument(t, excludeDocumentId)) : allTransactions),
+  const transactions = useMemo(() => (excludeDocumentId ? withoutReplacedPostings(allTransactions || [], excludeDocumentId) : allTransactions),
     [allTransactions, excludeDocumentId]);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';

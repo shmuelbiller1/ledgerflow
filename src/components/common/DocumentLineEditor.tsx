@@ -477,7 +477,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                   <BudgetLeft
                     accountId={line.accountId}
                     date={date}
-                    addingCents={Math.round(line.amountCents * (currency === workspaceCurrency ? 1 : exchangeRate || 1))}
+                    addingCents={Math.round(lines.filter(other => other.accountId === line.accountId).reduce((sum, other) => sum + other.amountCents, 0) * (currency === workspaceCurrency ? 1 : exchangeRate || 1))}
                     excludeDocumentId={documentId}
                     currency={workspaceCurrency}
                   />

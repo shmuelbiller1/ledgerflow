@@ -58,6 +58,19 @@ export interface ServerActivity { workspaceId: string; from: string; to: string;
 export const ofDocument = (t: Transaction, id: string): boolean =>
   t.id === id || t.metadata?.billId === id || t.metadata?.invoiceId === id;
 
+/**
+ * `entries` without the postings that saving document `id` again would replace: its postable entries that are not
+ * reversals and that no reversal cancels (the ones billPosting reverses as `existingTxs`). Reversals, and the earlier
+ * postings they cancel, stay: they remain in the books after the save.
+ */
+export function withoutReplacedPostings(entries: Transaction[], id: string): Transaction[] {
+  const mine = entries.filter(t => ofDocument(t, id));
+  if (!mine.length) return entries;
+  const reversed = new Set(mine.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
+  const replaced = new Set(mine.filter(t => isPostable(t) && !t.metadata?.isReversal && !reversed.has(t.id)).map(t => t.id));
+  return replaced.size ? entries.filter(t => !replaced.has(t.id)) : entries;
+}
+
 export function mergedActivity(loaded: Transaction[], server: ServerActivity | null, from: string, to: string, cutoff: string, workspaceId?: string): ActivityByMonth {
   const own = activityByMonth(loaded, from, to);
   if (!server || !cutoff || server.from !== from || server.to !== to || (workspaceId && server.workspaceId !== workspaceId)) return own;
