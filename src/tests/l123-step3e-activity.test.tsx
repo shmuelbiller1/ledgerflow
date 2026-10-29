@@ -282,4 +282,20 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     assert.deepEqual(res.body.months[`${Y}-02`], truth(ws)[`${Y}-02`], 'other months as before');
     assert.equal((await get({ workspaceId: ws, from, to, excludeDocumentId: 'x'.repeat(201) })).status, 400);
   });
+
+  test('excludeDocumentId reads the document\'s reversals at any date, not only inside the range', async () => {
+    // bill B: P1 on Y-1-03-10 (rent 400), reversed by R1 and reposted as P2 on Y-06-01. Over year Y-1 a save of B
+    // replaces only P2, so P1 still counts: rent 400. Judged from the range alone (R1 is outside it) P1 looked active.
+    const prev = String(Number(Y) - 1);
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id: `${ws}_${id}`, workspaceId: ws, uid: OWNER, date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: `${ws}_B`, ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    });
+    const book = [tx('P1', `${prev}-03-10`, 400, {}), tx('R1', `${Y}-06-01`, -400, { isReversal: true, reversesTxId: `${ws}_P1` }), tx('P2', `${Y}-06-01`, 400, {})];
+    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(book)]);
+    const res = await get({ workspaceId: ws, from: `${prev}-01-01`, to: `${prev}-12-31`, excludeDocumentId: `${ws}_B` });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.months[`${prev}-03`]?.accounts[`${ws}_rent`]?.net, 400);
+    await db.pool.query(`delete from public.transactions where id = any($1)`, [book.map(t => t.id)]);
+  });
 });

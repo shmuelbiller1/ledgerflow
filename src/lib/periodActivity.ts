@@ -63,12 +63,16 @@ export const ofDocument = (t: Transaction, id: string): boolean =>
  * reversals and that no reversal cancels (the ones billPosting reverses as `existingTxs`). Reversals, and the earlier
  * postings they cancel, stay: they remain in the books after the save.
  */
-export function withoutReplacedPostings(entries: Transaction[], id: string): Transaction[] {
-  const mine = entries.filter(t => ofDocument(t, id));
-  if (!mine.length) return entries;
-  const reversed = new Set(mine.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
-  const replaced = new Set(mine.filter(t => isPostable(t) && !t.metadata?.isReversal && !reversed.has(t.id)).map(t => t.id));
+export function withoutReplacedPostings(entries: Transaction[], id: string, history: Transaction[] = entries): Transaction[] {
+  const replaced = replacedPostingIds(history, id);
   return replaced.size ? entries.filter(t => !replaced.has(t.id)) : entries;
+}
+
+/** The ids of document `id`'s postings a save would replace, from `history`: pass its whole history, not a date range. */
+export function replacedPostingIds(history: Transaction[], id: string): Set<string> {
+  const mine = history.filter(t => ofDocument(t, id));
+  const reversed = new Set(mine.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
+  return new Set(mine.filter(t => isPostable(t) && !t.metadata?.isReversal && !reversed.has(t.id)).map(t => t.id));
 }
 
 export function mergedActivity(loaded: Transaction[], server: ServerActivity | null, from: string, to: string, cutoff: string, workspaceId?: string): ActivityByMonth {
