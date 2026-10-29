@@ -61,10 +61,6 @@ function everySeriousCount(violations: Awaited<ReturnType<AxeBuilder['analyze']>
   return counts;
 }
 
-/**
- * Runs axe, attaches the whole result to the report, and fails when a screen has more serious or
- * critical violations than its baseline entry allows — or any it did not have before.
- */
 /** Wait for finite CSS/Web Animations to settle before measuring colors or accessible names. */
 export async function waitForFiniteAnimations(page: Page): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -77,6 +73,10 @@ export async function waitForFiniteAnimations(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Runs axe, attaches the whole result to the report, and fails when a screen has more serious or
+ * critical violations than its baseline entry allows — or any it did not have before.
+ */
 export async function expectNoNewAccessibilityIssues(
   page: Page,
   key: string,
