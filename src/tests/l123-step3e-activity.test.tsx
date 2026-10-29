@@ -26,6 +26,10 @@
  *     3 entries, net impact −(−1,000 + 450) = 550, 1 unbalanced (loaded: nothing)
  *   CashFlowPredictor trend, February (the oldest loaded month): 1,300 (loaded −900)
  *   BudgetLeft, Rent with a quarterly budget of 2,000 from Y-01: spent 1,450, left 550 (loaded: spent 1,000, left 1,000)
+ *   BudgetLeft while editing a document, which is left out on both sides (server months and loaded ones):
+ *     E6 (loaded, rent 400): spent 1,450 − 400 = 1,050
+ *     E2 (January, not loaded, rent 400): spent 50 + 400 + 600 = 1,050, left 950. Leaving it out only of the loaded
+ *     entries (the bug) kept it in the server's January: 1,450, left 550, so the unchanged 400 "would exceed" 550 − …
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -134,7 +138,28 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.equal(availableBudget(base)!.leftCents, 1000);
     assert.equal(availableBudget({ ...base, activity })!.spentCents, 1450);
     assert.equal(availableBudget({ ...base, activity })!.leftCents, 550);
-    assert.equal(availableBudget({ ...base, activity, excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400) is the document being edited');
+    // the activity useServerActivity gives while a document is edited: that document left out on both sides
+    const without = (id: string) => {
+      const others = (list: Transaction[]) => list.filter(t => t.id !== id);
+      const months = activityByMonth(others(entries(ws)), from, to);
+      return mergedActivity(others(loaded), { workspaceId: ws, from, to, months }, from, to, openingCutoff(others(loaded)), ws);
+    };
+    assert.equal(availableBudget({ ...base, activity: without(`${ws}_e6`), excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400, loaded) is being edited');
+    const e2 = availableBudget({ ...base, activity: without(`${ws}_e2`), excludeDocumentId: `${ws}_e2`, addingCents: 400 })!;
+    assert.deepEqual([e2.spentCents, e2.leftCents, e2.wouldExceed], [1050, 950, false], 'E2 (January, not loaded) is being edited: counted once, as its new amount');
+  });
+
+  test('BudgetLeft leaves out only the posting the save replaces: a reversal stays', () => {
+    // bill B posted P1 on Y-1-12-20 (rent 400); an edit on a locked day reversed it with R1 on Y-02-05 and posted
+    // P2 on Y-02-05 (rent 400). Editing B again replaces P2 only: R1 (−400 in this quarter) stays in the books, so
+    // the quarter's spent is −400 (natural sign), not 0 as when every entry tagged B was left out.
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id, workspaceId: ws, uid: 'owner-1', date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: 'B', ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    }) as unknown as Transaction;
+    const book = [tx('P1', `${Number(Y) - 1}-12-20`, 400, {}), tx('R1', `${Y}-02-05`, -400, { isReversal: true, reversesTxId: 'P1' }), tx('P2', `${Y}-02-05`, 400, {})];
+    const left = availableBudget({ budgets: [budget], accounts, transactions: book, accountId: `${ws}_rent`, date: `${Y}-02-20`, excludeDocumentId: 'B' })!;
+    assert.deepEqual([left.spentCents, left.leftCents], [-400, 2400]);
   });
 
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
@@ -247,5 +272,30 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
     assert.equal((await get({ workspaceId: ws, from: '2010-01-01', to })).status, 400, 'more than three years');
     assert.equal((await get({ workspaceId: 'ws_missing_l123e', from, to })).status, 404);
+  });
+
+  test('excludeDocumentId leaves the edited document out of the server\'s months', async () => {
+    const res = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+    assert.equal(res.status, 200);
+    const jan = res.body.months[`${Y}-01`];
+    assert.deepEqual([jan.entries, jan.accounts[`${ws}_rent`].net, jan.accounts[`${ws}_cash`].net], [2, 50, 1100], 'E2 (rent 400 / cash −400) is not counted');
+    assert.deepEqual(res.body.months[`${Y}-02`], truth(ws)[`${Y}-02`], 'other months as before');
+    assert.equal((await get({ workspaceId: ws, from, to, excludeDocumentId: 'x'.repeat(201) })).status, 400);
+  });
+
+  test('excludeDocumentId reads the document\'s reversals at any date, not only inside the range', async () => {
+    // bill B: P1 on Y-1-03-10 (rent 400), reversed by R1 and reposted as P2 on Y-06-01. Over year Y-1 a save of B
+    // replaces only P2, so P1 still counts: rent 400. Judged from the range alone (R1 is outside it) P1 looked active.
+    const prev = String(Number(Y) - 1);
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id: `${ws}_${id}`, workspaceId: ws, uid: OWNER, date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: `${ws}_B`, ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    });
+    const book = [tx('P1', `${prev}-03-10`, 400, {}), tx('R1', `${Y}-06-01`, -400, { isReversal: true, reversesTxId: `${ws}_P1` }), tx('P2', `${Y}-06-01`, 400, {})];
+    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(book)]);
+    const res = await get({ workspaceId: ws, from: `${prev}-01-01`, to: `${prev}-12-31`, excludeDocumentId: `${ws}_B` });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.months[`${prev}-03`]?.accounts[`${ws}_rent`]?.net, 400);
+    await db.pool.query(`delete from public.transactions where id = any($1)`, [book.map(t => t.id)]);
   });
 });

@@ -50,13 +50,15 @@ const MAX_DAYS = 3 * 366;
  * L-123 step 3e: GET /api/v1/balances/activity?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member of the
  * workspace (a viewer too), as GET /. Per month (YYYY-MM) of every postable entry dated from…to: per account id the
  * net, gross debits and gross credits (base-currency cents, debit positive), the number of entries and of entries
- * whose lines do not add to zero (src/lib/periodActivity.ts). Read-only.
+ * whose lines do not add to zero (src/lib/periodActivity.ts). Optional excludeDocumentId: that document's own
+ * postings are left out (the edited bill in BudgetLeft). Read-only.
  */
 balanceRouter.get('/activity', async (req, res) => {
   const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
   const from = typeof req.query.from === 'string' ? req.query.from : '';
   const to = typeof req.query.to === 'string' ? req.query.to : '';
-  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
+  const exclude = typeof req.query.excludeDocumentId === 'string' ? req.query.excludeDocumentId : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS || exclude.length > 200) {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
   }
   const db = getDb();
@@ -68,7 +70,7 @@ balanceRouter.get('/activity', async (req, res) => {
     return res.status(403).json({ status: 'error', message: 'Forbidden' });
   }
   try {
-    const result = await activityOver(db, workspaceId, from, to);
+    const result = await activityOver(db, workspaceId, from, to, exclude || undefined);
     res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead });
   } catch (err) {
     console.error('[balances] could not read the activity', errorMessage(err));
