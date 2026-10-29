@@ -41,13 +41,14 @@ test('ledger grid: arrows move the announced highlight, Tab leaves, Escape clear
   await page.keyboard.press('End');
   await expect(status).toContainText('Row 2 of 2');
 
-  // The announced row is actually drawn on screen (its description, inside the grid's own box).
-  const announcement = (await status.innerText()).trim();
-  const description = announcement.match(/^Row 2 of 2, .+? column: .+?, (.+), /)?.[1];
-  expect(description, `the announcement names the row (“${announcement}”)`).toBeTruthy();
-  const cell = region.getByText(description!, { exact: true }).first();
-  await expect(cell, 'the highlighted row is drawn').toBeVisible();
-  await expect(cell).toBeInViewport();
+  // The announced row is actually drawn on screen: exactly one cell carries the drawn keyboard
+  // highlight (TransactionRow: ring-2 ring-inset ring-indigo-600 on the focused cell, the row
+  // tinted brass) and it sits inside the viewport. (The announcement itself contains commas —
+  // "Row 2 of 2, Oct 29, 2026, Acme …" — so the highlight, not comma-splitting, is the check.)
+  const cell = region.locator('.ring-indigo-600');
+  await expect(cell, 'exactly one cell carries the drawn keyboard highlight').toHaveCount(1);
+  await expect(cell, 'the highlighted cell is drawn').toBeVisible();
+  await expect(cell).toBeInViewport({ ratio: 0.5 });
 
   // Tab is the browser's again: one press moves focus off the region, Shift+Tab is equally free.
   await region.focus();
