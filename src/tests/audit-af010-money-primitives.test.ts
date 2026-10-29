@@ -145,3 +145,45 @@ test('AF-010: readAmountCents reads a finished amount and gives null (never 0, n
     assert.equal(readAmountCents(bad as string), null, String(bad));
   }
 });
+
+test('AF-011: a decimal comma reads as the decimal point; thousands groups and half-typed amounts read as before', async () => {
+  const { readAmountCents } = await import('../lib/utils');
+  const { useAuthStore } = await import('../stores/useAuthStore');
+  const inLocale = (locale: string | undefined) => useAuthStore.setState({ currentWorkspaceId: 'w-af011', workspaces: [{ id: 'w-af011', moneyDisplay: locale ? { locale } : undefined }] as never });
+  // never 100 times the amount: a reader that must give a number takes the last comma with two digits as the point
+  const always: Array<[string, number]> = [
+    ['12,50', 1250], ['-12,50', -1250], ['(12,50)', -1250], ['1.234,56', 123456], ['1.234.567,89', 123456789],
+    ['1 234,56', 123456], ['12,50 €', 1250], ['€ 1.234,56', 123456], ['CHF-12,50', -1250], ["1'234,50", 123450], ['1234,56', 123456],
+  ];
+  for (const [text, cents] of always) assert.equal(parseAmountToCents(text), cents, text);
+  const de = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(1234.56);
+  assert.equal(parseAmountToCents(de), 123456, JSON.stringify(de));
+  const fr = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(-1234.56);
+  assert.equal(parseAmountToCents(fr), -123456, JSON.stringify(fr));
+  try {
+    // in en-US books, a decimal comma that cannot be part of '1,234' is a finished amount ...
+    inLocale('en-US');
+    for (const [text, cents] of [['1.234,56', 123456], ['1 234,56', 123456], ['1234,56', 123456], ["1'234,50", 123450]] as Array<[string, number]>) {
+      assert.equal(readAmountCents(text), cents, text);
+    }
+    // ... but '1,23' or '12,50' may be '1,234' half typed, so a save still refuses it (Codex on #438)
+    for (const text of ['1,23', '12,50', '-12,50', '12,50 €']) assert.equal(readAmountCents(text), null, text);
+    // in comma-decimal books it is the amount the person meant
+    inLocale('de-DE');
+    for (const [text, cents] of always) assert.equal(readAmountCents(text), cents, text);
+    assert.equal(readAmountCents(de), 123456, JSON.stringify(de));
+  } finally {
+    inLocale(undefined);
+  }
+  // three digits after a comma stay a thousands group (en-US); lakh grouping and dotted decimals are untouched
+  for (const [text, cents] of [['12,345', 1234500], ['1,234.56', 123456], ['1,23,456', 12345600], ['1.5', 150], ['1,234,567', 123456700]] as Array<[string, number]>) {
+    assert.equal(parseAmountToCents(text), cents, text);
+  }
+  // still unfinished or wrong in any locale, never guessed
+  inLocale('de-DE');
+  try {
+    for (const text of ['1,2', '1,', '1.2,34', '1,23,45', '12,50,00', '1.234,5']) assert.equal(readAmountCents(text), null, text);
+  } finally {
+    inLocale(undefined);
+  }
+});
