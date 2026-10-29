@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
+import { getLocalDateISO } from '../lib/utils';
 import { mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type ServerActivity } from '../lib/periodActivity';
 
 /**
@@ -16,8 +17,11 @@ import { mergedActivity, overlapRevision, withoutReplacedPostings, type Activity
  */
 export function useServerActivity(from: string, to: string, excludeDocumentId?: string): { activity: ActivityByMonth; serverMonths: boolean } {
   const allTransactions = useLedgerStore(s => s.transactions);
-  const transactions = useMemo(() => (excludeDocumentId ? withoutReplacedPostings(allTransactions || [], excludeDocumentId) : allTransactions),
-    [allTransactions, excludeDocumentId]);
+  const lockDate = useLedgerStore(s => s.lockDate);
+  const lockException = useLedgerStore(s => s.lockException);
+  const transactions = useMemo(() => (excludeDocumentId
+    ? withoutReplacedPostings(allTransactions || [], excludeDocumentId, allTransactions || [], { lockDate, lockException, today: getLocalDateISO() })
+    : allTransactions), [allTransactions, excludeDocumentId, lockDate, lockException]);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const cutoff = useMemo(() => openingCutoff(transactions || []), [transactions]);

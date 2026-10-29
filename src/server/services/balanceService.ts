@@ -25,7 +25,15 @@ import type { ChartAccount, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth, withoutReplacedPostings } from '../../lib/periodActivity';
+import { activityByMonth, type ActivityByMonth, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
+import type { LockException } from '../../lib/periodLock';
+
+/** The workspace's lock, for a preview of what saving a document would post (#444). */
+async function previewLock(db: Firestore, workspaceId: string): Promise<PreviewLock | undefined> {
+  const ws = (await db.collection('workspaces').doc(workspaceId).get()).data() as { lockDate?: unknown; lockException?: LockException | null } | undefined;
+  if (!ws || typeof ws.lockDate !== 'string') return undefined;
+  return { lockDate: ws.lockDate, lockException: ws.lockException ?? null, today: new Date().toISOString().slice(0, 10) };
+}
 
 /** Every entry of document `id` at any date: its own posting and the ones made for it as a bill or an invoice. */
 async function documentHistory(db: Firestore, workspaceId: string, id: string): Promise<Entry[]> {
@@ -338,7 +346,7 @@ export async function activityOver(db: Firestore, workspaceId: string, from: str
   const entries = snap.docs.map(entryOf);
   const counted = excludeDocumentId
     // which postings a save replaces depends on reversals at any date, not only those inside the range
-    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId)) : entries;
+    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId), await previewLock(db, workspaceId)) : entries;
   return { months: activityByMonth(counted, from, to), entriesRead: entries.length };
 }
 

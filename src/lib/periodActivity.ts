@@ -7,6 +7,7 @@
  */
 import type { ChartAccount, Transaction } from '../types';
 import { isPostable, lineAmount, transactionDate } from './txFilters';
+import { isLockedDate, type LockException } from './periodLock';
 
 export interface AccountActivity { net: number; debits: number; credits: number }
 export interface MonthActivity {
@@ -63,9 +64,31 @@ export const ofDocument = (t: Transaction, id: string): boolean =>
  * reversals and that no reversal cancels (the ones billPosting reverses as `existingTxs`). Reversals, and the earlier
  * postings they cancel, stay: they remain in the books after the save.
  */
-export function withoutReplacedPostings(entries: Transaction[], id: string, history: Transaction[] = entries): Transaction[] {
+export interface PreviewLock {
+  lockDate: string | null | undefined;
+  lockException?: LockException | null;
+  /** the day a save would post on (the reversal of a locked posting is dated today) */
+  today: string;
+}
+
+export function withoutReplacedPostings(entries: Transaction[], id: string, history: Transaction[] = entries, lock?: PreviewLock): Transaction[] {
   const replaced = replacedPostingIds(history, id);
-  return replaced.size ? entries.filter(t => !replaced.has(t.id)) : entries;
+  if (!replaced.size) return entries;
+  const kept = entries.filter(t => !replaced.has(t.id));
+  if (!lock?.lockDate) return kept;
+  // #444: a posting on a locked day is not taken out of its period; the save reverses it on `today`
+  // (postingCore reversalDate). So it stays where it is and its pending reversal is added on today.
+  const pending: Transaction[] = [];
+  for (const t of history) {
+    if (!replaced.has(t.id) || !isLockedDate(transactionDate(t), lock.lockDate, lock.lockException)) continue;
+    pending.push({
+      ...t, id: `${t.id}~pending-reversal`, date: lock.today,
+      lines: (t.lines || []).map(l => ({ ...l, amountCents: -lineAmount(l, t), baseAmountCents: -lineAmount(l, t), exchangeRate: 1 })),
+      metadata: { ...(t.metadata || {}), isReversal: true, reversesTxId: t.id },
+    } as Transaction);
+  }
+  const lockedKept = entries.filter(t => replaced.has(t.id) && isLockedDate(transactionDate(t), lock.lockDate, lock.lockException));
+  return [...kept, ...lockedKept, ...pending];
 }
 
 /** The ids of document `id`'s postings a save would replace, from `history`: pass its whole history, not a date range. */

@@ -162,6 +162,27 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.deepEqual([left.spentCents, left.leftCents], [-400, 2400]);
   });
 
+  test('#444: a posting on a locked day stays in its period; the save reverses it on today', () => {
+    // bill L: P1 on Y-01-15 (rent 400), the books locked through Y-01-31. Editing L to Y-02-10 and saving on
+    // Y-04-05 keeps P1 in January, posts the new amount in February and reverses P1 on Y-04-05.
+    //   Q1 preview (editing, 400 being added): spent 400 (P1, still in the books) → left 2,000 − 400 = 1,600;
+    //     with the new 400 the quarter reaches 800, not over. The old exclusion gave spent 0, left 2,000.
+    //   Q2 preview: P1's pending reversal (−400) is dated Y-04-05 → spent −400, left 2,400.
+    //   An open period (no lock): P1 is replaced on its own day → Q1 spent 0, as before.
+    const p1 = { id: 'P1', workspaceId: ws, uid: 'owner-1', date: `${Y}-01-15`, description: 'P1', totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: 'L' }, lines: [{ accountId: `${ws}_rent`, amountCents: 400 }, { accountId: `${ws}_cash`, amountCents: -400 }] } as unknown as Transaction;
+    const lock = { lockDate: `${Y}-01-31`, lockException: null, today: `${Y}-04-05` };
+    const base = { budgets: [budget], accounts, transactions: [p1], accountId: `${ws}_rent`, excludeDocumentId: 'L' };
+    const q1 = availableBudget({ ...base, date: `${Y}-02-10`, addingCents: 400, lock })!;
+    assert.deepEqual([q1.spentCents, q1.leftCents, q1.wouldExceed], [400, 1600, false]);
+    const q2 = availableBudget({ ...base, date: `${Y}-04-20`, lock })!;
+    assert.deepEqual([q2.spentCents, q2.leftCents], [-400, 2400]);
+    const open = availableBudget({ ...base, date: `${Y}-02-10`, lock: { ...lock, lockDate: null } })!;
+    assert.equal(open.spentCents, 0, 'an open posting is replaced on its own day, as before');
+    const excepted = availableBudget({ ...base, date: `${Y}-02-10`, lock: { ...lock, lockException: { fromDate: `${Y}-01-01`, toDate: `${Y}-01-31` } } as never })!;
+    assert.equal(excepted.spentCents, 0, 'a lock exception reopens January: P1 is replaced in place');
+  });
+
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, taxRates: [], budgets: [budget], truncatedCollections: {} } as never);
@@ -281,6 +302,22 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     assert.deepEqual([jan.entries, jan.accounts[`${ws}_rent`].net, jan.accounts[`${ws}_cash`].net], [2, 50, 1100], 'E2 (rent 400 / cash −400) is not counted');
     assert.deepEqual(res.body.months[`${Y}-02`], truth(ws)[`${Y}-02`], 'other months as before');
     assert.equal((await get({ workspaceId: ws, from, to, excludeDocumentId: 'x'.repeat(201) })).status, 400);
+  });
+
+  test('#444: with the books locked, the server keeps the edited posting in its month and reverses it today', async () => {
+    // E2 (Y-01-20, rent 400 / cash −400) is being edited; the books are locked through Y-01-31.
+    // January keeps E2 (rent 450, as every entry); today's month gets its pending reversal (rent −400).
+    await db.collection('workspaces').doc(ws).update({ lockDate: `${Y}-01-31` });
+    try {
+      const res = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 450, 'E2 stays in its locked month');
+      const month = new Date().toISOString().slice(0, 7);
+      const before = truth(ws)[month]?.accounts[`${ws}_rent`]?.net ?? 0;
+      assert.equal(res.body.months[month].accounts[`${ws}_rent`].net, before - 400, 'its reversal lands in the month a save posts on');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ lockDate: null });
+    }
   });
 
   test('excludeDocumentId reads the document\'s reversals at any date, not only inside the range', async () => {
