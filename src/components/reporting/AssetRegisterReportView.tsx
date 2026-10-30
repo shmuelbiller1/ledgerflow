@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
+import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { assetRegisterReport } from '../../lib/assetRegisterReport';
+import { useServerAssetRegister } from '../../hooks/useServerAssetRegister';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -12,21 +11,13 @@ import ReportTableScroll from './ReportTableScroll';
 export default function AssetRegisterReportView({ endDate }: { endDate?: string }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const date = chosen ?? (endDate || getLocalDateISO());
-  const assets = useLedgerStore(s => s.assets);
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
-  const truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed);
-  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency);
   const { loading } = useLedgerCollections('assets', 'transactions', 'accounts');
   const valid = validCustomReportPeriod({ startDate: date, endDate: date });
-  const partial = (['assets', 'transactions', 'accounts'] as const).some(key => truncated[key] || failed[key]);
-  const report = useMemo(() => valid && !loading ? assetRegisterReport(
-    assets.filter(a => !workspaceId || a.workspaceId === workspaceId),
-    accounts.filter(a => !workspaceId || a.workspaceId === workspaceId),
-    transactions.filter(a => !workspaceId || a.workspaceId === workspaceId), date,
-  ) : null, [assets, accounts, transactions, workspaceId, date, valid, loading]);
+  const report = useServerAssetRegister(date, valid && !loading);
+  // the server's register reads every asset and run; only a failed load leaves it short
+  const partial = report?.source === 'loaded-incomplete' || (['assets', 'transactions', 'accounts'] as const).some(key => failed[key]);
   const money = (cents: number) => formatCurrency(cents, currency);
   const csv = () => { if (!report || partial) return; downloadCsv(`asset_register_${date}.csv`,
     ['Category', 'Tag', 'Asset', 'Purchase date', 'Status', 'Cost', 'Depreciation to date', 'Book value'],
@@ -37,7 +28,8 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
     <div className="flex flex-wrap items-end gap-3" data-print-hide><label>As of <input aria-label="Asset register as of date" type="date" className="min-h-11 border rounded px-3 bg-[var(--panel)]" value={date} onChange={e => setChosen(e.target.value)} /></label><button type="button" className="min-h-11 border rounded px-3" disabled={!report || partial} onClick={csv}>Export CSV</button></div>
     {!valid && <p role="alert">Choose a valid date.</p>}
     {loading && <p role="status">Loading asset history…</p>}
-    {partial && <p role="alert">Loaded asset or transaction history is incomplete. Figures are provisional; CSV is disabled.</p>}
+    {report?.source === 'server' && <p role="status" data-testid="asset-register-source">Every asset and depreciation run was read from the server.</p>}
+    {partial && <p role="alert" data-testid="asset-register-partial">Loaded asset or transaction history is incomplete. Figures are provisional; CSV is disabled.</p>}
     {!!report?.historicalChanges && <p role="alert">{report.historicalChanges} asset(s) were changed after the chosen date. Their current cost/account details may not represent that earlier date; verify historical records before using this report.</p>}
     {report && <><ReportTableScroll><table className="w-full text-sm"><caption>Asset register through {date}</caption><thead><tr><th scope="col">Category / asset</th><th scope="col">Tag</th><th scope="col">Purchase date</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.rows.map(r => <tr key={r.id}><th scope="row" className="text-left"><bdi>{r.category} — {r.name}</bdi></th><td>{r.tag}</td><td>{r.purchaseDate}</td><td className="text-right">{money(r.costCents)}</td><td className="text-right">{money(r.depreciationCents)}</td><td className="text-right">{money(r.bookValueCents)}</td></tr>)}</tbody></table></ReportTableScroll>
     <ReportTableScroll><table className="w-full text-sm"><caption>Category totals as of {date}</caption><thead><tr><th scope="col">Category</th><th scope="col">Assets</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.categories.map(g => <tr key={g.category}><th scope="row" className="text-left"><bdi>{g.category}</bdi></th><td>{g.count}</td><td>{money(g.costCents)}</td><td>{money(g.depreciationCents)}</td><td>{money(g.bookValueCents)}</td></tr>)}</tbody><tfoot><tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr></tfoot></table></ReportTableScroll>

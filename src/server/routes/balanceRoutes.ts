@@ -2,6 +2,8 @@ import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { activityOver, balancesAsOf, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { assetRegisterAsOf } from '../services/assetRegisterService';
+import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
 /**
  * L-123 step 3 (docs/design/L-123-server-balances.md): the account balances the browser shows, read by the server.
@@ -123,5 +125,25 @@ balanceRouter.get('/sales-by-item', async (req, res) => {
   } catch (err) {
     console.error('[balances] could not read sales by item', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read sales by item', details: errorMessage(err) });
+  }
+});
+
+/**
+ * L-123 step 4c: GET /api/v1/balances/asset-register?workspaceId=…&asOf=YYYY-MM-DD — any member, as GET /. The
+ * fixed-asset register over every asset and posted depreciation run (assetRegisterAsOf), for the register screen
+ * when the loaded assets or entries are capped. Read-only.
+ */
+balanceRouter.get('/asset-register', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const asOf = typeof req.query.asOf === 'string' ? req.query.asOf : '';
+  // the report's own date rule (from 1900 on), so a date it would refuse is a 400, not a 500
+  if (!workspaceId || !validDate(asOf) || !validCustomReportPeriod({ startDate: asOf, endDate: asOf })) return res.status(400).json({ status: 'error', message: 'workspaceId and asOf (YYYY-MM-DD) are required' });
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  try {
+    res.json({ status: 'success', workspaceId, asOf, ...await assetRegisterAsOf(db, workspaceId, asOf) });
+  } catch (err) {
+    console.error('[balances] could not read the asset register', errorMessage(err));
+    res.status(500).json({ status: 'error', message: 'Could not read the asset register', details: errorMessage(err) });
   }
 });
