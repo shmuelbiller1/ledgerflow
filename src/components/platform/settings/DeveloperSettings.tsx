@@ -6,6 +6,7 @@ import { Globe, Webhook, Download, Database, RefreshCw, ChevronRight, FileJson, 
 import { generateOFX } from '../../../lib/ofx-exporter';
 import { getLocalDateISO } from '../../../lib/utils';
 import { toast } from 'sonner';
+import { copyWithFeedback } from '../../../lib/clipboard';
 
 export default function DeveloperSettings() {
   const transactions = useLedgerStore(state => state.transactions);
@@ -25,8 +26,7 @@ export default function DeveloperSettings() {
     const formatted = JSON.stringify(lexiconOverrides, null, 2);
     // Wrap as complete patch
     const patchCode = `// Add this object inside SYSTEM_GLOSSARY in /src/config/registry.tsx:\nconst LexiconPatch = ${formatted};`;
-    navigator.clipboard.writeText(patchCode);
-    toast.success("Lexicon configuration patch copied to clipboard!");
+    void copyWithFeedback(patchCode, "Lexicon configuration patch copied to clipboard!");
   };
 
   const handleOFXExport = () => {

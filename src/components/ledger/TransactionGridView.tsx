@@ -16,6 +16,7 @@ import TransactionEditModal from '../transactions/TransactionEditModal';
 import { TransactionGridToolbar } from './TransactionGridToolbar';
 import { TransactionGridBody } from './TransactionGridBody';
 import type { TransactionGridModel } from './TransactionGrid';
+import { copyWithFeedback } from '../../lib/clipboard';
 export function TransactionGridView(model: TransactionGridModel) {
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
  return (
@@ -120,8 +121,7 @@ export function TransactionGridView(model: TransactionGridModel) {
             onCopy={() => {
               if (selectedIds.size > 0) {
                 const copyText = selectedTransactions.map(t => `${t.date} | ${t.description} | ${formatCurrency(t.totalAmountCents)}`).join('\n');
-                navigator.clipboard.writeText(copyText);
-                toast.success(`Copied payload strings for ${selectedIds.size} lines to clipboard`);
+                void copyWithFeedback(copyText, `Copied payload strings for ${selectedIds.size} lines to clipboard`);
               }
             }}
             onClear={() => setSelectedIds(new Set())}

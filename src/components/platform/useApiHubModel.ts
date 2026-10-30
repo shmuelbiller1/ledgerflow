@@ -1,5 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
-import { useState, useEffect, useId, useCallback } from 'react';
+import { useState, useEffect, useId, useCallback, useRef } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { collection, query, where, getDocs } from '../../lib/db/firestore';
 import { useTimeout } from '../../hooks/useTimeout';
 
 import { AVAILABLE_SCOPES, ApiLogEntry, PublicKeyRow } from './ApiHubShared';
+import { copyText } from '../../lib/clipboard';
 export function useApiHubModel() {
   const formId = useId();
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -24,6 +25,8 @@ export function useApiHubModel() {
   const [apiLogs, setApiLogs] = useState<ApiLogEntry[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  // bumped when a new key replaces the shown one: a copy of the old key must not mark the new one copied
+  const keyGeneration = useRef(0);
   const { setSafeTimeout } = useTimeout();
   const [activeTab, setActiveTab] = useState<'overview' | 'keys' | 'logs' | 'docs' | 'billing' | 'sandbox'>('overview');
   const [activeDoc, setActiveDoc] = useState('post-transaction');
@@ -200,7 +203,9 @@ export function useApiHubModel() {
       }
 
       const data = await res.json();
+      keyGeneration.current += 1;
       setApiKey(data.apiKey);
+      setIsCopied(false);
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
       });
@@ -233,7 +238,9 @@ export function useApiHubModel() {
       toast.success('Key Revoked.');
       loadWorkspaceKeys();
       if (apiKey.startsWith(keyId)) {
+        keyGeneration.current += 1;
         setApiKey('');
+        setIsCopied(false);
       }
     } catch (e) {
       console.error(e);
@@ -243,10 +250,14 @@ export function useApiHubModel() {
 
   const copyKey = () => {
     if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
-    setIsCopied(true);
-    setSafeTimeout(() => setIsCopied(false), 2000);
-    toast.success('Key copied to clipboard');
+    const generation = keyGeneration.current;
+    void copyText(apiKey).then(ok => {
+      if (generation !== keyGeneration.current) return;
+      if (!ok) { toast.error('The browser blocked copying. Select the key above and copy it by hand.'); return; }
+      setIsCopied(true);
+      setSafeTimeout(() => { if (generation === keyGeneration.current) setIsCopied(false); }, 2000);
+      toast.success('Key copied to clipboard');
+    });
   };
 
   const getEndpointPath = (endpoint: string) => {
