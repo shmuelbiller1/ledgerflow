@@ -115,6 +115,9 @@ describe('L-123 step 4b: sales by item (no database)', () => {
     // and renaming an item (its row label)
     useLedgerStore.setState(st => ({ inventory: st.inventory.map(i => (i.name === 'Widget' ? { ...i, name: 'Widget Pro', sku: 'W-2' } : i)) }) as never);
     await waitFor(() => assert.equal(urls.length, asked + 3));
+    // and an entry dated before the range (a range invoice's cost may be posted or reversed then)
+    useLedgerStore.setState(st => ({ transactions: [...st.transactions, cogsTx(ws, 'C0R', `${Number(Y) - 1}-12-31`, -100, { isReversal: true, reversesTxId: `${ws}_C1` })] }) as never);
+    await waitFor(() => assert.equal(urls.length, asked + 4));
     cleanup();
 
     stubFetch(500);

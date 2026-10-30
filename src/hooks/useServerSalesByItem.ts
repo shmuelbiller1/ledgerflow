@@ -22,9 +22,9 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts || s.truncatedCollections?.inventory));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
-  // an edit to a loaded invoice or entry in the range, or to any item or account (names, SKUs, unit costs, account
+  // an edit to any loaded entry (a range invoice's cost of goods sold may be posted or reversed before the range), to a range invoice, or to any item or account (names, SKUs, unit costs, account
   // classes: all report inputs; small, fully loaded lists, so whole), changes the server's report too
-  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], from!)}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!))}.${JSON.stringify(items || [])}.${JSON.stringify(accounts || [])}` : ''),
+  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], '')}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!))}.${JSON.stringify(items || [])}.${JSON.stringify(accounts || [])}` : ''),
     [needed, transactions, invoices, items, accounts, from]);
   const key = needed ? `${workspaceId}|${from}|${to}|${revision}` : '';
   const [answer, setAnswer] = useState<{ key: string; server: (SalesByItemReport & { workspaceId: string }) | null } | null>(null);
