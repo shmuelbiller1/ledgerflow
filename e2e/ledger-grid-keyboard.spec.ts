@@ -53,20 +53,27 @@ test('ledger grid: arrows move the announced highlight, Tab leaves, Escape clear
   await expect(cell, 'the highlighted cell is drawn').toBeVisible();
   await expect(cell).toBeInViewport({ ratio: 0.5 });
 
-  // Tab is the browser's again: the region holds tabbable controls, so the proof is that tabbing
-  // through them eventually leaves the region entirely — not just that one press moves focus
-  // off the region element but onto a child. Shift+Tab walks out the other way, equally free.
+  // Tab is the browser's again: the region holds many tabbable controls (toolbar, column
+  // headers, each row's inline-edit cells), so the proof is that tabbing through all of them
+  // eventually leaves the region entirely — not just that one press moves focus off the region
+  // element but onto a child. The bound is the region's own tabbable count plus slack.
+  // Shift+Tab walks out the other way, equally free.
   const focusOutside = () => region.evaluate((el) => !el.contains(document.activeElement));
+  const tabbables = await region.evaluate((el) => el.querySelectorAll(
+    'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), ' +
+    'input:not([disabled]):not([type="hidden"]):not([tabindex="-1"]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])').length);
+  const bound = Math.min(tabbables + 10, 400);
   await region.focus();
   let left = false;
-  for (let i = 0; i < 40 && !left; i += 1) {
+  for (let i = 0; i < bound && !left; i += 1) {
     await page.keyboard.press('Tab');
     left = await focusOutside();
   }
-  expect(left, 'Tab eventually leaves the grid').toBe(true);
+  expect(left, `Tab eventually leaves the grid (${tabbables} tabbable controls inside)`).toBe(true);
   await region.focus();
   left = false;
-  for (let i = 0; i < 40 && !left; i += 1) {
+  for (let i = 0; i < bound && !left; i += 1) {
     await page.keyboard.press('Shift+Tab');
     left = await focusOutside();
   }
