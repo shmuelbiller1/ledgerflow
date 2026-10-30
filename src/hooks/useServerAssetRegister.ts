@@ -22,7 +22,7 @@ export function useServerAssetRegister(asOf: string, enabled: boolean): (AssetRe
   const assets = useLedgerStore(s => s.assets);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.assets || s.truncatedCollections?.transactions));
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.assets || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts));
   const needed = enabled && capped && !!workspaceId;
   // an edit to a loaded asset or entry, or an account rename (the category), changes the server's register too
   const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], '')}.${JSON.stringify((assets || []).map(a => [a.id, (a as { updatedAt?: unknown }).updatedAt ?? '', a.status, a.disposedOn ?? '']))}.${JSON.stringify((accounts || []).map(a => [a.id, a.name]))}` : ''),

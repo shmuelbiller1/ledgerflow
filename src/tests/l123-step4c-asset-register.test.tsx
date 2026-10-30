@@ -86,6 +86,13 @@ describe('L-123 step 4c: asset register (no database)', () => {
     assert.equal(urls.filter(u => u.includes('asset-register')).length, 0, 'not capped: no request');
     cleanup();
 
+    // a capped chart alone (assets' categories may be missing) also asks the server
+    useLedgerStore.setState({ truncatedCollections: { chartAccounts: true } } as never);
+    render(<AssetRegisterReportView endDate={asOf} />);
+    await waitFor(() => assert.ok(urls.some(u => u.includes('asset-register'))));
+    cleanup();
+    urls.length = 0;
+
     useLedgerStore.setState({ truncatedCollections: { transactions: true } });
     render(<AssetRegisterReportView endDate={asOf} />);
     await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(43300)), document.body.textContent!), { timeout: 5000 });
@@ -158,6 +165,7 @@ describe('L-123 step 4c: GET /api/v1/balances/asset-register', { skip: !url && '
     assert.deepEqual(brief(await get({ workspaceId: ws, asOf: '2026-04-30' }).then(x => x.body)), ['A 30000 1000 29000', 'B 14000 200 13800']);
     assert.equal((await get({ workspaceId: ws, asOf }, 'stranger')).status, 403);
     assert.equal((await get({ workspaceId: ws, asOf: '2026-13-01' })).status, 400);
+    assert.equal((await get({ workspaceId: ws, asOf: '1899-01-01' })).status, 400, 'before 1900: the report refuses it');
     assert.equal((await get({ workspaceId: 'ws_missing_l123h', asOf })).status, 404);
   });
 });
