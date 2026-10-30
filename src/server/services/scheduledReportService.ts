@@ -144,7 +144,7 @@ export async function sendScheduleNow(db: Firestore, input: { workspaceId: strin
   const problem = scheduleProblem(schedule);
   if (problem) throw new ScheduledReportError(400, problem);
   const period = lastFinishedPeriod(schedule.frequency, today(ws, input.now || new Date()));
-  return { period, ...(await sendReport(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string }, schedule, period)) };
+  return { period, ...(await sendReport(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, schedule, period)) };
 }
 
 /** The daily run: every workspace's schedules whose last finished period has not been delivered to every address yet. */
@@ -174,7 +174,7 @@ export async function runWorkspaceSchedules(db: Firestore, workspaceId: string, 
     if (!claim) continue;
     let result: Pick<ReportSendResult, 'delivered' | 'errors'>;
     try {
-      result = await sendReport(db, { id: workspaceId, name: ws.name as string, currency: ws.currency as string }, schedule, period,
+      result = await sendReport(db, { id: workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, schedule, period,
         { skip: claim.delivered, idempotencyPrefix: `report_${workspaceId}_${schedule.id}_${period.key}` });
     } catch (err) {
       // the report itself could not be made: every address not yet delivered counts as failed, tried again later

@@ -1,6 +1,6 @@
 import type { Invoice, Bill, Payment, CreditNote, VendorCredit, Customer, Vendor } from "../../types";
 import { INVOICE_IS_ISSUED, BILL_IS_ISSUED } from "./computeReports";
-import { getDateInTimezoneISO } from "../../lib/calendarDate";
+import { getDateInTimezoneISO, getLocalDateISO } from "../../lib/calendarDate";
 
 export function toBaseCents(amountCents: number = 0, exchangeRate?: number): number {
   const rate = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 1;
@@ -28,7 +28,7 @@ export function computeCustomerBalanceSummary(
   endDate?: string,
   timezone?: string
 ): CustomerBalanceSummaryRow[] {
-  const end = endDate || asOfDateOrStartDate || getDateInTimezoneISO(new Date(), timezone);
+  const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return customers.map(cust => {
     const custId = cust.id;
@@ -110,7 +110,7 @@ export function computeVendorBalanceSummary(
   endDate?: string,
   timezone?: string
 ): VendorBalanceSummaryRow[] {
-  const end = endDate || asOfDateOrStartDate || getDateInTimezoneISO(new Date(), timezone);
+  const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return vendors.map(vendor => {
     const vendorId = vendor.id;

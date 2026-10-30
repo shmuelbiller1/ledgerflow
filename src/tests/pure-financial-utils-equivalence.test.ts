@@ -245,6 +245,32 @@ describe('Pure financial, timezone, and CSV module equivalence', () => {
     const vendRows = computeVendorBalanceSummary(vendors, bills, [], [], undefined, undefined, 'America/New_York');
     assert.equal(vendRows.length, 1);
     assert.equal(vendRows[0].balanceCents, 8400);
+
+    // Browser callers omitting date & timezone (e.g. Sales.tsx) still honor the active workspace timezone
+    const aheadDay = getDateInTimezoneISO(new Date(), 'Pacific/Kiritimati');
+    const behindDay = getDateInTimezoneISO(new Date(), 'Pacific/Niue');
+    const edgeInvoice: Invoice = {
+      id: 'inv_edge',
+      workspaceId: 'ws_1',
+      customerId: 'c1',
+      customerName: 'Acme Corp',
+      date: aheadDay,
+      dueDate: aheadDay,
+      amountCents: 3300,
+      status: 'sent',
+    } as Invoice;
+    useAuthStore.setState({
+      currentWorkspaceId: 'ws_equiv',
+      workspaces: [makeWorkspace({ timezone: 'Pacific/Kiritimati' })],
+    });
+    assert.equal(computeCustomerBalanceSummary(customers, [edgeInvoice], [], [])[0].balanceCents, 3300);
+    if (aheadDay > behindDay) {
+      useAuthStore.setState({
+        currentWorkspaceId: 'ws_equiv',
+        workspaces: [makeWorkspace({ timezone: 'Pacific/Niue' })],
+      });
+      assert.equal(computeCustomerBalanceSummary(customers, [edgeInvoice], [], [])[0].balanceCents, 0);
+    }
   });
 
   test('CSV cell sanitization neutralizes formula injection while preserving numeric amounts and round-trip quoting', () => {
