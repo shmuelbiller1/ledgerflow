@@ -90,6 +90,8 @@ export async function loadPostingContext(db: Firestore, input: {
     // the closing date as this user sees it: it dates the reversals of entries in a closed period, and (unless the
     // save was already checked) refuses a document dated in a closed period, as in the browser
     lockDate: effectiveLockDate(workspace as never, uid),
+    // its partial unlock too, so a reopened day is open here as in the browser and the activity preview
+    lockException: (workspace.lockException ?? null) as { fromDate?: string; toDate?: string } | null,
     lockChecked: input.lockChecked,
     uid,
     today: todayIn(workspace.timezone as string | undefined),

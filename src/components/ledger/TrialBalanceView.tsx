@@ -380,7 +380,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                   type="date"
                   value={asOfDate}
                   onChange={(e) => setAsOfDate(e.target.value)}
-                  className="bg-transparent text-xs font-mono font-bold text-[var(--text)] focus:outline-none cursor-pointer"
+                  className="min-h-11 bg-transparent text-xs font-mono font-bold text-[var(--text)] focus:outline-none cursor-pointer"
                 />
               </div>
             
@@ -388,25 +388,25 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             <div className="flex items-center gap-1 text-[9px] font-bold uppercase">
               <button 
                 onClick={() => setPresetDate('today')}
-                className="px-2 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
+                className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
                 Today
               </button>
               <button 
                 onClick={() => setPresetDate('last_month')}
-                className="px-2 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
+                className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
                 Last Month
               </button>
               <button 
                 onClick={() => setPresetDate('last_quarter')}
-                className="px-2 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
+                className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
                 Last Qtr
               </button>
               <button 
                 onClick={() => setPresetDate('last_year')}
-                className="px-2 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
+                className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
                 Last Year
               </button>
@@ -446,13 +446,13 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
         <div className="flex items-center gap-2">
           <button 
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
+            className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
            aria-label="CSV">
             <Download aria-hidden="true" size={11} /> CSV
           </button>
           <button 
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-600/20 transition-all cursor-pointer"
+            className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-600/20 transition-all cursor-pointer"
            aria-label="Excel">
             <FileSpreadsheet aria-hidden="true" size={11} /> Excel
           </button>
