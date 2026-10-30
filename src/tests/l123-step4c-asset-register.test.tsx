@@ -92,6 +92,10 @@ describe('L-123 step 4c: asset register (no database)', () => {
     assert.ok(urls.includes(`/api/v1/balances/asset-register?workspaceId=${ws}&asOf=${asOf}`), urls.join('\n'));
     assert.ok(screen.getByTestId('asset-register-source'));
     assert.equal(screen.queryByTestId('asset-register-partial'), null);
+    // renaming an account renames a category: the server is asked again
+    const asked = urls.length;
+    useLedgerStore.setState({ accounts: accounts.map(a => (a.name === 'Vehicles' ? { ...a, name: 'Fleet' } : a)) } as never);
+    await waitFor(() => assert.equal(urls.length, asked + 1));
     cleanup();
 
     stubFetch(500);
