@@ -1,5 +1,5 @@
 import { currencyDigits } from '../../lib/currencyMinorUnits';
-import { parseLocalDate } from '../../lib/utils';
+import { parseLocalDate } from '../../lib/calendarDate';
 // Architecture: Core Integrity Engine
 // Enforces that numbers, facts, and validations are strictly correct. No false info.
 import { TemporalValidity, ChartAccount } from '../../types';

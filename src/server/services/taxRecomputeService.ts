@@ -3,7 +3,7 @@ import { ledgerCreate } from './ledgerDoor';
 import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { fallbackTaxAccounts, findTaxDifferences, taxAdjustmentEntry, type TaxDifference } from '../../lib/taxRecompute';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { Bill, ChartAccount, Invoice, Transaction } from '../../types';
 import { writeServerAuditLog } from './auditLogService';
 

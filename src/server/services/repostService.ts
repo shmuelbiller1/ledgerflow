@@ -27,7 +27,7 @@ import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { postingLock } from '../../lib/periodLock';
 import { isPostable } from '../../lib/txFilters';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { INVOICE_COGS_TYPE } from '../../services/invoiceCogs';
 import { DELIVERY_COGS_TYPE } from '../../lib/deliveries';
 import { SALES_RETURN_TYPE } from '../../lib/salesReturns';

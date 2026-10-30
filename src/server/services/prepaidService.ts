@@ -6,7 +6,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
 import { deferredRevenueAccount, prepaidAccount, spreadPlan, spreadProblem } from '../../lib/prepaidSchedule';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import type { ChartAccount } from '../../types';
 import { writeServerAuditLog } from './auditLogService';
 

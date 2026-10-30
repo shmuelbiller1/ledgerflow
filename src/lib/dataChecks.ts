@@ -15,7 +15,7 @@ import { labelRoleFindings } from './labelRoles';
 import { stockHistoryProblem, type StockMove } from './stockMoves';
 import { STOCK_INVARIANT_CHECKS, type StockClosing } from './stockInvariants';
 import { contactsMissingFilingDetails, itemsMissingPricing } from './dataQualityChecks';
-import { formatCurrency } from './utils';
+import { formatCurrency } from './moneyFormat';
 import { openingDebitCents, resolveAccountRole } from './accountUtils';
 import type { RecordType } from './recordLinks';
 

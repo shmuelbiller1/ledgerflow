@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
 import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
-import { addToDateISO, formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
+import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
   agingTable, balanceSheetTable, lastFinishedPeriod, profitAndLossTable, reportCsv, reportEmailHtml,
   scheduleProblem, SCHEDULED_REPORTS, type ReportPeriod, type ReportTable, type ScheduledReport,
@@ -51,11 +52,12 @@ export async function buildReport(db: Firestore, workspaceId: string, schedule: 
 
 export interface ReportSendResult { sent: number; failed: string[]; delivered: string[]; errors: Record<string, string> }
 
-export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string }, schedule: ScheduledReport, period: ReportPeriod,
+export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: ScheduledReport, period: ReportPeriod,
   options: { skip?: Set<string>; idempotencyPrefix?: string } = {}): Promise<ReportSendResult> {
   const table = await buildReport(db, workspace.id, schedule, period);
   const currency = workspace.currency || 'USD';
-  const html = reportEmailHtml(table, { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency) });
+  const moneyDisplay = workspace.moneyDisplay;
+  const html = reportEmailHtml(table, { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, moneyDisplay) });
   const attachment = { filename: `${schedule.report}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(table)}`, 'utf8'), contentType: 'text/csv' };
   const delivered: string[] = [];
   const failed: string[] = [];

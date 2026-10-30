@@ -1,5 +1,4 @@
-import { getLocalDateISO } from './utils';
-import { addDaysYMD } from './calendarDate';
+import { addDaysYMD, getLocalDateISO } from './calendarDate';
 
 export type PaymentTerm = 'due_on_receipt' | 'net_15' | 'net_30' | 'net_45' | 'net_60' | 'custom';
 

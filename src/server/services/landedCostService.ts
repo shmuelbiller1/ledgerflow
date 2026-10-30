@@ -32,7 +32,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import { postingLock } from '../../lib/periodLock';
 import { isPostable } from '../../lib/txFilters';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { spreadCents, type SpreadBasis } from '../../lib/landedCostPreview';
 import { datedMoves, type StockMove } from '../../lib/stockMoves';
 import { calculateDocumentTax } from '../../lib/documentMath';

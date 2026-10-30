@@ -1,7 +1,7 @@
 /**
  * EG-2 step 4: voiding a payment on the server (POST /api/v1/payments/:id/void). Split out of paymentService.
  */
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { settledStatus } from '../../lib/documentMath';
 import { assertPostingOpen, postingLock, workspaceRole } from '../../lib/periodLock';
 import type { DocumentReference, Firestore } from '../db/firestore';

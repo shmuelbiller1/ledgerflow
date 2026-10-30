@@ -3,6 +3,7 @@ import { User as FirebaseUser } from '../lib/db/auth';
 import { Workspace, User as UserProfile } from '../types';
 import { useLedgerStore } from './useLedgerStore';
 import { useSavedViewsStore } from './useSavedViewsStore';
+import { registerBrowserWorkspacePrefs } from '../lib/workspacePrefs';
 
 export const isSystemAdminEmail = (_email?: string | null): boolean => {
   return false;
@@ -195,3 +196,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return workspaces.find(w => w.id === currentWorkspaceId);
   }
 }));
+
+registerBrowserWorkspacePrefs(() => {
+  const state = useAuthStore.getState();
+  const ws = state?.workspaces?.find((w) => w.id === state?.currentWorkspaceId);
+  if (!ws) return undefined;
+  return {
+    timezone: ws.timezone,
+    currency: ws.currency,
+    moneyDisplay: ws.moneyDisplay,
+  };
+});
