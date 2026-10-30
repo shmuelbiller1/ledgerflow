@@ -169,7 +169,7 @@ export function checkExpenseClaim(policy: ExpensePolicy, input: {
     // or the workspace's default when none of them names one
     const withThreshold = matched.filter(rule => isCents(rule.receiptFromCents));
     const threshold = withThreshold.length
-      ? withThreshold.reduce((lowest, rule) => (rule.receiptFromCents! < lowest.receiptFromCents! ? rule : lowest))
+      ? withThreshold.reduce((lowest, rule) => (rule.receiptFromCents! < lowest.receiptFromCents! ? rule : lowest), withThreshold[0])
       : (isCents(policy.defaultReceiptFromCents) ? { id: 'policy-default', receiptFromCents: policy.defaultReceiptFromCents } : undefined);
     const thresholdCents = threshold?.receiptFromCents as number | undefined;
     if (thresholdCents !== undefined && amount >= thresholdCents) {
