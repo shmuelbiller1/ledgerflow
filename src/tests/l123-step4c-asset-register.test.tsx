@@ -14,6 +14,9 @@
  * The browser holds the newest entries only (R2R, R3, R3R, R4), so R1 is missing:
  *              A 500 (R3), B 0; book 43,500
  * As of 2026-04-30 R3R has happened and R4 counts: A 500 + 500 = 1,000 (R1, R4)
+ * Route test only, two more entries: R5 2026-01-31 B 300, naming its reversal RX (2026-04-15) by reversalEventId alone.
+ *   As of 2026-03-31 RX has not happened: B 200 + 300 = 500, book 13,500; totals depreciation 1,500, book 42,500
+ *   As of 2026-04-30 R5 is reversed: B 200 again
  */
 import { stubFetch } from './helpers/dom';
 import { balanceRouteHarness } from './helpers/balanceRouteHarness';
@@ -126,16 +129,17 @@ describe('L-123 step 4c: GET /api/v1/balances/asset-register', { skip: !url && '
   const api = balanceRouteHarness('ws_l123h', 'L-123 step 4c');
   const ws = api.ws;
   const get = (q: Record<string, string>, uid?: string) => api.get<AssetRegisterReport & { runsRead: number }>('asset-register', q, uid);
-  before(() => api.start({ chartAccounts: chart(ws), assets: assets(ws), transactions: entries(ws) }));
+  const r5 = { ...run(ws, 'R5', '2026-01-31', [['B', 300]]), reversalEventId: `${ws}_RX` } as Transaction;
+  before(() => api.start({ chartAccounts: chart(ws), assets: assets(ws), transactions: [...entries(ws), r5, entry(ws, 'RX', '2026-04-15', {})] }));
   after(() => api.stop());
 
-  test('every asset and run, with both reversal links honoured; members only', async () => {
+  test('every asset and run, with every reversal link honoured; members only', async () => {
     const r = await get({ workspaceId: ws, asOf });
     assert.equal(r.status, 200);
-    assert.equal(r.body.runsRead, 4);
-    assert.deepEqual(brief(r.body), TRUTH);
-    assert.deepEqual([r.body.totals.costCents, r.body.totals.depreciationCents, r.body.totals.bookValueCents], [44000, 1200, 42800]);
-    // as of 2026-04-30 R3R has happened and R4 counts: A 1,000 (R1 + R4)
+    assert.equal(r.body.runsRead, 5);
+    assert.deepEqual(brief(r.body), ['A 30000 1000 29000', 'B 14000 500 13500']);
+    assert.deepEqual([r.body.totals.costCents, r.body.totals.depreciationCents, r.body.totals.bookValueCents], [44000, 1500, 42500]);
+    // as of 2026-04-30 R3R has happened and R4 counts: A 1,000 (R1 + R4); RX has reversed R5: B 200
     assert.deepEqual(brief(await get({ workspaceId: ws, asOf: '2026-04-30' }).then(x => x.body)), ['A 30000 1000 29000', 'B 14000 200 13800']);
     assert.equal((await get({ workspaceId: ws, asOf }, 'stranger')).status, 403);
     assert.equal((await get({ workspaceId: ws, asOf: '2026-13-01' })).status, 400);

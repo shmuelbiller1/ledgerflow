@@ -26,6 +26,14 @@ export async function assetRegisterAsOf(db: Firestore, workspaceId: string, asOf
       for (const d of (await tx().where(field, 'in', ids).get()).docs) reversals.set(d.id, of<Transaction>(d));
     }
   }
+  // a run may name its reversal itself (reversalEventId): read those by id, this workspace's only (Codex on #449)
+  const named = [...new Set(runs.map(r => r.reversalEventId).filter((id): id is string => !!id && !reversals.has(id)))];
+  for (const ids of chunks(named)) {
+    for (const d of await db.getAll(...ids.map(id => db.collection('transactions').doc(id)))) {
+      const t = d.exists ? of<Transaction>(d) : null;
+      if (t?.workspaceId === workspaceId) reversals.set(t.id, t);
+    }
+  }
   const report = assetRegisterReport(assetsSnap.docs.map(d => of<FixedAsset>(d)), accountsSnap.docs.map(d => of<ChartAccount>(d)),
     [...runs, ...[...reversals.values()].filter(r => !runs.some(x => x.id === r.id))], asOf);
   return { ...report, runsRead: runs.length };
