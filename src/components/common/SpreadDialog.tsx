@@ -8,6 +8,7 @@ import { formatCurrency, readAmountCents } from '../../lib/utils';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from '../../lib/accountDefaults';
 import { deferredRevenueAccount, documentLine, prepaidAccount, spreadPlan, spreadProblem } from '../../lib/prepaidSchedule';
 import type { ChartAccount } from '../../types';
+import { useDialog } from '../../hooks/useDialog';
 
 const inputClass = 'w-full p-2 bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 
@@ -71,6 +72,7 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
   const [months, setMonths] = useState('12');
   const [startMonth, setStartMonth] = useState(date.slice(0, 7));
   const [busy, setBusy] = useState(false);
+  const { dialogProps, titleId } = useDialog(onClose);
 
   const input = { date, amountCents: readAmountCents(amount) ?? NaN, months: Number(months), startMonth };
   const problem = spreadProblem(input, docBaseCents, kind)
@@ -102,10 +104,10 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
 
   const party = kind === 'bill' ? (doc.vendorName ? `from ${doc.vendorName}` : '') : (doc.customerName ? `to ${doc.customerName}` : '');
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="spread-title">
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
-          <h2 id="spread-title" className="text-lg font-bold">Spread over months</h2>
+          <h2 id={titleId} className="text-lg font-bold">Spread over months</h2>
           <p className="text-xs text-[var(--muted)]">
             {kind === 'bill' ? 'Bill' : 'Invoice'} {doc.number || ''} {party}: {side.intro(date || `the ${kind} date`)}
           </p>

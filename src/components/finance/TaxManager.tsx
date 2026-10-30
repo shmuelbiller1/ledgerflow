@@ -411,7 +411,7 @@ export default function TaxManager({
                       className="text-2xl font-black font-mono text-[var(--text)] tracking-tighter" />
                     {rate.components && rate.components.length > 1 && <p className="text-[10px] text-[var(--muted)]">{rate.components.map(c => `${c.name} ${c.rate}%${c.compound ? ' (on top)' : ''}`).join(' + ')}</p>}
                     {rate.treatment && rate.treatment !== 'standard' && <p className="text-[10px] text-[var(--muted)]">{TAX_TREATMENTS[rate.treatment]}</p>}
-                    <div className="flex items-center justify-end gap-3 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-3 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                       {canEdit && <button type="button" aria-label={`Edit tax ${rate.name}`} onClick={() => { setEditingRate(rate); setIsModalOpen(true); }} className="text-[var(--muted)] hover:text-[var(--text)] transition-colors"><Edit2 aria-hidden="true" size={14} /></button>}
                       {canEdit && <button type="button" aria-label={`Delete tax ${rate.name}`} onClick={() => { void onDeleteTaxRate(rate.id); }} className="text-[var(--muted)] hover:text-rose-500 transition-colors"><Trash2 aria-hidden="true" size={14} /></button>}
                     </div>

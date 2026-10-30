@@ -8,6 +8,7 @@ import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useDialog } from '../../hooks/useDialog';
 
 export interface BankLineActionTarget {
   mode: 'pay' | 'split';
@@ -36,6 +37,7 @@ export default function BankLineActionDialog({ target, onClose }: { target: Bank
   const newSplit = () => ({ key: Math.random().toString(36).slice(2), accountId: '', amount: '', description: '' });
   const [splits, setSplits] = useState(() => [newSplit()]);
   const [busy, setBusy] = useState(false);
+  const { dialogProps, titleId } = useDialog(onClose);
 
   const documents = useMemo(() => {
     const list = isDeposit
@@ -87,10 +89,10 @@ export default function BankLineActionDialog({ target, onClose }: { target: Bank
 
   const title = mode === 'pay' ? `Pay ${isDeposit ? 'invoices' : 'bills'} with this ${isDeposit ? 'deposit' : 'payment'}` : 'Split this bank line';
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="bank-line-title">
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
-          <h2 id="bank-line-title" className="text-lg font-bold">{title}</h2>
+          <h2 id={titleId} className="text-lg font-bold">{title}</h2>
           <p className="text-xs text-[var(--muted)]">{line.date} · {line.description} · {formatCurrency(line.amountCents, line.currency)}</p>
         </div>
         <div className="space-y-1">
