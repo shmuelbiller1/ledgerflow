@@ -48,7 +48,7 @@ export function activityByMonth(entries: Transaction[], from: string, to: string
 }
 
 /** The server's activity for a workspace over `from`…`to`, as the route answers it. */
-export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth }
+export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth; pendingReversal?: ActivityByMonth }
 
 /**
  * The activity a screen sums over `from`…`to`: the loaded entries' fold, with each month on or before `cutoff`'s
@@ -64,6 +64,26 @@ export const ofDocument = (t: Transaction, id: string): boolean =>
  * reversals and that no reversal cancels (the ones billPosting reverses as `existingTxs`). Reversals, and the earlier
  * postings they cancel, stay: they remain in the books after the save.
  */
+/** `base` plus `extra` for the months of `extra` after `afterMonth` (YYYY-MM): adjustments the server alone could make. */
+export function addActivityAfter(base: ActivityByMonth, extra: ActivityByMonth | undefined, afterMonth: string): ActivityByMonth {
+  if (!extra) return base;
+  const out: ActivityByMonth = { ...base };
+  for (const [m, a] of Object.entries(extra)) {
+    if (m <= afterMonth) continue;
+    const into = out[m] ? { ...out[m], accounts: { ...out[m].accounts } } : { entries: 0, unbalanced: 0, accounts: {} };
+    into.entries += a.entries; into.unbalanced += a.unbalanced;
+    for (const [id, x] of Object.entries(a.accounts)) {
+      const y = into.accounts[id] || { net: 0, debits: 0, credits: 0 };
+      into.accounts[id] = { net: y.net + x.net, debits: y.debits + x.debits, credits: y.credits + x.credits };
+    }
+    out[m] = into;
+  }
+  return out;
+}
+
+/** The id suffix of a reversal a save would post on a locked posting (#444); never stored. */
+export const PENDING_REVERSAL = '~pending-reversal';
+
 export interface PreviewLock {
   lockDate: string | null | undefined;
   lockException?: LockException | null;
@@ -82,7 +102,7 @@ export function withoutReplacedPostings(entries: Transaction[], id: string, hist
   for (const t of history) {
     if (!replaced.has(t.id) || !isLockedDate(transactionDate(t), lock.lockDate, lock.lockException)) continue;
     pending.push({
-      ...t, id: `${t.id}~pending-reversal`, date: lock.today,
+      ...t, id: `${t.id}${PENDING_REVERSAL}`, date: lock.today,
       lines: (t.lines || []).map(l => ({ ...l, amountCents: -lineAmount(l, t), baseAmountCents: -lineAmount(l, t), exchangeRate: 1 })),
       metadata: { ...(t.metadata || {}), isReversal: true, reversesTxId: t.id },
     } as Transaction);

@@ -25,14 +25,18 @@ import type { ChartAccount, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
-import type { LockException } from '../../lib/periodLock';
+import { activityByMonth, type ActivityByMonth, PENDING_REVERSAL, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
+import { effectiveLockDate, type LockException, type PeriodLockSettings } from '../../lib/periodLock';
+import { todayIn } from './postingContextLoader';
 
 /** The workspace's lock, for a preview of what saving a document would post (#444). */
-async function previewLock(db: Firestore, workspaceId: string): Promise<PreviewLock | undefined> {
-  const ws = (await db.collection('workspaces').doc(workspaceId).get()).data() as { lockDate?: unknown; lockException?: LockException | null } | undefined;
-  if (!ws || typeof ws.lockDate !== 'string') return undefined;
-  return { lockDate: ws.lockDate, lockException: ws.lockException ?? null, today: new Date().toISOString().slice(0, 10) };
+async function previewLock(db: Firestore, workspaceId: string, uid: string): Promise<PreviewLock | undefined> {
+  // the lock that applies to this user (a soft close counts for a bookkeeper), and today in the workspace's time
+  // zone: the same rules the save follows (postingContextLoader), so the preview and the books agree (Codex on #447)
+  const ws = (await db.collection('workspaces').doc(workspaceId).get()).data() as (PeriodLockSettings & { lockException?: LockException | null; timezone?: string }) | undefined;
+  const lockDate = ws ? effectiveLockDate(ws, uid) : null;
+  if (!ws || !lockDate) return undefined;
+  return { lockDate, lockException: ws.lockException ?? null, today: todayIn(ws.timezone) };
 }
 
 /** Every entry of document `id` at any date: its own posting and the ones made for it as a bill or an invoice. */
@@ -340,14 +344,17 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
  * postable entry dated `from`…`to` (src/lib/periodActivity.ts). Reads the entries of the range only, no snapshot.
  */
 /** `excludeDocumentId`: the document being edited; the postings its save would replace are left out (BudgetLeft counts its new amount). */
-export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string): Promise<{ months: ActivityByMonth; entriesRead: number }> {
+export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string, uid = ''): Promise<{ months: ActivityByMonth; entriesRead: number; pendingReversal?: ActivityByMonth }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`An activity range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const snap = await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get();
   const entries = snap.docs.map(entryOf);
   const counted = excludeDocumentId
     // which postings a save replaces depends on reversals at any date, not only those inside the range
-    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId), await previewLock(db, workspaceId)) : entries;
-  return { months: activityByMonth(counted, from, to), entriesRead: entries.length };
+    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId), await previewLock(db, workspaceId, uid)) : entries;
+  // the reversals a save would post (#444), on their own too: the browser adds them to the months it supplies
+  // itself when it does not hold the locked posting (Codex on #447)
+  const pending = counted.filter(t => t.id.endsWith(PENDING_REVERSAL));
+  return { months: activityByMonth(counted, from, to), entriesRead: entries.length, ...(pending.length ? { pendingReversal: activityByMonth(pending, from, to) } : {}) };
 }
 
 /**

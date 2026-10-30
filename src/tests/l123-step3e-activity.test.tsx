@@ -45,7 +45,7 @@ import { BudgetLeft } from '../components/common/BudgetLeft';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency, workspaceYearMonth } from '../lib/utils';
 import { resolveAccountRole } from '../lib/accountUtils';
-import { activityByMonth, countActivity, mergedActivity, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
+import { activityByMonth, addActivityAfter, countActivity, mergedActivity, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
 import { availableBudget } from '../lib/availableBudget';
 import { openingCutoff } from '../lib/serverBalances';
 import type { SavedBudget } from '../lib/budgetActual';
@@ -183,6 +183,19 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.equal(excepted.spentCents, 0, 'a lock exception reopens January: P1 is replaced in place');
   });
 
+  test('#444 (Codex on #447): the server\'s reversal of a posting older than the loaded entries is kept', () => {
+    // loaded entries start Y-02-15 (cut-off month February); the server reverses a locked January posting on Y-04-05.
+    // mergedActivity keeps the browser's own April, so the −400 comes only from the server's pendingReversal.
+    const cutoff = openingCutoff(loaded);
+    const server = { workspaceId: ws, from, to, months: truth(ws), pendingReversal: { [`${Y}-04`]: { entries: 1, unbalanced: 0, accounts: { [`${ws}_rent`]: { net: -400, debits: 0, credits: 400 } } } } };
+    const merged = mergedActivity(loaded, server, from, to, cutoff, ws);
+    assert.equal(merged[`${Y}-04`], undefined, 'without the fix the April reversal is lost');
+    const fixed = addActivityAfter(merged, server.pendingReversal, cutoff.slice(0, 7));
+    assert.equal(sumActivity(fixed, `${Y}-04`, `${Y}-04`, id => id === `${ws}_rent`, a => a.net), -400);
+    assert.equal(sumActivity(fixed, `${Y}-03`, `${Y}-03`, id => id === `${ws}_rent`, a => a.net), 600, 'other months unchanged');
+    assert.deepEqual(addActivityAfter(merged, server.pendingReversal, `${Y}-04`), merged, 'a month the server supplied already holds it');
+  });
+
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, taxRates: [], budgets: [budget], truncatedCollections: {} } as never);
@@ -317,6 +330,24 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
       assert.equal(res.body.months[month].accounts[`${ws}_rent`].net, before - 400, 'its reversal lands in the month a save posts on');
     } finally {
       await db.collection('workspaces').doc(ws).update({ lockDate: null });
+    }
+  });
+
+  test('#444 (Codex on #447): a bookkeeper\'s soft close counts; the reversal is returned on its own too', async () => {
+    // softLockDate Y-01-31 binds a bookkeeper (not the owner): for them E2 stays in January and is reversed today
+    await db.collection('workspaces').doc(ws).update({ softLockDate: `${Y}-01-31`, members: [OWNER, 'keeper-1'], roles: { 'keeper-1': 'bookkeeper' } });
+    try {
+      const keeper = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` }, 'keeper-1');
+      assert.equal(keeper.status, 200);
+      assert.equal(keeper.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 450, 'the soft close keeps E2 in January for a bookkeeper');
+      const pending = (keeper.body as unknown as { pendingReversal?: ActivityByMonth }).pendingReversal!;
+      const months = Object.keys(pending);
+      assert.equal(months.length, 1);
+      assert.equal(pending[months[0]].accounts[`${ws}_rent`].net, -400, 'the reversal, on its own, for the months the browser supplies');
+      const owner = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+      assert.equal(owner.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 50, 'the owner may post past a soft close: E2 is replaced in place');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ softLockDate: null, roles: {} });
     }
   });
 

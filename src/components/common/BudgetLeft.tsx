@@ -28,11 +28,13 @@ export function BudgetLeft({ accountId, date, addingCents = 0, excludeDocumentId
   const transactions = useLedgerStore(s => s.transactions);
   const lockDate = useLedgerStore(s => s.lockDate);
   const lockException = useLedgerStore(s => s.lockException);
+  // the workspace day, read on every render, so a form left open past midnight moves the pending reversal too
+  const today = getLocalDateISO();
   // L-123 step 3e: when the loaded entries are capped, the months they may miss are the server's
   const [from, to] = budgetWindow(date);
   const { activity, serverMonths } = useServerActivity(from, to, excludeDocumentId);
-  const left = useMemo(() => availableBudget({ budgets: budgets || [], accounts: accounts || [], transactions: transactions || [], accountId, date, addingCents, excludeDocumentId, lock: { lockDate, lockException, today: getLocalDateISO() }, ...(serverMonths ? { activity } : {}) }),
-    [budgets, accounts, transactions, accountId, date, addingCents, excludeDocumentId, serverMonths, activity, lockDate, lockException]);
+  const left = useMemo(() => availableBudget({ budgets: budgets || [], accounts: accounts || [], transactions: transactions || [], accountId, date, addingCents, excludeDocumentId, lock: { lockDate, lockException, today }, ...(serverMonths ? { activity } : {}) }),
+    [budgets, accounts, transactions, accountId, date, addingCents, excludeDocumentId, serverMonths, activity, lockDate, lockException, today]);
   if (!left) return null;
   const money = (cents: number) => formatCurrency(cents, currency);
   const over = left.leftCents < 0;
