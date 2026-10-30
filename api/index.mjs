@@ -1,6 +1,7 @@
 // Vercel function: every /api/* request (see the rewrites in vercel.json) is handled by the
-// Express app from server.ts, which `npm run build` bundles into build/server.cjs.
-import server from '../build/server.cjs';
+// Express app from server.ts, which `npm run build` bundles into build/api.cjs without
+// standalone listener, Vite dev server, or standalone cron timers.
+import server from '../build/api.cjs';
 
 let appPromise;
 

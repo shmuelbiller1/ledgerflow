@@ -46,9 +46,9 @@ import { loadServerEnv } from "./src/server/config/env.ts";
 import { createOriginCheck, resolvePort } from "./src/server/http/origins.ts";
 import { applySecurityMiddleware } from "./src/server/http/securityMiddleware.ts";
 import { apiRequestLogger } from "./src/server/http/apiRequestLog.ts";
-import { serveApp } from "./src/server/http/serveApp.ts";
-
 import { publicInvoiceLimiter, pdfGenerationLimiter, brainRateLimiter, createAppRateLimiters } from "./src/server/middleware/rateLimiters.ts";
+
+declare const __SERVERLESS_BUILD__: boolean | undefined;
 
 loadServerEnv();
 
@@ -177,10 +177,10 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// On Vercel the function in api/index.mjs imports createApp() instead of starting a server.
-if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+// On Vercel, api/index.mjs imports build/api.cjs (createApp) instead of starting a listener/scheduler.
+if (typeof __SERVERLESS_BUILD__ === "undefined" && process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
   console.debug("🌀 [Server] Booting LedgerFlow Backend...");
-  buildApp().then(({ app, port }) => serveApp(app, port)).catch(err => {
+  Promise.all([buildApp(), import("./src/server/http/serveApp.ts")]).then(([{ app, port }, { serveApp }]) => serveApp(app, port)).catch(err => {
     console.error("💥 [Server] Critical Startup Failure:", err);
     process.exit(1);
   });
