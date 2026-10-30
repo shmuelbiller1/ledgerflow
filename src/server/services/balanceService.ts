@@ -21,7 +21,7 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { ChartAccount, Transaction } from '../../types';
+import type { ChartAccount, InventoryItem, Invoice, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
@@ -40,6 +40,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
   return [...seen.values()];
 }
 import { computeTopExpensesAndIncome, type TopLineItem } from '../../lib/reportGenerators';
+import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -358,4 +359,32 @@ export async function topLinesOver(db: Firestore, workspaceId: string, from: str
   // every entry read, postable or not, as the browser passes its loaded list (the report itself keeps the postable ones)
   const entries = entriesSnap.docs.map(entryOf);
   return { ...computeTopExpensesAndIncome(accounts, entries, limit, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4b: the sales-by-item report (`computeSalesByItem`) over every invoice dated `from`…`to`, with the cost
+ * of goods sold posted for those invoices and the reversals of those postings (at any date), so a capped browser
+ * list of invoices or entries does not leave sales out or show an estimated cost where one was posted.
+ */
+export async function salesByItemOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<SalesByItemReport & { invoicesRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A sales range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const [accountsSnap, itemsSnap, invoicesSnap] = await Promise.all([
+    db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
+    db.collection('inventory').where('workspaceId', '==', workspaceId).get(),
+    db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+  ]);
+  const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
+  const items = itemsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as InventoryItem);
+  const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
+  const chunks = <T>(list: T[], size = 100) => { const out: T[][] = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
+  const tx = () => db.collection('transactions').where('workspaceId', '==', workspaceId);
+  const cogs: Transaction[] = [];
+  for (const ids of chunks(invoices.map(i => i.id))) {
+    cogs.push(...(await tx().where('metadata.cogsForInvoiceId', 'in', ids).get()).docs.map(entryOf));
+  }
+  const reversals: Transaction[] = [];
+  for (const ids of chunks(cogs.map(t => t.id))) {
+    reversals.push(...(await tx().where('metadata.reversesTxId', 'in', ids).get()).docs.map(entryOf));
+  }
+  return { ...computeSalesByItem({ invoices, items, transactions: [...cogs, ...reversals], accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
 }

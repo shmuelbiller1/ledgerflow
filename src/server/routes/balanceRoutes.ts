@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, salesByItemOver, topLinesOver } from '../services/balanceService';
 
 /**
  * L-123 step 3 (docs/design/L-123-server-balances.md): the account balances the browser shows, read by the server.
@@ -106,5 +106,33 @@ balanceRouter.get('/top-lines', async (req, res) => {
   } catch (err) {
     console.error('[balances] could not read the top lines', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read the top lines', details: errorMessage(err) });
+  }
+});
+
+/**
+ * L-123 step 4b: GET /api/v1/balances/sales-by-item?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member. The
+ * sales-by-item report over every invoice dated from…to and the cost of goods sold posted for them. Read-only.
+ */
+balanceRouter.get('/sales-by-item', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
+    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
+  }
+  const db = getDb();
+  try {
+    await validateWorkspaceMember(db, workspaceId, requestUser(req));
+  } catch (err) {
+    const message = errorMessage(err);
+    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
+    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+  }
+  try {
+    const result = await salesByItemOver(db, workspaceId, from, to);
+    res.json({ status: 'success', workspaceId, from, to, rows: result.rows, totals: result.totals, invoicesRead: result.invoicesRead });
+  } catch (err) {
+    console.error('[balances] could not read sales by item', errorMessage(err));
+    res.status(500).json({ status: 'error', message: 'Could not read sales by item', details: errorMessage(err) });
   }
 });
