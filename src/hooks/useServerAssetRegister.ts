@@ -24,8 +24,8 @@ export function useServerAssetRegister(asOf: string, enabled: boolean): (AssetRe
   const accounts = useLedgerStore(s => s.accounts);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.assets || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts));
   const needed = enabled && capped && !!workspaceId;
-  // an edit to a loaded asset or entry, or an account rename (the category), changes the server's register too
-  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], '')}.${JSON.stringify((assets || []).map(a => [a.id, (a as { updatedAt?: unknown }).updatedAt ?? '', a.status, a.disposedOn ?? '']))}.${JSON.stringify((accounts || []).map(a => [a.id, a.name]))}` : ''),
+  // any edit to a loaded entry, asset or account (all register inputs, so whole) changes the server's register too
+  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], '')}.${JSON.stringify(assets || [])}.${JSON.stringify(accounts || [])}` : ''),
     [needed, transactions, assets, accounts]);
   const key = needed ? `${workspaceId}|${asOf}|${revision}` : '';
   const [answer, setAnswer] = useState<{ key: string; server: (AssetRegisterReport & { workspaceId: string }) | null } | null>(null);
