@@ -6,11 +6,14 @@
  * 2026-01-01, nothing brought in. Depreciation runs:
  *   R1 2026-01-31  A 500, B 200   — in force
  *   R2 2026-02-28  A 500, B 200   — reversed by R2R (metadata.reversesTxId)
- *   R3 2026-03-31  A 500          — reversed by R3R (metadata.reversedTransactionId)
+ *   R3 2026-03-31  A 500          — reversed by R3R on 2026-04-02 (metadata.reversedTransactionId): after the
+ *                                   date, so it still counts as of 2026-03-31
  *   R4 2026-04-30  A 500          — after the date
- * Every run:   A depreciation 500, book 29,500; B 200, book 13,800; totals cost 44,000, depreciation 700, book 43,300
+ * Every run:   A depreciation 500 + 500 = 1,000, book 29,000; B 200, book 13,800;
+ *              totals cost 44,000, depreciation 1,200, book 42,800
  * The browser holds the newest entries only (R2R, R3, R3R, R4), so R1 is missing:
- *              depreciation 0, book 44,000
+ *              A 500 (R3), B 0; book 43,500
+ * As of 2026-04-30 R3R has happened and R4 counts: A 500 + 500 = 1,000 (R1, R4)
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -55,7 +58,7 @@ const entries = (ws: string): Transaction[] => [
   run(ws, 'R4', '2026-04-30', [['A', 500]]),
 ];
 const brief = (r: Pick<AssetRegisterReport, 'rows'>) => r.rows.map(x => `${x.name} ${x.costCents} ${x.depreciationCents} ${x.bookValueCents}`);
-const TRUTH = ['A 30000 500 29500', 'B 14000 200 13800'];
+const TRUTH = ['A 30000 1000 29000', 'B 14000 200 13800'];
 
 describe('L-123 step 4c: asset register (no database)', () => {
   const ws = 'component-workspace';
@@ -65,8 +68,16 @@ describe('L-123 step 4c: asset register (no database)', () => {
   test('every run gives the hand-worked register; the loaded entries do not', () => {
     const full = assetRegisterReport(assets(ws), accounts, all, asOf);
     assert.deepEqual(brief(full), TRUTH);
-    assert.deepEqual([full.totals.costCents, full.totals.depreciationCents, full.totals.bookValueCents], [44000, 700, 43300]);
-    assert.deepEqual(brief(assetRegisterReport(assets(ws), accounts, loaded, asOf)), ['A 30000 0 30000', 'B 14000 0 14000']);
+    assert.deepEqual([full.totals.costCents, full.totals.depreciationCents, full.totals.bookValueCents], [44000, 1200, 42800]);
+    assert.deepEqual(brief(assetRegisterReport(assets(ws), accounts, loaded, asOf)), ['A 30000 500 29500', 'B 14000 0 14000']);
+  });
+
+  test('a reversal counts from its own date, by either link (CodeRabbit on #449)', () => {
+    // R1 (A 500) carries reversalEventId → X, dated 2026-02-10: in force through 2026-02-09, reversed from 2026-02-10
+    const r1 = { ...run(ws, 'R1', '2026-01-31', [['A', 500]]), reversalEventId: `${ws}_X` } as Transaction;
+    const txs = [r1, entry(ws, 'X', '2026-02-10', {})];
+    assert.deepEqual(brief(assetRegisterReport([asset(ws, 'A', 30000, 'eq')], accounts, txs, '2026-02-09')), ['A 30000 500 29500']);
+    assert.deepEqual(brief(assetRegisterReport([asset(ws, 'A', 30000, 'eq')], accounts, txs, '2026-02-10')), ['A 30000 0 30000']);
   });
 
   test('screen: no request when not capped; the server\'s register when capped; the loaded one with a note when it fails', async () => {
@@ -79,8 +90,8 @@ describe('L-123 step 4c: asset register (no database)', () => {
       return new Response(JSON.stringify({ status: 'success', ...assetRegisterReport(assets(ws), accounts, all, asOf) }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     render(<AssetRegisterReportView endDate={asOf} />);
-    await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(44000)), document.body.textContent!));
-    assert.ok(!document.body.textContent!.includes(formatCurrency(43300)));
+    await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(43500)), document.body.textContent!));
+    assert.ok(!document.body.textContent!.includes(formatCurrency(42800)));
     assert.equal(screen.queryByTestId('asset-register-source'), null);
     assert.equal(screen.queryByTestId('asset-register-partial'), null);
     assert.equal(urls.filter(u => u.includes('asset-register')).length, 0, 'not capped: no request');
@@ -95,7 +106,7 @@ describe('L-123 step 4c: asset register (no database)', () => {
 
     useLedgerStore.setState({ truncatedCollections: { transactions: true } });
     render(<AssetRegisterReportView endDate={asOf} />);
-    await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(43300)), document.body.textContent!), { timeout: 5000 });
+    await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(42800)), document.body.textContent!), { timeout: 5000 });
     assert.ok(urls.includes(`/api/v1/balances/asset-register?workspaceId=${ws}&asOf=${asOf}`), urls.join('\n'));
     assert.ok(screen.getByTestId('asset-register-source'));
     assert.equal(screen.queryByTestId('asset-register-partial'), null);
@@ -108,7 +119,7 @@ describe('L-123 step 4c: asset register (no database)', () => {
     stubFetch(500);
     render(<AssetRegisterReportView endDate={asOf} />);
     await waitFor(() => assert.ok(screen.getByTestId('asset-register-partial')));
-    assert.ok(!document.body.textContent!.includes(formatCurrency(43300)));
+    assert.ok(!document.body.textContent!.includes(formatCurrency(42800)));
   });
 });
 
@@ -160,8 +171,8 @@ describe('L-123 step 4c: GET /api/v1/balances/asset-register', { skip: !url && '
     assert.equal(r.status, 200);
     assert.equal(r.body.runsRead, 4);
     assert.deepEqual(brief(r.body), TRUTH);
-    assert.deepEqual([r.body.totals.costCents, r.body.totals.depreciationCents, r.body.totals.bookValueCents], [44000, 700, 43300]);
-    // as of 2026-04-30 R4 counts too: A 1,000
+    assert.deepEqual([r.body.totals.costCents, r.body.totals.depreciationCents, r.body.totals.bookValueCents], [44000, 1200, 42800]);
+    // as of 2026-04-30 R3R has happened and R4 counts: A 1,000 (R1 + R4)
     assert.deepEqual(brief(await get({ workspaceId: ws, asOf: '2026-04-30' }).then(x => x.body)), ['A 30000 1000 29000', 'B 14000 200 13800']);
     assert.equal((await get({ workspaceId: ws, asOf }, 'stranger')).status, 403);
     assert.equal((await get({ workspaceId: ws, asOf: '2026-13-01' })).status, 400);
