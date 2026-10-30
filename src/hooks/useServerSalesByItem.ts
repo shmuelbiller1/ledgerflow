@@ -22,8 +22,9 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
-  // an edit to a loaded invoice or entry in the range, to an item's unit cost (the estimate) or to an account's classification (which lines are cost of goods sold), changes the server's report too
-  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], from!)}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!).map(i => [i.id, i.status, (i as { updatedAt?: unknown }).updatedAt ?? '', i.items?.length]))}.${JSON.stringify((items || []).map(i => [i.id, i.unitCostCents]))}.${JSON.stringify((accounts || []).map(a => [a.id, a.type, a.category, a.name]))}` : ''),
+  // an edit to a loaded invoice or entry in the range, or to any item or account (names, SKUs, unit costs, account
+  // classes: all report inputs; small, fully loaded lists, so whole), changes the server's report too
+  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], from!)}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!))}.${JSON.stringify(items || [])}.${JSON.stringify(accounts || [])}` : ''),
     [needed, transactions, invoices, items, accounts, from]);
   const key = needed ? `${workspaceId}|${from}|${to}|${revision}` : '';
   const [answer, setAnswer] = useState<{ key: string; server: (SalesByItemReport & { workspaceId: string }) | null } | null>(null);

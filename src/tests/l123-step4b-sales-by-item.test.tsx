@@ -110,6 +110,9 @@ describe('L-123 step 4b: sales by item (no database)', () => {
     // so does reclassifying an account (which lines count as cost of goods sold)
     useLedgerStore.setState({ accounts: accounts.map(a => (a.code === '5000' ? { ...a, category: 'Operating Expenses' } : a)) } as never);
     await waitFor(() => assert.equal(urls.length, asked + 2));
+    // and renaming an item (its row label)
+    useLedgerStore.setState({ inventory: items.map(i => (i.name === 'Widget' ? { ...i, name: 'Widget Pro', sku: 'W-2' } : i)) } as never);
+    await waitFor(() => assert.equal(urls.length, asked + 3));
     cleanup();
 
     stubFetch(500);
