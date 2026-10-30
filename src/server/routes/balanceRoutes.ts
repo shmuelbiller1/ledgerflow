@@ -70,8 +70,8 @@ balanceRouter.get('/activity', async (req, res) => {
     return res.status(403).json({ status: 'error', message: 'Forbidden' });
   }
   try {
-    const result = await activityOver(db, workspaceId, from, to, exclude || undefined);
-    res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead });
+    const result = await activityOver(db, workspaceId, from, to, exclude || undefined, requestUser(req).uid);
+    res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead, ...(result.pendingReversal ? { pendingReversal: result.pendingReversal } : {}) });
   } catch (err) {
     console.error('[balances] could not read the activity', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read the activity', details: errorMessage(err) });

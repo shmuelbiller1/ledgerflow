@@ -7,6 +7,7 @@
  */
 import type { ChartAccount, Transaction } from '../types';
 import { isPostable, lineAmount, transactionDate } from './txFilters';
+import { isLockedDate, type LockException } from './periodLock';
 
 export interface AccountActivity { net: number; debits: number; credits: number }
 export interface MonthActivity {
@@ -47,7 +48,7 @@ export function activityByMonth(entries: Transaction[], from: string, to: string
 }
 
 /** The server's activity for a workspace over `from`…`to`, as the route answers it. */
-export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth }
+export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth; pendingReversal?: PendingReversals }
 
 /**
  * The activity a screen sums over `from`…`to`: the loaded entries' fold, with each month on or before `cutoff`'s
@@ -63,9 +64,62 @@ export const ofDocument = (t: Transaction, id: string): boolean =>
  * reversals and that no reversal cancels (the ones billPosting reverses as `existingTxs`). Reversals, and the earlier
  * postings they cancel, stay: they remain in the books after the save.
  */
-export function withoutReplacedPostings(entries: Transaction[], id: string, history: Transaction[] = entries): Transaction[] {
+/** `base` plus `extra` for the months of `extra` after `afterMonth` (YYYY-MM): adjustments the server alone could make. */
+export function addActivityAfter(base: ActivityByMonth, extra: ActivityByMonth | undefined, afterMonth: string): ActivityByMonth {
+  if (!extra) return base;
+  const out: ActivityByMonth = { ...base };
+  for (const [m, a] of Object.entries(extra)) {
+    if (m <= afterMonth) continue;
+    const into = out[m] ? { ...out[m], accounts: { ...out[m].accounts } } : { entries: 0, unbalanced: 0, accounts: {} };
+    into.entries += a.entries; into.unbalanced += a.unbalanced;
+    for (const [id, x] of Object.entries(a.accounts)) {
+      const y = into.accounts[id] || { net: 0, debits: 0, credits: 0 };
+      into.accounts[id] = { net: y.net + x.net, debits: y.debits + x.debits, credits: y.credits + x.credits };
+    }
+    out[m] = into;
+  }
+  return out;
+}
+
+/** The reversals a save would post (#444), each posting's on its own, by the reversal's id. */
+export type PendingReversals = Record<string, ActivityByMonth>;
+
+/**
+ * The server's pending reversals the browser did not make itself (it does not hold that locked posting), added to
+ * the months after `afterMonth`, which the browser supplies (CodeRabbit on #447: one posting each, not all or none).
+ */
+export function addPendingReversals(base: ActivityByMonth, pending: PendingReversals | undefined, loadedIds: ReadonlySet<string>, afterMonth: string): ActivityByMonth {
+  return Object.entries(pending || {}).reduce((out, [id, months]) => (loadedIds.has(id) ? out : addActivityAfter(out, months, afterMonth)), base);
+}
+
+/** The id suffix of a reversal a save would post on a locked posting (#444); never stored. */
+export const PENDING_REVERSAL = '~pending-reversal';
+
+export interface PreviewLock {
+  lockDate: string | null | undefined;
+  lockException?: LockException | null;
+  /** the day a save would post on (the reversal of a locked posting is dated today) */
+  today: string;
+}
+
+export function withoutReplacedPostings(entries: Transaction[], id: string, history: Transaction[] = entries, lock?: PreviewLock): Transaction[] {
   const replaced = replacedPostingIds(history, id);
-  return replaced.size ? entries.filter(t => !replaced.has(t.id)) : entries;
+  if (!replaced.size) return entries;
+  const kept = entries.filter(t => !replaced.has(t.id));
+  if (!lock?.lockDate) return kept;
+  // #444: a posting on a locked day is not taken out of its period; the save reverses it on `today`
+  // (postingCore reversalDate). So it stays where it is and its pending reversal is added on today.
+  const pending: Transaction[] = [];
+  for (const t of history) {
+    if (!replaced.has(t.id) || !isLockedDate(transactionDate(t), lock.lockDate, lock.lockException)) continue;
+    pending.push({
+      ...t, id: `${t.id}${PENDING_REVERSAL}`, date: lock.today,
+      lines: (t.lines || []).map(l => ({ ...l, amountCents: -lineAmount(l, t), baseAmountCents: -lineAmount(l, t), exchangeRate: 1 })),
+      metadata: { ...(t.metadata || {}), isReversal: true, reversesTxId: t.id },
+    } as Transaction);
+  }
+  const lockedKept = entries.filter(t => replaced.has(t.id) && isLockedDate(transactionDate(t), lock.lockDate, lock.lockException));
+  return [...kept, ...lockedKept, ...pending];
 }
 
 /** The ids of document `id`'s postings a save would replace, from `history`: pass its whole history, not a date range. */
