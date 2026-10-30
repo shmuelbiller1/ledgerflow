@@ -168,12 +168,12 @@ export function useEntityOperations() {
         const posted = await LedgerPostService.postInvoiceLedger(docId, finalData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
         if (posted.cogsPendingReason) toast.warning(posted.cogsPendingReason);
         if (finalData.customerId) {
-          syncEntityBalance('customers', finalData.customerId);
+          void syncEntityBalance('customers', finalData.customerId);
         }
       } else if (path === 'bills') {
         await LedgerPostService.postBillLedger(docId, finalData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
         if (finalData.vendorId) {
-          syncEntityBalance('vendors', finalData.vendorId);
+          void syncEntityBalance('vendors', finalData.vendorId);
         }
       } else if (path === 'creditNotes') {
         await LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
@@ -190,10 +190,10 @@ export function useEntityOperations() {
         if (data.lines && data.lines.length > 0) {
           const mainLine = data.lines[0];
           if (mainLine.accountId && mainLine.accountName && mainLine.accountName !== 'Uncategorized') {
-            recordLearnedPattern(desc as string, mainLine.accountId, mainLine.accountName);
+            void recordLearnedPattern(desc as string, mainLine.accountId, mainLine.accountName);
           }
         } else if (data.categoryId && data.categoryName) {
-           recordLearnedPattern(desc as string, data.categoryId, data.categoryName);
+           void recordLearnedPattern(desc as string, data.categoryId, data.categoryName);
         }
       }
 
@@ -276,7 +276,7 @@ export function useEntityOperations() {
         if (posted.cogsPendingReason) toast.warning(posted.cogsPendingReason);
         const targetCustId = mergedData.customerId || finalData.customerId;
         if (targetCustId) {
-          syncEntityBalance('customers', targetCustId);
+          void syncEntityBalance('customers', targetCustId);
         }
       } else if (path === 'bills' && user && currentWorkspaceId) {
         const existingBill = (await savedRecord<Bill>('bills', id)) || {};
@@ -284,7 +284,7 @@ export function useEntityOperations() {
         await LedgerPostService.postBillLedger(id, mergedData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
         const targetVendId = mergedData.vendorId || finalData.vendorId;
         if (targetVendId) {
-          syncEntityBalance('vendors', targetVendId);
+          void syncEntityBalance('vendors', targetVendId);
         }
       } else if (path === 'creditNotes' && user && currentWorkspaceId) {
         const existing = (await savedRecord<CreditNote>('creditNotes', id)) || {};
@@ -312,13 +312,13 @@ export function useEntityOperations() {
         const existingInvoice = await savedRecord<Invoice>('invoices', id);
         await LedgerPostService.deletePostings(id, 'invoiceId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
         if (existingInvoice?.customerId) {
-          syncEntityBalance('customers', existingInvoice.customerId);
+          void syncEntityBalance('customers', existingInvoice.customerId);
         }
       } else if (path === 'bills' && currentWorkspaceId) {
         const existingBill = await savedRecord<Bill>('bills', id);
         await LedgerPostService.deletePostings(id, 'billId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
         if (existingBill?.vendorId) {
-          syncEntityBalance('vendors', existingBill.vendorId);
+          void syncEntityBalance('vendors', existingBill.vendorId);
         }
       } else if (path === 'creditNotes' && currentWorkspaceId) {
         await LedgerPostService.deletePostings(id, 'creditNoteId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
