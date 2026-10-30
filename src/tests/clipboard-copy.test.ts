@@ -39,3 +39,27 @@ test('a refused copy never puts the text in a toast (it outlives sign-out); a re
   assert.equal(await copyWithFeedback('x', 'Key copied'), true);
   assert.deepEqual(success.mock.calls[0].arguments, ['Key copied']);
 });
+
+test('refused writeText falls back to the hidden-field copy and gives focus back', async () => {
+  withClipboard({ writeText: async () => { throw new DOMException('denied', 'NotAllowedError'); } });
+  const button = { focus: () => { focusedBack = true; } };
+  let focusedBack = false, appended = 0, removed = 0, copied = '';
+  const field = { value: '', style: {}, setAttribute: () => {}, select: () => { copied = field.value; }, remove: () => { removed += 1; } };
+  class FakeElement {}
+  Object.setPrototypeOf(button, FakeElement.prototype);
+  const savedDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const savedEl = Object.getOwnPropertyDescriptor(globalThis, 'HTMLElement');
+  Object.defineProperty(globalThis, 'HTMLElement', { value: FakeElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: { activeElement: button, createElement: () => field, body: { appendChild: () => { appended += 1; } }, execCommand: (c: string) => c === 'copy' },
+    configurable: true,
+  });
+  try {
+    assert.equal(await copyText('line 1\nline 2'), true);
+    assert.equal(copied, 'line 1\nline 2');
+    assert.deepEqual([appended, removed, focusedBack], [1, 1, true]);
+  } finally {
+    if (savedDoc) Object.defineProperty(globalThis, 'document', savedDoc); else Reflect.deleteProperty(globalThis, 'document');
+    if (savedEl) Object.defineProperty(globalThis, 'HTMLElement', savedEl); else Reflect.deleteProperty(globalThis, 'HTMLElement');
+  }
+});
