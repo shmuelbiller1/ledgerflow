@@ -70,6 +70,9 @@ export default function SupportView() {
   const [attachDiagnostics, setAttachDiagnostics] = useState(true);
   const [showDiagnosticsDetail, setShowDiagnosticsDetail] = useState(false);
   const [copiedTrace, setCopiedTrace] = useState(false);
+  // the ticket on screen now: a copy that settles after the reader moved on must not report on the new one
+  const shownTicketId = useRef(selectedTicketId);
+  useEffect(() => { shownTicketId.current = selectedTicketId; }, [selectedTicketId]);
   const { setSafeTimeout } = useTimeout();
 
   const latestError = getLatestErrorDiagnostic();
@@ -285,7 +288,9 @@ export default function SupportView() {
 
   const copyDiagnostics = () => {
     if (!selectedTicket?.errorDiagnostics?.stack) return;
+    const ticketId = selectedTicket.id;
     void copyText(selectedTicket.errorDiagnostics.stack).then(ok => {
+      if (shownTicketId.current !== ticketId) return;
       if (!ok) { toast.error('The browser blocked copying. Select the trace below and copy it by hand.'); return; }
       setCopiedTrace(true);
       setSafeTimeout(() => setCopiedTrace(false), 2000);

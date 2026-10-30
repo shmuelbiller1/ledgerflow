@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 /** The pre-Clipboard-API copy, through a hidden text field: it often still works where writeText is refused. */
 function legacyCopy(text: string): boolean {
   if (typeof document === 'undefined' || typeof document.execCommand !== 'function') return false;
+  // select() moves focus to the hidden field; give it back to the copy button afterwards
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const field = document.createElement('textarea');
   field.value = text;
   field.setAttribute('readonly', '');
@@ -16,6 +18,7 @@ function legacyCopy(text: string): boolean {
     return false;
   } finally {
     field.remove();
+    focused?.focus();
   }
 }
 
