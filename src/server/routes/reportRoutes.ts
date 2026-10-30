@@ -29,7 +29,7 @@ import { openingDebitCents } from '../../lib/accountUtils';
 export { balanceRouter } from './balanceRoutes'; // L-123 step 3, mounted at /api/v1/balances
 import { grossOf, labelOpeningOf, openingBefore, openingKey } from '../reports/reportOpening';
 import { serverProvenance, type ReportProvenance } from '../../lib/reportProvenance';
-import { logSafe } from '../utils/logSafe';
+import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 export const reportRouter = express.Router();
 
@@ -61,7 +61,7 @@ interface AuthenticatedRequest extends express.Request {
 }
 
 function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
-  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, details || "");
+  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, logSafeDetail(details));
   res.status(status).json({
     status: "error",
     message,

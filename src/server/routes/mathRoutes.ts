@@ -10,12 +10,12 @@ import {
   ValuationRequestSchema
 } from "../../schemas.ts";
 import { TruthEngine } from "../../modules/integrity/TruthEngine.ts";
-import { logSafe } from '../utils/logSafe';
+import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 export const mathRouter = express.Router();
 
 function sendError(res: express.Response, message: string, status: number = 500, details?: any) {
-  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, details || "");
+  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, logSafeDetail(details));
   res.status(status).json({
     status: "error",
     message,

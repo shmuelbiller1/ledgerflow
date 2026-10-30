@@ -8,7 +8,7 @@ import {
   extractCanonicalOperationId, 
   deriveScopedOperationKey 
 } from './idempotency';
-import { logSafe } from './logSafe';
+import { logSafe, logSafeDetail } from './logSafe';
 
 export interface CommandContext {
   actor: string;
@@ -92,14 +92,14 @@ export async function executeCommand<T>(
     const status = (error as { status?: number }).status || 500;
     if (status >= 500) {
       const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, logSafe(scopedKey), error);
+      console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, logSafe(scopedKey), logSafeDetail(error));
       return res.status(status).json({
         status: 'error',
         message: 'An internal server error occurred.',
         correlationId
       });
     }
-    console.error('[CommandExecutor] Idempotent operation %s failed:', logSafe(scopedKey), error);
+    console.error('[CommandExecutor] Idempotent operation %s failed:', logSafe(scopedKey), logSafeDetail(error));
     return res.status(status).json({ 
       status: 'error', 
       message: errorMessage(error), 
