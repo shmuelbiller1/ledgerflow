@@ -43,20 +43,34 @@ test('ledger grid: arrows move the announced highlight, Tab leaves, Escape clear
 
   // The announced row is actually drawn on screen: exactly one cell carries the drawn keyboard
   // highlight (TransactionRow: ring-2 ring-inset ring-indigo-600 on the focused cell, the row
-  // tinted brass) and it sits inside the viewport. (The announcement itself contains commas —
+  // tinted brass), it is the date cell of the announced row (row 2 = data-row-index 1; with the
+  // default layout the arrows start on `date` and Up/Down/End keep the field), and it sits
+  // inside the viewport. (The announcement itself contains commas —
   // "Row 2 of 2, Oct 29, 2026, Acme …" — so the highlight, not comma-splitting, is the check.)
-  const cell = region.locator('.ring-indigo-600');
-  await expect(cell, 'exactly one cell carries the drawn keyboard highlight').toHaveCount(1);
+  await expect(region.locator('.ring-indigo-600'), 'exactly one cell carries the drawn keyboard highlight').toHaveCount(1);
+  const cell = region.locator('[data-row-index="1"] [data-column="date"].ring-indigo-600');
+  await expect(cell, 'the highlighted cell is the announced row 2 date cell').toHaveCount(1);
   await expect(cell, 'the highlighted cell is drawn').toBeVisible();
   await expect(cell).toBeInViewport({ ratio: 0.5 });
 
-  // Tab is the browser's again: one press moves focus off the region, Shift+Tab is equally free.
+  // Tab is the browser's again: the region holds tabbable controls, so the proof is that tabbing
+  // through them eventually leaves the region entirely — not just that one press moves focus
+  // off the region element but onto a child. Shift+Tab walks out the other way, equally free.
+  const focusOutside = () => region.evaluate((el) => !el.contains(document.activeElement));
   await region.focus();
-  await page.keyboard.press('Tab');
-  expect(await region.evaluate((el) => document.activeElement === el), 'Tab is not swallowed by the grid').toBe(false);
+  let left = false;
+  for (let i = 0; i < 40 && !left; i += 1) {
+    await page.keyboard.press('Tab');
+    left = await focusOutside();
+  }
+  expect(left, 'Tab eventually leaves the grid').toBe(true);
   await region.focus();
-  await page.keyboard.press('Shift+Tab');
-  expect(await region.evaluate((el) => document.activeElement === el), 'Shift+Tab is not swallowed either').toBe(false);
+  left = false;
+  for (let i = 0; i < 40 && !left; i += 1) {
+    await page.keyboard.press('Shift+Tab');
+    left = await focusOutside();
+  }
+  expect(left, 'Shift+Tab eventually leaves the grid').toBe(true);
 
   // Escape clears the highlight (the live region goes quiet) instead of leaving a stale row named.
   await region.focus();

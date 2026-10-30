@@ -116,3 +116,14 @@ DB migrations+ suites, 5 browser shards, visual, build, audits) green on `409615
 dated addendum, never as a silent edit.
 
 ---
+
+**Addendum (29 Oct 2026, later same day — bot-review follow-ups; no status above changes).**
+The final green run promised in §1 is **run `40966582955`, all jobs success, at head `42f4aaa`**
+(after `40961560328` and `40962945868`, also all-success). Newer bot comments on PR #446 were then
+answered in one follow-up commit on top of `c6f9c04`: the #104 grid spec now proves Tab/Shift+Tab
+eventually *leave* the region (not merely that one press lands on a control inside it), its
+drawn-highlight check is scoped to the announced row and column (row 2 → `data-row-index="1"`,
+`data-column="date"`; the row marker was added to `VirtualRow`, and the spec resets the guest
+column layout so `date` is deterministically first), and `docs/COORDINATION.md`'s queue entry for
+A-259 is ticked done to match its session log. Test-strengthening only — no behaviour change.
+(CI on that commit is visible on PR #446; the statuses in §§1–5 stand as written.)

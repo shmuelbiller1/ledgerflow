@@ -158,6 +158,7 @@ export const VirtualRow = React.memo(({ index, style, data }: VirtualRowProps) =
 
   return (
     <div role="presentation"
+      data-row-index={index}
       style={style}
       className="relative"
      onClick={() => data.setFocusedCell({ id: tx.id, field: 'description', index })}
