@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, salesByItemOver, topLinesOver } from '../services/balanceService';
 
 /**
  * L-123 step 3 (docs/design/L-123-server-balances.md): the account balances the browser shows, read by the server.
@@ -15,6 +15,18 @@ export const balanceRouter = express.Router();
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Any member may read; otherwise 404 (no such workspace) or 403, already sent. */
+async function allowMember(db: ReturnType<typeof getDb>, workspaceId: string, req: express.Request, res: express.Response): Promise<boolean> {
+  try {
+    await validateWorkspaceMember(db, workspaceId, requestUser(req));
+    return true;
+  } catch (err) {
+    if (/not found/i.test(errorMessage(err))) res.status(404).json({ status: 'error', message: 'Workspace not found' });
+    else res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return false;
+  }
+}
+
 balanceRouter.get('/', async (req, res) => {
   const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
   const asOf = typeof req.query.asOf === 'string' ? req.query.asOf : '';
@@ -23,13 +35,7 @@ balanceRouter.get('/', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'workspaceId and asOf (YYYY-MM-DD) are required' });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await balancesAsOf(db, workspaceId, asOf, { byLabel });
     res.json({
@@ -42,7 +48,8 @@ balanceRouter.get('/', async (req, res) => {
   }
 });
 
-const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
+// a real calendar day: Date.parse would roll 2026-02-30 over to March
+const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
 /** Longest range one request may ask for (the browser asks for at most 18 months or a year). */
 const MAX_DAYS = 3 * 366;
 
@@ -62,13 +69,7 @@ balanceRouter.get('/activity', async (req, res) => {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await activityOver(db, workspaceId, from, to, exclude || undefined, requestUser(req).uid);
     res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead, ...(result.pendingReversal ? { pendingReversal: result.pendingReversal } : {}) });
@@ -93,18 +94,34 @@ balanceRouter.get('/top-lines', async (req, res) => {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) and a limit of 1–100 are required` });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await topLinesOver(db, workspaceId, from, to, limit);
     res.json({ status: 'success', workspaceId, from, to, limit, topExpenses: result.topExpenses, topIncome: result.topIncome, entriesRead: result.entriesRead });
   } catch (err) {
     console.error('[balances] could not read the top lines', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read the top lines', details: errorMessage(err) });
+  }
+});
+
+/**
+ * L-123 step 4b: GET /api/v1/balances/sales-by-item?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member. The
+ * sales-by-item report over every invoice dated from…to and the cost of goods sold posted for them. Read-only.
+ */
+balanceRouter.get('/sales-by-item', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
+    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
+  }
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  try {
+    const result = await salesByItemOver(db, workspaceId, from, to);
+    res.json({ status: 'success', workspaceId, from, to, rows: result.rows, totals: result.totals, invoicesRead: result.invoicesRead });
+  } catch (err) {
+    console.error('[balances] could not read sales by item', errorMessage(err));
+    res.status(500).json({ status: 'error', message: 'Could not read sales by item', details: errorMessage(err) });
   }
 });
