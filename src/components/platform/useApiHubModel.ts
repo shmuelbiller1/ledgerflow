@@ -238,7 +238,9 @@ export function useApiHubModel() {
       toast.success('Key Revoked.');
       loadWorkspaceKeys();
       if (apiKey.startsWith(keyId)) {
+        keyGeneration.current += 1;
         setApiKey('');
+        setIsCopied(false);
       }
     } catch (e) {
       console.error(e);
