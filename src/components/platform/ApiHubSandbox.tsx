@@ -1,14 +1,13 @@
 
 
 import { Copy, RefreshCw, Database, Shield, Play } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 
 
 import { Labelled } from '../ui/Labelled';
 
 import type { useApiHubModel } from './useApiHubModel';
-import { copyText } from '../../lib/clipboard';
+import { copyWithFeedback } from '../../lib/clipboard';
 export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { formId, currentWorkspace, publicKeys, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
  return (<div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -368,7 +367,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                   onClick={() => {
                     const el = document.getElementById('playground_snippet_text');
                     if (el) {
-                      void copyText(el.innerText).then(ok => (ok ? toast.success('Generated SDK segment copied to clipboard!') : toast.error('The browser refused the clipboard. Select the text and copy it by hand.')));
+                      void copyWithFeedback(el.innerText, 'Generated SDK segment copied to clipboard!');
                     }
                   }}
                   className="absolute top-2.5 right-2.5 py-1 px-2.5 bg-[#24283B] text-[#9ECE6A] text-[9px] rounded hover:bg-[#2F3549] cursor-pointer flex items-center gap-1 border-0"
@@ -457,7 +456,7 @@ fetch(url, {
                   <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-4 border border-[#292E42] max-h-[350px] overflow-y-auto select-all relative">
                     <button
                       onClick={() => {
-                        void copyText(JSON.stringify(sandboxResult, null, 2)).then(ok => (ok ? toast.success('Response JSON copied to clipboard!') : toast.error('The browser refused the clipboard. Select the text and copy it by hand.')));
+                        void copyWithFeedback(JSON.stringify(sandboxResult, null, 2), 'Response JSON copied to clipboard!');
                       }}
                       className="absolute top-2.5 right-2.5 py-1 px-2.5 bg-[#24283B] text-[#7AA2F7] text-[9px] rounded hover:bg-[#2F3549] cursor-pointer border-0"
                     >

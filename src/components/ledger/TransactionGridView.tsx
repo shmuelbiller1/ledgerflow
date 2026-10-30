@@ -16,7 +16,7 @@ import TransactionEditModal from '../transactions/TransactionEditModal';
 import { TransactionGridToolbar } from './TransactionGridToolbar';
 import { TransactionGridBody } from './TransactionGridBody';
 import type { TransactionGridModel } from './TransactionGrid';
-import { copyText as copyToClipboard } from '../../lib/clipboard';
+import { copyWithFeedback } from '../../lib/clipboard';
 export function TransactionGridView(model: TransactionGridModel) {
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
  return (
@@ -121,8 +121,7 @@ export function TransactionGridView(model: TransactionGridModel) {
             onCopy={() => {
               if (selectedIds.size > 0) {
                 const copyText = selectedTransactions.map(t => `${t.date} | ${t.description} | ${formatCurrency(t.totalAmountCents)}`).join('\n');
-                const count = selectedIds.size;
-                void copyToClipboard(copyText).then(ok => (ok ? toast.success(`Copied payload strings for ${count} lines to clipboard`) : toast.error('The browser refused the clipboard. Select the text and copy it by hand.')));
+                void copyWithFeedback(copyText, `Copied payload strings for ${selectedIds.size} lines to clipboard`);
               }
             }}
             onClear={() => setSelectedIds(new Set())}

@@ -286,7 +286,7 @@ export default function SupportView() {
   const copyDiagnostics = () => {
     if (!selectedTicket?.errorDiagnostics?.stack) return;
     void copyText(selectedTicket.errorDiagnostics.stack).then(ok => {
-      if (!ok) { toast.error('The browser refused the clipboard. Select the text and copy it by hand.'); return; }
+      if (!ok) { toast.error('The browser refused the clipboard. Select the text below and copy it by hand.', { description: selectedTicket.errorDiagnostics?.stack, duration: 30000 }); return; }
       setCopiedTrace(true);
       setSafeTimeout(() => setCopiedTrace(false), 2000);
     });

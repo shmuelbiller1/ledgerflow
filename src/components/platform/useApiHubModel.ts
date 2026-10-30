@@ -245,7 +245,7 @@ export function useApiHubModel() {
   const copyKey = () => {
     if (!apiKey) return;
     void copyText(apiKey).then(ok => {
-      if (!ok) { toast.error('The browser refused the clipboard. Select the text and copy it by hand.'); return; }
+      if (!ok) { toast.error('The browser refused the clipboard. Select the text below and copy it by hand.', { description: apiKey, duration: 30000 }); return; }
       setIsCopied(true);
       setSafeTimeout(() => setIsCopied(false), 2000);
       toast.success('Key copied to clipboard');
