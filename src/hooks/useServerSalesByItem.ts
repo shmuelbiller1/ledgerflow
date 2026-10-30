@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
+import { getBalances } from '../lib/balancesApi';
 import { computeSalesByItem, type SalesByItemReport } from '../server/reports/itemReports';
 import { rangeRevision } from '../lib/serverTopLines';
 import { useLedgerCollections } from './useLedgerCollections';
@@ -34,10 +34,7 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     let live = true;
     (async () => {
-      const query = new URLSearchParams({ workspaceId, from, to }).toString();
-      const res = await fetch(`/api/v1/balances/sales-by-item?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as Partial<SalesByItemReport>;
-      if (!res.ok || !Array.isArray(body.rows) || !body.totals) throw new Error(`sales by item ${res.status}`);
+      const body = await getBalances<SalesByItemReport>('sales-by-item', { workspaceId, from, to }, b => Array.isArray(b.rows) && !!b.totals);
       return { workspaceId, rows: body.rows, totals: body.totals };
     })().then(server => {
       if (live && scope.isCurrent()) setAnswer({ key, server });

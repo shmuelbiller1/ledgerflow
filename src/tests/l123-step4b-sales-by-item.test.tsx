@@ -14,12 +14,10 @@
  *                  W qty 1, sales 1,000, cost 300, margin 700; totals sales 1,000
  */
 import { stubFetch } from './helpers/dom';
+import { balanceRouteHarness } from './helpers/balanceRouteHarness';
 import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import crypto from 'crypto';
 import React from 'react';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { SalesByItemReportView } from '../components/reporting/SalesByItemReportView';
@@ -27,7 +25,6 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency, workspaceYearMonth } from '../lib/utils';
 import { computeSalesByItem, type SalesByItemReport } from '../server/reports/itemReports';
 import type { ChartAccount, InventoryItem, Invoice, Transaction } from '../types';
-import type { Firestore } from '../server/db/pgFirestore';
 
 const Y = workspaceYearMonth().year;
 const from = `${Y}-01-01`, to = `${Y}-12-31`;
@@ -128,48 +125,13 @@ describe('L-123 step 4b: sales by item (no database)', () => {
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
-const OWNER = 'owner-1';
 
 describe('L-123 step 4b: GET /api/v1/balances/sales-by-item', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
-  let db: Firestore;
-  let server: Server;
-  let base = '';
-  const realFetch = globalThis.fetch;
-  const ws = `ws_l123g_${crypto.randomBytes(4).toString('hex')}`;
-  const get = async (q: Record<string, string>, uid = OWNER) => {
-    const res = await realFetch(`${base}/api/v1/balances/sales-by-item?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-    return { status: res.status, body: await res.json() as SalesByItemReport & { invoicesRead: number } };
-  };
-  const insert = (table: string, rows: unknown[]) =>
-    db.pool.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(rows)]);
-
-  before(async () => {
-    process.env.DATABASE_URL = url;
-    const express = (await import('express')).default;
-    const { getDb } = await import('../server/db/firestore');
-    db = getDb();
-    const app = express();
-    app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
-    app.use('/api/v1/balances', (await import('../server/routes/balanceRoutes')).balanceRouter);
-    server = app.listen(0);
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'L-123 step 4b', currency: 'USD', timezone: 'UTC', members: [OWNER] });
-    await insert('chartAccounts', chart(ws));
-    await insert('inventory', stock(ws));
-    await insert('invoices', invoices(ws));
-    await insert('transactions', entries(ws));
-  });
-
-  after(async () => {
-    server?.close();
-    for (const table of ['transactions', 'invoices', 'inventory', 'chartAccounts', 'workspaces']) {
-      await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
-    }
-    const { getSupabase } = await import('../lib/db/client');
-    getSupabase().realtime.disconnect();
-    await getSupabase().auth.dispose();
-    await db.terminate();
-  });
+  const api = balanceRouteHarness('ws_l123g', 'L-123 step 4b');
+  const ws = api.ws;
+  const get = (q: Record<string, string>, uid?: string) => api.get<SalesByItemReport & { invoicesRead: number }>('sales-by-item', q, uid);
+  before(() => api.start({ chartAccounts: chart(ws), inventory: stock(ws), invoices: invoices(ws), transactions: entries(ws) }));
+  after(() => api.stop());
 
   test('every invoice of the range with its posted cost and that cost\'s reversal; members only', async () => {
     const year = await get({ workspaceId: ws, from, to });

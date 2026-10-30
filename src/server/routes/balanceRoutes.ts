@@ -15,6 +15,18 @@ export const balanceRouter = express.Router();
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Any member may read; otherwise 404 (no such workspace) or 403, already sent. */
+async function allowMember(db: ReturnType<typeof getDb>, workspaceId: string, req: express.Request, res: express.Response): Promise<boolean> {
+  try {
+    await validateWorkspaceMember(db, workspaceId, requestUser(req));
+    return true;
+  } catch (err) {
+    if (/not found/i.test(errorMessage(err))) res.status(404).json({ status: 'error', message: 'Workspace not found' });
+    else res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return false;
+  }
+}
+
 balanceRouter.get('/', async (req, res) => {
   const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
   const asOf = typeof req.query.asOf === 'string' ? req.query.asOf : '';
@@ -23,13 +35,7 @@ balanceRouter.get('/', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'workspaceId and asOf (YYYY-MM-DD) are required' });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await balancesAsOf(db, workspaceId, asOf, { byLabel });
     res.json({
@@ -63,13 +69,7 @@ balanceRouter.get('/activity', async (req, res) => {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await activityOver(db, workspaceId, from, to, exclude || undefined, requestUser(req).uid);
     res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead, ...(result.pendingReversal ? { pendingReversal: result.pendingReversal } : {}) });
@@ -94,13 +94,7 @@ balanceRouter.get('/top-lines', async (req, res) => {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) and a limit of 1–100 are required` });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await topLinesOver(db, workspaceId, from, to, limit);
     res.json({ status: 'success', workspaceId, from, to, limit, topExpenses: result.topExpenses, topIncome: result.topIncome, entriesRead: result.entriesRead });
@@ -122,13 +116,7 @@ balanceRouter.get('/sales-by-item', async (req, res) => {
     return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
   }
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
+  if (!(await allowMember(db, workspaceId, req, res))) return;
   try {
     const result = await salesByItemOver(db, workspaceId, from, to);
     res.json({ status: 'success', workspaceId, from, to, rows: result.rows, totals: result.totals, invoicesRead: result.invoicesRead });
