@@ -13,7 +13,13 @@ export function logSafe(value: unknown, max = 500): string {
 /** An error or details object for a log line: its stack (or JSON) through logSafe, so it cannot forge lines either. */
 export function logSafeDetail(value: unknown, max = 2000): string {
   if (value === undefined || value === null || value === '') return '';
-  if (value instanceof Error) return logSafe(value.stack || value.message, max);
+  if (value instanceof Error) {
+    // a wrapped database error keeps its cause (SQLSTATE, detail), as console.error(error) showed before
+    const cause = value.cause as { message?: unknown; code?: unknown; detail?: unknown } | undefined;
+    const why = cause && typeof cause === 'object'
+      ? ` [cause: ${[cause.code, cause.message, cause.detail].filter(v => v !== undefined && v !== '').map(String).join(' | ')}]` : '';
+    return logSafe(`${value.stack || value.message}${why}`, max);
+  }
   if (typeof value === 'string') return logSafe(value, max);
   try { return logSafe(JSON.stringify(value), max); } catch { return logSafe(Object.prototype.toString.call(value), max); }
 }

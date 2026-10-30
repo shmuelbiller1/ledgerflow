@@ -20,3 +20,10 @@ test('details: errors, objects and strings are all one line', () => {
   assert.equal(logSafeDetail('a\nb'), 'a b');
   assert.equal(logSafeDetail(undefined), '');
 });
+
+test('a wrapped database error keeps its cause on the same line', () => {
+  const wrapped = new Error('write failed', { cause: Object.assign(new Error('bad key\nX'), { code: '22P02', detail: 'id a/b' }) });
+  const line = logSafeDetail(wrapped);
+  assert.ok(!line.includes('\n'));
+  assert.match(line, /\[cause: 22P02 \| bad key X \| id a\/b\]$/);
+});
