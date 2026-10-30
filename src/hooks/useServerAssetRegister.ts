@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
+import { getBalances } from '../lib/balancesApi';
 import { assetRegisterReport, type AssetRegisterReport } from '../lib/assetRegisterReport';
 import { rangeRevision } from '../lib/serverTopLines';
 import { useLedgerCollections } from './useLedgerCollections';
@@ -35,10 +35,7 @@ export function useServerAssetRegister(asOf: string, enabled: boolean): (AssetRe
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     let live = true;
     (async () => {
-      const query = new URLSearchParams({ workspaceId, asOf }).toString();
-      const res = await fetch(`/api/v1/balances/asset-register?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as Partial<AssetRegisterReport>;
-      if (!res.ok || !Array.isArray(body.rows) || !Array.isArray(body.categories) || !body.totals) throw new Error(`asset register ${res.status}`);
+      const body = await getBalances<AssetRegisterReport>('asset-register', { workspaceId, asOf }, b => Array.isArray(b.rows) && Array.isArray(b.categories) && !!b.totals);
       return { workspaceId, rows: body.rows, categories: body.categories, totals: body.totals, historicalChanges: Number(body.historicalChanges) || 0 };
     })().then(server => {
       if (live && scope.isCurrent()) setAnswer({ key, server });

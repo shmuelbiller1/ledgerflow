@@ -16,12 +16,10 @@
  * As of 2026-04-30 R3R has happened and R4 counts: A 500 + 500 = 1,000 (R1, R4)
  */
 import { stubFetch } from './helpers/dom';
+import { balanceRouteHarness } from './helpers/balanceRouteHarness';
 import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import crypto from 'crypto';
 import React from 'react';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import AssetRegisterReportView from '../components/reporting/AssetRegisterReportView';
@@ -30,7 +28,6 @@ import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { formatCurrency } from '../lib/utils';
 import { assetRegisterReport, type AssetRegisterReport } from '../lib/assetRegisterReport';
 import type { ChartAccount, FixedAsset, Transaction } from '../types';
-import type { Firestore } from '../server/db/pgFirestore';
 
 const asOf = '2026-03-31';
 const chart = (ws: string): ChartAccount[] => [
@@ -124,47 +121,13 @@ describe('L-123 step 4c: asset register (no database)', () => {
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
-const OWNER = 'owner-1';
 
 describe('L-123 step 4c: GET /api/v1/balances/asset-register', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
-  let db: Firestore;
-  let server: Server;
-  let base = '';
-  const realFetch = globalThis.fetch;
-  const ws = `ws_l123h_${crypto.randomBytes(4).toString('hex')}`;
-  const get = async (q: Record<string, string>, uid = OWNER) => {
-    const res = await realFetch(`${base}/api/v1/balances/asset-register?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-    return { status: res.status, body: await res.json() as AssetRegisterReport & { runsRead: number } };
-  };
-  const insert = (table: string, rows: unknown[]) =>
-    db.pool.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(rows)]);
-
-  before(async () => {
-    process.env.DATABASE_URL = url;
-    const express = (await import('express')).default;
-    const { getDb } = await import('../server/db/firestore');
-    db = getDb();
-    const app = express();
-    app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
-    app.use('/api/v1/balances', (await import('../server/routes/balanceRoutes')).balanceRouter);
-    server = app.listen(0);
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'L-123 step 4c', currency: 'USD', timezone: 'UTC', members: [OWNER] });
-    await insert('chartAccounts', chart(ws));
-    await insert('assets', assets(ws));
-    await insert('transactions', entries(ws));
-  });
-
-  after(async () => {
-    server?.close();
-    for (const table of ['transactions', 'assets', 'chartAccounts', 'workspaces']) {
-      await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
-    }
-    const { getSupabase } = await import('../lib/db/client');
-    getSupabase().realtime.disconnect();
-    await getSupabase().auth.dispose();
-    await db.terminate();
-  });
+  const api = balanceRouteHarness('ws_l123h', 'L-123 step 4c');
+  const ws = api.ws;
+  const get = (q: Record<string, string>, uid?: string) => api.get<AssetRegisterReport & { runsRead: number }>('asset-register', q, uid);
+  before(() => api.start({ chartAccounts: chart(ws), assets: assets(ws), transactions: entries(ws) }));
+  after(() => api.stop());
 
   test('every asset and run, with both reversal links honoured; members only', async () => {
     const r = await get({ workspaceId: ws, asOf });
