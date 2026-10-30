@@ -75,7 +75,7 @@ export function spreadLabels(lines: TransactionLine[], lineAccounts: LineAccount
   // #152: the largest of those lines takes, per label, whatever makes that label's slice balance;
   // the others are split by weight. Each label then balances exactly, and every account's total is
   // unchanged (the entry balanced before, so the balancing parts add up to that line's amount).
-  const balancer = toSpread.reduce((a, b) => (Math.abs(b.amountCents) > Math.abs(a.amountCents) ? b : a));
+  const balancer = toSpread.reduce((a, b) => (Math.abs(b.amountCents) > Math.abs(a.amountCents) ? b : a), toSpread[0]);
   const sliceSum = new Map<string, number>(list.map(g => [labelKey(g.dimensions), 0]));
   const out: TransactionLine[] = [];
   for (const line of lines) {

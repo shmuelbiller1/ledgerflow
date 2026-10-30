@@ -67,7 +67,7 @@ export default function UsFilingCalendarReportView() {
               <td className="py-1 px-2"><bdi>{row.stateName}</bdi></td>
               <td className="py-1 px-2">{row.frequencies.join(', ') || '— no state tax —'}</td>
               <td className="py-1 px-2 whitespace-nowrap">{row.dueDay === 'none' ? 'none' : row.dueDay === 'last-day' ? 'last day' : `the ${row.dueDay}th`}</td>
-              <td className="py-1 px-2 whitespace-nowrap">{due || (row.dueDay === 'none' ? '—' : '—')}</td>
+              <td className="py-1 px-2 whitespace-nowrap">{due || '—'}</td>
               <td className="py-1 px-2 text-xs max-w-[32ch]">{row.note || '—'}</td>
               <td className="py-1 px-2"><a href={row.source} target="_blank" rel="noopener noreferrer" className="underline break-all">{row.state} source</a><div className="text-xs text-[var(--muted)]">checked {row.checked}</div></td>
             </tr>;
