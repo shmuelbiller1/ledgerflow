@@ -19,7 +19,7 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const items = useLedgerStore(s => s.inventory);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions));
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
   // an edit to a loaded invoice or entry in the range, to an item's unit cost (the estimate) or to an account's classification (which lines are cost of goods sold), changes the server's report too
