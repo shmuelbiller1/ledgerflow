@@ -96,6 +96,10 @@ describe('L-123 step 4b: sales by item (no database)', () => {
     await waitFor(() => assert.ok(document.body.textContent!.includes(formatCurrency(4500)), document.body.textContent!), { timeout: 5000 });
     assert.ok(urls.includes(`/api/v1/balances/sales-by-item?workspaceId=${ws}&from=${from}&to=${to}`), urls.join('\n'));
     assert.match(screen.getByTestId('sales-by-item-source').textContent || '', /read from the server/);
+    // a unit-cost edit changes the server's estimate, so it is asked again
+    const asked = urls.length;
+    useLedgerStore.setState({ inventory: items.map(i => (i.name === 'Gadget' ? { ...i, unitCostCents: 600 } : i)) } as never);
+    await waitFor(() => assert.equal(urls.length, asked + 1));
     cleanup();
 
     stubFetch(500);
@@ -159,6 +163,7 @@ describe('L-123 step 4b: GET /api/v1/balances/sales-by-item', { skip: !url && 'L
     assert.deepEqual(brief(feb.body), ['Gadget 1 1500 500 1000']);
     assert.equal((await get({ workspaceId: ws, from, to }, 'stranger')).status, 403);
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
+    assert.equal((await get({ workspaceId: ws, from: `${Y}-02-30`, to })).status, 400, 'not a calendar day');
     assert.equal((await get({ workspaceId: 'ws_missing_l123g', from, to })).status, 404);
   });
 });

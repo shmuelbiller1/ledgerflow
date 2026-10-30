@@ -42,7 +42,8 @@ balanceRouter.get('/', async (req, res) => {
   }
 });
 
-const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
+// a real calendar day: Date.parse would roll 2026-02-30 over to March
+const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
 /** Longest range one request may ask for (the browser asks for at most 18 months or a year). */
 const MAX_DAYS = 3 * 366;
 

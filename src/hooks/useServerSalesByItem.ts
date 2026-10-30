@@ -22,9 +22,9 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
-  // an edit to a loaded invoice or entry in the range changes the server's report too
-  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], from!)}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!).map(i => [i.id, i.status, (i as { updatedAt?: unknown }).updatedAt ?? '', i.items?.length]))}` : ''),
-    [needed, transactions, invoices, from]);
+  // an edit to a loaded invoice or entry in the range, or to an item's unit cost (the estimate), changes the server's report too
+  const revision = useMemo(() => (needed ? `${rangeRevision(transactions || [], from!)}.${JSON.stringify((invoices || []).filter(i => (i.date || '') >= from!).map(i => [i.id, i.status, (i as { updatedAt?: unknown }).updatedAt ?? '', i.items?.length]))}.${JSON.stringify((items || []).map(i => [i.id, i.unitCostCents]))}` : ''),
+    [needed, transactions, invoices, items, from]);
   const key = needed ? `${workspaceId}|${from}|${to}|${revision}` : '';
   const [answer, setAnswer] = useState<{ key: string; server: (SalesByItemReport & { workspaceId: string }) | null } | null>(null);
 
