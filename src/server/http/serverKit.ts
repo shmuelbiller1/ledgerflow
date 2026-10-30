@@ -17,6 +17,7 @@ import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import type { DocumentData, Transaction } from "../db/firestore";
 import { verifyIdToken } from "../auth/supabaseAuth";
 import type { DecodedIdToken } from "../auth/supabaseAuth";
+import { logSafe } from '../utils/logSafe';
 
 export function formatTzDate(d: Date = new Date(), timezone = 'UTC'): string {
   try {
@@ -137,7 +138,7 @@ export function calculateWorkspaceCharges(wsData: WorkspaceBillingOverrides | nu
  * Standard API error response
  */
 export function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
-  console.error("[API Error] %s: %s (Path: %s)", status, message, res.req?.originalUrl || "unknown", details || "");
+  console.error("[API Error] %s: %s (Path: %s)", status, message, logSafe(res.req?.originalUrl || "unknown"), details || "");
   res.status(status).json({
     status: "error",
     message,

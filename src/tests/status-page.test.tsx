@@ -83,6 +83,6 @@ describe('Status page', () => {
   test('says so when the server does not answer', async () => {
     stubFetch(503, {});
     render(<StatusPage />);
-    await waitFor(() => screen.getByText('The server is not answering'));
+    assert.ok(await screen.findByText('The server is not answering'));
   });
 });
