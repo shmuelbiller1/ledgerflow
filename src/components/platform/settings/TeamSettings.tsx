@@ -9,6 +9,7 @@ import { RequireRole } from '../../ui/RequireRole';
 import InlineEdit from '../../ui/InlineEdit';
 import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
+import { copyText } from '../../../lib/clipboard';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -122,8 +123,7 @@ function ScopedTeamSettings() {
 
   const handleCopyInviteLink = (inviteToken: string) => {
     const link = `${window.location.origin}/invite/${inviteToken}`;
-    navigator.clipboard?.writeText(link);
-    toast.success('Invite link copied to clipboard!');
+    void copyText(link).then(ok => (ok ? toast.success('Invite link copied to clipboard!') : toast.error('The browser refused the clipboard. Select the text and copy it by hand.')));
   };
 
   const handleOpenMemberActivity = async (uid: string, email?: string) => {

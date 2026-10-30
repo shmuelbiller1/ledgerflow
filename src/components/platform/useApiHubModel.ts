@@ -11,6 +11,7 @@ import { collection, query, where, getDocs } from '../../lib/db/firestore';
 import { useTimeout } from '../../hooks/useTimeout';
 
 import { AVAILABLE_SCOPES, ApiLogEntry, PublicKeyRow } from './ApiHubShared';
+import { copyText } from '../../lib/clipboard';
 export function useApiHubModel() {
   const formId = useId();
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -243,10 +244,12 @@ export function useApiHubModel() {
 
   const copyKey = () => {
     if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
-    setIsCopied(true);
-    setSafeTimeout(() => setIsCopied(false), 2000);
-    toast.success('Key copied to clipboard');
+    void copyText(apiKey).then(ok => {
+      if (!ok) { toast.error('The browser refused the clipboard. Select the text and copy it by hand.'); return; }
+      setIsCopied(true);
+      setSafeTimeout(() => setIsCopied(false), 2000);
+      toast.success('Key copied to clipboard');
+    });
   };
 
   const getEndpointPath = (endpoint: string) => {

@@ -37,6 +37,8 @@ import {
   loadFeedbackTags,
   toggleFeedbackTag,
 } from '../../lib/feedbackTriage';
+import { toast } from 'sonner';
+import { copyText } from '../../lib/clipboard';
 
 export default function SupportView() {
   const formId = useId();
@@ -283,9 +285,11 @@ export default function SupportView() {
 
   const copyDiagnostics = () => {
     if (!selectedTicket?.errorDiagnostics?.stack) return;
-    navigator.clipboard.writeText(selectedTicket.errorDiagnostics.stack);
-    setCopiedTrace(true);
-    setSafeTimeout(() => setCopiedTrace(false), 2000);
+    void copyText(selectedTicket.errorDiagnostics.stack).then(ok => {
+      if (!ok) { toast.error('The browser refused the clipboard. Select the text and copy it by hand.'); return; }
+      setCopiedTrace(true);
+      setSafeTimeout(() => setCopiedTrace(false), 2000);
+    });
   };
 
   return (
