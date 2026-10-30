@@ -132,7 +132,7 @@ export default function SavedViewsBar({ currentSearchTerm, className }: SavedVie
                     togglePinView(view.id);
                   }}
                   title={view.isPinned ? "Unpin view" : "Pin view"}
-                  className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-0.5 text-[var(--muted)] hover:text-amber-400 transition-opacity"
+                  className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 p-0.5 text-[var(--muted)] hover:text-amber-400 transition-opacity"
                 >
                   <Star aria-hidden="true" size={12} className={cn(view.isPinned && "fill-amber-400 text-amber-400 opacity-100")} />
                 </button>

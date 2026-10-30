@@ -24,6 +24,8 @@ export interface LedgerPostContext {
   /** the invoices a credit note's returned goods are checked against (BF-06) */
   invoices?: Invoice[];
   lockDate?: string | null;
+  /** the workspace's partial unlock: a day inside it is open, as in the browser (CodeRabbit on #447) */
+  lockException?: { fromDate?: string; toDate?: string } | null;
   transactions?: Transaction[];
   workspaces?: Workspace[];
   inventory?: InventoryItem[];
@@ -101,9 +103,9 @@ export function getWorkspaces(context?: LedgerPostContext): Workspace[] {
   return context?.workspaces || host?.workspaces() || [];
 }
 
-/** The lock exception (a reopened day) applies only to the browser's own state, never to a given context. */
+/** The lock exception (a reopened range): the given context's when it sets the lock, else the browser's own. */
 function lockException(context?: LedgerPostContext): unknown {
-  return context && context.lockDate !== undefined ? null : host?.lockException() ?? null;
+  return context && context.lockDate !== undefined ? context.lockException ?? null : host?.lockException() ?? null;
 }
 
 /**

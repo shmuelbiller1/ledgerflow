@@ -4,7 +4,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
-import { mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type ServerActivity } from '../lib/periodActivity';
+import { getLocalDateISO } from '../lib/utils';
+import { addPendingReversals, mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type PendingReversals, type ServerActivity } from '../lib/periodActivity';
 
 /**
  * L-123 step 3e: the activity per account per month over `from`…`to` that a period screen sums
@@ -16,8 +17,12 @@ import { mergedActivity, overlapRevision, withoutReplacedPostings, type Activity
  */
 export function useServerActivity(from: string, to: string, excludeDocumentId?: string): { activity: ActivityByMonth; serverMonths: boolean } {
   const allTransactions = useLedgerStore(s => s.transactions);
-  const transactions = useMemo(() => (excludeDocumentId ? withoutReplacedPostings(allTransactions || [], excludeDocumentId) : allTransactions),
-    [allTransactions, excludeDocumentId]);
+  const lockDate = useLedgerStore(s => s.lockDate);
+  const lockException = useLedgerStore(s => s.lockException);
+  const today = getLocalDateISO();
+  const transactions = useMemo(() => (excludeDocumentId
+    ? withoutReplacedPostings(allTransactions || [], excludeDocumentId, allTransactions || [], { lockDate, lockException, today })
+    : allTransactions), [allTransactions, excludeDocumentId, lockDate, lockException, today]);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const cutoff = useMemo(() => openingCutoff(transactions || []), [transactions]);
@@ -25,7 +30,7 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
   // the loaded entries the server's months overlap (through the cut-off month): an edit or a void there, even with the
   // same date and the same number of entries, changes the revision and asks the server again
   const revision = useMemo(() => (needed ? overlapRevision(transactions || [], cutoff.slice(0, 7)) : ''), [needed, transactions, cutoff]);
-  const key = needed ? `${workspaceId}|${from}|${to}|${excludeDocumentId || ''}|${cutoff}|${(transactions || []).length}|${revision}` : '';
+  const key = needed ? `${workspaceId}|${from}|${to}|${excludeDocumentId || ''}|${excludeDocumentId ? `${lockDate || ''}~${lockException?.fromDate || ''}~${lockException?.toDate || ''}~${today}` : ''}|${cutoff}|${(transactions || []).length}|${revision}` : '';
   const [answer, setAnswer] = useState<{ key: string; server: ServerActivity | null } | null>(null);
 
   useEffect(() => {
@@ -35,9 +40,9 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
     (async () => {
       const query = new URLSearchParams({ workspaceId, from, to, ...(excludeDocumentId ? { excludeDocumentId } : {}) }).toString();
       const res = await fetch(`/api/v1/balances/activity?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as { months?: ActivityByMonth };
+      const body = await res.json().catch(() => ({})) as { months?: ActivityByMonth; pendingReversal?: PendingReversals };
       if (!res.ok || !body.months || typeof body.months !== 'object') throw new Error(`activity ${res.status}`);
-      return { workspaceId, from, to, months: body.months };
+      return { workspaceId, from, to, months: body.months, ...(body.pendingReversal ? { pendingReversal: body.pendingReversal } : {}) };
     })().then(server => {
       if (live && scope.isCurrent()) setAnswer({ key, server });
     }).catch(() => {
@@ -48,8 +53,11 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
   }, [key, workspaceId, from, to, excludeDocumentId]);
 
   const server = key && answer?.key === key ? answer.server : null;
-  return useMemo(() => ({
-    activity: mergedActivity(transactions || [], server, from, to, cutoff, workspaceId),
-    serverMonths: !!server,
-  }), [transactions, server, from, to, cutoff, workspaceId]);
+  return useMemo(() => {
+    const merged = mergedActivity(transactions || [], server, from, to, cutoff, workspaceId);
+    // #444 (Codex on #447): a locked posting older than the loaded entries is reversed on today, a month the loaded
+    // entries supply; only the server knows that reversal, so it is added there unless the browser made it itself
+    const activity = server && cutoff ? addPendingReversals(merged, server.pendingReversal, new Set((transactions || []).map(t => t.id)), cutoff.slice(0, 7)) : merged;
+    return { activity, serverMonths: !!server };
+  }, [transactions, server, from, to, cutoff, workspaceId]);
 }

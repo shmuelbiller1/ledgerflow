@@ -7,7 +7,7 @@
 import type { ChartAccount, Transaction } from '../types';
 import { budgetMonthAmount, computeBudgetActual, type SavedBudget } from './budgetActual';
 import { budgetPeriodMonths } from './bookAlerts';
-import { naturalNet, sumActivity, withoutReplacedPostings, type ActivityByMonth } from './periodActivity';
+import { naturalNet, sumActivity, withoutReplacedPostings, type ActivityByMonth, type PreviewLock } from './periodActivity';
 
 export interface AvailableBudget {
   name: string;
@@ -51,13 +51,15 @@ export function availableBudget(input: {
    * older than the loaded entries is not counted twice. Without it, spent is summed from the loaded entries as before.
    */
   activity?: ActivityByMonth;
+  /** #444: the workspace lock, so a posting on a locked day stays in its period and its reversal lands today */
+  lock?: PreviewLock;
 }): AvailableBudget | null {
   if (!input.accountId || !/^\d{4}-\d{2}-\d{2}/.test(input.date)) return null;
   const month = input.date.slice(0, 7);
   const account = input.accounts.find(a => a.id === input.accountId);
   if (!account) return null;
   const exclude = input.excludeDocumentId;
-  const transactions = exclude ? withoutReplacedPostings(input.transactions, exclude) : input.transactions;
+  const transactions = exclude ? withoutReplacedPostings(input.transactions, exclude, input.transactions, input.lock) : input.transactions;
   for (const budget of input.budgets) {
     if (budget.targetType !== 'account') continue;
     const target = String(budget.targetId).toLocaleLowerCase();

@@ -39,6 +39,30 @@ export function civilDateParts(value: string): { year: number; month: number; da
 }
 
 /** The year a stored date is in, read from its own text ('2026-01-01' is 2026 on every device and in every zone). */
+const CIVIL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Short civil displays read from the stored text alone, for date badges and list rows: 'Jan 01',
+ * 'Jan 2026', '01'. Formatting a stored date through an instant (`format(parseLocalDate(x), …)`)
+ * reads the device zone instead, so a Jan-1 entry in an Auckland workspace showed as Dec-31 on a
+ * UTC laptop (#342). An unparseable value shows nothing rather than throwing the way date-fns does
+ * on an invalid Date.
+ */
+export function civilMonthDay(value: string | null | undefined): string {
+  const parts = value ? civilDateParts(value) : null;
+  return parts ? `${CIVIL_MONTHS[parts.month - 1]} ${String(parts.day).padStart(2, '0')}` : '';
+}
+
+export function civilMonthYear(value: string | null | undefined): string {
+  const parts = value ? civilDateParts(value) : null;
+  return parts ? `${CIVIL_MONTHS[parts.month - 1]} ${parts.year}` : '';
+}
+
+export function civilDayOfMonth(value: string | null | undefined): string {
+  const parts = value ? civilDateParts(value) : null;
+  return parts ? String(parts.day).padStart(2, '0') : '';
+}
+
 export function civilYear(value: string | null | undefined): number | null {
   const match = /^(\d{4})-/.exec(String(value ?? '').trim());
   return match ? Number(match[1]) : null;
