@@ -5,7 +5,7 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
 import { getLocalDateISO } from '../lib/utils';
-import { addActivityAfter, mergedActivity, overlapRevision, PENDING_REVERSAL, withoutReplacedPostings, type ActivityByMonth, type ServerActivity } from '../lib/periodActivity';
+import { addPendingReversals, mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type PendingReversals, type ServerActivity } from '../lib/periodActivity';
 
 /**
  * L-123 step 3e: the activity per account per month over `from`…`to` that a period screen sums
@@ -40,7 +40,7 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
     (async () => {
       const query = new URLSearchParams({ workspaceId, from, to, ...(excludeDocumentId ? { excludeDocumentId } : {}) }).toString();
       const res = await fetch(`/api/v1/balances/activity?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as { months?: ActivityByMonth; pendingReversal?: ActivityByMonth };
+      const body = await res.json().catch(() => ({})) as { months?: ActivityByMonth; pendingReversal?: PendingReversals };
       if (!res.ok || !body.months || typeof body.months !== 'object') throw new Error(`activity ${res.status}`);
       return { workspaceId, from, to, months: body.months, ...(body.pendingReversal ? { pendingReversal: body.pendingReversal } : {}) };
     })().then(server => {
@@ -57,8 +57,7 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
     const merged = mergedActivity(transactions || [], server, from, to, cutoff, workspaceId);
     // #444 (Codex on #447): a locked posting older than the loaded entries is reversed on today, a month the loaded
     // entries supply; only the server knows that reversal, so it is added there unless the browser made it itself
-    const madeHere = (transactions || []).some(t => t.id.endsWith(PENDING_REVERSAL));
-    const activity = server && !madeHere && cutoff ? addActivityAfter(merged, server.pendingReversal, cutoff.slice(0, 7)) : merged;
+    const activity = server && cutoff ? addPendingReversals(merged, server.pendingReversal, new Set((transactions || []).map(t => t.id)), cutoff.slice(0, 7)) : merged;
     return { activity, serverMonths: !!server };
   }, [transactions, server, from, to, cutoff, workspaceId]);
 }

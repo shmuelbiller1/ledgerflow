@@ -25,7 +25,7 @@ import type { ChartAccount, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth, PENDING_REVERSAL, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
+import { activityByMonth, type ActivityByMonth, type PendingReversals, PENDING_REVERSAL, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
 import { effectiveLockDate, type LockException, type PeriodLockSettings } from '../../lib/periodLock';
 import { todayIn } from './postingContextLoader';
 
@@ -344,7 +344,7 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
  * postable entry dated `from`…`to` (src/lib/periodActivity.ts). Reads the entries of the range only, no snapshot.
  */
 /** `excludeDocumentId`: the document being edited; the postings its save would replace are left out (BudgetLeft counts its new amount). */
-export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string, uid = ''): Promise<{ months: ActivityByMonth; entriesRead: number; pendingReversal?: ActivityByMonth }> {
+export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string, uid = ''): Promise<{ months: ActivityByMonth; entriesRead: number; pendingReversal?: PendingReversals }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`An activity range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const snap = await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get();
   const entries = snap.docs.map(entryOf);
@@ -354,7 +354,7 @@ export async function activityOver(db: Firestore, workspaceId: string, from: str
   // the reversals a save would post (#444), on their own too: the browser adds them to the months it supplies
   // itself when it does not hold the locked posting (Codex on #447)
   const pending = counted.filter(t => t.id.endsWith(PENDING_REVERSAL));
-  return { months: activityByMonth(counted, from, to), entriesRead: entries.length, ...(pending.length ? { pendingReversal: activityByMonth(pending, from, to) } : {}) };
+  return { months: activityByMonth(counted, from, to), entriesRead: entries.length, ...(pending.length ? { pendingReversal: Object.fromEntries(pending.map(t => [t.id, activityByMonth([t], from, to)])) } : {}) };
 }
 
 /**

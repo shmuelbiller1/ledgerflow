@@ -48,7 +48,7 @@ export function activityByMonth(entries: Transaction[], from: string, to: string
 }
 
 /** The server's activity for a workspace over `from`…`to`, as the route answers it. */
-export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth; pendingReversal?: ActivityByMonth }
+export interface ServerActivity { workspaceId: string; from: string; to: string; months: ActivityByMonth; pendingReversal?: PendingReversals }
 
 /**
  * The activity a screen sums over `from`…`to`: the loaded entries' fold, with each month on or before `cutoff`'s
@@ -79,6 +79,17 @@ export function addActivityAfter(base: ActivityByMonth, extra: ActivityByMonth |
     out[m] = into;
   }
   return out;
+}
+
+/** The reversals a save would post (#444), each posting's on its own, by the reversal's id. */
+export type PendingReversals = Record<string, ActivityByMonth>;
+
+/**
+ * The server's pending reversals the browser did not make itself (it does not hold that locked posting), added to
+ * the months after `afterMonth`, which the browser supplies (CodeRabbit on #447: one posting each, not all or none).
+ */
+export function addPendingReversals(base: ActivityByMonth, pending: PendingReversals | undefined, loadedIds: ReadonlySet<string>, afterMonth: string): ActivityByMonth {
+  return Object.entries(pending || {}).reduce((out, [id, months]) => (loadedIds.has(id) ? out : addActivityAfter(out, months, afterMonth)), base);
 }
 
 /** The id suffix of a reversal a save would post on a locked posting (#444); never stored. */

@@ -45,7 +45,8 @@ import { BudgetLeft } from '../components/common/BudgetLeft';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency, workspaceYearMonth } from '../lib/utils';
 import { resolveAccountRole } from '../lib/accountUtils';
-import { activityByMonth, addActivityAfter, countActivity, mergedActivity, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
+import { reversalDate } from '../services/ledgerPost/postingCore';
+import { activityByMonth, addPendingReversals, countActivity, mergedActivity, PENDING_REVERSAL, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
 import { availableBudget } from '../lib/availableBudget';
 import { openingCutoff } from '../lib/serverBalances';
 import type { SavedBudget } from '../lib/budgetActual';
@@ -183,17 +184,30 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.equal(excepted.spentCents, 0, 'a lock exception reopens January: P1 is replaced in place');
   });
 
+  test('#444 (CodeRabbit on #447): the server save dates a reversal as the preview does, lock exception included', () => {
+    // lock to Y-01-31; the exception reopens Y-01-01…Y-01-31. A January original is open: reversed on its own day.
+    const ctx = { lockDate: `${Y}-01-31`, lockException: { fromDate: `${Y}-01-01`, toDate: `${Y}-01-31` } };
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, ctx), `${Y}-01-15`);
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, { lockDate: ctx.lockDate }), `${Y}-04-05`, 'without the exception: today');
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, { lockDate: ctx.lockDate, lockException: { fromDate: `${Y}-02-01`, toDate: `${Y}-02-28` } }), `${Y}-04-05`, 'an exception elsewhere: today');
+  });
+
   test('#444 (Codex on #447): the server\'s reversal of a posting older than the loaded entries is kept', () => {
     // loaded entries start Y-02-15 (cut-off month February); the server reverses a locked January posting on Y-04-05.
     // mergedActivity keeps the browser's own April, so the −400 comes only from the server's pendingReversal.
     const cutoff = openingCutoff(loaded);
-    const server = { workspaceId: ws, from, to, months: truth(ws), pendingReversal: { [`${Y}-04`]: { entries: 1, unbalanced: 0, accounts: { [`${ws}_rent`]: { net: -400, debits: 0, credits: 400 } } } } };
+    const reversal = (net: number) => ({ [`${Y}-04`]: { entries: 1, unbalanced: 0, accounts: { [`${ws}_rent`]: { net, debits: 0, credits: -net } } } });
+    const server = { workspaceId: ws, from, to, months: truth(ws), pendingReversal: { [`${ws}_p1${PENDING_REVERSAL}`]: reversal(-400) } };
     const merged = mergedActivity(loaded, server, from, to, cutoff, ws);
     assert.equal(merged[`${Y}-04`], undefined, 'without the fix the April reversal is lost');
-    const fixed = addActivityAfter(merged, server.pendingReversal, cutoff.slice(0, 7));
+    const fixed = addPendingReversals(merged, server.pendingReversal, new Set(loaded.map(t => t.id)), cutoff.slice(0, 7));
     assert.equal(sumActivity(fixed, `${Y}-04`, `${Y}-04`, id => id === `${ws}_rent`, a => a.net), -400);
     assert.equal(sumActivity(fixed, `${Y}-03`, `${Y}-03`, id => id === `${ws}_rent`, a => a.net), 600, 'other months unchanged');
-    assert.deepEqual(addActivityAfter(merged, server.pendingReversal, `${Y}-04`), merged, 'a month the server supplied already holds it');
+    assert.deepEqual(addPendingReversals(merged, server.pendingReversal, new Set(), `${Y}-04`), merged, 'a month the server supplied already holds it');
+    // CodeRabbit on #447: two locked postings, the browser holding (and reversing) only P2 — P1's reversal still counts
+    const two = { [`${ws}_p1${PENDING_REVERSAL}`]: reversal(-400), [`${ws}_p2${PENDING_REVERSAL}`]: reversal(-100) };
+    const held = addPendingReversals(merged, two, new Set([`${ws}_p2${PENDING_REVERSAL}`]), cutoff.slice(0, 7));
+    assert.equal(sumActivity(held, `${Y}-04`, `${Y}-04`, id => id === `${ws}_rent`, a => a.net), -400, 'P2\'s own reversal is the browser\'s; P1\'s comes from the server');
   });
 
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
@@ -340,7 +354,9 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
       const keeper = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` }, 'keeper-1');
       assert.equal(keeper.status, 200);
       assert.equal(keeper.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 450, 'the soft close keeps E2 in January for a bookkeeper');
-      const pending = (keeper.body as unknown as { pendingReversal?: ActivityByMonth }).pendingReversal!;
+      const byPosting = (keeper.body as unknown as { pendingReversal?: Record<string, ActivityByMonth> }).pendingReversal!;
+      assert.deepEqual(Object.keys(byPosting), [`${ws}_e2${PENDING_REVERSAL}`], 'one reversal, under its own id');
+      const pending = byPosting[`${ws}_e2${PENDING_REVERSAL}`];
       const months = Object.keys(pending);
       assert.equal(months.length, 1);
       assert.equal(pending[months[0]].accounts[`${ws}_rent`].net, -400, 'the reversal, on its own, for the months the browser supplies');
