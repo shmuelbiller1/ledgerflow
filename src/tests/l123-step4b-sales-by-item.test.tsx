@@ -92,6 +92,11 @@ describe('L-123 step 4b: sales by item (no database)', () => {
     cleanup();
 
     // a capped chart alone (which lines are cost of goods sold) also asks the server
+    useLedgerStore.setState({ truncatedCollections: { inventory: true } } as never);
+    render(<SalesByItemReportView selectedYear={Number(Y)} />);
+    await waitFor(() => assert.ok(urls.length > 0, 'a capped inventory asks the server'));
+    cleanup();
+    urls.length = 0;
     useLedgerStore.setState({ truncatedCollections: { chartAccounts: true } } as never);
     render(<SalesByItemReportView selectedYear={Number(Y)} />);
     await waitFor(() => assert.ok(urls.length > 0));

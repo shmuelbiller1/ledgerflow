@@ -19,7 +19,7 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const items = useLedgerStore(s => s.inventory);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts));
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts || s.truncatedCollections?.inventory));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
   // an edit to a loaded invoice or entry in the range, or to any item or account (names, SKUs, unit costs, account
