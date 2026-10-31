@@ -104,7 +104,9 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
       for (const r of routes) {
         if (who === 'view-1' && VIEWER_MAY.has(`${r.method} ${r.path}`)) continue;
         const status = await call(r, who);
-        if (status < 400 || status >= 500) holes.push(`${r.method.toUpperCase()} ${r.path} → ${status}`);
+        // a non-member is stopped by the membership check itself (403); a viewer may be refused by validation first
+        const refused = who === 'stranger-1' ? status === 403 : status >= 400 && status < 500;
+        if (!refused) holes.push(`${r.method.toUpperCase()} ${r.path} → ${status}`);
       }
       assert.deepEqual(holes, []);
     });
