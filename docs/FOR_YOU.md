@@ -612,3 +612,7 @@ details drawer today edits customers, vendors, projects and items only, so offer
 accounts to the drawer: its allowed fields, a save path through the account service, and tests. That is a small
 feature of its own. *Default I used:* no Edit details button on this picker for now; to correct an account you edit
 it on the Chart of Accounts screen. Say if you want accounts added to the details drawer, and I'll queue it.
+
+**Related, same PR:** CodeRabbit found that no button opens the legacy Bank Feed Import dialog at all (Ledger has a
+`bank_import` modal that nothing sets). The live statement import is Banking → Import statement. *Default I used:* keep
+the fixed dialog in the code, unreachable, and add no new entry point. Say if you'd rather I delete it.
