@@ -8,7 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
-import { PLAID_SYNC_CONFLICT, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
+import { PLAID_SYNC_CONFLICT, claimPlaidSyncLease, releasePlaidSyncLease, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -236,8 +236,12 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     let answered = 0;
     // bank lines actually added (Plaid's raw rows include card holds and rows already stored)
     let storedLines = 0;
+    // a bank another sync is reading right now, or that it moved on meanwhile: try again in a moment (CodeRabbit on #455)
+    const busy: { bankId: string; institutionName: string }[] = [];
     for (const doc of banksSnap.docs) {
       const bank = doc.data();
+      const leaseId = await claimPlaidSyncLease(db, doc.ref);
+      if (!leaseId) { busy.push({ bankId: doc.id, institutionName: bank.institutionName || '' }); continue; }
       try {
         const accessToken = SecurityService.decryptSensitiveField(bank.access_token);
         let lineCount: number;
@@ -278,7 +282,9 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
           modified: plaidRowsAsBankLines(pageModified, connection, body.workspaceId, plaidAccountId),
           removed: pageRemoved,
           expectedCursor: typeof bank.syncCursor === 'string' ? bank.syncCursor : undefined,
+          leaseId,
           bankUpdate: {
+            syncLease: null,
             status: 'active', lastSyncedAt: syncedAt, updatedAt: syncedAt,
             ...(nextCursor !== undefined ? { syncCursor: nextCursor } : {}),
             ...(plaidAccountId && !bank.plaidAccountId ? { plaidAccountId } : {}),
@@ -293,7 +299,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         removed.push(...pageRemoved);
       } catch (err) {
         // another sync of this bank won: its cursor and log stay; this one is not an error of the bank
-        if (err instanceof Error && err.message === PLAID_SYNC_CONFLICT) continue;
+        if (err instanceof Error && err.message === PLAID_SYNC_CONFLICT) { busy.push({ bankId: doc.id, institutionName: bank.institutionName || '' }); continue; }
         const code = plaidErrorCode(err);
         const now = new Date().toISOString();
         if (code !== 'ITEM_LOGIN_REQUIRED') {
@@ -314,11 +320,13 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
             eventKey: `bank.disconnected:${doc.id}:${now}`, recordId: doc.id, actorUid: (req as AuthedRequest).user?.uid,
           });
         }
+      } finally {
+        await releasePlaidSyncLease(db, doc.ref, leaseId).catch(() => undefined);
       }
     }
     // every connection failed: the sync failed (as before), with each one's reason kept in its log
     if (failed.length > 0 && answered === 0 && needsReconnect.length === 0) return sendError(res, "Could not sync the bank feed", 502);
-    res.json({ success: transactions.length > 0, transactions, modified, removed, storedLines, needsReconnect, failed, banks: banksSnap.size });
+    res.json({ success: transactions.length > 0 && busy.length === 0, transactions, modified, removed, storedLines, needsReconnect, failed, busy, banks: banksSnap.size });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/not a member|Unauthorized|not found/i.test(message)) return sendError(res, message, 403);

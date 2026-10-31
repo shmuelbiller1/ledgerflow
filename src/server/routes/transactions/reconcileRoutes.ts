@@ -129,6 +129,10 @@ export async function handleReconcile(req: express.Request, res: express.Respons
             // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
             const line = lineSnap.data() || {};
             if (validatedData.status === 'pending' && line.bankChange === 'removed') {
+              // its entry must be released in the same request, or it would stay reconciled to nothing (CodeRabbit on #455)
+              if (line.matchedTransactionId && !operations.some((o: { type?: string; id?: string }) => o.type === 'updateTransaction' && o.id === line.matchedTransactionId)) {
+                throw new Error(`Bank line ${op.id} was withdrawn by the bank: undo its entry's match in the same request`);
+              }
               writes.push(() => t.delete(lineRef));
               continue;
             }

@@ -236,6 +236,22 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.equal(kept.size, 0, 'the first chunk was refused too');
   });
 
+  test('one sync per bank: a second sync waits while the first holds the lease (CodeRabbit on #455)', async () => {
+    const { claimPlaidSyncLease, releasePlaidSyncLease, storePlaidSync, PLAID_SYNC_LEASE_MS } = await import('../server/services/plaidIngest');
+    const ref = { id: bankId };
+    const first = await claimPlaidSyncLease(db, ref);
+    assert.ok(first);
+    assert.equal(await claimPlaidSyncLease(db, ref), null, 'held by the first sync');
+    const second = await claimPlaidSyncLease(db, ref, Date.now() + PLAID_SYNC_LEASE_MS + 1000);
+    assert.ok(second, 'an expired lease can be taken over');
+    // the first sync's chunks now stop: its lease is gone
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: ref, lines: [], leaseId: first!, bankUpdate: {} }), /synced by another request/);
+    await releasePlaidSyncLease(db, ref, first!);
+    assert.equal((await bank(bankId)).syncLease?.id, second, 'releasing an old lease leaves the new one');
+    await releasePlaidSyncLease(db, ref, second!);
+    assert.equal((await bank(bankId)).syncLease, null);
+  });
+
   test('a correction for a row never stored becomes a new line instead of being lost (CodeRabbit on #439)', async () => {
     const { storePlaidSync, plaidRowsAsBankLines } = await import('../server/services/plaidIngest');
     const modified = plaidRowsAsBankLines([{ transaction_id: 'tx-orphan', date: '2026-10-28', name: 'Only the correction', amount: 4 }], { id: bankId }, ws);

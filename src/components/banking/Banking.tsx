@@ -59,6 +59,7 @@ export default function Banking() {
       const data = await res.json();
       setNeedsReconnect(Array.isArray(data.needsReconnect) ? data.needsReconnect : []);
       if (res.ok && Array.isArray(data.failed) && data.failed.length > 0) toast.warning(`${data.failed.length} bank connection(s) could not be synced: see Connected banks for why.`);
+      if (res.ok && Array.isArray(data.busy) && data.busy.length > 0) toast.info(`${data.busy.length} bank connection(s) are being synced by another request: try again in a moment.`);
       if (res.ok && data.success) {
         toast.success(`Synchronized ${accountName} with bank feed.`);
       } else if (res.ok) {
