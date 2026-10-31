@@ -125,7 +125,17 @@ export async function handleReconcile(req: express.Request, res: express.Respons
             if (validatedData.status === 'matched' && lineCurrency && lineCurrency !== homeCurrency) {
               throw new Error(`Bank line ${op.id} is in ${lineCurrency}, not ${homeCurrency}; it can't be matched until it is converted`);
             }
-            writes.push(() => t.update(lineRef, { ...validatedData, updatedAt: FieldValue.serverTimestamp() }));
+            // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
+            // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
+            const line = lineSnap.data() || {};
+            if (validatedData.status === 'pending' && line.bankChange === 'removed') {
+              writes.push(() => t.delete(lineRef));
+              continue;
+            }
+            const correction = validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection && typeof line.bankCorrection === 'object'
+              ? { date: line.bankCorrection.date, description: line.bankCorrection.description, amountCents: line.bankCorrection.amountCents, currency: line.bankCorrection.currency, suggestion: null, bankChange: null, bankChangeAt: null, bankCorrection: null }
+              : {};
+            writes.push(() => t.update(lineRef, { ...validatedData, ...correction, updatedAt: FieldValue.serverTimestamp() }));
           } else if (op.type === 'updateTransaction') {
             const txSnap = txSnaps.get(op.id);
             if (!txSnap || !txSnap.exists || txSnap.data()?.workspaceId !== workspaceId) {

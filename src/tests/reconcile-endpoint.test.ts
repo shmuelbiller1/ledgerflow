@@ -54,6 +54,9 @@ class MockDb {
       create: (docRef: TestDocumentReference, newData: TestDocument) => {
         snapshotMap.set(docRef.key, newData);
       },
+      delete: (docRef: TestDocumentReference) => {
+        snapshotMap.delete(docRef.key);
+      },
       set: (docRef: TestDocumentReference, newData: TestDocument) => {
         snapshotMap.set(docRef.key, newData);
       },
@@ -70,9 +73,7 @@ class MockDb {
     };
 
     const res = await updateFunction(tx);
-    for (const [k, v] of snapshotMap.entries()) {
-      this.data.set(k, v);
-    }
+    this.data = snapshotMap;
     return res;
   }
 
@@ -195,6 +196,24 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(db.getDocData('bankLines', 'line-eur').status, 'pending', 'nothing written');
     assert.equal((await run('line-usd')).statusCode, 200, 'a line in the books\' currency still matches');
     assert.equal(db.getDocData('bankLines', 'line-usd').status, 'matched');
+  });
+
+  test('AF-001: undoing a match applies what the bank changed since (CodeRabbit on #439)', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, currency: 'USD', bankChange: 'modified', bankCorrection: { date: '2026-10-21', description: 'New', amountCents: -650, currency: 'USD' } });
+    db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Gone', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
+    const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-mod', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+    ] } } as unknown as express.Request;
+    let statusCode = 200;
+    const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
+    await handleReconcile(req, res, db as unknown as Firestore);
+    assert.equal(statusCode, 200);
+    const mod = db.getDocData('bankLines', 'line-mod');
+    assert.deepEqual([mod.status, mod.date, mod.description, mod.amountCents, mod.bankChange, mod.bankCorrection], ['pending', '2026-10-21', 'New', -650, null, null]);
+    assert.equal(db.getDocData('bankLines', 'line-gone'), undefined, 'a line the bank withdrew does not come back to To review');
   });
 
   test('Undo sets bank line back to pending and transaction back to completed with audit log', async () => {

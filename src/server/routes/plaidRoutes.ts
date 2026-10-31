@@ -8,7 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
-import { plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
+import { PLAID_SYNC_CONFLICT, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -292,6 +292,8 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         modified.push(...pageModified);
         removed.push(...pageRemoved);
       } catch (err) {
+        // another sync of this bank won: its cursor and log stay; this one is not an error of the bank
+        if (err instanceof Error && err.message === PLAID_SYNC_CONFLICT) continue;
         const code = plaidErrorCode(err);
         const now = new Date().toISOString();
         if (code !== 'ITEM_LOGIN_REQUIRED') {

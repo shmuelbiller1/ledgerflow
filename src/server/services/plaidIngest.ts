@@ -100,6 +100,9 @@ export function plaidRowsAsBankLines(rows: unknown[], connection: PlaidConnectio
 /** Rows stored per database transaction, so a first sync of a busy account is never one huge write. */
 export const PLAID_STORE_CHUNK = 500;
 
+/** Another sync of the same bank moved the cursor on while this one ran: nothing of this one is kept. */
+export const PLAID_SYNC_CONFLICT = 'The bank was synced by another request meanwhile. Sync again.';
+
 export async function storePlaidSync(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate: Record<string, unknown>;
   /** the cursor this sync started from: the cursor write is refused if another sync has moved the bank on */
@@ -135,12 +138,13 @@ async function storePlaidChunk(db: Firestore, input: {
   const result = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
   await db.runTransaction(async (t) => {
     // reads first (the transaction refuses a read after a write)
-    // (CodeRabbit on #439) two overlapping syncs: the one that commits last must not put an older cursor back
-    if (input.bankUpdate && 'expectedCursor' in input) {
+    // (CodeRabbit on #439) two overlapping syncs: the one that commits last must not put an older cursor back.
+    // Every chunk checks it (Codex on #439), so a stale sync never commits old corrections before its last chunk
+    if ('expectedCursor' in input) {
       const bankNow = await t.get(db.collection('banks').doc(input.bankRef.id));
       const savedCursor = (bankNow.data() as { syncCursor?: unknown } | undefined)?.syncCursor;
       if ((typeof savedCursor === 'string' ? savedCursor : undefined) !== input.expectedCursor) {
-        throw new Error('The bank was synced by another request meanwhile. Sync again.');
+        throw new Error(PLAID_SYNC_CONFLICT);
       }
     }
     const seen = await existingImportIdentities(db, t, input.workspaceId, input.lines);
@@ -181,7 +185,7 @@ async function storePlaidChunk(db: Firestore, input: {
       const ref = db.collection('bankLines').doc(change.id);
       const open = (current.status ?? 'pending') === 'pending' && !current.matchedTransactionId;
       if (!open) {
-        t.update(ref, { bankChange: change.kind, bankChangeAt: now, ...(change.line ? { bankCorrection: { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency } } : {}) });
+        t.update(ref, { bankChange: change.kind, bankChangeAt: now, bankCorrection: change.line ? { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency } : null });
         result.flagged += 1;
       } else if (change.kind === 'removed') {
         t.delete(ref);

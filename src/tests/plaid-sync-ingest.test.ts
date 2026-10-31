@@ -227,6 +227,15 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.equal(ok.stored, 0);
   });
 
+  test('a stale sync commits no chunk at all, not only no cursor (Codex on #439)', async () => {
+    const { storePlaidSync, plaidRowsAsBankLines, PLAID_STORE_CHUNK } = await import('../server/services/plaidIngest');
+    const rows = Array.from({ length: PLAID_STORE_CHUNK + 1 }, (_, i) => ({ transaction_id: `tx-stale-${i}`, date: '2026-10-28', name: `Stale ${i}`, amount: 1 }));
+    const lines = plaidRowsAsBankLines(rows, { id: bankId }, ws);
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines, expectedCursor: 'stale-cursor', bankUpdate: { syncCursor: 'older' } }), /synced by another request/);
+    const kept = await db.collection('bankLines').where('workspaceId', '==', ws).where('importIdentity', '==', 'plaid:tx-stale-0').get();
+    assert.equal(kept.size, 0, 'the first chunk was refused too');
+  });
+
   test('a correction for a row never stored becomes a new line instead of being lost (CodeRabbit on #439)', async () => {
     const { storePlaidSync, plaidRowsAsBankLines } = await import('../server/services/plaidIngest');
     const modified = plaidRowsAsBankLines([{ transaction_id: 'tx-orphan', date: '2026-10-28', name: 'Only the correction', amount: 4 }], { id: bankId }, ws);
