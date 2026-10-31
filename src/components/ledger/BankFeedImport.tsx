@@ -16,6 +16,7 @@ import { generateImportIdentity } from '../../lib/algorithms';
 import { isPostable } from '../../lib/txFilters';
 import CategoryWhyPopover from '../common/CategoryWhyPopover';
 import PlaidConnectButton from '../finance/PlaidConnectButton';
+import { resolveAccountRole } from '../../lib/accountUtils';
 
 interface BankFeedRow {
   id: string; date: string; description: string; amountCents: number; category?: string; accountId?: string; confidence?: number; matchSource?: string; dimensions?: Record<string, string>;
@@ -41,6 +42,13 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
   const [rawTransactions, setRawTransactions] = useState<BankFeedRow[]>([]);
   const [mappedTransactions, setMappedTransactions] = useState<BankFeedRow[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  // AF-001: the statement's own bank account takes the other side of each row; it was a placeholder id
+  // that is in no chart of accounts, so every imported entry pointed at an account that does not exist
+  // the same open-account test as the category mapping below (CodeRabbit on #457)
+  const bankAccounts = accounts.filter(a => resolveAccountRole(a) === 'cash' && !a.archived && !a.isArchived && a.isActive !== false);
+  const [pickedBankAccountId, setBankAccountId] = useState<string>('');
+  // a pick that is no longer an open bank account (the accounts changed while the dialog is open) falls back to the first one
+  const bankAccountId = bankAccounts.some(a => a.id === pickedBankAccountId) ? pickedBankAccountId : (bankAccounts[0]?.id || '');
   const user = useAuthStore(s => s.user);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   useAuthStore(s => s.userProfile);
@@ -263,6 +271,11 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
 
   const handleConfirm = () => {
     if (!user) return;
+    const bankAccount = bankAccounts.find(a => a.id === bankAccountId);
+    if (!bankAccount) {
+      toast.error('Choose the bank account this statement belongs to.');
+      return;
+    }
     const toImport = mappedTransactions
       .filter((_, idx) => selectedIndices.has(idx))
       .map((t, idx) => {
@@ -281,7 +294,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
           workspaceId,
           date: t.date,
           description: t.description,
-          totalAmountCents: t.amountCents,
+          totalAmountCents: Math.abs(t.amountCents),
           type: 'actual' as const,
           status: 'completed' as const,
           isCleared: true,
@@ -290,12 +303,14 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
             {
               accountId: accountId,
               accountName: account?.name || 'Uncategorized',
-              amountCents: t.amountCents // For imported expenses, assume debit for the category
+              // a statement row is signed as the bank moves (money out is negative): the category takes the
+              // other side, as in the server's split (bankLineService), so a withdrawal debits the expense (CodeRabbit on #457)
+              amountCents: -t.amountCents
             },
             {
-              accountId: 'offset-bank', // In a real app, this would be the bank account selected
-              accountName: 'Bank Account (Imported)',
-              amountCents: -t.amountCents
+              accountId: bankAccount.id,
+              accountName: bankAccount.name,
+              amountCents: t.amountCents
             }
           ],
           createdAt: new Date().toISOString()
@@ -458,12 +473,25 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
         </div>
 
         <div className="p-4 md:p-8 border-t border-[var(--line)] flex items-center justify-end gap-5 bg-[var(--ink)]/20">
+          {rawTransactions.length > 0 && (
+            <label className="mr-auto flex items-center gap-2 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em]">
+              Bank account
+              <select
+                value={bankAccountId}
+                onChange={e => setBankAccountId(e.target.value)}
+                className="min-h-11 normal-case tracking-normal text-xs font-semibold text-[var(--text)] bg-[var(--ink)] border border-[var(--line)] rounded-xl px-3 py-2"
+              >
+                {bankAccounts.length === 0 && <option value="">No bank account in the chart of accounts</option>}
+                {bankAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </label>
+          )}
           <button onClick={onClose} className="px-8 py-3 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] hover:text-[var(--text)] transition-all" aria-label="Cancel">
             Cancel
           </button>
           <button 
             onClick={handleConfirm}
-            disabled={!selectedIndices.size || isMapping}
+            disabled={!selectedIndices.size || isMapping || !bankAccountId}
             className="px-10 py-3 bg-indigo-600 text-white rounded-[32px] font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 disabled:opacity-30 disabled:grayscale transition-all shadow-xl shadow-ledger-accent/20"
            aria-label="Import selected rows">
             Import {selectedIndices.size} rows

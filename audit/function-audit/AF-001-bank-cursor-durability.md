@@ -104,4 +104,6 @@ Review follow-ups in the same PR (#439):
 - Bank-side `modified` rows update a line still pending and unmatched, and `removed` rows delete one. A line already matched to a posted entry is only flagged (`bankChange`, `bankCorrection`) for review.
 - Each line keeps its Plaid `account_id` and currency. The connection's ledger account is set only for rows of the Plaid account it is tied to (saved on the first sync where all rows share one account) and in the books' currency.
 
-Still open: the CSV path of the legacy Bank Feed Import dialog books to a placeholder `offset-bank` account.
+Fixed in code (31 Oct 2026, AI #1, #457): the CSV path of the legacy Bank Feed Import dialog no longer books to a placeholder `offset-bank` account. The person picks the statement's bank account (cash-role accounts only, the first one pre-selected), and the import is refused when the books have no bank account. Pinned in `audit-af001-plaid-contract.test.ts` (F3) and proved at the import callback in `af001-csv-bank-account.test.tsx`.
+
+**Not reachable today (CodeRabbit on #457):** `Ledger.tsx` renders this dialog only for `activeModal === 'bank_import'`, and no action sets that value. So no user could reach the placeholder, and the fix keeps the dialog safe if it is ever wired again. The live statement import is Banking → **Import statement** (`StatementImporter`), which has no placeholder account. Whether to remove the unreachable dialog is in docs/FOR_YOU.md (31 Oct).
