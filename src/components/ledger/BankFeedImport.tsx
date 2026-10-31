@@ -291,7 +291,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
           workspaceId,
           date: t.date,
           description: t.description,
-          totalAmountCents: t.amountCents,
+          totalAmountCents: Math.abs(t.amountCents),
           type: 'actual' as const,
           status: 'completed' as const,
           isCleared: true,
@@ -300,12 +300,14 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
             {
               accountId: accountId,
               accountName: account?.name || 'Uncategorized',
-              amountCents: t.amountCents // For imported expenses, assume debit for the category
+              // a statement row is signed as the bank moves (money out is negative): the category takes the
+              // other side, as in the server's split (bankLineService), so a withdrawal debits the expense (CodeRabbit on #457)
+              amountCents: -t.amountCents
             },
             {
               accountId: bankAccount.id,
               accountName: bankAccount.name,
-              amountCents: -t.amountCents
+              amountCents: t.amountCents
             }
           ],
           createdAt: new Date().toISOString()

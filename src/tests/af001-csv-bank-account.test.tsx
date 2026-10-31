@@ -41,7 +41,7 @@ test('the bank line goes to the bank account the person chose', async () => {
     makeChartAccount({ id: 'savings', name: 'Savings', type: 'asset', category: 'Cash' }),
     makeChartAccount({ id: 'meals', name: 'Meals', type: 'expense', category: 'Meals' }),
   ];
-  const imported: Array<Array<{ lines: Array<{ accountId: string; accountName: string; amountCents: number }> }>> = [];
+  const imported: Array<Array<{ totalAmountCents: number; lines: Array<{ accountId: string; accountName: string; amountCents: number }> }>> = [];
   render(<BankFeedImport workspaceId="component-workspace" accounts={accounts} onImport={tx => imported.push(tx as never)} onClose={() => {}} />);
   await stageCsv();
   const picker = screen.getByLabelText(/Bank account/i) as HTMLSelectElement;
@@ -50,8 +50,11 @@ test('the bank line goes to the bank account the person chose', async () => {
   await waitFor(() => assert.equal((screen.getByRole('button', { name: 'Import selected rows' }) as HTMLButtonElement).disabled, false));
   fireEvent.click(screen.getByRole('button', { name: 'Import selected rows' }));
   assert.equal(imported.length, 1);
-  const bankLine = imported[0][0].lines[1];
-  assert.deepEqual([bankLine.accountId, bankLine.accountName, bankLine.amountCents], ['savings', 'Savings', 450]);
+  // a 4.50 withdrawal: the expense is debited (+450) and the chosen bank account credited (-450)
+  const [categoryLine, bankLine] = imported[0][0].lines;
+  assert.deepEqual([categoryLine.accountId, categoryLine.amountCents], ['meals', 450]);
+  assert.deepEqual([bankLine.accountId, bankLine.accountName, bankLine.amountCents], ['savings', 'Savings', -450]);
+  assert.equal(imported[0][0].totalAmountCents, 450);
   assert.equal(imported[0][0].lines.some(l => l.accountId === 'offset-bank'), false);
 });
 
