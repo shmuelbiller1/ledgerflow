@@ -84,8 +84,11 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
   });
   after(async () => {
     server?.close();
-    await db?.pool.query(`delete from public."workspaces" where id = $1`, [ws]).catch(() => {});
-    await db?.terminate();
+    try {
+      await db?.pool.query(`delete from public."workspaces" where id = $1`, [ws]);
+    } finally {
+      await db?.terminate();
+    }
   });
 
   const call = async (r: { method: string; path: string }, uid: string) => {
