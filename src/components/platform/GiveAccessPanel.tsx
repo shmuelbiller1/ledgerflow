@@ -32,7 +32,7 @@ export function GiveAccessPanel() {
       if (!res.ok) throw new Error(data?.message || 'Access could not be given');
       const names = (data.workspaces as { name: string }[]).map(w => w.name);
       setDone(names.length ? `Done for ${names.join(', ')}${data.madeAdmin ? '; now a platform admin' : ''}.` : `${email} owns no workspace yet${data.madeAdmin ? '; now a platform admin' : ''}.`);
-      toast.success('Access updated');
+      if (data.adminError) toast.error(data.adminError); else toast.success('Access updated');
     } catch (err) {
       if (requestId !== latestRequest.current) return;
       toast.error(err instanceof Error ? err.message : 'Access could not be given');

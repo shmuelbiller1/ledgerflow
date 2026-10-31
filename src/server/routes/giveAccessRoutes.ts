@@ -37,7 +37,17 @@ export async function giveAccess(
   target: { uid: string; email: string },
   input: { level: AccessLevel; makeAdmin?: boolean },
 ): Promise<{ workspaces: { id: string; name: string }[]; madeAdmin: boolean }> {
-  const owned = await db.collection("workspaces").where("uid", "==", target.uid).get();
+  // owners are the creator (uid) and anyone given the owner role (Codex on #460); ordinary members are left alone
+  const [created, joined] = await Promise.all([
+    db.collection("workspaces").where("uid", "==", target.uid).get(),
+    db.collection("workspaces").where("members", "array-contains", target.uid).get(),
+  ]);
+  const ownedDocs = new Map(created.docs.map(d => [d.id, d]));
+  for (const d of joined.docs) {
+    const roles = d.data().roles as Record<string, unknown> | undefined;
+    if (roles?.[target.uid] === "owner") ownedDocs.set(d.id, d);
+  }
+  const owned = { docs: [...ownedDocs.values()] };
   const fields = workspaceFieldsFor(input.level);
   const now = new Date().toISOString();
   const changed: { id: string; name: string }[] = [];
@@ -79,12 +89,14 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       } catch {
         return sendError(res, "No LedgerFlow account uses this email", 404);
       }
-      const result = await giveAccess(getDb(), { uid: authReq.user.uid, email: authReq.user.email || "" }, target, input);
-      if (result.madeAdmin) {
+      // the admin claim is what requireAdmin reads, so it is set first; a failure is reported, not hidden (Codex on #460)
+      let adminError: string | undefined;
+      if (input.makeAdmin) {
         try { await authAdmin.setCustomUserClaims(target.uid, { admin: true }); }
-        catch (err) { console.warn("[Give access] admin claim:", err); }
+        catch (err) { console.warn("[Give access] admin claim:", err); adminError = "Access was given, but the admin rights could not be set. Try again."; }
       }
-      res.json({ status: "success", ...result });
+      const result = await giveAccess(getDb(), { uid: authReq.user.uid, email: authReq.user.email || "" }, target, { ...input, makeAdmin: input.makeAdmin && !adminError });
+      res.json({ status: "success", ...result, ...(adminError ? { adminError } : {}) });
     } catch (err) {
       handleApiError(res, err);
     }

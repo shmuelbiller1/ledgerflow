@@ -23,7 +23,7 @@ test('each level sets the fields the server already reads (bypassBilling, plan)'
 describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
   const sfx = crypto.randomBytes(4).toString('hex');
   const target = { uid: `dana_${sfx}`, email: `dana_${sfx}@example.com` };
-  const ws = [`ws_acc1a_${sfx}`, `ws_acc1b_${sfx}`, `ws_acc1other_${sfx}`];
+  const ws = [`ws_acc1a_${sfx}`, `ws_acc1b_${sfx}`, `ws_acc1other_${sfx}`, `ws_acc1coowner_${sfx}`];
   let db: Firestore;
 
   before(async () => {
@@ -32,6 +32,7 @@ describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     db = getDb();
     await db.collection('workspaces').doc(ws[0]).set({ uid: target.uid, name: 'Dana One', plan: 'free', members: [target.uid] });
     await db.collection('workspaces').doc(ws[1]).set({ uid: target.uid, name: 'Dana Two', plan: 'growth', members: [target.uid] });
+    await db.collection('workspaces').doc(ws[3]).set({ uid: 'founder-x', name: 'Co-owned', plan: 'free', members: ['founder-x', target.uid], roles: { [target.uid]: 'owner' } });
     await db.collection('workspaces').doc(ws[2]).set({ uid: 'someone-else', name: 'Not Dana', plan: 'free', members: ['someone-else', target.uid] });
   });
 
@@ -41,10 +42,10 @@ describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     await db.terminate();
   });
 
-  test('full access: both of her workspaces are free with no limits; one she only belongs to is untouched; audited', async () => {
+  test('full access: the workspaces she created or co-owns are free with no limits; one she only belongs to is untouched; audited', async () => {
     const { giveAccess } = await import('../server/routes/giveAccessRoutes');
     const r = await giveAccess(db, { uid: 'admin-1', email: 'admin@ledgerflow.test' }, target, { level: 'full', makeAdmin: true });
-    assert.deepEqual(r.workspaces.map(w => w.id).sort(), [ws[0], ws[1]].sort());
+    assert.deepEqual(r.workspaces.map(w => w.id).sort(), [ws[0], ws[1], ws[3]].sort());
     assert.equal(r.madeAdmin, true);
     for (const id of [ws[0], ws[1]]) {
       const d = (await db.collection('workspaces').doc(id).get()).data()!;
