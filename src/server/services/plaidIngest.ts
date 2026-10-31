@@ -233,3 +233,17 @@ export async function releasePlaidSyncLease(db: Firestore, bankRef: { id: string
     if (lease?.id === leaseId) t.update(ref, { syncLease: null });
   });
 }
+
+/**
+ * (CodeRabbit on #455) writes a failed sync's status only while this sync still holds the bank's lease,
+ * so a sync whose lease expired never overwrites the result of the sync that took over. False when it lost it.
+ */
+export async function updateBankIfLeaseHeld(db: Firestore, bankRef: { id: string }, leaseId: string, data: Record<string, unknown>): Promise<boolean> {
+  return db.runTransaction(async (t) => {
+    const ref = db.collection('banks').doc(bankRef.id);
+    const lease = ((await t.get(ref)).data() || {}).syncLease as { id?: string } | null | undefined;
+    if (lease?.id !== leaseId) return false;
+    t.update(ref, data);
+    return true;
+  });
+}

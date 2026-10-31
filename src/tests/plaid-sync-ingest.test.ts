@@ -248,6 +248,11 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: ref, lines: [], leaseId: first!, bankUpdate: {} }), /synced by another request/);
     await releasePlaidSyncLease(db, ref, first!);
     assert.equal((await bank(bankId)).syncLease?.id, second, 'releasing an old lease leaves the new one');
+    // the first sync's late error is not written over the bank the second sync now holds
+    const { updateBankIfLeaseHeld } = await import('../server/services/plaidIngest');
+    assert.equal(await updateBankIfLeaseHeld(db, ref, first!, { status: 'error' }), false);
+    assert.notEqual((await bank(bankId)).status, 'error');
+    assert.equal(await updateBankIfLeaseHeld(db, ref, second!, { lastErrorProbe: true }), true);
     await releasePlaidSyncLease(db, ref, second!);
     assert.equal((await bank(bankId)).syncLease, null);
   });

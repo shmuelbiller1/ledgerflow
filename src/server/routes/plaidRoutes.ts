@@ -8,7 +8,7 @@ import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
-import { PLAID_SYNC_CONFLICT, claimPlaidSyncLease, releasePlaidSyncLease, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
+import { PLAID_SYNC_CONFLICT, claimPlaidSyncLease, releasePlaidSyncLease, updateBankIfLeaseHeld, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
@@ -307,12 +307,19 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         if (code !== 'ITEM_LOGIN_REQUIRED') {
           console.error("[Plaid] sync of one bank:", code || err);
           const error = code || 'UNKNOWN_ERROR';
+          // a sync that lost its lease leaves the bank to the sync that took over (CodeRabbit on #455)
+          if (!await updateBankIfLeaseHeld(db, doc.ref, leaseId, { status: 'error', updatedAt: now, syncLog: appendSyncLog(bank.syncLog, { at: now, result: 'error', error }) })) {
+            busy.push({ bankId: doc.id, institutionName: bank.institutionName || '' });
+            continue;
+          }
           failed.push({ bankId: doc.id, institutionName: bank.institutionName || '', error });
-          await doc.ref.update({ status: 'error', updatedAt: now, syncLog: appendSyncLog(bank.syncLog, { at: now, result: 'error', error }) });
+          continue;
+        }
+        if (!await updateBankIfLeaseHeld(db, doc.ref, leaseId, { status: 'login_required', updatedAt: now, syncLog: appendSyncLog(bank.syncLog, { at: now, result: 'login_required' }) })) {
+          busy.push({ bankId: doc.id, institutionName: bank.institutionName || '' });
           continue;
         }
         needsReconnect.push({ bankId: doc.id, institutionName: bank.institutionName || '' });
-        await doc.ref.update({ status: 'login_required', updatedAt: now, syncLog: appendSyncLog(bank.syncLog, { at: now, result: 'login_required' }) });
         if (bank.status !== 'login_required') {
           const name = bank.institutionName || 'A bank';
           await notify(db, {
@@ -327,7 +334,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
       }
     }
     // every connection failed: the sync failed (as before), with each one's reason kept in its log
-    if (failed.length > 0 && answered === 0 && needsReconnect.length === 0) return sendError(res, "Could not sync the bank feed", 502);
+    if (failed.length > 0 && answered === 0 && needsReconnect.length === 0 && busy.length === 0) return sendError(res, "Could not sync the bank feed", 502);
     res.json({ success: transactions.length > 0 && busy.length === 0, transactions, modified, removed, storedLines, needsReconnect, failed, busy, synced: answered, banks: banksSnap.size });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
