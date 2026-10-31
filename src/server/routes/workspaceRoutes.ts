@@ -482,7 +482,7 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
     const wsData = wsSnap.data() || {};
     const members: string[] = Array.isArray(wsData.members) ? wsData.members : [];
     const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats); // plan's seats, at least 5; free access: no cap
-    const currentSeatCount = members.length + 1; // plus primary owner
+    const currentSeatCount = new Set([...members, wsData.uid || 'owner']).size; // unique people: owner counted once (ACC-1b)
 
     if (wsData.bypassBilling !== true && currentSeatCount >= maxSeats) {
       return sendError(res, `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`, 402);

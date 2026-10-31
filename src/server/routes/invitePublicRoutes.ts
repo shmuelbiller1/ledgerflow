@@ -156,7 +156,7 @@ invitePublicRouter.post('/:token/accept', async (req, res) => {
       // the plan's own seats when no explicit cap is set (Codex on #460: Pro is 25, not 5); never below the old 5
       const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats);
 
-      if (wsData.bypassBilling !== true && !members.includes(user.uid) && members.length + 1 >= maxSeats) {
+      if (wsData.bypassBilling !== true && !members.includes(user.uid) && new Set([...members, wsData.uid || 'owner']).size >= maxSeats) { // owner counted once (ACC-1b)
         throw new Error('SEAT_LIMIT_EXCEEDED');
       }
 
