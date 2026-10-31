@@ -109,9 +109,16 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       } catch (err) {
         // the database work failed: take back the admin claim set above, so claim and records agree (CodeRabbit on #460)
         if (input.makeAdmin && !adminError) {
-          // put back exactly what they had (an existing admin stays one)
-          try { await authAdmin.setCustomUserClaims(target.uid, previousClaims); }
-          catch (undoErr) { console.error("[Give access] could not take back the admin claim:", undoErr); }
+          // put back exactly what they had (an existing admin stays one); try three times, and if it still fails
+          // say so plainly: the person may now hold admin rights that must be removed by hand (CodeRabbit on #460)
+          let restored = false;
+          for (let attempt = 0; attempt < 3 && !restored; attempt++) {
+            try { await authAdmin.setCustomUserClaims(target.uid, previousClaims); restored = true; }
+            catch (undoErr) { console.error(`[Give access] taking back the admin claim, attempt ${attempt + 1}:`, undoErr); }
+          }
+          if (!restored) {
+            return sendError(res, `Access was not saved, and the admin rights given to ${target.email} could not be taken back. Remove them in the user list now.`, 500);
+          }
         }
         throw err;
       }

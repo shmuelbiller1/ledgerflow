@@ -172,17 +172,17 @@ function ScopedTeamSettings() {
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="text-[var(--muted)] uppercase tracking-wider text-[10px]">Seat Capacity</span>
             <span className={isSeatLimitReached ? "text-amber-500 font-mono" : "text-emerald-500 font-mono"}>
-              {activeSeatCount} / {maxSeats} Used
+              {activeSeatCount} / {unlimitedSeats ? 'Unlimited' : maxSeats} Used
             </span>
           </div>
           <div className="w-full h-2 bg-[var(--surface)] rounded-full overflow-hidden border border-[var(--line)]">
             <div
               className={`h-full transition-all ${isSeatLimitReached ? "bg-amber-500" : "bg-indigo-600"}`}
-              style={{ width: `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
+              style={{ width: unlimitedSeats ? '100%' : `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
             />
           </div>
           <div className="text-[10px] text-[var(--muted)] font-medium text-right">
-            {isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
+            {unlimitedSeats ? "Unlimited seats" : isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
           </div>
         </div>
       </div>
