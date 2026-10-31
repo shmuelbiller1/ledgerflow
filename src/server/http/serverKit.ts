@@ -206,7 +206,8 @@ export async function authorizeWorkspace(req: AuthenticatedRequest, workspaceId:
       }
       const isCreditSensitive = isMutation || url.includes("/brain/");
 
-      if (isCreditSensitive) {
+      // ACC-1 (Codex on #460): free access given by LedgerFlow lifts the credit and spending gates too
+      if (isCreditSensitive && data?.bypassBilling !== true) {
         // 2. Compute credit balance checking
         const baseline = data?.computeCreditBalance !== undefined ? Number(data.computeCreditBalance) : 100000;
         const creditBalance = await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', baseline);

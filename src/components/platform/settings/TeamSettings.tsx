@@ -10,6 +10,7 @@ import InlineEdit from '../../ui/InlineEdit';
 import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
 import { copyWithFeedback } from '../../../lib/clipboard';
+import { planFor } from '../../../lib/plans';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -20,7 +21,9 @@ export default function TeamSettings() {
 function ScopedTeamSettings() {
   const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaceId = currentWorkspace?.id || 'default_workspace';
-  const maxSeats = currentWorkspace?.maxSeats || 5;
+  // same seat rule as the server (ACC-1): the plan's seats, at least 5; free access given by LedgerFlow has no cap
+  const maxSeats = currentWorkspace?.maxSeats || Math.max(5, planFor(currentWorkspace?.plan).limits.seats);
+  const unlimitedSeats = (currentWorkspace as { bypassBilling?: boolean } | undefined)?.bypassBilling === true;
 
   const [members, setMembers] = useState<string[]>([]);
   const [roles, setRoles] = useState<Record<string, WorkspaceRole>>({});
@@ -76,7 +79,7 @@ function ScopedTeamSettings() {
 
   const activeSeatCount = members.length + 1; // plus primary owner
   const seatsRemaining = Math.max(0, maxSeats - activeSeatCount);
-  const isSeatLimitReached = activeSeatCount >= maxSeats;
+  const isSeatLimitReached = !unlimitedSeats && activeSeatCount >= maxSeats;
 
   const handleSendInvite = async (next: string | number) => {
     const email = String(next).trim();
@@ -169,17 +172,17 @@ function ScopedTeamSettings() {
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="text-[var(--muted)] uppercase tracking-wider text-[10px]">Seat Capacity</span>
             <span className={isSeatLimitReached ? "text-amber-500 font-mono" : "text-emerald-500 font-mono"}>
-              {activeSeatCount} / {maxSeats} Used
+              {activeSeatCount} / {unlimitedSeats ? 'Unlimited' : maxSeats} Used
             </span>
           </div>
           <div className="w-full h-2 bg-[var(--surface)] rounded-full overflow-hidden border border-[var(--line)]">
             <div
               className={`h-full transition-all ${isSeatLimitReached ? "bg-amber-500" : "bg-indigo-600"}`}
-              style={{ width: `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
+              style={{ width: unlimitedSeats ? '100%' : `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
             />
           </div>
           <div className="text-[10px] text-[var(--muted)] font-medium text-right">
-            {isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
+            {unlimitedSeats ? "Unlimited seats" : isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
           </div>
         </div>
       </div>

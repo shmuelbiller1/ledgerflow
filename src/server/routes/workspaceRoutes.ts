@@ -43,6 +43,7 @@ import { completeSetup, recordOpeningBalances, SetupError } from '../services/op
 import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
 import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
+import { planFor } from '../../lib/plans';
 
 export const workspaceRouter = express.Router();
 
@@ -480,15 +481,11 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 
     const wsData = wsSnap.data() || {};
     const members: string[] = Array.isArray(wsData.members) ? wsData.members : [];
-    const maxSeats = wsData.maxSeats || 5;
+    const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats); // plan's seats, at least 5; free access: no cap
     const currentSeatCount = members.length + 1; // plus primary owner
 
-    if (currentSeatCount >= maxSeats) {
-      return sendError(
-        res,
-        `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`,
-        402
-      );
+    if (wsData.bypassBilling !== true && currentSeatCount >= maxSeats) {
+      return sendError(res, `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`, 402);
     }
 
     const invite = generateInviteToken(workspaceId, email, role);

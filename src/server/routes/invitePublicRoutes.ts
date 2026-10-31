@@ -7,6 +7,7 @@ import { getDb } from '../db/firestore';
 import { verifyInviteTokenSignature } from '../../lib/inviteManager';
 import { notify } from '../services/notificationService';
 import { writeServerAuditLog } from '../services/auditLogService';
+import { planFor } from '../../lib/plans';
 
 export const invitePublicRouter = express.Router();
 
@@ -152,9 +153,10 @@ invitePublicRouter.post('/:token/accept', async (req, res) => {
 
       const wsData = wsSnap.data() || {};
       const members: string[] = Array.isArray(wsData.members) ? [...wsData.members] : [];
-      const maxSeats = wsData.maxSeats || 5;
+      // the plan's own seats when no explicit cap is set (Codex on #460: Pro is 25, not 5); never below the old 5
+      const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats);
 
-      if (!members.includes(user.uid) && members.length + 1 >= maxSeats) {
+      if (wsData.bypassBilling !== true && !members.includes(user.uid) && members.length + 1 >= maxSeats) {
         throw new Error('SEAT_LIMIT_EXCEEDED');
       }
 
