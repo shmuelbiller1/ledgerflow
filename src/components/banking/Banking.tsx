@@ -59,11 +59,14 @@ export default function Banking() {
       const data = await res.json();
       setNeedsReconnect(Array.isArray(data.needsReconnect) ? data.needsReconnect : []);
       if (res.ok && Array.isArray(data.failed) && data.failed.length > 0) toast.warning(`${data.failed.length} bank connection(s) could not be synced: see Connected banks for why.`);
-      if (res.ok && data.success) {
+      const busy = res.ok && Array.isArray(data.busy) ? data.busy.length : 0;
+      if (busy > 0) toast.info(`${busy} bank connection(s) are being synced by another request: try again in a moment.`);
+      if (res.ok && (data.success || (busy > 0 && Number(data.synced) > 0))) {
         toast.success(`Synchronized ${accountName} with bank feed.`);
-      } else if (res.ok) {
+      } else if (res.ok && busy === 0) {
         toast.info(data.message || 'Bank feed synced. No new transactions.');
-      } else {
+      } else if (!res.ok) {
+        // a busy-only answer is a 200 and already said "try again" above; only a failed request is an error (Codex on #455)
         toast.error(`Bank feed error: ${data.error || data.message || 'Failed to sync with institution.'}`);
       }
     } catch (err) {

@@ -227,6 +227,36 @@ describe('AF-001: Plaid sync stores its rows before the cursor moves', { skip: !
     assert.equal(ok.stored, 0);
   });
 
+  test('a stale sync commits no chunk at all, not only no cursor (Codex on #439)', async () => {
+    const { storePlaidSync, plaidRowsAsBankLines, PLAID_STORE_CHUNK } = await import('../server/services/plaidIngest');
+    const rows = Array.from({ length: PLAID_STORE_CHUNK + 1 }, (_, i) => ({ transaction_id: `tx-stale-${i}`, date: '2026-10-28', name: `Stale ${i}`, amount: 1 }));
+    const lines = plaidRowsAsBankLines(rows, { id: bankId }, ws);
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: { id: bankId }, lines, expectedCursor: 'stale-cursor', bankUpdate: { syncCursor: 'older' } }), /synced by another request/);
+    const kept = await db.collection('bankLines').where('workspaceId', '==', ws).where('importIdentity', '==', 'plaid:tx-stale-0').get();
+    assert.equal(kept.size, 0, 'the first chunk was refused too');
+  });
+
+  test('one sync per bank: a second sync waits while the first holds the lease (CodeRabbit on #455)', async () => {
+    const { claimPlaidSyncLease, releasePlaidSyncLease, storePlaidSync, PLAID_SYNC_LEASE_MS } = await import('../server/services/plaidIngest');
+    const ref = { id: bankId };
+    const first = await claimPlaidSyncLease(db, ref);
+    assert.ok(first);
+    assert.equal(await claimPlaidSyncLease(db, ref), null, 'held by the first sync');
+    const second = await claimPlaidSyncLease(db, ref, Date.now() + PLAID_SYNC_LEASE_MS + 1000);
+    assert.ok(second, 'an expired lease can be taken over');
+    // the first sync's chunks now stop: its lease is gone
+    await assert.rejects(storePlaidSync(db, { workspaceId: ws, uid: 'owner-1', bankRef: ref, lines: [], leaseId: first!, bankUpdate: {} }), /synced by another request/);
+    await releasePlaidSyncLease(db, ref, first!);
+    assert.equal((await bank(bankId)).syncLease?.id, second, 'releasing an old lease leaves the new one');
+    // the first sync's late error is not written over the bank the second sync now holds
+    const { updateBankIfLeaseHeld } = await import('../server/services/plaidIngest');
+    assert.equal(await updateBankIfLeaseHeld(db, ref, first!, { status: 'error' }), false);
+    assert.notEqual((await bank(bankId)).status, 'error');
+    assert.equal(await updateBankIfLeaseHeld(db, ref, second!, { lastErrorProbe: true }), true);
+    await releasePlaidSyncLease(db, ref, second!);
+    assert.equal((await bank(bankId)).syncLease, null);
+  });
+
   test('a correction for a row never stored becomes a new line instead of being lost (CodeRabbit on #439)', async () => {
     const { storePlaidSync, plaidRowsAsBankLines } = await import('../server/services/plaidIngest');
     const modified = plaidRowsAsBankLines([{ transaction_id: 'tx-orphan', date: '2026-10-28', name: 'Only the correction', amount: 4 }], { id: bankId }, ws);

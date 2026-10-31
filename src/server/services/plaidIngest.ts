@@ -100,10 +100,15 @@ export function plaidRowsAsBankLines(rows: unknown[], connection: PlaidConnectio
 /** Rows stored per database transaction, so a first sync of a busy account is never one huge write. */
 export const PLAID_STORE_CHUNK = 500;
 
+/** Another sync of the same bank moved the cursor on while this one ran: nothing of this one is kept. */
+export const PLAID_SYNC_CONFLICT = 'The bank was synced by another request meanwhile. Sync again.';
+
 export async function storePlaidSync(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate: Record<string, unknown>;
   /** the cursor this sync started from: the cursor write is refused if another sync has moved the bank on */
   expectedCursor?: string;
+  /** the sync's hold on the bank (claimPlaidSyncLease): every chunk checks it is still this sync's */
+  leaseId?: string;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
   // (Codex on #439) a long history is stored in bounded chunks; every chunk but the last carries no cursor,
@@ -129,19 +134,22 @@ export async function storePlaidSync(db: Firestore, input: {
 
 async function storePlaidChunk(db: Firestore, input: {
   workspaceId: string; uid: string; bankRef: { id: string }; lines: PlaidBankLine[]; bankUpdate?: Record<string, unknown>;
-  expectedCursor?: string;
+  expectedCursor?: string; leaseId?: string;
   modified?: PlaidBankLine[]; removed?: string[];
 }): Promise<{ stored: number; corrected: number; removed: number; flagged: number }> {
   const result = { stored: 0, corrected: 0, removed: 0, flagged: 0 };
   await db.runTransaction(async (t) => {
     // reads first (the transaction refuses a read after a write)
-    // (CodeRabbit on #439) two overlapping syncs: the one that commits last must not put an older cursor back
-    if (input.bankUpdate && 'expectedCursor' in input) {
+    // (CodeRabbit on #439) two overlapping syncs: the one that commits last must not put an older cursor back.
+    // Every chunk checks it (Codex on #439), so a stale sync never commits old corrections before its last chunk
+    if ('expectedCursor' in input || input.leaseId) {
       const bankNow = await t.get(db.collection('banks').doc(input.bankRef.id));
-      const savedCursor = (bankNow.data() as { syncCursor?: unknown } | undefined)?.syncCursor;
-      if ((typeof savedCursor === 'string' ? savedCursor : undefined) !== input.expectedCursor) {
-        throw new Error('The bank was synced by another request meanwhile. Sync again.');
+      const saved = (bankNow.data() || {}) as { syncCursor?: unknown; syncLease?: { id?: unknown } | null };
+      if ('expectedCursor' in input && (typeof saved.syncCursor === 'string' ? saved.syncCursor : undefined) !== input.expectedCursor) {
+        throw new Error(PLAID_SYNC_CONFLICT);
       }
+      // (CodeRabbit on #455) the whole sync holds the bank's lease: a sync whose lease was taken over stops
+      if (input.leaseId && saved.syncLease?.id !== input.leaseId) throw new Error(PLAID_SYNC_CONFLICT);
     }
     const seen = await existingImportIdentities(db, t, input.workspaceId, input.lines);
     const inBatch = new Set<string>();
@@ -181,7 +189,7 @@ async function storePlaidChunk(db: Firestore, input: {
       const ref = db.collection('bankLines').doc(change.id);
       const open = (current.status ?? 'pending') === 'pending' && !current.matchedTransactionId;
       if (!open) {
-        t.update(ref, { bankChange: change.kind, bankChangeAt: now, ...(change.line ? { bankCorrection: { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency } } : {}) });
+        t.update(ref, { bankChange: change.kind, bankChangeAt: now, bankCorrection: change.line ? { date: change.line.date, description: change.line.description, amountCents: change.line.amountCents, currency: change.line.currency } : null });
         result.flagged += 1;
       } else if (change.kind === 'removed') {
         t.delete(ref);
@@ -196,4 +204,46 @@ async function storePlaidChunk(db: Firestore, input: {
     result.stored = write.length;
   });
   return result;
+}
+
+/** How long one sync may hold a bank before another may take it over (a crashed sync never blocks it for good). */
+export const PLAID_SYNC_LEASE_MS = 10 * 60 * 1000;
+
+/**
+ * (CodeRabbit on #455) one sync per bank at a time: the sync takes the bank's lease before it asks Plaid
+ * and keeps it until its last chunk is stored, so two syncs never interleave their chunks. Returns the
+ * lease id, or null while another sync holds an unexpired lease.
+ */
+export async function claimPlaidSyncLease(db: Firestore, bankRef: { id: string }, now = Date.now()): Promise<string | null> {
+  const id = crypto.randomUUID();
+  return db.runTransaction(async (t) => {
+    const ref = db.collection('banks').doc(bankRef.id);
+    const lease = ((await t.get(ref)).data() || {}).syncLease as { id?: string; until?: number } | null | undefined;
+    if (lease?.id && typeof lease.until === 'number' && lease.until > now) return null;
+    t.update(ref, { syncLease: { id, until: now + PLAID_SYNC_LEASE_MS } });
+    return id;
+  });
+}
+
+/** Gives the lease back, only if it is still this sync's. */
+export async function releasePlaidSyncLease(db: Firestore, bankRef: { id: string }, leaseId: string): Promise<void> {
+  await db.runTransaction(async (t) => {
+    const ref = db.collection('banks').doc(bankRef.id);
+    const lease = ((await t.get(ref)).data() || {}).syncLease as { id?: string } | null | undefined;
+    if (lease?.id === leaseId) t.update(ref, { syncLease: null });
+  });
+}
+
+/**
+ * (CodeRabbit on #455) writes a failed sync's status only while this sync still holds the bank's lease,
+ * so a sync whose lease expired never overwrites the result of the sync that took over. False when it lost it.
+ */
+export async function updateBankIfLeaseHeld(db: Firestore, bankRef: { id: string }, leaseId: string, data: Record<string, unknown>): Promise<boolean> {
+  return db.runTransaction(async (t) => {
+    const ref = db.collection('banks').doc(bankRef.id);
+    const lease = ((await t.get(ref)).data() || {}).syncLease as { id?: string } | null | undefined;
+    if (lease?.id !== leaseId) return false;
+    t.update(ref, data);
+    return true;
+  });
 }

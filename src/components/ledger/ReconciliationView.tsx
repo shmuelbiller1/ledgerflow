@@ -364,7 +364,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                </div>
                                <h4 className="font-extrabold text-sm text-[var(--text)] min-w-0"><BankLineName text={line.description} /></h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 tabular-nums">Statement amount: {formatCurrency(line.amountCents, line.currency)}</p>
-                               {line.bankCorrection && (
+                               {line.bankChange === 'modified' && line.bankCorrection && (
                                  <p className="text-[10px] text-amber-800 font-mono mt-0.5 tabular-nums">Bank now says: {line.bankCorrection.date} · {line.bankCorrection.description} · {formatCurrency(line.bankCorrection.amountCents, line.bankCorrection.currency || line.currency)}</p>
                                )}
                              </button>

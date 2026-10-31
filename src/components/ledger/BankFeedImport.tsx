@@ -104,6 +104,10 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
       if (Array.isArray(data.failed) && data.failed.length > 0) {
         toast.warning(`${data.failed.length} bank connection(s) could not be synced: see Banking → Connected banks for why.`);
       }
+      const busy = Array.isArray(data.busy) ? data.busy.length : 0;
+      if (busy > 0) toast.info(`${busy} bank connection(s) are being synced by another request: try again in a moment.`);
+      // a connection is busy and none synced: the dialog stays open to try again (CodeRabbit on #455)
+      if (busy > 0 && (Number(data.synced) || 0) === 0) return;
 
       // AF-001: the server already stored these rows as bank lines (with the cursor, in one transaction);
       // booking them again here would make a second record of the same bank event (Codex on #439)

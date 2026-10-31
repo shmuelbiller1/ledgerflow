@@ -84,6 +84,8 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         ? accounts.find(a => a.id === bankLine.accountId && resolveAccountRole(a) === 'cash')
         : undefined;
       if (bankLine.accountId && !bankAccount) throw new Error('The bank line\'s account is not available as a cash account.');
+      // a Plaid line from an account not tied to a ledger account: which bank it cleared is not known (Codex on #439)
+      if (bankLine.source === 'plaid' && !bankLine.accountId) throw new Error('Choose the bank account for this line first (use Pay or Split).');
       const rawLines: Array<Record<string, unknown> & { accountId: string; amountCents: number }> = [{ accountId: target.id, accountName: target.name || 'General Expense', amountCents: bankLine.amountCents, ...(tags ? { tags } : {}), ...(dimensions ? { dimensions } : {}) }];
       if (bankAccount && bankLine.amountCents !== 0) {
         rawLines.push({ accountId: bankAccount.id, accountName: bankAccount.name, amountCents: -bankLine.amountCents, description: 'Bank Settlement' });
