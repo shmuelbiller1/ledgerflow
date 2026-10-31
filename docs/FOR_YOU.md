@@ -616,3 +616,12 @@ it on the Chart of Accounts screen. Say if you want accounts added to the detail
 **Related, same PR:** CodeRabbit found that no button opens the legacy Bank Feed Import dialog at all (Ledger has a
 `bank_import` modal that nothing sets). The live statement import is Banking → Import statement. *Default I used:* keep
 the fixed dialog in the code, unreachable, and add no new entry point. Say if you'd rather I delete it.
+
+## 31 Oct — one setting for automatic bank feeds (AI #1, AU-1)
+
+Plaid can now tell LedgerFlow when a connected bank has new transactions, so bank lines arrive without anyone
+pressing Sync. To turn it on, add **`PLAID_WEBHOOK_URL`** = `https://<your production domain>/api/webhook/plaid`
+in Vercel (Settings → Environment Variables) and redeploy. Every notice is checked against Plaid's signature
+before anything happens. *Default I used:* the setting is optional. Without it, nothing changes and Sync works
+as today. Banks connected before you set it keep working with Sync. They get automatic updates once they are
+reconnected (or I can add a one-time "register webhook" step for existing connections if you want it).
