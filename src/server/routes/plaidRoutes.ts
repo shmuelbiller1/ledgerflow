@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import { getDb, validateWorkspaceMember } from "../db/firestore.ts";
 import { SecurityService } from "../../services/securityService.ts";
-import { getLocalDateISO } from "../../lib/utils.ts";
+import { getDateInTimezoneISO } from "../../lib/calendarDate.ts";
 import { appendSyncLog, readSyncLog } from "../../lib/bankFeedStatus.ts";
 import { requireWorkspaceRole } from "./workspaceRoutes.ts";
 import { notify } from "../services/notificationService.ts";
@@ -221,8 +221,10 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     let query = db.collection("banks").where("workspaceId", "==", body.workspaceId);
     if (body.accountId) query = query.where("accountId", "==", body.accountId);
     const banksSnap = await query.get();
-    // the books' currency: a row in another currency is stored for review, never as home-currency money
-    const workspaceCurrency = String((await db.collection("workspaces").doc(body.workspaceId).get()).data()?.currency || 'USD');
+    // the books' currency and timezone from trusted workspace record
+    const wsData = (await db.collection("workspaces").doc(body.workspaceId).get()).data();
+    const workspaceCurrency = String(wsData?.currency || 'USD');
+    const workspaceTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
 
     const today = new Date();
     const thirtyDaysAgo = new Date();
@@ -261,8 +263,8 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
         } else {
           const response = await plaidClient.transactionsGet({
             access_token: accessToken,
-            start_date: getLocalDateISO(thirtyDaysAgo),
-            end_date: getLocalDateISO(today),
+            start_date: getDateInTimezoneISO(thirtyDaysAgo, workspaceTimezone),
+            end_date: getDateInTimezoneISO(today, workspaceTimezone),
           });
           added = response.data.transactions;
           lineCount = response.data.transactions.length;

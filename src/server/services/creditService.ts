@@ -6,7 +6,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import type { ChartAccount } from '../../types';
 import { lockMessage, postingLock } from '../../lib/periodLock';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { createHash } from 'crypto';
 import { deriveScopedOperationKey } from '../utils/idempotency';
 import { ALLOCATION_OPERATIONS, AllocationError, allocationId, allocationLedgerReady, assertApplicationDate, baseFigures, recordAllocation, type AllocationSide, type NewAllocation } from './allocationLedger';
@@ -344,14 +344,14 @@ export interface RefundCreditInput {
   creditId: string;
   amountCents: number;
   cashAccountId: string;
-  date: string;
+  date?: string;
   memo?: string;
 }
 
 export async function refundCredit(db: Firestore, input: RefundCreditInput) {
   const side = SIDES[input.kind];
   const amountCents = positiveCents(input.amountCents);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new CreditError(400, 'Date must be YYYY-MM-DD');
+  if (input.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new CreditError(400, 'Date must be YYYY-MM-DD');
   const workspaceRef = db.collection('workspaces').doc(input.workspaceId);
   const creditRef = db.collection(side.credits).doc(input.creditId);
   const cashRef = db.collection('chartAccounts').doc(input.cashAccountId);
@@ -366,8 +366,9 @@ export async function refundCredit(db: Firestore, input: RefundCreditInput) {
     if (!cash || cash.workspaceId !== input.workspaceId || resolveAccountRole(cash) !== 'cash') {
       throw new CreditError(400, 'Choose a cash or bank account of this workspace');
     }
-    const lock = postingLock(input.date, workspace, input.uid);
-    if (lock) throw new CreditError(400, lockMessage(input.date, lock));
+    const refundDate = input.date || todayIn(workspace);
+    const lock = postingLock(refundDate, workspace, input.uid);
+    if (lock) throw new CreditError(400, lockMessage(refundDate, lock));
     if (!USABLE_CREDIT.has(credit.status)) throw new CreditError(409, `${side.label} is ${credit.status}; nothing left to refund`);
     const remaining = remainingOf(credit);
     if (amountCents > remaining) throw new CreditError(400, `Only ${remaining} cents are left on this credit`);
@@ -389,7 +390,7 @@ export async function refundCredit(db: Firestore, input: RefundCreditInput) {
       id: db.collection('transactions').doc().id,
       workspaceId: input.workspaceId,
       uid: input.uid,
-      date: input.date,
+      date: refundDate,
       description,
       totalAmountCents: amountCents,
       currency: credit.currency || workspace.currency || 'USD',

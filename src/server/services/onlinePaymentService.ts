@@ -17,7 +17,7 @@ import type { ChartAccount } from '../../types';
 import { afterPaymentRecorded } from './afterPayment';
 import { logger } from '../utils/logger';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 
 export interface StripeInvoiceSession {
   id: string;

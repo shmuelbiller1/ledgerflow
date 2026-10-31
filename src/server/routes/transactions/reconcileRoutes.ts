@@ -3,7 +3,7 @@ import { FieldValue } from '../../db/firestore';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../../schemas';
 import type { Transaction } from '../../../types';
-import { parseLocalDate } from '../../../lib/utils';
+import { parseDateInTimezone } from '../../../lib/calendarDate';
 import { getDb } from '../../db/firestore';
 import type { DocumentData, Firestore } from '../../db/firestore';
 import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
@@ -352,6 +352,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
       if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) return res.status(403).json({ error: 'Not a member' });
+      const wsTimezone = typeof wsDoc.data()?.timezone === 'string' ? wsDoc.data()?.timezone : undefined;
 
       // Fetch uncleared transactions for this workspace
       const snapshot = await db.collection('transactions')
@@ -368,7 +369,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
         let lineTime: number | null = null;
         if (bankLine.date) {
           try {
-            lineTime = parseLocalDate(bankLine.date).getTime();
+            lineTime = parseDateInTimezone(bankLine.date, wsTimezone).getTime();
           } catch {
             lineTime = null;
           }
@@ -385,7 +386,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
           let dateProximity = 0.5;
           if (lineTime && tx.date) {
             try {
-              const txTime = parseLocalDate(tx.date).getTime();
+              const txTime = parseDateInTimezone(tx.date, wsTimezone).getTime();
               const diffDays = Math.abs(lineTime - txTime) / (1000 * 60 * 60 * 24);
               if (diffDays === 0) dateProximity = 1.0;
               else if (diffDays <= 3) dateProximity = 0.9;

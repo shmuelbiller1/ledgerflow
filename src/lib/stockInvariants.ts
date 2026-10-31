@@ -18,7 +18,7 @@ import { resolveAccountRole } from './accountUtils';
 import { isPostable, lineAmount, transactionDate } from './txFilters';
 import { datedMoves, NO_LOCATION, orderedMoves, type StockMove } from './stockMoves';
 import type { CheckFinding, DataCheck } from './dataChecks';
-import { formatCurrency } from './utils';
+import { formatCurrency } from './moneyFormat';
 
 export interface StockClosingRow {
   itemId: string;

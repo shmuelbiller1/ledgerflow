@@ -5,7 +5,7 @@ import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { applyUnappliedPayment, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
 import { voidPayment } from '../services/paymentVoidService';
 import { extractCanonicalOperationId } from '../utils/idempotency';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { getWorkspaceUserRole, AuthenticatedRequest, requireWorkspaceRole } from './workspaceRoutes';
 import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../services/creditService';
 import { createDeposit, DepositError } from '../services/depositService';
@@ -23,7 +23,7 @@ const paymentAllocationSchema = z.object({
 const paymentInputSchema = z.object({
   workspaceId: z.string().min(1),
   amountCents: z.number().int().positive(),
-  paymentDate: z.string().default(() => getLocalDateISO()),
+  paymentDate: z.string().optional(),
   cashAccountId: z.string().min(1),
   paymentMethod: z.string().optional(),
   referenceNumber: z.string().optional(),
@@ -60,7 +60,8 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     const { workspaceId, sendRemittance, ...payload } = parsed.data;
 
     const db = dbOverride || getDb();
-    await validateWorkspaceMember(db, workspaceId, authReq.user);
+    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
 
     if (!authReq.user.admin) {
       const userRole = await getWorkspaceUserRole(db, workspaceId, authReq.user.uid);
@@ -75,7 +76,7 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     }
     // Existing clients without an operation ID remain compatible; callers with a stable ID
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
-    const paymentInput = { ...payload, workspaceId, uid: authReq.user.uid };
+    const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
     const result = operationId
       ? await createPaymentIdempotent(db, paymentInput, operationId)
       : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
@@ -116,7 +117,7 @@ const creditRefundSchema = z.object({
   creditId: z.string().min(1),
   amountCents: z.number().int().positive(),
   cashAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => getLocalDateISO()),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   memo: z.string().max(500).optional(),
 });
 
@@ -181,7 +182,7 @@ paymentRouter.post('/credits/auto-apply', ledgerWriters, async (req, res) => {
 const depositSchema = z.object({
   workspaceId: z.string().min(1),
   bankAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => getLocalDateISO()),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   paymentIds: z.array(z.string().min(1)).min(1).max(500),
   memo: z.string().max(500).optional(),
 });
@@ -220,10 +221,11 @@ paymentRouter.post('/:paymentId/apply', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid request', details: parsed.error.issues });
   try {
     const db = getDb();
-    await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
+    const { data: wsData } = await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
     const result = await applyUnappliedPayment(db, {
       workspaceId: parsed.data.workspaceId, uid: authReq.user.uid, paymentId: String((req.params as Record<string, string>).paymentId),
-      allocations: parsed.data.allocations, date: parsed.data.date || getLocalDateISO(),
+      allocations: parsed.data.allocations, date: parsed.data.date || getDateInTimezoneISO(new Date(), wsTimezone),
       operationId: extractCanonicalOperationId({ headers: req.headers }),
     });
     res.json({ status: 'success', data: result });

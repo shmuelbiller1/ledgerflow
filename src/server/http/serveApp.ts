@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { startStandaloneScheduler } from "../jobs/standaloneScheduler";
 
+declare const __PRODUCTION_BUNDLE__: boolean | undefined;
+
 /**
  * Long-running server (npm run dev / npm start), F-01 moved from server.ts: the API app plus the
  * web pages (Vite in development, dist/ in production), the background jobs' timer and a graceful
@@ -13,8 +15,10 @@ export async function serveApp(app: express.Express, PORT: number): Promise<void
   const http = await import('http');
   const httpServer = http.createServer(app);
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Vite middleware is strictly for unbundled local development (`npm run dev` -> `tsx server.ts`).
+  // Production bundles (`__PRODUCTION_BUNDLE__ === true`) dead-code-eliminate this branch so `vite`,
+  // `rollup`, `jiti`, and `@esbuild/*` are never bundled or traced into deployed server artifacts.
+  if (typeof __PRODUCTION_BUNDLE__ === "undefined" && process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { 

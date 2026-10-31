@@ -1,6 +1,6 @@
 import { Employee, TemporalValidity } from '../types';
 import { TruthEngine } from '../modules/integrity/TruthEngine';
-import { getLocalDateISO } from './utils';
+import { getLocalDateISO } from './calendarDate';
 import { afterTaxLines, preTaxLines, type DeductionLine } from './payrollDeductions';
 
 export const PAYROLL_DISCLAIMER = 'Estimations for financial forecasting, budgeting, and enterprise liability planning only. Not a certified tax calculation for official IRS/state tax returns.';

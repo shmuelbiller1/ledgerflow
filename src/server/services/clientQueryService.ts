@@ -7,7 +7,7 @@ import {
   ASKER_ROLES, MAX_MESSAGES, MAX_OPEN_PER_ENTRY, questionProblem, replyProblem,
   type ClientQuery, type ClientQueryMessage,
 } from '../../lib/clientQueries';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { writeServerAuditLog } from './auditLogService';
 import { notify } from './notificationService';
 

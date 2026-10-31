@@ -1,5 +1,4 @@
-import { getLocalDateISO } from './utils';
-import { addDaysYMD, addMonthsYMD, dayNumber, fromDayNumber } from './calendarDate';
+import { addDaysYMD, addMonthsYMD, dayNumber, fromDayNumber, getLocalDateISO } from './calendarDate';
 
 export { addDaysYMD, addMonthsYMD, dayNumber, fromDayNumber };
 

@@ -1,6 +1,6 @@
 import type { Firestore } from '../db/firestore';
 import { FieldValue } from '../db/firestore';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { notify } from './notificationService';
 
 /**

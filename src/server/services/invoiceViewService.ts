@@ -1,6 +1,6 @@
 import type { DocumentData, DocumentReference, Firestore } from '../db/firestore';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { logger } from '../utils/logger';
 import { notify } from './notificationService';
 
