@@ -31,7 +31,7 @@ describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws[0]).set({ uid: target.uid, name: 'Dana One', plan: 'free', members: [target.uid] });
-    await db.collection('workspaces').doc(ws[1]).set({ uid: target.uid, name: 'Dana Two', plan: 'growth', members: [target.uid] });
+    await db.collection('workspaces').doc(ws[1]).set({ uid: target.uid, name: 'Dana Two', plan: 'growth', members: [target.uid], stripeSubscriptionId: 'sub_test' });
     await db.collection('workspaces').doc(ws[3]).set({ uid: 'founder-x', name: 'Co-owned', plan: 'free', members: ['founder-x', target.uid], roles: { [target.uid]: 'owner' } });
     await db.collection('workspaces').doc(ws[2]).set({ uid: 'someone-else', name: 'Not Dana', plan: 'free', members: ['someone-else', target.uid] });
   });
@@ -47,6 +47,7 @@ describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     const r = await giveAccess(db, { uid: 'admin-1', email: 'admin@ledgerflow.test' }, target, { level: 'full', makeAdmin: true });
     assert.deepEqual(r.workspaces.map(w => w.id).sort(), [ws[0], ws[1], ws[3]].sort());
     assert.equal(r.madeAdmin, true);
+    assert.deepEqual(r.stillBilled, ['Dana Two'], 'a paid subscription is reported, not cancelled');
     for (const id of [ws[0], ws[1]]) {
       const d = (await db.collection('workspaces').doc(id).get()).data()!;
       assert.deepEqual([d.bypassBilling, d.plan], [true, 'enterprise']);

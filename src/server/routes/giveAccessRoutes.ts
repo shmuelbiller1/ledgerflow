@@ -36,7 +36,7 @@ export async function giveAccess(
   actor: { uid: string; email: string },
   target: { uid: string; email: string },
   input: { level: AccessLevel; makeAdmin?: boolean },
-): Promise<{ workspaces: { id: string; name: string }[]; madeAdmin: boolean }> {
+): Promise<{ workspaces: { id: string; name: string }[]; madeAdmin: boolean; stillBilled: string[] }> {
   // owners are the creator (uid) and anyone given the owner role (Codex on #460); ordinary members are left alone
   const [created, joined] = await Promise.all([
     db.collection("workspaces").where("uid", "==", target.uid).get(),
@@ -51,12 +51,14 @@ export async function giveAccess(
   const fields = workspaceFieldsFor(input.level);
   const now = new Date().toISOString();
   const changed: { id: string; name: string }[] = [];
+  const stillBilled: string[] = [];
   // one transaction: every workspace and the admin role change together, or none do (CodeRabbit on #460)
   await db.runTransaction(async t => {
     const userRef = db.collection("users").doc(target.uid);
     const userBefore = input.makeAdmin ? (await t.get(userRef)).data() || {} : {};
     const snaps = await Promise.all(owned.docs.map(doc => t.get(doc.ref)));
     changed.length = 0;
+    stillBilled.length = 0;
     for (const [i, snap] of snaps.entries()) {
       if (!snap.exists) continue;
       const doc = owned.docs[i];
@@ -67,6 +69,8 @@ export async function giveAccess(
       await writeAuditLog(actor.uid, actor.email, "ADMIN_ACCESS_GIVEN",
         `Gave ${input.level} access to ${target.email}`, doc.id, before, { ...before, ...update }, t);
       changed.push({ id: doc.id, name: String(before.name || doc.id) });
+      // a paid Stripe subscription is not cancelled here: free access is reported as still billed (Codex on #460)
+      if (fields.bypassBilling === true && before.stripeSubscriptionId) stillBilled.push(String(before.name || doc.id));
     }
     if (input.makeAdmin) {
       t.set(userRef, { role: "admin", updatedAt: now }, { merge: true });
@@ -74,7 +78,7 @@ export async function giveAccess(
         `Made ${target.email} a platform admin`, "system", userBefore, { ...userBefore, role: "admin" }, t);
     }
   });
-  return { workspaces: changed, madeAdmin: !!input.makeAdmin };
+  return { workspaces: changed, madeAdmin: !!input.makeAdmin, stillBilled };
 }
 
 export function registerGiveAccessRoutes(app: express.Express): void {

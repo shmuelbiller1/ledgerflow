@@ -33,6 +33,8 @@ export function GiveAccessPanel() {
       const names = (data.workspaces as { name: string }[]).map(w => w.name);
       setDone(names.length ? `Done for ${names.join(', ')}${data.madeAdmin ? '; now a platform admin' : ''}.` : `${email} owns no workspace yet${data.madeAdmin ? '; now a platform admin' : ''}.`);
       if (data.adminError) toast.error(data.adminError); else toast.success('Access updated');
+      // free access does not cancel a paid subscription; say so instead of implying billing stopped
+      if (Array.isArray(data.stillBilled) && data.stillBilled.length) toast.warning(`Still has a paid Stripe subscription: ${data.stillBilled.join(', ')}. Cancel it in Stripe if they should stop paying.`);
     } catch (err) {
       if (requestId !== latestRequest.current) return;
       toast.error(err instanceof Error ? err.message : 'Access could not be given');
