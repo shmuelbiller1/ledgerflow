@@ -337,7 +337,7 @@ function ScopedTeamSettings() {
             </div>
 
             {/* Invited Members Rows */}
-            {members.map((mUid) => {
+            {[...new Set(members)].filter(mUid => mUid !== (ownerUid || currentWorkspace?.uid)).map((mUid) => { /* owner shown once, in its own row (ACC-1b) */
               const currentRole = roles[mUid] || (mUid === ownerUid ? 'owner' : 'viewer');
               const isOwner = mUid === ownerUid;
 
