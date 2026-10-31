@@ -481,11 +481,9 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 
     const wsData = wsSnap.data() || {};
     const members: string[] = Array.isArray(wsData.members) ? wsData.members : [];
-    // the plan's own seats when no explicit cap is set (Codex on #460: Pro is 25, not 5); never below the old 5
-    const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats);
+    const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats); // plan's seats, at least 5; free access: no cap
     const currentSeatCount = members.length + 1; // plus primary owner
 
-    // ACC-1 (Codex on #460): free access given by LedgerFlow has no seat limit
     if (wsData.bypassBilling !== true && currentSeatCount >= maxSeats) {
       return sendError(
         res,
