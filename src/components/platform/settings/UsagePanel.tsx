@@ -1,3 +1,4 @@
+import { planFor } from '../../../lib/plans';
 import React, { useEffect, useState } from 'react';
 import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -29,8 +30,8 @@ export default function UsagePanel() {
   const rows: Array<[string, { used: number; limit: number }, string]> = [['Entries', usage.entries, ''], ['People with access', usage.seats, ''], ['Document storage', usage.storageMb, ' MB']];
   return (
     <section aria-labelledby="usage-title" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-2">
-      <h3 id="usage-title" className="text-sm font-bold text-[var(--text)]">Usage on the {usage.plan} plan</h3>
-      {usage.unlimited ? <p className="text-xs text-[var(--muted)]">No limits apply to this workspace.</p> : (
+      <h3 id="usage-title" className="text-sm font-bold text-[var(--text)]">Usage on the {planFor(usage.plan).name} plan</h3>
+      {usage.unlimited ? <p className="text-xs text-[var(--muted)]">Free access (given by LedgerFlow): no limits apply to this workspace.</p> : (
         <ul className="space-y-2 text-sm">
           {rows.map(([label, { used, limit }, unit]) => {
             const share = limit > 0 ? used / limit : 0;
