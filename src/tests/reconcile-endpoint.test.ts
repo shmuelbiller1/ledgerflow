@@ -244,6 +244,17 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(statusCode, 400);
     assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line still stays');
     assert.equal(db.getDocData('transactions', 'tx-b').status, 'reconciled', 'the entry is unchanged');
+    // a release followed by an update that puts the entry back to reconciled is refused too
+    const undone = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: { status: 'completed' } },
+      { id: 'tx-b', type: 'updateTransaction', data: {} },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(undone, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.ok(db.getDocData('bankLines', 'line-gone'));
+    assert.equal(db.getDocData('transactions', 'tx-b').status, 'reconciled');
     // and the same request with a real release goes through: the refusal above came from the rule
     const real = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
       { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
