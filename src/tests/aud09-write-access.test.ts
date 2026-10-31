@@ -98,7 +98,8 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
   };
 
   it('finds the write routes', () => {
-    assert.ok(routes.length > 50, `only ${routes.length} write routes found`);
+    // a floor that only goes up: raise it when routes are added, lower it only when one is removed on purpose
+    assert.ok(routes.length >= 89, `only ${routes.length} of at least 89 write routes found`);
   });
 
   for (const who of ['stranger-1', 'view-1']) {
