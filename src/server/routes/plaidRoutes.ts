@@ -110,19 +110,22 @@ plaidRouter.post("/exchange_public_token", ledgerWriters, async (req, res) => {
     });
     // AU-1 (Codex on #458): Plaid sends SYNC_UPDATES_AVAILABLE only after the item's first /transactions/sync,
     // so start it now; a failure here leaves the connection saved and the next Sync picks it up
+    // CodeRabbit on #458: say whether the first sync ran, so the screen can ask for a Sync when it did not
+    let firstSync: string | undefined;
     if (process.env.PLAID_WEBHOOK_URL) {
+      firstSync = 'failed';
       try {
         const ws = (await getDb().collection("workspaces").doc(workspaceId).get()).data();
-        await syncOneBank(getDb(), await ref.get(), {
+        ({ kind: firstSync } = await syncOneBank(getDb(), await ref.get(), {
           workspaceId, uid: user.uid,
           workspaceCurrency: String(ws?.currency || 'USD'),
           workspaceTimezone: typeof ws?.timezone === 'string' ? ws.timezone : undefined,
-        });
+        }));
       } catch (err) {
         console.error("[Plaid] first sync after connect:", plaidErrorCode(err) || err);
       }
     }
-    res.json({ success: true, bankId: ref.id });
+    res.json({ success: true, bankId: ref.id, ...(firstSync ? { firstSync } : {}) });
   } catch (error) {
     if (error instanceof z.ZodError) return sendError(res, "workspaceId and public_token are required", 400);
     console.error("[Plaid] exchange_public_token:", plaidErrorCode(error) || error);
@@ -139,14 +142,18 @@ plaidRouter.post("/reconnected", ledgerWriters, async (req, res) => {
     if (!bank || bank.workspaceId !== workspaceId) return sendError(res, "Bank connection not found", 404);
     await ref.update({ status: 'active', updatedAt: new Date().toISOString() });
     // AU-1 (Codex on #458): Link update mode ignores `webhook`, so register it on the item directly
+    // CodeRabbit on #458: a failed registration is said in the answer, not only logged
+    let webhookRegistered: boolean | undefined;
     if (process.env.PLAID_WEBHOOK_URL && plaidClient.itemWebhookUpdate && bank.access_token) {
       try {
         await plaidClient.itemWebhookUpdate({ access_token: SecurityService.decryptSensitiveField(bank.access_token), webhook: process.env.PLAID_WEBHOOK_URL });
+        webhookRegistered = true;
       } catch (err) {
+        webhookRegistered = false;
         console.error("[Plaid] item webhook update:", plaidErrorCode(err) || err);
       }
     }
-    res.json({ success: true });
+    res.json({ success: true, ...(webhookRegistered === undefined ? {} : { webhookRegistered }) });
   } catch (error) {
     if (error instanceof z.ZodError) return sendError(res, "workspaceId and bankId are required", 400);
     sendError(res, "Could not update the bank connection");

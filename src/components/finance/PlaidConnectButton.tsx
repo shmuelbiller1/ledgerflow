@@ -75,11 +75,15 @@ function PlaidLauncher({ onSuccessSync, bankId, label, onClosed }: { onSuccessSy
     async (public_token: string, metadata: { institution?: { name?: string } | null }) => {
       try {
         if (bankId) {
-          await plaidPost('reconnected', { workspaceId, bankId });
+          const r = await plaidPost('reconnected', { workspaceId, bankId });
           toast.success('Bank reconnected');
+          // AU-1: automatic updates could not be switched on; Sync still works
+          if (r?.webhookRegistered === false) toast.warning('Automatic bank updates could not be turned on. Use Sync to fetch new transactions.');
         } else {
-          await plaidPost('exchange_public_token', { workspaceId, public_token, institutionName: metadata?.institution?.name || undefined });
+          const r = await plaidPost('exchange_public_token', { workspaceId, public_token, institutionName: metadata?.institution?.name || undefined });
           toast.success('Bank connected via Plaid');
+          // AU-1: Plaid sends automatic updates only after a first sync; if it did not run, a Sync starts them
+          if (r?.firstSync && r.firstSync !== 'ok') toast.warning('Press Sync once to start automatic bank updates.');
         }
         onSuccessSync?.();
       } catch (err) {
