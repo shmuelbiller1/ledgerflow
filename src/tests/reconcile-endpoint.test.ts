@@ -230,6 +230,15 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     await handleReconcile(req, res, db as unknown as Firestore);
     assert.equal(statusCode, 400);
     assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line stays');
+    // an update that leaves the entry reconciled does not count as releasing it
+    const noop = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: {} },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(noop, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line still stays');
   });
 
   test('AF-001: undo refuses a bank correction dated in a closed period (Codex on #455)', async () => {
