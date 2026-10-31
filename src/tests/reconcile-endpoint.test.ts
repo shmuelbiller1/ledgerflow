@@ -216,6 +216,18 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(db.getDocData('bankLines', 'line-gone'), undefined, 'a line the bank withdrew does not come back to To review');
   });
 
+  test('AF-001: undo refuses a bank correction dated in a closed period (Codex on #455)', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', lockDate: '2026-09-30', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-02', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, bankChange: 'modified', bankCorrection: { date: '2026-09-29', description: 'New', amountCents: -500, currency: 'USD' } });
+    const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'line-mod', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } }] } } as unknown as express.Request;
+    let statusCode = 200;
+    const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
+    await handleReconcile(req, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.equal(db.getDocData('bankLines', 'line-mod').status, 'matched', 'nothing written');
+  });
+
   test('Undo sets bank line back to pending and transaction back to completed with audit log', async () => {
     const db = new MockDb();
     db.data.set('workspaces/ws-1', {

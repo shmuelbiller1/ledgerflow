@@ -132,6 +132,8 @@ export async function handleReconcile(req: express.Request, res: express.Respons
               writes.push(() => t.delete(lineRef));
               continue;
             }
+            // the bank's new date must be in an open period too (Codex on #455)
+            if (validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection?.date) assertPostingOpen(line.bankCorrection.date, wsData, user.uid);
             const correction = validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection && typeof line.bankCorrection === 'object'
               ? { date: line.bankCorrection.date, description: line.bankCorrection.description, amountCents: line.bankCorrection.amountCents, currency: line.bankCorrection.currency, suggestion: null, bankChange: null, bankChangeAt: null, bankCorrection: null }
               : {};
