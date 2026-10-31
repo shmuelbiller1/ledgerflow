@@ -39,6 +39,7 @@ test('the bank line goes to the bank account the person chose', async () => {
   const accounts = [
     makeChartAccount({ id: 'checking', name: 'Business Checking', type: 'asset', category: 'Cash' }),
     makeChartAccount({ id: 'savings', name: 'Savings', type: 'asset', category: 'Cash' }),
+    makeChartAccount({ id: 'closed', name: 'Closed Checking', type: 'asset', category: 'Cash', isActive: false }),
     makeChartAccount({ id: 'meals', name: 'Meals', type: 'expense', category: 'Meals' }),
   ];
   const imported: Array<Array<{ totalAmountCents: number; lines: Array<{ accountId: string; accountName: string; amountCents: number }> }>> = [];
@@ -46,6 +47,7 @@ test('the bank line goes to the bank account the person chose', async () => {
   await stageCsv();
   const picker = screen.getByLabelText(/Bank account/i) as HTMLSelectElement;
   assert.equal(picker.value, 'checking', 'the first bank account is pre-selected');
+  assert.deepEqual([...picker.options].map(o => o.value), ['checking', 'savings'], 'an inactive bank account is not offered');
   fireEvent.change(picker, { target: { value: 'savings' } });
   await waitFor(() => assert.equal((screen.getByRole('button', { name: 'Import selected rows' }) as HTMLButtonElement).disabled, false));
   fireEvent.click(screen.getByRole('button', { name: 'Import selected rows' }));

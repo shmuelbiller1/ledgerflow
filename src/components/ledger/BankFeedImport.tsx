@@ -44,8 +44,11 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   // AF-001: the statement's own bank account takes the other side of each row; it was a placeholder id
   // that is in no chart of accounts, so every imported entry pointed at an account that does not exist
-  const bankAccounts = accounts.filter(a => resolveAccountRole(a) === 'cash' && !a.isArchived);
-  const [bankAccountId, setBankAccountId] = useState<string>(() => bankAccounts[0]?.id || '');
+  // the same open-account test as the category mapping below (CodeRabbit on #457)
+  const bankAccounts = accounts.filter(a => resolveAccountRole(a) === 'cash' && !a.archived && !a.isArchived && a.isActive !== false);
+  const [pickedBankAccountId, setBankAccountId] = useState<string>('');
+  // a pick that is no longer an open bank account (the accounts changed while the dialog is open) falls back to the first one
+  const bankAccountId = bankAccounts.some(a => a.id === pickedBankAccountId) ? pickedBankAccountId : (bankAccounts[0]?.id || '');
   const user = useAuthStore(s => s.user);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   useAuthStore(s => s.userProfile);
