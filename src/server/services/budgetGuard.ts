@@ -4,7 +4,7 @@ import { balancesAsOf, sumEntries } from './balanceService';
 import { budgetMonthAmount, type SavedBudget } from '../../lib/budgetActual';
 import { budgetPeriodMonths } from '../../lib/bookAlerts';
 import { transactionDate } from '../../lib/txFilters';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 
 /**
  * EG-4: the budget check when entries post (a bill, an expense, a journal: POST /transactions, /transactions/bulk and

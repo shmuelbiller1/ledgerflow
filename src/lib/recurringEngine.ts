@@ -1,6 +1,5 @@
 import { RecurringTransaction, Transaction } from '../types';
-import { getLocalDateISO } from './utils';
-import { addDaysYMD, addMonthsYMD, dayNumber } from './calendarDate';
+import { addDaysYMD, addMonthsYMD, dayNumber, getLocalDateISO } from './calendarDate';
 
 function parseDateStrToDayNumber(dateStr: string): number {
   if (!dateStr) return NaN;

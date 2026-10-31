@@ -14,7 +14,7 @@
     "db:test-setup": "tsx scripts/db-test.ts setup",
     "grant-admin": "tsx scripts/grant-admin.ts",
     "dev": "tsx server.ts",
-    "build": "tsx scripts/vercel-csp.ts && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=build/server.cjs",
+    "build": "tsx scripts/vercel-csp.ts && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --define:__PRODUCTION_BUNDLE__=true --outfile=build/server.cjs && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --define:__PRODUCTION_BUNDLE__=true --define:__SERVERLESS_BUILD__=true --outfile=build/api.cjs",
     "lint": "npm run lint:types && npm run lint:eslint",
     "lint:types": "tsc --noEmit",
     "lint:eslint": "eslint . --max-warnings 42",

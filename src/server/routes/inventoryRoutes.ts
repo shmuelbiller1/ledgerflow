@@ -4,7 +4,7 @@ import { FieldValue } from '../db/firestore';
 import Decimal from 'decimal.js';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDb, validateWorkspaceMember, assertPeriodOpen, validateWorkspaceAccounts } from '../db/firestore';
-import { formatTzDate, getLocalDateISO } from '../../lib/utils';
+import { formatTzDate, getDateInTimezoneISO } from '../../lib/calendarDate';
 import { z } from 'zod';
 import { requireWorkspaceRole } from './workspaceRoutes';
 import { adjustStock, StockAdjustmentError } from '../services/stockAdjustmentService';
@@ -57,7 +57,8 @@ inventoryRouter.post('/cogs', requireWorkspaceRole(STOCK_ROLES), async (req, res
       }
     }
 
-    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getLocalDateISO();
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
 
     // 2. Validate period lock
     await assertPeriodOpen(db, workspaceId, txDate, user.uid);

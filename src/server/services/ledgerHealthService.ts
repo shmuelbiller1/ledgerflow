@@ -1,7 +1,8 @@
 import type { Firestore } from '../db/firestore';
 import { runDataChecks, type CheckContext } from '../../lib/dataChecks';
 import { healthSummary, newSeriousProblems, problemNotice, type LedgerHealth } from '../../lib/ledgerHealth';
-import { formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+import { formatTzDate } from '../../lib/calendarDate';
 import { reconciliationDrift, type ReconciliationRecord } from '../../lib/reconciliationDrift';
 import { unusualEntries } from '../../lib/unusualEntries';
 import type { ChartAccount, Transaction } from '../../types';

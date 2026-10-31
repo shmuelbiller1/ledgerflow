@@ -14,7 +14,8 @@ import { NOTIFICATION_TYPES, notificationRecipients } from '../../lib/notificati
 import type { NotificationPrefs, NotificationType } from '../../lib/notifications';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { dayNumber } from '../../lib/fiscalCalendar';
-import { formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+import { formatTzDate } from '../../lib/calendarDate';
 
 export interface NotifyInput {
   workspaceId: string;

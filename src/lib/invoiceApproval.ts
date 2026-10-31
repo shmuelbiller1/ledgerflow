@@ -1,4 +1,4 @@
-import { parseAmountToCents } from './utils';
+import { formatCurrency, parseAmountToCents } from './moneyFormat';
 /**
  * Invoice approval (BE-04): a workspace can say "an invoice over X must be signed off by an owner
  * or an accountant before it goes to the customer". It is a gate on **sending**, not on the books:
@@ -31,7 +31,6 @@ import { parseAmountToCents } from './utils';
  * invoice afterwards cannot take it back.
  */
 import { toBaseCents } from '../server/reports/partyReports';
-import { formatCurrency } from './utils';
 
 export interface InvoiceApprovalSettings {
   enabled: boolean;

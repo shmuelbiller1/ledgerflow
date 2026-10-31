@@ -1,7 +1,7 @@
 import express from 'express';
 import { getDb } from '../db/firestore';
 import { createPortalLink, PortalError, portalView, revokePortalLink } from '../services/customerPortalService';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 
 type AuthedRequest = express.Request & { user: { uid: string; email?: string } };
 

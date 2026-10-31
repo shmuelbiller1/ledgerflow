@@ -3,6 +3,7 @@ import { ledgerCreate } from './ledgerDoor';
 import type { DocumentData, Firestore } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { isUndepositedFundsAccount, resolveAccountRole } from '../../lib/accountUtils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import type { ChartAccount } from '../../types';
 
 /**
@@ -23,7 +24,7 @@ export interface CreateDepositInput {
   workspaceId: string;
   uid: string;
   bankAccountId: string;
-  date: string;
+  date?: string;
   paymentIds: string[];
   memo?: string;
 }
@@ -31,7 +32,7 @@ export interface CreateDepositInput {
 export async function createDeposit(db: Firestore, input: CreateDepositInput) {
   const paymentIds = Array.from(new Set(input.paymentIds));
   if (paymentIds.length === 0) throw new DepositError(400, 'Choose the payments to deposit');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new DepositError(400, 'Date must be YYYY-MM-DD');
+  if (input.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new DepositError(400, 'Date must be YYYY-MM-DD');
 
   return db.runTransaction(async (t) => {
     const [workspaceSnap, bankSnap, ...paymentSnaps] = await t.getAll(
@@ -41,6 +42,7 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
     );
     const workspace = workspaceSnap.data();
     if (!workspace) throw new DepositError(404, 'Workspace not found');
+    const depositDate = input.date || getDateInTimezoneISO(new Date(), typeof workspace.timezone === 'string' ? workspace.timezone : undefined);
     const bank = bankSnap.data() as ChartAccount | undefined;
     if (!bank || bank.workspaceId !== input.workspaceId || resolveAccountRole(bank) !== 'cash' || isUndepositedFundsAccount(bank)) {
       throw new DepositError(400, 'Choose the bank account the money went into');
@@ -68,7 +70,7 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
       id: db.collection('transactions').doc().id,
       workspaceId: input.workspaceId,
       uid: input.uid,
-      date: input.date,
+      date: depositDate,
       description,
       totalAmountCents: totalCents,
       currency: workspace.currency || 'USD',
@@ -84,7 +86,7 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
 
     ledgerCreate(t, db.collection('transactions').doc(ledgerTx.id), { ...ledgerTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     for (const p of payments) {
-      t.update(db.collection('payments').doc(p.id), { depositTransactionId: ledgerTx.id, depositedAt: input.date, updatedAt: new Date().toISOString() });
+      t.update(db.collection('payments').doc(p.id), { depositTransactionId: ledgerTx.id, depositedAt: depositDate, updatedAt: new Date().toISOString() });
     }
     return { transactionId: ledgerTx.id, totalCents, count: payments.length };
   });

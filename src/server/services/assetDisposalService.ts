@@ -5,7 +5,8 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { postingLock, lockMessage, workspaceRole } from '../../lib/periodLock';
 import { disposalGainLoss, disposalLines, disposalProblem, partialDisposalInput, portionOf, portionProblem, type DisposalAccounts } from '../../lib/assetDisposal';
-import { formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { ChartAccount, FixedAsset, PartialDisposal } from '../../types';
 import { defaultDepreciationAccounts } from './depreciationService';
 import { writeServerAuditLog } from './auditLogService';

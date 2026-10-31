@@ -4,7 +4,7 @@
  * schedules on the workspace (`scheduledReports`); the daily job sends each finished period once
  * (`scheduledReportsSent`, written by the server only). Figures come from the existing report code.
  */
-import { addToDateISO } from './utils';
+import { addToDateISO } from './calendarDate';
 import { csvMoney, toCsv } from './csvExport';
 
 export const SCHEDULED_REPORTS = {

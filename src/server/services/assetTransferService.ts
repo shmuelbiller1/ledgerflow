@@ -4,7 +4,7 @@ import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { lockMessage, postingLock, workspaceRole } from '../../lib/periodLock';
 import { describeTransfer, transferLines } from '../../lib/assetTransfer';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { AssetTransfer, ChartAccount, FixedAsset } from '../../types';
 import { defaultDepreciationAccounts } from './depreciationService';
 import { writeServerAuditLog } from './auditLogService';

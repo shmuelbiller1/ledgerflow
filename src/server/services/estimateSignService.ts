@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { SIGN_TOKEN, signatureProblem, signState, type EstimateSignature } from '../../lib/estimateSignature';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { writeServerAuditLog } from './auditLogService';
 import { notify } from './notificationService';
 

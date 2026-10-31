@@ -8,7 +8,7 @@ import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { revaluationValueCents } from '../../lib/inventoryAccounts';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isCashAccount } from '../../lib/txFilters';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { ChartAccount } from '../../types';
 
 type WorkspaceData = ValidationContext['wsData'] & { currency?: string; timezone?: string };
