@@ -77,7 +77,7 @@ function ScopedTeamSettings() {
     return () => clearTimeout(scheduled);
   }, [fetchTeamData]);
 
-  const activeSeatCount = members.length + 1; // plus primary owner
+  const activeSeatCount = new Set([...members, ownerUid || currentWorkspace?.uid || 'owner']).size; // unique people, owner counted once (ACC-1b)
   const seatsRemaining = Math.max(0, maxSeats - activeSeatCount);
   const isSeatLimitReached = !unlimitedSeats && activeSeatCount >= maxSeats;
 
@@ -337,7 +337,7 @@ function ScopedTeamSettings() {
             </div>
 
             {/* Invited Members Rows */}
-            {members.map((mUid) => {
+            {[...new Set(members)].filter(mUid => mUid !== (ownerUid || currentWorkspace?.uid)).map((mUid) => { /* owner shown once, in its own row (ACC-1b) */
               const currentRole = roles[mUid] || (mUid === ownerUid ? 'owner' : 'viewer');
               const isOwner = mUid === ownerUid;
 
