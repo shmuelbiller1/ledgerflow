@@ -328,7 +328,7 @@ plaidRouter.post("/sync", ledgerWriters, async (req, res) => {
     }
     // every connection failed: the sync failed (as before), with each one's reason kept in its log
     if (failed.length > 0 && answered === 0 && needsReconnect.length === 0) return sendError(res, "Could not sync the bank feed", 502);
-    res.json({ success: transactions.length > 0 && busy.length === 0, transactions, modified, removed, storedLines, needsReconnect, failed, busy, banks: banksSnap.size });
+    res.json({ success: transactions.length > 0 && busy.length === 0, transactions, modified, removed, storedLines, needsReconnect, failed, busy, synced: answered, banks: banksSnap.size });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/not a member|Unauthorized|not found/i.test(message)) return sendError(res, message, 403);
