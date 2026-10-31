@@ -43,6 +43,7 @@ import { completeSetup, recordOpeningBalances, SetupError } from '../services/op
 import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
 import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
+import { planFor } from '../../lib/plans';
 
 export const workspaceRouter = express.Router();
 
@@ -480,7 +481,8 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 
     const wsData = wsSnap.data() || {};
     const members: string[] = Array.isArray(wsData.members) ? wsData.members : [];
-    const maxSeats = wsData.maxSeats || 5;
+    // the plan's own seats when no explicit cap is set (Codex on #460: Pro is 25, not 5); never below the old 5
+    const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats);
     const currentSeatCount = members.length + 1; // plus primary owner
 
     // ACC-1 (Codex on #460): free access given by LedgerFlow has no seat limit
