@@ -15,6 +15,17 @@ const hasDb = !!process.env.LF_TEST_DATABASE_URL;
 type Rec = { router: object; kind: 'verb' | 'use'; method?: string; path: string; child?: object };
 const recs: Rec[] = [];
 const WRITE = ['post', 'put', 'patch', 'delete'];
+/**
+ * Writes a viewer may make by design (each service checks the rest): watch a record, answer a client question,
+ * log and move their own time, and change or remove a task given to them. These are left out of the viewer check;
+ * that they work with a valid body, and nothing more, is AUD-09 step 2 (valid-body cases).
+ */
+const VIEWER_MAY = new Set([
+  'post /:workspaceId/tasks/watching', 'delete /:workspaceId/tasks/watching/:watchId',
+  'patch /:workspaceId/tasks/:taskId', 'delete /:workspaceId/tasks/:taskId',
+  'post /:workspaceId/queries/:queryId/reply',
+  'post /:workspaceId/time/', 'patch /:workspaceId/time/:entryId', 'delete /:workspaceId/time/:entryId', 'post /:workspaceId/time/move',
+]);
 
 /** Wraps express.Router so every router created afterwards records its routes and mounts. */
 function recordRouters() {
@@ -88,9 +99,10 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
   });
 
   for (const who of ['stranger-1', 'view-1']) {
-    it(`every write route refuses ${who === 'view-1' ? 'a viewer' : 'a non-member'}`, async () => {
+    it(who === 'view-1' ? 'every write route a viewer may not use refuses a viewer' : 'every write route refuses a non-member', async () => {
       const holes: string[] = [];
       for (const r of routes) {
+        if (who === 'view-1' && VIEWER_MAY.has(`${r.method} ${r.path}`)) continue;
         const status = await call(r, who);
         if (status < 400 || status >= 500) holes.push(`${r.method.toUpperCase()} ${r.path} → ${status}`);
       }
