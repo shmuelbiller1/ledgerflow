@@ -83,7 +83,8 @@ function PlaidLauncher({ onSuccessSync, bankId, label, onClosed }: { onSuccessSy
           const r = await plaidPost('exchange_public_token', { workspaceId, public_token, institutionName: metadata?.institution?.name || undefined });
           toast.success('Bank connected via Plaid');
           // AU-1: Plaid sends automatic updates only after a first sync; if it did not run, a Sync starts them
-          if (r?.firstSync && r.firstSync !== 'ok') toast.warning('Press Sync once to start automatic bank updates.');
+          if (r?.firstSync === 'login_required') toast.warning('The bank asks you to log in again. Use Reconnect on this bank.');
+          else if (r?.firstSync && r.firstSync !== 'ok') toast.warning('Press Sync once to start automatic bank updates.');
         }
         onSuccessSync?.();
       } catch (err) {
