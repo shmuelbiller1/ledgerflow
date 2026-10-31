@@ -65,7 +65,8 @@ export default function Banking() {
         toast.success(`Synchronized ${accountName} with bank feed.`);
       } else if (res.ok && busy === 0) {
         toast.info(data.message || 'Bank feed synced. No new transactions.');
-      } else {
+      } else if (!res.ok) {
+        // a busy-only answer is a 200 and already said "try again" above; only a failed request is an error (Codex on #455)
         toast.error(`Bank feed error: ${data.error || data.message || 'Failed to sync with institution.'}`);
       }
     } catch (err) {
