@@ -1761,20 +1761,20 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 
 Each is fixed with the acceptance test its section names. Server, posting, restore, jobs and security items are AI #1's; AUD-13/14/15 may go to a helper queue.
 
-- [ ] AUD-01 — Statement screen, server JSON and PDF do not have one scope contract
+- [x] AUD-01 (merged; ticked 31 Oct) — Statement screen, server JSON and PDF do not have one scope contract
 - [x] AUD-02 (18 Oct: every ledger entry in a backup is checked by the ledger door before anything is read or written — an unbalanced one restores nothing; test in `workspace-restore.test.ts`. 20 Oct: the closed-books check, the other-workspace ownership check and the reads of what is deleted now run inside the one serializable transaction that writes the backup, so nothing can change between checking and writing; 17 backup/restore tests incl. the main path pass. 20 Oct: invoices, bills, projects, credit notes and vendor credits in a backup must have the field types a save accepts (an amount as text refuses the backup; missing fields and older status labels are not judged, and unknown fields are kept); the backup export reads every table in one read-only serializable transaction, so it is one consistent moment of the books) — Restore commits atomically, but validation and ownership reads precede the commit transaction
-- [ ] AUD-03 — RMA decisions/history remain editable metadata, not server approval authority
-- [ ] AUD-04 — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
-- [ ] AUD-05 — Standalone background-job coverage differs from Vercel
+- [x] AUD-03 (merged; ticked 31 Oct) — RMA decisions/history remain editable metadata, not server approval authority
+- [x] AUD-04 (merged; ticked 31 Oct) — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
+- [x] AUD-05 (merged; ticked 31 Oct) — Standalone background-job coverage differs from Vercel
 - [ ] AUD-09 — Privileged server access means SQL client guards are not a universal safety net
-- [ ] AUD-10 — Report fallback and cache completeness need one visible provenance contract
-- [ ] AUD-11 — Safe-fetch DNS validation is not a pinned connection
-- [ ] AUD-12 — Static Vercel CSP can disagree with the configurable Supabase project
-- [ ] AUD-13 — Async auth-derived UI state has no identity generation check
-- [ ] AUD-14 — A registered receipt algorithm is a hard-coded demonstration
-- [ ] AUD-15 — Client post-success cache inserts request entries rather than a canonical server result
-- [ ] AUD-19 — Altman analytical EBIT loses reversal signs
-- [ ] AUD-20 — Remote database TLS does not authenticate the server unless a CA is supplied
+- [x] AUD-10 (merged; ticked 31 Oct) — Report fallback and cache completeness need one visible provenance contract
+- [x] AUD-11 (merged; ticked 31 Oct) — Safe-fetch DNS validation is not a pinned connection
+- [x] AUD-12 (merged; ticked 31 Oct) — Static Vercel CSP can disagree with the configurable Supabase project
+- [x] AUD-13 (merged; ticked 31 Oct) — Async auth-derived UI state has no identity generation check
+- [x] AUD-14 (merged; ticked 31 Oct) — A registered receipt algorithm is a hard-coded demonstration
+- [x] AUD-15 (merged; ticked 31 Oct) — Client post-success cache inserts request entries rather than a canonical server result
+- [x] AUD-19 (merged; ticked 31 Oct) — Altman analytical EBIT loses reversal signs
+- [x] AUD-20 (merged; ticked 31 Oct) — Remote database TLS does not authenticate the server unless a CA is supplied
 
 ## Issues and connections (18 Oct)
 
@@ -1785,18 +1785,18 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 - [x] CON-2 *(AI #9, merged 20 Oct)* US nexus watch (138) on a screen from posted invoices, for the supported states.
 - [x] CON-3 *(AI #9, merged 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
 - [x] CON-4 *(AI #9, merged 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
-- [ ] CON-4b (from AI #9, #244) The Israeli VAT return record on the server carries its registration (dealer number), so "filed" can be attributed to one of several registrations; then let the screen clear it per registration. Also check the Eilat Law s.5 subsection numbers against the statute, and the PCN874 bi-monthly header month against the Tax Authority spec.
-- [ ] CON-1 *(→ AI #9 from 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
+- [x] CON-4b (merged; ticked 31 Oct) (from AI #9, #244) The Israeli VAT return record on the server carries its registration (dealer number), so "filed" can be attributed to one of several registrations; then let the screen clear it per registration. Also check the Eilat Law s.5 subsection numbers against the statute, and the PCN874 bi-monthly header month against the Tax Authority spec.
+- [x] CON-1 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
 - [~] CON-2 *(→ AI #9 from 20 Oct; PR open, ai9/CON-2)* US nexus watch (138) on a screen from posted invoices, for the supported states.
-- [ ] CON-3 *(→ AI #9 from 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
-- [ ] CON-4 *(→ AI #9 from 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
+- [x] CON-3 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
+- [x] CON-4 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
 - [x] DIM-1 (21 Oct: payments recorded on their own (Record payment, and applying a deposit later) carry the paid invoices'/bills' line labels in proportion; the part not applied stays unlabelled; worked figures in `dim1-payment-records.test.ts`. 18 Oct: invoices and bills — receivable/payable, tax, discount and retainage now carry the lines' labels in proportion, so each label balances; the lines' own revenue/expense lines keep exactly their labels; test `labels-every-side.test.ts`. 19 Oct: the payment posted with a paid invoice/bill now carries the document lines' labels in the same proportions — each label balances and a full payment clears each label's receivable/payable to 0 (300 random cases in `labels-every-side.test.ts`; 404 posting tests pass). Left: payments recorded separately (payment records applied to invoices/bills: bank, fees, FX difference)) Labels on every side of an entry (owner, 18 Oct): today only revenue/expense lines and the cost of goods carry the document line's labels. Carry them (in proportion) to receivable/payable, tax, discount, retainage, the payment entry (bank, fees, FX difference), and stock moves; so a P&L or balance sheet by label is complete. Test: an invoice with two labelled lines, paid with a fee → every line of every entry has the right labels and each label's books balance.
 - [ ] DIM-2 *(→ AI #9 from 20 Oct)* Stock moves keep where an item came from (vendor/bill/receipt line) and where it went (customer, project, label) — with issue #132 / P2-36.
 
 ## Audit of 18 Oct (audit/VERIFIED_BUG_REPORT.md) — AI #1 fixes these, each with the test the report names
 
 - [~] BUG-02 (18 Oct: P&L, balance sheet, trial balance and cash flow drop the server figures when a reload fails and ignore late answers (a request counter); existing report tests pass. Left: a screen test — rendering these views with a workspace set hangs the node test runner (also without the fix), see D-93) A failed report refetch leaves the previous period's server figures under the new date heading (P&L, balance sheet, trial balance, cash flow).
-- [ ] DIM-3 Each label kind gets an accounting role: informational (no balancing), fully attributed (every line has a value), or self-balancing (each value balances) — so balancing is applied only where it is required (strategy §16).
+- [x] DIM-3 (merged; ticked 31 Oct) Each label kind gets an accounting role: informational (no balancing), fully attributed (every line has a value), or self-balancing (each value balances) — so balancing is applied only where it is required (strategy §16).
 
 ## Integrity follow-up of 18 Oct (owner's request; independent AI examination at 507d3cc)
 
