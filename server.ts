@@ -8,8 +8,7 @@ import { registerLogsUploadRoutes } from "./src/server/routes/logsUploadRoutes.t
 import { registerLabelingRoutes } from "./src/server/routes/labelingRoutes.ts";
 import { registerAuthRoutes } from "./src/server/routes/authRoutes.ts";
 import { registerCspReportRoutes } from "./src/server/routes/cspReportRoutes.ts";
-import { registerStripeWebhookRoutes } from "./src/server/routes/stripeWebhookRoutes.ts";
-import { registerPlaidWebhookRoutes } from "./src/server/routes/plaidWebhookRoutes.ts";
+import { registerWebhookRoutes } from "./src/server/routes/webhookRoutes.ts";
 import { registerLedgerMatchRoutes } from "./src/server/routes/ledgerMatchRoutes.ts";
 import { registerTelemetryRoutes } from "./src/server/routes/telemetryRoutes.ts";
 import { registerRegistrationStatusRoutes } from "./src/server/routes/registrationStatusRoutes.ts";
@@ -69,9 +68,8 @@ async function buildApp(): Promise<{ app: express.Express; port: number }> {
 
   applySecurityMiddleware(app, isAllowedOrigin);
 
-  // Stripe Webhook needs raw body
-  registerStripeWebhookRoutes(app, routeContext);
-  registerPlaidWebhookRoutes(app); // AU-1: also signed over the raw body, so before the JSON parser
+  // Stripe and Plaid webhooks need the raw body
+  registerWebhookRoutes(app, routeContext);
 
   // S-23: the browser's own Content-Security-Policy reports — before the API limit, CSRF and the
   // 50 mb JSON parser, because the user agent sends them with no token and its own content type.
