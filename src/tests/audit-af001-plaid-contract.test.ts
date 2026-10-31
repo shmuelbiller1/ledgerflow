@@ -40,7 +40,10 @@ test('AF-001-F3: the legacy feed importer no longer books the rows the server al
   assert.equal(/data\.transactions\s*\|\|\s*\[\]\)\.map/.test(importer), false, 'returned rows are not staged for a second import');
   assert.equal(/data\.modified|data\.removed/.test(importer), false,
     'the importer does not handle bank corrections itself: the server applies them to stored lines (plaid-sync-ingest.test.ts)');
-  assert.match(importer, /accountId:\s*'offset-bank'/, 'OPEN: the CSV path still emits the placeholder offset-bank account id');
+  // fixed: the CSV path books the other side to the bank account the person chose, never a placeholder id
+  assert.equal(/'offset-bank'/.test(importer), false, 'no placeholder bank account id');
+  assert.match(importer, /accountId:\s*bankAccount\.id/, 'the chosen bank account takes the other side of each row');
+  assert.match(importer, /resolveAccountRole\(a\) === 'cash'/, 'only cash (bank) accounts can be chosen');
 });
 
 test('AF-001-F4: a healthy sync with zero changes still reports success:false in the JSON contract', () => {

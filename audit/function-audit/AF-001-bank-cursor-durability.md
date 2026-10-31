@@ -104,4 +104,4 @@ Review follow-ups in the same PR (#439):
 - Bank-side `modified` rows update a line still pending and unmatched, and `removed` rows delete one. A line already matched to a posted entry is only flagged (`bankChange`, `bankCorrection`) for review.
 - Each line keeps its Plaid `account_id` and currency. The connection's ledger account is set only for rows of the Plaid account it is tied to (saved on the first sync where all rows share one account) and in the books' currency.
 
-Still open: the CSV path of the legacy Bank Feed Import dialog books to a placeholder `offset-bank` account.
+Fixed (31 Oct 2026, AI #1): the CSV path of the legacy Bank Feed Import dialog no longer books to a placeholder `offset-bank` account. The person picks the statement's bank account (cash-role accounts only, the first one pre-selected), and the import is refused when the books have no bank account. Pinned in `audit-af001-plaid-contract.test.ts` (F3).
