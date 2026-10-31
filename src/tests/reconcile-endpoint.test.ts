@@ -224,6 +224,10 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     const db = new MockDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
     db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
+    // the entry exists and is valid, so a refusal can only come from the release rule
+    db.data.set('chartAccounts/acc-1', { id: 'acc-1', workspaceId: 'ws-1', name: 'Cash', type: 'asset' });
+    db.data.set('chartAccounts/acc-2', { id: 'acc-2', workspaceId: 'ws-1', name: 'Revenue', type: 'revenue' });
+    db.data.set('transactions/tx-b', { id: 'tx-b', workspaceId: 'ws-1', uid: 'user-owner', date: '2026-10-20', description: 'Gone', totalAmountCents: 100, currency: 'USD', type: 'actual', status: 'reconciled', lines: [{ accountId: 'acc-1', amountCents: -100 }, { accountId: 'acc-2', amountCents: 100 }] });
     const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } }] } } as unknown as express.Request;
     let statusCode = 200;
     const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
@@ -239,6 +243,16 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     await handleReconcile(noop, res, db as unknown as Firestore);
     assert.equal(statusCode, 400);
     assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line still stays');
+    assert.equal(db.getDocData('transactions', 'tx-b').status, 'reconciled', 'the entry is unchanged');
+    // and the same request with a real release goes through: the refusal above came from the rule
+    const real = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: { status: 'completed' } },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(real, res, db as unknown as Firestore);
+    assert.equal(statusCode, 200);
+    assert.equal(db.getDocData('bankLines', 'line-gone'), undefined);
   });
 
   test('AF-001: undo refuses a bank correction dated in a closed period (Codex on #455)', async () => {
