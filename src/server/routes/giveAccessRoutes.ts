@@ -11,7 +11,7 @@ import { authAdmin } from "../auth/supabaseAuth";
  * workspace that person owns gets it, each with an audit line. Optionally the person is made a platform admin.
  *   full   → free access with no limits (bypassBilling), on the Enterprise plan
  *   pro / growth → that plan, paid as usual (bypassBilling off)
- *   tester → free access with no limits, marked as a tester
+ *   tester → free access with no limits (the audit line says "tester")
  *   none   → back to the Free plan, free access taken away
  */
 export const GiveAccessSchema = z.object({
@@ -23,11 +23,11 @@ export type AccessLevel = z.infer<typeof GiveAccessSchema>["level"];
 
 export function workspaceFieldsFor(level: AccessLevel): Record<string, unknown> {
   switch (level) {
-    case "full": return { bypassBilling: true, plan: "enterprise", accessLevel: "full" };
-    case "tester": return { bypassBilling: true, accessLevel: "tester" };
-    case "pro": return { bypassBilling: false, plan: "pro", accessLevel: "pro" };
-    case "growth": return { bypassBilling: false, plan: "growth", accessLevel: "growth" };
-    case "none": return { bypassBilling: false, plan: "free", accessLevel: null };
+    case "full": return { bypassBilling: true, plan: "enterprise" };
+    case "tester": return { bypassBilling: true };
+    case "pro": return { bypassBilling: false, plan: "pro" };
+    case "growth": return { bypassBilling: false, plan: "growth" };
+    case "none": return { bypassBilling: false, plan: "free" };
   }
 }
 
@@ -61,7 +61,8 @@ export async function giveAccess(
       if (!snap.exists) continue;
       const doc = owned.docs[i];
       const before = snap.data()!;
-      const update = { ...fields, accessGivenBy: actor.email, accessGivenAt: now, updatedAt: now };
+      // only fields the database rules already know (lf_guard, Codex on #460); who and when are in the audit line
+      const update = { ...fields, updatedAt: now };
       t.update(doc.ref, update);
       await writeAuditLog(actor.uid, actor.email, "ADMIN_ACCESS_GIVEN",
         `Gave ${input.level} access to ${target.email}`, doc.id, before, { ...before, ...update }, t);
@@ -82,9 +83,11 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       const input = GiveAccessSchema.parse(req.body);
       const authReq = req as AuthenticatedRequest;
       let target: { uid: string; email: string };
+      let previousClaims: Record<string, unknown> = {};
       try {
         const user = await authAdmin.getUserByEmail(input.email);
         target = { uid: user.uid, email: input.email };
+        previousClaims = user.customClaims || {};
       } catch (err) {
         // only "no such account" is a 404; a lookup that fails for another reason goes to the error handler (CodeRabbit on #460)
         if ((err as { code?: string })?.code === "auth/user-not-found") return sendError(res, "No LedgerFlow account uses this email", 404);
@@ -93,7 +96,7 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       // the admin claim is what requireAdmin reads, so it is set first; a failure is reported, not hidden (Codex on #460)
       let adminError: string | undefined;
       if (input.makeAdmin) {
-        try { await authAdmin.setCustomUserClaims(target.uid, { admin: true }); }
+        try { await authAdmin.setCustomUserClaims(target.uid, { ...previousClaims, admin: true }); }
         catch (err) { console.warn("[Give access] admin claim:", err); adminError = "Access was given, but the admin rights could not be set. Try again."; }
       }
       let result;
@@ -102,7 +105,8 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       } catch (err) {
         // the database work failed: take back the admin claim set above, so claim and records agree (CodeRabbit on #460)
         if (input.makeAdmin && !adminError) {
-          try { await authAdmin.setCustomUserClaims(target.uid, { admin: false }); }
+          // put back exactly what they had (an existing admin stays one)
+          try { await authAdmin.setCustomUserClaims(target.uid, previousClaims); }
           catch (undoErr) { console.error("[Give access] could not take back the admin claim:", undoErr); }
         }
         throw err;

@@ -154,7 +154,7 @@ invitePublicRouter.post('/:token/accept', async (req, res) => {
       const members: string[] = Array.isArray(wsData.members) ? [...wsData.members] : [];
       const maxSeats = wsData.maxSeats || 5;
 
-      if (!members.includes(user.uid) && members.length + 1 >= maxSeats) {
+      if (wsData.bypassBilling !== true && !members.includes(user.uid) && members.length + 1 >= maxSeats) {
         throw new Error('SEAT_LIMIT_EXCEEDED');
       }
 

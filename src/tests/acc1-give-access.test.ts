@@ -11,10 +11,10 @@ import { GiveAccessSchema, workspaceFieldsFor } from '../server/routes/giveAcces
 const url = process.env.LF_TEST_DATABASE_URL;
 
 test('each level sets the fields the server already reads (bypassBilling, plan)', () => {
-  assert.deepEqual(workspaceFieldsFor('full'), { bypassBilling: true, plan: 'enterprise', accessLevel: 'full' });
+  assert.deepEqual(workspaceFieldsFor('full'), { bypassBilling: true, plan: 'enterprise' });
   assert.equal(workspaceFieldsFor('tester').bypassBilling, true);
-  assert.deepEqual(workspaceFieldsFor('pro'), { bypassBilling: false, plan: 'pro', accessLevel: 'pro' });
-  assert.deepEqual(workspaceFieldsFor('none'), { bypassBilling: false, plan: 'free', accessLevel: null });
+  assert.deepEqual(workspaceFieldsFor('pro'), { bypassBilling: false, plan: 'pro' });
+  assert.deepEqual(workspaceFieldsFor('none'), { bypassBilling: false, plan: 'free' });
   assert.equal(GiveAccessSchema.parse({ email: ' Dana@Example.com ', level: 'growth' }).email, 'dana@example.com');
   assert.throws(() => GiveAccessSchema.parse({ email: 'not-an-email', level: 'full' }));
   assert.throws(() => GiveAccessSchema.parse({ email: 'a@b.co', level: 'gold' }));
@@ -49,7 +49,7 @@ describe('Give access (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     assert.equal(r.madeAdmin, true);
     for (const id of [ws[0], ws[1]]) {
       const d = (await db.collection('workspaces').doc(id).get()).data()!;
-      assert.deepEqual([d.bypassBilling, d.plan, d.accessGivenBy], [true, 'enterprise', 'admin@ledgerflow.test']);
+      assert.deepEqual([d.bypassBilling, d.plan], [true, 'enterprise']);
     }
     assert.equal((await db.collection('workspaces').doc(ws[2]).get()).data()?.bypassBilling, undefined);
     assert.equal((await db.collection('users').doc(target.uid).get()).data()?.role, 'admin');

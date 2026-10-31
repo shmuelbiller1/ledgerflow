@@ -483,7 +483,8 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
     const maxSeats = wsData.maxSeats || 5;
     const currentSeatCount = members.length + 1; // plus primary owner
 
-    if (currentSeatCount >= maxSeats) {
+    // ACC-1 (Codex on #460): free access given by LedgerFlow has no seat limit
+    if (wsData.bypassBilling !== true && currentSeatCount >= maxSeats) {
       return sendError(
         res,
         `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`,
