@@ -43,6 +43,13 @@ describe('AU-1: Plaid webhook verification', () => {
     await assert.rejects(verifyPlaidWebhook(Buffer.from(body + ' '), await plaid.sign(body)), PlaidWebhookRejected, 'body changed after signing');
     await assert.rejects(verifyPlaidWebhook(Buffer.from(body), await plaid.sign(body, undefined, other.privateKey)), PlaidWebhookRejected, 'signed by someone else');
     await assert.rejects(verifyPlaidWebhook(Buffer.from(body), await plaid.sign(body, Math.floor(Date.now() / 1000) - 10 * 60)), PlaidWebhookRejected, 'older than five minutes');
+    // a key Plaid does not know is refused (401), and Plaid's raw error never leaves the lookup
+    clearPlaidWebhookKeysForTests();
+    setPlaidClientForTests({
+      linkTokenCreate: (async () => ({ data: {} })) as never, itemPublicTokenExchange: (async () => ({ data: {} })) as never, transactionsGet: (async () => ({ data: { transactions: [] } })) as never,
+      webhookVerificationKeyGet: (async () => { throw Object.assign(new Error('PLAID-SECRET leaked'), { response: { status: 400 } }); }) as never,
+    });
+    await assert.rejects(verifyPlaidWebhook(Buffer.from(body), await plaid.sign(body)), (e: Error) => e instanceof PlaidWebhookRejected && !e.message.includes('SECRET'));
   });
 });
 

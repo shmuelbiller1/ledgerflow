@@ -31,7 +31,12 @@ export async function verifyPlaidWebhook(rawBody: Buffer, token: string | undefi
   if (!jwk) {
     const client = getPlaidClient();
     if (!client.webhookVerificationKeyGet) throw new PlaidWebhookRejected('verification keys unavailable');
-    const res = await client.webhookVerificationKeyGet({ key_id: header.kid });
+    // CodeRabbit on #458: never log Plaid's raw error (it carries the request headers, PLAID-SECRET included)
+    const res = await client.webhookVerificationKeyGet({ key_id: header.kid }).catch((err: unknown) => {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status && status >= 400 && status < 500) throw new PlaidWebhookRejected('unknown verification key');
+      throw new Error('Plaid verification key lookup failed');
+    });
     const key = res.data.key as unknown as JWK & { expired_at?: number | null };
     if (key.expired_at) throw new PlaidWebhookRejected('expired verification key');
     jwk = key;
