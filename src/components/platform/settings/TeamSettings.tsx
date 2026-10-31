@@ -10,6 +10,7 @@ import InlineEdit from '../../ui/InlineEdit';
 import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
 import { copyWithFeedback } from '../../../lib/clipboard';
+import { planFor } from '../../../lib/plans';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -20,7 +21,9 @@ export default function TeamSettings() {
 function ScopedTeamSettings() {
   const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaceId = currentWorkspace?.id || 'default_workspace';
-  const maxSeats = currentWorkspace?.maxSeats || 5;
+  // same seat rule as the server (ACC-1): the plan's seats, at least 5; free access given by LedgerFlow has no cap
+  const maxSeats = currentWorkspace?.maxSeats || Math.max(5, planFor(currentWorkspace?.plan).limits.seats);
+  const unlimitedSeats = (currentWorkspace as { bypassBilling?: boolean } | undefined)?.bypassBilling === true;
 
   const [members, setMembers] = useState<string[]>([]);
   const [roles, setRoles] = useState<Record<string, WorkspaceRole>>({});
@@ -76,7 +79,7 @@ function ScopedTeamSettings() {
 
   const activeSeatCount = members.length + 1; // plus primary owner
   const seatsRemaining = Math.max(0, maxSeats - activeSeatCount);
-  const isSeatLimitReached = activeSeatCount >= maxSeats;
+  const isSeatLimitReached = !unlimitedSeats && activeSeatCount >= maxSeats;
 
   const handleSendInvite = async (next: string | number) => {
     const email = String(next).trim();
