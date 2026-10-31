@@ -76,6 +76,7 @@ export async function handlePlaidWebhook(req: express.Request, res: express.Resp
   const db = getDb();
   const banks = await db.collection('banks').where('item_id', '==', event.item_id).get();
   let synced = 0;
+  let retry = false;
   for (const doc of banks.docs) {
     const bank = doc.data();
     const workspaceId = typeof bank.workspaceId === 'string' ? bank.workspaceId : '';
@@ -86,9 +87,11 @@ export async function handlePlaidWebhook(req: express.Request, res: express.Resp
       workspaceCurrency: String(ws?.currency || 'USD'),
       workspaceTimezone: typeof ws?.timezone === 'string' ? ws.timezone : undefined,
     });
-    // a connection another sync is reading already gets these changes from that sync
     if (r.kind === 'ok') synced += 1;
+    // Codex on #458: a failed or busy sync may not have read these changes; answer non-2xx so Plaid retries
+    else if (r.kind === 'failed' || r.kind === 'busy') retry = true;
   }
+  if (retry) { res.status(503).json({ received: true, synced, retry: true }); return; }
   res.json({ received: true, synced });
 }
 

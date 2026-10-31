@@ -69,10 +69,10 @@ describe('AU-1: a verified SYNC_UPDATES_AVAILABLE notice syncs that connection',
     setPlaidClientForTests({
       linkTokenCreate: (async () => ({ data: {} })) as never, itemPublicTokenExchange: (async () => ({ data: {} })) as never, transactionsGet: (async () => ({ data: { transactions: [] } })) as never,
       webhookVerificationKeyGet: (async () => ({ data: { key: plaid.jwk } })) as never,
-      transactionsSync: (async ({ cursor }: { cursor?: string }) => ({
+      transactionsSync: (async ({ cursor }: { cursor?: string }) => { if (failNext) { failNext = false; throw new Error('plaid down'); } return {
         data: cursor ? { added: [], modified: [], removed: [], next_cursor: cursor, has_more: false }
           : { added: [{ transaction_id: `tx-${suffix}`, date: '2026-10-30', name: 'Webhook coffee', amount: 3 }], modified: [], removed: [], next_cursor: 'c-after-webhook', has_more: false },
-      })) as never,
+      }; }) as never,
     });
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'AU-1', members: ['owner-1'], currency: 'USD' });
     await db.collection('banks').doc(bankId).set({ workspaceId: ws, item_id: itemId, access_token: SecurityService.encryptSensitiveField('access-au1'), institutionName: 'AU Bank', accountId: 'acc-checking', status: 'active' });
@@ -90,6 +90,7 @@ describe('AU-1: a verified SYNC_UPDATES_AVAILABLE notice syncs that connection',
     await db.terminate();
   });
 
+  let failNext = false;
   const post = async (body: string, token?: string) => {
     const res = await fetch(`${base}/api/webhook/plaid`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'plaid-verification': token } : {}) }, body });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
@@ -119,5 +120,12 @@ describe('AU-1: a verified SYNC_UPDATES_AVAILABLE notice syncs that connection',
     const body = JSON.stringify({ webhook_type: 'ITEM', webhook_code: 'WEBHOOK_UPDATE_ACKNOWLEDGED', item_id: itemId });
     const r = await post(body, await plaid.sign(body));
     assert.deepEqual([r.status, r.body.synced], [200, 0]);
+  });
+
+  test('a sync that fails answers 503 so Plaid retries the notice', async () => {
+    failNext = true;
+    const body = JSON.stringify({ webhook_type: 'TRANSACTIONS', webhook_code: 'SYNC_UPDATES_AVAILABLE', item_id: itemId });
+    const r = await post(body, await plaid.sign(body));
+    assert.deepEqual([r.status, r.body.retry], [503, true]);
   });
 });

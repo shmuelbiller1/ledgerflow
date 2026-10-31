@@ -20,7 +20,7 @@ import { PLAID_SYNC_CONFLICT, claimPlaidSyncLease, releasePlaidSyncLease, update
 export const plaidRouter = express.Router();
 
 /** The Plaid calls this router makes (tests swap in a fake). */
-export type PlaidClientLike = Pick<PlaidApi, 'linkTokenCreate' | 'itemPublicTokenExchange' | 'transactionsGet'> & Partial<Pick<PlaidApi, 'itemRemove' | 'transactionsSync' | 'webhookVerificationKeyGet'>>;
+export type PlaidClientLike = Pick<PlaidApi, 'linkTokenCreate' | 'itemPublicTokenExchange' | 'transactionsGet'> & Partial<Pick<PlaidApi, 'itemRemove' | 'transactionsSync' | 'webhookVerificationKeyGet' | 'itemWebhookUpdate'>>;
 
 let plaidClient: PlaidClientLike = new PlaidApi(new Configuration({
   basePath: PlaidEnvironments[process.env.PLAID_ENV || "sandbox"],
@@ -108,6 +108,20 @@ plaidRouter.post("/exchange_public_token", ledgerWriters, async (req, res) => {
       status: 'active',
       createdAt: new Date().toISOString(),
     });
+    // AU-1 (Codex on #458): Plaid sends SYNC_UPDATES_AVAILABLE only after the item's first /transactions/sync,
+    // so start it now; a failure here leaves the connection saved and the next Sync picks it up
+    if (process.env.PLAID_WEBHOOK_URL) {
+      try {
+        const ws = (await getDb().collection("workspaces").doc(workspaceId).get()).data();
+        await syncOneBank(getDb(), await ref.get(), {
+          workspaceId, uid: user.uid,
+          workspaceCurrency: String(ws?.currency || 'USD'),
+          workspaceTimezone: typeof ws?.timezone === 'string' ? ws.timezone : undefined,
+        });
+      } catch (err) {
+        console.error("[Plaid] first sync after connect:", plaidErrorCode(err) || err);
+      }
+    }
     res.json({ success: true, bankId: ref.id });
   } catch (error) {
     if (error instanceof z.ZodError) return sendError(res, "workspaceId and public_token are required", 400);
@@ -124,6 +138,14 @@ plaidRouter.post("/reconnected", ledgerWriters, async (req, res) => {
     const bank = (await ref.get()).data();
     if (!bank || bank.workspaceId !== workspaceId) return sendError(res, "Bank connection not found", 404);
     await ref.update({ status: 'active', updatedAt: new Date().toISOString() });
+    // AU-1 (Codex on #458): Link update mode ignores `webhook`, so register it on the item directly
+    if (process.env.PLAID_WEBHOOK_URL && plaidClient.itemWebhookUpdate && bank.access_token) {
+      try {
+        await plaidClient.itemWebhookUpdate({ access_token: SecurityService.decryptSensitiveField(bank.access_token), webhook: process.env.PLAID_WEBHOOK_URL });
+      } catch (err) {
+        console.error("[Plaid] item webhook update:", plaidErrorCode(err) || err);
+      }
+    }
     res.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) return sendError(res, "workspaceId and bankId are required", 400);
