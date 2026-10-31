@@ -603,3 +603,12 @@ Settings → Actions → General → Workflow permissions → tick **Allow GitHu
   a reference such as `3F2A9C1E`. **You see every tester's reports on Settings → Support, but only if your account is a
   platform admin.** If it isn't yet, tell me the email you sign in with and I'll make it one (it is one database step). *Default I used:*
   reports stay in the app; no email is sent. Say if you want an email for each new report, and to which address.
+
+## 31 Oct — one choice I made with a default: "Edit details" next to the bank account picker (AI #1, #457)
+
+The CSV import in Bank Feed Import now asks which bank account the statement belongs to. Codex points out that the
+repo's rule (src/components/AGENTS.md) wants an **Edit details** button beside every related-record picker. The
+details drawer today edits customers, vendors, projects and items only, so offering it for accounts means adding
+accounts to the drawer: its allowed fields, a save path through the account service, and tests. That is a small
+feature of its own. *Default I used:* no Edit details button on this picker for now; to correct an account you edit
+it on the Chart of Accounts screen. Say if you want accounts added to the details drawer, and I'll queue it.

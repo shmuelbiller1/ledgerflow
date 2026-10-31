@@ -474,7 +474,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
               <select
                 value={bankAccountId}
                 onChange={e => setBankAccountId(e.target.value)}
-                className="normal-case tracking-normal text-xs font-semibold text-[var(--text)] bg-[var(--ink)] border border-[var(--line)] rounded-xl px-3 py-2"
+                className="min-h-11 normal-case tracking-normal text-xs font-semibold text-[var(--text)] bg-[var(--ink)] border border-[var(--line)] rounded-xl px-3 py-2"
               >
                 {bankAccounts.length === 0 && <option value="">No bank account in the chart of accounts</option>}
                 {bankAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
