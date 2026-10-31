@@ -51,30 +51,29 @@ export async function giveAccess(
   const fields = workspaceFieldsFor(input.level);
   const now = new Date().toISOString();
   const changed: { id: string; name: string }[] = [];
-  for (const doc of owned.docs) {
-    await db.runTransaction(async t => {
-      const snap = await t.get(doc.ref);
-      if (!snap.exists) return;
+  // one transaction: every workspace and the admin role change together, or none do (CodeRabbit on #460)
+  await db.runTransaction(async t => {
+    const userRef = db.collection("users").doc(target.uid);
+    const userBefore = input.makeAdmin ? (await t.get(userRef)).data() || {} : {};
+    const snaps = await Promise.all(owned.docs.map(doc => t.get(doc.ref)));
+    changed.length = 0;
+    for (const [i, snap] of snaps.entries()) {
+      if (!snap.exists) continue;
+      const doc = owned.docs[i];
       const before = snap.data()!;
       const update = { ...fields, accessGivenBy: actor.email, accessGivenAt: now, updatedAt: now };
       t.update(doc.ref, update);
       await writeAuditLog(actor.uid, actor.email, "ADMIN_ACCESS_GIVEN",
         `Gave ${input.level} access to ${target.email}`, doc.id, before, { ...before, ...update }, t);
-    });
-    changed.push({ id: doc.id, name: String(doc.data().name || doc.id) });
-  }
-  let madeAdmin = false;
-  if (input.makeAdmin) {
-    await db.runTransaction(async t => {
-      const ref = db.collection("users").doc(target.uid);
-      const before = (await t.get(ref)).data() || {};
-      t.set(ref, { role: "admin", updatedAt: now }, { merge: true });
+      changed.push({ id: doc.id, name: String(before.name || doc.id) });
+    }
+    if (input.makeAdmin) {
+      t.set(userRef, { role: "admin", updatedAt: now }, { merge: true });
       await writeAuditLog(actor.uid, actor.email, "ADMIN_USER_UPDATED",
-        `Made ${target.email} a platform admin`, "system", before, { ...before, role: "admin" }, t);
-    });
-    madeAdmin = true;
-  }
-  return { workspaces: changed, madeAdmin };
+        `Made ${target.email} a platform admin`, "system", userBefore, { ...userBefore, role: "admin" }, t);
+    }
+  });
+  return { workspaces: changed, madeAdmin: !!input.makeAdmin };
 }
 
 export function registerGiveAccessRoutes(app: express.Express): void {
@@ -86,8 +85,10 @@ export function registerGiveAccessRoutes(app: express.Express): void {
       try {
         const user = await authAdmin.getUserByEmail(input.email);
         target = { uid: user.uid, email: input.email };
-      } catch {
-        return sendError(res, "No LedgerFlow account uses this email", 404);
+      } catch (err) {
+        // only "no such account" is a 404; a lookup that fails for another reason goes to the error handler (CodeRabbit on #460)
+        if ((err as { code?: string })?.code === "auth/user-not-found") return sendError(res, "No LedgerFlow account uses this email", 404);
+        throw err;
       }
       // the admin claim is what requireAdmin reads, so it is set first; a failure is reported, not hidden (Codex on #460)
       let adminError: string | undefined;
@@ -95,7 +96,17 @@ export function registerGiveAccessRoutes(app: express.Express): void {
         try { await authAdmin.setCustomUserClaims(target.uid, { admin: true }); }
         catch (err) { console.warn("[Give access] admin claim:", err); adminError = "Access was given, but the admin rights could not be set. Try again."; }
       }
-      const result = await giveAccess(getDb(), { uid: authReq.user.uid, email: authReq.user.email || "" }, target, { ...input, makeAdmin: input.makeAdmin && !adminError });
+      let result;
+      try {
+        result = await giveAccess(getDb(), { uid: authReq.user.uid, email: authReq.user.email || "" }, target, { ...input, makeAdmin: input.makeAdmin && !adminError });
+      } catch (err) {
+        // the database work failed: take back the admin claim set above, so claim and records agree (CodeRabbit on #460)
+        if (input.makeAdmin && !adminError) {
+          try { await authAdmin.setCustomUserClaims(target.uid, { admin: false }); }
+          catch (undoErr) { console.error("[Give access] could not take back the admin claim:", undoErr); }
+        }
+        throw err;
+      }
       res.json({ status: "success", ...result, ...(adminError ? { adminError } : {}) });
     } catch (err) {
       handleApiError(res, err);
