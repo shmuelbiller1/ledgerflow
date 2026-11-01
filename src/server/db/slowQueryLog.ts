@@ -32,6 +32,18 @@ function endOfQuoted(sql: string, i: number, quote: string, backslash: boolean):
   return sql.length;
 }
 
+/** Index just past a block comment that opens at `i`; PostgreSQL nests them, so count depth to the outermost close. */
+function endOfBlockComment(sql: string, i: number): number {
+  let depth = 0;
+  let j = i;
+  while (j < sql.length) {
+    if (sql[j] === '/' && sql[j + 1] === '*') { depth++; j += 2; continue; }
+    if (sql[j] === '*' && sql[j + 1] === '/') { depth--; j += 2; if (depth === 0) return j; continue; }
+    j++;
+  }
+  return sql.length;
+}
+
 /**
  * A query's text with every literal replaced by `?`, comments removed and whitespace collapsed, so it carries no
  * data. One pass over the text, so literal forms cannot hide inside each other: '…' (with ''), E'…' (with \\'),
@@ -45,7 +57,7 @@ export function queryShape(sql: string): string {
     const rest = sql.slice(i);
     const prevWord = /[A-Za-z0-9_]$/.test(out);
     if (ch === '-' && sql[i + 1] === '-') { const nl = sql.indexOf('\n', i); i = nl < 0 ? sql.length : nl; out += ' '; continue; }
-    if (ch === '/' && sql[i + 1] === '*') { const close = sql.indexOf('*/', i + 2); i = close < 0 ? sql.length : close + 2; out += ' '; continue; }
+    if (ch === '/' && sql[i + 1] === '*') { i = endOfBlockComment(sql, i); out += ' '; continue; }
     if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'" && !prevWord) { i = endOfQuoted(sql, i + 1, "'", true); out += '?'; continue; }
     if (ch === "'") { i = endOfQuoted(sql, i, "'", false); out += '?'; continue; }
     if (ch === '"') { const j = endOfQuoted(sql, i, '"', false); out += sql.slice(i, j); i = j; continue; }
