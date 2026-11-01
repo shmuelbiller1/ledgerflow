@@ -1434,7 +1434,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] Y-07 Yodlee
 - [ ] Y-29 Sending domain with SPF/DKIM
 - [ ] Y-32 Data region selection
-- [ ] Y-35 Rounding policy setting
+- [x] Y-35 Rounding policy setting — Settings → Appearance "Tax rounding": half up (default, unchanged), half to even, or down; invoices and bills use it for the tax when created or edited (`roundTaxCents` in `src/lib/taxCodes.ts`; migration `20261101000000_workspace_tax_rounding`)
 
 # SECTION Z — API · DATA QUALITY · MULTI-ENTITY · INTEGRATIONS
 

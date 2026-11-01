@@ -14,6 +14,8 @@ import {
   Globe
 } from 'lucide-react';
 import { cn, DATE_DISPLAY_FORMATS, formatDate } from '../../../lib/utils';
+import { TAX_ROUNDING, type TaxRounding } from '../../../lib/taxCodes';
+import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import MoneyDisplayPanel from './MoneyDisplayPanel';
@@ -86,6 +88,31 @@ export default function AppearanceSettings() {
       console.error("[Settings] Failed to save fiscal year start:", err);
       toast.error('The fiscal year start could not be saved (owners and accountants can change it).');
     }
+  };
+
+  // Y-35: how tax on new and edited invoices and bills is rounded to cents
+  const taxRounding: TaxRounding = activeWorkspace?.taxRounding || 'half_up';
+  // not async: the select's change has no caller waiting, so the outcome is reported here and only here
+  // one save at a time: the select is disabled while a save runs, so an older write cannot land last
+  const [isSavingTaxRounding, setIsSavingTaxRounding] = useState(false);
+  // owners and accountants may change it (the database refuses others); others see it read-only
+  const role = useCurrentRole();
+  const canSetTaxRounding = role === 'owner' || role === 'accountant';
+  const handleTaxRoundingChange = (mode: TaxRounding): void => {
+    const workspaceId = currentWorkspaceId;
+    if (!workspaceId || isSavingTaxRounding || !canSetTaxRounding) return;
+    setIsSavingTaxRounding(true);
+    const startedBy = useAuthStore.getState().user?.uid;
+    updateDoc(doc(db, 'workspaces', workspaceId), { taxRounding: mode }).then(() => {
+      // a reply that arrives after a sign-out or account switch must not write the old account's workspaces back
+      const now = useAuthStore.getState();
+      if (now.user?.uid !== startedBy) return;
+      now.setWorkspaces(now.workspaces.map(w => (w.id === workspaceId ? { ...w, taxRounding: mode } : w)));
+      toast.success('Tax rounding saved');
+    }, (err: unknown) => {
+      console.error("[Settings] Failed to save tax rounding:", err);
+      toast.error('Tax rounding could not be saved (owners and accountants can change it).');
+    }).finally(() => setIsSavingTaxRounding(false));
   };
 
   const fontPresets = [
@@ -414,6 +441,26 @@ export default function AppearanceSettings() {
               ))}
             </select>
             <p className="text-[10px] text-[var(--muted)]">Reports use it for the year and quarter pickers (a fiscal year is named after the calendar year it ends in).</p>
+          </div>
+
+          {/* Tax rounding (Y-35) */}
+          <div className="p-5 bg-[var(--panel)] border border-[var(--line)] rounded-xl space-y-3 md:col-span-2">
+            <label htmlFor={`${settingsId}-tax-rounding`} className="text-xs font-bold uppercase tracking-wider text-[var(--text)] flex items-center gap-2">
+              Tax rounding
+            </label>
+            <select
+              id={`${settingsId}-tax-rounding`}
+              value={taxRounding}
+              disabled={isSavingTaxRounding || !canSetTaxRounding}
+              aria-busy={isSavingTaxRounding}
+              onChange={(e) => handleTaxRoundingChange(e.target.value as TaxRounding)}
+              className="w-full sm:w-64 bg-[var(--surface)] text-[var(--text)] text-sm font-medium p-2.5 rounded-lg border border-[var(--line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer"
+            >
+              {(Object.keys(TAX_ROUNDING) as TaxRounding[]).map(mode => (
+                <option key={mode} value={mode}>{TAX_ROUNDING[mode]}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-[var(--muted)]">How the tax on an invoice or bill is rounded to the cent when it is created or edited. Documents already saved keep their tax.</p>
           </div>
 
           {/* High Contrast Toggle */}
