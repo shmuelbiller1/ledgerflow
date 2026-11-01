@@ -10,6 +10,13 @@ describe('slow-query log (D-22)', () => {
     assert.equal(shape, `select * from "invoices" where data->>? = ? and total > ? limit ?`);
     assert.doesNotMatch(shape, /alice|1250/);
     assert.equal(queryShape(`select $$secret body$$`), 'select ?');
+    // a huge statement (a big multi-row insert) is shaped quickly and cut short (CodeRabbit on #474)
+    const huge = 'insert into t values ' + Array.from({ length: 50_000 }, (_, n) => `(${n}, 'name-${n}@example.com')`).join(', ');
+    const started = Date.now();
+    const hugeShape = queryShape(huge);
+    assert.ok(Date.now() - started < 200, `shaping took ${Date.now() - started} ms`);
+    assert.ok(hugeShape.endsWith('…') && hugeShape.length <= 301);
+    assert.doesNotMatch(hugeShape, /example\.com/);
     assert.ok(queryShape('select ' + 'x, '.repeat(200)).endsWith('…'));
   });
 

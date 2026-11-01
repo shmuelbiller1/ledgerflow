@@ -15,6 +15,7 @@ export function slowQueryThresholdMs(env: NodeJS.ProcessEnv = process.env): numb
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_SLOW_QUERY_MS;
 }
 
+const WORD_CHAR = /[A-Za-z0-9_]/;
 const DOLLAR_TAG = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
 
 /** Index just past a quoted literal that opens at `i`, honouring doubled quotes and (for E'') backslash escapes. */
@@ -52,10 +53,11 @@ function endOfBlockComment(sql: string, i: number): number {
 export function queryShape(sql: string): string {
   let out = '';
   let i = 0;
-  while (i < sql.length) {
+  // stop once the shape is well past what is kept, so a huge statement costs no more than a short one
+  while (i < sql.length && out.length <= MAX_SHAPE * 2) {
     const ch = sql[i];
-    const rest = sql.slice(i);
-    const prevWord = /[A-Za-z0-9_]$/.test(out);
+    const rest = sql.slice(i, i + 256);
+    const prevWord = WORD_CHAR.test(out.charAt(out.length - 1));
     if (ch === '-' && sql[i + 1] === '-') { const nl = sql.indexOf('\n', i); i = nl < 0 ? sql.length : nl; out += ' '; continue; }
     if (ch === '/' && sql[i + 1] === '*') { i = endOfBlockComment(sql, i); out += ' '; continue; }
     if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'" && !prevWord) { i = endOfQuoted(sql, i + 1, "'", true); out += '?'; continue; }
@@ -82,7 +84,7 @@ export function queryShape(sql: string): string {
     i++;
   }
   const shape = out.replace(/\s+/g, ' ').trim();
-  return shape.length > MAX_SHAPE ? `${shape.slice(0, MAX_SHAPE)}…` : shape;
+  return shape.length > MAX_SHAPE || i < sql.length ? `${shape.slice(0, MAX_SHAPE)}…` : shape;
 }
 
 type Queryable = { query: (...args: unknown[]) => unknown; [INSTRUMENTED]?: true };
