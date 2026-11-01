@@ -15,14 +15,61 @@ export function slowQueryThresholdMs(env: NodeJS.ProcessEnv = process.env): numb
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_SLOW_QUERY_MS;
 }
 
-/** A query's text with every literal replaced by `?` and whitespace collapsed, so it carries no data. */
+const DOLLAR_TAG = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
+
+/** Index just past a quoted literal that opens at `i`, honouring doubled quotes and (for E'') backslash escapes. */
+function endOfQuoted(sql: string, i: number, quote: string, backslash: boolean): number {
+  let j = i + 1;
+  while (j < sql.length) {
+    const ch = sql[j];
+    if (backslash && ch === '\\') { j += 2; continue; }
+    if (ch === quote) {
+      if (sql[j + 1] === quote) { j += 2; continue; }
+      return j + 1;
+    }
+    j++;
+  }
+  return sql.length;
+}
+
+/**
+ * A query's text with every literal replaced by `?`, comments removed and whitespace collapsed, so it carries no
+ * data. One pass over the text, so literal forms cannot hide inside each other: '…' (with ''), E'…' (with \\'),
+ * $$…$$ and $tag$…$tag$, numbers, -- and /* *\/ comments. "Quoted identifiers" and $1 placeholders stay.
+ */
 export function queryShape(sql: string): string {
-  const shape = sql
-    .replace(/'(?:[^']|'')*'/g, '?')        // string literals
-    .replace(/\$\$[\s\S]*?\$\$/g, '?')      // dollar-quoted bodies
-    .replace(/\b\d+(?:\.\d+)?\b/g, '?')     // numbers
-    .replace(/\s+/g, ' ')
-    .trim();
+  let out = '';
+  let i = 0;
+  while (i < sql.length) {
+    const ch = sql[i];
+    const rest = sql.slice(i);
+    const prevWord = /[A-Za-z0-9_]$/.test(out);
+    if (ch === '-' && sql[i + 1] === '-') { const nl = sql.indexOf('\n', i); i = nl < 0 ? sql.length : nl; out += ' '; continue; }
+    if (ch === '/' && sql[i + 1] === '*') { const close = sql.indexOf('*/', i + 2); i = close < 0 ? sql.length : close + 2; out += ' '; continue; }
+    if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'" && !prevWord) { i = endOfQuoted(sql, i + 1, "'", true); out += '?'; continue; }
+    if (ch === "'") { i = endOfQuoted(sql, i, "'", false); out += '?'; continue; }
+    if (ch === '"') { const j = endOfQuoted(sql, i, '"', false); out += sql.slice(i, j); i = j; continue; }
+    if (ch === '$') {
+      const tag = DOLLAR_TAG.exec(rest);
+      if (tag) {
+        const close = sql.indexOf(tag[0], i + tag[0].length);
+        i = close < 0 ? sql.length : close + tag[0].length;
+        out += '?';
+        continue;
+      }
+      const param = /^\$\d+/.exec(rest);
+      if (param) { out += '$?'; i += param[0].length; continue; }
+    }
+    if (/[0-9]/.test(ch) && !prevWord) {
+      const num = /^\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(rest)!;
+      out += '?';
+      i += num[0].length;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  const shape = out.replace(/\s+/g, ' ').trim();
   return shape.length > MAX_SHAPE ? `${shape.slice(0, MAX_SHAPE)}…` : shape;
 }
 
