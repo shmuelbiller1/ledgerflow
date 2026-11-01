@@ -31,6 +31,12 @@ describe('structured JSON logging (D-21)', () => {
     assert.equal(line.level, 'info');
   });
 
+  it('a context with no workspace keeps the workspace a job logs itself (cron requests)', () => {
+    const line = logLine('error', 'reminder failed', { workspaceId: 'ws_job' }, { requestId: 'cron-12345', workspaceId: undefined });
+    assert.equal(line.workspaceId, 'ws_job');
+    assert.equal(line.requestId, 'cron-12345');
+  });
+
   it('a line written while a request is handled carries its context', () => {
     const line = logContext.run({ requestId: 'ctx-12345', route: '/api/v1/workspaces/:workspaceId' }, () => logLine('warn', 'inside'));
     assert.equal(line.requestId, 'ctx-12345');

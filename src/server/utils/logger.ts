@@ -41,7 +41,9 @@ type Level = 'info' | 'warn' | 'error';
 
 /** One log line as an object (exported for tests); the request context comes first so a field cannot hide it. */
 export function logLine(level: Level, msg: string, fields?: Record<string, unknown>, context: LogContext | undefined = logContext.getStore()): Record<string, unknown> {
-  return { ...scrubFields(fields), level, time: new Date().toISOString(), msg: logSafe(msg, 1000), ...(context || {}) };
+  // only context values that are set win: a cron request has no workspace, and must not wipe the one a job logs itself
+  const known = Object.fromEntries(Object.entries(context || {}).filter(([, v]) => v !== undefined));
+  return { ...scrubFields(fields), level, time: new Date().toISOString(), msg: logSafe(msg, 1000), ...known };
 }
 
 function write(level: Level, msg: string, fields?: Record<string, unknown>, context?: LogContext) {
