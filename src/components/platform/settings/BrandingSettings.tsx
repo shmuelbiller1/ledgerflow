@@ -1,12 +1,13 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Palette, FileText, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken } from '../../../firebase';
-import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/branding';
-import type { WorkspaceBranding } from '../../../lib/branding';
+import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
+import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { DOCUMENT_LANGUAGES } from '../../../lib/documentLanguage';
+import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 /**
  * Settings → Branding (Y-11…Y-14, Y-33, Y-34): logo, colour, address, footer and default terms for
@@ -30,6 +31,7 @@ async function failure(res: Response, fallback: string): Promise<string> {
   return body.message || fallback;
 }
 
+/** Workspace document branding settings editor (logo, color, address, footer, terms, and PDF preview). */
 export default function BrandingSettings() {
   const formId = useId();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -39,6 +41,9 @@ export default function BrandingSettings() {
   const canEdit = role === 'owner' || role === 'accountant';
   const [draft, setDraft] = useState<WorkspaceBranding>(() => workspace?.branding || {});
   const [busy, setBusy] = useState<'save' | 'preview' | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const dirty = Boolean(workspace) && JSON.stringify(draft) !== JSON.stringify(workspace?.branding || {});
+  useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
 
   const set = (fields: Partial<WorkspaceBranding>) => setDraft(d => ({ ...d, ...fields }));
   const setTerms = (type: typeof BRANDED_DOCUMENTS[number], text: string) => setDraft(d => ({ ...d, terms: { ...(d.terms || {}), [type]: text } }));
@@ -62,6 +67,7 @@ export default function BrandingSettings() {
       const { branding } = await res.json();
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, branding } : w)));
       setDraft(branding);
+      clearDirtyTracking(panelRef.current);
       toast.success('Branding saved. New PDFs use it.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The branding could not be saved');
@@ -89,7 +95,7 @@ export default function BrandingSettings() {
   };
 
   return (
-    <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-6" aria-labelledby={`${formId}-title`}>
+    <section ref={panelRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-6" aria-labelledby={`${formId}-title`}>
       <div className="flex items-start gap-3">
         <Palette aria-hidden="true" className="w-5 h-5 text-[var(--brass)] mt-1" />
         <div>

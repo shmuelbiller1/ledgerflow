@@ -1,9 +1,30 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import { startStandaloneScheduler } from "../jobs/standaloneScheduler";
 
 declare const __PRODUCTION_BUNDLE__: boolean | undefined;
+
+/**
+ * Mounts static assets from `distPath`, returns 404 for missing `/assets/*` bundles so
+ * removed lazy chunks never serve SPA `index.html`, and falls back to rate-limited `index.html` for SPA routes.
+ */
+export function mountSpaStaticRoutes(app: express.Express, distPath: string): void {
+  const spaFallbackLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(express.static(distPath));
+  app.use('/assets', (_req, res) => {
+    res.status(404).type('text/plain').send('Not Found');
+  });
+  app.get('/{*splat}', spaFallbackLimiter, (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 /**
  * Long-running server (npm run dev / npm start), F-01 moved from server.ts: the API app plus the
@@ -37,10 +58,7 @@ export async function serveApp(app: express.Express, PORT: number): Promise<void
       process.cwd()
     ];
     const distPath = candidatePaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('/{*splat}', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    mountSpaStaticRoutes(app, distPath);
   }
 
   httpServer.on('error', (e: NodeJS.ErrnoException) => {

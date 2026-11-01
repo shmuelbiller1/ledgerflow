@@ -1,6 +1,5 @@
-import FeedbackWidget from './components/support/FeedbackWidget';
 import TestEnvironmentBanner from './components/support/TestEnvironmentBanner';
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useTransition, lazy, Suspense } from 'react';
 import { usePerformanceTrace } from './hooks/usePerformanceTrace';
 import { auth } from './firebase';
 import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
@@ -17,10 +16,7 @@ import { shortcutKeyMap } from './config/shortcuts';
 import { currentPage, MAX_PINNED } from './lib/pinnedPages';
 import { useLedgerData } from './hooks/useLedgerData';
 import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
-import { useAIActions } from './hooks/useAIActions';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useTransactionActions } from './hooks/useTransactionActions';
-import { useCommandDispatcher } from './hooks/useSystemContext';
 import { useBillingStore } from './modules/billing/BillingService';
 
 // Core Architectural Imports
@@ -29,22 +25,115 @@ import { InitializationScreen } from './core/auth/InitializationScreen';
 import { SecondFactorScreen } from './core/auth/SecondFactorScreen';
 import { redeemRecoveryCode } from './core/auth/recoveryCode';
 import { useTwoStepSetup } from './core/auth/twoStepSetup';
-import { RootLayout } from './core/layout/RootLayout';
-import { lazy, Suspense } from 'react';
-const LedgerAutoAuditor = lazy(() => import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor })));
-
 import { FallbackBoundary } from './components/FallbackBoundary';
-import PublicInvoicePage from './components/sales/PublicInvoicePage';
-import PublicEstimatePage from './components/sales/PublicEstimatePage';
-import CustomerPortalPage from './components/sales/CustomerPortalPage';
+import CookieConsent from './components/legal/CookieConsent';
+import { canOpenShortcutHelp } from './lib/shortcutOverlay';
+import { createRetryableLazy } from './lib/lazyWithRetry';
+import { LazyOverlayBoundary } from './components/ui/LazyOverlayBoundary';
+
+const loadRootLayout = () => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout }));
+const RootLayout = lazy(loadRootLayout);
+const loadFeedbackWidget = () =>
+  import('./components/support/FeedbackWidget').then(m => ({ default: m.default as React.ComponentType }));
+const loadLedgerAutoAuditor = () =>
+  import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor as React.ComponentType }));
+
+/**
+ * Loads a background widget dynamically without Suspense error escalation, retrying
+ * on reconnect or explicit Retry action and optionally replaying queued window events.
+ */
+function ResilientBackgroundMount({
+  load,
+  warnOnFailure = false,
+  replayEventName,
+}: {
+  load: () => Promise<{ default: React.ComponentType }>;
+  warnOnFailure?: boolean;
+  replayEventName?: string;
+}) {
+  const [Loaded, setLoaded] = useState<React.ComponentType | null>(null);
+  const replayPendingRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    let isLoaded = false;
+    let pendingClick = false;
+    const retry = () => {
+      if (isLoaded) return;
+      load()
+        .then((mod) => {
+          if (!active) return;
+          isLoaded = true;
+          if (warnOnFailure) toast.dismiss('ledger-auditor-load-warning');
+          if (pendingClick) {
+            pendingClick = false;
+            replayPendingRef.current = true;
+          }
+          setLoaded(() => mod.default);
+        })
+        .catch(() => {
+          if (!active) return;
+          if (pendingClick) {
+            toast.error('The feedback form could not load.', {
+              id: 'feedback-widget-load-warning',
+              description: 'Check your connection or retry loading it.',
+              action: {
+                label: 'Retry',
+                onClick: () => retry(),
+              },
+            });
+          }
+          if (!warnOnFailure) return;
+          toast.warning('Automatic ledger checks could not load.', {
+            id: 'ledger-auditor-load-warning',
+            description: 'Check your connection or retry loading them.',
+            action: {
+              label: 'Retry',
+              onClick: () => retry(),
+            },
+          });
+        });
+    };
+
+    const onEarlyEvent = () => {
+      if (isLoaded) return;
+      pendingClick = true;
+      retry();
+    };
+
+    if (replayEventName) {
+      window.addEventListener(replayEventName, onEarlyEvent);
+    }
+    retry();
+    window.addEventListener('online', retry);
+    return () => {
+      active = false;
+      if (replayEventName) {
+        window.removeEventListener(replayEventName, onEarlyEvent);
+      }
+      window.removeEventListener('online', retry);
+    };
+  }, [load, warnOnFailure, replayEventName]);
+
+  useEffect(() => {
+    if (!Loaded || !replayPendingRef.current || !replayEventName) return;
+    replayPendingRef.current = false;
+    toast.dismiss('feedback-widget-load-warning');
+    window.dispatchEvent(new window.Event(replayEventName));
+  }, [Loaded, replayEventName]);
+
+  return Loaded ? <Loaded /> : null;
+}
+const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePage'));
+const PublicEstimatePage = lazy(() => import('./components/sales/PublicEstimatePage'));
+const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalPage'));
 const StatusPage = lazy(() => import('./components/system/StatusPage'));
 const TwoStepSetupScreen = lazy(() => import('./core/auth/TwoStepSetupScreen'));
 const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
-import CookieConsent from './components/legal/CookieConsent';
-import LegalModal from './components/legal/LegalModal';
-import { canOpenShortcutHelp } from './lib/shortcutOverlay';
+const LegalModal = createRetryableLazy(() => import('./components/legal/LegalModal'));
 
 
+/** Root application component coordinating authentication, public capability routes, and workspace shell. */
 export default function App() {
   const [isPending, startTransition] = useTransition();
   usePerformanceTrace("App");
@@ -150,10 +239,14 @@ export default function App() {
   // High-Performance Data Ingress
   useLedgerData();
   useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
-  useTransactionActions();
-  useAIActions();
-  
-  const { handleAction } = useCommandDispatcher();
+
+  const openExportDialog = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('exportDialog', '1');
+    window.history.replaceState(null, '', url);
+    useUIStore.getState().goToPage({ tab: 'settings', sub: 'export' });
+    window.dispatchEvent(new Event('ledgerflow:open-export'));
+  }, []);
   
   // Language & Direction Control & Sizing Core
   useEffect(() => {
@@ -213,7 +306,7 @@ const shortcutMap = useMemo(() => {
       transactions: () => setActiveTab('transactions'),
       ledger: () => setActiveTab('ledger'),
       reports: () => setActiveTab('reports'),
-      export: () => handleAction('export'),
+      export: () => openExportDialog(),
       import: () => setImporterOpen(true),
       theme: () => useUIStore.getState().setTheme(useUIStore.getState().theme === 'dark' ? 'light' : 'dark'),
       focus: () => toggleFocusMode(),
@@ -239,7 +332,7 @@ const shortcutMap = useMemo(() => {
   }, [
     isCommandPaletteOpen, isQuickEntryOpen, isDiagnosticConsoleOpen,
     isShortcutOverlayOpen, isArchitectureOpen, speedDials, navigateTool,
-    handleAction, setActiveTab, setArchitectureOpen, setCommandPaletteOpen,
+    openExportDialog, setActiveTab, setArchitectureOpen, setCommandPaletteOpen,
     setDiagnosticConsoleOpen, setImporterOpen, setQuickEntryOpen,
     setShortcutOverlayOpen, toggleFocusMode
   ]);
@@ -252,14 +345,20 @@ const shortcutMap = useMemo(() => {
         useLedgerStore.getState().recomputeBalances();
       }
     };
-    
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-
   const isGuest = useAuthStore(state => state.isGuest);
   const setIsGuest = useAuthStore(state => state.setIsGuest);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    const isPublicOnlyPath = path === '/status' || /^\/(?:c|e|i)\/[^/]+\/?$/.test(path);
+    if (!isPublicOnlyPath && (user || isGuest || path.startsWith('/invite/'))) {
+      void loadRootLayout().catch(() => {});
+    }
+  }, [user, isGuest]);
   // Y-30: a workspace this person is in may require two-step login this session has not passed
   const twoStep = useTwoStepSetup(user?.uid ?? null, !user || user.isAnonymous || isGuest || Boolean(pendingSecondFactor));
 
@@ -356,26 +455,40 @@ const shortcutMap = useMemo(() => {
 
   // the customer portal (K-27): a customer's invoices, no sign-in
   if (window.location.pathname.startsWith('/c/')) {
-    return <CustomerPortalPage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <CustomerPortalPage />
+      </Suspense>
+    );
   }
 
   // signing an estimate (Y-20): no sign-in
   if (window.location.pathname.startsWith('/e/')) {
-    return <PublicEstimatePage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <PublicEstimatePage />
+      </Suspense>
+    );
   }
 
   const isPublicInvoice = window.location.pathname.startsWith('/i/');
   if (isPublicInvoice) {
-    return <PublicInvoicePage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <PublicInvoicePage />
+      </Suspense>
+    );
   }
 
   const isInviteRoute = window.location.pathname.startsWith('/invite/');
   if (isInviteRoute) {
     return (
-      <Suspense fallback={<InitializationScreen language={language} />}>
-        <RootLayout />
-        <FeedbackWidget />
-      </Suspense>
+      <>
+        <Suspense fallback={<InitializationScreen language={language} />}>
+          <RootLayout />
+        </Suspense>
+        <ResilientBackgroundMount load={loadFeedbackWidget} replayEventName="ledgerflow:feedback" />
+      </>
     );
   }
 
@@ -432,12 +545,22 @@ const shortcutMap = useMemo(() => {
               />
           </div>
         )}
-        <Suspense fallback={null}><LedgerAutoAuditor /></Suspense>
+        <ResilientBackgroundMount load={loadLedgerAutoAuditor} warnOnFailure />
         <TestEnvironmentBanner />
-        <RootLayout />
-        <FeedbackWidget />
+        <Suspense fallback={<InitializationScreen language={language} />}>
+          <RootLayout />
+        </Suspense>
+        <ResilientBackgroundMount load={loadFeedbackWidget} replayEventName="ledgerflow:feedback" />
         <CookieConsent onOpenPrivacyPolicy={() => { setLegalModalTab('privacy'); setIsLegalModalOpen(true); }} />
-        <LegalModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} initialTab={legalModalTab} />
+        {isLegalModalOpen && (
+          <LazyOverlayBoundary
+            label="Legal policy"
+            onDismiss={() => setIsLegalModalOpen(false)}
+            onRetry={() => setIsLegalModalOpen(true)}
+          >
+            <LegalModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} initialTab={legalModalTab} />
+          </LazyOverlayBoundary>
+        )}
       </div>
     </FallbackBoundary>
   );

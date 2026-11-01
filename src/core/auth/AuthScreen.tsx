@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, ShieldCheck, Mail, UserPlus } from 'lucide-react';
 import { useBillingStore } from '../../modules/billing/BillingService';
-import LegalModal from '../../components/legal/LegalModal';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
 import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordPolicy';
+import { createRetryableLazy } from '../../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
+
+const LegalModal = createRetryableLazy(() => import('../../components/legal/LegalModal'));
 
 interface AuthScreenProps {
   onLogin: () => void;
@@ -16,6 +19,7 @@ interface AuthScreenProps {
   language: string;
 }
 
+/** Sign-in, registration, guest entry, and password-reset screen with lazy legal policy modal. */
 export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, language: _language }: AuthScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
@@ -262,11 +266,19 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
         </div>
       </section>
 
-      <LegalModal
-        isOpen={legalModalOpen}
-        onClose={() => setLegalModalOpen(false)}
-        initialTab={legalTab}
-      />
+      {legalModalOpen && (
+        <LazyOverlayBoundary
+          label="Legal policy"
+          onDismiss={() => setLegalModalOpen(false)}
+          onRetry={() => setLegalModalOpen(true)}
+        >
+          <LegalModal
+            isOpen={legalModalOpen}
+            onClose={() => setLegalModalOpen(false)}
+            initialTab={legalTab}
+          />
+        </LazyOverlayBoundary>
+      )}
     </main>
   );
 }

@@ -3,67 +3,171 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import fs from 'fs';
 
 export default defineConfig({
   // Dev-only: allow the sandbox live-preview host (Vite rejects unknown Host headers).
   server: {
     allowedHosts: ['.e2b.app'],
   },
-  resolve: { 
+  resolve: {
     alias: {
       react: path.resolve('./node_modules/react'),
       'react-dom': path.resolve('./node_modules/react-dom')
     },
-    dedupe: ["react", "react-dom"] 
+    dedupe: ['react', 'react-dom']
   },
-  plugins: [react(), tailwindcss(), VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["robots.txt", "apple-touch-icon.png", "**/*.svg"],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      // Safe deferred updates: never force-reload active tabs with unsaved financial work.
+      registerType: 'prompt',
+      includeAssets: ['robots.txt', 'apple-touch-icon.png', '**/*.svg'],
       manifest: {
-        id: "com.ledgerflow.app",
-        start_url: "/#dashboard",
-        scope: "/",
-        name: "LedgerFlow",
-        short_name: "LedgerFlow",
-        description: "Professional cloud financial management and smart double-entry auditing.",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
-        display: "standalone",
-        orientation: "portrait-primary",
-        categories: ["finance", "business", "productivity"],
+        id: 'com.ledgerflow.app',
+        start_url: '/#dashboard',
+        scope: '/',
+        name: 'LedgerFlow',
+        short_name: 'LedgerFlow',
+        description: 'Professional cloud financial management and smart double-entry auditing.',
+        theme_color: '#0f172a',
+        background_color: '#0f172a',
+        display: 'standalone',
+        orientation: 'portrait-primary',
+        categories: ['finance', 'business', 'productivity'],
         icons: [
           {
-            src: "/pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png"
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
           },
           {
-            src: "/pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable"
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ],
         shortcuts: [
           {
-            name: "New Journal Entry",
-            short_name: "New Entry",
-            description: "Create a new journal entry",
-            url: "/?action=new-journal",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+            name: 'New Journal Entry',
+            short_name: 'New Entry',
+            description: 'Create a new journal entry',
+            url: '/?action=new-journal',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }]
           },
           {
-            name: "Dashboard",
-            short_name: "Dashboard",
-            description: "View financial dashboard",
-            url: "/",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+            name: 'Dashboard',
+            short_name: 'Dashboard',
+            description: 'View financial dashboard',
+            url: '/',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }]
           }
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        cleanupOutdatedCaches: true,
+        navigateFallback: 'index.html',
+        // Never intercept backend API downloads, exports, webhooks, or auth endpoints with SPA HTML.
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
+        // Precache the exact static dependency closure of index.html + app shell + RootLayout;
+        // genuinely lazy screens (import("./...")) are cached on demand via runtimeCaching.
+        globPatterns: [
+          'index.html',
+          'assets/*.{js,css}'
+        ],
+        manifestTransforms: [
+          /** Filters precache entries to the exact static ESM import closure of the app shell and global overlays. */
+          async (manifestEntries) => {
+            const distDir = path.resolve('dist');
+            const shellFiles = new Set<string>();
+            const queue: string[] = [];
+
+            const enqueue = (relPath: string) => {
+              const clean = relPath.replace(/^\//, '');
+              if (!shellFiles.has(clean) && fs.existsSync(path.join(distDir, clean))) {
+                shellFiles.add(clean);
+                queue.push(clean);
+              }
+            };
+
+            for (const entry of manifestEntries) {
+              const clean = entry.url.replace(/^\//, '');
+              if (
+                !clean.startsWith('assets/') ||
+                /^assets\/(?:app|RootLayout|FeedbackWidget|LedgerAutoAuditor|CommandPalette|ShortcutOverlay|DiagnosticConsole|NotificationDrawer|LegalModal)-[^/]+\.js$/.test(clean) ||
+                /^assets\/index-[^/]+\.css$/.test(clean)
+              ) {
+                enqueue(clean);
+              }
+            }
+
+            const indexHtmlPath = path.join(distDir, 'index.html');
+            if (fs.existsSync(indexHtmlPath)) {
+              const html = fs.readFileSync(indexHtmlPath, 'utf8');
+              for (const match of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) {
+                if (!/^https?:\/\//i.test(match[1])) enqueue(match[1]);
+              }
+            }
+
+            while (queue.length > 0) {
+              const current = queue.shift()!;
+              if (!current.endsWith('.js')) continue;
+              const code = fs.readFileSync(path.join(distDir, current), 'utf8');
+              for (const match of code.matchAll(/(?:from\s*|import\s*)["'](\.[^"']+\.(?:js|css))["']/g)) {
+                const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(current), match[1]));
+                enqueue(resolved);
+              }
+            }
+
+            return {
+              manifest: manifestEntries.filter((entry) => shellFiles.has(entry.url.replace(/^\//, ''))),
+              warnings: [],
+            };
+          }
+        ],
         runtimeCaching: [
+          {
+            // Never cache authenticated or workspace-scoped backend financial API responses.
+            urlPattern: ({ sameOrigin, url }) =>
+              sameOrigin && (url.pathname === '/api' || url.pathname.startsWith('/api/')),
+            handler: 'NetworkOnly'
+          },
+          {
+            // Never cache Supabase Auth, PostgREST, Realtime, Storage, or Edge Function responses.
+            urlPattern: ({ url }) =>
+              /\.supabase\.(?:co|in)$/i.test(url.hostname) ||
+              /^\/(?:auth|rest|realtime|storage|functions)\/v1(?:\/|$)/.test(url.pathname),
+            handler: 'NetworkOnly'
+          },
+          {
+            // Cache visited content-hashed lazy screen chunks and static media on demand,
+            // rejecting HTML SPA fallbacks so a missing chunk is never stored as JavaScript.
+            urlPattern: ({ sameOrigin, request, url }) =>
+              sameOrigin &&
+              url.pathname.startsWith('/assets/') &&
+              ['script', 'style', 'font', 'image', 'worker'].includes(request.destination),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ledgerflow-hashed-assets-v2',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              plugins: [
+                {
+                  cacheWillUpdate: async ({ response }: { response: Response }) =>
+                    (response.headers.get('content-type') || '').toLowerCase().includes('text/html')
+                      ? null
+                      : response
+                }
+              ]
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
             handler: 'CacheFirst',
@@ -80,7 +184,8 @@ export default defineConfig({
           }
         ]
       }
-    }), ],
+    })
+  ],
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
   },
@@ -100,12 +205,26 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-utils': ['date-fns', 'zustand', 'clsx', 'tailwind-merge'],
-          'vendor-ui': ['lucide-react', 'motion/react', 'sonner'],
-          'vendor-viz': ['recharts', 'd3'],
+        entryFileNames: 'assets/app-[hash].js',
+        /** Splits third-party libraries into deterministic vendor chunks by resolved package path. */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[/\\]node_modules[/\\](?:react|react-dom|scheduler)[/\\]/.test(id)) {
+            return 'vendor-react';
+          }
+          if (/[/\\]node_modules[/\\]@supabase[/\\]/.test(id)) {
+            return 'vendor-supabase';
+          }
+          if (/[/\\]node_modules[/\\](?:date-fns|zustand|clsx|tailwind-merge)[/\\]/.test(id)) {
+            return 'vendor-utils';
+          }
+          if (/[/\\]node_modules[/\\](?:motion|framer-motion|motion-dom|motion-utils|sonner)[/\\]/.test(id)) {
+            return 'vendor-ui';
+          }
+          if (/[/\\]node_modules[/\\](?:recharts|d3|d3-[^/\\]+|victory-vendor)[/\\]/.test(id)) {
+            return 'vendor-viz';
+          }
+          return undefined;
         }
       }
     },

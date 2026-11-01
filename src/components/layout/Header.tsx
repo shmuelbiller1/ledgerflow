@@ -8,8 +8,11 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { unreadCount, useNotificationStore } from '../../stores/useNotificationStore';
 import { useNotificationFeed } from '../../hooks/useNotificationFeed';
-import NotificationDrawer from './NotificationDrawer';
 import { useCollaborators } from '../../hooks/useCollaborators';
+import { createRetryableLazy } from '../../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../ui/LazyOverlayBoundary';
+
+const NotificationDrawer = createRetryableLazy(() => import('./NotificationDrawer'));
 
 import { useRecentRecordTracking } from '../../hooks/useRecentRecordTracking';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -19,6 +22,7 @@ interface HeaderProps {
   onLoginPrompt?: () => void;
 }
 
+/** Workspace top navigation bar with search, quick create, theme toggle, and notifications. */
 const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderProps) {
   const user = useAuthStore(state => state.user);
   const currentWorkspaceId = useAuthStore(state => state.currentWorkspaceId);
@@ -30,6 +34,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
   const currentRole = useCurrentRole();
   const collaborators = useCollaborators();
 
+  const isDrawerOpen = useNotificationStore(s => s.isDrawerOpen);
   const setDrawerOpen = useNotificationStore(s => s.setDrawerOpen);
   const unread = useNotificationStore(s => unreadCount(s.notifications));
   useNotificationFeed();
@@ -187,7 +192,15 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
           </button>
         )}
       </div>
-      <NotificationDrawer />
+      {isDrawerOpen && (
+        <LazyOverlayBoundary
+          label="Notifications"
+          onDismiss={() => setDrawerOpen(false)}
+          onRetry={() => setDrawerOpen(true)}
+        >
+          <NotificationDrawer />
+        </LazyOverlayBoundary>
+      )}
     </header>
   );
 });
