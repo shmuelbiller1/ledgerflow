@@ -382,7 +382,7 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
   });
 
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success || !targetUid) return sendError(res, 'Invalid role payload or target user ID', 400, parsed.error?.issues);
+  if (!parsed.success || typeof targetUid !== 'string' || !targetUid) return sendError(res, 'Invalid role payload or target user ID', 400, parsed.error?.issues);
   const { role } = parsed.data;
 
   try {
