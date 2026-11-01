@@ -9,6 +9,55 @@ export interface NormalizedLedgerTransaction extends Transaction {
   _normalized: { searchStr: string; month: string; absAmount: number; sanitizedDescription: string; year: string; isLarge: boolean; isTiny: boolean; isBalanced: boolean };
 }
 
+type NormalizedMeta = NormalizedLedgerTransaction['_normalized'];
+
+export interface NormalizationCacheStats {
+  workspaces: number;
+  entries: number;
+  maxWorkspaces: number;
+  maxEntriesPerWorkspace: number;
+}
+
+const DEFAULT_WORKSPACE_SCOPE = '__default__';
+
+function serializeDimensions(dimensions?: Record<string, string>): string {
+  if (!dimensions) return '';
+  let out = '';
+  for (const [key, value] of Object.entries(dimensions)) {
+    out += `${key}=${value};`;
+  }
+  return out;
+}
+
+function buildLinesSignature(lines?: Transaction['lines']): string {
+  if (!lines || lines.length === 0) return '';
+  return lines
+    .map(
+      (l) =>
+        `${l.accountId}:${l.amountCents}:${l.accountName || ''}:${l.description || ''}:${l.tags?.join(',') || ''}:${l.class || ''}:${l.location || ''}:${l.project || ''}:${serializeDimensions(l.dimensions)}`,
+    )
+    .join('|');
+}
+
+function buildNormalizationKey(tx: Transaction, metadataJson: string): string {
+  return [
+    tx.id || '',
+    tx.totalAmountCents || 0,
+    tx.exchangeRate || 1,
+    tx.date || '',
+    tx.status || '',
+    tx.description || '',
+    tx.isCleared ? 1 : 0,
+    tx.tags?.join(',') || '',
+    tx.project || '',
+    tx.classId || '',
+    tx.locationId || '',
+    serializeDimensions(tx.dimensions),
+    metadataJson,
+    buildLinesSignature(tx.lines),
+  ].join('\u001f');
+}
+
 export class LedgerEngine {
   /**
    * Validates if a transaction satisfies the fundamental double-entry invariant.
@@ -20,8 +69,48 @@ export class LedgerEngine {
     return sum === 0;
   }
 
-  private static normalizationCache = new Map<string, NormalizedLedgerTransaction>();
-  private static MAX_CACHE_SIZE = 150000;
+  private static readonly workspaceNormalizationCaches = new Map<string, Map<string, NormalizedMeta>>();
+  private static readonly MAX_CACHED_WORKSPACES = 2;
+  private static readonly MAX_CACHE_ENTRIES_PER_WORKSPACE = 10_000;
+
+  static clearNormalizationCache(workspaceId?: string): void {
+    if (workspaceId !== undefined) {
+      this.workspaceNormalizationCaches.delete(workspaceId || DEFAULT_WORKSPACE_SCOPE);
+      return;
+    }
+    this.workspaceNormalizationCaches.clear();
+  }
+
+  static getNormalizationCacheStats(): NormalizationCacheStats {
+    let entries = 0;
+    for (const wsCache of this.workspaceNormalizationCaches.values()) {
+      entries += wsCache.size;
+    }
+    return {
+      workspaces: this.workspaceNormalizationCaches.size,
+      entries,
+      maxWorkspaces: this.MAX_CACHED_WORKSPACES,
+      maxEntriesPerWorkspace: this.MAX_CACHE_ENTRIES_PER_WORKSPACE,
+    };
+  }
+
+  private static getWorkspaceCache(workspaceScope: string): Map<string, NormalizedMeta> {
+    const existing = this.workspaceNormalizationCaches.get(workspaceScope);
+    if (existing) {
+      this.workspaceNormalizationCaches.delete(workspaceScope);
+      this.workspaceNormalizationCaches.set(workspaceScope, existing);
+      return existing;
+    }
+    if (this.workspaceNormalizationCaches.size >= this.MAX_CACHED_WORKSPACES) {
+      const oldestWorkspace = this.workspaceNormalizationCaches.keys().next().value;
+      if (oldestWorkspace !== undefined) {
+        this.workspaceNormalizationCaches.delete(oldestWorkspace);
+      }
+    }
+    const created = new Map<string, NormalizedMeta>();
+    this.workspaceNormalizationCaches.set(workspaceScope, created);
+    return created;
+  }
 
   private static CACHED_SANITIZE_REGEX_CORP = /(?<![\p{L}\p{M}\p{N}_])(inc|ltd|corp|co|llc|plc|gmbh|sa|bv|nv|ag|sas)(?![\p{L}\p{M}\p{N}_])/gu;
   private static CACHED_SANITIZE_REGEX_CHARS = /[^\p{L}\p{M}\p{N}]/gu;
@@ -33,42 +122,52 @@ export class LedgerEngine {
         .trim();
   }
 
-  static normalize(transactions: Transaction[]): NormalizedLedgerTransaction[] {
-    // Basic high-speed eviction if cache grows too large
-    if (this.normalizationCache.size > this.MAX_CACHE_SIZE) {
-      this.normalizationCache.clear();
-    }
+  private static computeNormalizedMeta(t: Transaction, metadataJson: string): NormalizedMeta {
+    const absAmount = Math.abs(Math.round((t.totalAmountCents || 0) * (t.exchangeRate || 1))) / 100;
+    const tDate = t.date || '';
+    const lineSearch = t.lines
+      ?.map(
+        (l) =>
+          `${l.accountName} ${l.description || ''} ${l.tags?.join(' ') || ''} ${l.class || ''} ${l.location || ''} ${l.project || ''} ${l.dimensions ? Object.values(l.dimensions).join(' ') : ''}`,
+      )
+      .join(' ');
+    const rawSearch = `${t.description || ''} ${absAmount} ${tDate} ${t.isCleared ? 'cleared' : 'pending'} ${t.tags?.join(' ') || ''} ${t.project || ''} ${t.classId || ''} ${t.locationId || ''} ${t.dimensions ? Object.values(t.dimensions).join(' ') : ''} ${metadataJson} ${lineSearch}`;
 
-    return transactions.map(t => {
-      // Robust Deterministic Cache Key
-      // We hash the lines to keep the key length manageable while ensuring any line change invalidates the cache
-      const linesSignature = (t.lines || []).map(l => `${l.accountId}:${l.amountCents}`).join('|');
-      const cacheKey = `${t.id}-${t.totalAmountCents}-${t.exchangeRate || 1}-${t.date}-${t.status}-${t.description || ''}-${t.isCleared ? 1 : 0}-${t.tags?.join(',')}-${t.project || ''}-${linesSignature}`;
-      
-      if (this.normalizationCache.has(cacheKey)) {
-        return this.normalizationCache.get(cacheKey)!;
+    return {
+      searchStr: rawSearch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+      month: tDate.length >= 7 ? tDate.substring(0, 7) : '',
+      absAmount,
+      sanitizedDescription: this.sanitizeText(t.description || ''),
+      year: tDate.length >= 4 ? tDate.substring(0, 4) : '',
+      isLarge: absAmount > 5000,
+      isTiny: absAmount < 1.00,
+      isBalanced: (t.lines?.reduce((acc, line) => acc + (line.amountCents || 0), 0) || 0) === 0,
+    };
+  }
+
+  static normalize(transactions: Transaction[]): NormalizedLedgerTransaction[] {
+    return transactions.map((t) => {
+      const workspaceScope = t.workspaceId || DEFAULT_WORKSPACE_SCOPE;
+      const wsCache = this.getWorkspaceCache(workspaceScope);
+      const metadataJson = t.metadata ? JSON.stringify(t.metadata) : '';
+      const cacheKey = buildNormalizationKey(t, metadataJson);
+
+      const cachedMeta = wsCache.get(cacheKey);
+      if (cachedMeta) {
+        wsCache.delete(cacheKey);
+        wsCache.set(cacheKey, cachedMeta);
+        return { ...t, _normalized: cachedMeta };
       }
 
-      const absAmount = Math.abs(Math.round((t.totalAmountCents || 0) * (t.exchangeRate || 1))) / 100;
-      const tDate = t.date || '';
-      
-      const norm = {
-        ...t,
-        _normalized: {
-          searchStr: `${t.description || ''} ${absAmount} ${tDate} ${t.isCleared ? 'cleared' : 'pending'} ${t.tags?.join(' ') || ''} ${t.project || ''} ${t.classId || ''} ${t.locationId || ''} ${t.dimensions ? Object.values(t.dimensions).join(' ') : ''} ${t.metadata ? JSON.stringify(t.metadata) : ''} ${t.lines?.map(l => `${l.accountName} ${l.description || ''} ${l.tags?.join(' ') || ''} ${l.class || ''} ${l.location || ''} ${l.project || ''} ${l.dimensions ? Object.values(l.dimensions).join(' ') : ''}`).join(' ')}`.toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-          month: tDate.length >= 7 ? tDate.substring(0, 7) : '',
-          absAmount,
-          sanitizedDescription: this.sanitizeText(t.description || ''),
-          year: tDate.length >= 4 ? tDate.substring(0, 4) : '',
-          isLarge: absAmount > 5000,
-          isTiny: absAmount < 1.00,
-          isBalanced: (t.lines?.reduce((acc, line) => acc + (line.amountCents || 0), 0) || 0) === 0
+      const meta = this.computeNormalizedMeta(t, metadataJson);
+      if (wsCache.size >= this.MAX_CACHE_ENTRIES_PER_WORKSPACE) {
+        const oldestKey = wsCache.keys().next().value;
+        if (oldestKey !== undefined) {
+          wsCache.delete(oldestKey);
         }
-      };
-
-      this.normalizationCache.set(cacheKey, norm);
-      return norm;
+      }
+      wsCache.set(cacheKey, meta);
+      return { ...t, _normalized: meta };
     });
   }
 

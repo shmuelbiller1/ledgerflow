@@ -449,12 +449,28 @@ export const DATABASE_CA_WARNING = '[Database] DATABASE_CA_CERT is not set: the 
   + 'encrypted but the server certificate is NOT verified. Set DATABASE_CA_CERT to the database CA certificate '
   + '(Supabase dashboard > Database > SSL) to verify it.';
 
+/** Default pool size on serverless runtimes (proven safe floor >= 5 for nested tx reads + 12-way fan-out). */
+export const SERVERLESS_DEFAULT_POOL_MAX = 5;
+/** Default pool size on long-lived standalone Node servers. */
+export const STANDALONE_DEFAULT_POOL_MAX = 10;
+
 let caWarningLogged = false;
 const warnOnceAtStartup = (message: string): void => {
   if (caWarningLogged) return;
   caWarningLogged = true;
   console.warn(message);
 };
+
+function resolvePoolMax(settingsMax: number | undefined, env: NodeJS.ProcessEnv, isServerless: boolean): number {
+  if (typeof settingsMax === 'number' && Number.isFinite(settingsMax) && settingsMax > 0) {
+    return Math.floor(settingsMax);
+  }
+  const parsedEnvMax = Number.parseInt(env.PG_POOL_MAX ?? '', 10);
+  if (Number.isFinite(parsedEnvMax) && parsedEnvMax > 0) {
+    return parsedEnvMax;
+  }
+  return isServerless ? SERVERLESS_DEFAULT_POOL_MAX : STANDALONE_DEFAULT_POOL_MAX;
+}
 
 export function poolConfigFromEnv(
   settings: FirestoreSettings = {},
@@ -485,12 +501,14 @@ export function poolConfigFromEnv(
       warn(DATABASE_CA_WARNING);
     }
   }
+  const isServerless = Boolean(env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME);
   return {
     connectionString: url.toString(),
     ssl,
-    max: settings.max || Number(env.PG_POOL_MAX) || 10,
-    idleTimeoutMillis: 10_000,
+    max: resolvePoolMax(settings.max, env, isServerless),
+    idleTimeoutMillis: isServerless ? 5_000 : 10_000,
     connectionTimeoutMillis: 15_000,
+    ...(isServerless ? { allowExitOnIdle: true } : {}),
   };
 }
 
@@ -606,9 +624,9 @@ export class Firestore {
   }
 
   /** @internal Names of the document tables (from lf_rules, one row per collection). */
-  async tables(): Promise<Set<string>> {
+  async tables(runner: Runner = this.pool): Promise<Set<string>> {
     if (!this.tableList) {
-      this.tableList = this.pool
+      this.tableList = runner
         .query<{ table_name: string }>('select table_name from public.lf_rules')
         .then(r => new Set(r.rows.map(row => row.table_name)))
         .catch(err => {
@@ -619,8 +637,12 @@ export class Firestore {
     return this.tableList;
   }
 
-  private async hasTable(collectionId: string): Promise<boolean> {
-    const known = (await this.tables()).has(collectionId);
+  private runnerForTables(tx: TxContext): Runner {
+    return tx && tx.state.failure === undefined ? tx.runner : this.pool;
+  }
+
+  private async hasTable(collectionId: string, tx: TxContext = null): Promise<boolean> {
+    const known = (await this.tables(this.runnerForTables(tx))).has(collectionId);
     if (!known && !this.warnedCollections.has(collectionId)) {
       this.warnedCollections.add(collectionId);
       console.warn(`[Database] Collection "${collectionId}" has no table; reads return nothing.`);
@@ -648,7 +670,7 @@ export class Firestore {
     }
     const rows = new Map<string, DocRow>();
     for (const [collectionId, ids] of byCollection) {
-      if (!(await this.hasTable(collectionId))) continue;
+      if (!(await this.hasTable(collectionId, tx))) continue;
       const unique = Array.from(new Set(ids));
       const sql = unique.length === 1
         ? `select id, data::text as data, created_at, updated_at from public.${quoteIdent(collectionId)} where id = $1`
@@ -662,7 +684,7 @@ export class Firestore {
   /** @internal */
   async runQuery<T>(query: Query<T>, tx: TxContext): Promise<QuerySnapshot<T>> {
     const readTime = Timestamp.now();
-    if (!(await this.hasTable(query.collectionId))) return new QuerySnapshot<T>(query, [], readTime);
+    if (!(await this.hasTable(query.collectionId, tx))) return new QuerySnapshot<T>(query, [], readTime);
     const spec = query.querySpec;
     const p = new Params();
     const sql = `select id, data::text as data, created_at, updated_at from public.${quoteIdent(query.collectionId)}`
@@ -676,7 +698,7 @@ export class Firestore {
 
   /** @internal */
   async countQuery<T>(query: Query<T>, tx: TxContext): Promise<number> {
-    if (!(await this.hasTable(query.collectionId))) return 0;
+    if (!(await this.hasTable(query.collectionId, tx))) return 0;
     const spec = query.querySpec;
     const p = new Params();
     const inner = `select 1 from public.${quoteIdent(query.collectionId)}` + compileWhere(spec, p)
@@ -715,8 +737,9 @@ export class Firestore {
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
     const tx: TxContext = state ? { runner, state } : null;
+    const tableRunner = state && state.failure !== undefined ? this.pool : runner;
     for (const op of ops) {
-      if (!(await this.tables()).has(op.ref.collectionId)) {
+      if (!(await this.tables(tableRunner)).has(op.ref.collectionId)) {
         throw invalid(`Unknown collection "${op.ref.collectionId}": add a table for it in supabase/migrations`);
       }
       let result: pg.QueryResult;

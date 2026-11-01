@@ -725,8 +725,31 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
   return () => {
     active = false;
     if (timer) clearTimeout(timer);
-    localListeners.get(table)?.delete(onLocalWrite);
+    const tableListeners = localListeners.get(table);
+    if (tableListeners) {
+      tableListeners.delete(onLocalWrite);
+      if (tableListeners.size === 0) {
+        localListeners.delete(table);
+      }
+    }
     fullReloadListeners.delete(reloadAll);
     void client.removeChannel(channel);
+  };
+}
+
+/** Diagnostic snapshot of active in-memory listener sets for subscription cleanup verification. */
+export function getActiveSnapshotListenerCounts(): {
+  tables: number;
+  localListeners: number;
+  fullReloadListeners: number;
+} {
+  let localCount = 0;
+  for (const set of localListeners.values()) {
+    localCount += set.size;
+  }
+  return {
+    tables: localListeners.size,
+    localListeners: localCount,
+    fullReloadListeners: fullReloadListeners.size,
   };
 }

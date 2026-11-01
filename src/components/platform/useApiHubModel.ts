@@ -9,6 +9,7 @@ import { convertXeroAccounts as _convertXeroAccounts } from '../../lib/xeroAdapt
 import { db, getIdToken } from '../../firebase';
 import { collection, query, where, getDocs } from '../../lib/db/firestore';
 import { useTimeout } from '../../hooks/useTimeout';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import { AVAILABLE_SCOPES, ApiLogEntry, PublicKeyRow } from './ApiHubShared';
 import { copyText } from '../../lib/clipboard';
@@ -71,17 +72,22 @@ export function useApiHubModel() {
   const [fieldMatchDesc, setFieldMatchDesc] = useState('Uber Trip transport ride\nAWS Cloud Services database bill\nMonthly advisory fee Deloitte business');
   const [fieldAIPrompt, setFieldAIPrompt] = useState('Explain what operational cost adjustments we should carry out based on our high software subscription drift.');
 
+  const workspaceId = currentWorkspace?.id ?? null;
+  const userUid = user?.uid ?? null;
+
   const loadBillingStatus = useCallback(async function loadBillingStatus() {
-    if (!currentWorkspace?.id || !user) return;
+    if (!workspaceId || !userUid) return;
     try {
       const token = await getIdToken();
-      const res = await fetch(`/api/v1/billing/status?workspaceId=${currentWorkspace.id}`, {
+      const res = await fetch(`/api/v1/billing/status?workspaceId=${workspaceId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       if (res.ok) {
         const data = await res.json();
+        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
         if (data.seatCount) {
           setSimSeatsCount(data.seatCount);
         }
@@ -89,7 +95,7 @@ export function useApiHubModel() {
     } catch (e) {
       console.error("Failed to load billing status", e);
     }
-  }, [currentWorkspace, user]);
+  }, [workspaceId, userUid]);
 
   const handleCheckout = async (plan: string) => {
     if (!currentWorkspace?.id || !user) return;
@@ -118,14 +124,15 @@ export function useApiHubModel() {
   };
 
   const loadWorkspaceKeys = useCallback(async function loadWorkspaceKeys() {
-    if (!currentWorkspace?.id || !user) return;
+    if (!workspaceId || !userUid) return;
     try {
       const q = query(
         collection(db, 'apiKeys'),
-        where('workspaceId', '==', currentWorkspace.id),
-        where('uid', '==', user.uid)
+        where('workspaceId', '==', workspaceId),
+        where('uid', '==', userUid)
       );
       const snap = await getDocs(q);
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       const keys = snap.docs.map(d => {
         const data = d.data();
         return {
@@ -142,40 +149,45 @@ export function useApiHubModel() {
     } catch (e) {
       console.error(e);
     }
-  }, [currentWorkspace, user]);
+  }, [workspaceId, userUid]);
 
   const fetchLogs = useCallback(async function fetchLogs() {
-    if (!currentWorkspace?.id) return;
+    if (!workspaceId) return;
     try {
-      const token = user ? await getIdToken() : '';
+      const token = userUid ? await getIdToken() : '';
       const authHeader = `Bearer ${(apiKey || token)}`;
-      const res = await fetch(`/api/v1/logs?workspaceId=${currentWorkspace.id}`, {
+      const res = await fetch(`/api/v1/logs?workspaceId=${workspaceId}`, {
         headers: {
           'Authorization': authHeader
         }
       });
       if (res.ok) {
         const data = await res.json();
+        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
         setApiLogs(data);
       }
     } catch (e) {
       console.error("Failed to fetch logs", e);
     }
-  }, [apiKey, currentWorkspace, user]);
+  }, [apiKey, workspaceId, userUid]);
 
   useEffect(() => {
-    if (!currentWorkspace?.id) return;
+    if (!workspaceId) return undefined;
     const timer = setTimeout(() => {
       void loadBillingStatus();
       void loadWorkspaceKeys();
       void fetchLogs();
     }, 0);
-    const interval = setInterval(fetchLogs, 5000);
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
     };
-  }, [currentWorkspace?.id, activeTab, fetchLogs, loadBillingStatus, loadWorkspaceKeys]);
+  }, [workspaceId, fetchLogs, loadBillingStatus, loadWorkspaceKeys]);
+
+  const isLogsPollingTab = activeTab === 'logs' || activeTab === 'billing';
+  useVisibilityPolling(fetchLogs, 5_000, {
+    enabled: Boolean(workspaceId) && isLogsPollingTab,
+    runImmediately: true,
+  });
 
   const generateNewKey = async () => {
     if (!currentWorkspace?.id || !user) return;
