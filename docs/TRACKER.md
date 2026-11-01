@@ -1752,8 +1752,8 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 ### Prevent the whole family (owner, 13 Oct: "what can prevent all these types of bugs?") — before the single fixes
 - [~] PREV-0 **Bug-pattern scanner** (13 Oct, done): `scripts/bug-patterns.ts` finds the seven patterns behind #96–#111 in every client file; `docs/BUG_PATTERNS.md` lists each place (a checklist); `src/tests/bug-patterns.test.ts` fails if any count rises and if the issue sites stop being found. Shared fixes in `src/lib/serverAction.ts` (ActionResult, runOnce, workspaceScope, allSettledWrites). First fixes: #105 transfer (success only when saved, one click), #109 bank file only for accepted payments and no double payment on retry.
 - [~] PREV-1 (helpers in `src/lib/serverAction.ts`: runOnce, ActionResult, operationIdFor; used by transfer, payments, import; a single hook still to do) One `useServerAction` hook for every save button: disabled while pending, one idempotency key per click, success shown only after the server confirms, every error shown (never swallowed). Then convert the screens in ISS-A to it.
-- [ ] PREV-5 Failure tests by default: a test harness that runs each save action with the server refusing, slow, or switched workspace mid-request, and asserts no success message, no partial write, no stale data. Every new save action gets these three cases.
-- [ ] PREV-6 Parsers: fuzz + real-file corpus (F-37, E-56) so import bugs like #101 are found before users.
+- [x] PREV-5 Failure tests by default: a test harness that runs each save action with the server refusing, slow, or switched workspace mid-request, and asserts no success message, no partial write, no stale data. Every new save action gets these three cases. *(AI #9: #313 PREV-5 money-save failure tests, #331 PREV-5b workspace switched mid-save.)*
+- [x] PREV-6 Parsers: fuzz + real-file corpus (F-37, E-56) so import bugs like #101 are found before users. *(AI #9: parser-corpus.test.ts + parser-fuzz.test.ts; odd statement files refused whole.)*
 
 ### Public issues (13 Oct) — money/data safety, AI #1 first (GitHub labels `money`, `priority`)
 
@@ -1781,7 +1781,7 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 
 - [~] ISS-130 *(→ AI #9 from 20 Oct; PR open, ai9/ISS-130)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
 - [x] ISS-131 *(AI #9, merged 20 Oct)* Inventory valuation as-of date mixes today's stock with past books (issue #131): historical quantities/costs from stock moves, or the comparison hidden for past dates.
-- [ ] ISS-143 RMA approvals and quantities enforced on the server in one transaction (issue #143, with AUD-03).
+- [x] ISS-143 RMA approvals and quantities enforced on the server in one transaction (issue #143, with AUD-03). *(AI #9, #302; AUD-03 done by the same PR.)*
 - [x] CON-1 *(AI #9, merged 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
 - [x] CON-2 *(AI #9, merged 20 Oct)* US nexus watch (138) on a screen from posted invoices, for the supported states.
 - [x] CON-3 *(AI #9, merged 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
