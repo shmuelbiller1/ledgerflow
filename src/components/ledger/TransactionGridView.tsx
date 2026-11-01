@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react';
 
 
 import { ActiveFilterChips } from './ActiveFilterChips';
@@ -20,9 +19,6 @@ import type { TransactionGridModel } from './TransactionGrid';
 import { copyWithFeedback } from '../../lib/clipboard';
 import { inBackground } from '../../lib/inBackground';
 export function TransactionGridView(model: TransactionGridModel) {
- // one split save at a time: a second press while the first is pending is ignored (the ref is checked synchronously)
- const splitSaving = useRef(false);
- const [isSplitSaving, setIsSplitSaving] = useState(false);
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
  return (
     <div
@@ -97,18 +93,16 @@ export function TransactionGridView(model: TransactionGridModel) {
             accounts={accounts}
             projects={projects}
             onSave={(lines) => {
-              if (splittingTxId && !splitSaving.current) {
-                splitSaving.current = true;
-                setIsSplitSaving(true);
-                // confirm only once the save has gone through (a handled failure resolves false)
-                inBackground(Promise.resolve(onUpdate?.(splittingTxId, { lines })).then(result => {
-                  if (result === false) return;
-                  setSplittingTxId(null);
-                  toast.success('Transaction split applied');
-                }).finally(() => { splitSaving.current = false; setIsSplitSaving(false); }));
+              if (splittingTxId) {
+                // the editor closes at once, as before; only the confirmation waits for the save (a handled failure
+                // resolves false and has shown its own error), so no pending editor can be edited, re-sent or replaced
+                const save = onUpdate?.(splittingTxId, { lines });
+                setSplittingTxId(null);
+                inBackground(Promise.resolve(save).then(result => {
+                  if (result !== false) toast.success('Transaction split applied');
+                }));
               }
             }}
-            saving={isSplitSaving}
             onClose={() => setSplittingTxId(null)}
           />
         )}
