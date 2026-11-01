@@ -16,7 +16,12 @@ export function slowQueryThresholdMs(env: NodeJS.ProcessEnv = process.env): numb
 }
 
 const WORD_CHAR = /[A-Za-z0-9_]/;
-const DOLLAR_TAG = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
+// sticky (y) patterns match at a position in the full text, so a token of any length is read whole
+// tags may hold non-ASCII letters, as PostgreSQL allows
+const DOLLAR_TAG = /\$([A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
+const PARAM = /\$\d+/y;
+const NUMBER = /\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+const at = (re: RegExp, sql: string, i: number) => { re.lastIndex = i; return re.exec(sql); };
 
 /** Index just past a quoted literal that opens at `i`, honouring doubled quotes and (for E'') backslash escapes. */
 function endOfQuoted(sql: string, i: number, quote: string, backslash: boolean): number {
@@ -48,43 +53,48 @@ function endOfBlockComment(sql: string, i: number): number {
 /**
  * A query's text with every literal replaced by `?`, comments removed and whitespace collapsed, so it carries no
  * data. One pass over the text, so literal forms cannot hide inside each other: '…' (with ''), E'…' (with \\'),
- * $$…$$ and $tag$…$tag$, numbers, -- and /* *\/ comments. "Quoted identifiers" and $1 placeholders stay.
+ * $$…$$ and $tag$…$tag$, numbers, -- and /* *\/ comments. "Quoted identifiers" and $1 placeholders stay. A $ that
+ * is neither a placeholder nor a recognised tag ends the shape (`?…`), so an unknown form cannot leak.
  */
 export function queryShape(sql: string): string {
   let out = '';
   let i = 0;
+  let truncated = false;
   // stop once the shape is well past what is kept, so a huge statement costs no more than a short one
   while (i < sql.length && out.length <= MAX_SHAPE * 2) {
     const ch = sql[i];
-    const rest = sql.slice(i, i + 256);
     const prevWord = WORD_CHAR.test(out.charAt(out.length - 1));
     if (ch === '-' && sql[i + 1] === '-') { const nl = sql.indexOf('\n', i); i = nl < 0 ? sql.length : nl; out += ' '; continue; }
     if (ch === '/' && sql[i + 1] === '*') { i = endOfBlockComment(sql, i); out += ' '; continue; }
     if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'" && !prevWord) { i = endOfQuoted(sql, i + 1, "'", true); out += '?'; continue; }
     if (ch === "'") { i = endOfQuoted(sql, i, "'", false); out += '?'; continue; }
     if (ch === '"') { const j = endOfQuoted(sql, i, '"', false); out += sql.slice(i, j); i = j; continue; }
-    if (ch === '$') {
-      const tag = DOLLAR_TAG.exec(rest);
+    if (ch === '$' && !prevWord) {
+      const tag = at(DOLLAR_TAG, sql, i);
       if (tag) {
         const close = sql.indexOf(tag[0], i + tag[0].length);
         i = close < 0 ? sql.length : close + tag[0].length;
         out += '?';
         continue;
       }
-      const param = /^\$\d+/.exec(rest);
+      const param = at(PARAM, sql, i);
       if (param) { out += '$?'; i += param[0].length; continue; }
+      // a $ that is neither a placeholder nor a tag we recognise: fail closed, nothing after it is written
+      out += '?';
+      i = sql.length;
+      truncated = true;
+      break;
     }
     if (/[0-9]/.test(ch) && !prevWord) {
-      const num = /^\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(rest)!;
       out += '?';
-      i += num[0].length;
+      i += at(NUMBER, sql, i)![0].length;
       continue;
     }
     out += ch;
     i++;
   }
   const shape = out.replace(/\s+/g, ' ').trim();
-  return shape.length > MAX_SHAPE || i < sql.length ? `${shape.slice(0, MAX_SHAPE)}…` : shape;
+  return shape.length > MAX_SHAPE || i < sql.length || truncated ? `${shape.slice(0, MAX_SHAPE)}…` : shape;
 }
 
 type Queryable = { query: (...args: unknown[]) => unknown; [INSTRUMENTED]?: true };

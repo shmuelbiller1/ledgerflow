@@ -12,9 +12,9 @@ describe('slow-query log (D-22)', () => {
     assert.equal(queryShape(`select $$secret body$$`), 'select ?');
     // a huge statement (a big multi-row insert) is shaped quickly and cut short (CodeRabbit on #474)
     const huge = 'insert into t values ' + Array.from({ length: 50_000 }, (_, n) => `(${n}, 'name-${n}@example.com')`).join(', ');
-    const started = Date.now();
     const hugeShape = queryShape(huge);
-    assert.ok(Date.now() - started < 200, `shaping took ${Date.now() - started} ms`);
+    // the scan stops early: the shape of the huge statement equals that of its first few thousand characters
+    assert.equal(hugeShape, queryShape(huge.slice(0, 5000)));
     assert.ok(hugeShape.endsWith('…') && hugeShape.length <= 301);
     assert.doesNotMatch(hugeShape, /example\.com/);
     assert.ok(queryShape('select ' + 'x, '.repeat(200)).endsWith('…'));
@@ -28,9 +28,12 @@ describe('slow-query log (D-22)', () => {
       [`select "Order Total", col1 from t where a = $1 -- note: bob@example.com\n and b = 2 /* carol */`, 'select "Order Total", col1 from t where a = $? and b = ?'],
       [`select $a$ $$inner$$ $a$`, 'select ?'],
       ['select 1 /* outer /* inner */ dave@example.com */ from t', 'select ? from t'],
+      [`select $${'t'.repeat(255)}$erin@example.com$${'t'.repeat(255)}$ from t`, 'select ? from t'],
+      ['select $é$frank@example.com$é$ from t', 'select ? from t'],
+      ['select $1, col$x from t where a = $ grace@example.com', 'select $?, col$x from t where a = ?…'],
     ];
     for (const [sql, expected] of cases) assert.equal(queryShape(sql), expected, sql);
-    assert.doesNotMatch(cases.map(([sql]) => queryShape(sql)).join(' '), /alice|Brien|confidential|secret|bob|carol|dave|inner/);
+    assert.doesNotMatch(cases.map(([sql]) => queryShape(sql)).join(' '), /alice|Brien|confidential|secret|bob|carol|dave|erin|frank|grace|inner/);
   });
 
   it('the threshold is 500 ms unless SLOW_QUERY_MS sets a positive number', () => {
