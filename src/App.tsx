@@ -29,17 +29,57 @@ import { FallbackBoundary } from './components/FallbackBoundary';
 import CookieConsent from './components/legal/CookieConsent';
 import { canOpenShortcutHelp } from './lib/shortcutOverlay';
 
-const EmptyOptionalWidget: React.ComponentType = () => null;
 const loadRootLayout = () => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout }));
 const RootLayout = lazy(loadRootLayout);
-const FeedbackWidget = lazy<React.ComponentType>(() =>
-  import('./components/support/FeedbackWidget').catch(() => ({ default: EmptyOptionalWidget }))
-);
-const LedgerAutoAuditor = lazy<React.ComponentType>(() =>
-  import('./components/forensics/LedgerAutoAuditor')
-    .then(m => ({ default: m.LedgerAutoAuditor }))
-    .catch(() => ({ default: EmptyOptionalWidget }))
-);
+const loadFeedbackWidget = () =>
+  import('./components/support/FeedbackWidget').then(m => ({ default: m.default as React.ComponentType }));
+const loadLedgerAutoAuditor = () =>
+  import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor as React.ComponentType }));
+
+function ResilientBackgroundMount({
+  load,
+  warnOnFailure = false,
+}: {
+  load: () => Promise<{ default: React.ComponentType }>;
+  warnOnFailure?: boolean;
+}) {
+  const [Loaded, setLoaded] = useState<React.ComponentType | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let isLoaded = false;
+    const retry = () => {
+      if (isLoaded) return;
+      load()
+        .then((mod) => {
+          if (!active) return;
+          isLoaded = true;
+          if (warnOnFailure) toast.dismiss('ledger-auditor-load-warning');
+          setLoaded(() => mod.default);
+        })
+        .catch(() => {
+          if (!active || !warnOnFailure) return;
+          toast.warning('Automatic ledger checks could not load while offline.', {
+            id: 'ledger-auditor-load-warning',
+            description: 'They will resume automatically when your connection returns.',
+            action: {
+              label: 'Retry',
+              onClick: () => retry(),
+            },
+          });
+        });
+    };
+
+    retry();
+    window.addEventListener('online', retry);
+    return () => {
+      active = false;
+      window.removeEventListener('online', retry);
+    };
+  }, [load, warnOnFailure]);
+
+  return Loaded ? <Loaded /> : null;
+}
 const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePage'));
 const PublicEstimatePage = lazy(() => import('./components/sales/PublicEstimatePage'));
 const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalPage'));
@@ -458,14 +498,12 @@ const shortcutMap = useMemo(() => {
               />
           </div>
         )}
-        <Suspense fallback={null}><LedgerAutoAuditor /></Suspense>
+        <ResilientBackgroundMount load={loadLedgerAutoAuditor} warnOnFailure />
         <TestEnvironmentBanner />
         <Suspense fallback={<InitializationScreen language={language} />}>
           <RootLayout />
         </Suspense>
-        <Suspense fallback={null}>
-          <FeedbackWidget />
-        </Suspense>
+        <ResilientBackgroundMount load={loadFeedbackWidget} />
         <CookieConsent onOpenPrivacyPolicy={() => { setLegalModalTab('privacy'); setIsLegalModalOpen(true); }} />
         {isLegalModalOpen && (
           <Suspense fallback={null}>
