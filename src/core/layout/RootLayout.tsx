@@ -1,6 +1,6 @@
 import PinnedPagesBar from '../../components/layout/PinnedPagesBar';
 import type { FilterCriteria } from '../../types';
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { cn, getLocalDateISO } from '../../lib/utils';
 
 import Sidebar from '../../components/layout/Sidebar';
@@ -22,8 +22,6 @@ import DataStatusBar from '../../components/layout/DataStatusBar';
 import PendingDeletionBanner from '../../components/layout/PendingDeletionBanner';
 import LedgerBackupReminder from '../../components/platform/LedgerBackupReminder';
 
-import { useLedgerData } from '../../hooks/useLedgerData';
-import { useReportPreferencesSync } from '../../hooks/useReportPreferencesSync';
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
 import { useServerOpeningSync } from '../../hooks/useServerOpening';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -36,17 +34,6 @@ const ShortcutOverlay = lazy(() => import('../../components/layout/ShortcutOverl
 const DiagnosticConsole = lazy(() => import('../../components/intelligence/DiagnosticConsole'));
 
 export function RootLayout() {
-  useLedgerData();
-  useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        useLedgerStore.getState().recomputeBalances();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
   const { handleAction } = useCommandDispatcher();
   useServerOpeningSync(); // L-123 step 3b: the server's balances behind computedAccounts
   const txActions = useTransactionActions();
@@ -210,5 +197,3 @@ export function RootLayout() {
     </div>
   );
 }
-
-export default RootLayout;

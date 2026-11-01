@@ -8,11 +8,14 @@ import { motion } from 'motion/react';
 
 // Stores & Hooks
 import { useAuthStore } from './stores/useAuthStore';
+import { useLedgerStore } from './stores/useLedgerStore';
 import { useUIStore } from './stores/useUIStore';
 import type { AppTab } from './types';
 import { errorMessage } from './lib/errorRemedies';
 import { shortcutKeyMap } from './config/shortcuts';
 import { currentPage, MAX_PINNED } from './lib/pinnedPages';
+import { useLedgerData } from './hooks/useLedgerData';
+import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useBillingStore } from './modules/billing/BillingService';
 
@@ -26,7 +29,8 @@ import { FallbackBoundary } from './components/FallbackBoundary';
 import CookieConsent from './components/legal/CookieConsent';
 import { canOpenShortcutHelp } from './lib/shortcutOverlay';
 
-const RootLayout = lazy(() => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout })));
+const loadRootLayout = () => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout }));
+const RootLayout = lazy(loadRootLayout);
 const FeedbackWidget = lazy(() => import('./components/support/FeedbackWidget'));
 const LedgerAutoAuditor = lazy(() => import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor })));
 const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePage'));
@@ -140,6 +144,10 @@ export default function App() {
   const setArchitectureOpen = useUIStore(state => state.setArchitectureOpen);
   const toggleFocusMode = useUIStore(state => state.toggleFocusMode);
 
+  // High-Performance Data Ingress
+  useLedgerData();
+  useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
+
   const openExportDialog = useCallback(() => {
     const url = new URL(window.location.href);
     url.searchParams.set('exportDialog', '1');
@@ -239,9 +247,24 @@ const shortcutMap = useMemo(() => {
   
   useKeyboardShortcuts(shortcutMap);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        useLedgerStore.getState().recomputeBalances();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   const isGuest = useAuthStore(state => state.isGuest);
   const setIsGuest = useAuthStore(state => state.setIsGuest);
+
+  useEffect(() => {
+    if (user || isGuest || window.location.pathname.startsWith('/invite/')) {
+      void loadRootLayout();
+    }
+  }, [user, isGuest]);
   // Y-30: a workspace this person is in may require two-step login this session has not passed
   const twoStep = useTwoStepSetup(user?.uid ?? null, !user || user.isAnonymous || isGuest || Boolean(pendingSecondFactor));
 
