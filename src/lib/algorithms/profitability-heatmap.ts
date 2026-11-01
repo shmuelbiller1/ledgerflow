@@ -65,7 +65,7 @@ export const PROFITABILITY_HEATMAP_ALGO: AlgorithmDefinition = {
 
           chartData.push({
              Project: proj,
-             MarginPct: parseFloat((margin * 100).toFixed(1)),
+             MarginPct: Number.parseFloat((margin * 100).toFixed(1)),
              NetProfit: net / 100
           });
        }

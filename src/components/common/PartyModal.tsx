@@ -105,7 +105,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
     if (form.deliveryMethod !== 'email' || (editing && initial?.deliveryMethod)) party.deliveryMethod = form.deliveryMethod;
     if (tags.length || (editing && initial?.tags?.length)) party.tags = tags;
     const taxPlace = form.placeCountry.trim() ? { country: form.placeCountry.trim().toUpperCase(), ...(form.placeState.trim() ? { state: form.placeState.trim().toUpperCase() } : {}), ...(form.placeCity.trim() ? { city: form.placeCity.trim() } : {}) } : null;
-    const whtRate = form.whtRate.trim() === '' ? NaN : Number(form.whtRate);
+    const whtRate = form.whtRate.trim() === '' ? Number.NaN : Number(form.whtRate);
     const withholding = Number.isFinite(whtRate) && whtRate >= 0 && whtRate <= 100 ? { ratePercent: whtRate, ...(form.whtNumber.trim() ? { number: form.whtNumber.trim() } : {}), ...(form.whtUntil ? { expires: form.whtUntil } : {}) } : null;
     const exemption = form.exemptNumber.trim() ? { number: form.exemptNumber.trim(), ...(form.exemptUntil ? { expires: form.exemptUntil } : {}) } : null;
     if (form.language || form.terms.trim() || exemption || taxPlace || withholding || form.vatNumber.trim() || initial?.metadata?.vatNumber || initial?.metadata?.withholding || initial?.metadata?.documentLanguage || initial?.metadata?.documentTerms || initial?.metadata?.taxExemption || initial?.metadata?.taxPlace) {

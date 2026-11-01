@@ -67,7 +67,7 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
       const expiresAt = docData?.expiresAt;
       if (expiresAt && expiresAt !== "never") {
          const expiryDate = new Date(expiresAt);
-         if (isNaN(expiryDate.getTime()) || expiryDate.getTime() < Date.now()) {
+         if (Number.isNaN(expiryDate.getTime()) || expiryDate.getTime() < Date.now()) {
             return res.status(401).json({ status: "error", message: "API key has expired." });
          }
       }

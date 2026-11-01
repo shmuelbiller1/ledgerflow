@@ -293,7 +293,7 @@ You MUST output a valid JSON object matching this schema exactly:
         queryDescription: description,
         prediction: prediction ? {
           category: prediction.category,
-          confidence: parseFloat(prediction.confidence.toFixed(4)),
+          confidence: Number.parseFloat(prediction.confidence.toFixed(4)),
           label: prediction.category.toUpperCase().replace(/\s+/g, "_")
         } : {
           category: "Uncategorized/Suspense",

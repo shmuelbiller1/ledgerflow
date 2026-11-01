@@ -149,7 +149,7 @@ export default function SplitEditor({
                       type="number"
                       placeholder="Qty"
                       value={line.quantity || ''}
-                      onChange={(e) => updateLine(idx, { quantity: parseFloat(e.target.value) || 1 })}
+                      onChange={(e) => updateLine(idx, { quantity: Number.parseFloat(e.target.value) || 1 })}
                       className="w-16 px-2 py-1.5 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-xs font-mono text-center text-[var(--muted)] focus:border-indigo-600 outline-none"
                     />
                     <span className="text-[var(--muted)] text-[10px] font-black uppercase">×</span>

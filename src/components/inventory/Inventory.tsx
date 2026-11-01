@@ -161,9 +161,9 @@ export default function Inventory() {
       // ISS-130: the cost of stock on hand changes only by a revaluation, so the form leaves it alone
       ...((Number(editingItem.quantityAtHand) || 0) > 0 ? {} : { unitCostCents: TruthEngine.parseAmountToCents(formData.get('unitCost') as string) }),
       // the quantity changes only through Adjust stock, a count or a sale, which post to the books
-      reorderPoint: parseInt(formData.get('reorderPoint') as string, 10) || 0,
+      reorderPoint: Number.parseInt(formData.get('reorderPoint') as string, 10) || 0,
       measurementUnit: formData.get('measurementUnit') as string || undefined,
-      unitsPerPackage: formData.get('unitsPerPackage') ? parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
+      unitsPerPackage: formData.get('unitsPerPackage') ? Number.parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
       category: formData.get('category') as string,
       // BF-01: an item with stock on hand stays a stock item
       itemType: formData.get('itemType') === 'service' && !editingItem.quantityAtHand ? 'service' : (editingItem.quantityAtHand ? editingItem.itemType || 'stock' : 'stock'),
@@ -203,9 +203,9 @@ export default function Inventory() {
       unitPriceCents: TruthEngine.parseAmountToCents(formData.get('unitPrice') as string),
       unitCostCents: TruthEngine.parseAmountToCents(formData.get('unitCost') as string),
       quantityAtHand: 0,
-      reorderPoint: parseInt(formData.get('reorderPoint') as string, 10) || 0,
+      reorderPoint: Number.parseInt(formData.get('reorderPoint') as string, 10) || 0,
       measurementUnit: formData.get('measurementUnit') as string || undefined,
-      unitsPerPackage: formData.get('unitsPerPackage') ? parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
+      unitsPerPackage: formData.get('unitsPerPackage') ? Number.parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
       category: formData.get('category') as string,
       itemType: formData.get('itemType') === 'service' ? 'service' : 'stock',
       defaultTaxCodeId: (formData.get('defaultTaxCodeId') as string) || undefined,

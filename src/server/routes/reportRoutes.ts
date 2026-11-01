@@ -424,8 +424,8 @@ reportRouter.get("/cash-flow", async (req, res) => {
 
 function calculateMonthDateRange(monthStr: string): { startDate: string; endDate: string } {
   const [yearStr, monthNumStr] = monthStr.split('-');
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthNumStr, 10);
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthNumStr, 10);
   if (!year || !month || month < 1 || month > 12) {
     return { startDate: `${monthStr}-01`, endDate: `${monthStr}-31` };
   }

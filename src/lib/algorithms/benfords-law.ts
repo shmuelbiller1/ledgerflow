@@ -32,7 +32,7 @@ export const BENFORDS_LAW_ALGO: AlgorithmDefinition = {
       
       const match = amountStr.match(/^[1-9]/);
       if (match) {
-        leadingDigit = parseInt(match[0], 10);
+        leadingDigit = Number.parseInt(match[0], 10);
       }
       
       if (leadingDigit >= 1 && leadingDigit <= 9) {
@@ -72,8 +72,8 @@ export const BENFORDS_LAW_ALGO: AlgorithmDefinition = {
       
       chartData.push({
         digit: i.toString(),
-        Actual: parseFloat(actualPct.toFixed(2)),
-        Expected: parseFloat(expectedPct.toFixed(2))
+        Actual: Number.parseFloat(actualPct.toFixed(2)),
+        Expected: Number.parseFloat(expectedPct.toFixed(2))
       });
     }
     

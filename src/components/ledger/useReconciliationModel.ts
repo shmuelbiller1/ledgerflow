@@ -164,7 +164,7 @@ export function useReconciliationModel() {
 
         // Date Proximity
         let dDiff = 99;
-        if (!isNaN(bDateMs) && !isNaN(lDateMs)) {
+        if (!Number.isNaN(bDateMs) && !Number.isNaN(lDateMs)) {
           dDiff = Math.abs(bDateMs - lDateMs) / (1000 * 60 * 60 * 24);
           if (dDiff === 0) score += 30;
           else if (dDiff <= 3) score += 18;
@@ -300,7 +300,7 @@ export function useReconciliationModel() {
     const bDate = parseLocalDate(selectedBankLine.date).getTime();
     const lDate = parseLocalDate(selectedLedgerTx.date).getTime();
     let dateDiff = 99;
-    if (!isNaN(bDate) && !isNaN(lDate)) {
+    if (!Number.isNaN(bDate) && !Number.isNaN(lDate)) {
       dateDiff = Math.abs(bDate - lDate) / (1000 * 60 * 60 * 24);
     }
 

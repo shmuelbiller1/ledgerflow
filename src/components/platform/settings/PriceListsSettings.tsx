@@ -24,7 +24,7 @@ const fromDraft = (d: Draft) => ({
   ...(d.id ? { id: d.id } : {}), name: d.name,
   ...(d.currency.trim() ? { currency: d.currency.trim().toUpperCase() } : {}),
   ...(d.discount.trim() ? { discountPercent: Number(d.discount.replace(',', '.')) } : {}),
-  ...(d.prices.some(p => p.itemId) ? { prices: Object.fromEntries(d.prices.filter(p => p.itemId).map(p => [p.itemId, p.price.trim() === '' ? NaN : toCents(p.price)])) } : {}),
+  ...(d.prices.some(p => p.itemId) ? { prices: Object.fromEntries(d.prices.filter(p => p.itemId).map(p => [p.itemId, p.price.trim() === '' ? Number.NaN : toCents(p.price)])) } : {}),
   ...(d.customerIds.length ? { customerIds: d.customerIds } : {}),
 });
 

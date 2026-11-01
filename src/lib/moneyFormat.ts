@@ -95,7 +95,7 @@ export function formatDollars(
   currency?: string,
   moneyDisplay?: MoneyDisplaySettings,
 ): string {
-  const safeDollars = (dollars === undefined || dollars === null || isNaN(dollars)) ? 0 : dollars;
+  const safeDollars = (dollars === undefined || dollars === null || Number.isNaN(dollars)) ? 0 : dollars;
   const divisor = getCurrencyDivisor(currency);
   return formatCurrency(safeDollars * divisor, currency, moneyDisplay);
 }
@@ -119,7 +119,7 @@ export function formatSignedAmount(
  * Used for CSV exports. Example: 1005 -> "10.05"
  */
 export function formatDecimal(cents: number): string {
-  if (cents === null || cents === undefined || isNaN(cents)) return '0.00';
+  if (cents === null || cents === undefined || Number.isNaN(cents)) return '0.00';
   const isNegative = cents < 0;
   const absCents = Math.abs(Math.round(cents));
   const dollars = Math.floor(absCents / 100);

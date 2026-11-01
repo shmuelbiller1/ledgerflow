@@ -224,7 +224,7 @@ export default function MagicEntry({ isOpen, onClose }: { isOpen?: boolean; onCl
                   step="0.01"
                   className="w-full bg-[var(--surface)] border border-[var(--line)] rounded p-2 text-sm focus:outline-none focus:border-[var(--brass)] text-[var(--text)]"
                   value={(parsed.amount / 100).toFixed(2)}
-                  onChange={(e) => setParsed({...parsed, amount: Math.round(parseFloat(e.target.value || '0') * 100)})}
+                  onChange={(e) => setParsed({...parsed, amount: Math.round(Number.parseFloat(e.target.value || '0') * 100)})}
                 />
               </div>
               <div>

@@ -68,7 +68,7 @@ export function plaidRowsAsBankLines(rows: unknown[], connection: PlaidConnectio
     if (row.pending === true) continue;
     const txId = typeof row.transaction_id === 'string' ? row.transaction_id : '';
     const date = typeof row.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.date) ? row.date : '';
-    const amount = typeof row.amount === 'number' && Number.isFinite(row.amount) ? row.amount : NaN;
+    const amount = typeof row.amount === 'number' && Number.isFinite(row.amount) ? row.amount : Number.NaN;
     if (!txId || !date || Number.isNaN(amount)) continue;
     const currency = String((typeof row.iso_currency_code === 'string' && row.iso_currency_code) || (typeof row.unofficial_currency_code === 'string' && row.unofficial_currency_code) || homeCurrency).toUpperCase().slice(0, 12);
     // Plaid: a positive amount is money out of the account; a bank line is signed as the account moves

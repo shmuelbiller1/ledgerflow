@@ -49,8 +49,8 @@ export const CURRENCY_EXPOSURE_ALGO: AlgorithmDefinition = {
       totalBaseExposure += absExp;
       currencyExposureData.push({
         currency: curr,
-        exposure: parseFloat((absExp / 100).toFixed(2)),
-        netBaseAmount: parseFloat((netCents / 100).toFixed(2))
+        exposure: Number.parseFloat((absExp / 100).toFixed(2)),
+        netBaseAmount: Number.parseFloat((netCents / 100).toFixed(2))
       });
     });
 

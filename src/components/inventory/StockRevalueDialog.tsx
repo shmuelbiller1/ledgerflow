@@ -40,7 +40,7 @@ export default function StockRevalueDialog({ item, workspaceId, accounts, curren
   const { dialogProps, titleId } = useDialog(onClose, true);
 
   const quantity = item.quantityAtHand || 0;
-  const newCostCents = cost.trim() === '' ? NaN : TruthEngine.parseAmountToCents(cost);
+  const newCostCents = cost.trim() === '' ? Number.NaN : TruthEngine.parseAmountToCents(cost);
   const valueCents = Number.isFinite(newCostCents) ? revaluationValueCents(quantity, item.unitCostCents || 0, newCostCents) : 0;
   const problem = !inventoryAccountId ? 'Add an Inventory account to the chart of accounts first.'
     : !offsetAccountId ? 'Choose the account the difference goes to.'

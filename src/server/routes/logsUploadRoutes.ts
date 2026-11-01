@@ -104,12 +104,12 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
           const [, m, d, yRaw] = usMatch;
           let y = yRaw;
           if (y.length === 2) {
-            y = parseInt(y, 10) > 50 ? '19' + y : '20' + y;
+            y = Number.parseInt(y, 10) > 50 ? '19' + y : '20' + y;
           }
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
         const parsed = new Date(s);
-        if (!isNaN(parsed.getTime())) {
+        if (!Number.isNaN(parsed.getTime())) {
           return formatTzDate(parsed, wsData?.settings?.timezone || wsData?.timezone);
         }
         return formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone);

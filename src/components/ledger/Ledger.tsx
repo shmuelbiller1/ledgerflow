@@ -556,7 +556,7 @@ const Ledger = React.memo(() => {
                         step="0.01"
                         value={newAccount.openingBalanceCents / 100}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value || '0');
+                          const val = Number.parseFloat(e.target.value || '0');
                           setNewAccount({ ...newAccount, openingBalanceCents: Math.round((Math.round(val * 100) / 100) * 100) });
                         }}
                         className="w-full px-5 py-3.5 bg-[var(--surface)] border border-[var(--line)] rounded-[32px] focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:bg-[var(--ink)] transition-all font-mono text-[var(--text)] text-right"

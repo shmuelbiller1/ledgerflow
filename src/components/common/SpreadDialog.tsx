@@ -74,7 +74,7 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
   const [busy, setBusy] = useState(false);
   const { dialogProps, titleId } = useDialog(onClose);
 
-  const input = { date, amountCents: readAmountCents(amount) ?? NaN, months: Number(months), startMonth };
+  const input = { date, amountCents: readAmountCents(amount) ?? Number.NaN, months: Number(months), startMonth };
   const problem = spreadProblem(input, docBaseCents, kind)
     || (!accountId ? `Choose the ${side.accountLabel.toLowerCase()}` : null)
     || (!holdAccountId ? `Choose the ${side.holdName} account` : null);
