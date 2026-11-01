@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toast } from 'sonner';
-import { inBackground } from '../lib/inBackground';
+import { inBackground, markReported } from '../lib/inBackground';
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -19,4 +19,12 @@ test('a failure is shown once and logged; a success shows nothing', async (t) =>
   inBackground(Promise.reject(new Error('network down')), 'Could not delete the bill.');
   await settle();
   assert.deepEqual(error.mock.calls.map(c => c.arguments), [['Could not delete the bill.']]);
+});
+
+test('an error the user was already shown (handleFirestoreError) is logged, not shown again', async (t) => {
+  const error = t.mock.method(toast, 'error', () => '');
+  t.mock.method(console, 'error', () => {});
+  inBackground(Promise.reject(markReported(new Error('permission-denied'))));
+  await settle();
+  assert.equal(error.mock.callCount(), 0);
 });
