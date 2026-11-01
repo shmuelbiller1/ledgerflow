@@ -47,6 +47,7 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
       ['/api/v1/open-items', (await import('../server/routes/openItemImportRoutes')).openItemImportRouter],
       ['/api/v1/reports', (await import('../server/routes/reportRoutes')).reportRouter],
       ['/api/v1/billing', (await import('../server/routes/billingRoutes')).billingRouter],
+      ['/api/v1/plaid', (await import('../server/routes/plaidRoutes')).plaidRouter],
     ];
     db = (await import('../server/db/firestore')).getDb() as unknown as Db;
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'AUD-09b', currency: 'USD', timezone: 'UTC', members: ['owner-1', 'view-1', 'acct-1', 'book-1'], roles: { 'view-1': 'viewer', 'acct-1': 'accountant', 'book-1': 'bookkeeper' } });

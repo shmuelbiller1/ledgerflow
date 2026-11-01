@@ -1,4 +1,5 @@
 import { handleApiError, authorizeWorkspace, authenticate } from "../http/serverKit";
+import { roleInWorkspace } from "../middleware/requireLedgerWriter";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { requireWorkspaceRole } from "./workspaceRoutes";
 import express from "express";
@@ -110,7 +111,11 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
       const keyData = keyDoc.data();
       const workspaceId = keyData?.workspaceId;
       if (workspaceId) {
-        await authorizeWorkspace(authReq, workspaceId);
+        const wsData = await authorizeWorkspace(authReq, workspaceId);
+        // only an owner makes a workspace key, so only an owner (or a platform admin) revokes one (AUD-09 step 3)
+        if (!authReq.user.admin && roleInWorkspace(wsData, authReq.user.uid) !== 'owner') {
+          return res.status(403).json({ status: "error", message: "Only an owner revokes this workspace's API keys." });
+        }
       } else if (keyData?.uid !== authReq.user.uid && !authReq.user.admin) {
         return res.status(403).json({ status: "error", message: "Forbidden key revocation" });
       }

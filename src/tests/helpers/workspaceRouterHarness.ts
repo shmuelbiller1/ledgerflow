@@ -41,6 +41,7 @@ export function workspaceRouterHarness(prefix: string) {
       server?.close();
       try {
         await db?.pool.query(`delete from public."auditLogs" where workspace_id = $1`, [ws]);
+        await db?.pool.query(`delete from public.notifications where workspace_id = $1`, [ws]); // role changes notify (CodeRabbit on #465)
         await db?.pool.query(`delete from public."workspaces" where id = $1`, [ws]);
       } finally {
         await db?.terminate();

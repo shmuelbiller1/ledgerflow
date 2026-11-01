@@ -159,7 +159,8 @@ export function handleApiError(res: express.Response, err: unknown) {
   if (message.includes("UNAUTHENTICATED") || code === 16) {
     return sendError(res, "Unauthenticated: " + message, 401);
   }
-  if (message.includes("FORBIDDEN") || message.includes("PERMISSION_DENIED") || code === 7) {
+  // "not a member" is a refusal, not a server fault (AUD-09 step 3: a non-member revoking an API key got 500)
+  if (message.includes("FORBIDDEN") || message.includes("PERMISSION_DENIED") || /not a member/i.test(message) || code === 7) {
     return sendError(res, "Forbidden access: " + message, 403);
   }
   if (message.includes("NOT_FOUND") || code === 5) {
