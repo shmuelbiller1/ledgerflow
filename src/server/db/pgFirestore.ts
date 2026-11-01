@@ -25,6 +25,7 @@
  *   end, after the reads, as in Firestore.
  */
 import pg from 'pg';
+import { timePoolQueries } from './slowQueryLog';
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import {
@@ -505,7 +506,10 @@ export class Firestore {
   private readonly warnedCollections = new Set<string>();
 
   constructor(private readonly settingsValue: FirestoreSettings = {}) {
-    if (settingsValue.pool) this.poolInstance = settingsValue.pool;
+    if (settingsValue.pool) {
+      this.poolInstance = settingsValue.pool;
+      timePoolQueries(settingsValue.pool as never);
+    }
   }
 
   /** firebase-admin compatibility; connection settings come from FirestoreSettings. */
@@ -514,6 +518,7 @@ export class Firestore {
   get pool(): pg.Pool {
     if (!this.poolInstance) {
       this.poolInstance = new pg.Pool(poolConfigFromEnv(this.settingsValue));
+      timePoolQueries(this.poolInstance as never); // D-22: slow queries are logged by shape
       this.poolInstance.on('error', err => {
         console.error('[Database] Idle connection error:', err.message);
       });

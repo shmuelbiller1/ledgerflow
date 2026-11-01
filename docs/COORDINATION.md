@@ -558,7 +558,7 @@ never invent an account or a rate, posting goes through the server.
 - [P] **D-19 Israel payroll golden tests** the Tax Authority's and Bituach Leumi's published examples against D-17. *(LATER — parked 18 Oct, stage 3: build only for a verified customer need; see PLAN §15)*
 - [P] **D-20 State payroll golden tests** each state's published withholding example (where one exists) against D-16. *(LATER — parked 18 Oct, stage 3: build only for a verified customer need; see PLAN §15)*
 - [x] **D-21 Structured JSON logging** *(done by AI #1, 1 Nov — see TRACKER BN-01)* (tracker BN-01): one logger on the server with request id, workspace and route; no personal data in logs; tests.
-- [ ] **D-22 Slow-query log** (tracker BN-02): queries over 500 ms logged with their shape (no values).
+- [x] **D-22 Slow-query log** *(done by AI #1, 1 Nov — see TRACKER BN-02)* (tracker BN-02): queries over 500 ms logged with their shape (no values).
 - [ ] **D-23 Synthetic uptime check** (tracker BN-05): a script and a GitHub Actions schedule that signs in as a test user on the deployed site and opens the dashboard; docs.
 - [ ] **D-24 Docker compose for local development** (tracker BP-01): app + Postgres in one command; README section.
 - [ ] **D-25 Storybook-lite** (tracker BP-04): a `/dev/components` page (dev builds only) showing the shared UI pieces in light and dark.

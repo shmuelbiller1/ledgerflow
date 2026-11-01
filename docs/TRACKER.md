@@ -1582,7 +1582,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [~] BM-05 RTL number alignment (AI #1 Appearance settings shipped; AI #2, 11 Oct: P&L, balance sheet, period columns and aging/document-detail/totals isolate existing locale-formatted money with bdi; he-IL minus/accounting DOM cases, mixed Hebrew identity and phone CSV/print verified. Shared Money isolation retained. Remaining primary sales/purchase document lists belong to AI #1; no amounts or financial CSV formats changed.)
 - [ ] BM-06 `rateUsedId` per line
 - [x] BN-01 Structured JSON logging *(AI #1, 1 Nov, D-21: `src/server/utils/logger.ts` adds the request context (id, method, route, workspace) to every line and redacts personal fields; `src/server/http/requestContext.ts` gives each request an `x-request-id` and writes one JSON access line per /api request instead of the morgan text line; test `structured-logging.test.ts`.)*
-- [ ] BN-02 Slow-query log
+- [x] BN-02 Slow-query log *(AI #1, 1 Nov, D-22: `src/server/db/slowQueryLog.ts` times every pool and transaction query; one over 500 ms (or `SLOW_QUERY_MS`) is logged with its shape only — literals as `?`, parameter count, never values — plus the request context from the D-21 logger; test `slow-query-log.test.ts`.)*
 - [ ] BN-03 Usage dashboard
 - [ ] BN-04 SLO tracking
 - [ ] BN-05 Synthetic uptime
