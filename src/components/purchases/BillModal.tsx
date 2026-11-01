@@ -142,7 +142,8 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   const purchaseCodes = useMemo(() => taxRates.filter(r => r.type === 'Sales' && r.appliesTo !== 'sales').map(taxCodeFromRate), [taxRates]);
   const taxCode = purchaseCodes.find(c => c.id === bill.taxCodeId) || null;
   const pricesIncludeTax = bill.pricesIncludeTax ?? true;
-  const totals = documentTotals(total, 0, taxCode, pricesIncludeTax);
+  const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';
+  const totals = documentTotals(total, 0, taxCode, pricesIncludeTax, taxRounding);
   const billCurrency = bill.currency || workspaceCurrency;
   // I-23: a new bill for a vendor can copy the lines of their latest bill (amounts included)
   const lastForVendor = !editingExisting && bill.vendorId

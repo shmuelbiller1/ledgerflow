@@ -140,6 +140,8 @@ export interface Workspace {
   apiQuotaMonthlyLimitCents?: number;
   computeCreditBalance?: number;
   fiscalYearStartMonth?: number;
+  /** Y-35: how tax on a document is rounded to cents (unset = half up). */
+  taxRounding?: 'half_up' | 'half_even' | 'down';
   fiscalYearStartDay?: number;
   fiscalYearEnd?: string;
   // Set only by the server or a platform admin (the database refuses them from the browser)

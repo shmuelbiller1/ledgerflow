@@ -148,7 +148,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const taxChoice = invoice.taxCodeId || (Number(invoice.taxRate) > 0 ? 'custom' : '');
   const taxCode = taxChoice === 'custom' ? customRateCode(Number(invoice.taxRate) || 0) : salesCodes.find(c => c.id === taxChoice) || null;
   const pricesIncludeTax = invoice.pricesIncludeTax ?? (invoice.taxVersion === 2 ? false : Boolean(invoice.taxInclusive));
-  const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax);
+  const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';
+  const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax, taxRounding);
   const depositCents = depositAppliedCents({ amountCents: totals.amountCents, depositCents: invoice.depositCents });
   const currency = invoice.currency || workspaceCurrency;
   // the rate fills itself in for another currency until the person types one (BA-06, I-23)

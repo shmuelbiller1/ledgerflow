@@ -5,7 +5,7 @@
  */
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeTax, computeTaxReturn, customRateCode, documentTotals, effectiveRate, taxCodeFromRate } from '../lib/taxCodes';
+import { computeTax, computeTaxReturn, customRateCode, documentTotals, effectiveRate, roundTaxCents, taxCodeFromRate } from '../lib/taxCodes';
 import { calculateDocumentNet, calculateDocumentTax } from '../lib/documentMath';
 import type { TaxCode, TaxReturnDocument } from '../lib/taxCodes';
 
@@ -137,5 +137,40 @@ describe('The tax return', () => {
     assert.equal(box('8'), 5000);
     assert.equal(box('9'), 3000);
     assert.equal(ret.documentCount, 7);
+  });
+});
+
+describe('Tax rounding policy (Y-35)', () => {
+  const vat10: TaxCode = { id: 'v10', name: 'VAT 10%', treatment: 'standard', components: [{ name: 'VAT', rate: 10 }] };
+
+  test('rounding a fraction of a cent: half up, half to even, down', () => {
+    // 2.5 → 3 / 2 / 2; 3.5 → 4 / 4 / 3; 2.4999 → 2 everywhere; 2.51 → 3 / 3 / 2
+    assert.deepEqual([2.5, 3.5, 2.4999, 2.51].map(c => roundTaxCents(c, 'half_up')), [3, 4, 2, 3]);
+    assert.deepEqual([2.5, 3.5, 2.4999, 2.51].map(c => roundTaxCents(c, 'half_even')), [2, 4, 2, 3]);
+    assert.deepEqual([2.5, 3.5, 2.4999, 2.51].map(c => roundTaxCents(c, 'down')), [2, 3, 2, 2]);
+    assert.equal(roundTaxCents(-2.5, 'half_even'), -2);
+  });
+
+  test('a product a hair off in floating point is treated as its exact value', () => {
+    // 1005 × 10 / 100 = 100.5 exactly on paper; 0.1 + 0.2 style error must not turn half into below-half
+    assert.equal(roundTaxCents((1005 * 10) / 100, 'half_up'), 101);
+    assert.equal(roundTaxCents((1005 * 10) / 100, 'half_even'), 100);
+    assert.equal(roundTaxCents((10 * 0.07) * 100, 'down'), 70, '10 × 0.07 × 100 is 70.00000000000001 in floating point, still 70');
+  });
+
+  test('10% of 10.05 is 1.005: 1.01 half up, 1.00 half to even and down; the default stays half up', () => {
+    assert.equal(computeTax(1005, vat10).taxCents, 101);
+    assert.equal(computeTax(1005, vat10, false, 'half_up').taxCents, 101);
+    assert.equal(computeTax(1005, vat10, false, 'half_even').taxCents, 100);
+    assert.equal(computeTax(1005, vat10, false, 'down').taxCents, 100);
+    assert.equal(documentTotals(1005, 0, vat10, false, 'half_even').amountCents, 1105);
+  });
+
+  test('prices including tax still add up to the gross exactly under every policy', () => {
+    for (const mode of ['half_up', 'half_even', 'down'] as const) {
+      const t = computeTax(1999, compound, true, mode);
+      assert.equal(t.netCents + t.taxCents, 1999, mode);
+      assert.equal(t.components.reduce((s, c) => s + c.taxCents, 0), t.taxCents, mode);
+    }
   });
 });

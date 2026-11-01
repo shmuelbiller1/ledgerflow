@@ -52,11 +52,39 @@ export interface TaxBreakdown {
   selfAssessedCents: number;
 }
 
-function componentTaxes(baseCents: number, components: TaxComponent[]): number[] {
+/**
+ * Y-35: how a tax amount is rounded to whole cents, set per workspace (Settings). `half_up` is the
+ * default and what every document saved before this setting used; `half_even` (banker's rounding)
+ * sends exact halves to the even cent; `down` drops the fraction (some authorities allow it).
+ * Only the tax on a document is rounded this way; line amounts and money conversion are unchanged.
+ */
+export type TaxRounding = 'half_up' | 'half_even' | 'down';
+
+export const TAX_ROUNDING: Record<TaxRounding, string> = {
+  half_up: 'Half up (0.5 cent rounds up)',
+  half_even: 'Half to even (banker\'s rounding)',
+  down: 'Down (drop the fraction)',
+};
+
+// a product like 1005 × 10 / 100 can land a hair off its exact value in floating point
+const EPSILON = 1e-7;
+
+/** A non-negative amount of cents (with a fraction) rounded to whole cents by the policy. */
+export function roundTaxCents(cents: number, mode: TaxRounding = 'half_up'): number {
+  if (!Number.isFinite(cents)) return 0;
+  if (cents < 0) return -roundTaxCents(-cents, mode);
+  const whole = Math.floor(cents + EPSILON);
+  const fraction = cents - whole;
+  if (mode === 'down') return whole;
+  if (mode === 'half_even' && Math.abs(fraction - 0.5) < EPSILON) return whole % 2 === 0 ? whole : whole + 1;
+  return fraction >= 0.5 - EPSILON ? whole + 1 : whole;
+}
+
+function componentTaxes(baseCents: number, components: TaxComponent[], mode: TaxRounding = 'half_up'): number[] {
   let running = 0;
   return components.map(c => {
     const onAmount = c.compound ? baseCents + running : baseCents;
-    const tax = Math.round((onAmount * c.rate) / 100);
+    const tax = roundTaxCents((onAmount * c.rate) / 100, mode);
     running += tax;
     return tax;
   });
@@ -70,7 +98,7 @@ export function effectiveRate(components: TaxComponent[]): number {
 }
 
 /** The tax on an amount (net, or gross when `inclusive`) under a tax code. */
-export function computeTax(amountCents: number, code: TaxCode | null | undefined, inclusive = false): TaxBreakdown {
+export function computeTax(amountCents: number, code: TaxCode | null | undefined, inclusive = false, rounding: TaxRounding = 'half_up'): TaxBreakdown {
   const amount = Math.max(0, Math.round(amountCents || 0));
   const treatment = code?.treatment || 'out_of_scope';
   const components = code?.components?.filter(c => Number.isFinite(c.rate) && c.rate > 0) || [];
@@ -78,7 +106,7 @@ export function computeTax(amountCents: number, code: TaxCode | null | undefined
   if (!code || components.length === 0 || treatment === 'zero_rated' || treatment === 'exempt' || treatment === 'out_of_scope') return none;
 
   if (treatment === 'reverse_charge') {
-    const taxes = componentTaxes(amount, components);
+    const taxes = componentTaxes(amount, components, rounding);
     return { ...none, selfAssessedCents: taxes.reduce((s, t) => s + t, 0), components: components.map((c, i) => ({ name: c.name, rate: c.rate, taxCents: taxes[i] })) };
   }
 
@@ -86,11 +114,12 @@ export function computeTax(amountCents: number, code: TaxCode | null | undefined
   let taxes: number[];
   if (inclusive) {
     net = netFromGross(amount, effectiveRate(components));
-    taxes = componentTaxes(net, components);
+    // the net is what is left of the gross after tax, so the policy rounds the net's tax parts
+    taxes = componentTaxes(net, components, rounding);
     // the parts must add up to the gross amount exactly: the rounding cent goes on the last part
     taxes[taxes.length - 1] += amount - net - taxes.reduce((s, t) => s + t, 0);
   } else {
-    taxes = componentTaxes(net, components);
+    taxes = componentTaxes(net, components, rounding);
   }
   return {
     treatment, netCents: net, taxCents: taxes.reduce((s, t) => s + t, 0), selfAssessedCents: 0,
@@ -128,11 +157,11 @@ export interface DocumentTotals extends TaxBreakdown {
  * code. The forms save `amountCents` (the total owed), `taxAmountCents` and `taxVersion: 2`, so
  * every report, posting and payment reads the same numbers (documentMath.ts).
  */
-export function documentTotals(linesCents: number, discountCents: number, code: TaxCode | null | undefined, pricesIncludeTax: boolean): DocumentTotals {
+export function documentTotals(linesCents: number, discountCents: number, code: TaxCode | null | undefined, pricesIncludeTax: boolean, rounding: TaxRounding = 'half_up'): DocumentTotals {
   const subtotal = Math.round(linesCents || 0);
   const discount = Math.min(Math.max(0, Math.round(discountCents || 0)), Math.max(0, subtotal));
   const base = Math.max(0, subtotal - discount);
-  const tax = computeTax(base, code, pricesIncludeTax);
+  const tax = computeTax(base, code, pricesIncludeTax, rounding);
   return { ...tax, subtotalCents: subtotal, discountCents: discount, amountCents: pricesIncludeTax ? base : base + tax.taxCents };
 }
 
