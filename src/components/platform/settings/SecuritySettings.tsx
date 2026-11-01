@@ -137,6 +137,7 @@ function TwoStepLoginPanel() {
   );
 }
 
+/** Workspace security, period locking, two-step authentication, retention, and deletion settings. */
 export default function SecuritySettings() {
   const lockDate = useLedgerStore(s => s.lockDate);
   const [isResetting, setIsResetting] = useState(false);

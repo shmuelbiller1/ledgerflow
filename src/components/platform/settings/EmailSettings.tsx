@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useId } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import ApprovalDelegatePanel from './ApprovalDelegatePanel';
 import { toast } from 'sonner';
 import { Mail, RotateCcw } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { db } from '../../../firebase';
 import { doc, updateDoc } from '../../../lib/db/firestore';
+import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 import {
   EMAIL_TEMPLATE_KEYS, MAX_BODY, MAX_SUBJECT, PLACEHOLDERS, TEMPLATE_LABELS,
   TEMPLATE_LANGUAGES, TEMPLATE_LANGUAGE_LABELS, defaultTemplateForLanguage,
@@ -30,6 +31,7 @@ const SAMPLE = {
 
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
+/** Workspace email templates, automatic payment reminders, and invoice/PO approval rules editor. */
 export default function EmailSettings() {
   const formId = useId();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -37,6 +39,9 @@ export default function EmailSettings() {
   const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const role = useCurrentRole();
   const canEdit = role === 'owner' || role === 'accountant';
+  const templatesSectionRef = useRef<HTMLElement>(null);
+  const remindersSectionRef = useRef<HTMLElement>(null);
+  const approvalSectionRef = useRef<HTMLElement>(null);
 
   const [key, setKey] = useState<EmailTemplateKey>('invoice');
   const [lang, setLang] = useState<TemplateLanguage>('en');
@@ -49,16 +54,35 @@ export default function EmailSettings() {
   const [daysText, setDaysText] = useState(() => normalizeReminderSettings(workspace?.reminderSettings).daysAfterDue.join(', '));
   const [saving, setSaving] = useState(false);
 
+  const savedTemplatesJson = JSON.stringify(workspace?.emailTemplates || {});
+  const savedReminders = normalizeReminderSettings(workspace?.reminderSettings);
+  const savedApproval = normalizeInvoiceApproval(workspace?.invoiceApproval);
+  const savedPoApproval = normalizePoApproval(workspace?.invoiceApproval);
+  const hasUnsavedEmailEdits = Boolean(workspace?.id) && (
+    JSON.stringify(drafts) !== savedTemplatesJson ||
+    reminders.enabled !== savedReminders.enabled ||
+    Boolean(reminders.thankYou) !== Boolean(savedReminders.thankYou) ||
+    Boolean(reminders.monthlyStatements) !== Boolean(savedReminders.monthlyStatements) ||
+    daysText !== savedReminders.daysAfterDue.join(', ') ||
+    approval.enabled !== savedApproval.enabled ||
+    limitText !== approvalLimitUnits(savedApproval.thresholdCents) ||
+    poApproval.enabled !== savedPoApproval.enabled ||
+    poLimitText !== approvalLimitUnits(savedPoApproval.thresholdCents)
+  );
+
+  useEffect(() => (hasUnsavedEmailEdits ? registerUnsavedWorkGuard(() => true) : undefined), [hasUnsavedEmailEdits]);
+
   const current = resolveTemplate(key, drafts, lang);
   const preview = useMemo(() => renderEmail(current, SAMPLE, { language: lang }), [current, lang]);
   const unknown = unknownPlaceholders(`${current.subject} ${current.body}`);
 
-  const save = async (fields: Record<string, unknown>, message: string) => {
+  const save = async (fields: Record<string, unknown>, message: string, sectionContainer?: HTMLElement | null) => {
     if (!workspace?.id) return;
     setSaving(true);
     try {
       await updateDoc(doc(db, 'workspaces', workspace.id), { ...fields, updatedAt: new Date().toISOString() });
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, ...fields } : w)));
+      clearDirtyTracking(sectionContainer ?? null);
       toast.success(message);
     } catch {
       toast.error('Could not save (owners and accountants can change these settings).');
@@ -120,7 +144,7 @@ export default function EmailSettings() {
     setPoLimitText(approvalLimitUnits(poNext.thresholdCents));
     void save({ invoiceApproval: settings }, settings.enabled
       ? `Invoices over ${formatCurrency(settings.thresholdCents, workspace?.currency)} now wait for an owner's or an accountant's approval before they are emailed.`
-      : 'Approval rules saved.');
+      : 'Approval rules saved.', approvalSectionRef.current);
   };
 
   const saveReminders = () => {
@@ -128,7 +152,7 @@ export default function EmailSettings() {
     const settings = normalizeReminderSettings({ enabled: reminders.enabled, daysAfterDue: days, thankYou: reminders.thankYou, monthlyStatements: reminders.monthlyStatements });
     setReminders(settings);
     setDaysText(settings.daysAfterDue.join(', '));
-    void save({ reminderSettings: settings }, `${settings.enabled ? `Reminders on: ${settings.daysAfterDue.join(', ')} days after the due date.` : 'Automatic reminders are off.'} ${settings.thankYou ? 'Thank-you emails on.' : 'No thank-you emails.'} ${settings.monthlyStatements ? 'Monthly statements on.' : ''}`.trim());
+    void save({ reminderSettings: settings }, `${settings.enabled ? `Reminders on: ${settings.daysAfterDue.join(', ')} days after the due date.` : 'Automatic reminders are off.'} ${settings.thankYou ? 'Thank-you emails on.' : 'No thank-you emails.'} ${settings.monthlyStatements ? 'Monthly statements on.' : ''}`.trim(), remindersSectionRef.current);
   };
 
   const langDefault = defaultTemplateForLanguage(key, lang);
@@ -136,7 +160,7 @@ export default function EmailSettings() {
 
   return (
     <div className="space-y-8">
-      <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-5" aria-labelledby={`${formId}-email-templates`}>
+      <section ref={templatesSectionRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-5" aria-labelledby={`${formId}-email-templates`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Mail className="w-5 h-5 text-[var(--brass)]" aria-hidden="true" />
@@ -187,7 +211,7 @@ export default function EmailSettings() {
             {unknown.length > 0 && <p className="text-xs text-[var(--neg)]" role="alert">Unknown: {unknown.map(p => `{{${p}}}`).join(', ')} (it will be sent as written)</p>}
             {canEdit && (
               <div className="flex gap-2">
-                <button type="button" disabled={saving} onClick={() => save({ emailTemplates: drafts }, 'Email templates saved.')}
+                <button type="button" disabled={saving} onClick={() => void save({ emailTemplates: drafts }, 'Email templates saved.', templatesSectionRef.current)}
                   className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">Save templates</button>
                 <button type="button" onClick={resetTemplate} className="px-3 py-2 rounded-lg border border-[var(--line)] text-sm text-[var(--text)] inline-flex items-center gap-1.5">
                   <RotateCcw className="w-4 h-4" aria-hidden="true" /> Use the default
@@ -206,7 +230,7 @@ export default function EmailSettings() {
         </div>
       </section>
 
-      <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-reminders`}>
+      <section ref={remindersSectionRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-reminders`}>
         <div>
           <h2 id={`${formId}-reminders`} className="text-lg font-bold text-[var(--text)]">Automatic payment reminders</h2>
           <p className="text-xs text-[var(--muted)]">Customers with an overdue invoice get the "Payment reminder" email on these days after the due date (checked every morning).</p>
@@ -239,7 +263,7 @@ export default function EmailSettings() {
         {!canEdit && <p className="text-xs text-[var(--muted)]">Owners and accountants change these settings.</p>}
       </section>
 
-      <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-approval`}>
+      <section ref={approvalSectionRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-approval`}>
         <div>
           <h2 id={`${formId}-approval`} className="text-lg font-bold text-[var(--text)]">Approval before an invoice goes out</h2>
           <p className="text-xs text-[var(--muted)]">

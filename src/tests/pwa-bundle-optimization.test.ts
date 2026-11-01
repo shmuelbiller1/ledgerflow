@@ -199,6 +199,87 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     assert.equal(hasUnsavedDocumentWork(document), true, 'saving panel A must preserve dirty tracking on panel B');
     panelB.remove();
     assert.equal(hasUnsavedDocumentWork(document), false, 'unmounting panel B releases detached controls');
+
+    // Regression (A -> save B -> revert to A): editing back to an earlier value after saving B
+    // must still detect unsaved work even after focus moves to the update toast button.
+    document.body.innerHTML = `
+      <section id="email-panel"><input id="subject" type="text" value="Invoice {{number}}" /></section>
+      <button id="toast-action">Update now</button>
+    `;
+    const emailPanel = document.getElementById('email-panel') as HTMLElement;
+    const subjectInput = document.getElementById('subject') as HTMLInputElement;
+    const toastAction = document.getElementById('toast-action') as HTMLButtonElement;
+
+    subjectInput.value = 'Updated Invoice {{number}}';
+    subjectInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    // Simulate a mounted form saving B (both with and without clearDirtyTracking) then reverting to A
+    subjectInput.value = 'Invoice {{number}}';
+    subjectInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    toastAction.focus();
+    assert.equal(hasUnsavedDocumentWork(document), true, 'reverting to A without clearDirtyTracking stays protected');
+
+    clearDirtyTracking(emailPanel);
+    assert.equal(hasUnsavedDocumentWork(document), false, 'clearDirtyTracking clears saved B state');
+    subjectInput.value = 'Invoice {{number}}';
+    subjectInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    toastAction.focus();
+    assert.equal(hasUnsavedDocumentWork(document), true, 'editing back to A after saving B still requires confirmation');
+    document.body.innerHTML = '';
+  });
+
+  it('defers multi-tab controller reloads when another tab updates while this tab holds unsaved work', async () => {
+    let capturedOptions: Parameters<Parameters<typeof initPWAUpdateManager>[0]>[0];
+    let reloads = 0;
+    let prompts = 0;
+
+    document.body.innerHTML = '<form><input id="tab-b-draft" type="text" value="" /></form><button id="tab-b-btn">Other</button>';
+    initPWAUpdateManager(
+      (options) => {
+        capturedOptions = options;
+        return async () => {};
+      },
+      {
+        doc: document,
+        reload: () => {
+          reloads += 1;
+        },
+        notify: () => {
+          prompts += 1;
+        },
+      }
+    );
+
+    capturedOptions?.onNeedRefresh?.();
+    assert.equal(prompts, 1);
+
+    // Tab B has an unsaved edit when Tab A triggers SW activation (`onNeedReload`)
+    const draft = document.getElementById('tab-b-draft') as HTMLInputElement;
+    const btn = document.getElementById('tab-b-btn') as HTMLButtonElement;
+    draft.value = '500.00';
+    draft.dispatchEvent(new window.Event('input', { bubbles: true }));
+    btn.focus();
+
+    capturedOptions?.onNeedReload?.();
+    assert.equal(reloads, 0, 'must NOT reload Tab B while unsaved work is present');
+    assert.equal(getPWAUpdateState().updateAvailable, true);
+    assert.equal(prompts, 2, 're-surfaces update prompt when controller reload was deferred');
+
+    // Once user clears/saves work (or confirms), accepting update reloads onto new controller
+    clearDirtyTracking(draft.closest('form'));
+    const applied = await requestSafePWAUpdate({ doc: document });
+    assert.equal(applied, true);
+    assert.equal(reloads, 1, 'reloads deferred tab once unsaved work is cleared');
+    assert.equal(getPWAUpdateState().updateAvailable, false);
+
+    // Clean tab without unsaved work reloads immediately when another tab activates a new SW
+    capturedOptions?.onNeedReload?.();
+    assert.equal(reloads, 2, 'clean idle tab reloads immediately on controller update');
+
+    // Tab A that explicitly approved requestSafePWAUpdate reloads cleanly on its own onNeedReload
+    capturedOptions?.onNeedRefresh?.();
+    assert.equal(await requestSafePWAUpdate({ doc: document }), true);
+    capturedOptions?.onNeedReload?.();
+    assert.equal(reloads, 3, 'tab that approved update reloads when new SW takes control');
     document.body.innerHTML = '';
   });
 

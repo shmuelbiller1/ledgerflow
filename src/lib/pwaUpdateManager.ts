@@ -1,8 +1,14 @@
-import type { RegisterSWOptions } from 'virtual:pwa-register';
 import { toast } from 'sonner';
 import { safeConfirm } from './utils';
 
-export type RegisterSWFn = (options?: RegisterSWOptions) => (reloadPage?: boolean) => Promise<void>;
+export type RegisterSWFn = (options?: {
+  immediate?: boolean;
+  onNeedReload?: () => void;
+  onNeedRefresh?: () => void;
+  onOfflineReady?: () => void;
+  onRegistered?: (registration: ServiceWorkerRegistration | undefined) => void;
+  onRegisterError?: (error: unknown) => void;
+}) => (reloadPage?: boolean) => Promise<void>;
 
 export interface PWAUpdateState {
   updateAvailable: boolean;
@@ -17,7 +23,6 @@ const unsavedGuards = new Set<UnsavedWorkGuard>();
 const listeners = new Set<PWAUpdateListener>();
 const dirtyInputRefs = new Set<WeakRef<Element>>();
 const elementWeakRefs = new WeakMap<Element, WeakRef<Element>>();
-const baselineValues = new WeakMap<Element, string>();
 const instrumentedDocs = new WeakSet<Document>();
 
 let state: PWAUpdateState = {
@@ -27,33 +32,19 @@ let state: PWAUpdateState = {
 };
 
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
-
-/** Reads a normalized string snapshot of a form control's current value or checked state. */
-function readControlSnapshot(el: Element): string {
-  const control = el as HTMLElement & {
-    value?: string;
-    checked?: boolean;
-    type?: string;
-  };
-  const tag = control.tagName.toLowerCase();
-  if (tag === 'input' && (control.type === 'checkbox' || control.type === 'radio')) {
-    return String(Boolean(control.checked));
+let reloadActivePage: () => void = () => {
+  if (typeof window !== 'undefined') {
+    window.location.reload();
   }
-  if (typeof control.value === 'string') {
-    return control.value;
-  }
-  return control.textContent ?? '';
-}
+};
+let approvedReloadInThisTab = false;
+let deferredControllerReload = false;
 
-/** Prunes garbage-collected, disconnected, or reverted form controls from the tracked WeakRef set. */
+/** Prunes garbage-collected or disconnected form controls from the tracked WeakRef set. */
 function pruneDirtyInputRefs(): void {
   for (const ref of [...dirtyInputRefs]) {
     const el = ref.deref();
     if (!el || !el.isConnected) {
-      dirtyInputRefs.delete(ref);
-      continue;
-    }
-    if (baselineValues.has(el) && readControlSnapshot(el) === baselineValues.get(el)) {
       dirtyInputRefs.delete(ref);
     }
   }
@@ -67,14 +58,6 @@ function trackDirtyElement(el: Element): void {
     elementWeakRefs.set(el, ref);
   }
   dirtyInputRefs.add(ref);
-}
-
-/** Removes a form control's WeakRef from the active dirty set. */
-function untrackDirtyElement(el: Element): void {
-  const ref = elementWeakRefs.get(el);
-  if (ref) {
-    dirtyInputRefs.delete(ref);
-  }
 }
 
 /** Checks whether an event target is an editable user form control eligible for dirty tracking. */
@@ -101,12 +84,7 @@ export function clearDirtyTracking(container: ParentNode | null): void {
   if (!container || !('contains' in container)) return;
   for (const ref of [...dirtyInputRefs]) {
     const el = ref.deref();
-    if (!el || !el.isConnected) {
-      dirtyInputRefs.delete(ref);
-      continue;
-    }
-    if ((container as Node).contains(el)) {
-      baselineValues.set(el, readControlSnapshot(el));
+    if (!el || !el.isConnected || (container as Node).contains(el)) {
       dirtyInputRefs.delete(ref);
     }
   }
@@ -117,25 +95,10 @@ export function attachDirtyTracking(doc: Document | null = typeof document !== '
   if (!doc || instrumentedDocs.has(doc)) return;
   instrumentedDocs.add(doc);
 
-  const captureBaseline = (event: Event) => {
-    pruneDirtyInputRefs();
-    if (isTrackableFormControl(event.target)) {
-      const ref = elementWeakRefs.get(event.target);
-      if ((!ref || !dirtyInputRefs.has(ref)) && !baselineValues.has(event.target)) {
-        baselineValues.set(event.target, readControlSnapshot(event.target));
-      }
-    }
-  };
   const markDirty = (event: Event) => {
     pruneDirtyInputRefs();
-    if (!isTrackableFormControl(event.target)) return;
-    const el = event.target;
-    const baseline = baselineValues.get(el);
-    const current = readControlSnapshot(el);
-    if (baseline !== undefined && current === baseline) {
-      untrackDirtyElement(el);
-    } else {
-      trackDirtyElement(el);
+    if (isTrackableFormControl(event.target)) {
+      trackDirtyElement(event.target);
     }
   };
   const clearFormOnReset = (event: Event) => {
@@ -145,14 +108,12 @@ export function attachDirtyTracking(doc: Document | null = typeof document !== '
       for (const ref of [...dirtyInputRefs]) {
         const el = ref.deref();
         if (el && (form as Node).contains(el)) {
-          baselineValues.delete(el);
           dirtyInputRefs.delete(ref);
         }
       }
     }
   };
 
-  doc.addEventListener('focusin', captureBaseline, true);
   doc.addEventListener('input', markDirty, true);
   doc.addEventListener('change', markDirty, true);
   doc.addEventListener('reset', clearFormOnReset, true);
@@ -244,7 +205,7 @@ export async function requestSafePWAUpdate(options?: {
   confirmFn?: (message: string) => boolean;
   doc?: Document | null;
 }): Promise<boolean> {
-  if (!applyServiceWorkerUpdate || !state.updateAvailable || state.updating) {
+  if ((!applyServiceWorkerUpdate && !deferredControllerReload) || !state.updateAvailable || state.updating) {
     return false;
   }
   const confirmFn = options?.confirmFn ?? safeConfirm;
@@ -257,12 +218,26 @@ export async function requestSafePWAUpdate(options?: {
     }
   }
 
+  if (deferredControllerReload) {
+    deferredControllerReload = false;
+    approvedReloadInThisTab = false;
+    emitState({ updateAvailable: false, updating: false });
+    reloadActivePage();
+    return true;
+  }
+
+  if (!applyServiceWorkerUpdate) {
+    return false;
+  }
+
+  approvedReloadInThisTab = true;
   emitState({ updating: true });
   try {
     await applyServiceWorkerUpdate(true);
     emitState({ updateAvailable: false, updating: false });
     return true;
   } catch {
+    approvedReloadInThisTab = false;
     emitState({ updating: false });
     return false;
   }
@@ -270,13 +245,26 @@ export async function requestSafePWAUpdate(options?: {
 
 /**
  * Registers the PWA service worker in safe prompt mode: new versions wait in the background
- * without forcing mid-session reloads until the user chooses to update.
+ * without forcing mid-session reloads, and updates accepted in one tab defer reloading sibling
+ * tabs that hold unsaved work.
  */
 export function initPWAUpdateManager(
   registerFn: RegisterSWFn,
-  options?: { notify?: (onAccept: () => void) => void }
+  options?: {
+    notify?: (onAccept: () => void) => void;
+    reload?: () => void;
+    doc?: Document | null;
+  }
 ): () => Promise<boolean> {
-  attachDirtyTracking();
+  const targetDoc = options?.doc === undefined ? (typeof document !== 'undefined' ? document : null) : options.doc;
+  attachDirtyTracking(targetDoc);
+  reloadActivePage =
+    options?.reload ??
+    (() => {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    });
 
   const notify = options?.notify ?? ((onAccept: () => void) => {
     toast.info('A new version of LedgerFlow is ready.', {
@@ -295,7 +283,7 @@ export function initPWAUpdateManager(
 
   const showUpdatePrompt = () => {
     notify(() => {
-      void requestSafePWAUpdate().then((applied) => {
+      void requestSafePWAUpdate({ doc: targetDoc }).then((applied) => {
         if (!applied && state.updateAvailable) {
           showUpdatePrompt();
         }
@@ -305,6 +293,23 @@ export function initPWAUpdateManager(
 
   const updateSW = registerFn({
     immediate: true,
+    onNeedReload() {
+      if (approvedReloadInThisTab) {
+        approvedReloadInThisTab = false;
+        deferredControllerReload = false;
+        reloadActivePage();
+        return;
+      }
+      if (hasUnsavedDocumentWork(targetDoc)) {
+        deferredControllerReload = true;
+        emitState({ updateAvailable: true, updating: false });
+        showUpdatePrompt();
+        return;
+      }
+      deferredControllerReload = false;
+      emitState({ updateAvailable: false, updating: false });
+      reloadActivePage();
+    },
     onNeedRefresh() {
       emitState({ updateAvailable: true });
       showUpdatePrompt();
@@ -315,7 +320,7 @@ export function initPWAUpdateManager(
   });
 
   applyServiceWorkerUpdate = updateSW;
-  return () => requestSafePWAUpdate();
+  return () => requestSafePWAUpdate({ doc: targetDoc });
 }
 
 /** Resets module-level PWA update state and registered guards between unit tests. */
@@ -323,10 +328,17 @@ export function resetPWAUpdateManagerForTests(): void {
   unsavedGuards.clear();
   listeners.clear();
   dirtyInputRefs.clear();
-  applyServiceWorkerUpdate = null;
   state = {
     updateAvailable: false,
     offlineReady: false,
     updating: false,
+  };
+  applyServiceWorkerUpdate = null;
+  approvedReloadInThisTab = false;
+  deferredControllerReload = false;
+  reloadActivePage = () => {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   };
 }

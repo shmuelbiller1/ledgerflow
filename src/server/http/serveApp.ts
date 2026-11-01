@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import { startStandaloneScheduler } from "../jobs/standaloneScheduler";
@@ -7,14 +8,20 @@ declare const __PRODUCTION_BUNDLE__: boolean | undefined;
 
 /**
  * Mounts static assets from `distPath`, returns 404 for missing `/assets/*` bundles so
- * removed lazy chunks never serve SPA `index.html`, and falls back to `index.html` for SPA routes.
+ * removed lazy chunks never serve SPA `index.html`, and falls back to rate-limited `index.html` for SPA routes.
  */
 export function mountSpaStaticRoutes(app: express.Express, distPath: string): void {
+  const spaFallbackLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
   app.use(express.static(distPath));
   app.use('/assets', (_req, res) => {
     res.status(404).type('text/plain').send('Not Found');
   });
-  app.get('/{*splat}', (_req, res) => {
+  app.get('/{*splat}', spaFallbackLimiter, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
