@@ -91,16 +91,16 @@ export default function AppearanceSettings() {
 
   // Y-35: how tax on new and edited invoices and bills is rounded to cents
   const taxRounding: TaxRounding = activeWorkspace?.taxRounding || 'half_up';
-  const handleTaxRoundingChange = async (mode: TaxRounding) => {
+  // not async: the select's change has no caller waiting, so the outcome is reported here and only here
+  const handleTaxRoundingChange = (mode: TaxRounding): void => {
     if (!currentWorkspaceId) return;
-    try {
-      await updateDoc(doc(db, 'workspaces', currentWorkspaceId), { taxRounding: mode });
+    updateDoc(doc(db, 'workspaces', currentWorkspaceId), { taxRounding: mode }).then(() => {
       setWorkspaces(workspaces.map(w => (w.id === currentWorkspaceId ? { ...w, taxRounding: mode } : w)));
       toast.success('Tax rounding saved');
-    } catch (err) {
+    }, (err: unknown) => {
       console.error("[Settings] Failed to save tax rounding:", err);
       toast.error('Tax rounding could not be saved (owners and accountants can change it).');
-    }
+    });
   };
 
   const fontPresets = [
