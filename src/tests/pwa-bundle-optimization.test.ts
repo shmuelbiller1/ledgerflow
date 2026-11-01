@@ -4,9 +4,13 @@ import ReactDOM from 'react-dom/client';
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import http from 'node:http';
 import path from 'node:path';
+import express from 'express';
 import { createRetryableLazy } from '../lib/lazyWithRetry';
 import { LazyOverlayBoundary } from '../components/ui/LazyOverlayBoundary';
+import { mountSpaStaticRoutes } from '../server/http/serveApp';
 import {
   attachDirtyTracking,
   clearDirtyTracking,
@@ -313,6 +317,15 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     assert.match(viteConfig, /entryFileNames:\s*['"]assets\/app-\[hash\]\.js['"]/);
     assert.match(viteConfig, /\(\?:react\|react-dom\|scheduler\)/);
     assert.match(viteConfig, /handler:\s*['"]NetworkOnly['"]/);
+    assert.match(viteConfig, /cacheName:\s*['"]ledgerflow-hashed-assets-v2['"]/);
+    assert.match(viteConfig, /includes\(['"]text\/html['"]\)/);
+
+    const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')) as {
+      rewrites?: Array<{ source: string; destination: string }>;
+    };
+    const spaRewrite = vercelConfig.rewrites?.find((r) => r.destination === '/index.html');
+    assert.ok(spaRewrite, 'Expected SPA fallback rewrite in vercel.json');
+    assert.match(spaRewrite.source, /assets\//, 'vercel.json SPA fallback must exclude /assets/* so removed chunks return 404');
 
     const swPath = path.join(root, 'dist/sw.js');
     const assetsDir = path.join(root, 'dist/assets');
@@ -365,6 +378,8 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
       assert.match(sw, /SKIP_WAITING/);
       assert.match(sw, /NetworkOnly/);
       assert.match(sw, /denylist:\[\s*\/\^\\\/api/);
+      assert.match(sw, /ledgerflow-hashed-assets-v2/);
+      assert.match(sw, /text\/html/);
 
       const assetFiles = fs.readdirSync(assetsDir);
       const vendorReact = assetFiles.find((f) => f.startsWith('vendor-react-'));
@@ -455,12 +470,80 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
 
       assert.equal(loadAttempts, 2);
       assert.equal(host.querySelector('#loaded-overlay')?.textContent, 'Search commands');
+
+      // Also verify non-chunk runtime render bug path reports error without blaming connectivity
+      const BrokenOverlay: React.FC = () => {
+        throw new TypeError('Cannot read properties of undefined');
+      };
+      await act(async () => {
+        root.render(
+          React.createElement(
+            LazyOverlayBoundary,
+            { key: 'runtime-bug', label: 'Diagnostic console', onDismiss: () => { dismissed += 1; } },
+            React.createElement(BrokenOverlay)
+          )
+        );
+      });
+      assert.equal(dismissed, 2, 'runtime overlay error also dismisses cleanly');
     } finally {
       console.error = origError;
       await act(async () => {
         root.unmount();
       });
       host.remove();
+    }
+  });
+
+  it('returns 404 (never index.html) when requesting a removed lazy chunk under /assets/*', async () => {
+    const tmpDist = fs.mkdtempSync(path.join(os.tmpdir(), 'lf-spa-static-'));
+    fs.mkdirSync(path.join(tmpDist, 'assets'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDist, 'index.html'), '<!doctype html><html><body>LedgerFlow SPA</body></html>');
+    fs.writeFileSync(path.join(tmpDist, 'assets/app-ok.js'), 'export const ok = true;\n');
+
+    const prevFetch = globalThis.fetch;
+    const app = express();
+    mountSpaStaticRoutes(app, tmpDist);
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const port = (server.address() as { port: number }).port;
+
+    try {
+      const requestPath = (reqPath: string) =>
+        new Promise<{ status: number; contentType: string; body: string }>((resolve, reject) => {
+          http
+            .get(`http://127.0.0.1:${port}${reqPath}`, (res) => {
+              let data = '';
+              res.setEncoding('utf8');
+              res.on('data', (chunk) => {
+                data += chunk;
+              });
+              res.on('end', () => {
+                resolve({
+                  status: res.statusCode ?? 0,
+                  contentType: String(res.headers['content-type'] ?? ''),
+                  body: data,
+                });
+              });
+            })
+            .on('error', reject);
+        });
+
+      const missingAsset = await requestPath('/assets/RemovedLazyChunk-deadbeef.js');
+      assert.equal(missingAsset.status, 404, 'missing /assets/* chunk must return 404');
+      assert.doesNotMatch(missingAsset.contentType, /text\/html/i, 'missing /assets/* chunk must never return HTML');
+
+      const existingAsset = await requestPath('/assets/app-ok.js');
+      assert.equal(existingAsset.status, 200);
+      assert.match(existingAsset.body, /export const ok = true/);
+
+      const spaRoute = await requestPath('/reports');
+      assert.equal(spaRoute.status, 200);
+      assert.match(spaRoute.contentType, /text\/html/i);
+      assert.match(spaRoute.body, /LedgerFlow SPA/);
+    } finally {
+      globalThis.fetch = prevFetch;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(tmpDist, { recursive: true, force: true });
     }
   });
 });

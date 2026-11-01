@@ -22,6 +22,7 @@ interface HeaderProps {
   onLoginPrompt?: () => void;
 }
 
+/** Workspace top navigation bar with search, quick create, theme toggle, and notifications. */
 const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderProps) {
   const user = useAuthStore(state => state.user);
   const currentWorkspaceId = useAuthStore(state => state.currentWorkspaceId);

@@ -19,6 +19,7 @@ interface AuthScreenProps {
   language: string;
 }
 
+/** Sign-in, registration, guest entry, and password-reset screen with lazy legal policy modal. */
 export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, language: _language }: AuthScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');

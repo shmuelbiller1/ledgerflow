@@ -31,6 +31,7 @@ async function failure(res: Response, fallback: string): Promise<string> {
   return body.message || fallback;
 }
 
+/** Workspace document branding settings editor (logo, color, address, footer, terms, and PDF preview). */
 export default function BrandingSettings() {
   const formId = useId();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());

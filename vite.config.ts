@@ -78,6 +78,7 @@ export default defineConfig({
           'assets/*.{js,css}'
         ],
         manifestTransforms: [
+          /** Filters precache entries to the exact static ESM import closure of the app shell and global overlays. */
           async (manifestEntries) => {
             const distDir = path.resolve('dist');
             const shellFiles = new Set<string>();
@@ -141,21 +142,30 @@ export default defineConfig({
             handler: 'NetworkOnly'
           },
           {
-            // Cache visited content-hashed lazy screen chunks and static media on demand.
+            // Cache visited content-hashed lazy screen chunks and static media on demand,
+            // rejecting HTML SPA fallbacks so a missing chunk is never stored as JavaScript.
             urlPattern: ({ sameOrigin, request, url }) =>
               sameOrigin &&
               url.pathname.startsWith('/assets/') &&
               ['script', 'style', 'font', 'image', 'worker'].includes(request.destination),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'ledgerflow-hashed-assets',
+              cacheName: 'ledgerflow-hashed-assets-v2',
               expiration: {
                 maxEntries: 120,
                 maxAgeSeconds: 60 * 60 * 24 * 30
               },
               cacheableResponse: {
                 statuses: [200]
-              }
+              },
+              plugins: [
+                {
+                  cacheWillUpdate: async ({ response }: { response: Response }) =>
+                    (response.headers.get('content-type') || '').toLowerCase().includes('text/html')
+                      ? null
+                      : response
+                }
+              ]
             }
           },
           {
@@ -196,6 +206,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         entryFileNames: 'assets/app-[hash].js',
+        /** Splits third-party libraries into deterministic vendor chunks by resolved package path. */
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (/[/\\]node_modules[/\\](?:react|react-dom|scheduler)[/\\]/.test(id)) {

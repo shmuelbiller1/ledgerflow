@@ -15,11 +15,13 @@ import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const areaField = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
+/** Per-dimension-label branding overrides editor scoped to the active user and workspace. */
 export default function BrandingProfilesSettings() {
   const uid = useAuthStore(s => s.user?.uid), workspaceId = useAuthStore(s => s.currentWorkspaceId);
   return <Scoped key={JSON.stringify([uid, workspaceId])} />;
 }
 
+/** Inner workspace-scoped editor managing per-label branding profile drafts and saves. */
 function Scoped() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const uid = useAuthStore(s => s.user?.uid);

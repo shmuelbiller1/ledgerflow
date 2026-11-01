@@ -35,6 +35,7 @@ const CommandPalette = createRetryableLazy(() => import('../../components/layout
 const ShortcutOverlay = createRetryableLazy(() => import('../../components/layout/ShortcutOverlay'));
 const DiagnosticConsole = createRetryableLazy(() => import('../../components/intelligence/DiagnosticConsole'));
 
+/** Authenticated and guest workspace shell hosting navigation, views, and global overlays. */
 export function RootLayout() {
   const { handleAction } = useCommandDispatcher();
   useServerOpeningSync(); // L-123 step 3b: the server's balances behind computedAccounts

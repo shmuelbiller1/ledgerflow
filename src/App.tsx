@@ -38,6 +38,10 @@ const loadFeedbackWidget = () =>
 const loadLedgerAutoAuditor = () =>
   import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor as React.ComponentType }));
 
+/**
+ * Loads a background widget dynamically without Suspense error escalation, retrying
+ * on reconnect or explicit Retry action and optionally replaying queued window events.
+ */
 function ResilientBackgroundMount({
   load,
   warnOnFailure = false,
@@ -129,6 +133,7 @@ const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
 const LegalModal = createRetryableLazy(() => import('./components/legal/LegalModal'));
 
 
+/** Root application component coordinating authentication, public capability routes, and workspace shell. */
 export default function App() {
   const [isPending, startTransition] = useTransition();
   usePerformanceTrace("App");

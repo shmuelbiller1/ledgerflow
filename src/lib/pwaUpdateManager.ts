@@ -28,6 +28,7 @@ let state: PWAUpdateState = {
 
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
 
+/** Reads a normalized string snapshot of a form control's current value or checked state. */
 function readControlSnapshot(el: Element): string {
   const control = el as HTMLElement & {
     value?: string;
@@ -44,6 +45,7 @@ function readControlSnapshot(el: Element): string {
   return control.textContent ?? '';
 }
 
+/** Prunes garbage-collected, disconnected, or reverted form controls from the tracked WeakRef set. */
 function pruneDirtyInputRefs(): void {
   for (const ref of [...dirtyInputRefs]) {
     const el = ref.deref();
@@ -57,6 +59,7 @@ function pruneDirtyInputRefs(): void {
   }
 }
 
+/** Weakly records a form control as having unsaved edits without pinning detached DOM nodes. */
 function trackDirtyElement(el: Element): void {
   let ref = elementWeakRefs.get(el);
   if (!ref) {
@@ -66,6 +69,7 @@ function trackDirtyElement(el: Element): void {
   dirtyInputRefs.add(ref);
 }
 
+/** Removes a form control's WeakRef from the active dirty set. */
 function untrackDirtyElement(el: Element): void {
   const ref = elementWeakRefs.get(el);
   if (ref) {
@@ -73,6 +77,7 @@ function untrackDirtyElement(el: Element): void {
   }
 }
 
+/** Checks whether an event target is an editable user form control eligible for dirty tracking. */
 function isTrackableFormControl(target: EventTarget | null): target is HTMLElement & {
   type?: string;
   readOnly?: boolean;
@@ -90,6 +95,7 @@ function isTrackableFormControl(target: EventTarget | null): target is HTMLEleme
   return Boolean(el.isContentEditable);
 }
 
+/** Clears dirty tracking strictly for controls contained within the saved panel `container`. */
 export function clearDirtyTracking(container: ParentNode | null): void {
   pruneDirtyInputRefs();
   if (!container || !('contains' in container)) return;
@@ -106,6 +112,7 @@ export function clearDirtyTracking(container: ParentNode | null): void {
   }
 }
 
+/** Attaches focus-independent input/change/reset listeners to detect unsaved page form edits. */
 export function attachDirtyTracking(doc: Document | null = typeof document !== 'undefined' ? document : null): void {
   if (!doc || instrumentedDocs.has(doc)) return;
   instrumentedDocs.add(doc);
@@ -151,6 +158,7 @@ export function attachDirtyTracking(doc: Document | null = typeof document !== '
   doc.addEventListener('reset', clearFormOnReset, true);
 }
 
+/** Updates internal PWA state and notifies subscribed listeners. */
 function emitState(next: Partial<PWAUpdateState>) {
   state = { ...state, ...next };
   for (const listener of listeners) {
@@ -158,10 +166,12 @@ function emitState(next: Partial<PWAUpdateState>) {
   }
 }
 
+/** Returns a shallow snapshot of the current PWA service-worker update state. */
 export function getPWAUpdateState(): PWAUpdateState {
   return { ...state };
 }
 
+/** Subscribes to PWA service-worker update state transitions; returns an unsubscribe callback. */
 export function subscribePWAUpdate(listener: PWAUpdateListener): () => void {
   listeners.add(listener);
   return () => {
@@ -169,6 +179,7 @@ export function subscribePWAUpdate(listener: PWAUpdateListener): () => void {
   };
 }
 
+/** Registers a callback that returns `true` while a component holds unsaved draft work. */
 export function registerUnsavedWorkGuard(guard: UnsavedWorkGuard): () => void {
   unsavedGuards.add(guard);
   return () => {
@@ -307,6 +318,7 @@ export function initPWAUpdateManager(
   return () => requestSafePWAUpdate();
 }
 
+/** Resets module-level PWA update state and registered guards between unit tests. */
 export function resetPWAUpdateManagerForTests(): void {
   unsavedGuards.clear();
   listeners.clear();
