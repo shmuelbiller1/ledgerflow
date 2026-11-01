@@ -81,6 +81,8 @@ describe('slow-query log (D-22)', () => {
     };
     const pool = new pg.Pool({ connectionString: process.env.LF_TEST_DATABASE_URL });
     try {
+      // a client opened before instrumentation (idle in the pool) must still be timed when it is checked out again
+      (await pool.connect()).release();
       timePoolQueries(pool as never, 50);
       await pool.query('select pg_sleep(0.1), $1::text as x', ['secret-value']);
       const client = await pool.connect();

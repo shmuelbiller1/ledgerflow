@@ -113,8 +113,11 @@ export function timeQueries(target: Queryable, thresholdMs = slowQueryThresholdM
   };
 }
 
-/** Times the pool's own queries and those of every client it hands out (transactions). */
-export function timePoolQueries(pool: Queryable & { on: (event: 'connect', listener: (client: Queryable) => void) => unknown }, thresholdMs = slowQueryThresholdMs()): void {
+/**
+ * Times the pool's own queries and those of every client it hands out (transactions). `acquire` fires on every
+ * checkout, so a client the pool opened before this ran is covered too (`connect` fires only for new ones).
+ */
+export function timePoolQueries(pool: Queryable & { on: (event: 'acquire', listener: (client: Queryable) => void) => unknown }, thresholdMs = slowQueryThresholdMs()): void {
   timeQueries(pool, thresholdMs);
-  pool.on('connect', client => timeQueries(client, thresholdMs));
+  pool.on('acquire', client => timeQueries(client, thresholdMs));
 }
