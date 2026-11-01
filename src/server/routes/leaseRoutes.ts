@@ -5,6 +5,9 @@ import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDb, assertPeriodOpen } from '../db/firestore';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { workspaceRole } from '../../lib/periodLock';
+
+const LEDGER_WRITERS = ['owner', 'accountant', 'bookkeeper'];
 
 const CapitalizeLeaseSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -37,6 +40,10 @@ leaseRouter.post('/capitalize', async (req, res) => {
     const wsData = wsDoc.data();
     if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
       return res.status(403).json({ error: 'Not a member' });
+    }
+    // AUD-09: posting an entry needs a role that may post; a viewer is a member but may not (found by aud09 test)
+    if (!user.admin && !LEDGER_WRITERS.includes(workspaceRole(wsData as never, user.uid))) {
+      return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' });
     }
 
     // 2. Check idempotency record AFTER authorization (#82)
