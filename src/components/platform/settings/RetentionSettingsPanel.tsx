@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { describeError } from '../../../lib/errorRemedies';
-import { RETENTION_LIMITS, retentionFor, type RetentionSettings } from '../../../lib/retention';
+import { RETENTION_LIMITS, retentionFor, type RetentionSettings } from '../../../lib/retentionPolicy';
 
 /**
  * Settings → Security → Data retention (L-08, BJ-05): how long the email log and browser error

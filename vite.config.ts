@@ -9,61 +9,110 @@ export default defineConfig({
   server: {
     allowedHosts: ['.e2b.app'],
   },
-  resolve: { 
+  resolve: {
     alias: {
       react: path.resolve('./node_modules/react'),
       'react-dom': path.resolve('./node_modules/react-dom')
     },
-    dedupe: ["react", "react-dom"] 
+    dedupe: ['react', 'react-dom']
   },
-  plugins: [react(), tailwindcss(), VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["robots.txt", "apple-touch-icon.png", "**/*.svg"],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      // Safe deferred updates: never force-reload active tabs with unsaved financial work.
+      registerType: 'prompt',
+      includeAssets: ['robots.txt', 'apple-touch-icon.png', '**/*.svg'],
       manifest: {
-        id: "com.ledgerflow.app",
-        start_url: "/#dashboard",
-        scope: "/",
-        name: "LedgerFlow",
-        short_name: "LedgerFlow",
-        description: "Professional cloud financial management and smart double-entry auditing.",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
-        display: "standalone",
-        orientation: "portrait-primary",
-        categories: ["finance", "business", "productivity"],
+        id: 'com.ledgerflow.app',
+        start_url: '/#dashboard',
+        scope: '/',
+        name: 'LedgerFlow',
+        short_name: 'LedgerFlow',
+        description: 'Professional cloud financial management and smart double-entry auditing.',
+        theme_color: '#0f172a',
+        background_color: '#0f172a',
+        display: 'standalone',
+        orientation: 'portrait-primary',
+        categories: ['finance', 'business', 'productivity'],
         icons: [
           {
-            src: "/pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png"
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
           },
           {
-            src: "/pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable"
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ],
         shortcuts: [
           {
-            name: "New Journal Entry",
-            short_name: "New Entry",
-            description: "Create a new journal entry",
-            url: "/?action=new-journal",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+            name: 'New Journal Entry',
+            short_name: 'New Entry',
+            description: 'Create a new journal entry',
+            url: '/?action=new-journal',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }]
           },
           {
-            name: "Dashboard",
-            short_name: "Dashboard",
-            description: "View financial dashboard",
-            url: "/",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+            name: 'Dashboard',
+            short_name: 'Dashboard',
+            description: 'View financial dashboard',
+            url: '/',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }]
           }
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        cleanupOutdatedCaches: true,
+        navigateFallback: 'index.html',
+        // Never intercept backend API downloads, exports, webhooks, or auth endpoints with SPA HTML.
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
+        // Precache only the core app shell + shared vendor/layout chunks; lazy screens cache on demand.
+        globPatterns: [
+          'index.html',
+          'assets/app-*.js',
+          'assets/index-*.css',
+          'assets/vendor-react-*.js',
+          'assets/vendor-ui-*.js',
+          'assets/vendor-supabase-*.js',
+          'assets/vendor-utils-*.js',
+          'assets/RootLayout-*.js'
+        ],
         runtimeCaching: [
+          {
+            // Never cache authenticated or workspace-scoped backend financial API responses.
+            urlPattern: ({ sameOrigin, url }) =>
+              sameOrigin && (url.pathname === '/api' || url.pathname.startsWith('/api/')),
+            handler: 'NetworkOnly'
+          },
+          {
+            // Never cache Supabase Auth, PostgREST, Realtime, Storage, or Edge Function responses.
+            urlPattern: ({ url }) =>
+              /\.supabase\.(?:co|in)$/i.test(url.hostname) ||
+              /^\/(?:auth|rest|realtime|storage|functions)\/v1(?:\/|$)/.test(url.pathname),
+            handler: 'NetworkOnly'
+          },
+          {
+            // Cache visited content-hashed lazy screen chunks and static media on demand.
+            urlPattern: ({ sameOrigin, request, url }) =>
+              sameOrigin &&
+              url.pathname.startsWith('/assets/') &&
+              ['script', 'style', 'font', 'image', 'worker'].includes(request.destination),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ledgerflow-hashed-assets',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              },
+              cacheableResponse: {
+                statuses: [200]
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
             handler: 'CacheFirst',
@@ -80,7 +129,8 @@ export default defineConfig({
           }
         ]
       }
-    }), ],
+    })
+  ],
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
   },
@@ -100,12 +150,25 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-utils': ['date-fns', 'zustand', 'clsx', 'tailwind-merge'],
-          'vendor-ui': ['lucide-react', 'motion/react', 'sonner'],
-          'vendor-viz': ['recharts', 'd3'],
+        entryFileNames: 'assets/app-[hash].js',
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[/\\]node_modules[/\\](?:react|react-dom|scheduler)[/\\]/.test(id)) {
+            return 'vendor-react';
+          }
+          if (/[/\\]node_modules[/\\]@supabase[/\\]/.test(id)) {
+            return 'vendor-supabase';
+          }
+          if (/[/\\]node_modules[/\\](?:date-fns|zustand|clsx|tailwind-merge)[/\\]/.test(id)) {
+            return 'vendor-utils';
+          }
+          if (/[/\\]node_modules[/\\](?:motion|framer-motion|motion-dom|motion-utils|sonner)[/\\]/.test(id)) {
+            return 'vendor-ui';
+          }
+          if (/[/\\]node_modules[/\\](?:recharts|d3|d3-[^/\\]+|victory-vendor)[/\\]/.test(id)) {
+            return 'vendor-viz';
+          }
+          return undefined;
         }
       }
     },

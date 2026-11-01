@@ -6,7 +6,6 @@ import { signOut } from '../lib/db/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
-import { BUSINESS_TEMPLATES } from '../lib/businessTemplates';
 
 export function useSystemActions() {
   const user = useAuthStore(s => s.user);
@@ -68,6 +67,7 @@ export function useSystemActions() {
 
   const handleSelectTemplate = useCallback(async (templateId: string) => {
     if (!user || !currentWorkspaceId) return;
+    const { BUSINESS_TEMPLATES } = await import('../lib/businessTemplates');
     const template = BUSINESS_TEMPLATES[templateId];
     if (!template) return;
     const loader = toast.loading(`Setting up the ${template.name} chart of accounts...`);

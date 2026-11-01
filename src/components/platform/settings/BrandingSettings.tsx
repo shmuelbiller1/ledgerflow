@@ -4,8 +4,8 @@ import { Palette, FileText, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken } from '../../../firebase';
-import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/branding';
-import type { WorkspaceBranding } from '../../../lib/branding';
+import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
+import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { DOCUMENT_LANGUAGES } from '../../../lib/documentLanguage';
 
 /**

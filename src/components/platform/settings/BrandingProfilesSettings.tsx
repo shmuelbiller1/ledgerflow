@@ -6,8 +6,8 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken, db } from '../../../firebase';
 import { doc, getDoc } from '../../../lib/db/firestore';
-import { DEFAULT_BRAND_COLOR, MAX_LOGO_BYTES } from '../../../lib/branding';
-import type { WorkspaceBranding } from '../../../lib/branding';
+import { DEFAULT_BRAND_COLOR, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
+import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { brandingForLabels, brandingProfilesProblem, labelKey } from '../../../lib/entityBranding';
 import type { BrandingProfiles } from '../../../lib/entityBranding';
 

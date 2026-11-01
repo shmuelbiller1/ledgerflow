@@ -1,6 +1,6 @@
 import PinnedPagesBar from '../../components/layout/PinnedPagesBar';
 import type { FilterCriteria } from '../../types';
-import React, { Suspense } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { cn, getLocalDateISO } from '../../lib/utils';
 
 import Sidebar from '../../components/layout/Sidebar';
@@ -8,7 +8,6 @@ import Header from '../../components/layout/Header';
 import ModuleSubNav from '../../components/layout/ModuleSubNav';
 import BottomNav from '../../components/layout/BottomNav';
 import MainViewSwitcher from '../../components/layout/MainViewSwitcher';
-import CommandPalette from '../../components/layout/CommandPalette';
 import CommandPortal from '../../components/layout/CommandPortal';
 import StatusBar from '../../components/layout/StatusBar';
 import LedgerInterruptOverlay from '../../components/forensics/LedgerInterruptOverlay';
@@ -18,13 +17,13 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 
-import ShortcutOverlay from '../../components/layout/ShortcutOverlay';
-import DiagnosticConsole from '../../components/intelligence/DiagnosticConsole';
 import ConnectionBanner from '../../components/platform/ConnectionBanner';
 import DataStatusBar from '../../components/layout/DataStatusBar';
 import PendingDeletionBanner from '../../components/layout/PendingDeletionBanner';
 import LedgerBackupReminder from '../../components/platform/LedgerBackupReminder';
 
+import { useLedgerData } from '../../hooks/useLedgerData';
+import { useReportPreferencesSync } from '../../hooks/useReportPreferencesSync';
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
 import { useServerOpeningSync } from '../../hooks/useServerOpening';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -32,7 +31,22 @@ import { useAIActions } from '../../hooks/useAIActions';
 
 import { useSystemActions } from '../../hooks/useSystemActions';
 
+const CommandPalette = lazy(() => import('../../components/layout/CommandPalette'));
+const ShortcutOverlay = lazy(() => import('../../components/layout/ShortcutOverlay'));
+const DiagnosticConsole = lazy(() => import('../../components/intelligence/DiagnosticConsole'));
+
 export function RootLayout() {
+  useLedgerData();
+  useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        useLedgerStore.getState().recomputeBalances();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
   const { handleAction } = useCommandDispatcher();
   useServerOpeningSync(); // L-123 step 3b: the server's balances behind computedAccounts
   const txActions = useTransactionActions();
@@ -171,11 +185,24 @@ export function RootLayout() {
       
       {/* Overlays & Global Components */}
       <BottomNav activeTab={activeTab as unknown as string} onTabChange={setActiveTab as unknown as (tabId: string) => void} />
-         <Suspense fallback={null}><CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onAction={handleAction} /></Suspense>
-         <Suspense fallback={null}><CommandPortal key={dialogScope} modals={modals} handlers={handlers as unknown as React.ComponentProps<typeof CommandPortal>['handlers']} /></Suspense>
-         <Suspense fallback={null}><ShortcutOverlay isOpen={isShortcutOverlayOpen} onClose={() => setShortcutOverlayOpen(false)} /></Suspense>
-         
-         <Suspense fallback={null}><DiagnosticConsole isOpen={isDiagnosticConsoleOpen} onClose={() => setDiagnosticConsoleOpen(false)} /></Suspense>
+      {isCommandPaletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onAction={handleAction} />
+        </Suspense>
+      )}
+      <Suspense fallback={null}>
+        <CommandPortal key={dialogScope} modals={modals} handlers={handlers as unknown as React.ComponentProps<typeof CommandPortal>['handlers']} />
+      </Suspense>
+      {isShortcutOverlayOpen && (
+        <Suspense fallback={null}>
+          <ShortcutOverlay isOpen={isShortcutOverlayOpen} onClose={() => setShortcutOverlayOpen(false)} />
+        </Suspense>
+      )}
+      {isDiagnosticConsoleOpen && (
+        <Suspense fallback={null}>
+          <DiagnosticConsole isOpen={isDiagnosticConsoleOpen} onClose={() => setDiagnosticConsoleOpen(false)} />
+        </Suspense>
+      )}
 
       <Suspense fallback={null}><LedgerInterruptOverlay /></Suspense>
       <ProductTour />
@@ -183,3 +210,5 @@ export function RootLayout() {
     </div>
   );
 }
+
+export default RootLayout;

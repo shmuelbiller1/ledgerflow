@@ -5,9 +5,10 @@ import App from './App';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
 import { initGlobalErrorTracking } from './lib/errorTracker';
+import { initPWAUpdateManager } from './lib/pwaUpdateManager';
 
 initGlobalErrorTracking();
-registerSW({ immediate: true });
+initPWAUpdateManager(registerSW);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

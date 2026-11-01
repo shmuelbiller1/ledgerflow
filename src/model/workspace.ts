@@ -1,6 +1,6 @@
 import type { LockException } from '../lib/periodLock';
 import type { EmailTemplates } from '../lib/emailTemplates';
-import type { WorkspaceBranding } from '../lib/branding';
+import type { WorkspaceBranding } from '../lib/brandingConstants';
 import type { ReminderSettings } from '../lib/reminders';
 import type { InvoiceApprovalSettings } from '../lib/invoiceApproval';
 import type { MoneyDisplaySettings } from '../lib/moneyFormat';
@@ -153,7 +153,7 @@ export interface Workspace {
   /** The start date of the books (opening balances). Server-only. */
   openingBalanceDate?: string;
   /** How long logs are kept, recovery window, legal hold (src/lib/retention.ts). Server-only. */
-  retention?: Partial<import('../lib/retention').RetentionSettings>;
+  retention?: Partial<import('../lib/retentionPolicy').RetentionSettings>;
   /** 'pending_deletion' while a deleted workspace waits out its 30 days */
   status?: string;
   creditCostMultiplier?: number;

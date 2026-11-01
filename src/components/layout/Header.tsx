@@ -8,8 +8,9 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { unreadCount, useNotificationStore } from '../../stores/useNotificationStore';
 import { useNotificationFeed } from '../../hooks/useNotificationFeed';
-import NotificationDrawer from './NotificationDrawer';
 import { useCollaborators } from '../../hooks/useCollaborators';
+
+const NotificationDrawer = React.lazy(() => import('./NotificationDrawer'));
 
 import { useRecentRecordTracking } from '../../hooks/useRecentRecordTracking';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -30,6 +31,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
   const currentRole = useCurrentRole();
   const collaborators = useCollaborators();
 
+  const isDrawerOpen = useNotificationStore(s => s.isDrawerOpen);
   const setDrawerOpen = useNotificationStore(s => s.setDrawerOpen);
   const unread = useNotificationStore(s => unreadCount(s.notifications));
   useNotificationFeed();
@@ -187,7 +189,11 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
           </button>
         )}
       </div>
-      <NotificationDrawer />
+      {isDrawerOpen && (
+        <React.Suspense fallback={null}>
+          <NotificationDrawer />
+        </React.Suspense>
+      )}
     </header>
   );
 });

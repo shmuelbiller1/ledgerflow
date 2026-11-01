@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, ShieldCheck, Mail, UserPlus } from 'lucide-react';
 import { useBillingStore } from '../../modules/billing/BillingService';
-import LegalModal from '../../components/legal/LegalModal';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
 import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordPolicy';
+
+const LegalModal = lazy(() => import('../../components/legal/LegalModal'));
 
 interface AuthScreenProps {
   onLogin: () => void;
@@ -262,11 +263,15 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
         </div>
       </section>
 
-      <LegalModal
-        isOpen={legalModalOpen}
-        onClose={() => setLegalModalOpen(false)}
-        initialTab={legalTab}
-      />
+      {legalModalOpen && (
+        <Suspense fallback={null}>
+          <LegalModal
+            isOpen={legalModalOpen}
+            onClose={() => setLegalModalOpen(false)}
+            initialTab={legalTab}
+          />
+        </Suspense>
+      )}
     </main>
   );
 }

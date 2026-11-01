@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { RequireRole } from '../../ui/RequireRole';
 import { useUIStore } from '../../../stores/useUIStore';
 import RetentionSettingsPanel from './RetentionSettingsPanel';
-import { retentionFor } from '../../../lib/retention';
+import { retentionFor } from '../../../lib/retentionPolicy';
 import AsyncButton from '../../ui/AsyncButton';
 import RecoveryCodesPanel from './RecoveryCodesPanel';
 import RequireTwoStepPanel from './RequireTwoStepPanel';

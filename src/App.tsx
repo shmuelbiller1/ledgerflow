@@ -1,6 +1,5 @@
-import FeedbackWidget from './components/support/FeedbackWidget';
 import TestEnvironmentBanner from './components/support/TestEnvironmentBanner';
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import { useState, useEffect, useMemo, useCallback, useTransition, lazy, Suspense } from 'react';
 import { usePerformanceTrace } from './hooks/usePerformanceTrace';
 import { auth } from './firebase';
 import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
@@ -9,18 +8,12 @@ import { motion } from 'motion/react';
 
 // Stores & Hooks
 import { useAuthStore } from './stores/useAuthStore';
-import { useLedgerStore } from './stores/useLedgerStore';
 import { useUIStore } from './stores/useUIStore';
 import type { AppTab } from './types';
 import { errorMessage } from './lib/errorRemedies';
 import { shortcutKeyMap } from './config/shortcuts';
 import { currentPage, MAX_PINNED } from './lib/pinnedPages';
-import { useLedgerData } from './hooks/useLedgerData';
-import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
-import { useAIActions } from './hooks/useAIActions';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useTransactionActions } from './hooks/useTransactionActions';
-import { useCommandDispatcher } from './hooks/useSystemContext';
 import { useBillingStore } from './modules/billing/BillingService';
 
 // Core Architectural Imports
@@ -29,20 +22,20 @@ import { InitializationScreen } from './core/auth/InitializationScreen';
 import { SecondFactorScreen } from './core/auth/SecondFactorScreen';
 import { redeemRecoveryCode } from './core/auth/recoveryCode';
 import { useTwoStepSetup } from './core/auth/twoStepSetup';
-import { RootLayout } from './core/layout/RootLayout';
-import { lazy, Suspense } from 'react';
-const LedgerAutoAuditor = lazy(() => import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor })));
-
 import { FallbackBoundary } from './components/FallbackBoundary';
-import PublicInvoicePage from './components/sales/PublicInvoicePage';
-import PublicEstimatePage from './components/sales/PublicEstimatePage';
-import CustomerPortalPage from './components/sales/CustomerPortalPage';
+import CookieConsent from './components/legal/CookieConsent';
+import { canOpenShortcutHelp } from './lib/shortcutOverlay';
+
+const RootLayout = lazy(() => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout })));
+const FeedbackWidget = lazy(() => import('./components/support/FeedbackWidget'));
+const LedgerAutoAuditor = lazy(() => import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor })));
+const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePage'));
+const PublicEstimatePage = lazy(() => import('./components/sales/PublicEstimatePage'));
+const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalPage'));
 const StatusPage = lazy(() => import('./components/system/StatusPage'));
 const TwoStepSetupScreen = lazy(() => import('./core/auth/TwoStepSetupScreen'));
 const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
-import CookieConsent from './components/legal/CookieConsent';
-import LegalModal from './components/legal/LegalModal';
-import { canOpenShortcutHelp } from './lib/shortcutOverlay';
+const LegalModal = lazy(() => import('./components/legal/LegalModal'));
 
 
 export default function App() {
@@ -147,13 +140,13 @@ export default function App() {
   const setArchitectureOpen = useUIStore(state => state.setArchitectureOpen);
   const toggleFocusMode = useUIStore(state => state.toggleFocusMode);
 
-  // High-Performance Data Ingress
-  useLedgerData();
-  useReportPreferencesSync(); // D-47: personal recent reports and pins for this user/workspace
-  useTransactionActions();
-  useAIActions();
-  
-  const { handleAction } = useCommandDispatcher();
+  const openExportDialog = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('exportDialog', '1');
+    window.history.replaceState(null, '', url);
+    useUIStore.getState().goToPage({ tab: 'settings', sub: 'export' });
+    window.dispatchEvent(new Event('ledgerflow:open-export'));
+  }, []);
   
   // Language & Direction Control & Sizing Core
   useEffect(() => {
@@ -213,7 +206,7 @@ const shortcutMap = useMemo(() => {
       transactions: () => setActiveTab('transactions'),
       ledger: () => setActiveTab('ledger'),
       reports: () => setActiveTab('reports'),
-      export: () => handleAction('export'),
+      export: () => openExportDialog(),
       import: () => setImporterOpen(true),
       theme: () => useUIStore.getState().setTheme(useUIStore.getState().theme === 'dark' ? 'light' : 'dark'),
       focus: () => toggleFocusMode(),
@@ -239,23 +232,12 @@ const shortcutMap = useMemo(() => {
   }, [
     isCommandPaletteOpen, isQuickEntryOpen, isDiagnosticConsoleOpen,
     isShortcutOverlayOpen, isArchitectureOpen, speedDials, navigateTool,
-    handleAction, setActiveTab, setArchitectureOpen, setCommandPaletteOpen,
+    openExportDialog, setActiveTab, setArchitectureOpen, setCommandPaletteOpen,
     setDiagnosticConsoleOpen, setImporterOpen, setQuickEntryOpen,
     setShortcutOverlayOpen, toggleFocusMode
   ]);
   
   useKeyboardShortcuts(shortcutMap);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        useLedgerStore.getState().recomputeBalances();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
 
 
   const isGuest = useAuthStore(state => state.isGuest);
@@ -356,17 +338,29 @@ const shortcutMap = useMemo(() => {
 
   // the customer portal (K-27): a customer's invoices, no sign-in
   if (window.location.pathname.startsWith('/c/')) {
-    return <CustomerPortalPage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <CustomerPortalPage />
+      </Suspense>
+    );
   }
 
   // signing an estimate (Y-20): no sign-in
   if (window.location.pathname.startsWith('/e/')) {
-    return <PublicEstimatePage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <PublicEstimatePage />
+      </Suspense>
+    );
   }
 
   const isPublicInvoice = window.location.pathname.startsWith('/i/');
   if (isPublicInvoice) {
-    return <PublicInvoicePage />;
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <PublicInvoicePage />
+      </Suspense>
+    );
   }
 
   const isInviteRoute = window.location.pathname.startsWith('/invite/');
@@ -434,10 +428,18 @@ const shortcutMap = useMemo(() => {
         )}
         <Suspense fallback={null}><LedgerAutoAuditor /></Suspense>
         <TestEnvironmentBanner />
-        <RootLayout />
-        <FeedbackWidget />
+        <Suspense fallback={<InitializationScreen language={language} />}>
+          <RootLayout />
+        </Suspense>
+        <Suspense fallback={null}>
+          <FeedbackWidget />
+        </Suspense>
         <CookieConsent onOpenPrivacyPolicy={() => { setLegalModalTab('privacy'); setIsLegalModalOpen(true); }} />
-        <LegalModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} initialTab={legalModalTab} />
+        {isLegalModalOpen && (
+          <Suspense fallback={null}>
+            <LegalModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} initialTab={legalModalTab} />
+          </Suspense>
+        )}
       </div>
     </FallbackBoundary>
   );
