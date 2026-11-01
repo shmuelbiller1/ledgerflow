@@ -438,10 +438,12 @@ const shortcutMap = useMemo(() => {
   const isInviteRoute = window.location.pathname.startsWith('/invite/');
   if (isInviteRoute) {
     return (
-      <Suspense fallback={<InitializationScreen language={language} />}>
-        <RootLayout />
-        <FeedbackWidget />
-      </Suspense>
+      <>
+        <Suspense fallback={<InitializationScreen language={language} />}>
+          <RootLayout />
+        </Suspense>
+        <ResilientBackgroundMount load={loadFeedbackWidget} />
+      </>
     );
   }
 
