@@ -40,6 +40,7 @@ import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../l
 
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { inBackground } from '../../lib/inBackground';
 
 export default function Vault() {
   const uploadId = useId();
@@ -389,7 +390,7 @@ export default function Vault() {
               <div className="absolute top-6 right-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center gap-2">
                  <AsyncButton 
                   aria-label={`Delete document ${docItem.name}`}
-                  onClick={async () => { handleDelete(docItem.id); }}
+                  onClick={async () => { inBackground(handleDelete(docItem.id)); }}
                   className="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"
                 >
                   <Trash2 aria-hidden="true" size={18} />

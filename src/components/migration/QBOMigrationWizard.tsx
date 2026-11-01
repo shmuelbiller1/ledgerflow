@@ -305,7 +305,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         const reader = new FileReader();
         reader.onload = (e) => {
           if (e.target?.result) {
-            parseSpreadsheetData(e.target.result as ArrayBuffer, selectedFile.name);
+            void parseSpreadsheetData(e.target.result as ArrayBuffer, selectedFile.name);
           }
         };
         reader.readAsArrayBuffer(selectedFile);
@@ -330,7 +330,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
     const blob = new Blob([sampleCSV], { type: 'text/csv' });
     const sampleFile = new File([blob], 'QuickBooks_General_Ledger_Export.csv', { type: 'text/csv' });
     setFile(sampleFile);
-    parseSpreadsheetData(sampleCSV, sampleFile.name);
+    void parseSpreadsheetData(sampleCSV, sampleFile.name);
   };
 
   // Summary Metrics for Step 3

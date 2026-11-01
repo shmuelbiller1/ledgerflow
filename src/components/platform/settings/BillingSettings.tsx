@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { auth } from '../../../firebase';
 import { RequireRole } from '../../ui/RequireRole';
 import UsagePanel from './UsagePanel';
+import { inBackground } from '../../../lib/inBackground';
 
 export default function BillingSettings() {
   const currentWorkspaceId = useAuthStore(state => state.currentWorkspaceId);
@@ -74,7 +75,7 @@ export default function BillingSettings() {
       }
     };
 
-    verifyCheckout();
+    inBackground(verifyCheckout());
   }, [currentWorkspace?.id]);
 
   const handleCheckout = async (plan: string) => {

@@ -19,6 +19,7 @@ import { formatCurrency, formatDate, formatTzDate } from '../../lib/utils';
 import BillModal from './BillModal';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { inBackground } from '../../lib/inBackground';
 
 /**
  * Purchase orders (saved in `purchaseOrders`), goods received against them, and turning an order
@@ -187,7 +188,7 @@ export const PurchaseOrdersView: React.FC = () => {
   const toggleOrder = (id: string) => setOpenOrders(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const deletePO = (po: PurchaseOrder) => {
     if (!window.confirm(`Delete purchase order ${po.poNumber}? This can't be undone.`)) return;
-    deleteEntity('purchaseOrders', po.id, `${po.poNumber} deleted`);
+    inBackground(deleteEntity('purchaseOrders', po.id, `${po.poNumber} deleted`));
   };
 
   const decideOrder = (po: PurchaseOrder, approve: boolean, reason?: string) =>
@@ -196,7 +197,7 @@ export const PurchaseOrdersView: React.FC = () => {
 
   const cancelPO = (po: PurchaseOrder) => {
     if (!window.confirm(`Cancel purchase order ${po.poNumber}?`)) return;
-    updateEntity('purchaseOrders', po.id, { status: 'cancelled' }, `${po.poNumber} cancelled`);
+    inBackground(updateEntity('purchaseOrders', po.id, { status: 'cancelled' }, `${po.poNumber} cancelled`));
   };
 
   const tabs: [Tab, string][] = [

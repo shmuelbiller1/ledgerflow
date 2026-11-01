@@ -271,7 +271,7 @@ export default function StatementImporter({
     }
     setMappingError('');
     processResults(results as unknown as StatementResult[]);
-    if (results.length > 0 && csvData[0]) saveColumnLayout(csvData[0], mapping as ColumnMapping);
+    if (results.length > 0 && csvData[0]) void saveColumnLayout(csvData[0], mapping as ColumnMapping);
   };
 
   // Remember this bank's column layout (keyed by its header row) for the next import

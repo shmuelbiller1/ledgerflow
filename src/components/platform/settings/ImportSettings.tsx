@@ -33,6 +33,7 @@ import { cleanupContactImportRows } from '../../../lib/contactImportCleanup';
 import { MigrationTrialBalanceProof } from './MigrationTrialBalanceProof';
 import ContactImportQualityReview from './ContactImportQualityReview';
 import XeroDocumentsImport from './XeroDocumentsImport';
+import { inBackground } from '../../../lib/inBackground';
 
 /** PREV-6: a garbled (non-UTF-8) or cut-off CSV is refused whole, with a message. */
 const readCsvUpload = (text: string): string[][] => {
@@ -188,7 +189,7 @@ export default function ImportSettings() {
 
   useEffect(() => {
     let cancelled = false;
-    loadRecentImports(workspaceId).then(list => { if (!cancelled) setRecent(list); });
+    inBackground(loadRecentImports(workspaceId).then(list => { if (!cancelled) setRecent(list); }));
     return () => { cancelled = true; };
   }, [workspaceId, recentVersion]);
   const loadRecent = () => setRecentVersion(v => v + 1);
@@ -439,7 +440,7 @@ export default function ImportSettings() {
               id="import-file"
               type="file"
               accept=".csv,.txt,.xlsx,.iif,.qbi,.vcf,text/csv,text/vcard"
-              onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }}
+              onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }}
               className="text-sm text-[var(--text)] file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border file:border-[var(--line)] file:bg-[var(--panel)] file:text-[var(--text)]"
             />
             {fileName && (

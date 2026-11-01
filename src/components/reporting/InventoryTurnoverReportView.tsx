@@ -6,6 +6,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import type { ItemDetails } from '../../lib/stockMoves';
 import { inventoryTurnover, turnoverCsvRows, TURNOVER_CSV_HEADERS } from '../../lib/inventoryTurnover';
 import ReportTableScroll from './ReportTableScroll';
+import { inBackground } from '../../lib/inBackground';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const ratio = (n: number | null) => (n === null ? '—' : n.toFixed(2));
@@ -31,7 +32,7 @@ export default function InventoryTurnoverReportView() {
   useEffect(() => {
     if (!key) return;
     let alive = true;
-    (async () => {
+    inBackground((async () => {
       try {
         const query = new URLSearchParams({ workspaceId, startDate: from, endDate: to }).toString();
         const res = await fetch(`/api/v1/reports/inventory-details?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
@@ -41,7 +42,7 @@ export default function InventoryTurnoverReportView() {
       } catch (error) {
         if (alive) setResult({ key, error: error instanceof Error ? error.message : String(error) });
       }
-    })();
+    })());
     return () => { alive = false; };
   }, [key, workspaceId, from, to]);
 

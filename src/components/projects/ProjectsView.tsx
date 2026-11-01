@@ -11,6 +11,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { projectTasksFromProject } from '../../lib/projectTemplates';
 import type { ProjectsModel } from './Projects';
+import { inBackground } from '../../lib/inBackground';
 
 export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, selectedTemplateId, projectTemplates, handleApplyTemplate, handleToggleProjectTask, handleSaveProjectTemplate, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors }: ProjectsModel) {
   return (
@@ -152,7 +153,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                         <AsyncButton
                           aria-label={`Delete project ${project.name}`}
                           onClick={async () => {
-                            handleDeleteProject(project.id);
+                            inBackground(handleDeleteProject(project.id));
                           }}
                           className={cn(
                             "p-1.5 rounded-md transition-all",

@@ -85,7 +85,7 @@ const ForensicAudit = React.memo(() => {
         setIsScanning(false);
       }
     }
-    scan();
+    void scan();
   }, [isGuest, transactions, currentWorkspaceId]);
 
   // 3. COMPLIANCE STATS
