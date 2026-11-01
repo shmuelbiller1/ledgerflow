@@ -41,7 +41,7 @@ export default function EmailSettings() {
   const canEdit = role === 'owner' || role === 'accountant';
   const templatesSectionRef = useRef<HTMLElement>(null);
   const remindersSectionRef = useRef<HTMLElement>(null);
-  const approvalSectionRef = useRef<HTMLElement>(null);
+  const approvalRulesRef = useRef<HTMLDivElement>(null);
 
   const [key, setKey] = useState<EmailTemplateKey>('invoice');
   const [lang, setLang] = useState<TemplateLanguage>('en');
@@ -144,7 +144,7 @@ export default function EmailSettings() {
     setPoLimitText(approvalLimitUnits(poNext.thresholdCents));
     void save({ invoiceApproval: settings }, settings.enabled
       ? `Invoices over ${formatCurrency(settings.thresholdCents, workspace?.currency)} now wait for an owner's or an accountant's approval before they are emailed.`
-      : 'Approval rules saved.', approvalSectionRef.current);
+      : 'Approval rules saved.', approvalRulesRef.current);
   };
 
   const saveReminders = () => {
@@ -263,57 +263,59 @@ export default function EmailSettings() {
         {!canEdit && <p className="text-xs text-[var(--muted)]">Owners and accountants change these settings.</p>}
       </section>
 
-      <section ref={approvalSectionRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-approval`}>
-        <div>
-          <h2 id={`${formId}-approval`} className="text-lg font-bold text-[var(--text)]">Approval before an invoice goes out</h2>
-          <p className="text-xs text-[var(--muted)]">
-            A larger invoice is not emailed until an owner or an accountant has said yes. The invoice is saved,
-            posted and counted as it always was — only the customer receiving it waits.
-          </p>
-        </div>
-        <label htmlFor={`${formId}-approval-on`} className="flex items-center gap-2 text-sm text-[var(--text)]">
-          <input id={`${formId}-approval-on`} type="checkbox" disabled={!canEdit} checked={approval.enabled}
-            onChange={e => setApproval({ ...approval, enabled: e.target.checked })} />
-          Require approval on invoices over a set amount
-        </label>
-        <div className="max-w-xs">
-          <label htmlFor={`${formId}-approval-limit`} className="block text-xs font-semibold text-[var(--text)] mb-1">
-            The amount, in {workspace?.currency || 'the workspace currency'}
-          </label>
-          <input id={`${formId}-approval-limit`} inputMode="decimal" disabled={!canEdit || !approval.enabled}
-            value={limitText} onChange={e => setLimitText(e.target.value)} placeholder="2000" className={inputClass} />
-        </div>
-        <p className="text-xs text-[var(--muted)]">
-          {approval.enabled && approval.thresholdCents > 0
-            ? `Invoices above ${formatCurrency(approval.thresholdCents, workspace?.currency)} wait for a signature. Their payment reminders wait too.`
-            : 'Turn this on and name an amount to hold big invoices back; leaving the amount empty keeps it off.'}
-        </p>
-
-        <div className="pt-4 border-t border-[var(--line)] space-y-3">
-          <h3 className="text-sm font-bold text-[var(--text)]">Purchase order approval threshold</h3>
-          <label htmlFor={`${formId}-po-approval-on`} className="flex items-center gap-2 text-sm text-[var(--text)]">
-            <input id={`${formId}-po-approval-on`} type="checkbox" disabled={!canEdit} checked={poApproval.enabled}
-              onChange={e => setPoApproval({ ...poApproval, enabled: e.target.checked })} />
-            Require approval on purchase orders over a set amount
+      <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-4" aria-labelledby={`${formId}-approval`}>
+        <div ref={approvalRulesRef} className="space-y-4">
+          <div>
+            <h2 id={`${formId}-approval`} className="text-lg font-bold text-[var(--text)]">Approval before an invoice goes out</h2>
+            <p className="text-xs text-[var(--muted)]">
+              A larger invoice is not emailed until an owner or an accountant has said yes. The invoice is saved,
+              posted and counted as it always was — only the customer receiving it waits.
+            </p>
+          </div>
+          <label htmlFor={`${formId}-approval-on`} className="flex items-center gap-2 text-sm text-[var(--text)]">
+            <input id={`${formId}-approval-on`} type="checkbox" disabled={!canEdit} checked={approval.enabled}
+              onChange={e => setApproval({ ...approval, enabled: e.target.checked })} />
+            Require approval on invoices over a set amount
           </label>
           <div className="max-w-xs">
-            <label htmlFor={`${formId}-po-approval-limit`} className="block text-xs font-semibold text-[var(--text)] mb-1">
-              Purchase order limit, in {workspace?.currency || 'the workspace currency'}
+            <label htmlFor={`${formId}-approval-limit`} className="block text-xs font-semibold text-[var(--text)] mb-1">
+              The amount, in {workspace?.currency || 'the workspace currency'}
             </label>
-            <input id={`${formId}-po-approval-limit`} inputMode="decimal" disabled={!canEdit || !poApproval.enabled}
-              value={poLimitText} onChange={e => setPoLimitText(e.target.value)} placeholder="1500" className={inputClass} />
+            <input id={`${formId}-approval-limit`} inputMode="decimal" disabled={!canEdit || !approval.enabled}
+              value={limitText} onChange={e => setLimitText(e.target.value)} placeholder="2000" className={inputClass} />
           </div>
           <p className="text-xs text-[var(--muted)]">
-            {poApproval.enabled && poApproval.thresholdCents > 0
-              ? `Purchase orders above ${formatCurrency(poApproval.thresholdCents, workspace?.currency)} wait for approval before receiving or billing; orders at or below pass automatically.`
-              : 'Off: every bookkeeper order waits for approval regardless of amount (default requisition rule).'}
+            {approval.enabled && approval.thresholdCents > 0
+              ? `Invoices above ${formatCurrency(approval.thresholdCents, workspace?.currency)} wait for a signature. Their payment reminders wait too.`
+              : 'Turn this on and name an amount to hold big invoices back; leaving the amount empty keeps it off.'}
           </p>
-        </div>
 
-        {canEdit && (
-          <button type="button" disabled={saving} onClick={saveApproval} className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">Save approval rule</button>
-        )}
-        {!canEdit && <p className="text-xs text-[var(--muted)]">Owners and accountants change these settings.</p>}
+          <div className="pt-4 border-t border-[var(--line)] space-y-3">
+            <h3 className="text-sm font-bold text-[var(--text)]">Purchase order approval threshold</h3>
+            <label htmlFor={`${formId}-po-approval-on`} className="flex items-center gap-2 text-sm text-[var(--text)]">
+              <input id={`${formId}-po-approval-on`} type="checkbox" disabled={!canEdit} checked={poApproval.enabled}
+                onChange={e => setPoApproval({ ...poApproval, enabled: e.target.checked })} />
+              Require approval on purchase orders over a set amount
+            </label>
+            <div className="max-w-xs">
+              <label htmlFor={`${formId}-po-approval-limit`} className="block text-xs font-semibold text-[var(--text)] mb-1">
+                Purchase order limit, in {workspace?.currency || 'the workspace currency'}
+              </label>
+              <input id={`${formId}-po-approval-limit`} inputMode="decimal" disabled={!canEdit || !poApproval.enabled}
+                value={poLimitText} onChange={e => setPoLimitText(e.target.value)} placeholder="1500" className={inputClass} />
+            </div>
+            <p className="text-xs text-[var(--muted)]">
+              {poApproval.enabled && poApproval.thresholdCents > 0
+                ? `Purchase orders above ${formatCurrency(poApproval.thresholdCents, workspace?.currency)} wait for approval before receiving or billing; orders at or below pass automatically.`
+                : 'Off: every bookkeeper order waits for approval regardless of amount (default requisition rule).'}
+            </p>
+          </div>
+
+          {canEdit && (
+            <button type="button" disabled={saving} onClick={saveApproval} className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">Save approval rule</button>
+          )}
+          {!canEdit && <p className="text-xs text-[var(--muted)]">Owners and accountants change these settings.</p>}
+        </div>
         {approval.enabled && <ApprovalDelegatePanel />}
       </section>
     </div>

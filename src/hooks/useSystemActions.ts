@@ -68,8 +68,15 @@ export function useSystemActions() {
 
   const handleSelectTemplate = useCallback(async (templateId: string) => {
     if (!user || !currentWorkspaceId) return;
-    const { BUSINESS_TEMPLATES } = await import('../lib/businessTemplates');
-    const template = BUSINESS_TEMPLATES[templateId];
+    let template: { name?: string } | undefined;
+    try {
+      const { BUSINESS_TEMPLATES } = await import('../lib/businessTemplates');
+      template = BUSINESS_TEMPLATES[templateId];
+    } catch (e) {
+      console.error("Template catalog failed to load:", e);
+      toast.error('Templates could not load. Check your connection and try again.');
+      return;
+    }
     if (!template) return;
     const loader = toast.loading(`Setting up the ${template.name} chart of accounts...`);
     try {

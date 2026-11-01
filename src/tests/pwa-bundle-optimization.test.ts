@@ -401,6 +401,11 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     assert.match(viteConfig, /cacheName:\s*['"]ledgerflow-hashed-assets-v2['"]/);
     assert.match(viteConfig, /includes\(['"]text\/html['"]\)/);
 
+    const commandPortalSrc = fs.readFileSync(path.join(root, 'src/components/layout/CommandPortal.tsx'), 'utf8');
+    assert.match(commandPortalSrc, /createRetryableLazy/);
+    assert.match(commandPortalSrc, /LazyOverlayBoundary/);
+    assert.doesNotMatch(commandPortalSrc, /\blazy\s*\(/, 'CommandPortal dialogs must use createRetryableLazy + LazyOverlayBoundary');
+
     const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')) as {
       rewrites?: Array<{ source: string; destination: string }>;
     };
