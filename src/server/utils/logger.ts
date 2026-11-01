@@ -16,12 +16,14 @@ export interface LogContext {
 
 export const logContext = new AsyncLocalStorage<LogContext>();
 
-const PERSONAL_KEY = /^(e-?mail|password|passwd|pass|token|access_?token|refresh_?token|id_?token|secret|authorization|cookie|set-cookie|phone|mobile|ssn|tax_?id|iban|account_?number|card_?number|api_?key)$/i;
+// matched at the end of a name, so userEmail, clientSecret, accessToken, bankAccountNumber are caught too
+const PERSONAL_KEY = /(^pass$|e-?mail|password|passwd|secret|token|authorization|cookie|phone|mobile|ssn|tax_?id|iban|account_?number|card_?number|api_?key)$/i;
 const MAX_DEPTH = 3;
 
 function scrubValue(value: unknown, depth: number): unknown {
   if (value instanceof Error) return logSafeDetail(value);
   if (typeof value === 'string') return logSafe(value, 1000);
+  if (typeof value === 'bigint') return value.toString(); // JSON.stringify would throw
   if (value === null || typeof value !== 'object') return value;
   if (depth >= MAX_DEPTH) return '[nested]';
   if (Array.isArray(value)) return value.slice(0, 50).map(v => scrubValue(v, depth + 1));

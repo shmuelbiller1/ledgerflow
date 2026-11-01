@@ -1,16 +1,20 @@
 import type express from "express";
 import crypto from "crypto";
 import { logContext, logger, type LogContext } from "../utils/logger";
-import { safeRequestTarget } from "./safeRequestTarget";
 import { requestWorkspaceId } from "./apiRequestLog";
 
 const INCOMING_ID = /^[A-Za-z0-9_.-]{8,128}$/;
 
-/** The route pattern (`/api/v1/workspaces/:workspaceId/...`) once Express has matched one, else the safe path. */
+/**
+ * The route pattern (`/api/v1/workspaces/:workspaceId/...`) once Express has matched one. Before that, or for a
+ * path no route matches, a fixed label: the raw path could carry an email or other personal text.
+ */
 function routeOf(req: express.Request): string {
   const pattern = req.route?.path;
-  return typeof pattern === 'string' ? `${req.baseUrl || ''}${pattern}` : safeRequestTarget(req.originalUrl || req.url || '/');
+  return typeof pattern === 'string' ? `${req.baseUrl || ''}${pattern}` : UNMATCHED_ROUTE;
 }
+
+export const UNMATCHED_ROUTE = '(unmatched)';
 
 /**
  * D-21 / BN-01: gives every request an id (a caller's own `x-request-id` when it is a plain token,

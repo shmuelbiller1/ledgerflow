@@ -10,6 +10,7 @@ describe('structured JSON logging (D-21)', () => {
   it('replaces personal fields, at any depth, and keeps the rest', () => {
     const out = scrubFields({
       email: 'a@b.c', password: 'x', Authorization: 'Bearer t', phone: '1', iban: 'GB00', apiKey: 'k',
+      userEmail: 'a@b.c', clientSecret: 's', accessToken: 't', bankAccountNumber: '1', big: 12n,
       jobName: 'reminders', count: 3, nested: { user: { email: 'a@b.c', id: 'u1' } },
     });
     assert.equal(out.email, '[redacted]');
@@ -18,6 +19,8 @@ describe('structured JSON logging (D-21)', () => {
     assert.equal(out.phone, '[redacted]');
     assert.equal(out.iban, '[redacted]');
     assert.equal(out.apiKey, '[redacted]');
+    for (const key of ['userEmail', 'clientSecret', 'accessToken', 'bankAccountNumber']) assert.equal(out[key], '[redacted]', key);
+    assert.equal(out.big, '12', 'a bigint is written as text, not a crash');
     assert.equal(out.jobName, 'reminders');
     assert.equal(out.count, 3);
     assert.deepEqual(out.nested, { user: { email: '[redacted]', id: 'u1' } });
@@ -102,6 +105,16 @@ describe('structured JSON logging (D-21)', () => {
       await fetch(`${base}/not-api`);
       await new Promise(r => setTimeout(r, 20));
       assert.equal(lines.filter(l => l.msg === 'request').length, 2);
+    });
+
+    it('a path no route matches is logged as a fixed label, never the raw path', async () => {
+      lines.length = 0;
+      const res = await fetch(`${base}/api/unknown/alice@example.com`);
+      assert.equal(res.status, 404);
+      await new Promise(r => setTimeout(r, 20));
+      const access = lines.find(l => l.msg === 'request');
+      assert.equal(access?.route, '(unmatched)');
+      assert.doesNotMatch(JSON.stringify(lines), /alice@example\.com/);
     });
 
     it('still logs a request whose client went away before the response was complete', async () => {
