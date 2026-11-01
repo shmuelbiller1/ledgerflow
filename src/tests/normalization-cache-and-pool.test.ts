@@ -353,6 +353,13 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
     );
     assert.equal(invalidEnvCfg.max, 5);
 
+    const scientificEnvCfg = poolConfigFromEnv(
+      { connectionString: REMOTE_DB },
+      { VERCEL: '1', PG_POOL_MAX: '1e2', DATABASE_CA_CERT: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----' },
+      () => {},
+    );
+    assert.equal(scientificEnvCfg.max, 100);
+
     const settingsOverrideCfg = poolConfigFromEnv(
       { connectionString: REMOTE_DB, max: 3 },
       { VERCEL: '1', PG_POOL_MAX: '8', DATABASE_CA_CERT: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----' },

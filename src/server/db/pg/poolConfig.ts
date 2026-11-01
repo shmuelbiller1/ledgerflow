@@ -38,9 +38,9 @@ function resolvePoolMax(settingsMax: number | undefined, env: NodeJS.ProcessEnv,
   if (typeof settingsMax === 'number' && Number.isFinite(settingsMax) && settingsMax > 0) {
     return Math.floor(settingsMax);
   }
-  const parsedEnvMax = Number.parseInt(env.PG_POOL_MAX ?? '', 10);
+  const parsedEnvMax = Number(env.PG_POOL_MAX ?? '');
   if (Number.isFinite(parsedEnvMax) && parsedEnvMax > 0) {
-    return parsedEnvMax;
+    return Math.floor(parsedEnvMax);
   }
   return isServerless ? SERVERLESS_DEFAULT_POOL_MAX : STANDALONE_DEFAULT_POOL_MAX;
 }

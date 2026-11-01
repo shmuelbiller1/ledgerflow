@@ -266,6 +266,62 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     unmount();
   });
 
+  test('preserves deferred resume catch-up when visibility resumes during an in-flight poll and rerender', async () => {
+    setDocumentVisibility('visible');
+    setNavigatorOnline(true);
+    let started = 0;
+    let releaseFirst: (() => void) | null = null;
+    const callback = () =>
+      new Promise<void>((resolve) => {
+        started += 1;
+        if (started === 1) {
+          releaseFirst = resolve;
+        } else {
+          resolve();
+        }
+      });
+
+    const { rerender, unmount } = render(
+      <PollingHarness
+        callback={callback}
+        intervalMs={300_000}
+        options={{ enabled: true, runImmediately: true, minResumeIntervalMs: 5 }}
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 15));
+    });
+    assert.equal(started, 1);
+
+    // Pause and resume while the first poll is still in flight, then rerender with updated intervalMs
+    setDocumentVisibility('hidden');
+    await act(async () => {
+      document.dispatchEvent(new window.Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    setDocumentVisibility('visible');
+    await act(async () => {
+      document.dispatchEvent(new window.Event('visibilitychange'));
+    });
+
+    rerender(
+      <PollingHarness
+        callback={callback}
+        intervalMs={120_000}
+        options={{ enabled: true, runImmediately: false, minResumeIntervalMs: 5 }}
+      />,
+    );
+    assert.equal(started, 1, 'catch-up must wait for the in-flight poll to settle');
+
+    await act(async () => {
+      releaseFirst?.();
+      await new Promise((r) => setTimeout(r, 15));
+    });
+    assert.equal(started, 2, 'pending catch-up must execute immediately once the in-flight poll settles');
+    unmount();
+  });
+
   test('enqueuePresenceOperation serializes pending writes before cleanup deletes on the same path', async () => {
     const order: string[] = [];
     let releaseWrite: (() => void) | null = null;

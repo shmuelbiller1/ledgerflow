@@ -63,22 +63,48 @@ export function useVisibilityPolling(
   const lastRunAtRef = useRef(0);
   const wasPausedRef = useRef(false);
   const inFlightRef = useRef(false);
+  const pendingCatchUpRef = useRef(false);
+  const activeExecuteRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
-    if (!enabled || intervalMs <= 0) return undefined;
+    if (!enabled || intervalMs <= 0) {
+      pendingCatchUpRef.current = false;
+      activeExecuteRef.current = null;
+      return undefined;
+    }
 
     let cancelled = false;
 
-    const execute = async () => {
-      if (cancelled || inFlightRef.current) return;
+    const execute = async (fromCatchUp = false) => {
+      if (cancelled) return;
+      if (inFlightRef.current) {
+        if (fromCatchUp) {
+          pendingCatchUpRef.current = true;
+        }
+        return;
+      }
+      pendingCatchUpRef.current = false;
       inFlightRef.current = true;
       lastRunAtRef.current = Date.now();
       try {
         await callbackRef.current();
       } finally {
         inFlightRef.current = false;
+        if (pendingCatchUpRef.current) {
+          pendingCatchUpRef.current = false;
+          const nextExecute = !cancelled ? execute : activeExecuteRef.current;
+          if (nextExecute && isClientActiveForPolling()) {
+            wasPausedRef.current = false;
+            void nextExecute();
+          } else {
+            wasPausedRef.current = true;
+          }
+        }
       }
     };
+
+    const runCatchUp = () => execute(true);
+    activeExecuteRef.current = runCatchUp;
 
     let initialTimer: ReturnType<typeof setTimeout> | null = null;
     if (runImmediately) {
@@ -111,8 +137,12 @@ export function useVisibilityPolling(
       }
       const elapsed = Date.now() - lastRunAtRef.current;
       if (refreshOnResume && (wasPausedRef.current || elapsed >= intervalMs) && elapsed >= minResumeIntervalMs) {
+        if (inFlightRef.current) {
+          pendingCatchUpRef.current = true;
+          return;
+        }
         wasPausedRef.current = false;
-        void execute();
+        void execute(true);
       }
     };
 
@@ -125,6 +155,9 @@ export function useVisibilityPolling(
 
     return () => {
       cancelled = true;
+      if (activeExecuteRef.current === runCatchUp) {
+        activeExecuteRef.current = null;
+      }
       if (initialTimer !== null) clearTimeout(initialTimer);
       clearInterval(interval);
       if (typeof document !== 'undefined') {
