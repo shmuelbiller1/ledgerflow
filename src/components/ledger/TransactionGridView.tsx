@@ -17,6 +17,7 @@ import { TransactionGridToolbar } from './TransactionGridToolbar';
 import { TransactionGridBody } from './TransactionGridBody';
 import type { TransactionGridModel } from './TransactionGrid';
 import { copyWithFeedback } from '../../lib/clipboard';
+import { inBackground } from '../../lib/inBackground';
 export function TransactionGridView(model: TransactionGridModel) {
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
  return (
@@ -93,7 +94,7 @@ export function TransactionGridView(model: TransactionGridModel) {
             projects={projects}
             onSave={(lines) => {
               if (splittingTxId) {
-                onUpdate?.(splittingTxId, { lines });
+                inBackground(onUpdate?.(splittingTxId, { lines }));
                 setSplittingTxId(null);
                 toast.success('Transaction split applied');
               }

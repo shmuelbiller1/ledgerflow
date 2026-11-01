@@ -86,7 +86,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setRawTransactions(data);
-      handleAutoMap(data);
+      void handleAutoMap(data);
     } catch (err) {
       reportError(err, OperationType.SYNC, 'bank_upload', { fileName: file.name });
     } finally {
@@ -356,7 +356,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
                   <p className="text-lg font-black text-[var(--text)] italic uppercase tracking-tight">{file.name}</p>
                   <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest mt-1">{(file.size / 1024).toFixed(1)} KB file</p>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); handleUpload(); }}
+                    onClick={(e) => { e.stopPropagation(); void handleUpload(); }}
                     disabled={isUploading}
                     className="mt-10 px-10 py-3 bg-indigo-600 text-white rounded-[32px] font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 transition-all flex items-center gap-3 shadow-xl shadow-ledger-accent/20"
                   >
@@ -372,7 +372,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
                   <div role="presentation" className="flex gap-4 items-center mt-4" onClick={(e) => e.stopPropagation()}>
                     <PlaidConnectButton />
                     <button 
-                      onClick={(e) => { e.stopPropagation(); fetchFromPlaid(); }}
+                      onClick={(e) => { e.stopPropagation(); void fetchFromPlaid(); }}
                       disabled={isUploading}
                       className="h-12 px-6 bg-slate-900 hover:bg-black text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-sm flex items-center gap-2 active:scale-95 disabled:opacity-50"
                     >

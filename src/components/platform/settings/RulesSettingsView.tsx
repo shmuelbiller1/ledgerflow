@@ -4,6 +4,7 @@ import InlineEdit from '../../ui/InlineEdit';
 import { Labelled } from '../../ui/Labelled';
 import { EmptyState } from '../../ui/EmptyState';
 import type { RulesSettingsModel } from './RulesSettings';
+import { inBackground } from '../../../lib/inBackground';
 
 export function RulesSettingsView({ formError, draftActionPreview, formTargetAccountId, setFormTargetAccountId, formBankAccountId, setFormBankAccountId, formTransactionKind, setFormTransactionKind, chartAccounts, bankAccounts, applyError, canEditRules, disabledGroups, groupError, handleToggleGroup, handleRenameGroup, setRulePriority, isUpdatingGroup, formPriority, setFormPriority, withOccurrenceKeys, formId, currentRole, canBuildRules, autoRules, selectedGroup, setSelectedGroup, searchQuery, setSearchQuery, isCreatingRule, setIsCreatingRule, overlay2DialogProps, overlay2TitleId, editingRule, aiSentence, setAiSentence, isGeneratingAiRule, aiError, aiPreview, setAiPreview, dryRunResult, isTestingRule, setIsTestingRule, overlay1DialogProps, overlay1TitleId, isApplyingExisting, applySuccessMessage, setApplySuccessMessage, formName, setFormName, formGroup, setFormGroup, formDescContains, setFormDescContains, formVendor, setFormVendor, formCategory, setFormCategory, formAmountThreshold, setFormAmountThreshold, formTargetCategory, setFormTargetCategory, formTargetClass, setFormTargetClass, formTargetLocation, setFormTargetLocation, formAddTags, setFormAddTags, formFlagForReview, setFormFlagForReview, formStopOnMatch, setFormStopOnMatch, singleRuleTestResult, groups, filteredRules, handleToggleActive, handleDeleteRule, handleDuplicateRule, openCreateModal, openEditModal, handleSaveRule, handleTestSingleRule, handleGenerateAiRule, handleSaveAiRule, handleRunDryRun, handleApplyToExisting }: RulesSettingsModel) {
   return (
@@ -56,7 +57,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                 type="text"
                 value={aiSentence}
                 onChange={(e) => setAiSentence(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAiRule(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') inBackground(handleGenerateAiRule()); }}
                 placeholder="e.g. Set category to Marketing when vendor is Google Ads and amount is over $100..."
                 className="flex-1 w-full bg-neutral-800/80 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-400 focus:outline-hidden focus:border-amber-400"
               />

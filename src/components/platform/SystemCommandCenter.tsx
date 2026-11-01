@@ -358,13 +358,13 @@ function useSystemCommandCenterModel() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchTelemetry();
-      fetchGlobalConfig();
-      fetchUsersData();
+      void fetchTelemetry();
+      void fetchGlobalConfig();
+      void fetchUsersData();
     }, 0);
     const interval = setInterval(() => {
-      fetchTelemetry();
-      fetchUsersData();
+      void fetchTelemetry();
+      void fetchUsersData();
     }, 6000);
     return () => {
       clearTimeout(timer);

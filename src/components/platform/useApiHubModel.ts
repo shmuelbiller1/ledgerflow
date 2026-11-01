@@ -166,9 +166,9 @@ export function useApiHubModel() {
   useEffect(() => {
     if (!currentWorkspace?.id) return;
     const timer = setTimeout(() => {
-      loadBillingStatus();
-      loadWorkspaceKeys();
-      fetchLogs();
+      void loadBillingStatus();
+      void loadWorkspaceKeys();
+      void fetchLogs();
     }, 0);
     const interval = setInterval(fetchLogs, 5000);
     return () => {
@@ -209,7 +209,7 @@ export function useApiHubModel() {
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
       });
-      loadWorkspaceKeys();
+      void loadWorkspaceKeys();
       setShowCreateModal(false);
     } catch (e) {
       console.error(e);
@@ -236,7 +236,7 @@ export function useApiHubModel() {
       }
 
       toast.success('Key Revoked.');
-      loadWorkspaceKeys();
+      void loadWorkspaceKeys();
       if (apiKey.startsWith(keyId)) {
         keyGeneration.current += 1;
         setApiKey('');
@@ -510,8 +510,8 @@ export function useApiHubModel() {
       const data = await res.json();
       setSandboxResult(data);
 
-      fetchLogs();
-      loadBillingStatus();
+      void fetchLogs();
+      void loadBillingStatus();
       toast.success(`API Ingestion Completed in ${duration}ms`, {
         description: `HTTP Status ${res.status}`
       });

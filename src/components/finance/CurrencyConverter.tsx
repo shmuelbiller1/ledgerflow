@@ -40,7 +40,7 @@ export default function CurrencyConverter({ isOpen, onClose }: CurrencyConverter
         if (!cancelled) { setExchangeRates({}); setRatesError('Exchange rates are not available right now'); }
       }
     };
-    fetchRates();
+    void fetchRates();
     return () => { cancelled = true; };
   }, [fromCurrency]);
 

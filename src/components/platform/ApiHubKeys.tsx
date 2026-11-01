@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
 import { AVAILABLE_SCOPES } from './ApiHubShared';
 import type { useApiHubModel } from './useApiHubModel';
+import { inBackground } from '../../lib/inBackground';
 export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { overlayDialogProps, overlayTitleId, formId, currentWorkspace, nowMs, apiKey, isRegenerating, isCopied, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, generateNewKey, revokeKey, copyKey } = model;
  return (<div className="space-y-6">
@@ -149,7 +150,7 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                                      <button
                                        onClick={() => {
                                          if(confirm('Are you absolutely certain you wish to revoke this credential? Any servers using this token will instantly lose secure database access coordinates.')) {
-                                           revokeKey(k.id);
+                                           inBackground(revokeKey(k.id));
                                          }
                                        }}
                                        className="inline-flex items-center justify-center w-8 h-8 text-[var(--muted)] hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
