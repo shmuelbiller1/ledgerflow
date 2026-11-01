@@ -137,7 +137,7 @@ function TaxRateForm({ initial, onSave, onCancel }: { initial: TaxRate | null; o
             <Plus size={12} aria-hidden="true" /> Add a part
           </button>
         )}
-        {type === 'Sales' && <p className="text-xs text-[var(--muted)]">Total: {(total * 100).toFixed(3).replace(/\.?0+$/, '')}% of the amount before tax{treatment !== 'standard' ? ` · ${TAX_TREATMENTS[treatment]}` : ''}</p>}
+        {type === 'Sales' && <p className="text-xs text-[var(--muted)]">Total: {(total * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}% of the amount before tax{treatment !== 'standard' ? ` · ${TAX_TREATMENTS[treatment]}` : ''}</p>}
       </fieldset>
       <div className="pt-4 flex gap-3 border-t border-[var(--line)]">
         <button type="button" onClick={onCancel} className="flex-1 py-3 border border-[var(--line)] rounded-xl font-semibold">Cancel</button>

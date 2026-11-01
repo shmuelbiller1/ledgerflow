@@ -9,7 +9,7 @@ import { rateRule, where, slug, type TaxRulePack } from './shared';
 export function usSalesTaxPack(): TaxRulePack {
   const rules = US_STATE_SALES_TAX.map(row => rateRule({
     id: `us-sales-${slug(row.state)}-${slug(row.validFrom)}`,
-    name: `${row.stateName} state sales tax ${(row.rate * 100).toFixed(2).replace(/\.?0+$/, '')}%`,
+    name: `${row.stateName} state sales tax ${(row.rate * 100).toFixed(2).replace(/\.?(?<!0)0+$/, '')}%`,
     when: [where('country', ['US']), where('state', [row.state])],
     effect: { kind: 'rate', level: 'state', name: `${row.stateName} state sales tax`, rate: row.rate },
     validFrom: row.validFrom,

@@ -19,7 +19,7 @@ export function canadaVatPack(): TaxRulePack {
     if (!level) unmapped.push({ row: `${row.province} ${row.kind}`, reason: 'this tax kind has no component level' });
     return rateRule({
       id: `ca-${slug(row.province)}-${slug(row.kind)}-${slug(row.validFrom)}`,
-      name: `${row.provinceName} ${row.kind} ${(row.rate * 100).toFixed(3).replace(/\.?0+$/, '')}%`,
+      name: `${row.provinceName} ${row.kind} ${(row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%`,
       when: [where('country', ['CA']), where('state', [row.province])],
       effect: { kind: 'rate', level: level || 'state', name: `${row.kind} ${row.provinceName}`, rate: row.rate },
       // HST is one combined tax: it replaces the GST rule for that province rather than adding to it

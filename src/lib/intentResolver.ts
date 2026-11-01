@@ -1,5 +1,8 @@
 import type { AutoRule, ChartAccount } from '../types';
 import type { AnalyticalPattern } from './MatchingEngine';
+/** Longest line read as one entry (Sonar S8786: the split and amount patterns are super-linear). */
+const MAX_INTENT_LINE_LENGTH = 500;
+
 export interface ResolvedEntry { amountCents: number; description: string; dimensions: { category: string; account: string }; lines?: { accountName: string; amountCents: number }[]; date: string; type: 'actual'; isLearned?: boolean }
 import { format, startOfMonth, endOfMonth, startOfYear, subMonths, subDays } from 'date-fns';
 import { TruthEngine } from '../modules/integrity/TruthEngine';
@@ -149,6 +152,9 @@ export class IntentResolver {
 
   static resolveEntry(input: string, options?: { rules?: AutoRule[], accounts?: (string | Pick<ChartAccount, 'name'>)[], ruleCache?: Record<string, AnalyticalPattern> }): ResolvedEntry[] | null {
     const lines = input.split(/\n+/).filter(line => line.trim().length > 0);
+    // a typed entry is one short phrase and the patterns below backtrack badly on very long lines; leave such input
+    // whole to the caller's fallback parser rather than return a partial result that hides the long entry
+    if (lines.some(line => line.length > MAX_INTENT_LINE_LENGTH)) return null;
     const results: ResolvedEntry[] = [];
 
     for (const line of lines) {

@@ -205,7 +205,7 @@ export function reviewUseTaxCsvRows(review: UseTaxReview): string[][] {
     row.date, row.vendor, row.billNumber,
     (row.taxableCents / 100).toFixed(2), (row.reducedCents / 100).toFixed(2), (row.exemptCents / 100).toFixed(2),
     (row.unclearCents / 100).toFixed(2),
-    row.rate !== undefined ? (row.rate * 100).toFixed(3).replace(/\.?0+$/, '') : '',
+    row.rate !== undefined ? (row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '') : '',
     (row.estimatedUseTaxCents / 100).toFixed(2), row.currency, row.note,
   ]);
 }
