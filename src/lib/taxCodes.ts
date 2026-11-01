@@ -119,8 +119,15 @@ export function computeTax(amountCents: number, code: TaxCode | null | undefined
     net = rounding === 'half_up' ? netFromGross(amount, rate) : amount - roundTaxCents(amount - amount / (1 + rate), rounding);
     // the net is what is left of the gross after tax, so the policy rounds the net's tax parts
     taxes = componentTaxes(net, components, rounding);
-    // the parts must add up to the gross amount exactly: the rounding cent goes on the last part
-    taxes[taxes.length - 1] += amount - net - taxes.reduce((s, t) => s + t, 0);
+    // the parts must add up to the gross amount exactly: a rounding cent more goes on the last part;
+    // cents less come off the parts from the last one back, never taking a part below zero
+    let residual = amount - net - taxes.reduce((s, t) => s + t, 0);
+    if (residual > 0) taxes[taxes.length - 1] += residual;
+    for (let i = taxes.length - 1; residual < 0 && i >= 0; i--) {
+      const take = Math.min(taxes[i], -residual);
+      taxes[i] -= take;
+      residual += take;
+    }
   } else {
     taxes = componentTaxes(net, components, rounding);
   }

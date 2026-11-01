@@ -174,6 +174,15 @@ describe('Tax rounding policy (Y-35)', () => {
     for (const mode of ['half_up', 'half_even', 'down'] as const) assert.equal(computeTax(1155, vat10, true, mode).taxCents, 105, mode);
   });
 
+  test('prices including tax, two parts, rounding down: no part goes negative (0.10 at 10% + 1%)', () => {
+    const two: TaxCode = { id: 't', name: 'A + B', treatment: 'standard', components: [{ name: 'A', rate: 10 }, { name: 'B', rate: 1 }] };
+    const t = computeTax(10, two, true, 'down');
+    assert.equal(t.taxCents, 0);
+    assert.equal(t.netCents, 10);
+    assert.ok(t.components.every(c => c.taxCents >= 0), JSON.stringify(t.components));
+    assert.equal(t.components.reduce((s, c) => s + c.taxCents, 0), 0);
+  });
+
   test('prices including tax still add up to the gross exactly under every policy', () => {
     for (const mode of ['half_up', 'half_even', 'down'] as const) {
       const t = computeTax(1999, compound, true, mode);
