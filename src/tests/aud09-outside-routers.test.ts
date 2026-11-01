@@ -50,10 +50,12 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
       ['/api/v1/plaid', (await import('../server/routes/plaidRoutes')).plaidRouter],
     ];
     db = (await import('../server/db/firestore')).getDb() as unknown as Db;
-    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'AUD-09b', currency: 'USD', timezone: 'UTC', members: ['owner-1', 'view-1', 'acct-1', 'book-1'], roles: { 'view-1': 'viewer', 'acct-1': 'accountant', 'book-1': 'bookkeeper' } });
+    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'AUD-09b', currency: 'USD', timezone: 'UTC', members: ['owner-1', 'view-1', 'acct-1', 'book-1'], roles: { 'view-1': 'viewer', 'acct-1': 'accountant', 'book-1': 'bookkeeper' }, lockDate: '2026-06-30' });
     for (const [id, type] of [['a1', 'liability'], ['a2', 'revenue']]) {
       await db.collection('chartAccounts').doc(`${ws}_${id}`).set({ id: `${ws}_${id}`, workspaceId: ws, name: id, code: id, type, currency: 'USD', isActive: true });
     }
+    // an account that belongs to another workspace, for the valid-body cases below
+    await db.collection('chartAccounts').doc(`${ws}_foreign`).set({ id: `${ws}_foreign`, workspaceId: `${ws}_other`, name: 'Other books', code: 'x', type: 'revenue', currency: 'USD', isActive: true });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -72,6 +74,7 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
     server?.close();
     try {
       for (const t of ['transactions', 'chartAccounts', 'auditLogs', 'idempotencyKeys']) await db?.pool.query(`delete from public."${t}" where workspace_id = $1`, [ws]);
+      await db?.pool.query(`delete from public."chartAccounts" where id = $1`, [`${ws}_foreign`]);
       await db?.pool.query(`delete from public."workspaces" where id = $1`, [ws]);
     } finally {
       await db?.terminate();
@@ -114,5 +117,15 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
       assert.equal(await send('post', '/api/v1/revenue/recognize', uid, revenue), 200, `${uid} posts revenue`);
       assert.equal(await send('post', '/api/v1/lease/capitalize', uid, lease), 200, `${uid} capitalizes a lease`);
     }
+  });
+
+  it('even the owner cannot post with another workspace\'s account, or into a closed period', async () => {
+    const revenue = { workspaceId: ws, amountCents: 100, deferredAccountId: `${ws}_a1`, revenueAccountId: `${ws}_a2`, date: '2026-10-01' };
+    const lease = { workspaceId: ws, pvAmountCents: 100, rouAssetAccountId: `${ws}_a1`, leaseLiabilityAccountId: `${ws}_a2`, date: '2026-10-01' };
+    const refused = (s: number) => s >= 400 && s < 500;
+    assert.ok(refused(await send('post', '/api/v1/revenue/recognize', 'owner-1', { ...revenue, revenueAccountId: `${ws}_foreign` })), 'foreign account (revenue)');
+    assert.ok(refused(await send('post', '/api/v1/lease/capitalize', 'owner-1', { ...lease, rouAssetAccountId: `${ws}_foreign` })), 'foreign account (lease)');
+    assert.ok(refused(await send('post', '/api/v1/revenue/recognize', 'owner-1', { ...revenue, date: '2026-05-01' })), 'closed period (revenue)');
+    assert.ok(refused(await send('post', '/api/v1/lease/capitalize', 'owner-1', { ...lease, date: '2026-05-01' })), 'closed period (lease)');
   });
 });
