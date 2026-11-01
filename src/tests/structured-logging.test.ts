@@ -64,6 +64,10 @@ describe('structured JSON logging (D-21)', () => {
         res.json({ ok: true });
       });
       app.get('/api/v1/workspaces/:workspaceId/slow', (_req, res) => { res.write('partial'); });
+      // production routers that sit under a parameter use mergeParams, so their values are known and become :name
+      const merged = express.Router({ mergeParams: true });
+      merged.get('/', (_req, res) => { res.json({ ok: true }); });
+      app.use('/api/v1/workspaces/:workspaceId/books/:bookId/summary', merged);
       const nested = express.Router();
       nested.get('/', (_req, res) => { logger.info('nested ran'); res.json({ ok: true }); });
       app.use('/api/v1/workspaces/:workspaceId/customers/:customerId/portal-link', nested);
@@ -151,6 +155,15 @@ describe('structured JSON logging (D-21)', () => {
       assert.equal(lines.find(l => l.msg === 'posted')?.workspaceId, 'ws_body1');
       assert.equal(lines.find(l => l.msg === 'request')?.workspaceId, 'ws_body1');
       assert.doesNotMatch(JSON.stringify(lines), /private memo/);
+    });
+
+    it('a mergeParams router logs a lowercase-only parameter value as :name, not as a path word', async () => {
+      lines.length = 0;
+      await fetch(`${base}/api/v1/workspaces/acme/books/ledger/summary`);
+      await new Promise(r => setTimeout(r, 20));
+      const access = lines.find(l => l.msg === 'request');
+      assert.equal(access?.route, '/api/v1/workspaces/:workspaceId/books/:bookId/summary/');
+      assert.doesNotMatch(String(access?.route), /acme|ledger/);
     });
   });
 });

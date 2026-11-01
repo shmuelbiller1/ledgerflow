@@ -34,6 +34,7 @@ function mountPattern(req: express.Request): string {
   }).join('/');
 }
 
+/** A path segment as Express compares it with `req.params` values; a malformed escape is left as written. */
 function decodeSegment(segment: string): string {
   try { return decodeURIComponent(segment); } catch { return segment; }
 }
