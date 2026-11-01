@@ -1766,7 +1766,7 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 - [x] AUD-03 (merged; ticked 31 Oct) — RMA decisions/history remain editable metadata, not server approval authority
 - [x] AUD-04 (merged; ticked 31 Oct) — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
 - [x] AUD-05 (merged; ticked 31 Oct) — Standalone background-job coverage differs from Vercel
-- [ ] AUD-09 — Privileged server access means SQL client guards are not a universal safety net
+- [ ] AUD-09 — Privileged server access means SQL client guards are not a universal safety net. *31 Oct: step 1, `aud09-write-access.test.ts`: all 89 write routes under `/api/v1/workspaces/:workspaceId` refuse a non-member (403), and every one a viewer may not use refuses a viewer (4xx); the writes a viewer may make by design are listed in `VIEWER_MAY`. Routes are found automatically. Left: the routers mounted outside `workspaceRouter` (transactions, payments, periods…), and valid-body cases (foreign account IDs, closed dates).*
 - [x] AUD-10 (merged; ticked 31 Oct) — Report fallback and cache completeness need one visible provenance contract
 - [x] AUD-11 (merged; ticked 31 Oct) — Safe-fetch DNS validation is not a pinned connection
 - [x] AUD-12 (merged; ticked 31 Oct) — Static Vercel CSP can disagree with the configurable Supabase project
