@@ -5,6 +5,7 @@ import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDb, assertPeriodOpen } from '../db/firestore';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { mayPostEntries } from '../http/ledgerWriter';
 
 const CapitalizeLeaseSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -38,6 +39,7 @@ leaseRouter.post('/capitalize', async (req, res) => {
     if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
       return res.status(403).json({ error: 'Not a member' });
     }
+    if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
 
     // 2. Check idempotency record AFTER authorization (#82)
     const idempotencyKey = (req.headers['idempotency-key'] as string) || (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined);

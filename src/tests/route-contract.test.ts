@@ -67,6 +67,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       '/api/v1/support',
       '/api/v1/payments',
       '/api/v1/documents',
+      '/api/v1/open-items', // EG-1 open-item import (server.ts)
       '/api/v1/invoices',
       '/api/v1/email-events',
       '/api/v1/invites',
