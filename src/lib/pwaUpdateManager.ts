@@ -15,7 +15,8 @@ type PWAUpdateListener = (state: PWAUpdateState) => void;
 
 const unsavedGuards = new Set<UnsavedWorkGuard>();
 const listeners = new Set<PWAUpdateListener>();
-const dirtyInputs = new Map<Element, string>();
+const dirtyInputRefs = new Set<WeakRef<Element>>();
+const elementWeakRefs = new WeakMap<Element, WeakRef<Element>>();
 const baselineValues = new WeakMap<Element, string>();
 const instrumentedDocs = new WeakSet<Document>();
 
@@ -43,6 +44,35 @@ function readControlSnapshot(el: Element): string {
   return control.textContent ?? '';
 }
 
+function pruneDirtyInputRefs(): void {
+  for (const ref of [...dirtyInputRefs]) {
+    const el = ref.deref();
+    if (!el || !el.isConnected) {
+      dirtyInputRefs.delete(ref);
+      continue;
+    }
+    if (baselineValues.has(el) && readControlSnapshot(el) === baselineValues.get(el)) {
+      dirtyInputRefs.delete(ref);
+    }
+  }
+}
+
+function trackDirtyElement(el: Element): void {
+  let ref = elementWeakRefs.get(el);
+  if (!ref) {
+    ref = new WeakRef(el);
+    elementWeakRefs.set(el, ref);
+  }
+  dirtyInputRefs.add(ref);
+}
+
+function untrackDirtyElement(el: Element): void {
+  const ref = elementWeakRefs.get(el);
+  if (ref) {
+    dirtyInputRefs.delete(ref);
+  }
+}
+
 function isTrackableFormControl(target: EventTarget | null): target is HTMLElement & {
   type?: string;
   readOnly?: boolean;
@@ -60,18 +90,18 @@ function isTrackableFormControl(target: EventTarget | null): target is HTMLEleme
   return Boolean(el.isContentEditable);
 }
 
-export function clearDirtyTracking(container?: ParentNode | null): void {
-  if (!container) {
-    for (const el of dirtyInputs.keys()) {
-      baselineValues.set(el, readControlSnapshot(el));
+export function clearDirtyTracking(container: ParentNode | null): void {
+  pruneDirtyInputRefs();
+  if (!container || !('contains' in container)) return;
+  for (const ref of [...dirtyInputRefs]) {
+    const el = ref.deref();
+    if (!el || !el.isConnected) {
+      dirtyInputRefs.delete(ref);
+      continue;
     }
-    dirtyInputs.clear();
-    return;
-  }
-  for (const el of [...dirtyInputs.keys()]) {
-    if ('contains' in container && (container as Node).contains(el)) {
+    if ((container as Node).contains(el)) {
       baselineValues.set(el, readControlSnapshot(el));
-      dirtyInputs.delete(el);
+      dirtyInputRefs.delete(ref);
     }
   }
 }
@@ -81,28 +111,35 @@ export function attachDirtyTracking(doc: Document | null = typeof document !== '
   instrumentedDocs.add(doc);
 
   const captureBaseline = (event: Event) => {
-    if (isTrackableFormControl(event.target) && !dirtyInputs.has(event.target) && !baselineValues.has(event.target)) {
-      baselineValues.set(event.target, readControlSnapshot(event.target));
+    pruneDirtyInputRefs();
+    if (isTrackableFormControl(event.target)) {
+      const ref = elementWeakRefs.get(event.target);
+      if ((!ref || !dirtyInputRefs.has(ref)) && !baselineValues.has(event.target)) {
+        baselineValues.set(event.target, readControlSnapshot(event.target));
+      }
     }
   };
   const markDirty = (event: Event) => {
+    pruneDirtyInputRefs();
     if (!isTrackableFormControl(event.target)) return;
     const el = event.target;
     const baseline = baselineValues.get(el);
     const current = readControlSnapshot(el);
     if (baseline !== undefined && current === baseline) {
-      dirtyInputs.delete(el);
+      untrackDirtyElement(el);
     } else {
-      dirtyInputs.set(el, baseline ?? '');
+      trackDirtyElement(el);
     }
   };
   const clearFormOnReset = (event: Event) => {
+    pruneDirtyInputRefs();
     const form = event.target;
     if (form && typeof form === 'object' && 'contains' in form) {
-      for (const el of [...dirtyInputs.keys()]) {
-        if ((form as Node).contains(el)) {
+      for (const ref of [...dirtyInputRefs]) {
+        const el = ref.deref();
+        if (el && (form as Node).contains(el)) {
           baselineValues.delete(el);
-          dirtyInputs.delete(el);
+          dirtyInputRefs.delete(ref);
         }
       }
     }
@@ -157,16 +194,10 @@ export function hasUnsavedDocumentWork(doc: Document | null = typeof document !=
     return true;
   }
 
-  for (const [el, baseline] of [...dirtyInputs.entries()]) {
-    if (!el.isConnected) {
-      dirtyInputs.delete(el);
-      continue;
-    }
-    if (baselineValues.has(el) && readControlSnapshot(el) === baseline) {
-      dirtyInputs.delete(el);
-      continue;
-    }
-    if (el.ownerDocument === doc) {
+  pruneDirtyInputRefs();
+  for (const ref of dirtyInputRefs) {
+    const el = ref.deref();
+    if (el && el.isConnected && el.ownerDocument === doc) {
       return true;
     }
   }
@@ -279,7 +310,7 @@ export function initPWAUpdateManager(
 export function resetPWAUpdateManagerForTests(): void {
   unsavedGuards.clear();
   listeners.clear();
-  dirtyInputs.clear();
+  dirtyInputRefs.clear();
   applyServiceWorkerUpdate = null;
   state = {
     updateAvailable: false,

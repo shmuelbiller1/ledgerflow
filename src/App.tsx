@@ -29,10 +29,17 @@ import { FallbackBoundary } from './components/FallbackBoundary';
 import CookieConsent from './components/legal/CookieConsent';
 import { canOpenShortcutHelp } from './lib/shortcutOverlay';
 
+const EmptyOptionalWidget: React.ComponentType = () => null;
 const loadRootLayout = () => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout }));
 const RootLayout = lazy(loadRootLayout);
-const FeedbackWidget = lazy(() => import('./components/support/FeedbackWidget'));
-const LedgerAutoAuditor = lazy(() => import('./components/forensics/LedgerAutoAuditor').then(m => ({ default: m.LedgerAutoAuditor })));
+const FeedbackWidget = lazy<React.ComponentType>(() =>
+  import('./components/support/FeedbackWidget').catch(() => ({ default: EmptyOptionalWidget }))
+);
+const LedgerAutoAuditor = lazy<React.ComponentType>(() =>
+  import('./components/forensics/LedgerAutoAuditor')
+    .then(m => ({ default: m.LedgerAutoAuditor }))
+    .catch(() => ({ default: EmptyOptionalWidget }))
+);
 const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePage'));
 const PublicEstimatePage = lazy(() => import('./components/sales/PublicEstimatePage'));
 const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalPage'));

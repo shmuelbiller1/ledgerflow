@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
@@ -19,6 +19,7 @@ export default function RetentionSettingsPanel() {
   const saved = retentionFor(workspace);
   const [form, setForm] = useState<RetentionSettings>(saved);
   const [busy, setBusy] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
   const dirty = Boolean(workspace) && (Object.keys(saved) as Array<keyof RetentionSettings>).some(k => saved[k] !== form[k]);
   useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
   if (!workspace) return null;
@@ -41,7 +42,7 @@ export default function RetentionSettingsPanel() {
       if (!res.ok) throw new Error(body.details || body.message || body.error || 'Retention settings were not saved');
       const store = useAuthStore.getState();
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, retention: body.retention } : w));
-      clearDirtyTracking();
+      clearDirtyTracking(panelRef.current);
       toast.success('Retention settings saved');
     } catch (err) {
       const described = describeError(err, 'update');
@@ -53,7 +54,7 @@ export default function RetentionSettingsPanel() {
 
   const field = 'w-28 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-sm font-mono disabled:opacity-60';
   return (
-    <section aria-labelledby="retention-title" className="p-6 bg-[var(--surface)] border border-[var(--line)] rounded-xl space-y-4">
+    <section ref={panelRef} aria-labelledby="retention-title" className="p-6 bg-[var(--surface)] border border-[var(--line)] rounded-xl space-y-4">
       <div className="space-y-1">
         <h2 id="retention-title" className="text-base font-black text-[var(--text)] uppercase tracking-tight">Data retention</h2>
         <p className="text-xs text-[var(--muted)] max-w-2xl">

@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Palette, FileText, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -40,6 +40,7 @@ export default function BrandingSettings() {
   const canEdit = role === 'owner' || role === 'accountant';
   const [draft, setDraft] = useState<WorkspaceBranding>(() => workspace?.branding || {});
   const [busy, setBusy] = useState<'save' | 'preview' | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const dirty = Boolean(workspace) && JSON.stringify(draft) !== JSON.stringify(workspace?.branding || {});
   useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
 
@@ -65,7 +66,7 @@ export default function BrandingSettings() {
       const { branding } = await res.json();
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, branding } : w)));
       setDraft(branding);
-      clearDirtyTracking();
+      clearDirtyTracking(panelRef.current);
       toast.success('Branding saved. New PDFs use it.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The branding could not be saved');
@@ -93,7 +94,7 @@ export default function BrandingSettings() {
   };
 
   return (
-    <section className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-6" aria-labelledby={`${formId}-title`}>
+    <section ref={panelRef} className="ledger-card p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-6" aria-labelledby={`${formId}-title`}>
       <div className="flex items-start gap-3">
         <Palette aria-hidden="true" className="w-5 h-5 text-[var(--brass)] mt-1" />
         <div>

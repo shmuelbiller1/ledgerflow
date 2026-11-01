@@ -164,6 +164,33 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     assert.equal(hasUnsavedDocumentWork(document), true);
     form.dispatchEvent(new window.Event('reset', { bubbles: true }));
     assert.equal(hasUnsavedDocumentWork(document), false, 'resetting form clears dirty input state');
+
+    // Two-panel isolation: saving panel A must never clear dirty controls in sibling panel B
+    document.body.innerHTML = `
+      <section id="panel-a"><input id="field-a" type="text" value="10" /></section>
+      <section id="panel-b"><input id="field-b" type="text" value="totp" /></section>
+      <button id="update-btn">Update now</button>
+    `;
+    const panelA = document.getElementById('panel-a') as HTMLElement;
+    const panelB = document.getElementById('panel-b') as HTMLElement;
+    const fieldA = document.getElementById('field-a') as HTMLInputElement;
+    const fieldB = document.getElementById('field-b') as HTMLInputElement;
+    const updateBtn = document.getElementById('update-btn') as HTMLButtonElement;
+
+    fieldA.dispatchEvent(new window.Event('focusin', { bubbles: true }));
+    fieldA.value = '20';
+    fieldA.dispatchEvent(new window.Event('input', { bubbles: true }));
+    fieldB.dispatchEvent(new window.Event('focusin', { bubbles: true }));
+    fieldB.value = '123456';
+    fieldB.dispatchEvent(new window.Event('input', { bubbles: true }));
+    updateBtn.focus();
+
+    clearDirtyTracking(null);
+    assert.equal(hasUnsavedDocumentWork(document), true, 'null container must not wipe active panels');
+    clearDirtyTracking(panelA);
+    assert.equal(hasUnsavedDocumentWork(document), true, 'saving panel A must preserve dirty tracking on panel B');
+    panelB.remove();
+    assert.equal(hasUnsavedDocumentWork(document), false, 'unmounting panel B releases detached controls');
     document.body.innerHTML = '';
   });
 
@@ -294,8 +321,13 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
         'Workbox precache manifest must not contain duplicate URLs'
       );
       assert.ok(
-        precacheUrls.length >= 15 && precacheUrls.length <= 85,
-        `Expected shell static-closure precache (15..85 entries), got ${precacheUrls.length}`
+        precacheUrls.length >= 15 && precacheUrls.length <= 95,
+        `Expected shell static-closure precache (15..95 entries), got ${precacheUrls.length}`
+      );
+      assert.ok(
+        precacheUrls.some((u) => /FeedbackWidget-/.test(u)) &&
+          precacheUrls.some((u) => /LedgerAutoAuditor-/.test(u)),
+        'Always-mounted lazy shell widgets (FeedbackWidget, LedgerAutoAuditor) must be precached for offline boot'
       );
       assert.ok(
         !precacheUrls.some((u) => /exceljs|vendor-viz/.test(u)),
