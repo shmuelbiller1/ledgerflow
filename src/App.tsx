@@ -39,15 +39,19 @@ const loadLedgerAutoAuditor = () =>
 function ResilientBackgroundMount({
   load,
   warnOnFailure = false,
+  replayEventName,
 }: {
   load: () => Promise<{ default: React.ComponentType }>;
   warnOnFailure?: boolean;
+  replayEventName?: string;
 }) {
   const [Loaded, setLoaded] = useState<React.ComponentType | null>(null);
+  const [replayPending, setReplayPending] = useState(false);
 
   useEffect(() => {
     let active = true;
     let isLoaded = false;
+    let pendingClick = false;
     const retry = () => {
       if (isLoaded) return;
       load()
@@ -55,10 +59,21 @@ function ResilientBackgroundMount({
           if (!active) return;
           isLoaded = true;
           if (warnOnFailure) toast.dismiss('ledger-auditor-load-warning');
+          if (pendingClick) {
+            pendingClick = false;
+            setReplayPending(true);
+          }
           setLoaded(() => mod.default);
         })
         .catch(() => {
-          if (!active || !warnOnFailure) return;
+          if (!active) return;
+          if (pendingClick) {
+            toast.error('The feedback form could not load while offline.', {
+              id: 'feedback-widget-load-warning',
+              description: 'It will open automatically once your connection returns.',
+            });
+          }
+          if (!warnOnFailure) return;
           toast.warning('Automatic ledger checks could not load while offline.', {
             id: 'ledger-auditor-load-warning',
             description: 'They will resume automatically when your connection returns.',
@@ -70,13 +85,32 @@ function ResilientBackgroundMount({
         });
     };
 
+    const onEarlyEvent = () => {
+      if (isLoaded) return;
+      pendingClick = true;
+      retry();
+    };
+
+    if (replayEventName) {
+      window.addEventListener(replayEventName, onEarlyEvent);
+    }
     retry();
     window.addEventListener('online', retry);
     return () => {
       active = false;
+      if (replayEventName) {
+        window.removeEventListener(replayEventName, onEarlyEvent);
+      }
       window.removeEventListener('online', retry);
     };
-  }, [load, warnOnFailure]);
+  }, [load, warnOnFailure, replayEventName]);
+
+  useEffect(() => {
+    if (!Loaded || !replayPending || !replayEventName) return;
+    setReplayPending(false);
+    toast.dismiss('feedback-widget-load-warning');
+    window.dispatchEvent(new window.Event(replayEventName));
+  }, [Loaded, replayPending, replayEventName]);
 
   return Loaded ? <Loaded /> : null;
 }
@@ -442,7 +476,7 @@ const shortcutMap = useMemo(() => {
         <Suspense fallback={<InitializationScreen language={language} />}>
           <RootLayout />
         </Suspense>
-        <ResilientBackgroundMount load={loadFeedbackWidget} />
+        <ResilientBackgroundMount load={loadFeedbackWidget} replayEventName="ledgerflow:feedback" />
       </>
     );
   }
@@ -505,7 +539,7 @@ const shortcutMap = useMemo(() => {
         <Suspense fallback={<InitializationScreen language={language} />}>
           <RootLayout />
         </Suspense>
-        <ResilientBackgroundMount load={loadFeedbackWidget} />
+        <ResilientBackgroundMount load={loadFeedbackWidget} replayEventName="ledgerflow:feedback" />
         <CookieConsent onOpenPrivacyPolicy={() => { setLegalModalTab('privacy'); setIsLegalModalOpen(true); }} />
         {isLegalModalOpen && (
           <Suspense fallback={null}>
