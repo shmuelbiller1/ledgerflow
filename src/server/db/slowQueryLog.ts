@@ -20,7 +20,9 @@ const WORD_CHAR = /[A-Za-z0-9_]/;
 // tags may hold non-ASCII letters, as PostgreSQL allows
 const DOLLAR_TAG = /\$([A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
 const PARAM = /\$\d+/y;
-const NUMBER = /\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+// fail closed: after a leading digit take every letter, digit and _ (1_234, 0xFF, 0o17, 0b101, 1e10) and a
+// fraction or signed exponent, so no part of a numeric literal is left behind
+const NUMBER = /(?:0[xXoObB][0-9A-Za-z_]*|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?[\d_]+)?)[0-9A-Za-z_]*/y;
 const at = (re: RegExp, sql: string, i: number) => { re.lastIndex = i; return re.exec(sql); };
 
 /** Index just past a quoted literal that opens at `i`, honouring doubled quotes and (for E'') backslash escapes. */
