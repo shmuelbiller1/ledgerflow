@@ -19,6 +19,26 @@ const COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
 ];
 
+const presenceOperationTails = new Map<string, Promise<void>>();
+
+/** Serializes presence writes and cleanup deletes per document path so stale writes never outlive cleanup. */
+export function enqueuePresenceOperation(
+  path: string,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const previous = presenceOperationTails.get(path) ?? Promise.resolve();
+  const next = previous.then(operation, operation);
+  presenceOperationTails.set(path, next);
+  void next
+    .finally(() => {
+      if (presenceOperationTails.get(path) === next) {
+        presenceOperationTails.delete(path);
+      }
+    })
+    .catch(() => {});
+  return next;
+}
+
 /** Marks a Node interval handle as unreferenced so idle test processes can exit cleanly. */
 function unrefTimer(timer: ReturnType<typeof setInterval>): void {
   if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof timer.unref === 'function') {
@@ -50,14 +70,17 @@ export function useCollaborators() {
       if (disposed || inFlight || !isClientActiveForPolling()) return;
       inFlight = true;
       try {
-        await setDoc(userDocRef, {
-          uid,
-          name: resolvedName,
-          email,
-          currentWorkspaceId: activeWorkspaceId,
-          lastActive: serverTimestamp(),
-          color: userColor,
-        }, { merge: true });
+        await enqueuePresenceOperation(userDocRef.path, async () => {
+          if (disposed) return;
+          await setDoc(userDocRef, {
+            uid,
+            name: resolvedName,
+            email,
+            currentWorkspaceId: activeWorkspaceId,
+            lastActive: serverTimestamp(),
+            color: userColor,
+          }, { merge: true });
+        });
       } catch (err) {
         console.warn('Presence update deferred:', err);
       } finally {
@@ -107,7 +130,7 @@ export function useCollaborators() {
 
     // F29: Properly store handler reference and remove on unmount
     const handleUnload = () => {
-      void deleteDoc(userDocRef).catch(() => {});
+      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch(() => {});
     };
     window.addEventListener('beforeunload', handleUnload);
 
@@ -122,7 +145,7 @@ export function useCollaborators() {
       }
       unsubscribe();
       window.removeEventListener('beforeunload', handleUnload);
-      void deleteDoc(userDocRef).catch(() => {});
+      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch(() => {});
     };
   }, [uid, displayName, email, activeWorkspaceId]);
 

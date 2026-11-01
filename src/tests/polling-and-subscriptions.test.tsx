@@ -5,6 +5,7 @@ import React from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isClientActiveForPolling, useVisibilityPolling, type VisibilityPollingOptions } from '../hooks/useVisibilityPolling';
+import { enqueuePresenceOperation } from '../hooks/useCollaborators';
 import StatusPage from '../components/system/StatusPage';
 import {
   collection,
@@ -263,6 +264,32 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     });
     assert.ok(started >= 2, 'subsequent interval ticks resume once the first callback completes');
     unmount();
+  });
+
+  test('enqueuePresenceOperation serializes pending writes before cleanup deletes on the same path', async () => {
+    const order: string[] = [];
+    let releaseWrite: (() => void) | null = null;
+
+    const writePromise = enqueuePresenceOperation('presence/u-1', () =>
+      new Promise<void>((resolve) => {
+        order.push('write:start');
+        releaseWrite = () => {
+          order.push('write:done');
+          resolve();
+        };
+      }),
+    );
+
+    const deletePromise = enqueuePresenceOperation('presence/u-1', async () => {
+      order.push('delete:run');
+    });
+
+    await new Promise((r) => setTimeout(r, 15));
+    assert.deepEqual(order, ['write:start'], 'cleanup delete must wait for in-flight presence write');
+
+    releaseWrite!();
+    await Promise.all([writePromise, deletePromise]);
+    assert.deepEqual(order, ['write:start', 'write:done', 'delete:run']);
   });
 
   test('StatusPage loads initial status and refreshes immediately when a hidden tab becomes visible', async () => {

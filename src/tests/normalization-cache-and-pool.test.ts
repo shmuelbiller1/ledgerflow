@@ -258,13 +258,13 @@ describe('LedgerEngine.normalizationCache isolation, invalidation, and memory bo
     assert.equal(afterThreeWorkspaces.workspaces, 2);
     assert.equal(afterThreeWorkspaces.entries, 2);
 
-    // Populate 10,005 entries in one workspace -> caps smoothly at 10,000 via LRU without cliff clear()
-    const batch = Array.from({ length: 10_005 }, (_, i) =>
+    // Populate 25,005 entries in one workspace -> caps smoothly at 25,000 without cliff clear()
+    const batch = Array.from({ length: 25_005 }, (_, i) =>
       makeTransaction({ id: `tx-bulk-${i}`, workspaceId: 'ws-3', totalAmountCents: (i + 1) * 100 }),
     );
     LedgerEngine.normalize(batch);
     const afterBulk = LedgerEngine.getNormalizationCacheStats();
-    assert.equal(afterBulk.entries, afterBulk.maxEntriesPerWorkspace + 1); // 10,000 in ws-3 + 1 in ws-2
+    assert.equal(afterBulk.entries, afterBulk.maxEntriesPerWorkspace + 1); // 25,000 in ws-3 + 1 in ws-2
 
     // Evicting departed workspace drops only that workspace's entries
     LedgerEngine.clearNormalizationCache('ws-3');
@@ -276,8 +276,42 @@ describe('LedgerEngine.normalizationCache isolation, invalidation, and memory bo
       workspaces: 0,
       entries: 0,
       maxWorkspaces: 2,
-      maxEntriesPerWorkspace: 10_000,
+      maxEntriesPerWorkspace: 25_000,
     });
+  });
+
+  test('retains 100% cache hits at 20,000 cap and avoids scan-thrashing when normalizing > maxEntriesPerWorkspace rows', () => {
+    LedgerEngine.clearNormalizationCache();
+
+    // 1. Full 20,000-row LEDGER_COLLECTIONS.transactions.cap workload -> 20,000 / 20,000 (100%) cache hits
+    const capWorkload = Array.from({ length: 20_000 }, (_, i) =>
+      makeTransaction({ id: `tx-cap-${i}`, workspaceId: 'ws-cap', totalAmountCents: (i + 1) * 100 }),
+    );
+    const firstCapPass = LedgerEngine.normalize(capWorkload);
+    const secondCapPass = LedgerEngine.normalize(capWorkload);
+    let capHits = 0;
+    for (let i = 0; i < capWorkload.length; i += 1) {
+      if (secondCapPass[i]._normalized === firstCapPass[i]._normalized) {
+        capHits += 1;
+      }
+    }
+    assert.equal(capHits, 20_000, 'all 20,000 rows within transaction cap must hit cache on second pass');
+
+    // 2. Oversized 30,000-row sequential scan (> 25,000 maxEntriesPerWorkspace) -> preserves 25,000 hits (0 thrashing)
+    LedgerEngine.clearNormalizationCache();
+    const oversized = Array.from({ length: 30_000 }, (_, i) =>
+      makeTransaction({ id: `tx-over-${i}`, workspaceId: 'ws-over', totalAmountCents: (i + 1) * 100 }),
+    );
+    const firstOversizedPass = LedgerEngine.normalize(oversized);
+    const secondOversizedPass = LedgerEngine.normalize(oversized);
+    let oversizedHits = 0;
+    for (let i = 0; i < oversized.length; i += 1) {
+      if (secondOversizedPass[i]._normalized === firstOversizedPass[i]._normalized) {
+        oversizedHits += 1;
+      }
+    }
+    assert.equal(oversizedHits, 25_000, 'bounded cache must retain 25,000 hits instead of scan-thrashing to 0');
+    assert.equal(LedgerEngine.getNormalizationCacheStats().entries, 25_000);
   });
 });
 
@@ -373,23 +407,26 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
     });
     const db = new Firestore({ pool });
 
+    let secondReadError: unknown = null;
     try {
       await assert.rejects(
         db.runTransaction(async (t) => {
           try {
             await t.get(db.collection('workspaces').doc('ws-1'));
           } catch {
-            // Second read inside the same failed transaction must immediately throw recorded failure,
-            // not wait for a second pool client at max=1
-            await assert.rejects(
-              t.get(db.collection('workspaces').doc('ws-2')),
-              /simulated lf_rules failure/,
-            );
+            // Capture second-read error without asserting inside the transaction callback
+            try {
+              await t.get(db.collection('workspaces').doc('ws-2'));
+            } catch (err) {
+              secondReadError = err;
+            }
           }
           return 'swallowed';
         }),
         /simulated lf_rules failure/,
       );
+      assert.ok(secondReadError instanceof Error, 'second read inside failed tx must reject');
+      assert.match(secondReadError.message, /simulated lf_rules failure/);
     } finally {
       await pool.end();
     }

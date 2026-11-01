@@ -184,6 +184,27 @@ export function useApiHubModel() {
     };
   }, [workspaceId, fetchLogs, loadBillingStatus, loadWorkspaceKeys]);
 
+  // Refresh credentials or billing summary once in the foreground when opening the relevant tab
+  const prevActiveTabRef = useRef(activeTab);
+  useEffect(() => {
+    const prevTab = prevActiveTabRef.current;
+    prevActiveTabRef.current = activeTab;
+    if (!workspaceId || prevTab === activeTab) return undefined;
+    if (activeTab !== 'keys' && activeTab !== 'sandbox' && activeTab !== 'billing') {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      if (activeTab === 'keys' || activeTab === 'sandbox') {
+        void loadWorkspaceKeys();
+      } else {
+        void loadBillingStatus();
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [activeTab, workspaceId, loadWorkspaceKeys, loadBillingStatus]);
+
   const isLogsPollingTab = activeTab === 'logs' || activeTab === 'billing';
   useVisibilityPolling(fetchLogs, 5_000, {
     enabled: Boolean(workspaceId) && isLogsPollingTab,

@@ -74,7 +74,8 @@ export class LedgerEngine {
 
   private static readonly workspaceNormalizationCaches = new Map<string, Map<string, NormalizedMeta>>();
   private static readonly MAX_CACHED_WORKSPACES = 2;
-  private static readonly MAX_CACHE_ENTRIES_PER_WORKSPACE = 10_000;
+  /** Covers full `LEDGER_COLLECTIONS.transactions.cap` (20,000) with headroom while bounding heap. */
+  private static readonly MAX_CACHE_ENTRIES_PER_WORKSPACE = 25_000;
 
   /** Evicts cached normalization metadata for a single workspace or all workspaces. */
   static clearNormalizationCache(workspaceId?: string): void {
@@ -152,31 +153,78 @@ export class LedgerEngine {
     };
   }
 
-  /** Normalizes transactions with workspace-isolated LRU caching of derived `_normalized` metadata. */
+  /**
+   * Normalizes transactions with workspace-isolated, scan-resistant LRU caching of `_normalized` metadata.
+   * Reads and computes misses without evicting during the pass, then promotes current-pass hits before
+   * admitting misses into remaining capacity so sequential scans larger than the cache never thrash.
+   */
   static normalize(transactions: Transaction[]): NormalizedLedgerTransaction[] {
-    return transactions.map((t) => {
+    const hitKeysByScope = new Map<string, Set<string>>();
+    const missesByScope = new Map<string, Map<string, NormalizedMeta>>();
+
+    const normalized = transactions.map((t) => {
       const workspaceScope = t.workspaceId || DEFAULT_WORKSPACE_SCOPE;
       const wsCache = this.getWorkspaceCache(workspaceScope);
       const metadataJson = t.metadata ? JSON.stringify(t.metadata) : '';
       const cacheKey = buildNormalizationKey(t, metadataJson);
 
-      const cachedMeta = wsCache.get(cacheKey);
-      if (cachedMeta) {
-        wsCache.delete(cacheKey);
-        wsCache.set(cacheKey, cachedMeta);
-        return { ...t, _normalized: cachedMeta };
+      let meta = wsCache.get(cacheKey);
+      if (meta) {
+        let hits = hitKeysByScope.get(workspaceScope);
+        if (!hits) {
+          hits = new Set<string>();
+          hitKeysByScope.set(workspaceScope, hits);
+        }
+        hits.add(cacheKey);
+        return { ...t, _normalized: meta };
       }
 
-      const meta = this.computeNormalizedMeta(t, metadataJson);
-      if (wsCache.size >= this.MAX_CACHE_ENTRIES_PER_WORKSPACE) {
-        const oldestKey = wsCache.keys().next().value;
-        if (oldestKey !== undefined) {
-          wsCache.delete(oldestKey);
-        }
+      let scopeMisses = missesByScope.get(workspaceScope);
+      if (!scopeMisses) {
+        scopeMisses = new Map<string, NormalizedMeta>();
+        missesByScope.set(workspaceScope, scopeMisses);
       }
-      wsCache.set(cacheKey, meta);
+      meta = scopeMisses.get(cacheKey);
+      if (!meta) {
+        meta = this.computeNormalizedMeta(t, metadataJson);
+        scopeMisses.set(cacheKey, meta);
+      }
       return { ...t, _normalized: meta };
     });
+
+    const touchedScopes = new Set<string>([...hitKeysByScope.keys(), ...missesByScope.keys()]);
+    for (const scope of touchedScopes) {
+      const wsCache = this.getWorkspaceCache(scope);
+      const hits = hitKeysByScope.get(scope);
+      if (hits) {
+        for (const key of hits) {
+          const existing = wsCache.get(key);
+          if (existing !== undefined) {
+            wsCache.delete(key);
+            wsCache.set(key, existing);
+          }
+        }
+      }
+      const misses = missesByScope.get(scope);
+      if (misses && misses.size > 0) {
+        const activeHits = hits ? hits.size : 0;
+        const admissionBudget = Math.max(0, this.MAX_CACHE_ENTRIES_PER_WORKSPACE - activeHits);
+        let admitted = 0;
+        for (const [key, meta] of misses) {
+          if (admitted >= admissionBudget) break;
+          if (wsCache.size >= this.MAX_CACHE_ENTRIES_PER_WORKSPACE) {
+            const oldestKey = wsCache.keys().next().value;
+            if (oldestKey !== undefined) {
+              wsCache.delete(oldestKey);
+            }
+          }
+          wsCache.set(key, meta);
+          admitted += 1;
+        }
+      }
+    }
+
+    return normalized;
   }
 
   /**
