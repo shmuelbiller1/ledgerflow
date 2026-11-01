@@ -24,6 +24,8 @@ interface SplitEditorProps {
   projects: Project[];
   onSave: (lines: TransactionLine[]) => void;
   onClose: () => void;
+  /** A save is in flight: the commit button is disabled until it settles. */
+  saving?: boolean;
 }
 
 export default function SplitEditor({
@@ -31,7 +33,8 @@ export default function SplitEditor({
   accounts,
   projects,
   onSave,
-  onClose
+  onClose,
+  saving = false
 }: SplitEditorProps) {
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, true);
   const editorId = useId();
@@ -316,7 +319,7 @@ export default function SplitEditor({
             </button>
             <button 
               onClick={() => onSave(lines)}
-              disabled={!isBalanced || lines.some(l => !l.accountId)}
+              disabled={saving || !isBalanced || lines.some(l => !l.accountId)}
               className="btn-primary !px-10 flex items-center gap-3 disabled:opacity-30 disabled:grayscale transition-all shadow-[0_0_20px_rgba(26,115,232,0.2)]"
             >
               <Save aria-hidden="true" size={18} />
