@@ -14,7 +14,7 @@
  * All money is integer cents; the return is in the home currency (amount × the document's rate).
  */
 
-import { calculateDocumentNet, calculateDocumentTax, netFromGross } from './documentMath';
+import { calculateDocumentNet, calculateDocumentTax, includedTaxExact, netFromGross } from './documentMath';
 import type { DocumentTaxInput } from './documentMath';
 
 export type TaxTreatment = 'standard' | 'zero_rated' | 'exempt' | 'reverse_charge' | 'out_of_scope';
@@ -116,7 +116,7 @@ export function computeTax(amountCents: number, code: TaxCode | null | undefined
     const rate = effectiveRate(components);
     // half up keeps the long-standing calculation (net rounded, tax the rest); another policy rounds
     // the included tax itself, so 'down' on 19.99 at 10% gives 1.81 (of 1.8172…), and the net is the rest
-    net = rounding === 'half_up' ? netFromGross(amount, rate) : amount - roundTaxCents(amount - amount / (1 + rate), rounding);
+    net = rounding === 'half_up' ? netFromGross(amount, rate) : amount - roundTaxCents(includedTaxExact(amount, rate), rounding);
     // the net is what is left of the gross after tax, so the policy rounds the net's tax parts
     taxes = componentTaxes(net, components, rounding);
     // the parts must add up to the gross amount exactly: a rounding cent more goes on the last part;
