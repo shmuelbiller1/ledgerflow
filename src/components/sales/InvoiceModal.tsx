@@ -117,7 +117,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           console.error('Failed to fetch next invoice number', e);
         }
       };
-      fetchNextNumber();
+      void fetchNextNumber();
     }
   }, [isOpen, editingExisting]);
 

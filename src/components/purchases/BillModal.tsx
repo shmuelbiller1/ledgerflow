@@ -94,7 +94,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
           console.error('Failed to fetch next bill number', e);
         }
       };
-      fetchNextNumber();
+      void fetchNextNumber();
     }
   }, [isOpen, editingExisting]);
 
