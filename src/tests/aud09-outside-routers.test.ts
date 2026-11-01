@@ -55,7 +55,11 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
     }
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
+    app.use((req, _res, next) => {
+      const uid = String(req.header('x-test-uid'));
+      (req as unknown as { user: { uid: string; admin: boolean } }).user = { uid, admin: uid === 'platform-admin-1' };
+      next();
+    });
     for (const [mount, router] of mounts) {
       app.use(mount, router as never);
       for (const r of writeRoutes(router)) routes.push({ method: r.method, path: mount + r.path });
@@ -104,7 +108,8 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
     assert.equal(await send('post', '/api/v1/revenue/recognize', 'view-1', revenue), 403);
     assert.equal(await send('post', '/api/v1/lease/capitalize', 'view-1', lease), 403);
     assert.equal(await send('post', '/api/v1/revenue/recognize', 'stranger-1', revenue), 403);
-    for (const uid of ['owner-1', 'acct-1', 'book-1']) {
+    assert.equal(await send('post', '/api/v1/lease/capitalize', 'stranger-1', lease), 403);
+    for (const uid of ['owner-1', 'acct-1', 'book-1', 'platform-admin-1']) {
       assert.equal(await send('post', '/api/v1/revenue/recognize', uid, revenue), 200, `${uid} posts revenue`);
       assert.equal(await send('post', '/api/v1/lease/capitalize', uid, lease), 200, `${uid} capitalizes a lease`);
     }
