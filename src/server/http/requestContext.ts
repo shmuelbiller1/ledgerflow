@@ -11,7 +11,41 @@ const INCOMING_ID = /^[A-Za-z0-9_.-]{8,128}$/;
  */
 function routeOf(req: express.Request): string {
   const pattern = req.route?.path;
-  return typeof pattern === 'string' ? `${req.baseUrl || ''}${pattern}` : UNMATCHED_ROUTE;
+  return typeof pattern === 'string' ? `${mountPattern(req)}${pattern}` : UNMATCHED_ROUTE;
+}
+
+const STATIC_SEGMENT = /^(?:[a-z]+(?:-[a-z]+)*|v\d+)$/;
+
+/**
+ * Express gives nested routers the resolved mount path (`/workspaces/ws_demo/customers/c123/portal-link`), not its
+ * pattern. Turn it back into a pattern: a segment that is a known parameter value becomes `:name`, and any other
+ * segment that is not a plain path word (letters and hyphens, or `v1`) becomes `:param`, so IDs and personal text
+ * never reach the log.
+ */
+function mountPattern(req: express.Request): string {
+  const base = req.baseUrl || '';
+  if (!base) return '';
+  const byValue = new Map(Object.entries(req.params || {}).map(([name, value]) => [String(value), name]));
+  return base.split('/').map(segment => {
+    if (!segment) return segment;
+    const name = byValue.get(decodeSegment(segment));
+    if (name) return `:${name}`;
+    return STATIC_SEGMENT.test(segment) ? segment : ':param';
+  }).join('/');
+}
+
+function decodeSegment(segment: string): string {
+  try { return decodeURIComponent(segment); } catch { return segment; }
+}
+
+const WORKSPACE_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+
+/** The workspace for a log line: from the key, path or query, else the `workspaceId` a write names in its body. */
+function workspaceOf(req: express.Request): string | undefined {
+  const fromRequest = requestWorkspaceId(req);
+  if (fromRequest) return fromRequest;
+  const fromBody = (req.body as { workspaceId?: unknown } | undefined)?.workspaceId;
+  return typeof fromBody === 'string' && WORKSPACE_ID.test(fromBody) ? fromBody : undefined;
 }
 
 export const UNMATCHED_ROUTE = '(unmatched)';
@@ -33,7 +67,7 @@ export function requestContext(): express.RequestHandler {
     // route pattern and the signed-in workspace too, not only the access line at the end
     const context = { requestId, method: req.method } as LogContext;
     Object.defineProperty(context, 'route', { enumerable: true, get: () => routeOf(req) });
-    Object.defineProperty(context, 'workspaceId', { enumerable: true, get: () => requestWorkspaceId(req) });
+    Object.defineProperty(context, 'workspaceId', { enumerable: true, get: () => workspaceOf(req) });
     const start = process.hrtime.bigint();
     let logged = false;
     const accessLine = () => {

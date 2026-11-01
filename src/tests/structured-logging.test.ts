@@ -64,6 +64,10 @@ describe('structured JSON logging (D-21)', () => {
         res.json({ ok: true });
       });
       app.get('/api/v1/workspaces/:workspaceId/slow', (_req, res) => { res.write('partial'); });
+      const nested = express.Router();
+      nested.get('/', (_req, res) => { logger.info('nested ran'); res.json({ ok: true }); });
+      app.use('/api/v1/workspaces/:workspaceId/customers/:customerId/portal-link', nested);
+      app.post('/api/v1/transactions', express.json(), (_req, res) => { logger.info('posted'); res.json({ ok: true }); });
       app.get('/not-api', (_req, res) => { res.send('ok'); });
       await new Promise<void>(resolve => { server = app.listen(0, '127.0.0.1', () => resolve()); });
       base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -129,6 +133,24 @@ describe('structured JSON logging (D-21)', () => {
       assert.equal(access.length, 1, JSON.stringify(lines));
       assert.equal(access[0].aborted, true);
       assert.equal(access[0].route, '/api/v1/workspaces/:workspaceId/slow');
+    });
+
+    it('a nested router logs the mount pattern, not the IDs in it', async () => {
+      lines.length = 0;
+      await fetch(`${base}/api/v1/workspaces/ws_demo/customers/customer123/portal-link`);
+      await new Promise(r => setTimeout(r, 20));
+      const access = lines.find(l => l.msg === 'request');
+      assert.equal(access?.route, '/api/v1/workspaces/:param/customers/:param/portal-link/');
+      assert.doesNotMatch(String(access?.route), /customer123|ws_demo/);
+    });
+
+    it('a write that names its workspace in the body is logged with that workspace (not the body)', async () => {
+      lines.length = 0;
+      await fetch(`${base}/api/v1/transactions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: 'ws_body1', memo: 'private memo' }) });
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(lines.find(l => l.msg === 'posted')?.workspaceId, 'ws_body1');
+      assert.equal(lines.find(l => l.msg === 'request')?.workspaceId, 'ws_body1');
+      assert.doesNotMatch(JSON.stringify(lines), /private memo/);
     });
   });
 });
