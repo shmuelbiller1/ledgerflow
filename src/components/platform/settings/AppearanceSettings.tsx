@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn, DATE_DISPLAY_FORMATS, formatDate } from '../../../lib/utils';
 import { TAX_ROUNDING, type TaxRounding } from '../../../lib/taxCodes';
+import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useUIStore } from '../../../stores/useUIStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import MoneyDisplayPanel from './MoneyDisplayPanel';
@@ -94,9 +95,12 @@ export default function AppearanceSettings() {
   // not async: the select's change has no caller waiting, so the outcome is reported here and only here
   // one save at a time: the select is disabled while a save runs, so an older write cannot land last
   const [isSavingTaxRounding, setIsSavingTaxRounding] = useState(false);
+  // owners and accountants may change it (the database refuses others); others see it read-only
+  const role = useCurrentRole();
+  const canSetTaxRounding = role === 'owner' || role === 'accountant';
   const handleTaxRoundingChange = (mode: TaxRounding): void => {
     const workspaceId = currentWorkspaceId;
-    if (!workspaceId || isSavingTaxRounding) return;
+    if (!workspaceId || isSavingTaxRounding || !canSetTaxRounding) return;
     setIsSavingTaxRounding(true);
     const startedBy = useAuthStore.getState().user?.uid;
     updateDoc(doc(db, 'workspaces', workspaceId), { taxRounding: mode }).then(() => {
@@ -447,7 +451,7 @@ export default function AppearanceSettings() {
             <select
               id={`${settingsId}-tax-rounding`}
               value={taxRounding}
-              disabled={isSavingTaxRounding}
+              disabled={isSavingTaxRounding || !canSetTaxRounding}
               aria-busy={isSavingTaxRounding}
               onChange={(e) => handleTaxRoundingChange(e.target.value as TaxRounding)}
               className="w-full sm:w-64 bg-[var(--surface)] text-[var(--text)] text-sm font-medium p-2.5 rounded-lg border border-[var(--line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer"
