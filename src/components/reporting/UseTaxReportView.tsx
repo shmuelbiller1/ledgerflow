@@ -94,7 +94,7 @@ export default function UseTaxReportView({ endDate = '' }: { endDate?: string })
         <td className="text-right tabular-nums">{row.reducedCents ? money(row.reducedCents) : '—'}</td>
         <td className="text-right tabular-nums">{row.exemptCents ? money(row.exemptCents) : '—'}</td>
         <td className="text-right tabular-nums">{row.unclearCents ? money(row.unclearCents) : '—'}</td>
-        <td className="text-right tabular-nums">{row.rate !== undefined ? `${(row.rate * 100).toFixed(3).replace(/\.?0+$/, '')}%` : '—'}</td>
+        <td className="text-right tabular-nums">{row.rate !== undefined ? `${(row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%` : '—'}</td>
         <td className="text-right tabular-nums">{money(row.estimatedUseTaxCents)}</td>
       </tr>)}</tbody>
     </table></ReportTableScroll>}

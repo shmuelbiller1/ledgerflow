@@ -72,7 +72,7 @@ export function cleanMerchantName(raw: string): string {
   s = s.replace(/[*_|]+/g, ' ').replace(/\s+/g, ' ').trim();
   // "JOES COFFEE SEATTLE WA": drop a trailing two-letter state (and the city before it only when the name has 3+ words)
   if (US_STATE.test(s) && s.split(' ').length >= 3) s = s.replace(US_STATE, '').split(' ').slice(0, -1).join(' ');
-  s = s.replace(/[\s,.-]+$/, '').trim();
+  s = s.replace(/(?<![\s,.-])[\s,.-]+$/, '').trim();
   if (s.length < 2) return text;
   return s.split(' ').map((w, i) => titleCase(w, i)).join(' ');
 }

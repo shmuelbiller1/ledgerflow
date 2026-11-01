@@ -12,7 +12,7 @@ export function ukVatPack(): TaxRulePack {
   const rules = UK_VAT_RATES.flatMap(row => {
     const base = {
       id: `uk-vat-${row.kind}-${slug(row.validFrom)}-${slug(String(row.rate))}`,
-      name: `UK ${row.kind} VAT ${(row.rate * 100).toFixed(2).replace(/\.?0+$/, '')}%`,
+      name: `UK ${row.kind} VAT ${(row.rate * 100).toFixed(2).replace(/\.?(?<!0)0+$/, '')}%`,
       effect: { kind: 'rate' as const, level: 'country' as const, name: 'UK VAT', rate: row.rate },
       validFrom: row.validFrom,
       ...(row.validTo ? { validTo: row.validTo } : {}),

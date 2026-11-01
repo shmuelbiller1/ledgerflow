@@ -33,7 +33,7 @@ export function euVatPack(): TaxRulePack {
   const rules = EU_VAT_RATES.flatMap(row => {
     const base = {
       id: `eu-${slug(row.country)}-${row.kind}-${slug(row.validFrom)}-${slug(String(row.rate))}${row.appliesTo ? `-${slug(row.appliesTo)}` : ''}`,
-      name: `${row.countryName} ${row.kind === 'standard' ? 'standard' : 'reduced'} VAT ${(row.rate * 100).toFixed(2).replace(/\.?0+$/, '')}%`,
+      name: `${row.countryName} ${row.kind === 'standard' ? 'standard' : 'reduced'} VAT ${(row.rate * 100).toFixed(2).replace(/\.?(?<!0)0+$/, '')}%`,
       effect: { kind: 'rate' as const, level: 'country' as const, name: `${row.countryName} VAT`, rate: row.rate },
       validFrom: row.validFrom,
       ...(row.validTo ? { validTo: row.validTo } : {}),

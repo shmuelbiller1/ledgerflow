@@ -1,5 +1,8 @@
 import type { AutoRule, ChartAccount } from '../types';
 import type { AnalyticalPattern } from './MatchingEngine';
+/** Longest line read as one entry (Sonar S8786: the split and amount patterns are super-linear). */
+const MAX_INTENT_LINE_LENGTH = 500;
+
 export interface ResolvedEntry { amountCents: number; description: string; dimensions: { category: string; account: string }; lines?: { accountName: string; amountCents: number }[]; date: string; type: 'actual'; isLearned?: boolean }
 import { format, startOfMonth, endOfMonth, startOfYear, subMonths, subDays } from 'date-fns';
 import { TruthEngine } from '../modules/integrity/TruthEngine';
@@ -152,6 +155,8 @@ export class IntentResolver {
     const results: ResolvedEntry[] = [];
 
     for (const line of lines) {
+        // a typed entry is one short phrase; the patterns below backtrack badly on very long lines, so skip those
+        if (line.length > MAX_INTENT_LINE_LENGTH) continue;
         const lowerInput = line.normalize('NFC').toLowerCase().trim();
         let learnedCategory: string | null = null;
         let isRuleConfirmed = false;

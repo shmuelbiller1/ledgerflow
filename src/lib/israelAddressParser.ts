@@ -52,7 +52,7 @@ function splitSingleLine(segment: string): { street?: string; city?: string } {
   const numbers = [...segment.matchAll(BUILDING_NUMBER)];
   if (numbers.length !== 1) return {};
   const number = numbers[0];
-  const before = segment.slice(0, number.index).trim().replace(/[ ,]+$/u, '');
+  const before = segment.slice(0, number.index).trim().replace(/(?<![ ,])[ ,]+$/u, '');
   const after = segment.slice(number.index! + number[0].length).trim().replace(/^[ ,]+/u, '');
 
   // Hebrew street prefixes and English suffixes both place the house number after the street name.
@@ -63,7 +63,7 @@ function splitSingleLine(segment: string): { street?: string; city?: string } {
   // In "10 Herzl St Tel Aviv", the number comes first and the English street marker ends the street.
   const markerEnd = marker.index! + marker[0].length;
   if (number.index === 0 && markerEnd < segment.length) {
-    const street = segment.slice(0, markerEnd).trim().replace(/[ ,]+$/u, '');
+    const street = segment.slice(0, markerEnd).trim().replace(/(?<![ ,])[ ,]+$/u, '');
     const city = segment.slice(markerEnd).trim().replace(/^[ ,]+/u, '');
     if (street && city && /\p{L}/u.test(city)) return { street, city };
   }
