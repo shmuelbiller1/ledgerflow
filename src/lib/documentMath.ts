@@ -74,6 +74,11 @@ export function netFromGross(grossCents: number, totalRate: number): number {
   return Math.round(grossCents / (1 + totalRate));
 }
 
+/** The tax inside a gross amount, unrounded (Y-35: the caller rounds it by the workspace's policy). */
+export function includedTaxExact(grossCents: number, totalRate: number): number {
+  return grossCents - grossCents / (1 + totalRate);
+}
+
 /**
  * Computes the net pre-tax amount in integer cents.
  */
