@@ -84,8 +84,10 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
   const send = async (method: string, path: string, uid: string, body: object = { workspaceId: ws }) => {
     const url = base + path.replace(/:[A-Za-z]+/g, 'x1') + `?workspaceId=${ws}`;
     const res = await fetch(url, { method: method.toUpperCase(), headers: { 'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': crypto.randomUUID() }, body: method === 'delete' ? undefined : JSON.stringify(body) });
+    lastBody = await res.text();
     return res.status;
   };
+  let lastBody = '';
 
   it('finds the write routes', () => {
     // a floor that only goes up: raise it when routes are added, lower it only when one is removed on purpose
@@ -122,10 +124,14 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
   it('even the owner cannot post with another workspace\'s account, or into a closed period', async () => {
     const revenue = { workspaceId: ws, amountCents: 100, deferredAccountId: `${ws}_a1`, revenueAccountId: `${ws}_a2`, date: '2026-10-01' };
     const lease = { workspaceId: ws, pvAmountCents: 100, rouAssetAccountId: `${ws}_a1`, leaseLiabilityAccountId: `${ws}_a2`, date: '2026-10-01' };
-    const refused = (s: number) => s >= 400 && s < 500;
-    assert.ok(refused(await send('post', '/api/v1/revenue/recognize', 'owner-1', { ...revenue, revenueAccountId: `${ws}_foreign` })), 'foreign account (revenue)');
-    assert.ok(refused(await send('post', '/api/v1/lease/capitalize', 'owner-1', { ...lease, rouAssetAccountId: `${ws}_foreign` })), 'foreign account (lease)');
-    assert.ok(refused(await send('post', '/api/v1/revenue/recognize', 'owner-1', { ...revenue, date: '2026-05-01' })), 'closed period (revenue)');
-    assert.ok(refused(await send('post', '/api/v1/lease/capitalize', 'owner-1', { ...lease, date: '2026-05-01' })), 'closed period (lease)');
+    const refusedFor = async (path: string, body: object, reason: RegExp, label: string) => {
+      const status = await send('post', path, 'owner-1', body);
+      assert.ok(status >= 400 && status < 500, `${label}: ${status}`);
+      assert.match(lastBody, reason, label);
+    };
+    await refusedFor('/api/v1/revenue/recognize', { ...revenue, revenueAccountId: `${ws}_foreign` }, /does not belong to authorized workspace/, 'foreign account (revenue)');
+    await refusedFor('/api/v1/lease/capitalize', { ...lease, rouAssetAccountId: `${ws}_foreign` }, /does not belong to authorized workspace/, 'foreign account (lease)');
+    await refusedFor('/api/v1/revenue/recognize', { ...revenue, date: '2026-05-01' }, /Period Locked/, 'closed period (revenue)');
+    await refusedFor('/api/v1/lease/capitalize', { ...lease, date: '2026-05-01' }, /Period Locked/, 'closed period (lease)');
   });
 });
