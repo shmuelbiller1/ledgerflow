@@ -126,7 +126,7 @@ describe('AUD-09 step 2: write routes outside /workspaces', { skip: !hasDb && 'n
     const lease = { workspaceId: ws, pvAmountCents: 100, rouAssetAccountId: `${ws}_a1`, leaseLiabilityAccountId: `${ws}_a2`, date: '2026-10-01' };
     const refusedFor = async (path: string, body: object, reason: RegExp, label: string) => {
       const status = await send('post', path, 'owner-1', body);
-      assert.ok(status >= 400 && status < 500, `${label}: ${status}`);
+      assert.equal(status, 400, `${label}: ${status}`);
       assert.match(lastBody, reason, label);
     };
     await refusedFor('/api/v1/revenue/recognize', { ...revenue, revenueAccountId: `${ws}_foreign` }, /does not belong to authorized workspace/, 'foreign account (revenue)');
