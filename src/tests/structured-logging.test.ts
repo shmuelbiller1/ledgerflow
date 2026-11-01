@@ -54,6 +54,7 @@ describe('structured JSON logging (D-21)', () => {
         logger.info('handler ran', { email: 'secret@example.com' });
         res.json({ ok: true });
       });
+      app.get('/api/v1/workspaces/:workspaceId/slow', (_req, res) => { res.write('partial'); });
       app.get('/not-api', (_req, res) => { res.send('ok'); });
       await new Promise<void>(resolve => { server = app.listen(0, '127.0.0.1', () => resolve()); });
       base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -75,6 +76,8 @@ describe('structured JSON logging (D-21)', () => {
       assert.ok(handler && access, JSON.stringify(lines));
       assert.equal(handler.requestId, id);
       assert.equal(handler.email, '[redacted]');
+      assert.equal(handler.route, '/api/v1/workspaces/:workspaceId/things/:id', 'a handler line has the route pattern');
+      assert.equal(handler.workspaceId, 'ws_log1', 'a handler line has the workspace');
       assert.equal(access.requestId, id);
       assert.equal(access.route, '/api/v1/workspaces/:workspaceId/things/:id');
       assert.equal(access.workspaceId, 'ws_log1');
@@ -93,6 +96,20 @@ describe('structured JSON logging (D-21)', () => {
       await fetch(`${base}/not-api`);
       await new Promise(r => setTimeout(r, 20));
       assert.equal(lines.filter(l => l.msg === 'request').length, 2);
+    });
+
+    it('still logs a request whose client went away before the response was complete', async () => {
+      lines.length = 0;
+      const controller = new AbortController();
+      const res = await fetch(`${base}/api/v1/workspaces/ws_log1/slow`, { signal: controller.signal });
+      const reader = res.body!.getReader();
+      await reader.read();
+      controller.abort();
+      await new Promise(r => setTimeout(r, 100));
+      const access = lines.filter(l => l.msg === 'request');
+      assert.equal(access.length, 1, JSON.stringify(lines));
+      assert.equal(access[0].aborted, true);
+      assert.equal(access[0].route, '/api/v1/workspaces/:workspaceId/slow');
     });
   });
 });
