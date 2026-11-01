@@ -32,9 +32,10 @@ describe('slow-query log (D-22)', () => {
       ['select $é$frank@example.com$é$ from t', 'select ? from t'],
       ['select $1, col$x from t where a = $ grace@example.com', 'select $?, col$x from t where a = ?…'],
       ['select 1_234_567, 0xDEADBEEF, 0o17, 0b1011, 1.5e-3, 2.75 from t', 'select ?, ?, ?, ?, ?, ? from t'],
+      [`select 'a\\' , heidi@example.com' from t`, 'select ?…'],
     ];
     for (const [sql, expected] of cases) assert.equal(queryShape(sql), expected, sql);
-    assert.doesNotMatch(cases.map(([sql]) => queryShape(sql)).join(' '), /alice|Brien|confidential|secret|bob|carol|dave|erin|frank|grace|inner|234|DEAD|1011/);
+    assert.doesNotMatch(cases.map(([sql]) => queryShape(sql)).join(' '), /alice|Brien|confidential|secret|bob|carol|dave|erin|frank|grace|heidi|inner|234|DEAD|1011/);
   });
 
   it('the threshold is 500 ms unless SLOW_QUERY_MS sets a positive number', () => {

@@ -69,7 +69,15 @@ export function queryShape(sql: string): string {
     if (ch === '-' && sql[i + 1] === '-') { const nl = sql.indexOf('\n', i); i = nl < 0 ? sql.length : nl; out += ' '; continue; }
     if (ch === '/' && sql[i + 1] === '*') { i = endOfBlockComment(sql, i); out += ' '; continue; }
     if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'" && !prevWord) { i = endOfQuoted(sql, i + 1, "'", true); out += '?'; continue; }
-    if (ch === "'") { i = endOfQuoted(sql, i, "'", false); out += '?'; continue; }
+    if (ch === "'") {
+      const end = endOfQuoted(sql, i, "'", false);
+      out += '?';
+      // with standard_conforming_strings off, \' would not close the string: a backslash makes it ambiguous, so
+      // fail closed rather than guess where it ends
+      if (sql.slice(i, end).includes('\\')) { i = sql.length; truncated = true; break; }
+      i = end;
+      continue;
+    }
     if (ch === '"') { const j = endOfQuoted(sql, i, '"', false); out += sql.slice(i, j); i = j; continue; }
     if (ch === '$' && !prevWord) {
       const tag = at(DOLLAR_TAG, sql, i);
