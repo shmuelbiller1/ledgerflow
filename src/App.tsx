@@ -1,5 +1,5 @@
 import TestEnvironmentBanner from './components/support/TestEnvironmentBanner';
-import { useState, useEffect, useMemo, useCallback, useTransition, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useTransition, lazy, Suspense } from 'react';
 import { usePerformanceTrace } from './hooks/usePerformanceTrace';
 import { auth } from './firebase';
 import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
@@ -46,7 +46,7 @@ function ResilientBackgroundMount({
   replayEventName?: string;
 }) {
   const [Loaded, setLoaded] = useState<React.ComponentType | null>(null);
-  const [replayPending, setReplayPending] = useState(false);
+  const replayPendingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -61,7 +61,7 @@ function ResilientBackgroundMount({
           if (warnOnFailure) toast.dismiss('ledger-auditor-load-warning');
           if (pendingClick) {
             pendingClick = false;
-            setReplayPending(true);
+            replayPendingRef.current = true;
           }
           setLoaded(() => mod.default);
         })
@@ -106,11 +106,11 @@ function ResilientBackgroundMount({
   }, [load, warnOnFailure, replayEventName]);
 
   useEffect(() => {
-    if (!Loaded || !replayPending || !replayEventName) return;
-    setReplayPending(false);
+    if (!Loaded || !replayPendingRef.current || !replayEventName) return;
+    replayPendingRef.current = false;
     toast.dismiss('feedback-widget-load-warning');
     window.dispatchEvent(new window.Event(replayEventName));
-  }, [Loaded, replayPending, replayEventName]);
+  }, [Loaded, replayEventName]);
 
   return Loaded ? <Loaded /> : null;
 }
