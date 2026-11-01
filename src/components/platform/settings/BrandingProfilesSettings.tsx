@@ -10,6 +10,7 @@ import { DEFAULT_BRAND_COLOR, MAX_LOGO_BYTES } from '../../../lib/brandingConsta
 import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { brandingForLabels, brandingProfilesProblem, labelKey } from '../../../lib/entityBranding';
 import type { BrandingProfiles } from '../../../lib/entityBranding';
+import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const areaField = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
@@ -35,6 +36,8 @@ function Scoped() {
 
   const [target, setTarget] = useState('books');
   const [editing, setEditing] = useState<{ target: string; original: WorkspaceBranding | undefined; draft: WorkspaceBranding } | null>(null);
+  const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.original || {});
+  useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');

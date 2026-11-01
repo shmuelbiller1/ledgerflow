@@ -261,8 +261,10 @@ const shortcutMap = useMemo(() => {
   const setIsGuest = useAuthStore(state => state.setIsGuest);
 
   useEffect(() => {
-    if (user || isGuest || window.location.pathname.startsWith('/invite/')) {
-      void loadRootLayout();
+    const path = window.location.pathname;
+    const isPublicOnlyPath = path === '/status' || /^\/(?:c|e|i)\/[^/]+\/?$/.test(path);
+    if (!isPublicOnlyPath && (user || isGuest || path.startsWith('/invite/'))) {
+      void loadRootLayout().catch(() => {});
     }
   }, [user, isGuest]);
   // Y-30: a workspace this person is in may require two-step login this session has not passed

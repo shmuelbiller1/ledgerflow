@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import fs from 'fs';
 
 export default defineConfig({
   // Dev-only: allow the sandbox live-preview host (Vite rejects unknown Host headers).
@@ -70,16 +71,60 @@ export default defineConfig({
         navigateFallback: 'index.html',
         // Never intercept backend API downloads, exports, webhooks, or auth endpoints with SPA HTML.
         navigateFallbackDenylist: [/^\/api(?:\/|$)/],
-        // Precache only the core app shell + shared vendor/layout chunks; lazy screens cache on demand.
+        // Precache the exact static dependency closure of index.html + app shell + RootLayout;
+        // genuinely lazy screens (import("./...")) are cached on demand via runtimeCaching.
         globPatterns: [
           'index.html',
-          'assets/app-*.js',
-          'assets/index-*.css',
-          'assets/vendor-react-*.js',
-          'assets/vendor-ui-*.js',
-          'assets/vendor-supabase-*.js',
-          'assets/vendor-utils-*.js',
-          'assets/RootLayout-*.js'
+          'assets/*.{js,css}'
+        ],
+        manifestTransforms: [
+          async (manifestEntries) => {
+            const distDir = path.resolve('dist');
+            const shellFiles = new Set<string>();
+            const queue: string[] = [];
+
+            const enqueue = (relPath: string) => {
+              const clean = relPath.replace(/^\//, '');
+              if (!shellFiles.has(clean) && fs.existsSync(path.join(distDir, clean))) {
+                shellFiles.add(clean);
+                queue.push(clean);
+              }
+            };
+
+            for (const entry of manifestEntries) {
+              const clean = entry.url.replace(/^\//, '');
+              if (
+                !clean.startsWith('assets/') ||
+                /^assets\/(?:app|RootLayout)-[^/]+\.js$/.test(clean) ||
+                /^assets\/index-[^/]+\.css$/.test(clean)
+              ) {
+                enqueue(clean);
+              }
+            }
+
+            const indexHtmlPath = path.join(distDir, 'index.html');
+            if (fs.existsSync(indexHtmlPath)) {
+              const html = fs.readFileSync(indexHtmlPath, 'utf8');
+              for (const match of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) {
+                if (!/^https?:\/\//i.test(match[1])) enqueue(match[1]);
+              }
+            }
+
+            while (queue.length > 0) {
+              const current = queue.shift()!;
+              if (!current.endsWith('.js')) continue;
+              const code = fs.readFileSync(path.join(distDir, current), 'utf8');
+              for (const match of code.matchAll(/(?:from\s*|import\s*)["'](\.[^"']+\.(?:js|css))["']/g)) {
+                const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(current), match[1]));
+                enqueue(resolved);
+              }
+            }
+
+            return {
+              manifest: manifestEntries.filter((entry) => shellFiles.has(entry.url.replace(/^\//, ''))),
+              warnings: [],
+            };
+          }
         ],
         runtimeCaching: [
           {

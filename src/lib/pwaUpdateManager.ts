@@ -15,6 +15,8 @@ type PWAUpdateListener = (state: PWAUpdateState) => void;
 
 const unsavedGuards = new Set<UnsavedWorkGuard>();
 const listeners = new Set<PWAUpdateListener>();
+const dirtyInputs = new Set<Element>();
+const instrumentedDocs = new WeakSet<Document>();
 
 let state: PWAUpdateState = {
   updateAvailable: false,
@@ -23,6 +25,47 @@ let state: PWAUpdateState = {
 };
 
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
+
+function isTrackableFormControl(target: EventTarget | null): target is HTMLElement & {
+  type?: string;
+  readOnly?: boolean;
+  disabled?: boolean;
+} {
+  if (!target || typeof target !== 'object' || !('tagName' in target)) return false;
+  const el = target as HTMLElement & { type?: string; readOnly?: boolean; disabled?: boolean };
+  if (el.disabled || el.readOnly || el.hasAttribute?.('data-pwa-ignore-dirty')) return false;
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'textarea' || tag === 'select') return true;
+  if (tag === 'input') {
+    const type = (el.type || 'text').toLowerCase();
+    return type !== 'search' && type !== 'hidden' && type !== 'button' && type !== 'submit' && type !== 'reset';
+  }
+  return Boolean(el.isContentEditable);
+}
+
+export function attachDirtyTracking(doc: Document | null = typeof document !== 'undefined' ? document : null): void {
+  if (!doc || instrumentedDocs.has(doc)) return;
+  instrumentedDocs.add(doc);
+
+  const markDirty = (event: Event) => {
+    if (isTrackableFormControl(event.target)) {
+      dirtyInputs.add(event.target);
+    }
+  };
+  const clearFormDirty = (event: Event) => {
+    const form = event.target;
+    if (form && typeof form === 'object' && 'contains' in form) {
+      for (const el of [...dirtyInputs]) {
+        if ((form as Node).contains(el)) dirtyInputs.delete(el);
+      }
+    }
+  };
+
+  doc.addEventListener('input', markDirty, true);
+  doc.addEventListener('change', markDirty, true);
+  doc.addEventListener('submit', clearFormDirty, true);
+  doc.addEventListener('reset', clearFormDirty, true);
+}
 
 function emitState(next: Partial<PWAUpdateState>) {
   state = { ...state, ...next };
@@ -65,6 +108,16 @@ export function hasUnsavedDocumentWork(doc: Document | null = typeof document !=
 
   if (doc.querySelector('[data-unsaved-changes="true"]')) {
     return true;
+  }
+
+  for (const el of [...dirtyInputs]) {
+    if (!el.isConnected) {
+      dirtyInputs.delete(el);
+      continue;
+    }
+    if (el.ownerDocument === doc) {
+      return true;
+    }
   }
 
   // Open modal dialogs containing editable controls (journal entry, invoice, reconciliation, settings forms)
@@ -130,6 +183,8 @@ export function initPWAUpdateManager(
   registerFn: RegisterSWFn,
   options?: { notify?: (onAccept: () => void) => void }
 ): () => Promise<boolean> {
+  attachDirtyTracking();
+
   const notify = options?.notify ?? ((onAccept: () => void) => {
     toast.info('A new version of LedgerFlow is ready.', {
       id: 'ledgerflow-pwa-update',
@@ -137,20 +192,29 @@ export function initPWAUpdateManager(
       description: 'Save any open work, then update when convenient.',
       action: {
         label: 'Update now',
-        onClick: () => {
+        onClick: (event) => {
+          event.preventDefault();
           onAccept();
         },
       },
     });
   });
 
+  const showUpdatePrompt = () => {
+    notify(() => {
+      void requestSafePWAUpdate().then((applied) => {
+        if (!applied && state.updateAvailable) {
+          showUpdatePrompt();
+        }
+      });
+    });
+  };
+
   const updateSW = registerFn({
     immediate: true,
     onNeedRefresh() {
       emitState({ updateAvailable: true });
-      notify(() => {
-        void requestSafePWAUpdate();
-      });
+      showUpdatePrompt();
     },
     onOfflineReady() {
       emitState({ offlineReady: true });
@@ -164,6 +228,7 @@ export function initPWAUpdateManager(
 export function resetPWAUpdateManagerForTests(): void {
   unsavedGuards.clear();
   listeners.clear();
+  dirtyInputs.clear();
   applyServiceWorkerUpdate = null;
   state = {
     updateAvailable: false,

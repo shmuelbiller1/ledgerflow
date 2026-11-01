@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  attachDirtyTracking,
   getPWAUpdateState,
   hasUnsavedDocumentWork,
   initPWAUpdateManager,
@@ -12,6 +13,7 @@ import {
   resetPWAUpdateManagerForTests,
   subscribePWAUpdate,
 } from '../lib/pwaUpdateManager';
+import { reportClientError, getRecentErrors, sanitizeTelemetryUrl } from '../lib/errorTracker';
 import * as retentionFull from '../lib/retention';
 import * as retentionLight from '../lib/retentionPolicy';
 import * as brandingFull from '../lib/branding';
@@ -132,7 +134,78 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     const memo = document.getElementById('memo') as HTMLTextAreaElement;
     memo.focus();
     assert.equal(hasUnsavedDocumentWork(document), true);
+
+    // Focus-independent dirty detection: editing a non-modal page input and then moving
+    // focus onto an external "Update now" button must still guard unsaved form edits.
+    document.body.innerHTML = '<form id="retention-form"><input id="grace-days" type="number" value="30" /></form><button id="toast-btn">Update now</button>';
+    attachDirtyTracking(document);
+    const input = document.getElementById('grace-days') as HTMLInputElement;
+    const toastBtn = document.getElementById('toast-btn') as HTMLButtonElement;
+    input.value = '60';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    toastBtn.focus();
+    assert.equal(document.activeElement, toastBtn);
+    assert.equal(hasUnsavedDocumentWork(document), true, 'dirty page input must remain detected after focus moves to toast button');
+
+    const form = document.getElementById('retention-form') as HTMLFormElement;
+    form.dispatchEvent(new window.Event('reset', { bubbles: true }));
+    assert.equal(hasUnsavedDocumentWork(document), false, 'resetting form clears dirty input state');
     document.body.innerHTML = '';
+  });
+
+  it('re-displays the update prompt when confirmation is canceled and redacts telemetry URLs', async () => {
+    let capturedOptions: Parameters<Parameters<typeof initPWAUpdateManager>[0]>[0];
+    const acceptHandlers: Array<() => void> = [];
+    let notifyCalls = 0;
+
+    const releaseGuard = registerUnsavedWorkGuard(() => true);
+    const origConfirm = window.confirm;
+    window.confirm = () => false;
+
+    try {
+      initPWAUpdateManager(
+        (options) => {
+          capturedOptions = options;
+          return async () => {};
+        },
+        {
+          notify: (onAccept) => {
+            notifyCalls += 1;
+            acceptHandlers.push(onAccept);
+          },
+        }
+      );
+
+      capturedOptions?.onNeedRefresh?.();
+      assert.equal(notifyCalls, 1);
+
+      // User clicks "Update now", sees confirmation, and clicks Cancel -> prompt must re-display
+      acceptHandlers[0]?.();
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(notifyCalls, 2, 'update prompt must be restored after user cancels confirmation');
+      assert.equal(getPWAUpdateState().updateAvailable, true);
+    } finally {
+      window.confirm = origConfirm;
+      releaseGuard();
+    }
+
+    assert.equal(sanitizeTelemetryUrl(''), '');
+    assert.equal(sanitizeTelemetryUrl('/c/secret-portal-tok_123?tab=open'), '/c/[REDACTED]?tab=open');
+    assert.equal(sanitizeTelemetryUrl('/e/est_tok_999'), '/e/[REDACTED]');
+    assert.equal(sanitizeTelemetryUrl('/i/inv_tok_888'), '/i/[REDACTED]');
+    assert.equal(sanitizeTelemetryUrl('/invite/ws_tok_777'), '/invite/[REDACTED]');
+    assert.equal(sanitizeTelemetryUrl('/reports?report=pnl'), '/reports?report=pnl');
+
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+    window.history.replaceState(null, '', '/c/secret-portal-tok_123?view=summary');
+    try {
+      await reportClientError(new Error('Portal render test'));
+      assert.equal(getRecentErrors()[0]?.url, '/c/[REDACTED]?view=summary');
+    } finally {
+      globalThis.fetch = prevFetch;
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   it('handles default toast notification, idle update requests, and update errors gracefully', async () => {
@@ -207,13 +280,29 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
         'Workbox precache manifest must not contain duplicate URLs'
       );
       assert.ok(
-        precacheUrls.length >= 10 && precacheUrls.length <= 25,
-        `Expected narrow app-shell precache (10..25 entries), got ${precacheUrls.length}`
+        precacheUrls.length >= 15 && precacheUrls.length <= 85,
+        `Expected shell static-closure precache (15..85 entries), got ${precacheUrls.length}`
       );
       assert.ok(
         !precacheUrls.some((u) => /exceljs|vendor-viz/.test(u)),
         'Heavy lazy chunks (exceljs, vendor-viz) must never be upfront precached'
       );
+
+      // Verify 100% static ESM import closure of all precached JS chunks so fresh offline boot cannot fail
+      const precacheSet = new Set(precacheUrls.map((u) => u.replace(/^\//, '')));
+      for (const rel of precacheSet) {
+        if (!rel.endsWith('.js')) continue;
+        const jsPath = path.join(root, 'dist', rel);
+        assert.ok(fs.existsSync(jsPath), `Precached JS file missing on disk: ${rel}`);
+        const code = fs.readFileSync(jsPath, 'utf8');
+        for (const match of code.matchAll(/(?:from\s*|import\s*)["'](\.[^"']+\.(?:js|css))["']/g)) {
+          const dep = path.posix.normalize(path.posix.join(path.posix.dirname(rel), match[1]));
+          assert.ok(
+            precacheSet.has(dep),
+            `Offline shell closure broken: precached ${rel} statically imports ${dep}, which is missing from sw.js precache`
+          );
+        }
+      }
       assert.match(sw, /SKIP_WAITING/);
       assert.match(sw, /NetworkOnly/);
       assert.match(sw, /denylist:\[\s*\/\^\\\/api/);

@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { Palette, FileText, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -7,6 +7,7 @@ import { getIdToken } from '../../../firebase';
 import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
 import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { DOCUMENT_LANGUAGES } from '../../../lib/documentLanguage';
+import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 /**
  * Settings → Branding (Y-11…Y-14, Y-33, Y-34): logo, colour, address, footer and default terms for
@@ -39,6 +40,8 @@ export default function BrandingSettings() {
   const canEdit = role === 'owner' || role === 'accountant';
   const [draft, setDraft] = useState<WorkspaceBranding>(() => workspace?.branding || {});
   const [busy, setBusy] = useState<'save' | 'preview' | null>(null);
+  const dirty = Boolean(workspace) && JSON.stringify(draft) !== JSON.stringify(workspace?.branding || {});
+  useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
 
   const set = (fields: Partial<WorkspaceBranding>) => setDraft(d => ({ ...d, ...fields }));
   const setTerms = (type: typeof BRANDED_DOCUMENTS[number], text: string) => setDraft(d => ({ ...d, terms: { ...(d.terms || {}), [type]: text } }));
