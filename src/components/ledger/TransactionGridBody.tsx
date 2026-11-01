@@ -342,7 +342,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                                   placeholder="0"
                                   className="w-full pl-6 pr-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-xs font-mono focus:ring-1 focus:ring-indigo-600 outline-none"
                                   value={filterCriteria?.minAmount || ''}
-                                  onChange={(e) => onFilterApplied({ ...filterCriteria, minAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                  onChange={(e) => onFilterApplied({ ...filterCriteria, minAmount: e.target.value ? Number.parseFloat(e.target.value) : undefined })}
                                />
                              </div>
                           </div>
@@ -356,7 +356,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                                   placeholder="∞"
                                   className="w-full pl-6 pr-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-xs font-mono focus:ring-1 focus:ring-indigo-600 outline-none"
                                   value={filterCriteria?.maxAmount || ''}
-                                  onChange={(e) => onFilterApplied({ ...filterCriteria, maxAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                  onChange={(e) => onFilterApplied({ ...filterCriteria, maxAmount: e.target.value ? Number.parseFloat(e.target.value) : undefined })}
                                />
                              </div>
                           </div>

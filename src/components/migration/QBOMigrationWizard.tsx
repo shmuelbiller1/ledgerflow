@@ -163,7 +163,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
               dateStr = `${y}-${m}-${d}`;
             } else {
               const parsed = new Date(s);
-              if (!isNaN(parsed.getTime())) {
+              if (!Number.isNaN(parsed.getTime())) {
                 const y = parsed.getFullYear();
                 const m = String(parsed.getMonth() + 1).padStart(2, '0');
                 const d = String(parsed.getDate()).padStart(2, '0');
@@ -195,8 +195,8 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           const isCr = /\bcr\b|cr$/i.test(str);
           const isDr = /\bdr\b|dr$/i.test(str);
           const cleaned = str.replace(/[^0-9.-]/g, '');
-          const numVal = parseFloat(cleaned);
-          if (isNaN(numVal)) return 0;
+          const numVal = Number.parseFloat(cleaned);
+          if (Number.isNaN(numVal)) return 0;
           let cents = Math.round(numVal * 100);
           if (isParenNegative || isCr) {
             cents = -Math.abs(cents);
@@ -385,9 +385,9 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
           const used = new Set(
             updatedAccounts
-              .map(a => parseInt(a.code, 10))
-              .concat(Array.from(assignedCodes).map(c => parseInt(c, 10)))
-              .filter(n => !isNaN(n))
+              .map(a => Number.parseInt(a.code, 10))
+              .concat(Array.from(assignedCodes).map(c => Number.parseInt(c, 10)))
+              .filter(n => !Number.isNaN(n))
           );
           let candidate = base;
           while (used.has(candidate)) {

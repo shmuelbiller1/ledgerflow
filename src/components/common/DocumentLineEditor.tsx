@@ -408,7 +408,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                     min="0"
                     value={line.quantity}
                     onChange={event => {
-                      const quantity = parseFloat(event.target.value || '0');
+                      const quantity = Number.parseFloat(event.target.value || '0');
                       updateAt(idx, current => ({ ...current, quantity, amountCents: lineAmountCents(quantity, isInvoiceLine(current) ? current.rateCents : 0) }) as T);
                     }}
                     className="w-full min-h-11 px-3 py-2 bg-[var(--surface)] border border-[var(--line)] rounded-xl outline-none focus:ring-2 focus:ring-zinc-900 font-mono"

@@ -158,7 +158,7 @@ export default function PettyCashView() {
     date: topUp.date,
   };
   // a typo is no count: NaN is refused by countProblem, where 0 would record the whole balance as short
-  const countedCents = count.counted.trim() && isAmountText(count.counted, { complete: true }) ? parseAmountToCents(count.counted) : NaN;
+  const countedCents = count.counted.trim() && isAmountText(count.counted, { complete: true }) ? parseAmountToCents(count.counted) : Number.NaN;
   const countDraft = {
     boxAccountId,
     overShortAccountId: overShortAccounts.some(a => a.id === preference.overShortAccountId) ? preference.overShortAccountId || '' : '',

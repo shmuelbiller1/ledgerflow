@@ -32,7 +32,7 @@ function objects(pdf: Buffer): Map<number, PdfObject> {
 
 const utf16 = (hex: string) => {
   let s = '';
-  for (let i = 0; i + 4 <= hex.length; i += 4) s += String.fromCharCode(parseInt(hex.slice(i, i + 4), 16));
+  for (let i = 0; i + 4 <= hex.length; i += 4) s += String.fromCharCode(Number.parseInt(hex.slice(i, i + 4), 16));
   return s;
 };
 
@@ -42,19 +42,19 @@ function parseCmap(cmap: string): Map<number, string> {
     for (const line of block.split('\n')) {
       const arr = line.match(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*\[([^\]]*)\]/);
       if (arr) {
-        const first = parseInt(arr[1], 16);
+        const first = Number.parseInt(arr[1], 16);
         (arr[3].match(/<([0-9a-fA-F]+)>/g) || []).forEach((h, i) => map.set(first + i, utf16(h.slice(1, -1))));
         continue;
       }
       const seq = line.match(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/);
       if (seq) {
-        const [a, b, dst] = [parseInt(seq[1], 16), parseInt(seq[2], 16), parseInt(seq[3], 16)];
+        const [a, b, dst] = [Number.parseInt(seq[1], 16), Number.parseInt(seq[2], 16), Number.parseInt(seq[3], 16)];
         for (let g = a; g <= b; g++) map.set(g, String.fromCharCode(dst + g - a));
       }
     }
   }
   for (const block of cmap.match(/beginbfchar([\s\S]*?)endbfchar/g) || []) {
-    for (const pair of block.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) map.set(parseInt(pair[1], 16), utf16(pair[2]));
+    for (const pair of block.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) map.set(Number.parseInt(pair[1], 16), utf16(pair[2]));
   }
   return map;
 }
@@ -105,7 +105,7 @@ export function pdfTextRuns(pdf: Buffer): string[] {
 function literalBytes(token: string): Buffer {
   const chars = token.slice(1, -1).replace(/\\(?:\r\n|[\r\n]|[0-7]{1,3}|[\s\S])/g, escape => {
     const value = escape.slice(1);
-    if (/^[0-7]/.test(value)) return String.fromCharCode(parseInt(value, 8));
+    if (/^[0-7]/.test(value)) return String.fromCharCode(Number.parseInt(value, 8));
     if (/^[\r\n]/.test(value)) return '';
     return ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' } as Record<string, string>)[value] ?? value;
   });

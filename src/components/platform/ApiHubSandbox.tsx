@@ -132,7 +132,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                           <input
                             type="number"
                             value={fieldAmountCents}
-                            onChange={(e) => setFieldAmountCents(parseFloat(e.target.value) || 0)}
+                            onChange={(e) => setFieldAmountCents(Number.parseFloat(e.target.value) || 0)}
                             className="w-full text-xs font-semibold p-2 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-950 font-mono"
                           />
                         </Labelled>

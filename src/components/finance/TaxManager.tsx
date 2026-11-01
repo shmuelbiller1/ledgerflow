@@ -120,7 +120,7 @@ function TaxRateForm({ initial, onSave, onCancel }: { initial: TaxRate | null; o
         {parts.slice(0, type === 'Sales' ? parts.length : 1).map((p, n) => (
           <div key={p.key} className="flex items-center gap-2">
             {type === 'Sales' && <input aria-label={`Part ${n + 1} name`} value={p.name} onChange={e => setPart(p.key, { name: e.target.value })} className={`${fieldClass} flex-1`} />}
-            <input aria-label={`Part ${n + 1} rate (%)`} type="number" step="0.001" min="0" max="100" value={p.rate} onChange={e => setPart(p.key, { rate: parseFloat(e.target.value || '0') })} className={`${fieldClass} w-28 text-right font-mono`} />
+            <input aria-label={`Part ${n + 1} rate (%)`} type="number" step="0.001" min="0" max="100" value={p.rate} onChange={e => setPart(p.key, { rate: Number.parseFloat(e.target.value || '0') })} className={`${fieldClass} w-28 text-right font-mono`} />
             <span aria-hidden="true">%</span>
             {type === 'Sales' && n > 0 && (
               <label className="flex items-center gap-1 text-xs whitespace-nowrap">
@@ -274,7 +274,7 @@ export default function TaxManager({
              <select 
                aria-label="Tax reserve fiscal year"
                value={selectedYear}
-               onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+               onChange={(e) => setSelectedYear(Number.parseInt(e.target.value, 10))}
                className="px-6 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] text-[10px] font-black uppercase tracking-widest text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none cursor-pointer pr-10 shadow-sm"
              >
                {[2023, 2024, 2025, 2026].map(year => (

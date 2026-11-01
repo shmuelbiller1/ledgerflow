@@ -89,7 +89,7 @@ const Reports = React.memo(() => {
     for (let i = 0; i < transactions.length; i++) {
       const d = transactions[i].date;
       if (d && d.length >= 4) {
-        yearsSet.add(parseInt(d.slice(0, 4), 10));
+        yearsSet.add(Number.parseInt(d.slice(0, 4), 10));
       }
     }
     return Array.from(yearsSet).sort((a, b) => b - a);
@@ -102,7 +102,7 @@ const Reports = React.memo(() => {
     for (let i = 0; i < transactions.length; i++) {
       const d = transactions[i].date;
       if (d && d.length >= 4) {
-        const y = parseInt(d.slice(0, 4), 10);
+        const y = Number.parseInt(d.slice(0, 4), 10);
         if (y > maxYear) maxYear = y;
       }
     }
@@ -116,8 +116,8 @@ const Reports = React.memo(() => {
     const monthsSet = new Set<number>();
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
-      if (t.date && t.date.length >= 10 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-        monthsSet.add(parseInt(t.date.slice(5, 7), 10) - 1);
+      if (t.date && t.date.length >= 10 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+        monthsSet.add(Number.parseInt(t.date.slice(5, 7), 10) - 1);
       }
     }
     if (monthsSet.size === 0) return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -130,8 +130,8 @@ const Reports = React.memo(() => {
     let maxMonth = -1;
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
-      if (t.date && t.date.length >= 7 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-        const m = parseInt(t.date.slice(5, 7), 10) - 1;
+      if (t.date && t.date.length >= 7 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+        const m = Number.parseInt(t.date.slice(5, 7), 10) - 1;
         if (m > maxMonth) maxMonth = m;
       }
     }
@@ -179,7 +179,7 @@ const Reports = React.memo(() => {
       for (let i = 0; i < transactions.length; i++) {
         const d = transactions[i].date;
         if (d && d.length >= 4) {
-          const y = parseInt(d.slice(0, 4), 10);
+          const y = Number.parseInt(d.slice(0, 4), 10);
           yearsSet.add(y);
           if (y > maxYear) maxYear = y;
         }
@@ -196,8 +196,8 @@ const Reports = React.memo(() => {
       const monthsSet = new Set<number>();
       for (let i = 0; i < transactions.length; i++) {
         const t = transactions[i];
-        if (t.date && t.date.length >= 7 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-          const m = parseInt(t.date.slice(5, 7), 10) - 1;
+        if (t.date && t.date.length >= 7 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+          const m = Number.parseInt(t.date.slice(5, 7), 10) - 1;
           monthsSet.add(m);
           if (m > maxMonth) maxMonth = m;
         }

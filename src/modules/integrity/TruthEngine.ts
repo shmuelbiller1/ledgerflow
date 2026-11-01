@@ -12,7 +12,7 @@ import { computeBalanceSheet } from '../../server/reports/computeReports';
 export class TruthEngine {
   static resolveEffectiveValue(timeSeries: TemporalValidity[], targetDateStr: string): number {
     const targetTime = parseLocalDate(targetDateStr).getTime();
-    if (isNaN(targetTime)) {
+    if (Number.isNaN(targetTime)) {
       throw new Error(`Integrity Violation: Invalid target date format -> ${targetDateStr}`);
     }
 
@@ -109,7 +109,7 @@ export class TruthEngine {
       } else {
         val = new Decimal(s).mul(10 ** digits).round().toNumber();
       }
-      if (isNaN(val)) throw new Error('Integrity Violation: Parsed amount is NaN');
+      if (Number.isNaN(val)) throw new Error('Integrity Violation: Parsed amount is NaN');
       if (isCR) val = -Math.abs(val);
       if (isDR) val = Math.abs(val);
       return val;
@@ -132,7 +132,7 @@ export class TruthEngine {
   static validateAccountingIntegrity(entries: Array<{ amount: number, type: 'debit' | 'credit' }>): boolean {
     let balance = new Decimal(0);
     for (const entry of entries) {
-      if (typeof entry.amount !== 'number' || isNaN(entry.amount)) {
+      if (typeof entry.amount !== 'number' || Number.isNaN(entry.amount)) {
         throw new Error('Integrity Violation: Financial amounts must be precise numbers.');
       }
       const val = new Decimal(Math.abs(entry.amount));

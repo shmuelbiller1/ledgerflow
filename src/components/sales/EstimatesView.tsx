@@ -101,8 +101,8 @@ export default function EstimatesView() {
       toast.error(linesProblem);
       return;
     }
-    const dollars = parseFloat(amountDollars);
-    if (lines.length === 0 && (isNaN(dollars) || dollars <= 0)) {
+    const dollars = Number.parseFloat(amountDollars);
+    if (lines.length === 0 && (Number.isNaN(dollars) || dollars <= 0)) {
       toast.error('Please enter a valid amount');
       return;
     }

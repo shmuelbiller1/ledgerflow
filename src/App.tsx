@@ -106,7 +106,7 @@ export default function App() {
       slate: { dark: '#94A3B8', light: '#475569' }
     };
     const brass = (accentMap[accentColor] || accentMap.emerald)[resolvedTheme === 'light' ? 'light' : 'dark'];
-    const [r, g, b] = [1, 3, 5].map(i => parseInt(brass.slice(i, i + 2), 16));
+    const [r, g, b] = [1, 3, 5].map(i => Number.parseInt(brass.slice(i, i + 2), 16));
     root.style.setProperty('--brass', brass);
     root.style.setProperty('--brass-soft', `rgba(${r}, ${g}, ${b}, ${resolvedTheme === 'light' ? 0.1 : 0.14})`);
     root.style.setProperty('--brass-line', `rgba(${r}, ${g}, ${b}, ${resolvedTheme === 'light' ? 0.35 : 0.4})`);

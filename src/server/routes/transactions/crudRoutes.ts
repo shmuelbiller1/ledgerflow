@@ -62,7 +62,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         }
       }
     
-      const maxLimit = parseInt(limit as string, 10) || 100;
+      const maxLimit = Number.parseInt(limit as string, 10) || 100;
       const fetchLimit = accountId ? 1000 : Math.min(maxLimit, 1000);
       queryFn = queryFn.limit(fetchLimit);
 

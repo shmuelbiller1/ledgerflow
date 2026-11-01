@@ -2,7 +2,7 @@ import Decimal from 'decimal.js';
 
 /** Whole cents, rounded half away from zero (pure: no stores, safe on the server). */
 export function roundCents(cents: number | string): number {
-  if (typeof cents === 'number' && isNaN(cents)) return 0;
+  if (typeof cents === 'number' && Number.isNaN(cents)) return 0;
   return new Decimal(cents || 0).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toNumber();
 }
 

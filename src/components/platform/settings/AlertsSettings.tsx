@@ -34,7 +34,7 @@ export default function AlertsSettings() {
     if (!workspace?.id) return;
     const alerts: AlertSettings = {
       closeReminderDay: remind ? Number(day) : null,
-      cashLowCents: cashOn ? readAmountCents(cash) ?? NaN : null,
+      cashLowCents: cashOn ? readAmountCents(cash) ?? Number.NaN : null,
       budgetAlerts: budgets,
     };
     if (cashOn && (!cash.trim() || readAmountCents(cash) === null)) { toast.error('Enter the cash amount to be told about'); return; }

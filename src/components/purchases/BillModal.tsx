@@ -473,7 +473,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               <div className="space-y-2">
                 <label htmlFor="bill-exchange-rate" className="micro-label">1 {billCurrency} = ? {workspaceCurrency}</label>
                 <input id="bill-exchange-rate" type="number" step="0.0001" min="0.0001" value={bill.exchangeRate || 1}
-                  onChange={(e) => { setRateTyped(true); const rate = parseFloat(e.target.value || '1'); setBill({ ...bill, exchangeRate: rate, metadata: { ...bill.metadata, rateUsed: { rate, date: bill.date || getLocalDateISO(), source: 'typed' } } }); }}
+                  onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setBill({ ...bill, exchangeRate: rate, metadata: { ...bill.metadata, rateUsed: { rate, date: bill.date || getLocalDateISO(), source: 'typed' } } }); }}
                   className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold" />
                 {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}
               </div>

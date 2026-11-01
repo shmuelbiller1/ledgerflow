@@ -388,7 +388,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                    min="0"
                    max="100"
                    value={invoice.progressPercentage || 0}
-                   onChange={(e) => setInvoice({ ...invoice, progressPercentage: parseInt(e.target.value, 10) })}
+                   onChange={(e) => setInvoice({ ...invoice, progressPercentage: Number.parseInt(e.target.value, 10) })}
                    className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
                  />{fieldError("inv-progress-pct")}
                </div>
@@ -467,7 +467,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                    <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
                      aria-label="Tax rate (%)"
                      type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
-                     onChange={(e) => setInvoice({ ...invoice, taxRate: parseFloat(e.target.value || '0') })}
+                     onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
                      className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
                    />
                  )}
@@ -495,7 +495,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                  <label htmlFor="inv-exchange-rate" className="micro-label">Exchange Rate</label>
                  <input id="inv-exchange-rate" aria-invalid={Boolean(fieldErrors["inv-exchange-rate"])} aria-describedby={fieldErrors["inv-exchange-rate"] ? 'inv-exchange-rate-error' : undefined}
                    type="number" step="0.0001" min="0.0001" value={invoice.exchangeRate || 1}
-                   onChange={(e) => { setRateTyped(true); const rate = parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
+                   onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
                  />{fieldError("inv-exchange-rate")}
                  {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}

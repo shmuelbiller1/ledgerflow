@@ -39,7 +39,7 @@ const decodeQuotedPrintableUtf8 = (value: string): string | null => {
       if (joined[i] === '=') {
         const hex = joined.slice(i + 1, i + 3);
         if (!/^[0-9A-Fa-f]{2}$/.test(hex)) return null;
-        bytes.push(parseInt(hex, 16));
+        bytes.push(Number.parseInt(hex, 16));
         i += 2;
       } else if (joined[i] === '_') bytes.push(32);
       else bytes.push(joined.charCodeAt(i) & 0xff);

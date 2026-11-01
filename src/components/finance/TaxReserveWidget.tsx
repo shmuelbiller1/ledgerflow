@@ -112,7 +112,7 @@ export function TaxReserveWidget() {
       return Math.min(95, 45 + Math.abs(ratio) * 10);
     }
     const prob = Math.max(0.4, 15 - ratio * 40);
-    return parseFloat(prob.toFixed(1));
+    return Number.parseFloat(prob.toFixed(1));
   }, [autopilotSafeToSpendCents, liquidCash]);
 
   // Daily message selection

@@ -92,7 +92,7 @@ export function formatDate(dateStr: string | Date | undefined | null, pref: stri
   if (!dateStr) return '';
   const civil = typeof dateStr === 'string' ? civilDateParts(dateStr) : null;
   const d = civil ? null : (typeof dateStr === 'string' ? parseLocalDate(dateStr) : dateStr);
-  if (d && isNaN(d.getTime())) return String(dateStr);
+  if (d && Number.isNaN(d.getTime())) return String(dateStr);
   const year = civil ? civil.year : d!.getFullYear();
   const monthIndex = civil ? civil.month - 1 : d!.getMonth();
   const dayOfMonth = civil ? civil.day : d!.getDate();

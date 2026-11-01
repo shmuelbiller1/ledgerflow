@@ -264,7 +264,7 @@ export function registerLabelingRoutes(app: express.Express, _ctx: ServerContext
           detectedAccountName: matchedAccountName,
           detectedAccountId: matchedCategoryId,
           isExpense,
-          confidenceScore: parseFloat(confidenceScore.toFixed(2)),
+          confidenceScore: Number.parseFloat(confidenceScore.toFixed(2)),
           complianceStatus: confidenceScore >= 0.80 ? "VERIFIED" : "REVIEW_REQUIRED",
           matchedRuleId: ruleIdMatched
         };

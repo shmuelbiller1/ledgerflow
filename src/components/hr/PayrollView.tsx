@@ -158,7 +158,7 @@ const PayrollViewContent: React.FC = () => {
     const session = inlineRecordAdapter.session();
     if (!session?.writable) { setEmployeeError('Your workspace role cannot add employees.'); return; }
 
-    const salaryCents = Math.round(parseFloat(empSalary) * 100);
+    const salaryCents = Math.round(Number.parseFloat(empSalary) * 100);
     if (!Number.isSafeInteger(salaryCents) || salaryCents < 0) { setEmployeeError('Enter a valid annual salary.'); return; }
     if (empEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empEmail)) { setEmployeeError('Enter a valid email address.'); return; }
     const identity = employeeDraftIdentity.current ??= { id: `emp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString() };

@@ -114,7 +114,7 @@ export class IntentResolver {
     } else if (monthMatch) {
         const mNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
         const monthIdx = mNames.indexOf(monthMatch[1].normalize('NFC').toLowerCase()) % 12;
-        const year = yearMatch ? parseInt(yearMatch[1]) : now.getFullYear();
+        const year = yearMatch ? Number.parseInt(yearMatch[1]) : now.getFullYear();
         result.startDate = format(new Date(year, monthIdx, 1), 'yyyy-MM-dd');
         result.endDate = format(new Date(year, monthIdx + 1, 0), 'yyyy-MM-dd');
     } else if (relativeTimeMatch) {
@@ -137,7 +137,7 @@ export class IntentResolver {
           result.endDate = format(now, 'yyyy-MM-dd');
         }
     } else if (yearMatch && !monthMatch) {
-        const year = parseInt(yearMatch[1]);
+        const year = Number.parseInt(yearMatch[1]);
         result.startDate = `${year}-01-01`;
         result.endDate = `${year}-12-31`;
     }
@@ -276,7 +276,7 @@ export class IntentResolver {
             if (yesterdayMatch) {
                 txDate = format(subDays(new Date(), 1), 'yyyy-MM-dd');
             } else if (dateMatch) {
-                const day = parseInt(dateMatch[1]);
+                const day = Number.parseInt(dateMatch[1]);
                 const monthName = dateMatch[2].normalize('NFC').toLowerCase();
                 const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
                 const monthIdx = months.indexOf(monthName);

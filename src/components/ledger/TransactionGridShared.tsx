@@ -48,8 +48,8 @@ export const GridEditor = ({
   const handleEvaluateAndSave = (input: string | number) => {
     if (type === 'number') {
       try {
-        const parsed = parseFloat((input as string).replace(/[^0-9.-]/g, ''));
-        if (!isNaN(parsed)) {
+        const parsed = Number.parseFloat((input as string).replace(/[^0-9.-]/g, ''));
+        if (!Number.isNaN(parsed)) {
           onSave(parsed);
           return;
         }
