@@ -1,12 +1,14 @@
-import React, { Suspense, lazy, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, ShieldCheck, Mail, UserPlus } from 'lucide-react';
 import { useBillingStore } from '../../modules/billing/BillingService';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
 import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordPolicy';
+import { createRetryableLazy } from '../../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
 
-const LegalModal = lazy(() => import('../../components/legal/LegalModal'));
+const LegalModal = createRetryableLazy(() => import('../../components/legal/LegalModal'));
 
 interface AuthScreenProps {
   onLogin: () => void;
@@ -264,13 +266,17 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
       </section>
 
       {legalModalOpen && (
-        <Suspense fallback={null}>
+        <LazyOverlayBoundary
+          label="Legal policy"
+          onDismiss={() => setLegalModalOpen(false)}
+          onRetry={() => setLegalModalOpen(true)}
+        >
           <LegalModal
             isOpen={legalModalOpen}
             onClose={() => setLegalModalOpen(false)}
             initialTab={legalTab}
           />
-        </Suspense>
+        </LazyOverlayBoundary>
       )}
     </main>
   );

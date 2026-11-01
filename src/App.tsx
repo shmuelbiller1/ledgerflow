@@ -28,6 +28,8 @@ import { useTwoStepSetup } from './core/auth/twoStepSetup';
 import { FallbackBoundary } from './components/FallbackBoundary';
 import CookieConsent from './components/legal/CookieConsent';
 import { canOpenShortcutHelp } from './lib/shortcutOverlay';
+import { createRetryableLazy } from './lib/lazyWithRetry';
+import { LazyOverlayBoundary } from './components/ui/LazyOverlayBoundary';
 
 const loadRootLayout = () => import('./core/layout/RootLayout').then(m => ({ default: m.RootLayout }));
 const RootLayout = lazy(loadRootLayout);
@@ -68,15 +70,19 @@ function ResilientBackgroundMount({
         .catch(() => {
           if (!active) return;
           if (pendingClick) {
-            toast.error('The feedback form could not load while offline.', {
+            toast.error('The feedback form could not load.', {
               id: 'feedback-widget-load-warning',
-              description: 'It will open automatically once your connection returns.',
+              description: 'Check your connection or retry loading it.',
+              action: {
+                label: 'Retry',
+                onClick: () => retry(),
+              },
             });
           }
           if (!warnOnFailure) return;
-          toast.warning('Automatic ledger checks could not load while offline.', {
+          toast.warning('Automatic ledger checks could not load.', {
             id: 'ledger-auditor-load-warning',
-            description: 'They will resume automatically when your connection returns.',
+            description: 'Check your connection or retry loading them.',
             action: {
               label: 'Retry',
               onClick: () => retry(),
@@ -120,7 +126,7 @@ const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalP
 const StatusPage = lazy(() => import('./components/system/StatusPage'));
 const TwoStepSetupScreen = lazy(() => import('./core/auth/TwoStepSetupScreen'));
 const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
-const LegalModal = lazy(() => import('./components/legal/LegalModal'));
+const LegalModal = createRetryableLazy(() => import('./components/legal/LegalModal'));
 
 
 export default function App() {
@@ -542,9 +548,13 @@ const shortcutMap = useMemo(() => {
         <ResilientBackgroundMount load={loadFeedbackWidget} replayEventName="ledgerflow:feedback" />
         <CookieConsent onOpenPrivacyPolicy={() => { setLegalModalTab('privacy'); setIsLegalModalOpen(true); }} />
         {isLegalModalOpen && (
-          <Suspense fallback={null}>
+          <LazyOverlayBoundary
+            label="Legal policy"
+            onDismiss={() => setIsLegalModalOpen(false)}
+            onRetry={() => setIsLegalModalOpen(true)}
+          >
             <LegalModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} initialTab={legalModalTab} />
-          </Suspense>
+          </LazyOverlayBoundary>
         )}
       </div>
     </FallbackBoundary>

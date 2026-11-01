@@ -95,7 +95,7 @@ export default defineConfig({
               const clean = entry.url.replace(/^\//, '');
               if (
                 !clean.startsWith('assets/') ||
-                /^assets\/(?:app|RootLayout|FeedbackWidget|LedgerAutoAuditor)-[^/]+\.js$/.test(clean) ||
+                /^assets\/(?:app|RootLayout|FeedbackWidget|LedgerAutoAuditor|CommandPalette|ShortcutOverlay|DiagnosticConsole|NotificationDrawer|LegalModal)-[^/]+\.js$/.test(clean) ||
                 /^assets\/index-[^/]+\.css$/.test(clean)
               ) {
                 enqueue(clean);

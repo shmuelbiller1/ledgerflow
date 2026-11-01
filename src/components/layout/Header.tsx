@@ -9,8 +9,10 @@ import { useUIStore } from '../../stores/useUIStore';
 import { unreadCount, useNotificationStore } from '../../stores/useNotificationStore';
 import { useNotificationFeed } from '../../hooks/useNotificationFeed';
 import { useCollaborators } from '../../hooks/useCollaborators';
+import { createRetryableLazy } from '../../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../ui/LazyOverlayBoundary';
 
-const NotificationDrawer = React.lazy(() => import('./NotificationDrawer'));
+const NotificationDrawer = createRetryableLazy(() => import('./NotificationDrawer'));
 
 import { useRecentRecordTracking } from '../../hooks/useRecentRecordTracking';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -190,9 +192,13 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         )}
       </div>
       {isDrawerOpen && (
-        <React.Suspense fallback={null}>
+        <LazyOverlayBoundary
+          label="Notifications"
+          onDismiss={() => setDrawerOpen(false)}
+          onRetry={() => setDrawerOpen(true)}
+        >
           <NotificationDrawer />
-        </React.Suspense>
+        </LazyOverlayBoundary>
       )}
     </header>
   );

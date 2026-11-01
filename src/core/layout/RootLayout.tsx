@@ -1,7 +1,9 @@
 import PinnedPagesBar from '../../components/layout/PinnedPagesBar';
 import type { FilterCriteria } from '../../types';
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
 import { cn, getLocalDateISO } from '../../lib/utils';
+import { createRetryableLazy } from '../../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
 
 import Sidebar from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Header';
@@ -29,9 +31,9 @@ import { useAIActions } from '../../hooks/useAIActions';
 
 import { useSystemActions } from '../../hooks/useSystemActions';
 
-const CommandPalette = lazy(() => import('../../components/layout/CommandPalette'));
-const ShortcutOverlay = lazy(() => import('../../components/layout/ShortcutOverlay'));
-const DiagnosticConsole = lazy(() => import('../../components/intelligence/DiagnosticConsole'));
+const CommandPalette = createRetryableLazy(() => import('../../components/layout/CommandPalette'));
+const ShortcutOverlay = createRetryableLazy(() => import('../../components/layout/ShortcutOverlay'));
+const DiagnosticConsole = createRetryableLazy(() => import('../../components/intelligence/DiagnosticConsole'));
 
 export function RootLayout() {
   const { handleAction } = useCommandDispatcher();
@@ -173,22 +175,34 @@ export function RootLayout() {
       {/* Overlays & Global Components */}
       <BottomNav activeTab={activeTab as unknown as string} onTabChange={setActiveTab as unknown as (tabId: string) => void} />
       {isCommandPaletteOpen && (
-        <Suspense fallback={null}>
+        <LazyOverlayBoundary
+          label="Command palette"
+          onDismiss={() => setCommandPaletteOpen(false)}
+          onRetry={() => setCommandPaletteOpen(true)}
+        >
           <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onAction={handleAction} />
-        </Suspense>
+        </LazyOverlayBoundary>
       )}
       <Suspense fallback={null}>
         <CommandPortal key={dialogScope} modals={modals} handlers={handlers as unknown as React.ComponentProps<typeof CommandPortal>['handlers']} />
       </Suspense>
       {isShortcutOverlayOpen && (
-        <Suspense fallback={null}>
+        <LazyOverlayBoundary
+          label="Keyboard shortcuts"
+          onDismiss={() => setShortcutOverlayOpen(false)}
+          onRetry={() => setShortcutOverlayOpen(true)}
+        >
           <ShortcutOverlay isOpen={isShortcutOverlayOpen} onClose={() => setShortcutOverlayOpen(false)} />
-        </Suspense>
+        </LazyOverlayBoundary>
       )}
       {isDiagnosticConsoleOpen && (
-        <Suspense fallback={null}>
+        <LazyOverlayBoundary
+          label="Diagnostic console"
+          onDismiss={() => setDiagnosticConsoleOpen(false)}
+          onRetry={() => setDiagnosticConsoleOpen(true)}
+        >
           <DiagnosticConsole isOpen={isDiagnosticConsoleOpen} onClose={() => setDiagnosticConsoleOpen(false)} />
-        </Suspense>
+        </LazyOverlayBoundary>
       )}
 
       <Suspense fallback={null}><LedgerInterruptOverlay /></Suspense>

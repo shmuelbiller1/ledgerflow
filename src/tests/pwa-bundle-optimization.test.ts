@@ -1,8 +1,12 @@
 import './helpers/dom';
+import React, { act } from 'react';
+import ReactDOM from 'react-dom/client';
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRetryableLazy } from '../lib/lazyWithRetry';
+import { LazyOverlayBoundary } from '../components/ui/LazyOverlayBoundary';
 import {
   attachDirtyTracking,
   clearDirtyTracking,
@@ -321,14 +325,23 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
         'Workbox precache manifest must not contain duplicate URLs'
       );
       assert.ok(
-        precacheUrls.length >= 15 && precacheUrls.length <= 95,
-        `Expected shell static-closure precache (15..95 entries), got ${precacheUrls.length}`
+        precacheUrls.length >= 15 && precacheUrls.length <= 135,
+        `Expected shell static-closure precache (15..135 entries), got ${precacheUrls.length}`
       );
-      assert.ok(
-        precacheUrls.some((u) => /FeedbackWidget-/.test(u)) &&
-          precacheUrls.some((u) => /LedgerAutoAuditor-/.test(u)),
-        'Always-mounted lazy shell widgets (FeedbackWidget, LedgerAutoAuditor) must be precached for offline boot'
-      );
+      for (const prefix of [
+        'FeedbackWidget-',
+        'LedgerAutoAuditor-',
+        'CommandPalette-',
+        'ShortcutOverlay-',
+        'DiagnosticConsole-',
+        'NotificationDrawer-',
+        'LegalModal-',
+      ]) {
+        assert.ok(
+          precacheUrls.some((u) => u.includes(prefix)),
+          `Expected lazy shell/overlay chunk ${prefix}* in sw.js precache`
+        );
+      }
       assert.ok(
         !precacheUrls.some((u) => /exceljs|vendor-viz/.test(u)),
         'Heavy lazy chunks (exceljs, vendor-viz) must never be upfront precached'
@@ -369,6 +382,85 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
         appEntryCode.length < 600_000,
         `Initial app entry chunk must stay well below legacy 1.15 MB monolith, got ${appEntryCode.length} bytes`
       );
+    }
+  });
+
+  it('contains lazy overlay import failures without unmounting sibling workspace drafts and retries cleanly', async () => {
+    let shouldFail = true;
+    let loadAttempts = 0;
+    let dismissed = 0;
+
+    const MockOverlay = createRetryableLazy<{ title: string }>(async () => {
+      loadAttempts += 1;
+      if (shouldFail) {
+        throw new Error('ChunkLoadError: offline');
+      }
+      return {
+        default: ({ title }: { title: string }) => React.createElement('div', { id: 'loaded-overlay' }, title),
+      };
+    });
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = ReactDOM.createRoot(host);
+    const origError = console.error;
+    console.error = () => {};
+
+    try {
+      await act(async () => {
+        root.render(
+          React.createElement(
+            'div',
+            null,
+            React.createElement('input', { id: 'draft-memo', defaultValue: 'Unsaved journal memo' }),
+            React.createElement(
+              LazyOverlayBoundary,
+              {
+                label: 'Command palette',
+                onDismiss: () => {
+                  dismissed += 1;
+                },
+                onRetry: () => {},
+              },
+              React.createElement(MockOverlay, { title: 'Search commands' })
+            )
+          )
+        );
+      });
+
+      assert.equal(loadAttempts, 1);
+      assert.equal(dismissed, 1, 'failed overlay import calls onDismiss cleanly');
+      assert.equal(
+        (host.querySelector('#draft-memo') as HTMLInputElement | null)?.value,
+        'Unsaved journal memo',
+        'sibling workspace draft remains mounted when overlay import fails'
+      );
+
+      // Reopening after network recovers loads the fresh RetryableLazy wrapper cleanly
+      shouldFail = false;
+      await act(async () => {
+        root.render(
+          React.createElement(
+            'div',
+            null,
+            React.createElement('input', { id: 'draft-memo', defaultValue: 'Unsaved journal memo' }),
+            React.createElement(
+              LazyOverlayBoundary,
+              { key: 'reopen-2', label: 'Command palette' },
+              React.createElement(MockOverlay, { title: 'Search commands' })
+            )
+          )
+        );
+      });
+
+      assert.equal(loadAttempts, 2);
+      assert.equal(host.querySelector('#loaded-overlay')?.textContent, 'Search commands');
+    } finally {
+      console.error = origError;
+      await act(async () => {
+        root.unmount();
+      });
+      host.remove();
     }
   });
 });
