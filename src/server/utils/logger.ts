@@ -20,6 +20,7 @@ export const logContext = new AsyncLocalStorage<LogContext>();
 const PERSONAL_KEY = /(^pass$|e-?mail|password|passwd|secret|token|authorization|cookie|phone|mobile|ssn|tax_?id|iban|account_?number|card_?number|api_?key)$/i;
 const MAX_DEPTH = 3;
 
+/** One field value made safe to log: errors and strings through logSafe, bigints as text, objects scrubbed up to MAX_DEPTH. */
 function scrubValue(value: unknown, depth: number): unknown {
   if (value instanceof Error) return logSafeDetail(value);
   if (typeof value === 'string') return logSafe(value, 1000);
@@ -48,6 +49,7 @@ export function logLine(level: Level, msg: string, fields?: Record<string, unkno
   return { ...scrubFields(fields), level, time: new Date().toISOString(), msg: logSafe(msg, 1000), ...known };
 }
 
+/** Writes one JSON line: info to stdout, warnings and errors to stderr. */
 function write(level: Level, msg: string, fields?: Record<string, unknown>, context?: LogContext) {
   const line = JSON.stringify(logLine(level, msg, fields, context ?? logContext.getStore())) + '\n';
   (level === 'info' ? process.stdout : process.stderr).write(line);
