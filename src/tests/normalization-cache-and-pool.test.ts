@@ -365,10 +365,10 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
     }
   });
 
-  test('transaction-owned lf_rules lookup failure marks tx state failed even if callback catches the error', async () => {
+  test('transaction-owned lf_rules lookup failure marks tx state failed and rethrows on subsequent tx reads without pool deadlock', async () => {
     const pool = new pg.Pool({
       max: 1,
-      connectionTimeoutMillis: 200,
+      connectionTimeoutMillis: 150,
       Client: makeSingleSlotClientClass({ failRulesOnce: true }) as unknown as typeof pg.Client,
     });
     const db = new Firestore({ pool });
@@ -379,12 +379,41 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
           try {
             await t.get(db.collection('workspaces').doc('ws-1'));
           } catch {
-            // Swallow inside callback; runTransaction must still surface the aborted SQL transaction
+            // Second read inside the same failed transaction must immediately throw recorded failure,
+            // not wait for a second pool client at max=1
+            await assert.rejects(
+              t.get(db.collection('workspaces').doc('ws-2')),
+              /simulated lf_rules failure/,
+            );
           }
           return 'swallowed';
         }),
         /simulated lf_rules failure/,
       );
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('transaction does not deadlock awaiting a cold pool-owned lf_rules lookup while holding the sole pool client', async () => {
+    const pool = new pg.Pool({
+      max: 1,
+      connectionTimeoutMillis: 500,
+      Client: makeSingleSlotClientClass() as unknown as typeof pg.Client,
+    });
+    const db = new Firestore({ pool });
+
+    try {
+      let poolReadPromise: Promise<unknown> | null = null;
+      const txResult = await db.runTransaction(async (t) => {
+        // Queue a non-transactional read on the pool while this transaction already holds the sole client
+        poolReadPromise = db.collection('workspaces').doc('ws-outside').get();
+        const snap = await t.get(db.collection('workspaces').doc('ws-inside'));
+        return snap.exists;
+      });
+      assert.equal(txResult, false);
+      const outsideSnap = await poolReadPromise!;
+      assert.equal((outsideSnap as { exists: boolean }).exists, false);
     } finally {
       await pool.end();
     }

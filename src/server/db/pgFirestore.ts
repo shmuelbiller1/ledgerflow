@@ -522,7 +522,9 @@ type TxContext = { runner: Runner; state: TxState } | null;
 
 export class Firestore {
   private poolInstance: pg.Pool | null = null;
-  private tableList: Promise<Set<string>> | null = null;
+  private resolvedTables: Set<string> | null = null;
+  private poolTableList: Promise<Set<string>> | null = null;
+  private readonly runnerTableLists = new WeakMap<Runner, Promise<Set<string>>>();
   private readonly warnedCollections = new Set<string>();
 
   constructor(private readonly settingsValue: FirestoreSettings = {}) {
@@ -549,7 +551,8 @@ export class Firestore {
   async terminate(): Promise<void> {
     const pool = this.poolInstance;
     this.poolInstance = null;
-    this.tableList = null;
+    this.resolvedTables = null;
+    this.poolTableList = null;
     if (pool && !this.settingsValue.pool) await pool.end();
   }
 
@@ -627,25 +630,55 @@ export class Firestore {
 
   /** @internal Names of the document tables (from lf_rules, one row per collection). */
   async tables(runner: Runner = this.pool, state: TxState | null = null): Promise<Set<string>> {
-    if (!this.tableList) {
-      const usedTxRunner = runner !== this.pool;
-      this.tableList = runner
+    if (state && state.failure !== undefined) {
+      throw translateError(state.failure, 'Loading collections');
+    }
+    if (this.resolvedTables) {
+      return this.resolvedTables;
+    }
+    if (runner !== this.pool) {
+      let pending = this.runnerTableLists.get(runner);
+      if (!pending) {
+        pending = runner
+          .query<{ table_name: string }>('select table_name from public.lf_rules')
+          .then(r => {
+            const set = new Set(r.rows.map(row => row.table_name));
+            this.resolvedTables = set;
+            return set;
+          })
+          .catch(err => {
+            this.runnerTableLists.delete(runner);
+            if (state && state.failure === undefined) {
+              state.failure = err;
+            }
+            throw translateError(err, 'Loading collections');
+          });
+        this.runnerTableLists.set(runner, pending);
+      }
+      return pending;
+    }
+    if (!this.poolTableList) {
+      this.poolTableList = this.pool
         .query<{ table_name: string }>('select table_name from public.lf_rules')
-        .then(r => new Set(r.rows.map(row => row.table_name)))
+        .then(r => {
+          const set = new Set(r.rows.map(row => row.table_name));
+          this.resolvedTables = set;
+          return set;
+        })
         .catch(err => {
-          this.tableList = null;
-          if (usedTxRunner && state && state.failure === undefined) {
-            state.failure = err;
-          }
+          this.poolTableList = null;
           throw translateError(err, 'Loading collections');
         });
     }
-    return this.tableList;
+    return this.poolTableList;
   }
 
-  /** Selects the active transaction runner when healthy, falling back to the shared pool. */
+  /** Selects the active transaction runner or rethrows its recorded failure before touching the pool. */
   private runnerForTables(tx: TxContext): { runner: Runner; state: TxState | null } {
-    if (tx && tx.state.failure === undefined) {
+    if (tx) {
+      if (tx.state.failure !== undefined) {
+        throw translateError(tx.state.failure, 'Loading collections');
+      }
       return { runner: tx.runner, state: tx.state };
     }
     return { runner: this.pool, state: null };
@@ -748,12 +781,12 @@ export class Firestore {
 
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
+    if (state && state.failure !== undefined) {
+      throw translateError(state.failure, 'Writing document');
+    }
     const tx: TxContext = state ? { runner, state } : null;
-    const useTxRunner = !state || state.failure === undefined;
-    const tableRunner = useTxRunner ? runner : this.pool;
-    const tableState = useTxRunner ? state : null;
     for (const op of ops) {
-      if (!(await this.tables(tableRunner, tableState)).has(op.ref.collectionId)) {
+      if (!(await this.tables(runner, state)).has(op.ref.collectionId)) {
         throw invalid(`Unknown collection "${op.ref.collectionId}": add a table for it in supabase/migrations`);
       }
       let result: pg.QueryResult;

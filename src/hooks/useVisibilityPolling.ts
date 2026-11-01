@@ -62,21 +62,21 @@ export function useVisibilityPolling(
 
   const lastRunAtRef = useRef(0);
   const wasPausedRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || intervalMs <= 0) return undefined;
 
     let cancelled = false;
-    let inFlight = false;
 
     const execute = async () => {
-      if (cancelled || inFlight) return;
-      inFlight = true;
+      if (cancelled || inFlightRef.current) return;
+      inFlightRef.current = true;
       lastRunAtRef.current = Date.now();
       try {
         await callbackRef.current();
       } finally {
-        inFlight = false;
+        inFlightRef.current = false;
       }
     };
 

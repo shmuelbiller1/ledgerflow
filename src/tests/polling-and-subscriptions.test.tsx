@@ -215,6 +215,56 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     assert.equal(calls, 1, 'deferred initial poll must execute immediately when tab becomes visible');
   });
 
+  test('preserves in-flight deduplication across effect re-runs while a callback is still pending', async () => {
+    setDocumentVisibility('visible');
+    setNavigatorOnline(true);
+    let started = 0;
+    let releaseFirst: (() => void) | null = null;
+    const callback = () =>
+      new Promise<void>((resolve) => {
+        started += 1;
+        if (started === 1) {
+          releaseFirst = resolve;
+        } else {
+          resolve();
+        }
+      });
+
+    const { rerender, unmount } = render(
+      <PollingHarness
+        callback={callback}
+        intervalMs={40}
+        options={{ enabled: true, runImmediately: true, minResumeIntervalMs: 5 }}
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 15));
+    });
+    assert.equal(started, 1, 'first poll should be in flight');
+
+    // Rerender with a new intervalMs to force the polling effect to clean up and re-subscribe
+    rerender(
+      <PollingHarness
+        callback={callback}
+        intervalMs={25}
+        options={{ enabled: true, runImmediately: true, minResumeIntervalMs: 5 }}
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    assert.equal(started, 1, 're-run effect must not start a second callback until the first resolves');
+
+    await act(async () => {
+      releaseFirst?.();
+      await new Promise((r) => setTimeout(r, 40));
+    });
+    assert.ok(started >= 2, 'subsequent interval ticks resume once the first callback completes');
+    unmount();
+  });
+
   test('StatusPage loads initial status and refreshes immediately when a hidden tab becomes visible', async () => {
     const urls = stubFetch(200, {
       state: 'operational',
