@@ -13,6 +13,7 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import type { Transaction, Workspace } from '../../types';
 import { AdminUser, TenantTelemetry, TelemetryLog, CommandCenterTelemetry, errorMessage, fetchWithAuth } from './SystemCommandCenterShared';
+/** Provides tenant telemetry, global billing controls, and tab-scoped polling for SystemCommandCenter. */
 function useSystemCommandCenterModel() {
   const formId = useId();
   const [telemetry, setTelemetry] = useState<CommandCenterTelemetry | null>(null);

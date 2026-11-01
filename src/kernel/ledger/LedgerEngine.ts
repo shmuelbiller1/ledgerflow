@@ -20,6 +20,7 @@ export interface NormalizationCacheStats {
 
 const DEFAULT_WORKSPACE_SCOPE = '__default__';
 
+/** Serializes a dimension key/value map into a deterministic string fragment for cache keys. */
 function serializeDimensions(dimensions?: Record<string, string>): string {
   if (!dimensions) return '';
   let out = '';
@@ -29,6 +30,7 @@ function serializeDimensions(dimensions?: Record<string, string>): string {
   return out;
 }
 
+/** Builds a deterministic signature over all line-level fields consumed by ledger normalization. */
 function buildLinesSignature(lines?: Transaction['lines']): string {
   if (!lines || lines.length === 0) return '';
   return lines
@@ -39,6 +41,7 @@ function buildLinesSignature(lines?: Transaction['lines']): string {
     .join('|');
 }
 
+/** Builds a deterministic cache key over all transaction and line fields used in `_normalized`. */
 function buildNormalizationKey(tx: Transaction, metadataJson: string): string {
   return [
     tx.id || '',
@@ -73,6 +76,7 @@ export class LedgerEngine {
   private static readonly MAX_CACHED_WORKSPACES = 2;
   private static readonly MAX_CACHE_ENTRIES_PER_WORKSPACE = 10_000;
 
+  /** Evicts cached normalization metadata for a single workspace or all workspaces. */
   static clearNormalizationCache(workspaceId?: string): void {
     if (workspaceId !== undefined) {
       this.workspaceNormalizationCaches.delete(workspaceId || DEFAULT_WORKSPACE_SCOPE);
@@ -81,6 +85,7 @@ export class LedgerEngine {
     this.workspaceNormalizationCaches.clear();
   }
 
+  /** Returns current occupancy and configured bounds of the workspace normalization caches. */
   static getNormalizationCacheStats(): NormalizationCacheStats {
     let entries = 0;
     for (const wsCache of this.workspaceNormalizationCaches.values()) {
@@ -94,6 +99,7 @@ export class LedgerEngine {
     };
   }
 
+  /** Returns the LRU cache map for `workspaceScope`, evicting the oldest workspace when full. */
   private static getWorkspaceCache(workspaceScope: string): Map<string, NormalizedMeta> {
     const existing = this.workspaceNormalizationCaches.get(workspaceScope);
     if (existing) {
@@ -122,6 +128,7 @@ export class LedgerEngine {
         .trim();
   }
 
+  /** Computes derived search, period, magnitude, and balance metadata for a single transaction. */
   private static computeNormalizedMeta(t: Transaction, metadataJson: string): NormalizedMeta {
     const absAmount = Math.abs(Math.round((t.totalAmountCents || 0) * (t.exchangeRate || 1))) / 100;
     const tDate = t.date || '';
@@ -145,6 +152,7 @@ export class LedgerEngine {
     };
   }
 
+  /** Normalizes transactions with workspace-isolated LRU caching of derived `_normalized` metadata. */
   static normalize(transactions: Transaction[]): NormalizedLedgerTransaction[] {
     return transactions.map((t) => {
       const workspaceScope = t.workspaceId || DEFAULT_WORKSPACE_SCOPE;

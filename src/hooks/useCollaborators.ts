@@ -19,12 +19,14 @@ const COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
 ];
 
+/** Marks a Node interval handle as unreferenced so idle test processes can exit cleanly. */
 function unrefTimer(timer: ReturnType<typeof setInterval>): void {
   if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof timer.unref === 'function') {
     timer.unref();
   }
 }
 
+/** Tracks active workspace collaborators via Realtime snapshots and visibility-gated presence heartbeats. */
 export function useCollaborators() {
   const uid = useAuthStore(s => s.userProfile?.uid);
   const displayName = useAuthStore(s => s.userProfile?.displayName);

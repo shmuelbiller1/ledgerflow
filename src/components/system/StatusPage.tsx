@@ -41,6 +41,7 @@ const HEADLINE: Record<SystemStatus['state'], string> = {
   down: 'LedgerFlow is not working right now',
 };
 
+/** Renders the public system health status page and refreshes health checks while visible. */
 export default function StatusPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [unreachable, setUnreachable] = useState(false);

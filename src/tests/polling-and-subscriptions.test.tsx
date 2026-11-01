@@ -16,6 +16,7 @@ import {
   where,
 } from '../lib/db/firestore';
 
+/** Overrides `document.visibilityState` for visibility-polling unit tests. */
 function setDocumentVisibility(state: DocumentVisibilityState): void {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -23,6 +24,7 @@ function setDocumentVisibility(state: DocumentVisibilityState): void {
   });
 }
 
+/** Overrides `window.navigator.onLine` for offline-polling unit tests. */
 function setNavigatorOnline(online: boolean): void {
   Object.defineProperty(window.navigator, 'onLine', {
     configurable: true,
@@ -30,6 +32,7 @@ function setNavigatorOnline(online: boolean): void {
   });
 }
 
+/** Minimal React harness mounting `useVisibilityPolling` with configurable props. */
 function PollingHarness({
   callback,
   intervalMs,
@@ -43,6 +46,7 @@ function PollingHarness({
   return <div data-testid="polling-harness">ready</div>;
 }
 
+/** Creates an in-memory Supabase client stub that counts Realtime channel creation and removal. */
 function makeFakeSupabaseClient() {
   let createdChannels = 0;
   let removedChannels = 0;
@@ -182,6 +186,33 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     assert.equal(calls, afterDisable);
 
     unmount();
+  });
+
+  test('runImmediately defers initial execution when mounted while hidden and catches up on visibility resume', async () => {
+    setDocumentVisibility('hidden');
+    let calls = 0;
+
+    render(
+      <PollingHarness
+        callback={() => {
+          calls += 1;
+        }}
+        intervalMs={60_000}
+        options={{ enabled: true, runImmediately: true, minResumeIntervalMs: 5 }}
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 40));
+    });
+    assert.equal(calls, 0, 'runImmediately must not execute while tab is hidden');
+
+    setDocumentVisibility('visible');
+    await act(async () => {
+      document.dispatchEvent(new window.Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    assert.equal(calls, 1, 'deferred initial poll must execute immediately when tab becomes visible');
   });
 
   test('StatusPage loads initial status and refreshes immediately when a hidden tab becomes visible', async () => {

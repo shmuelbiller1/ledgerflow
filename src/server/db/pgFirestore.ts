@@ -461,6 +461,7 @@ const warnOnceAtStartup = (message: string): void => {
   console.warn(message);
 };
 
+/** Resolves the effective pg.Pool max connections from explicit settings, PG_POOL_MAX, or runtime defaults. */
 function resolvePoolMax(settingsMax: number | undefined, env: NodeJS.ProcessEnv, isServerless: boolean): number {
   if (typeof settingsMax === 'number' && Number.isFinite(settingsMax) && settingsMax > 0) {
     return Math.floor(settingsMax);
@@ -472,6 +473,7 @@ function resolvePoolMax(settingsMax: number | undefined, env: NodeJS.ProcessEnv,
   return isServerless ? SERVERLESS_DEFAULT_POOL_MAX : STANDALONE_DEFAULT_POOL_MAX;
 }
 
+/** Builds a pg.PoolConfig from explicit settings and environment variables with TLS and serverless sizing. */
 export function poolConfigFromEnv(
   settings: FirestoreSettings = {},
   env: NodeJS.ProcessEnv = process.env,
@@ -624,25 +626,35 @@ export class Firestore {
   }
 
   /** @internal Names of the document tables (from lf_rules, one row per collection). */
-  async tables(runner: Runner = this.pool): Promise<Set<string>> {
+  async tables(runner: Runner = this.pool, state: TxState | null = null): Promise<Set<string>> {
     if (!this.tableList) {
+      const usedTxRunner = runner !== this.pool;
       this.tableList = runner
         .query<{ table_name: string }>('select table_name from public.lf_rules')
         .then(r => new Set(r.rows.map(row => row.table_name)))
         .catch(err => {
           this.tableList = null;
+          if (usedTxRunner && state && state.failure === undefined) {
+            state.failure = err;
+          }
           throw translateError(err, 'Loading collections');
         });
     }
     return this.tableList;
   }
 
-  private runnerForTables(tx: TxContext): Runner {
-    return tx && tx.state.failure === undefined ? tx.runner : this.pool;
+  /** Selects the active transaction runner when healthy, falling back to the shared pool. */
+  private runnerForTables(tx: TxContext): { runner: Runner; state: TxState | null } {
+    if (tx && tx.state.failure === undefined) {
+      return { runner: tx.runner, state: tx.state };
+    }
+    return { runner: this.pool, state: null };
   }
 
+  /** Checks whether a collection has a backing document table, logging a one-time warning when absent. */
   private async hasTable(collectionId: string, tx: TxContext = null): Promise<boolean> {
-    const known = (await this.tables(this.runnerForTables(tx))).has(collectionId);
+    const { runner, state } = this.runnerForTables(tx);
+    const known = (await this.tables(runner, state)).has(collectionId);
     if (!known && !this.warnedCollections.has(collectionId)) {
       this.warnedCollections.add(collectionId);
       console.warn(`[Database] Collection "${collectionId}" has no table; reads return nothing.`);
@@ -737,9 +749,11 @@ export class Firestore {
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
     const tx: TxContext = state ? { runner, state } : null;
-    const tableRunner = state && state.failure !== undefined ? this.pool : runner;
+    const useTxRunner = !state || state.failure === undefined;
+    const tableRunner = useTxRunner ? runner : this.pool;
+    const tableState = useTxRunner ? state : null;
     for (const op of ops) {
-      if (!(await this.tables(tableRunner)).has(op.ref.collectionId)) {
+      if (!(await this.tables(tableRunner, tableState)).has(op.ref.collectionId)) {
         throw invalid(`Unknown collection "${op.ref.collectionId}": add a table for it in supabase/migrations`);
       }
       let result: pg.QueryResult;

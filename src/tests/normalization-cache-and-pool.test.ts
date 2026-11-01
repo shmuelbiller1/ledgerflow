@@ -12,6 +12,7 @@ import {
 } from '../server/db/pgFirestore';
 import type { Transaction } from '../types';
 
+/** Builds a balanced sample ledger transaction with full dimensional and line metadata. */
 function makeTransaction(overrides: Partial<Transaction> & { notes?: string } = {}): Transaction & { notes?: string } {
   return {
     id: 'tx-100',
@@ -57,7 +58,9 @@ function makeTransaction(overrides: Partial<Transaction> & { notes?: string } = 
   };
 }
 
-function makeSingleSlotClientClass() {
+/** Creates an in-memory pg.Client implementation for deterministic single-connection pool tests. */
+function makeSingleSlotClientClass(options: { failRulesOnce?: boolean } = {}) {
+  let failedOnce = false;
   return class SingleSlotPgClient extends EventEmitter {
     ref() {}
     unref() {}
@@ -72,6 +75,15 @@ function makeSingleSlotClientClass() {
     query(sqlOrCfg: string | { text: string }, values?: unknown, cb?: (err: Error | null, res?: unknown) => void): Promise<unknown> | void {
       const sql = typeof sqlOrCfg === 'string' ? sqlOrCfg : sqlOrCfg.text;
       const callback = typeof values === 'function' ? (values as (err: Error | null, res?: unknown) => void) : cb;
+      if (/lf_rules/i.test(sql) && options.failRulesOnce && !failedOnce) {
+        failedOnce = true;
+        const err = new Error('simulated lf_rules failure');
+        if (callback) {
+          void Promise.resolve().then(() => callback(err));
+          return undefined;
+        }
+        return Promise.reject(err);
+      }
       let res: { rows: unknown[]; rowCount: number } = { rows: [], rowCount: 1 };
       if (/lf_rules/i.test(sql)) {
         res = {
@@ -348,6 +360,31 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
       } finally {
         await pool2.end();
       }
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('transaction-owned lf_rules lookup failure marks tx state failed even if callback catches the error', async () => {
+    const pool = new pg.Pool({
+      max: 1,
+      connectionTimeoutMillis: 200,
+      Client: makeSingleSlotClientClass({ failRulesOnce: true }) as unknown as typeof pg.Client,
+    });
+    const db = new Firestore({ pool });
+
+    try {
+      await assert.rejects(
+        db.runTransaction(async (t) => {
+          try {
+            await t.get(db.collection('workspaces').doc('ws-1'));
+          } catch {
+            // Swallow inside callback; runTransaction must still surface the aborted SQL transaction
+          }
+          return 'swallowed';
+        }),
+        /simulated lf_rules failure/,
+      );
     } finally {
       await pool.end();
     }

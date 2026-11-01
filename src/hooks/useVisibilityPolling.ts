@@ -31,6 +31,7 @@ export function isClientActiveForPolling(): boolean {
   return true;
 }
 
+/** Marks a Node timer as unreferenced so open test suites are not kept alive by idle pollers. */
 function unrefTimer(timer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout>): void {
   if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof timer.unref === 'function') {
     timer.unref();
@@ -84,6 +85,7 @@ export function useVisibilityPolling(
       initialTimer = setTimeout(() => {
         if (!isClientActiveForPolling()) {
           wasPausedRef.current = true;
+          return;
         }
         void execute();
       }, 0);

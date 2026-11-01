@@ -13,6 +13,7 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import { AVAILABLE_SCOPES, ApiLogEntry, PublicKeyRow } from './ApiHubShared';
 import { copyText } from '../../lib/clipboard';
+/** Provides state, API key lifecycle actions, sandbox runner, and visibility-gated log polling for ApiHub. */
 export function useApiHubModel() {
   const formId = useId();
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);

@@ -32,6 +32,7 @@ import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
 type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
 
+/** Subscribes to workspace metadata, user profile, and on-demand ledger collections for the active session. */
 export function useLedgerData() {
   const user = useAuthStore(s => s.user);
   const userUid = user?.uid;
