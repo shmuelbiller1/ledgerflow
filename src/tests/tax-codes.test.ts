@@ -166,6 +166,14 @@ describe('Tax rounding policy (Y-35)', () => {
     assert.equal(documentTotals(1005, 0, vat10, false, 'half_even').amountCents, 1105);
   });
 
+  test('prices including tax: the policy rounds the included tax (19.99 at 10% holds 1.8172…)', () => {
+    assert.equal(computeTax(1999, vat10, true, 'down').taxCents, 181);
+    assert.equal(computeTax(1999, vat10, true, 'down').netCents, 1818);
+    assert.equal(computeTax(1999, vat10, true, 'half_even').taxCents, 182);
+    // 11.55 at 10% holds exactly 1.05: unchanged by any policy
+    for (const mode of ['half_up', 'half_even', 'down'] as const) assert.equal(computeTax(1155, vat10, true, mode).taxCents, 105, mode);
+  });
+
   test('prices including tax still add up to the gross exactly under every policy', () => {
     for (const mode of ['half_up', 'half_even', 'down'] as const) {
       const t = computeTax(1999, compound, true, mode);

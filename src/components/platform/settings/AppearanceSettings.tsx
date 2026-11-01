@@ -93,9 +93,14 @@ export default function AppearanceSettings() {
   const taxRounding: TaxRounding = activeWorkspace?.taxRounding || 'half_up';
   // not async: the select's change has no caller waiting, so the outcome is reported here and only here
   const handleTaxRoundingChange = (mode: TaxRounding): void => {
-    if (!currentWorkspaceId) return;
-    updateDoc(doc(db, 'workspaces', currentWorkspaceId), { taxRounding: mode }).then(() => {
-      setWorkspaces(workspaces.map(w => (w.id === currentWorkspaceId ? { ...w, taxRounding: mode } : w)));
+    const workspaceId = currentWorkspaceId;
+    if (!workspaceId) return;
+    const startedBy = useAuthStore.getState().user?.uid;
+    updateDoc(doc(db, 'workspaces', workspaceId), { taxRounding: mode }).then(() => {
+      // a reply that arrives after a sign-out or account switch must not write the old account's workspaces back
+      const now = useAuthStore.getState();
+      if (now.user?.uid !== startedBy) return;
+      now.setWorkspaces(now.workspaces.map(w => (w.id === workspaceId ? { ...w, taxRounding: mode } : w)));
       toast.success('Tax rounding saved');
     }, (err: unknown) => {
       console.error("[Settings] Failed to save tax rounding:", err);
