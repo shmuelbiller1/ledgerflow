@@ -9,56 +9,22 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { createRequire } from 'node:module';
+import { recordRouters, writeRoutes } from './helpers/routeRecorder';
+import { TASK_KIND } from '../lib/tasks';
 
 const hasDb = !!process.env.LF_TEST_DATABASE_URL;
-type Rec = { router: object; kind: 'verb' | 'use'; method?: string; path: string; child?: object };
-const recs: Rec[] = [];
-const WRITE = ['post', 'put', 'patch', 'delete'];
 /**
  * Writes a viewer may make by design (each service checks the rest): watch a record, answer a client question,
- * log and move their own time, and change or remove a task given to them. These are left out of the viewer check;
+ * log and move their own time, and change the status of a task given to them (only whoever made a task, or an owner,
+ * removes it: that is tested on a real task below). These are left out of the viewer check;
  * that they work with a valid body, and nothing more, is AUD-09 step 2 (valid-body cases).
  */
 const VIEWER_MAY = new Set([
   'post /:workspaceId/tasks/watching', 'delete /:workspaceId/tasks/watching/:watchId',
-  'patch /:workspaceId/tasks/:taskId', 'delete /:workspaceId/tasks/:taskId',
+  'patch /:workspaceId/tasks/:taskId',
   'post /:workspaceId/queries/:queryId/reply',
   'post /:workspaceId/time/', 'patch /:workspaceId/time/:entryId', 'delete /:workspaceId/time/:entryId', 'post /:workspaceId/time/move',
 ]);
-
-/** Wraps express.Router so every router created afterwards records its routes and mounts. */
-function recordRouters() {
-  const require = createRequire(import.meta.url);
-  const express = require('express');
-  let proto = Object.getPrototypeOf(express.Router());
-  while (proto && !Object.prototype.hasOwnProperty.call(proto, 'post')) proto = Object.getPrototypeOf(proto);
-  for (const m of WRITE) {
-    const orig = proto[m];
-    proto[m] = function (this: object, path: unknown, ...rest: unknown[]) {
-      if (typeof path === 'string') recs.push({ router: this, kind: 'verb', method: m, path });
-      return orig.call(this, path, ...rest);
-    };
-  }
-  const origUse = proto.use;
-  proto.use = function (this: object, path: unknown, ...rest: unknown[]) {
-    if (typeof path === 'string') for (const h of rest) if (typeof h === 'function' && Array.isArray((h as { stack?: unknown }).stack)) recs.push({ router: this, kind: 'use', path, child: h });
-    return origUse.call(this, path, ...rest);
-  };
-}
-
-function writeRoutes(root: object): { method: string; path: string }[] {
-  const out: { method: string; path: string }[] = [];
-  const walk = (router: object, prefix: string, depth: number) => {
-    if (depth > 6) return;
-    for (const r of recs.filter(x => x.router === router)) {
-      if (r.kind === 'verb') out.push({ method: r.method!, path: prefix + r.path });
-      else walk(r.child!, prefix + r.path, depth + 1);
-    }
-  };
-  walk(root, '', 0);
-  return out;
-}
 
 describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb && 'needs LF_TEST_DATABASE_URL' }, () => {
   const ws = `aud09_${crypto.randomBytes(4).toString('hex')}`;
@@ -73,6 +39,8 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
     const express = (await import('express')).default;
     const { workspaceRouter } = await import('../server/routes/workspaceRoutes');
     db = (await import('../server/db/firestore')).getDb() as unknown as typeof db;
+    // a task made by the owner and given to the viewer, so the viewer's DELETE reaches the service's own check
+    await db.collection('documents').doc(`${ws}_task`).set({ kind: TASK_KIND, workspaceId: ws, title: 'AUD-09', assignee: 'view-1', createdBy: 'owner-1', status: 'open' });
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'AUD-09', currency: 'USD', timezone: 'UTC', members: ['owner-1', 'view-1'], roles: { 'view-1': 'viewer' } });
     routes = writeRoutes(workspaceRouter).filter(r => r.path.includes(':workspaceId'));
     const app = express();
@@ -85,6 +53,8 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
   after(async () => {
     server?.close();
     try {
+      await db?.pool.query(`delete from public."documents" where workspace_id = $1`, [ws]);
+      await db?.pool.query(`delete from public."auditLogs" where workspace_id = $1`, [ws]);
       await db?.pool.query(`delete from public."workspaces" where id = $1`, [ws]);
     } finally {
       await db?.terminate();
@@ -115,4 +85,10 @@ describe('AUD-09: write routes refuse non-members and viewers', { skip: !hasDb &
       assert.deepEqual(holes, []);
     });
   }
+
+  it('a viewer cannot remove a task given to them; only whoever made it, or an owner, can', async () => {
+    const del = async (uid: string) => (await fetch(`${base}/api/v1/workspaces/${ws}/tasks/${ws}_task`, { method: 'DELETE', headers: { 'x-test-uid': uid } })).status;
+    assert.equal(await del('view-1'), 403);
+    assert.equal(await del('owner-1'), 200);
+  });
 });
