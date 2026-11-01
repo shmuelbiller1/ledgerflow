@@ -399,8 +399,8 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
 
       previousRole = data.roles?.[targetUid] || (data.uid === targetUid ? 'owner' : 'viewer');
 
-      // Protect last owner from demotion
-      if (role !== 'owner' && ownerUids.includes(targetUid) && count <= 1) {
+      // the creator always counts as owner (workspaceRole), so never store another role for them; protect the last owner too
+      if (role !== 'owner' && (data.uid === targetUid || (ownerUids.includes(targetUid) && count <= 1))) {
         throw new Error('LAST_OWNER_PROTECTION');
       }
 
@@ -437,7 +437,7 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
     res.json({ status: 'success', targetUid, role, previousRole });
   } catch (err) {
     if (errorMessage(err) === 'LAST_OWNER_PROTECTION') {
-      return sendError(res, 'Cannot demote or remove the last owner of the workspace.', 400);
+      return sendError(res, 'Cannot demote the person who created the workspace, or its last owner.', 400);
     }
     if (errorMessage(err) === 'NOT_FOUND') return sendError(res, 'Workspace not found', 404);
     sendError(res, 'Failed to update workspace role', 500, errorMessage(err));
