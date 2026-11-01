@@ -94,9 +94,12 @@ export function TransactionGridView(model: TransactionGridModel) {
             projects={projects}
             onSave={(lines) => {
               if (splittingTxId) {
-                inBackground(onUpdate?.(splittingTxId, { lines }));
-                setSplittingTxId(null);
-                toast.success('Transaction split applied');
+                // confirm only once the save has gone through (a handled failure resolves false)
+                inBackground(Promise.resolve(onUpdate?.(splittingTxId, { lines })).then(result => {
+                  if (result === false) return;
+                  setSplittingTxId(null);
+                  toast.success('Transaction split applied');
+                }));
               }
             }}
             onClose={() => setSplittingTxId(null)}
