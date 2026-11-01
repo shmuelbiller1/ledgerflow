@@ -112,7 +112,8 @@ describe('Customer quotes, proposals and recurring estimates screen (A-49 / A-17
           currency: 'USD',
           owedCents: 0,
           invoices: [],
-          estimates: [openEst],
+          // the portal uses the real date, so this quote must never expire (the fixture's 2026-11-01 did)
+          estimates: [{ ...openEst, expiryDate: '2999-12-31' }],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       )) as typeof fetch;
