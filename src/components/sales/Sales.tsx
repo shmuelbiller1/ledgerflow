@@ -52,6 +52,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { inBackground } from '../../lib/inBackground';
 
 export default function Sales() {
   const user = useAuthStore(s => s.user);
@@ -232,9 +233,9 @@ export default function Sales() {
       if (asked === null) return; // the person backed out of the dialog; nothing is recorded
       note = asked;
     }
-    updateEntity('invoices', inv.id, {
+    inBackground(updateEntity('invoices', inv.id, {
       approval: approvalDecision(approvalSettings, decision, { uid: user?.uid, note }),
-    }, decision === 'approved' ? 'Approved — the invoice can be emailed now.' : 'Sent back for changes.');
+    }, decision === 'approved' ? 'Approved — the invoice can be emailed now.' : 'Sent back for changes.'));
   };
 
   const getStatusColor = (status: Invoice['status']) => {
@@ -619,7 +620,7 @@ export default function Sales() {
                             const spread = inv.revenueSchedule ? ' Its spread over months is undone too.' : '';
                             if (safeConfirm(`Void invoice ${inv.number || ''} for ${inv.customerName || 'this customer'} (${formatCurrency(inv.amountCents || 0, inv.currency)})? It stays on record as void and its entries are reversed.${spread}`)) {
                               if (inv.revenueSchedule && !(await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id))) return;
-                              onAddInvoice({ id: inv.id, status: 'void' });
+                              inBackground(onAddInvoice({ id: inv.id, status: 'void' }));
                             }
                           }}
                           className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-rose-500 transition-all"
@@ -709,7 +710,7 @@ export default function Sales() {
                               className="font-black text-[var(--text)] text-lg tracking-tight" />
                             <ArchivedBadge party={cust} />
                             <button type="button"
-                              onClick={(e) => { e.stopPropagation(); updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`); }}
+                              onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
                               className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">

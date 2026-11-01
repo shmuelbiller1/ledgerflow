@@ -82,7 +82,7 @@ export function ApiHubBilling({ model }: { model: ReturnType<typeof useApiHubMod
                     min="1"
                     max="50"
                     value={simSeatsCount}
-                    onChange={(e) => setSimSeatsCount(parseInt(e.target.value, 10))}
+                    onChange={(e) => setSimSeatsCount(Number.parseInt(e.target.value, 10))}
                     className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 rounded-lg appearance-none"
                   />
                   <div className="flex justify-between text-[9px] text-[var(--muted)]">
@@ -138,7 +138,7 @@ export function ApiHubBilling({ model }: { model: ReturnType<typeof useApiHubMod
                     max="100"
                     step="10"
                     value={simRequestsCount}
-                    onChange={(e) => setSimRequestsCount(parseInt(e.target.value, 10))}
+                    onChange={(e) => setSimRequestsCount(Number.parseInt(e.target.value, 10))}
                     className="w-full accent-purple-600 cursor-pointer h-1.5 bg-slate-100 rounded-lg appearance-none"
                   />
                   <div className="flex justify-between text-[9px] text-[var(--muted)]">

@@ -85,7 +85,7 @@ function regionCode(value: string): UsPostalCode | null {
 }
 
 function lastRegion(text: string, hasPostal: boolean): UsPostalCode | null {
-  const value = text.trim().replace(/,+$/, '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const value = text.trim().replace(/(?<!,),+$/, '').trim().toUpperCase().replace(/\s+/g, ' ');
   const abbr = value.match(/(?:^|[ ,])([A-Z]{2})$/)?.[1];
   if (abbr && isCode(abbr) && (hasPostal || value.includes(','))) return abbr;
 

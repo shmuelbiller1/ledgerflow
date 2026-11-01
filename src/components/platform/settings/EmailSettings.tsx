@@ -118,7 +118,7 @@ export default function EmailSettings() {
     setLimitText(approvalLimitUnits(settings.thresholdCents));
     setPoApproval(poNext);
     setPoLimitText(approvalLimitUnits(poNext.thresholdCents));
-    save({ invoiceApproval: settings }, settings.enabled
+    void save({ invoiceApproval: settings }, settings.enabled
       ? `Invoices over ${formatCurrency(settings.thresholdCents, workspace?.currency)} now wait for an owner's or an accountant's approval before they are emailed.`
       : 'Approval rules saved.');
   };
@@ -128,7 +128,7 @@ export default function EmailSettings() {
     const settings = normalizeReminderSettings({ enabled: reminders.enabled, daysAfterDue: days, thankYou: reminders.thankYou, monthlyStatements: reminders.monthlyStatements });
     setReminders(settings);
     setDaysText(settings.daysAfterDue.join(', '));
-    save({ reminderSettings: settings }, `${settings.enabled ? `Reminders on: ${settings.daysAfterDue.join(', ')} days after the due date.` : 'Automatic reminders are off.'} ${settings.thankYou ? 'Thank-you emails on.' : 'No thank-you emails.'} ${settings.monthlyStatements ? 'Monthly statements on.' : ''}`.trim());
+    void save({ reminderSettings: settings }, `${settings.enabled ? `Reminders on: ${settings.daysAfterDue.join(', ')} days after the due date.` : 'Automatic reminders are off.'} ${settings.thankYou ? 'Thank-you emails on.' : 'No thank-you emails.'} ${settings.monthlyStatements ? 'Monthly statements on.' : ''}`.trim());
   };
 
   const langDefault = defaultTemplateForLanguage(key, lang);

@@ -157,7 +157,7 @@ export const CASH_RUNWAY_ALGO: AlgorithmDefinition = {
     // Prepare chart data
     const chartData = recentMonths.map(m => ({
       Month: m,
-      'Net Flow': parseFloat(((monthlyNet[m] || 0) / 100).toFixed(2))
+      'Net Flow': Number.parseFloat(((monthlyNet[m] || 0) / 100).toFixed(2))
     }));
 
     return {

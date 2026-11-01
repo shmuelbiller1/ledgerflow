@@ -487,7 +487,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
                        step="0.000001"
                        min="0"
                        value={exchangeRate ?? ''}
-                       onChange={(e) => { setRateTyped(true); const n = parseFloat(e.target.value); setExchangeRate(Number.isFinite(n) && n > 0 ? n : null); }}
+                       onChange={(e) => { setRateTyped(true); const n = Number.parseFloat(e.target.value); setExchangeRate(Number.isFinite(n) && n > 0 ? n : null); }}
                        placeholder="Type the rate"
                        required
                        className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:outline-none focus:border-[var(--brass-line)] focus:bg-[var(--surface)] transition-all font-mono font-bold text-[var(--text)]"

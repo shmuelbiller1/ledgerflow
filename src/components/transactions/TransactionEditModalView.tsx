@@ -296,7 +296,7 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                     step="0.000001"
                     disabled={isLocked}
                     value={exchangeRate}
-                    onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1.0)}
+                    onChange={(e) => setExchangeRate(Number.parseFloat(e.target.value) || 1.0)}
                     placeholder="e.g. 1.08"
                     className="w-full px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-900/10 focus:border-emerald-500 outline-none transition-all text-xs font-mono font-bold text-emerald-900"
                   />

@@ -95,7 +95,7 @@ export function buildAlgorithmContext(
     const sTime = new Date(startDate).getTime();
     const eTime = new Date(endDate).getTime();
     const diff = Math.max(1, Math.round((eTime - sTime) / (1000 * 60 * 60 * 24)));
-    days = isNaN(diff) ? 365 : diff;
+    days = Number.isNaN(diff) ? 365 : diff;
   }
 
   const getRole = (accId: string) => resolveAccountRole(accounts.find(a => a.id === accId));

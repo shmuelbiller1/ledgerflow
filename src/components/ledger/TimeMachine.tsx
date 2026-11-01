@@ -62,7 +62,7 @@ export default function TimeMachine() {
     if (!ghostForm.description || !ghostForm.amount) return;
     addGhost(scenarioId, {
       description: ghostForm.description,
-      amountCents: Math.round(parseFloat(ghostForm.amount) * 100),
+      amountCents: Math.round(Number.parseFloat(ghostForm.amount) * 100),
       date: getLocalDateISO(),
       frequency: 'once',
       type: ghostForm.type

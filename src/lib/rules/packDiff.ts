@@ -99,7 +99,7 @@ export function diffRuleSnapshots(before: RuleSnapshot[], after: RuleSnapshot[],
 /** True when nothing a review reads has changed. */
 export const diffIsEmpty = (diff: RulePackDiff) => !diff.added.length && !diff.ended.length && !diff.changed.length;
 
-const rateInWords = (rule: RuleSnapshot) => (rule.isRate && typeof rule.rate === 'number' ? `${(rule.rate * 100).toFixed(3).replace(/\.?0+$/, '')}%` : '');
+const rateInWords = (rule: RuleSnapshot) => (rule.isRate && typeof rule.rate === 'number' ? `${(rule.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%` : '');
 
 /** The readable report for the accountant review. Pure. */
 export function packDiffMarkdown(diff: RulePackDiff): string {
@@ -127,7 +127,7 @@ export function packDiffMarkdown(diff: RulePackDiff): string {
     for (const change of diff.changed) {
       for (const field of change.fields) {
         const shown = field.field === 'rate' && field.before !== '—' && field.after !== '—'
-          ? { before: `${(Number(field.before) * 100).toFixed(3).replace(/\.?0+$/, '')}%`, after: `${(Number(field.after) * 100).toFixed(3).replace(/\.?0+$/, '')}%` }
+          ? { before: `${(Number(field.before) * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%`, after: `${(Number(field.after) * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%` }
           : { before: field.before, after: field.after };
         lines.push(`| ${change.name} | ${field.field} | ${shown.before} | ${shown.after} |`);
       }

@@ -42,6 +42,7 @@ import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { inBackground } from '../../lib/inBackground';
 
 const NO_VENDORS: Vendor[] = [];
 const NO_BILLS: Bill[] = [];
@@ -440,7 +441,7 @@ export default function Purchases() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleVoidBill(b);
+                                inBackground(handleVoidBill(b));
                               }}
                               className="px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
                             >
@@ -452,7 +453,7 @@ export default function Purchases() {
                         {b.status === 'draft' && <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteBill(b);
+                            inBackground(handleDeleteBill(b));
                           }}
                           className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
                           title="Delete draft"

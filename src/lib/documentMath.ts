@@ -29,7 +29,7 @@ export interface DocumentTaxInput {
  * Normalizes user-entered tax rate (e.g. 20, 20.0, 0.20 -> 0.20)
  */
 export function normalizeTaxRate(taxRate?: number): number {
-  if (taxRate === undefined || taxRate === null || isNaN(taxRate) || taxRate <= 0) {
+  if (taxRate === undefined || taxRate === null || Number.isNaN(taxRate) || taxRate <= 0) {
     return 0;
   }
   return taxRate > 1 ? taxRate / 100 : taxRate;
@@ -40,13 +40,13 @@ export function normalizeTaxRate(taxRate?: number): number {
  * Handles explicit overrides, tax-inclusive gross amounts, and tax-exclusive net amounts.
  */
 export function calculateDocumentTax(doc: DocumentTaxInput): number {
-  if (doc.taxAmountCents !== undefined && doc.taxAmountCents !== null && !isNaN(doc.taxAmountCents)) {
+  if (doc.taxAmountCents !== undefined && doc.taxAmountCents !== null && !Number.isNaN(doc.taxAmountCents)) {
     return Math.max(0, Math.round(doc.taxAmountCents));
   }
-  if (doc.taxCents !== undefined && doc.taxCents !== null && !isNaN(doc.taxCents)) {
+  if (doc.taxCents !== undefined && doc.taxCents !== null && !Number.isNaN(doc.taxCents)) {
     return Math.max(0, Math.round(doc.taxCents));
   }
-  if (doc.salesTaxCents !== undefined && doc.salesTaxCents !== null && !isNaN(doc.salesTaxCents)) {
+  if (doc.salesTaxCents !== undefined && doc.salesTaxCents !== null && !Number.isNaN(doc.salesTaxCents)) {
     return Math.max(0, Math.round(doc.salesTaxCents));
   }
 

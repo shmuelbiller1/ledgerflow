@@ -53,7 +53,7 @@ export function computeLocalizedForensics(transactions: readonly Transaction[]):
     if (node.amounts.length < 2) return;
 
     // 1. Benford's Law Chi-Square check on first digits
-    const firstDigits = node.amounts.map(a => parseInt(String(a).replace(/^0+/, '').charAt(0), 10)).filter(d => d >= 1 && d <= 9);
+    const firstDigits = node.amounts.map(a => Number.parseInt(String(a).replace(/^0+/, '').charAt(0), 10)).filter(d => d >= 1 && d <= 9);
     let benfordChiSquare = 0;
     if (firstDigits.length >= 3) {
       const counts = Array(10).fill(0);
@@ -93,9 +93,9 @@ export function computeLocalizedForensics(transactions: readonly Transaction[]):
         coordinatePath: node.path,
         type: node.type,
         score,
-        benfordScore: parseFloat(benfordChiSquare.toFixed(1)),
-        zScoreSpike: parseFloat(zScoreSpike.toFixed(1)),
-        roundNumDensity: parseFloat(roundNumDensity.toFixed(2)),
+        benfordScore: Number.parseFloat(benfordChiSquare.toFixed(1)),
+        zScoreSpike: Number.parseFloat(zScoreSpike.toFixed(1)),
+        roundNumDensity: Number.parseFloat(roundNumDensity.toFixed(2)),
         budgetDriftPercent: Math.round(score * 0.8),
         flaggedReason: reasons.join('; ') || 'Statistical variance detected across node transactions',
         sampleTxIds: node.txIds.slice(0, 3)

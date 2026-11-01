@@ -155,7 +155,7 @@ export function useLedgerData() {
     const sessionLoginKey = `login_logged_${currentWorkspaceId}_${userUid}`;
     if (!sessionStorage.getItem(sessionLoginKey)) {
       sessionStorage.setItem(sessionLoginKey, 'true');
-      addDoc(collection(db, 'auditLogs'), {
+      void addDoc(collection(db, 'auditLogs'), {
         action: 'USER_LOGIN',
         details: { description: 'User authenticated and entered workspace session' },
         severity: 'info',
@@ -220,7 +220,7 @@ export function useLedgerData() {
           if (legacyNodes && legacyNodes.length > 0) {
             nodes = legacyNodes;
             if (db && currentWorkspaceId) {
-              migrateWorkspaceDimensionNodesToCollection(db, currentWorkspaceId).catch(e => {
+              void migrateWorkspaceDimensionNodesToCollection(db, currentWorkspaceId).catch(e => {
                 console.warn('[Ledger] Background dimension migration error:', e);
               });
             }
@@ -231,7 +231,7 @@ export function useLedgerData() {
         console.warn('[Ledger] Error loading reference data:', err);
       }
     };
-    loadReferenceData();
+    void loadReferenceData();
     return () => { cancelled = true; };
   }, [userUid, currentWorkspaceId]);
 

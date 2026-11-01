@@ -17,7 +17,7 @@ export const daysInMonth = (y: number, m: number): number =>
 /** Days since 1970-01-01 (proleptic Gregorian). */
 export function dayNumber(ymd: string): number {
   const [yy, m, d] = ymd.slice(0, 10).split('-').map(Number);
-  if (Number.isNaN(yy) || Number.isNaN(m) || Number.isNaN(d)) return NaN;
+  if (Number.isNaN(yy) || Number.isNaN(m) || Number.isNaN(d)) return Number.NaN;
   const y = m <= 2 ? yy - 1 : yy;
   const era = Math.floor(y / 400);
   const yoe = y - era * 400;

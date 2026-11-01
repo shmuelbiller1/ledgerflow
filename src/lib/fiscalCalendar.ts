@@ -29,9 +29,9 @@ export function getFiscalYearBounds(
 ): FiscalYearBounds {
   const dateStr = typeof targetDate === 'string' ? targetDate : getLocalDateISO(targetDate);
   const parts = dateStr.split('T')[0].split('-');
-  const calYear = parseInt(parts[0], 10);
-  const calMonth = parseInt(parts[1], 10);
-  const calDay = parseInt(parts[2], 10);
+  const calYear = Number.parseInt(parts[0], 10);
+  const calMonth = Number.parseInt(parts[1], 10);
+  const calDay = Number.parseInt(parts[2], 10);
 
   // Normalize month: 1..12
   const startMonth = Math.min(Math.max(fiscalYearStartMonth || 1, 1), 12);

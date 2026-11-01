@@ -138,8 +138,8 @@ export const EXPENSE_VELOCITY_ALGO: AlgorithmDefinition = {
       
       chartData.push({
         Date: targetDate.substring(5), // MM-DD
-        'Daily Volume': parseFloat((targetVolume / 100).toFixed(2)),
-        'Avg': parseFloat((movingAvg / 100).toFixed(2))
+        'Daily Volume': Number.parseFloat((targetVolume / 100).toFixed(2)),
+        'Avg': Number.parseFloat((movingAvg / 100).toFixed(2))
       });
     }
     

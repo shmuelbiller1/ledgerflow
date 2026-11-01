@@ -2,7 +2,7 @@ import { RecurringTransaction, Transaction } from '../types';
 import { addDaysYMD, addMonthsYMD, dayNumber, getLocalDateISO } from './calendarDate';
 
 function parseDateStrToDayNumber(dateStr: string): number {
-  if (!dateStr) return NaN;
+  if (!dateStr) return Number.NaN;
   return dayNumber(dateStr.slice(0, 10));
 }
 
@@ -53,7 +53,7 @@ export function findDueRecurring(recurringList: RecurringTransaction[], asOfDate
     const currentNextOccStr = item.nextOccurrence || item.createdAt.slice(0, 10);
     let nextOccTime = parseDateStrToDayNumber(currentNextOccStr);
 
-    if (!isNaN(nextOccTime) && nextOccTime <= asOfTime) {
+    if (!Number.isNaN(nextOccTime) && nextOccTime <= asOfTime) {
       dueTemplates.push(item);
 
       const template = (item.template || {}) as Partial<Transaction>;

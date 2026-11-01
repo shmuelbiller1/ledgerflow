@@ -70,7 +70,7 @@ function cells(line: string): string[] {
 
 const amountCents = (text: string): number => {
   const clean = text.replace(/[^0-9.-]/g, '');
-  if (!/^-?\d+(\.\d{1,2})?$/.test(clean)) return NaN;
+  if (!/^-?\d+(\.\d{1,2})?$/.test(clean)) return Number.NaN;
   return Math.round(Number(clean) * 100);
 };
 

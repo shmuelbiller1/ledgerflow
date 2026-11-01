@@ -4,6 +4,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
+import { inBackground } from '../../lib/inBackground';
 
 export default function AskLoop() {
   const transactions = useLedgerStore(s => s.transactions);
@@ -162,7 +163,7 @@ export default function AskLoop() {
                             const acc = accounts.find(a => a.id === accId);
                             if (acc) {
                               setSelectedAccounts({ ...selectedAccounts, [tx.id]: accId });
-                              handleResolve(tx.id, acc.id, acc.name);
+                              inBackground(handleResolve(tx.id, acc.id, acc.name));
                             }
                           }}
                         >

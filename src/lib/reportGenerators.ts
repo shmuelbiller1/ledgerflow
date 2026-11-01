@@ -229,10 +229,10 @@ export function computeMonthlyAverages(
     const dateStr = typeof tx.date === 'string' ? tx.date : '';
     if (dateStr.length < 7) continue;
 
-    const txYear = parseInt(dateStr.slice(0, 4), 10);
-    const txMonth = parseInt(dateStr.slice(5, 7), 10);
+    const txYear = Number.parseInt(dateStr.slice(0, 4), 10);
+    const txMonth = Number.parseInt(dateStr.slice(5, 7), 10);
 
-    if (txYear !== year || isNaN(txMonth) || txMonth < 1 || txMonth > 12) continue;
+    if (txYear !== year || Number.isNaN(txMonth) || txMonth < 1 || txMonth > 12) continue;
 
     const targetMonth = monthlyTotals[txMonth - 1];
 

@@ -126,11 +126,11 @@ export default function ReceivePaymentModal({
   }
 
   // the currency of what is being paid: the documents chosen (one payment is one currency)
-  const payDoc = openDocs.find(d => parseFloat(allocationsMap[d.id] || '') > 0) || openDocs.find(d => d.id === defaultDocumentId);
+  const payDoc = openDocs.find(d => Number.parseFloat(allocationsMap[d.id] || '') > 0) || openDocs.find(d => d.id === defaultDocumentId);
   const payCurrency = payDoc?.currency || homeCurrency;
   // BM-04: amounts typed in the payment's currency, in its own decimals (whole yen, three-decimal dinars)
   const digits = currencyDigits(payCurrency);
-  const toMinor = (text: string) => { const p = parseFloat(text); return isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits); };
+  const toMinor = (text: string) => { const p = Number.parseFloat(text); return Number.isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits); };
   const paymentAmountCents = toMinor(amountDollars);
   const totalAllocatedCents = Object.values(allocationsMap).reduce((sum, val) => sum + toMinor(val), 0);
 
@@ -189,8 +189,8 @@ export default function ReceivePaymentModal({
       // Allocations array
       const allocations: { documentId: string; documentType: 'invoice' | 'bill'; amountCents: number }[] = [];
       Object.entries(allocationsMap).forEach(([docId, valStr]) => {
-        const p = parseFloat(valStr);
-        const cents = isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits);
+        const p = Number.parseFloat(valStr);
+        const cents = Number.isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits);
         if (cents > 0) {
           allocations.push({
             documentId: docId,
@@ -368,7 +368,7 @@ export default function ReceivePaymentModal({
                   {homeCurrency} for 1 {payCurrency} on the payment day
                 </label>
                 <input id="pay-day-rate" type="number" step="0.000001" min="0" placeholder={String(payDoc?.rate || '')}
-                  value={dayRate ?? ''} onChange={e => { setRateTyped(true); setDayRateSource('typed'); const n = parseFloat(e.target.value); setDayRate(Number.isFinite(n) && n > 0 ? n : null); }}
+                  value={dayRate ?? ''} onChange={e => { setRateTyped(true); setDayRateSource('typed'); const n = Number.parseFloat(e.target.value); setDayRate(Number.isFinite(n) && n > 0 ? n : null); }}
                   className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono" />
                 <p className="mt-1 text-[11px] text-[var(--muted)]" role="status">
                   {dayRate

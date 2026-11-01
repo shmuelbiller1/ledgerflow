@@ -252,7 +252,7 @@ export default function AISettings() {
               max="0.99" 
               step="0.01" 
               value={threshold} 
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
+              onChange={(e) => setThreshold(Number.parseFloat(e.target.value))}
               className="w-full h-2 bg-[var(--surface)] rounded-lg appearance-none cursor-pointer accent-indigo-600 border border-[var(--line)]"
             />
             
