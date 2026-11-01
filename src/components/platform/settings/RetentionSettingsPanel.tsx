@@ -4,7 +4,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { describeError } from '../../../lib/errorRemedies';
 import { RETENTION_LIMITS, retentionFor, type RetentionSettings } from '../../../lib/retentionPolicy';
-import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
+import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 /**
  * Settings → Security → Data retention (L-08, BJ-05): how long the email log and browser error
@@ -41,6 +41,7 @@ export default function RetentionSettingsPanel() {
       if (!res.ok) throw new Error(body.details || body.message || body.error || 'Retention settings were not saved');
       const store = useAuthStore.getState();
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, retention: body.retention } : w));
+      clearDirtyTracking();
       toast.success('Retention settings saved');
     } catch (err) {
       const described = describeError(err, 'update');

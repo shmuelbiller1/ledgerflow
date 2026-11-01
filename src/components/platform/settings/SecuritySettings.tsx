@@ -322,7 +322,7 @@ export default function SecuritySettings() {
                         }
                         if (!res.ok) throw new Error(body.error || 'Failed to delete account');
                         toast.success('Your account was deleted.');
-                        auth.signOut();
+                        await auth.signOut();
                       } catch (err) {
                         const described = describeError(err, 'delete');
                         toast.error(described.title, { description: described.remedy });

@@ -15,7 +15,8 @@ type PWAUpdateListener = (state: PWAUpdateState) => void;
 
 const unsavedGuards = new Set<UnsavedWorkGuard>();
 const listeners = new Set<PWAUpdateListener>();
-const dirtyInputs = new Set<Element>();
+const dirtyInputs = new Map<Element, string>();
+const baselineValues = new WeakMap<Element, string>();
 const instrumentedDocs = new WeakSet<Document>();
 
 let state: PWAUpdateState = {
@@ -25,6 +26,22 @@ let state: PWAUpdateState = {
 };
 
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
+
+function readControlSnapshot(el: Element): string {
+  const control = el as HTMLElement & {
+    value?: string;
+    checked?: boolean;
+    type?: string;
+  };
+  const tag = control.tagName.toLowerCase();
+  if (tag === 'input' && (control.type === 'checkbox' || control.type === 'radio')) {
+    return String(Boolean(control.checked));
+  }
+  if (typeof control.value === 'string') {
+    return control.value;
+  }
+  return control.textContent ?? '';
+}
 
 function isTrackableFormControl(target: EventTarget | null): target is HTMLElement & {
   type?: string;
@@ -43,28 +60,58 @@ function isTrackableFormControl(target: EventTarget | null): target is HTMLEleme
   return Boolean(el.isContentEditable);
 }
 
+export function clearDirtyTracking(container?: ParentNode | null): void {
+  if (!container) {
+    for (const el of dirtyInputs.keys()) {
+      baselineValues.set(el, readControlSnapshot(el));
+    }
+    dirtyInputs.clear();
+    return;
+  }
+  for (const el of [...dirtyInputs.keys()]) {
+    if ('contains' in container && (container as Node).contains(el)) {
+      baselineValues.set(el, readControlSnapshot(el));
+      dirtyInputs.delete(el);
+    }
+  }
+}
+
 export function attachDirtyTracking(doc: Document | null = typeof document !== 'undefined' ? document : null): void {
   if (!doc || instrumentedDocs.has(doc)) return;
   instrumentedDocs.add(doc);
 
-  const markDirty = (event: Event) => {
-    if (isTrackableFormControl(event.target)) {
-      dirtyInputs.add(event.target);
+  const captureBaseline = (event: Event) => {
+    if (isTrackableFormControl(event.target) && !dirtyInputs.has(event.target) && !baselineValues.has(event.target)) {
+      baselineValues.set(event.target, readControlSnapshot(event.target));
     }
   };
-  const clearFormDirty = (event: Event) => {
+  const markDirty = (event: Event) => {
+    if (!isTrackableFormControl(event.target)) return;
+    const el = event.target;
+    const baseline = baselineValues.get(el);
+    const current = readControlSnapshot(el);
+    if (baseline !== undefined && current === baseline) {
+      dirtyInputs.delete(el);
+    } else {
+      dirtyInputs.set(el, baseline ?? '');
+    }
+  };
+  const clearFormOnReset = (event: Event) => {
     const form = event.target;
     if (form && typeof form === 'object' && 'contains' in form) {
-      for (const el of [...dirtyInputs]) {
-        if ((form as Node).contains(el)) dirtyInputs.delete(el);
+      for (const el of [...dirtyInputs.keys()]) {
+        if ((form as Node).contains(el)) {
+          baselineValues.delete(el);
+          dirtyInputs.delete(el);
+        }
       }
     }
   };
 
+  doc.addEventListener('focusin', captureBaseline, true);
   doc.addEventListener('input', markDirty, true);
   doc.addEventListener('change', markDirty, true);
-  doc.addEventListener('submit', clearFormDirty, true);
-  doc.addEventListener('reset', clearFormDirty, true);
+  doc.addEventListener('reset', clearFormOnReset, true);
 }
 
 function emitState(next: Partial<PWAUpdateState>) {
@@ -110,8 +157,12 @@ export function hasUnsavedDocumentWork(doc: Document | null = typeof document !=
     return true;
   }
 
-  for (const el of [...dirtyInputs]) {
+  for (const [el, baseline] of [...dirtyInputs.entries()]) {
     if (!el.isConnected) {
+      dirtyInputs.delete(el);
+      continue;
+    }
+    if (baselineValues.has(el) && readControlSnapshot(el) === baseline) {
       dirtyInputs.delete(el);
       continue;
     }

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   attachDirtyTracking,
+  clearDirtyTracking,
   getPWAUpdateState,
   hasUnsavedDocumentWork,
   initPWAUpdateManager,
@@ -141,6 +142,7 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     attachDirtyTracking(document);
     const input = document.getElementById('grace-days') as HTMLInputElement;
     const toastBtn = document.getElementById('toast-btn') as HTMLButtonElement;
+    input.dispatchEvent(new window.Event('focusin', { bubbles: true }));
     input.value = '60';
     input.dispatchEvent(new window.Event('input', { bubbles: true }));
     toastBtn.focus();
@@ -148,6 +150,18 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     assert.equal(hasUnsavedDocumentWork(document), true, 'dirty page input must remain detected after focus moves to toast button');
 
     const form = document.getElementById('retention-form') as HTMLFormElement;
+    // A refused/failed submit must NEVER prematurely clear dirty tracking
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(hasUnsavedDocumentWork(document), true, 'refused or failed submit must retain dirty input tracking');
+
+    // Explicit completion after successful save clears tracking for mounted forms
+    clearDirtyTracking(form);
+    assert.equal(hasUnsavedDocumentWork(document), false, 'clearDirtyTracking clears saved form controls');
+
+    // Editing again and resetting clears dirty state
+    input.value = '90';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(hasUnsavedDocumentWork(document), true);
     form.dispatchEvent(new window.Event('reset', { bubbles: true }));
     assert.equal(hasUnsavedDocumentWork(document), false, 'resetting form clears dirty input state');
     document.body.innerHTML = '';

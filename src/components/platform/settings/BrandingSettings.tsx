@@ -7,7 +7,7 @@ import { getIdToken } from '../../../firebase';
 import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUMENT_STYLES, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
 import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { DOCUMENT_LANGUAGES } from '../../../lib/documentLanguage';
-import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
+import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 /**
  * Settings → Branding (Y-11…Y-14, Y-33, Y-34): logo, colour, address, footer and default terms for
@@ -65,6 +65,7 @@ export default function BrandingSettings() {
       const { branding } = await res.json();
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, branding } : w)));
       setDraft(branding);
+      clearDirtyTracking();
       toast.success('Branding saved. New PDFs use it.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The branding could not be saved');
