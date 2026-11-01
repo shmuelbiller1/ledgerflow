@@ -92,9 +92,12 @@ export default function AppearanceSettings() {
   // Y-35: how tax on new and edited invoices and bills is rounded to cents
   const taxRounding: TaxRounding = activeWorkspace?.taxRounding || 'half_up';
   // not async: the select's change has no caller waiting, so the outcome is reported here and only here
+  // one save at a time: the select is disabled while a save runs, so an older write cannot land last
+  const [isSavingTaxRounding, setIsSavingTaxRounding] = useState(false);
   const handleTaxRoundingChange = (mode: TaxRounding): void => {
     const workspaceId = currentWorkspaceId;
-    if (!workspaceId) return;
+    if (!workspaceId || isSavingTaxRounding) return;
+    setIsSavingTaxRounding(true);
     const startedBy = useAuthStore.getState().user?.uid;
     updateDoc(doc(db, 'workspaces', workspaceId), { taxRounding: mode }).then(() => {
       // a reply that arrives after a sign-out or account switch must not write the old account's workspaces back
@@ -105,7 +108,7 @@ export default function AppearanceSettings() {
     }, (err: unknown) => {
       console.error("[Settings] Failed to save tax rounding:", err);
       toast.error('Tax rounding could not be saved (owners and accountants can change it).');
-    });
+    }).finally(() => setIsSavingTaxRounding(false));
   };
 
   const fontPresets = [
@@ -444,6 +447,8 @@ export default function AppearanceSettings() {
             <select
               id={`${settingsId}-tax-rounding`}
               value={taxRounding}
+              disabled={isSavingTaxRounding}
+              aria-busy={isSavingTaxRounding}
               onChange={(e) => handleTaxRoundingChange(e.target.value as TaxRounding)}
               className="w-full sm:w-64 bg-[var(--surface)] text-[var(--text)] text-sm font-medium p-2.5 rounded-lg border border-[var(--line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer"
             >
