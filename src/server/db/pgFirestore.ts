@@ -416,6 +416,24 @@ export class Transaction {
     return { runner: this.runner, state: this.state };
   }
 
+  /**
+   * Checks whether every named `public` table exists using this transaction's checked-out
+   * PostgreSQL client so cold-start readiness checks inside `runTransaction` never block on `db.pool`.
+   */
+  async tablesExist(...tableNames: string[]): Promise<boolean> {
+    if (this.state.failure) throw this.state.failure;
+    if (tableNames.length === 0) return true;
+    try {
+      const checks = tableNames.map((_, i) => `to_regclass($${i + 1}) is not null`).join(' and ');
+      const params = tableNames.map(name => `public."${name.replaceAll('"', '""')}"`);
+      const res = await this.runner.query<{ ok: boolean }>(`select (${checks}) as ok`, params);
+      return Boolean(res.rows[0]?.ok);
+    } catch (err) {
+      this.state.failure = err;
+      throw err;
+    }
+  }
+
   /** @internal Applies the buffered writes (called by runTransaction before COMMIT). */
   async flush(): Promise<void> {
     await this.firestore.executeOps(this.ops, this.runner, this.state);

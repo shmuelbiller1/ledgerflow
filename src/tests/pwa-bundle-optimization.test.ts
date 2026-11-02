@@ -632,4 +632,23 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
       fs.rmSync(tmpDist, { recursive: true, force: true });
     }
   });
+
+  it('keeps partyReports free of computeReports back-imports so lazy report chunks stay acyclic', () => {
+    const partyReportsSrc = fs.readFileSync(path.resolve('src/server/reports/partyReports.ts'), 'utf8');
+    assert.doesNotMatch(
+      partyReportsSrc,
+      /from\s+['"]\.\/computeReports['"]/,
+      'partyReports.ts must not import computeReports.ts or Rollup emits circular report chunks',
+    );
+    for (const viewFile of [
+      'src/components/reporting/CustomerBalanceSummaryView.tsx',
+      'src/components/reporting/VendorBalanceSummaryView.tsx',
+      'src/components/reporting/ContactBalanceSummaryView.tsx',
+      'src/components/reporting/TransactionsByCustomerView.tsx',
+      'src/components/reporting/TransactionsByVendorView.tsx',
+    ]) {
+      const viewSrc = fs.readFileSync(path.resolve(viewFile), 'utf8');
+      assert.match(viewSrc, /server\/reports\/partyReports/, `${viewFile} should import directly from partyReports`);
+    }
+  });
 });

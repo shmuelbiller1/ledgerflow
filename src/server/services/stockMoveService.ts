@@ -14,22 +14,50 @@ import type { StockMove } from '../../lib/stockMoves';
 export type NewStockMove = Omit<StockMove, 'id' | 'seq' | 'createdAt'>;
 
 let known: { exists: boolean; at: number } | null = null;
+let inFlight: Promise<boolean> | null = null;
 let warned = false;
 
-/** Whether the stock-moves table exists (cached; a missing table is looked for again after a minute). */
-export async function stockMovesReady(db: Firestore): Promise<boolean> {
-  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
-  try {
-    const result = await db.pool.query(`select to_regclass('public."stockMoves"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
-  } catch {
-    known = { exists: false, at: Date.now() };
-  }
-  if (!known.exists && !warned) {
+function recordStockMovesReady(exists: boolean): boolean {
+  known = { exists, at: Date.now() };
+  if (!exists && !warned) {
     warned = true;
     console.warn('[stock history] the stockMoves table is missing: apply supabase/migrations/20261013060000_stock_moves.sql. Stock changes still work; their history is not kept until then.');
   }
-  return known.exists;
+  return exists;
+}
+
+/**
+ * Whether the `stockMoves` table exists (cached; a missing table is looked for again after a minute).
+ * Pass the active `Transaction` when called inside `db.runTransaction` so cold-start probes reuse
+ * the checked-out transaction client instead of acquiring a second connection from `db.pool`.
+ */
+export async function stockMovesReady(db: Firestore, t?: DbTransaction): Promise<boolean> {
+  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
+  const txTablesExist = (t as { tablesExist?: (...names: string[]) => Promise<boolean> } | undefined)?.tablesExist;
+  if (typeof txTablesExist === 'function' && (db as unknown as { pool?: unknown }).pool) {
+    const exists = await txTablesExist.call(t, 'stockMoves');
+    return recordStockMovesReady(exists);
+  }
+  if (inFlight) return inFlight;
+  const probe: Promise<boolean> = (async () => {
+    try {
+      const result = await db.pool.query(`select to_regclass('public."stockMoves"') is not null as ok`);
+      return recordStockMovesReady(Boolean(result.rows[0]?.ok));
+    } catch {
+      return recordStockMovesReady(false);
+    }
+  })().finally(() => {
+    if (inFlight === probe) inFlight = null;
+  });
+  inFlight = probe;
+  return probe;
+}
+
+/** @internal Resets cached `stockMoves` readiness state between unit tests. */
+export function resetStockMovesReadyForTests(): void {
+  known = null;
+  inFlight = null;
+  warned = false;
 }
 
 export function writeStockMoves(db: Firestore, t: DbTransaction, moves: NewStockMove[]): void {
