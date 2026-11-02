@@ -45,4 +45,8 @@ describe('Mode of payment (CA-28)', () => {
     assert.equal(slot.automatic([checking, second], { cash: 'chk2' })?.id, 'chk2');
     assert.equal(paymentModeAccountId('card', [checking, second], { cash: 'chk2' }), 'chk2');
   });
+
+  test('with nothing chosen, a bank comes before Undeposited Funds even when listed after it', () => {
+    assert.equal(paymentModeAccountId('cash', [undeposited, checking], undefined), 'chk');
+  });
 });

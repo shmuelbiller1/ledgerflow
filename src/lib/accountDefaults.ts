@@ -116,7 +116,8 @@ export function paymentModeAccountId(method: PaymentMethod, candidates: ChartAcc
     const id = mappings?.[key];
     if (id && ids.has(id)) return id;
   }
-  return usable[0]?.id || '';
+  // nothing chosen: the first bank (what the Defaults page shows as automatic), then any candidate
+  return (usable.find(a => role(a) === 'cash') || usable[0])?.id || '';
 }
 
 /** The account a slot uses now: the chosen one if it still exists, else the automatic one. */
