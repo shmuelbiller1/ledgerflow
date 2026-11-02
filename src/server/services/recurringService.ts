@@ -172,7 +172,10 @@ async function generateBill(db: Firestore, rule: RecurringTransaction & { billTe
 
 /** CC-04: a draft estimate copied from the schedule, with the next estimate number. */
 async function generateEstimate(db: Firestore, rule: RecurringTransaction & { estimateTemplate?: DocumentData }, date: string, nextOccurrence: string) {
-  const key = `${rule.id}:${date}`;
+  // one draft per estimate and date, whichever schedule makes it: two schedules for the same estimate
+  // share this key, so the second is skipped whatever their timestamps say
+  const source = (rule as { sourceEstimateId?: string }).sourceEstimateId;
+  const key = source ? `estimate:${source}:${date}` : `${rule.id}:${date}`;
   const existing = await db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1).get();
   if (!existing.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
   const t = (rule.estimateTemplate || {}) as Partial<Estimate> & DocumentData;
@@ -191,7 +194,6 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
     // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
     // (read inside this serializable transaction, so a schedule saved meanwhile is seen or the write retries)
-    const source = (rule as { sourceEstimateId?: string }).sourceEstimateId;
     if (source) {
       const siblings = await tx.get(db.collection('recurring').where('workspaceId', '==', rule.workspaceId).where('sourceEstimateId', '==', source));
       const first = siblings.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; isActive?: boolean; createdAt?: string }))

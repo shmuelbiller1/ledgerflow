@@ -168,5 +168,9 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
     const notes = (await db.collection('notifications').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
     assert.ok(notes.some(n => n.kind === 'estimate.draft_ready'));
     assert.equal((await processRecurring(db, '2026-09-05')).details.filter(d => d.estimateId).length, 0, 'once per date');
+    // a schedule for the same estimate that sorts first (an earlier clock) still makes no second draft that date
+    await rule('est0', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-01T00:00:00Z' });
+    await processRecurring(db, '2026-09-05');
+    assert.equal((await db.collection('estimates').where('workspaceId', '==', ws).get()).docs.length, 1, 'one draft per estimate and date');
   });
 });
