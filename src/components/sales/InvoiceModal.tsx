@@ -83,6 +83,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   // whether the terms came from a customer (not chosen by hand), so picking another customer with no
   // usual terms puts the default back instead of keeping the previous customer's (CC-11)
   const [termsInherited, setTermsInherited] = useState(false);
+  // a due date typed by hand is kept when the customer changes to one with no usual terms
+  const [dueDateEdited, setDueDateEdited] = useState(false);
   if (isOpen && initialInvoice && initialInvoice !== filledFrom) {
     // Copy a changed pre-filled invoice once per opening (adjusting state during render).
     setFilledFrom(initialInvoice);
@@ -95,6 +97,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;
     setTermsInherited(Boolean(preset));
+    setDueDateEdited(false);
     setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : {
       ...prev, ...initialInvoice,
       ...(preset ? { paymentTerms: preset, dueDate: calculateDueDate(initialInvoice.date || prev.date || '', preset) } : {}),
@@ -320,7 +323,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const termsChange = terms
                       ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) }
                       // the previous customer's terms do not carry over to one with none; terms chosen by hand stay
-                      : !editingExisting && termsInherited ? { paymentTerms: undefined, dueDate: invoice.date || '' } : {};
+                      : !editingExisting && termsInherited ? { paymentTerms: undefined, ...(dueDateEdited ? {} : { dueDate: invoice.date || '' }) } : {};
                     if (!editingExisting) setTermsInherited(Boolean(terms));
                     setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}
@@ -431,7 +434,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 type="date"
                 required
                 value={invoice.dueDate}
-                onChange={(e) => setInvoice({ ...invoice, dueDate: e.target.value })}
+                onChange={(e) => { setDueDateEdited(true); setInvoice({ ...invoice, dueDate: e.target.value }); }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               />{fieldError("inv-due-date")}
             </div>

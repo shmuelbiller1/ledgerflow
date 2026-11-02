@@ -185,6 +185,11 @@ describe('Invoice dialog', () => {
     type(screen.getByLabelText('Payment Terms'), 'net_30');
     type(input('Customer'), 'Walk-in');
     assert.equal(terms(), 'net_30', 'terms chosen by hand stay');
+    type(input('Customer'), 'Bulk Co');
+    type(input('Due Date'), '2026-07-01');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'due_on_receipt', 'inherited terms are still dropped');
+    assert.equal(input('Due Date').value, '2026-07-01', 'a due date typed by hand stays');
   });
 
   test('all save actions report required fields under their input and retain the draft', async () => {
