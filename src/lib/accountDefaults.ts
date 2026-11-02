@@ -4,7 +4,7 @@
  * server services); when it is not set, the posting picks an account by itself, and `automatic`
  * says which one (the same rule), so the page shows what will really happen.
  */
-import { resolveAccountRole } from './accountUtils';
+import { isUndepositedFundsAccount, resolveAccountRole } from './accountUtils';
 import { advanceAccount } from './advancePayments';
 import { deferredRevenueAccount, prepaidAccount } from './prepaidSchedule';
 import type { ChartAccount } from '../types';
@@ -21,6 +21,28 @@ export interface DefaultAccountSlot {
 
 const name = (a: ChartAccount) => (a.name || '').toLowerCase();
 const role = resolveAccountRole;
+
+/**
+ * CA-28 (mode of payment): the account a payment received or made by each method uses by default, e.g. cash into the
+ * till or Undeposited Funds, cards into the card clearing bank. Not chosen: the Bank account above. The payment
+ * screen preselects it; the person can still pick another account for that payment.
+ */
+export type PaymentMethod = 'cash' | 'check' | 'bank_transfer' | 'card' | 'other';
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash', check: 'Check', bank_transfer: 'Bank transfer', card: 'Card', other: 'Other',
+};
+export const paymentModeKey = (method: PaymentMethod) => `payment ${method}`;
+const fitsPaymentAccount = (a: ChartAccount) => role(a) === 'cash' || isUndepositedFundsAccount(a);
+
+function paymentModeSlots(): DefaultAccountSlot[] {
+  return (Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map(method => ({
+    key: paymentModeKey(method),
+    label: `Payments by ${PAYMENT_METHOD_LABELS[method].toLowerCase()}`,
+    hint: 'The account a payment received or made this way uses, unless you pick another on the payment',
+    fits: fitsPaymentAccount,
+    automatic: accounts => accounts.find(a => role(a) === 'cash'),
+  }));
+}
 
 export const DEFAULT_ACCOUNT_SLOTS: DefaultAccountSlot[] = [
   {
@@ -78,7 +100,21 @@ export const DEFAULT_ACCOUNT_SLOTS: DefaultAccountSlot[] = [
     fits: a => a.type === 'liability' && role(a) !== 'ap',
     automatic: accounts => deferredRevenueAccount(accounts),
   },
+  ...paymentModeSlots(),
 ];
+
+/**
+ * The account a payment by `method` goes into by default: the one chosen for the method, else the Bank default
+ * (chosen or automatic), else the first of `candidates`. Only an account in `candidates` is returned.
+ */
+export function paymentModeAccountId(method: PaymentMethod, candidates: ChartAccount[], mappings: Record<string, string | undefined> | undefined): string {
+  const ids = new Set(candidates.map(a => a.id));
+  for (const key of [paymentModeKey(method), 'cash']) {
+    const id = mappings?.[key];
+    if (id && ids.has(id)) return id;
+  }
+  return candidates[0]?.id || '';
+}
 
 /** The account a slot uses now: the chosen one if it still exists, else the automatic one. */
 export function accountInUse(slot: DefaultAccountSlot, accounts: ChartAccount[], mappings: Record<string, string | undefined> | undefined): { account?: ChartAccount; chosen: boolean } {

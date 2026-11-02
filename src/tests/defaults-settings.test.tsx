@@ -36,6 +36,8 @@ describe('Which account each posting uses', () => {
     assert.deepEqual(DEFAULT_ACCOUNT_SLOTS.map(s => [s.key, s.automatic(accounts)?.id]), [
       ['ar', 'ar'], ['ap', 'ap'], ['revenue', 'sales'], ['expense', 'rent'], ['cash', 'bank'],
       ['tax payable', undefined], ['tax paid', undefined], ['customer deposits', 'dep'], ['vendor prepayments', 'pre'], ['prepaid expenses', 'pre'], ['deferred revenue', undefined],
+      // CA-28: one per payment method, automatically the bank
+      ['payment cash', 'bank'], ['payment check', 'bank'], ['payment bank_transfer', 'bank'], ['payment card', 'bank'], ['payment other', 'bank'],
     ]);
     assert.deepEqual(accountInUse(slot('ar'), accounts, { ar: 'ar2' }), { account: accounts[2], chosen: true });
     assert.deepEqual(accountInUse(slot('ar'), accounts, { ar: 'deleted' }), { account: accounts[1], chosen: false }, 'a chosen account that is gone falls back');

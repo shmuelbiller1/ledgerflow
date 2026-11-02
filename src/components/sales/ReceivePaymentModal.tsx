@@ -5,6 +5,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import { X, DollarSign, Sparkles } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { isUndepositedFundsAccount } from '../../lib/accountUtils';
+import { paymentModeAccountId } from '../../lib/accountDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -72,7 +73,9 @@ export default function ReceivePaymentModal({
     );
   }, [accounts]);
 
-  const selectedDepositAccountId = depositAccountId || cashAccounts[0]?.id || '';
+  // CA-28: until the person picks an account, the one set for this payment method (Settings → Defaults)
+  const accountMappings = useAuthStore(s => s.getCurrentWorkspace()?.defaultAccountMappings);
+  const selectedDepositAccountId = depositAccountId || paymentModeAccountId(method, cashAccounts, accountMappings);
 
   // Filter target open documents
   // oldest first, so a payment settles the oldest invoices/bills first (the store lists newest first)
