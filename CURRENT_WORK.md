@@ -21,6 +21,8 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 
 **AI #3 update — 2 November:** A-263/A-265 implemented on `arena/821df0d8-ledgerflow`, pending CI/lead review. New Chromium checks **9/9**, focused regressions **29/29**, types/lint/build passed. Full local suite timed out after 30 minutes with an A-229 performance failure, so not called green. A-264/A-266/A-267 remain open. [Evidence](docs/verification/ai3-a263-a265-2026-11-02.md).
 
+**AI #3 next update — 2 November:** A-264 keyboard paths implemented on `arena/1165c885-ledgerflow`: five browser journeys passed, 17 focused regressions passed; types/lint/build clean. Pending CI/lead review; A-266/A-267 remain open. [Evidence](docs/verification/ai3-a264-2026-11-02.md).
+
 **Pull request for this branch**
 
 | PR | State |

@@ -1,3 +1,4 @@
+import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { StageChip } from '../collaboration/StageChip';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -62,6 +63,7 @@ export default function Purchases() {
 
   const [activeSubTab, setActiveSubTab] = useState<'bills' | 'vendors'>('bills');
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const detailOpenerId = useDetailReturnFocus(selectedVendorId);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
@@ -525,6 +527,12 @@ export default function Purchases() {
                         validate={x => String(x) ? null : 'A vendor needs a name'}
                         onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')} />
                       <ArchivedBadge party={v} />
+                            <button type="button" id={detailOpenerId(v.id)}
+                              onClick={e => { e.stopPropagation(); setSelectedVendorId(v.id); }}
+                              aria-label={`View vendor ${v.name}`}
+                              className="min-h-11 min-w-11 text-sm text-[var(--text)] underline rounded text-left">
+                              View details
+                            </button>
                     </td>
                     <td className="p-4 text-slate-600 dark:text-slate-400">
                       <InlineEdit value={v.category} label={`Category of ${v.name}`} placeholder="Standard" canEdit={canEditContacts}

@@ -1,3 +1,4 @@
+import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
@@ -68,6 +69,7 @@ export default function Sales() {
   const [pickedInvoices, setPickedInvoices] = useState<Set<string>>(() => new Set());
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   // What each customer owes: the same calculation as the Customer Balance Summary report (open
   // invoices less payments and credits, base currency). It used to add unpaid invoice totals, then
@@ -709,6 +711,12 @@ export default function Sales() {
                               onSave={v => updateEntity('customers', cust.id, { name: v }, 'Name saved')}
                               className="font-black text-[var(--text)] text-lg tracking-tight" />
                             <ArchivedBadge party={cust} />
+                            <button type="button" id={detailOpenerId(cust.id)}
+                              onClick={e => { e.stopPropagation(); setSelectedCustomerId(cust.id); }}
+                              aria-label={`View customer ${cust.name}`}
+                              className="min-h-11 min-w-11 text-sm text-[var(--text)] underline rounded text-left">
+                              View details
+                            </button>
                             <button type="button"
                               onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
                               className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}

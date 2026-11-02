@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, DollarSign, FileText, User } from 'lucide-react';
 import { PARTY_SIDES, type PartySide } from '../../config/partySides';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -78,11 +78,15 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
     [documents, partyPayments, side, today],
   );
 
+  const backRef = useRef<HTMLButtonElement>(null);
+  const partyExists = !!party;
+  useEffect(() => { backRef.current?.focus(); }, [partyId, side, partyExists]);
+
   if (!party) {
     return (
       <div className="p-6">
         <p className="text-[var(--muted)]">{config.partySingular} not found.</p>
-        <button onClick={onBack} className={`mt-4 ${accent.missingBack} font-semibold hover:underline flex items-center gap-1`}>
+        <button ref={backRef} onClick={onBack} className={`mt-4 ${accent.missingBack} font-semibold hover:underline flex items-center gap-1`}>
           <ArrowLeft className="w-4 h-4" /> Go Back
         </button>
       </div>
@@ -93,6 +97,7 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
     <div className="space-y-6">
       <div>
         <button
+          ref={backRef}
           onClick={onBack}
           className={`text-sm ${accent.back} font-bold hover:underline flex items-center gap-1 mb-4`}
         >
