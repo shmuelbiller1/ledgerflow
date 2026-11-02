@@ -173,7 +173,8 @@ function CustomerQuotesContent() {
   const repeat = (): void => {
     if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
     setRepeating(true);
-    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency, today), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
+    // the saved schedule starts from the real date; the assessment date only drives the preview
+    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency, getLocalDateISO()), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
       .finally(() => setRepeating(false));
   };
 
