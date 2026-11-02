@@ -145,6 +145,8 @@ export interface Workspace {
   /** CC-08: the workspace's own payment terms, in days (Net N), offered on invoices with the standard ones. */
   paymentTermDays?: number[];
   /** CC-09: the workspace's own payment types, each under one of the five payment methods. */
+  /** CC-11: the workspace's customer groups and their defaults (written only by the server). */
+  customerGroups?: Array<{ id: string; name: string; paymentTerms?: string }>;
   paymentTypes?: Array<{ id: string; name: string; method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'other' }>;
   fiscalYearStartDay?: number;
   fiscalYearEnd?: string;
