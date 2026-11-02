@@ -64,6 +64,6 @@
 - `npm run lint:rule-packs`: **PASS (`584` rules, `0` problems)**
 - `npm audit --audit-level=high`: **PASS (`0` high/critical vulnerabilities)**
 - `src/tests/quality-ratchet.test.ts`: **PASS (`filesOver800 = 0`)**
-- `src/tests/server-bundle-boundary.test.ts`, `src/tests/vercel-ignore-boundary.test.ts`, `src/tests/pwa-bundle-optimization.test.ts`, `src/tests/stage6-footprint-optimization.test.ts`: **PASS**
+- `npm run test:bundle` (`LF_REQUIRE_BUILT_DIST=1` post-build invariant suite: `server-bundle-boundary.test.ts`, `pwa-bundle-optimization.test.ts`, `stage6-footprint-optimization.test.ts`, plus `vercel-ignore-boundary.test.ts`, wired into `.github/workflows/ci.yml`'s `build` job): **PASS**
 - `scripts/db-test.ts setup && scripts/db-test.ts rls` (PGlite 48 migrations + RLS policy suite) & `src/tests/document-pdf.test.ts` (`15/15` incl. DB-backed PDF branding preview): **PASS**
 - Full CI Unit Shards `1/4..4/4`, Timezone Shards (`America/Los_Angeles` `1..3`, `Pacific/Auckland` `1..3`), Coverage Gate (`lines 77.07%`, `branches 77.91%`, `functions 77.78%`), Playwright Browser Shards `1/5..5/5`, and `Playwright E2E Smoke Suite`: **PASS**
