@@ -8,6 +8,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import ExpenseBillCategories from './ExpenseBillCategories';
 import { useServerExpenseByCategory } from '../../hooks/useServerExpenseByCategory';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 
 interface Props {
   selectedYear?: number;
@@ -61,13 +62,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
         </div>
       </div>
 
-      {source !== 'loaded' && (
-        <p className="text-xs text-neutral-600" data-testid="expense-category-source">
-          {source === 'server'
-            ? 'Not every entry is loaded in this browser: these totals are read from every entry on the server.'
-            : 'Not every entry is loaded in this browser and the server could not be asked: these totals cover the loaded entries only, so they may be too low.'}
-        </p>
-      )}
+      <RangeReportSourceNote source={source} testId="expense-category-source" />
 
       <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
         accounts={accounts} bills={bills} startDate={start} endDate={end}

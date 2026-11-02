@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, expenseByCategoryOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
@@ -155,18 +155,27 @@ balanceRouter.get('/asset-register', async (req, res) => {
   }
 });
 
-/**
- * L-123 step 4d: GET /api/v1/balances/expense-by-category?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member,
- * as GET /. The expense breakdown by category over every postable entry of the range (expenseByCategoryOver), for the
- * "Expense Breakdown by Category" report when the loaded list is capped. Read-only.
- */
-balanceRouter.get('/expense-by-category', async (req, res) => {
-  const range = rangeQuery(req, res);
-  if (!range) return;
-  const db = getDb();
-  if (!(await allowMember(db, range.workspaceId, req, res))) return;
-  await answerRange(res, 'the expense categories', async () => {
-    const result = await expenseByCategoryOver(db, range.workspaceId, range.from, range.to);
-    return { ...range, categories: result.categories, entriesRead: result.entriesRead };
+/** A read-only range report route (rangeQuery, any member, answerRange): `read` gives the report's fields. */
+function rangeReportRoute(path: string, what: string, read: (db: ReturnType<typeof getDb>, workspaceId: string, from: string, to: string) => Promise<Record<string, unknown>>): void {
+  balanceRouter.get(path, async (req, res) => {
+    const range = rangeQuery(req, res);
+    if (!range) return;
+    const db = getDb();
+    if (!(await allowMember(db, range.workspaceId, req, res))) return;
+    await answerRange(res, what, async () => ({ ...range, ...(await read(db, range.workspaceId, range.from, range.to)) }));
   });
-});
+}
+
+/**
+ * L-123 step 4d: GET /api/v1/balances/expense-by-category?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — the expense
+ * breakdown by category over every postable entry of the range (expenseByCategoryOver), for "Expense Breakdown by
+ * Category" when the loaded lists are capped.
+ */
+rangeReportRoute('/expense-by-category', 'the expense categories', (db, ws, from, to) => expenseByCategoryOver(db, ws, from, to));
+
+/**
+ * L-123 step 4e: GET /api/v1/balances/income-by-source?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — income by source
+ * over every postable entry of the range (incomeBySourceOver), for "Income by Source & Customer" when the loaded lists
+ * are capped.
+ */
+rangeReportRoute('/income-by-source', 'the income sources', (db, ws, from, to) => incomeBySourceOver(db, ws, from, to));

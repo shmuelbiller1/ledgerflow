@@ -18,6 +18,11 @@
  *   wrong as well as short: 600.
  * Range Y-01-01…Y-03-31 on the server: E7 (April) is still read, so E3 is still left out of the count, but its −300 is
  *   outside the range: Office 900 (1) · Fuel 500 (1) · Rent 700 (1), total 2,100.
+ *
+ * L-123 step 4e: "Income by Source & Customer" (IncomeBySourceReportView, GET /api/v1/balances/income-by-source) in the
+ * same way; a source is the entry's payee, else the line's description, else the account. E2's Sales line is described
+ * "Acme". Every entry: Acme 1,500 (1) · Sales 800 (1), total 2,300, shares 65.2 % · 34.8 %. The loaded four alone:
+ * Sales 800 (1) only — Acme is missing.
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -27,15 +32,21 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import ExpenseByCategoryReportView from '../components/reporting/ExpenseByCategoryReportView';
+import IncomeBySourceReportView from '../components/reporting/IncomeBySourceReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency } from '../lib/utils';
-import { computeExpenseByCategory, type CategoryExpenseBreakdown } from '../lib/reportGenerators';
+import { computeExpenseByCategory, computeIncomeBySource, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown } from '../lib/reportGenerators';
 import { openingCutoff } from '../lib/serverBalances';
-// E1's Rent line carries its own category
-const entries = (ws: string) => ledger(ws, (k, account) => (k === 0 && account === 'rent' ? { category: 'Office' } : {}));
+// E1's Rent line carries its own category; E2's Sales line is described "Acme"
+const entries = (ws: string) => ledger(ws, (k, account) => {
+  if (k === 0 && account === 'rent') return { category: 'Office' };
+  return k === 1 && account === 'sales' ? { description: 'Acme' } : {};
+});
 
 const brief = (rows: CategoryExpenseBreakdown[]) => rows.map(r => `${r.category} ${r.totalAmountCents} ${r.transactionCount} ${r.percentage.toFixed(1)}`);
 const TRUTH = ['Office 900 1 50.0', 'Rent 700 1 38.9', 'Fuel 200 1 11.1'];
+const briefIncome = (rows: IncomeBySourceBreakdown[]) => rows.map(r => `${r.source} ${r.totalAmountCents} ${r.transactionCount} ${r.percentage.toFixed(1)}`);
+const TRUTH_INCOME = ['Acme 1500 1 65.2', 'Sales 800 1 34.8'];
 
 describe('L-123 step 4d: expense by category (no database)', () => {
   const ws = 'component-workspace';
@@ -46,6 +57,39 @@ describe('L-123 step 4d: expense by category (no database)', () => {
     assert.equal(openingCutoff(loaded), `${Y}-02-10`);
     assert.deepEqual(brief(computeExpenseByCategory(accounts, all, from, to)), TRUTH);
     assert.deepEqual(brief(computeExpenseByCategory(accounts, loaded, from, to)), ['Rent 700 1 116.7', 'Fuel -100 1 -16.7']);
+    assert.deepEqual(briefIncome(computeIncomeBySource(accounts, all, from, to)), TRUTH_INCOME);
+    assert.deepEqual(briefIncome(computeIncomeBySource(accounts, loaded, from, to)), ['Sales 800 1 100.0']);
+  });
+
+  test('income by source on screen: no request when not capped; every entry\'s sources when capped; a note when it fails', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: {} } as never);
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      const q = new URL(String(input), 'http://x').searchParams;
+      const sources = computeIncomeBySource(accounts, all, q.get('from')!, q.get('to')!);
+      return new Response(JSON.stringify({ status: 'success', sources }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    const table = () => document.querySelector('#income-by-source-report table')?.textContent || '';
+    render(<IncomeBySourceReportView selectedYear={Y} />);
+    assert.ok(table().includes(formatCurrency(800)) && !table().includes('Acme'));
+    assert.equal(screen.queryByTestId('income-source-source'), null);
+    assert.equal(urls.length, 0, 'not capped: no request');
+    cleanup();
+
+    useLedgerStore.setState({ truncatedCollections: { transactions: true } });
+    render(<IncomeBySourceReportView selectedYear={Y} />);
+    await waitFor(() => assert.ok(table().includes('Acme'), table()), { timeout: 5000 });
+    assert.deepEqual(urls, [`/api/v1/balances/income-by-source?workspaceId=${ws}&from=${from}&to=${to}`]);
+    assert.ok(document.body.textContent!.includes(formatCurrency(2300)), 'the header total is every entry\'s');
+    assert.match(screen.getByTestId('income-source-source').textContent || '', /read from every entry on the server/);
+    cleanup();
+
+    stubFetch(500);
+    render(<IncomeBySourceReportView selectedYear={Y} />);
+    await waitFor(() => assert.match(screen.getByTestId('income-source-source').textContent || '', /loaded entries only/));
+    assert.ok(!table().includes('Acme'));
   });
 
   test('screen: no request when not capped; the server\'s totals when capped; the loaded totals with a note when it fails', async () => {
@@ -123,5 +167,15 @@ describe('L-123 step 4d: GET /api/v1/balances/expense-by-category', { skip: !url
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
     assert.equal((await get({ workspaceId: ws, from: '2010-01-01', to })).status, 400, 'more than three years');
     assert.equal((await get({ workspaceId: 'ws_missing_l123g', from, to })).status, 404);
+  });
+
+  test('income by source: every entry\'s sources, members only', async () => {
+    const getIncome = (q: Record<string, string>, uid?: string) => db.get<{ sources: IncomeBySourceBreakdown[]; entriesRead: number }>('income-by-source', q, uid);
+    const year = await getIncome({ workspaceId: ws, from, to });
+    assert.equal(year.status, 200);
+    assert.deepEqual(briefIncome(year.body.sources), TRUTH_INCOME);
+    assert.equal(year.body.entriesRead, 7);
+    assert.equal((await getIncome({ workspaceId: ws, from, to }, 'stranger')).status, 403);
+    assert.equal((await getIncome({ workspaceId: ws, from: to, to: from })).status, 400);
   });
 });

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
-import { computeIncomeBySource } from '../../lib/reportGenerators';
+import { useServerIncomeBySource } from '../../hooks/useServerIncomeBySource';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { TrendingUp } from 'lucide-react';
 
 interface Props {
@@ -15,17 +15,11 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
-  // the whole list (computeIncomeBySource keeps posted entries); a filtered list made here would be
-  // a new array on every read, and the store would re-render forever (L-158)
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
-
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
-  const breakdowns = useMemo(() => {
-    return computeIncomeBySource(accounts, transactions, start, end);
-  }, [accounts, transactions, start, end]);
+  // L-123 step 4e: with the loaded lists capped, the breakdown comes from the server (every entry of the range)
+  const { sources: breakdowns, source } = useServerIncomeBySource(start, end);
 
   const totalIncomeCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
@@ -50,6 +44,8 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      <RangeReportSourceNote source={source} testId="income-source-source" />
 
       {breakdowns.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 text-neutral-500 text-xs">
