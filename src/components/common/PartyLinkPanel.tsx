@@ -37,7 +37,15 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const totalsReady = !loading && !failed;
 
   const activeVendors = useMemo(() => vendors.filter(v => v.status !== 'inactive' && !(v as { isArchived?: boolean }).isArchived), [vendors]);
-  const vendorIds = useMemo(() => new Set(vendors.map(v => v.id)), [vendors]);
+  // a capped vendor list may not hold the linked vendor: then trust the stored link rather than show "Not linked"
+  const storedVendorId = side === 'customer' ? customers.find(c => c.id === partyId)?.linkedVendorId : undefined;
+  const vendorsCapped = !!truncated.vendors;
+  const vendorIds = useMemo(() => {
+    const ids = new Set(vendors.map(v => v.id));
+    if (vendorsCapped && storedVendorId) ids.add(storedVendorId);
+    if (vendorsCapped && side === 'vendor') ids.add(partyId);
+    return ids;
+  }, [vendors, vendorsCapped, storedVendorId, side, partyId]);
   const pair = linkedPair(side, partyId, customers, vendorIds);
   const position = useMemo(() => (pair ? partyNetPosition(pair, invoices, bills) : null), [pair?.customerId, pair?.vendorId, invoices, bills]); // eslint-disable-line react-hooks/exhaustive-deps
   const other = pair ? (side === 'customer' ? vendors.find(v => v.id === pair.vendorId) : customers.find(c => c.id === pair.customerId)) : undefined;
