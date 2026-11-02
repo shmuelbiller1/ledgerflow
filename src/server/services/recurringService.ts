@@ -180,17 +180,17 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   const number = await allocateNextNumber(db, rule.workspaceId, 'estimate');
   const estimateRef = db.collection('estimates').doc();
   const draft = nextEstimateDraft(t, { id: estimateRef.id, number, date });
-  const estimate: DocumentData = {
-    ...draft,
+  const { validityDays: _validity, ...fields } = draft as Estimate & { validityDays?: number };
+  // the copy's own fields; empty ones (no signing link, no conversion) are left out
+  const estimate: DocumentData = Object.fromEntries(Object.entries({
+    ...fields,
     workspaceId: rule.workspaceId,
     uid: rule.uid,
     currency: (t.currency as string | undefined) || workspace.currency || 'USD',
     recurrenceOccurrenceKey: key,
     metadata: { recurringTemplateId: rule.id, generatedAt: new Date().toISOString() },
     createdAt: new Date().toISOString(),
-  };
-  delete estimate.validityDays;
-  for (const k of Object.keys(estimate)) if (estimate[k] === undefined) delete estimate[k];
+  }).filter(([, v]) => v !== undefined));
   await db.runTransaction(async (tx) => {
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
     const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));

@@ -168,7 +168,7 @@ function CustomerQuotesContent() {
   const repeat = (): void => {
     if (!selectedEstimate || repeating || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
     setRepeating(true);
-    addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
+    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
       .finally(() => setRepeating(false));
   };
 
