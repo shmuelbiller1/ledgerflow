@@ -326,7 +326,7 @@ export default function Vault() {
           />
         </div>
         <div className="hidden sm:block h-8 w-[1px] bg-slate-200" />
-        <div className="flex items-center gap-3 p-1 max-w-full overflow-x-auto shrink-0">
+        <div className="flex items-center gap-3 p-1 min-w-0 max-w-full sm:max-w-[50%] overflow-x-auto shrink-0">
           {['all', ...allTags].map(tag => (
             <button
               key={tag}

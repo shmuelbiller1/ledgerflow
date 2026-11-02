@@ -32,3 +32,7 @@ Draft PR: https://github.com/shmuelbiller1/ledgerflow/pull/484
 No money, posting, tax maths, server, schema, migration, dependency or RELEASE_GATE changes. Owner-paused Vercel preview is not a code failure.
 
 Full evidence and environment limitations: [`docs/verification/ai3-a263-a265-2026-11-02.md`](../docs/verification/ai3-a263-a265-2026-11-02.md).
+
+## Bot-review follow-up (same PR)
+
+All four inline findings addressed (three distinct defects): live OS preference subscription, root smooth-scroll override, bounded tablet tag row. New regression totals: **12/12 browser**, **2/2 component**; types/lint/build clean (42 warnings unchanged). Previous head `dba3f84` passed all CI in run `41389708223`, including database rules, unit/timezone/coverage and browser gates. Follow-up head requires its own CI; no merge/deployment claim. Detailed evidence appended to the verification note.

@@ -81,3 +81,35 @@ for (const screen of screens) {
     if (journey) expect(journey.errors).toEqual([]);
   });
 }
+
+for (const width of [640, 767, 1024]) {
+  test(`A-263 Documents: many tags leave usable search space at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const { errors } = await mountJourney(page, { workspaceId: 'vault-tags', ledger: {}, mounts: [] });
+    await page.route('**/rest/v1/documents**', route => route.fulfill({ json: [{
+      id: 'tagged-document', workspace_id: 'vault-tags', data: {
+        workspaceId: 'vault-tags', uid: 'journey-user', name: 'Example receipt',
+        createdAt: '2026-10-01T12:00:00Z', sizeBytes: 1024, type: 'application/pdf',
+        tags: Array.from({ length: 12 }, (_, i) => `Long document category ${i + 1}`),
+      },
+    }] }));
+    await page.evaluate(async () => {
+      await (window as unknown as { __journeyRender: (mounts: unknown[]) => Promise<void> }).__journeyRender([
+        { module: '/src/components/forensics/Vault.tsx' },
+      ]);
+    });
+    const lastTag = page.getByRole('button', { name: 'Long document category 12', exact: true });
+    await expect(lastTag).toHaveCount(1);
+    const search = page.getByRole('textbox', { name: 'Search documents by name, tag, or checksum' });
+    const box = await search.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(200);
+    await search.fill('receipt');
+    await expect(search).toHaveValue('receipt');
+    await lastTag.scrollIntoViewIfNeeded();
+    const tagBox = await lastTag.boundingBox();
+    expect(tagBox!.x).toBeGreaterThanOrEqual(0);
+    expect(tagBox!.x + tagBox!.width).toBeLessThanOrEqual(width + 1);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    expect(errors).toEqual([]);
+  });
+}

@@ -324,6 +324,7 @@
 }
 
 /* The explicit accessibility preference is independent of the device's media setting. */
+html.reduce-motion { scroll-behavior: auto !important; }
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0s !important;

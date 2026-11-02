@@ -43,6 +43,7 @@ for (const preference of ['system', 'app'] as const) {
       expect(sample.opacity).toBe(1);
       expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(sample.transform);
     }
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('auto');
     const css = await page.evaluate(() => {
       const probe = document.createElement('div');
       probe.style.cssText = 'transition: opacity 10s 30s; animation: spin 10s 30s infinite;';
