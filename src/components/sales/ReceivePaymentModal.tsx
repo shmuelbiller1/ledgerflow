@@ -5,7 +5,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import { X, DollarSign, Sparkles } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { isUndepositedFundsAccount } from '../../lib/accountUtils';
-import { paymentModeAccountId } from '../../lib/accountDefaults';
+import { fitsPaymentAccount, paymentModeAccountId } from '../../lib/accountDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -67,9 +67,11 @@ export default function ReceivePaymentModal({
   // Filter bank/cash accounts
   const cashAccounts = useMemo(() => {
     // Bank/cash accounts, plus Undeposited Funds (received now, taken to the bank later with "Make deposit")
-    return (accounts || []).filter(a => 
-      a.type === 'asset' && 
-      (a.category === 'Cash' || a.category === 'Bank' || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('checking') || isUndepositedFundsAccount(a))
+    // CA-28: also every account Settings → Defaults offers for a payment method (the same rule), active ones only
+    return (accounts || []).filter(a =>
+      !a.isArchived && a.isActive !== false && (fitsPaymentAccount(a) || (
+      a.type === 'asset' &&
+      (a.category === 'Cash' || a.category === 'Bank' || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('checking') || isUndepositedFundsAccount(a))))
     );
   }, [accounts]);
 

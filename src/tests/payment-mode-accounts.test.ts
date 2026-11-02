@@ -32,4 +32,17 @@ describe('Mode of payment (CA-28)', () => {
     const slot = DEFAULT_ACCOUNT_SLOTS.find(s => s.key === paymentModeKey('cash'))!;
     assert.ok(slot.fits(undeposited));
   });
+
+  test('an archived or inactive account is never preselected', () => {
+    const archived = acct('old', 'Old till', { category: 'Cash', isArchived: true });
+    const inactive = acct('off', 'Closed bank', { isActive: false });
+    assert.equal(paymentModeAccountId('cash', [archived, inactive, checking], { 'payment cash': 'old', cash: 'off' }), 'chk');
+  });
+
+  test('Automatic on a method row shows the chosen Bank default, as Record payment uses', () => {
+    const second = acct('chk2', 'Second checking');
+    const slot = DEFAULT_ACCOUNT_SLOTS.find(s => s.key === paymentModeKey('card'))!;
+    assert.equal(slot.automatic([checking, second], { cash: 'chk2' })?.id, 'chk2');
+    assert.equal(paymentModeAccountId('card', [checking, second], { cash: 'chk2' }), 'chk2');
+  });
 });

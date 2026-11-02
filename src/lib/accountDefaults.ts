@@ -16,7 +16,7 @@ export interface DefaultAccountSlot {
   /** Accounts that may be chosen for it. */
   fits: (a: ChartAccount) => boolean;
   /** The account postings use when nothing is chosen (undefined: none, the posting stops and says so). */
-  automatic: (accounts: ChartAccount[]) => ChartAccount | undefined;
+  automatic: (accounts: ChartAccount[], mappings?: Record<string, string | undefined>) => ChartAccount | undefined;
 }
 
 const name = (a: ChartAccount) => (a.name || '').toLowerCase();
@@ -32,7 +32,8 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash', check: 'Check', bank_transfer: 'Bank transfer', card: 'Card', other: 'Other',
 };
 export const paymentModeKey = (method: PaymentMethod) => `payment ${method}`;
-const fitsPaymentAccount = (a: ChartAccount) => role(a) === 'cash' || isUndepositedFundsAccount(a);
+/** Accounts a payment can be received into or paid from: bank/cash by role, or Undeposited Funds (Settings and Record payment). */
+export const fitsPaymentAccount = (a: ChartAccount) => role(a) === 'cash' || isUndepositedFundsAccount(a);
 
 function paymentModeSlots(): DefaultAccountSlot[] {
   return (Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map(method => ({
@@ -40,7 +41,8 @@ function paymentModeSlots(): DefaultAccountSlot[] {
     label: `Payments by ${PAYMENT_METHOD_LABELS[method].toLowerCase()}`,
     hint: 'The account a payment received or made this way uses, unless you pick another on the payment',
     fits: fitsPaymentAccount,
-    automatic: accounts => accounts.find(a => role(a) === 'cash'),
+    // not chosen: the Bank default as chosen above, else the automatic bank (what Record payment preselects)
+    automatic: (accounts, mappings) => accounts.find(a => a.id === mappings?.cash && fitsPaymentAccount(a)) || accounts.find(a => role(a) === 'cash'),
   }));
 }
 
@@ -108,19 +110,20 @@ export const DEFAULT_ACCOUNT_SLOTS: DefaultAccountSlot[] = [
  * (chosen or automatic), else the first of `candidates`. Only an account in `candidates` is returned.
  */
 export function paymentModeAccountId(method: PaymentMethod, candidates: ChartAccount[], mappings: Record<string, string | undefined> | undefined): string {
-  const ids = new Set(candidates.map(a => a.id));
+  const usable = candidates.filter(a => !a.isArchived && a.isActive !== false);
+  const ids = new Set(usable.map(a => a.id));
   for (const key of [paymentModeKey(method), 'cash']) {
     const id = mappings?.[key];
     if (id && ids.has(id)) return id;
   }
-  return candidates[0]?.id || '';
+  return usable[0]?.id || '';
 }
 
 /** The account a slot uses now: the chosen one if it still exists, else the automatic one. */
 export function accountInUse(slot: DefaultAccountSlot, accounts: ChartAccount[], mappings: Record<string, string | undefined> | undefined): { account?: ChartAccount; chosen: boolean } {
   const usable = accounts.filter(a => !a.isArchived && a.isActive !== false);
   const chosen = usable.find(a => a.id === mappings?.[slot.key]);
-  return chosen ? { account: chosen, chosen: true } : { account: slot.automatic(usable), chosen: false };
+  return chosen ? { account: chosen, chosen: true } : { account: slot.automatic(usable, mappings), chosen: false };
 }
 
 /** The mappings with one slot set (or cleared, back to automatic); other keys are kept. */
