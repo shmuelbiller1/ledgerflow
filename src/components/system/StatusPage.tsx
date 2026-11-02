@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
  * Public status page at /status (L-17, BO-06, G-14): each part of LedgerFlow and whether it works,
@@ -40,6 +41,7 @@ const HEADLINE: Record<SystemStatus['state'], string> = {
   down: 'LedgerFlow is not working right now',
 };
 
+/** Renders the public system health status page and refreshes health checks while visible. */
 export default function StatusPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [unreachable, setUnreachable] = useState(false);
@@ -61,14 +63,8 @@ export default function StatusPage() {
     return () => { alive = false; };
   }, [check]);
 
-  // look again every minute
-  useEffect(() => {
-    const timer = setInterval(() => setCheck(n => n + 1), 60_000);
-    if (typeof timer === 'object' && 'unref' in timer) {
-      timer.unref();
-    }
-    return () => clearInterval(timer);
-  }, []);
+  // look again every minute while visible/online, and catch up immediately when returning to the tab
+  useVisibilityPolling(() => setCheck(n => n + 1), 60_000);
 
   const overall: SystemStatus['state'] | null = unreachable ? 'down' : status?.state ?? null;
   const workingCount = status?.components.filter(c => c.state === 'operational').length ?? 0;

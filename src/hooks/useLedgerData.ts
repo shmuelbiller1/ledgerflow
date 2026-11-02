@@ -27,10 +27,12 @@ import { useUIStore } from "../stores/useUIStore";
 import { LEDGER_COLLECTIONS, keysToStart } from "../lib/ledgerCollections";
 import type { LedgerCollectionSpec, LedgerKey } from "../lib/ledgerCollections";
 import { effectiveLockDate } from '../lib/periodLock';
+import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
 
 type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
 
+/** Subscribes to workspace metadata, user profile, and on-demand ledger collections for the active session. */
 export function useLedgerData() {
   const user = useAuthStore(s => s.user);
   const userUid = user?.uid;
@@ -60,18 +62,20 @@ export function useLedgerData() {
   }, [user, isGuest, setAccounts, setCustomers, setVendors, setTransactions, currentWorkspaceId, setCurrentWorkspaceId]);
 
 
+  const userEmail = user?.email || '';
+
   // 1. Workspaces
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'workspaces'), where('uid', '==', user.uid));
+    if (!userUid) return;
+    const q = query(collection(db, 'workspaces'), where('uid', '==', userUid));
     return onSnapshot(q, async (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Workspace));
+      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace));
       setWorkspaces(fetched);
-      
-      if (fetched.length === 0 && user) {
+
+      if (fetched.length === 0) {
         // Create Default Workspace
         const defaultWorkspace: Partial<Workspace> = {
-          uid: user.uid,
+          uid: userUid,
           name: 'Personal Workspace',
           businessType: 'personal',
           createdAt: new Date().toISOString(),
@@ -81,41 +85,42 @@ export function useLedgerData() {
           setDoc(doc(collection(db, 'workspaces')), defaultWorkspace),
           OperationType.CREATE,
           'workspaces',
-          { userId: user.uid }
+          { userId: userUid }
         );
-      } else if (fetched.length > 0) {
-        // Validation: Ensure current selection is still valid
-        const isCurrentValid = fetched.some(w => w.id === currentWorkspaceId);
-        if (!currentWorkspaceId || !isCurrentValid) {
+      } else {
+        // Validation: Ensure current selection is still valid without tearing down channel on switch
+        const selectedWorkspaceId = useAuthStore.getState().currentWorkspaceId;
+        const isCurrentValid = fetched.some(w => w.id === selectedWorkspaceId);
+        if (!selectedWorkspaceId || !isCurrentValid) {
           setCurrentWorkspaceId(fetched[0].id);
         }
       }
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'workspaces'));
-  }, [user, currentWorkspaceId, setCurrentWorkspaceId, setWorkspaces]);
+  }, [userUid, setCurrentWorkspaceId, setWorkspaces]);
 
   // 2. User Profile
   useEffect(() => {
-    if (!user) return;
-    return onSnapshot(doc(db, 'users', user.uid), async (snap) => {
+    if (!userUid) return;
+    return onSnapshot(doc(db, 'users', userUid), async (snap) => {
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
         setUserProfile(data);
       } else {
         const profileData: UserProfile = {
-          uid: user.uid,
-          email: user.email || '',
+          uid: userUid,
+          email: userEmail,
           role: 'client',
           createdAt: new Date().toISOString()
         };
         await safeAsync(
-          setDoc(doc(db, 'users', user.uid), profileData),
+          setDoc(doc(db, 'users', userUid), profileData),
           OperationType.CREATE,
-          `users/${user.uid}`
+          `users/${userUid}`
         );
         setUserProfile(profileData);
       }
-    }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
-  }, [user, setUserProfile]);
+    }, (err) => handleFirestoreError(err, OperationType.GET, `users/${userUid}`));
+  }, [userUid, userEmail, setUserProfile]);
 
   // Sync workspace-level settings (currency, lockDate, and matchingThreshold) to the ledger store
   const workspaces = useAuthStore(state => state.workspaces);
@@ -244,21 +249,38 @@ export function useLedgerData() {
   const active = useRef(new Map<string, () => void>());
   useEffect(() => {
     const subscriptions = active.current;
+    const evictedWorkspaceId = currentWorkspaceId;
     return () => {
       subscriptions.forEach(unsubscribe => unsubscribe());
       subscriptions.clear();
+      if (evictedWorkspaceId) {
+        LedgerEngine.clearNormalizationCache(evictedWorkspaceId);
+      }
     };
-  }, [user?.uid, currentWorkspaceId]);
+  }, [userUid, currentWorkspaceId]);
   useEffect(() => {
     if (!userUid || !currentWorkspaceId) return;
     // a failed collection waits for "Try again" (useDataNeedsStore.retry) before starting over
     const skip = new Set([...active.current.keys(), ...Object.keys(failed)]);
     for (const key of keysToStart(asked, skip)) {
       const subscriptions = active.current;
-      subscriptions.set(key, subscribeLedgerCollection(key, currentWorkspaceId, () => {
-        subscriptions.get(key)?.();
-        subscriptions.delete(key);
-      }));
+      let unsub: (() => void) | null = null;
+      let failedSynchronously = false;
+      unsub = subscribeLedgerCollection(key, currentWorkspaceId, () => {
+        if (!unsub) {
+          failedSynchronously = true;
+          return;
+        }
+        if (subscriptions.get(key) === unsub) {
+          unsub();
+          subscriptions.delete(key);
+        }
+      });
+      if (failedSynchronously) {
+        unsub();
+      } else {
+        subscriptions.set(key, unsub);
+      }
     }
   }, [userUid, currentWorkspaceId, asked, failed]);
 

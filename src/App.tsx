@@ -17,6 +17,7 @@ import { currentPage, MAX_PINNED } from './lib/pinnedPages';
 import { useLedgerData } from './hooks/useLedgerData';
 import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useVisibilityPolling } from './hooks/useVisibilityPolling';
 import { useBillingStore } from './modules/billing/BillingService';
 
 // Core Architectural Imports
@@ -248,13 +249,20 @@ export default function App() {
     window.dispatchEvent(new Event('ledgerflow:open-export'));
   }, []);
   
+  const isGuest = useAuthStore(state => state.isGuest);
+  const setIsGuest = useAuthStore(state => state.setIsGuest);
+  const currentPathname = window.location.pathname;
+  const isStandalonePublicRoute =
+    currentPathname === '/status' ||
+    currentPathname.startsWith('/c/') ||
+    currentPathname.startsWith('/e/') ||
+    currentPathname.startsWith('/i/');
+
   // Language & Direction Control & Sizing Core
   useEffect(() => {
-    // Fetch dynamic limits & usage caps from public registration-status API
-    useBillingStore.getState().fetchSystemCaps();
-    const capsInterval = setInterval(() => {
-      useBillingStore.getState().fetchSystemCaps();
-    }, 30000);
+    if (!isStandalonePublicRoute) {
+      void useBillingStore.getState().fetchSystemCaps();
+    }
 
     const handleResize = () => {
       if (window.innerWidth < 1024) {
@@ -268,9 +276,14 @@ export default function App() {
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
-      clearInterval(capsInterval);
     };
-  }, []);
+  }, [isStandalonePublicRoute]);
+
+  useVisibilityPolling(
+    () => useBillingStore.getState().fetchSystemCaps(),
+    user || isGuest ? 300_000 : 60_000,
+    { enabled: !isStandalonePublicRoute && (!isInitializing || Boolean(user || isGuest)) },
+  );
 
   const navigateTool = useCallback((tab: string) => {
     startTransition(() => {
@@ -348,9 +361,6 @@ const shortcutMap = useMemo(() => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
-
-  const isGuest = useAuthStore(state => state.isGuest);
-  const setIsGuest = useAuthStore(state => state.setIsGuest);
 
   useEffect(() => {
     const path = window.location.pathname;

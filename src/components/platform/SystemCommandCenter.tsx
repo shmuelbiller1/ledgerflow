@@ -9,9 +9,11 @@ import { useUIStore } from '../../stores/useUIStore';
 
 import { db } from '../../firebase';
 import { collection, getDocs } from '../../lib/db/firestore';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import type { Transaction, Workspace } from '../../types';
 import { AdminUser, TenantTelemetry, TelemetryLog, CommandCenterTelemetry, errorMessage, fetchWithAuth } from './SystemCommandCenterShared';
+/** Provides tenant telemetry, global billing controls, and tab-scoped polling for SystemCommandCenter. */
 function useSystemCommandCenterModel() {
   const formId = useId();
   const [telemetry, setTelemetry] = useState<CommandCenterTelemetry | null>(null);
@@ -362,15 +364,17 @@ function useSystemCommandCenterModel() {
       void fetchGlobalConfig();
       void fetchUsersData();
     }, 0);
-    const interval = setInterval(() => {
-      void fetchTelemetry();
-      void fetchUsersData();
-    }, 6000);
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
     };
   }, []);
+
+  useVisibilityPolling(fetchTelemetry, 15_000, {
+    enabled: activeMainTab === 'workspaces' || activeMainTab === 'audit',
+  });
+  useVisibilityPolling(fetchUsersData, 15_000, {
+    enabled: activeMainTab === 'users',
+  });
 
   const allLogsCombined = [...simulatedLogs, ...(telemetry?.liveLogs || [])];
   const totalErrors = allLogsCombined.filter((l) => l.statusCode >= 500).length;
