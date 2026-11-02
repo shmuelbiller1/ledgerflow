@@ -158,6 +158,18 @@ describe('Invoice dialog', () => {
     assert.equal(input('Due Date').value, '2026-07-31');
   });
 
+  test('a new invoice opened for a chosen customer starts with its group\'s terms; set terms are kept (CC-11)', () => {
+    useAuthStore.setState({ workspaces: [{ id: 'w1', name: 'W', currency: 'USD', customerGroups: [{ id: 'cg_w', name: 'Wholesale', paymentTerms: 'net_45' }] } as Workspace] });
+    useLedgerStore.setState({ invoices: [] });
+    const grouped = [makeCustomer({ id: 'c2', name: 'Bulk Co', groupId: 'cg_w' } as never)];
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={grouped} accounts={accounts} initialInvoice={{ customerId: 'c2', customerName: 'Bulk Co', date: '2026-05-01' }} />);
+    assert.equal((screen.getByLabelText('Payment Terms') as HTMLSelectElement).value, 'net_45');
+    assert.equal(input('Due Date').value, '2026-06-15');
+    cleanup();
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={grouped} accounts={accounts} initialInvoice={{ customerId: 'c2', customerName: 'Bulk Co', date: '2026-05-01', paymentTerms: 'net_15', dueDate: '2026-05-16' }} />);
+    assert.equal((screen.getByLabelText('Payment Terms') as HTMLSelectElement).value, 'net_15', 'terms the caller set are kept');
+  });
+
   test('all save actions report required fields under their input and retain the draft', async () => {
     const saved = setup();
     for (const action of ['Save Draft', 'Save & Close', 'Send Invoice']) {
