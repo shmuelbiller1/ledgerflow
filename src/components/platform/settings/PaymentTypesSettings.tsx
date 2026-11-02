@@ -6,7 +6,8 @@ import { doc, updateDoc } from '../../../lib/db/firestore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '../../../lib/accountDefaults';
-import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, newPaymentTypeId, normalizePaymentTypes, type PaymentType } from '../../../lib/paymentTypes';
+import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, newPaymentTypeId, normalizePaymentTypes, renamePaymentType, type PaymentType } from '../../../lib/paymentTypes';
+import InlineEdit from '../../ui/InlineEdit';
 
 /**
  * CC-09: the workspace's own payment types (for example "PayPal" under Card). Record payment offers
@@ -29,13 +30,14 @@ export function PaymentTypesSettings() {
   const full = saved.length >= MAX_PAYMENT_TYPES;
   const canAdd = canEdit && !saving && clean !== '' && clean.length <= MAX_PAYMENT_TYPE_NAME && !duplicate && !full;
 
-  // one save at a time; the reply is ignored after a sign-out or account switch
-  const save = (next: PaymentType[], done: string, onSaved?: () => void): void => {
-    if (!workspaceId || saving || !canEdit) return;
+  // one save at a time; the reply is ignored after a sign-out or account switch. It rejects when the
+  // save fails (after saying so), so an inline edit stays open with what was typed.
+  const save = (next: PaymentType[], done: string, onSaved?: () => void): Promise<void> => {
+    if (!workspaceId || saving || !canEdit) return Promise.reject(new Error('Not saved'));
     setSaving(true);
     const startedBy = useAuthStore.getState().user?.uid;
     const paymentTypes = normalizePaymentTypes(next);
-    updateDoc(doc(db, 'workspaces', workspaceId), { paymentTypes }).then(() => {
+    return updateDoc(doc(db, 'workspaces', workspaceId), { paymentTypes }).then(() => {
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;
       now.setWorkspaces(now.workspaces.map(w => (w.id === workspaceId ? { ...w, paymentTypes } : w)));
@@ -44,13 +46,26 @@ export function PaymentTypesSettings() {
     }, (err: unknown) => {
       console.error('[Settings] Failed to save payment types:', err);
       toast.error('Payment types could not be saved (owners and accountants can change them).');
+      throw err;
     }).finally(() => setSaving(false));
+  };
+
+  const rename = (t: PaymentType, next: string | number): Promise<void> => {
+    const renamed = renamePaymentType(saved, t.id, String(next));
+    return save(renamed, `Renamed to ${String(next).trim()}`);
+  };
+  const renameProblem = (t: PaymentType, next: string | number): string | null => {
+    const clean = String(next).trim().replace(/\s+/g, ' ');
+    if (!clean) return 'Enter a name';
+    if (clean.length > MAX_PAYMENT_TYPE_NAME) return `Up to ${MAX_PAYMENT_TYPE_NAME} characters`;
+    if (saved.some(x => x.id !== t.id && x.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) return `${clean} is already a payment type`;
+    return null;
   };
 
   const add = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!canAdd) return;
-    save([...saved, { id: newPaymentTypeId(clean, saved), name: clean, method }], `${clean} added`, () => setName(''));
+    save([...saved, { id: newPaymentTypeId(saved), name: clean, method }], `${clean} added`, () => setName('')).catch(() => undefined); // the failure was already said
   };
 
   const hint = duplicate ? `${clean} is already a payment type.` : full ? `Up to ${MAX_PAYMENT_TYPES} payment types.` : clean.length > MAX_PAYMENT_TYPE_NAME ? `Up to ${MAX_PAYMENT_TYPE_NAME} characters.` : '';
@@ -65,14 +80,15 @@ export function PaymentTypesSettings() {
         {saved.length === 0 && <li className="text-xs text-[var(--muted)]">No payment types of your own yet.</li>}
         {saved.map(t => (
           <li key={t.id} className="flex items-center gap-1 px-3 py-1 rounded-full border border-[var(--line)] text-sm text-[var(--text)]">
-            <bdi>{t.name}</bdi>
+            <InlineEdit value={t.name} label={`Name of payment type ${t.name}`} canEdit={canEdit && !saving}
+              onSave={next => rename(t, next)} validate={next => renameProblem(t, next)} display={<bdi>{t.name}</bdi>} />
             <span className="text-xs text-[var(--muted)]">({PAYMENT_METHOD_LABELS[t.method]})</span>
             {canEdit && (
               <button
                 type="button"
                 disabled={saving}
                 aria-label={`Remove ${t.name}`}
-                onClick={() => save(saved.filter(x => x.id !== t.id), `${t.name} removed`)}
+                onClick={() => { save(saved.filter(x => x.id !== t.id), `${t.name} removed`).catch(() => undefined); }}
                 className="min-h-11 min-w-11 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)]"
               >
                 <X aria-hidden="true" className="w-3.5 h-3.5" />

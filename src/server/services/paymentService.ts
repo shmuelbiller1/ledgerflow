@@ -54,6 +54,18 @@ export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload
   return db.runTransaction((tx: unknown) => createPaymentInTransaction(db, tx, payload));
 }
 
+/**
+ * CC-09: the stored result of a payment operation this user already committed, or null. Used when a
+ * retried request can no longer be rebuilt as it was sent (its payment type has since been removed).
+ */
+export async function committedPaymentReplay(db: Firestore, workspaceId: string, operationId: string, uid: string): Promise<Record<string, unknown> | null> {
+  const key = deriveScopedOperationKey(workspaceId, 'PAYMENT_CREATE', operationId);
+  const snap = await db.collection('idempotencyKeys').doc(key).get();
+  const old = snap.exists ? snap.data() || {} : {};
+  if (old.actor !== uid || old.status !== 'success' || !old.result) return null;
+  return { ...(old.result as Record<string, unknown>), replayed: true };
+}
+
 /** Idempotent manual/bulk payment posting: the result key and journal commit together.
  * The same key with different payment details or a different actor is always refused.
  */

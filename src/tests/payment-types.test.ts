@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import type { Firestore } from '../server/db/pgFirestore';
-import { findPaymentType, newPaymentTypeId, normalizePaymentTypes } from '../lib/paymentTypes';
+import { findPaymentType, newPaymentTypeId, normalizePaymentTypes, renamePaymentType } from '../lib/paymentTypes';
 
 test('CC-09: payment types keep a valid id, a name and a known method, once each', () => {
   const list = normalizePaymentTypes([
@@ -29,11 +29,18 @@ test('CC-09: payment types keep a valid id, a name and a known method, once each
   assert.equal(findPaymentType(list, undefined), undefined);
 });
 
-test('CC-09: a new type id is a slug of its name, unique in the list', () => {
-  assert.equal(newPaymentTypeId('Pay Pal!', []), 'pay-pal');
-  assert.equal(newPaymentTypeId('Pay Pal', [{ id: 'pay-pal' }, { id: 'pay-pal-2' }]), 'pay-pal-3');
-  assert.equal(newPaymentTypeId('ביט', []), 'type', 'a name with no Latin letters still gets an id');
-  assert.equal(newPaymentTypeId('ביט', [{ id: 'type' }]), 'type-2');
+test('CC-09: a new type id is random, never derived from the name, and unique in the list', () => {
+  const a = newPaymentTypeId([]);
+  assert.match(a, /^pt_[0-9a-f]{16}$/);
+  assert.notEqual(newPaymentTypeId([]), a, 'two new ids differ, so a removed type\'s id is not handed to a new one');
+  assert.equal(normalizePaymentTypes([{ id: a, name: 'ביט', method: 'bank_transfer' }]).length, 1, 'the id passes the list rules');
+});
+
+test('CC-09: renaming keeps the id and method; an empty, long or taken name changes nothing', () => {
+  const list = normalizePaymentTypes([{ id: 'pt_a', name: 'PayPal', method: 'card' }, { id: 'pt_b', name: 'Bit', method: 'bank_transfer' }]);
+  assert.deepEqual(renamePaymentType(list, 'pt_a', '  Pay  Pal '), [{ id: 'pt_a', name: 'Pay Pal', method: 'card' }, list[1]]);
+  for (const bad of ['', '   ', 'x'.repeat(61), 'bit']) assert.equal(renamePaymentType(list, 'pt_a', bad), list, bad);
+  assert.deepEqual(renamePaymentType(list, 'pt_a', 'PAYPAL')[0].name, 'PAYPAL', 'its own name in another case is fine');
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
@@ -42,8 +49,8 @@ describe('Payment types on the payment route (database)', { skip: !url && 'LF_TE
   let server: Server;
   let base = '';
   let db: Firestore;
-  const pay = async (body: Record<string, unknown>) => {
-    const res = await fetch(`${base}/api/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': 'owner-1' }, body: JSON.stringify({ workspaceId: ws, amountCents: 5000, paymentDate: '2026-06-01', customerId: 'c1', cashAccountId: `${ws}_bank`, allocations: [], ...body }) });
+  const pay = async (body: Record<string, unknown>, headers: Record<string, string> = {}) => {
+    const res = await fetch(`${base}/api/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': 'owner-1', ...headers }, body: JSON.stringify({ workspaceId: ws, amountCents: 5000, paymentDate: '2026-06-01', customerId: 'c1', cashAccountId: `${ws}_bank`, allocations: [], ...body }) });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
 
@@ -90,6 +97,23 @@ describe('Payment types on the payment route (database)', { skip: !url && 'LF_TE
     assert.equal(res.status, 400);
     assert.match(String(res.body.message), /no longer in Settings/);
     assert.equal((await db.collection('payments').where('workspaceId', '==', ws).get()).size, before);
+  });
+
+  test('a retry of a recorded payment is handed back even after its type was removed (not recorded twice)', async () => {
+    await db.collection('workspaces').doc(ws).update({ paymentTypes: [{ id: 'paypal', name: 'PayPal', method: 'card' }, { id: 'bit', name: 'Bit', method: 'bank_transfer' }] });
+    const op = { 'x-operation-id': `op-${crypto.randomBytes(4).toString('hex')}` };
+    const first = await pay({ paymentTypeId: 'bit', amountCents: 1234 }, op);
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    const firstId = (first.body.data as { paymentId: string }).paymentId;
+    const count = (await db.collection('payments').where('workspaceId', '==', ws).get()).size;
+    await db.collection('workspaces').doc(ws).update({ paymentTypes: [{ id: 'paypal', name: 'PayPal', method: 'card' }] });
+    const retry = await pay({ paymentTypeId: 'bit', amountCents: 1234 }, op);
+    assert.equal(retry.status, 200, JSON.stringify(retry.body));
+    const data = retry.body.data as { paymentId: string; replayed: boolean };
+    assert.deepEqual([data.paymentId, data.replayed], [firstId, true]);
+    assert.equal((await db.collection('payments').where('workspaceId', '==', ws).get()).size, count);
+    // a new operation with the removed type is still refused
+    assert.equal((await pay({ paymentTypeId: 'bit' }, { 'x-operation-id': 'op-other-1' })).status, 400);
   });
 
   test('without a type, a payment is as before', async () => {

@@ -43,13 +43,24 @@ export function findPaymentType(types: unknown, id: unknown): PaymentType | unde
   return typeof id === 'string' ? normalizePaymentTypes(types).find(t => t.id === id) : undefined;
 }
 
-/** A new id for a type named `name`, unique among `existing`. */
-export function newPaymentTypeId(name: string, existing: ReadonlyArray<{ id: string }>): string {
-  const base = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'type';
+/**
+ * A new id for a payment type: random and unrelated to the name, so a type that is removed and a
+ * different one added later never share an id (an open form holding the old id is then refused).
+ */
+export function newPaymentTypeId(existing: ReadonlyArray<{ id: string }>): string {
   const taken = new Set(existing.map(t => t.id));
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i++) {
-    const candidate = `${base}-${i}`;
+  for (;;) {
+    const bytes = new Uint8Array(8);
+    globalThis.crypto.getRandomValues(bytes);
+    const candidate = `pt_${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`;
     if (!taken.has(candidate)) return candidate;
   }
+}
+
+/** The list with one type renamed (its id and method kept); unchanged if the name is empty, too long or taken. */
+export function renamePaymentType(types: PaymentType[], id: string, name: string): PaymentType[] {
+  const clean = name.trim().replace(/\s+/g, ' ');
+  if (!clean || clean.length > MAX_PAYMENT_TYPE_NAME) return types;
+  if (types.some(t => t.id !== id && t.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) return types;
+  return types.map(t => (t.id === id ? { ...t, name: clean } : t));
 }

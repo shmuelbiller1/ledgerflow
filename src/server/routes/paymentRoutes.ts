@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import type { Firestore } from '../db/firestore';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { applyUnappliedPayment, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
+import { applyUnappliedPayment, committedPaymentReplay, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
 import { voidPayment } from '../services/paymentVoidService';
 import { extractCanonicalOperationId } from '../utils/idempotency';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
@@ -65,14 +65,6 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     const db = dbOverride || getDb();
     const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
     const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
-    // CC-09: a payment type is looked up in the workspace, never trusted from the client
-    let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
-    if (paymentTypeId) {
-      const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
-      if (!type) return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
-      payload = { ...rest, paymentMethod: type.method, paymentType: { id: type.id, name: type.name } };
-    }
-
     if (!authReq.user.admin) {
       const userRole = await getWorkspaceUserRole(db, workspaceId, authReq.user.uid);
       if (!['owner', 'accountant', 'bookkeeper'].includes(userRole)) {
@@ -83,6 +75,19 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     const operationId = extractCanonicalOperationId(req);
     if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment operation ID' });
+    }
+    // CC-09: a payment type is looked up in the workspace, never trusted from the client
+    let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
+    if (paymentTypeId) {
+      const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
+      if (!type) {
+        // the same operation may already have been recorded (its reply lost) before the type was removed:
+        // hand that payment back rather than ask for another type, which would record it a second time
+        const committed = operationId ? await committedPaymentReplay(db, workspaceId, operationId, authReq.user.uid) : null;
+        if (committed) return res.json({ status: 'success', data: committed });
+        return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
+      }
+      payload = { ...rest, paymentMethod: type.method, paymentType: { id: type.id, name: type.name } };
     }
     // Existing clients without an operation ID remain compatible; callers with a stable ID
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
