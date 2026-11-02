@@ -147,8 +147,12 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
 
   test('a recurring estimate (CC-04) becomes a numbered draft estimate for its date, once; nothing is sent', async () => {
     const schedule = recurringEstimateSchedule({ id: 'e1', number: 'EST-1', customerId: 'c9', customerName: 'Acme', date: '2026-08-05', expiryDate: '2026-08-19',
-      status: 'accepted', amountCents: 9900, items: [{ description: 'Retainer', quantity: 1, rateCents: 9900, amountCents: 9900 }], signToken: 'secret' } as never, 'monthly');
-    await rule('est', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5 });
+      status: 'accepted', amountCents: 9900, lines: [{ description: 'Retainer', quantity: 1, unitPriceCents: 9900, amountCents: 9900 }], signToken: 'secret' } as never, 'monthly', '2026-08-06');
+    await rule('est', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-06T00:00:00Z' });
+    // the same estimate set to repeat a second time: only the first schedule makes drafts
+    await rule('est2', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-07T00:00:00Z' });
+    // a schedule whose estimate has no lines makes nothing and says why
+    await rule('estbad', { ...schedule, sourceEstimateId: 'e-bad', estimateTemplate: { ...schedule.estimateTemplate, lines: [] }, nextOccurrence: '2026-09-05', anchorDay: 5 });
     const result = await processRecurring(db, '2026-09-05');
     assert.equal(result.details.filter(d => d.estimateId).length, 1, JSON.stringify(result.details));
     const estimates = (await db.collection('estimates').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
@@ -158,6 +162,8 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
     assert.ok(e.number && e.number !== 'EST-1', 'a new number');
     assert.equal(e.signToken, undefined, 'no signing link carried over');
     assert.equal(e.validityDays, undefined);
+    assert.equal(e.lines[0].description, 'Retainer', 'the lines are copied');
+    assert.match(String((await db.collection('recurring').doc(id('estbad')).get()).data()?.lastErrorCode), /no lines/);
     assert.equal((await db.collection('recurring').doc(id('est')).get()).data()?.nextOccurrence, '2026-10-05');
     const notes = (await db.collection('notifications').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
     assert.ok(notes.some(n => n.kind === 'estimate.draft_ready'));

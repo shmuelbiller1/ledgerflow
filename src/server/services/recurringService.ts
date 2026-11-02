@@ -177,6 +177,19 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   if (!existing.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
   const t = (rule.estimateTemplate || {}) as Partial<Estimate> & DocumentData;
   if (!t.customerId) throw new Error('The schedule has no customer');
+  if (!Array.isArray(t.lines) || t.lines.length === 0) {
+    await markProblem(db, rule.id, 'The estimate has no lines');
+    throw new Error('The estimate has no lines');
+  }
+  // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
+  const source = (rule as { sourceEstimateId?: string }).sourceEstimateId;
+  if (source) {
+    const siblings = await db.collection('recurring').where('workspaceId', '==', rule.workspaceId).where('sourceEstimateId', '==', source).get();
+    const first = siblings.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; isActive?: boolean; createdAt?: string }))
+      .filter(r => r.isActive !== false)
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || a.id.localeCompare(b.id))[0];
+    if (first && first.id !== rule.id) throw new RecurringSkip(`Estimate ${source} already repeats on schedule ${first.id}`);
+  }
   const workspace = (await db.collection('workspaces').doc(rule.workspaceId).get()).data() || {};
   const estimateRef = db.collection('estimates').doc();
   let number = '';
