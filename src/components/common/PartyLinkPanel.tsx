@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { linkableVendorIds, linkedPair, partyNetPosition } from '../../lib/partyLink';
 import { formatCurrency } from '../../lib/utils';
 import type { PartySide } from './PartyModal';
+import { RelatedRecordEditButton } from './RecordDetailsLauncher';
 
 /**
  * CA-29: on a customer's or vendor's page, the other side of the same business. The customer's page
@@ -69,11 +70,12 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
             {pair && !choices.includes(pair.vendorId) && <option value={pair.vendorId}>{other?.name || pair.vendorId}</option>}
             {choices.map(vid => <option key={vid} value={vid}>{vendors.find(v => v.id === vid)?.name || vid}</option>)}
           </select>
+          {pair?.vendorId && <RelatedRecordEditButton target={{ kind: 'vendors', id: pair.vendorId }} />}
         </div>
       ) : (
         <p className="text-sm text-[var(--text)]">{other ? `Linked to vendor ${other.name}` : 'Not linked to a vendor'}</p>
       ))}
-      {side === 'vendor' && other && <p className="text-sm text-[var(--text)]">Linked to customer {other.name}</p>}
+      {side === 'vendor' && other && <p className="text-sm text-[var(--text)]">Linked to customer {other.name} <RelatedRecordEditButton target={{ kind: 'customers', id: other.id }} /></p>}
       {incomplete && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Not every contact or document is loaded in this browser, so a link or part of these totals may be missing. Check the receivables and payables reports for the full figures.

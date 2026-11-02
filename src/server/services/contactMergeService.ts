@@ -167,8 +167,10 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
       t.set(db.collection(collection).doc(id), { ...data, updatedAt: now });
       moved[collection] = (moved[collection] || 0) + 1;
     }
-    t.update(keepRef, { ...mergedPartyFields(keep, dup, note), updatedAt: now });
+    // Delete the duplicate before updating the kept record so a carried-over
+    // unique value (e.g. customers.linkedVendorId) never collides with itself.
     t.delete(dupRef);
+    t.update(keepRef, { ...mergedPartyFields(keep, dup, note), updatedAt: now });
     await writeServerAuditLog({
       workspaceId: input.workspaceId, uid: input.uid, email: input.email,
       action: `${input.side.toUpperCase()}_MERGED`, entityType: side.party, entityId: input.keepId,

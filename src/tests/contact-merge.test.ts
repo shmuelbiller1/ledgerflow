@@ -56,7 +56,7 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     await db.collection('workspaces').doc(other).set({ uid: 'x', name: 'Other', members: ['x'] });
     const set = (collection: string, name: string, data: Record<string, unknown>) => db.collection(collection).doc(id(name)).set({ workspaceId: ws, ...data });
     await set('customers', 'keep', { name: 'Acme Ltd', email: 'ap@acme.test', tags: ['vip'] });
-    await set('customers', 'dup', { name: 'ACME', phone: '555', tags: ['wholesale'] });
+    await set('customers', 'dup', { name: 'ACME', phone: '555', tags: ['wholesale'], linkedVendorId: id('vacme') }); // CA-29: a linked duplicate
     await set('customers', 'bystander', { name: 'Beta' });
     await set('invoices', 'inv1', { customerId: id('dup'), customerName: 'ACME', number: 'INV-1', date: '2026-01-10', amountCents: 10000, status: 'sent' });
     await set('invoices', 'inv2', { customerId: id('bystander'), customerName: 'Beta', number: 'INV-2', date: '2026-01-11', amountCents: 500, status: 'sent' });
@@ -101,6 +101,7 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     assert.equal(res.status, 200, await res.clone().text());
     const body = await res.json();
     assert.deepEqual(body.moved, { invoices: 1, estimates: 1, creditNotes: 1, payments: 1, transactions: 1, recurring: 1 });
+    assert.equal((await get('customers', 'keep'))?.linkedVendorId, id('vacme'), 'CA-29: the duplicate\'s vendor link moves to the kept customer without tripping the unique index');
     const inv = await get('invoices', 'inv1');
     assert.deepEqual([inv?.customerId, inv?.customerName, inv?.amountCents], [id('keep'), 'Acme Ltd', 10000]);
     assert.equal((await get('invoices', 'inv2'))?.customerId, id('bystander'), 'other customers untouched');
