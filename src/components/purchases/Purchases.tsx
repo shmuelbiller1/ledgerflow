@@ -1,3 +1,4 @@
+import { PartyDetailButton } from '../common/PartyDetailButton';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { StageChip } from '../collaboration/StageChip';
@@ -527,12 +528,8 @@ export default function Purchases() {
                         validate={x => String(x) ? null : 'A vendor needs a name'}
                         onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')} />
                       <ArchivedBadge party={v} />
-                            <button type="button" id={detailOpenerId(v.id)}
-                              onClick={e => { e.stopPropagation(); setSelectedVendorId(v.id); }}
-                              aria-label={`View vendor ${v.name}`}
-                              className="min-h-11 min-w-11 text-sm text-[var(--text)] underline rounded text-left">
-                              View details
-                            </button>
+                            <PartyDetailButton id={detailOpenerId(v.id)} side="vendor" name={v.name}
+                              onOpen={() => setSelectedVendorId(v.id)} />
                     </td>
                     <td className="p-4 text-slate-600 dark:text-slate-400">
                       <InlineEdit value={v.category} label={`Category of ${v.name}`} placeholder="Standard" canEdit={canEditContacts}
