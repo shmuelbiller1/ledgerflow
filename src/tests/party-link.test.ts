@@ -57,9 +57,14 @@ test('the owner can save linkedVendorId on a customer (migrated Postgres/RLS)', 
     await client.query('select public.lf_update($1, $2, $3)', ['customers', cust, { linkedVendorId: 'v_acme' }]);
     await client.query('commit');
     assert.equal((await client.query('select data from public.customers where id = $1', [cust])).rows[0].data.linkedVendorId, 'v_acme');
+    // one customer per vendor: a second customer linking the same vendor is refused by the database
+    await client.query('insert into public.customers (id, data) values ($1, $2)', [`${cust}2`, { workspaceId: ws, name: 'Acme again', createdAt: '2026-11-02' }]);
+    await assert.rejects(client.query('update public.customers set data = data || $2 where id = $1', [`${cust}2`, { linkedVendorId: 'v_acme' }]), /customers_linked_vendor_uniq|duplicate key/);
+    // empty means not linked and never collides
+    await client.query('update public.customers set data = data || $2 where id = any($1)', [[cust, `${cust}2`], { linkedVendorId: '' }]);
   } finally {
     await client.query('rollback').catch(() => undefined);
-    await client.query('delete from public.customers where id = $1', [cust]);
+    await client.query('delete from public.customers where id = any($1)', [[cust, `${cust}2`]]);
     await client.query('delete from public.workspaces where id = $1', [ws]);
     await client.end();
   }

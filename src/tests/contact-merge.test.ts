@@ -68,6 +68,7 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     await set('vendors', 'vkeep', { name: 'Paper Co' });
     await set('vendors', 'vdup', { name: 'Paper Company', address: '9 Mill Rd' });
     await set('bills', 'bill1', { vendorId: id('vdup'), vendorName: 'Paper Company', amountCents: 700, date: '2026-03-01', status: 'open' });
+    await set('customers', 'paperbuyer', { name: 'Paper Co (as a customer)', linkedVendorId: id('vdup') }); // CA-29
     await db.collection('customers').doc(`${other}_c`).set({ workspaceId: other, name: 'Theirs' });
     const app = express();
     app.use(express.json());
@@ -122,7 +123,8 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     await db.collection('workspaces').doc(ws).set({ roles: { book: 'bookkeeper', acct: 'accountant' }, members: ['owner', 'book', 'acct'] }, { merge: true });
     const res = await merge('acct', { side: 'vendor', keepId: id('vkeep'), mergeId: id('vdup') });
     assert.equal(res.status, 200, await res.clone().text());
-    assert.deepEqual((await res.json()).moved, { bills: 1 });
+    assert.deepEqual((await res.json()).moved, { bills: 1, customers: 1 });
+    assert.equal((await get('customers', 'paperbuyer'))?.linkedVendorId, id('vkeep'), 'CA-29: the party link follows the kept vendor');
     const bill = await get('bills', 'bill1');
     assert.deepEqual([bill?.vendorId, bill?.vendorName, bill?.amountCents], [id('vkeep'), 'Paper Co', 700]);
     assert.equal((await get('vendors', 'vkeep'))?.address, '9 Mill Rd');

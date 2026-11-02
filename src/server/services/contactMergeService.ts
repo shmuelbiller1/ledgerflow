@@ -46,6 +46,8 @@ const SIDES: Record<PartySide, { party: string; label: string; refs: Reference[]
       { collection: 'payments', path: ['contactId'], name: 'contactName' },
       { collection: 'transactions', path: ['metadata', 'vendorId'] },
       { collection: 'transactions', path: ['metadata', 'contactId'] },
+      // CA-29: the customer that is the same business keeps its link to the kept vendor
+      { collection: 'customers', path: ['linkedVendorId'] },
     ],
     recurring: [['billTemplate', 'vendorId'], ['template', 'vendorId']],
   },
@@ -56,6 +58,7 @@ const WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];
 const NOUNS: Record<string, string> = {
   invoices: 'invoice', estimates: 'estimate', creditNotes: 'credit note', payments: 'payment', transactions: 'ledger entry',
   bills: 'bill', vendorCredits: 'vendor credit', purchaseOrders: 'purchase order', recurring: 'recurring schedule',
+  customers: 'customer link',
 };
 /** Kept as they are on the kept contact, never copied from the duplicate. */
 const OWN_FIELDS = new Set(['id', 'workspaceId', 'uid', 'createdAt', 'updatedAt', 'status', 'importBatchId', 'name', 'contacts', 'tags', 'noteLog']);
@@ -136,6 +139,15 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
         let next = withPath(updates.get(key)?.data || d.data(), ref.path, input.keepId);
         if (ref.name && next[ref.name] !== undefined) next = { ...next, [ref.name]: keepName };
         updates.set(key, { collection: ref.collection, id: d.id, data: next });
+      }
+    }
+    if (side.party === 'vendors') {
+      // a vendor links to one customer: if the kept vendor already has one, the duplicate's link is dropped
+      const keptLink = await t.get(db.collection('customers').where('workspaceId', '==', input.workspaceId).where('linkedVendorId', '==', input.keepId));
+      if (!keptLink.empty) {
+        for (const [key, u] of updates) {
+          if (u.collection === 'customers') updates.set(key, { ...u, data: { ...u.data, linkedVendorId: '' } });
+        }
       }
     }
     const schedules = await t.get(db.collection('recurring').where('workspaceId', '==', input.workspaceId));
