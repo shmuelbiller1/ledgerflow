@@ -81,3 +81,8 @@ test('an old estimate starts repeating after today, not from its own date (CC-04
   assert.equal(schedule.anchorDay, 15);
   assert.equal(schedule.sourceEstimateId, 'e1');
 });
+
+test('an estimate with no lines cannot repeat (CC-04)', () => {
+  assert.match(String(recurringEstimateProblem({ frequency: 'monthly', customerId: 'c1', lines: [] })), /no lines/);
+  assert.equal(recurringEstimateProblem({ frequency: 'monthly', customerId: 'c1', lines: [{}] }), null);
+});

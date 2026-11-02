@@ -80,7 +80,7 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
   });
 
   after(async () => {
-    for (const table of ['recurring', 'invoices', 'bills', 'transactions', 'chartAccounts', 'notifications', 'numberingSeries', 'workspaces']) {
+    for (const table of ['recurring', 'invoices', 'estimates', 'bills', 'transactions', 'chartAccounts', 'notifications', 'numberingSeries', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     }
     await db.terminate();

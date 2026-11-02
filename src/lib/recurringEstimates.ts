@@ -23,8 +23,9 @@ export function estimateValidityDays(estimate: Partial<Estimate>): number {
 }
 
 /** Why an estimate cannot repeat, in plain words, or null when it can. */
-export function recurringEstimateProblem(schedule: { frequency?: string; customerId?: string }): string | null {
+export function recurringEstimateProblem(schedule: { frequency?: string; customerId?: string; lines?: unknown[] }): string | null {
   if (!schedule.customerId) return 'A recurring estimate needs a customer.';
+  if (Array.isArray(schedule.lines) && schedule.lines.length === 0) return 'An estimate with no lines cannot repeat.';
   if (!ESTIMATE_FREQUENCIES.includes(schedule.frequency as RecurringTransaction['frequency'])) {
     return 'An estimate can repeat monthly, quarterly or yearly.';
   }

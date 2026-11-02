@@ -144,7 +144,7 @@ function CustomerQuotesContent() {
 
   const recurringInfo = useMemo(() => {
     if (!selectedEstimate) return null;
-    const problem = recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId });
+    const problem = recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId, lines: selectedEstimate.lines || [] });
     if (problem) return { problem, nextOccurrence: '', drafts: [], validityDays: 0 };
     const schedule = recurringEstimateSchedule(selectedEstimate, frequency, today);
     const validityDays = estimateValidityDays(selectedEstimate);
@@ -171,7 +171,7 @@ function CustomerQuotesContent() {
   // until the full list of schedules is here, absence does not prove there is none
   const schedulesUnknown = loading || Boolean(truncated.recurring || failed.recurring);
   const repeat = (): void => {
-    if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
+    if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId, lines: selectedEstimate.lines || [] })) return;
     setRepeating(true);
     // the saved schedule starts from the real date; the assessment date only drives the preview
     void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency, getLocalDateISO()), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
@@ -429,7 +429,7 @@ function CustomerQuotesContent() {
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>
-                    First draft if set to repeat today:{' '}
+                    First draft if it had been set to repeat on {today} (a schedule saved now starts from today&apos;s date):{' '}
                     <strong>{recurringInfo.nextOccurrence || 'None'}</strong>
                   </div>
                   <div>
