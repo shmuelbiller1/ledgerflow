@@ -114,6 +114,21 @@ describe('Payment types on the payment route (database)', { skip: !url && 'LF_TE
     assert.equal((await db.collection('payments').where('workspaceId', '==', ws).get()).size, count);
     // a new operation with the removed type is still refused
     assert.equal((await pay({ paymentTypeId: 'bit' }, { 'x-operation-id': 'op-other-1' })).status, 400);
+    // the same operation id with different details is a conflict, not the old payment
+    const changed = await pay({ paymentTypeId: 'bit', amountCents: 9999 }, op);
+    assert.equal(changed.status, 409, JSON.stringify(changed.body));
+  });
+
+  test('renaming the type between a payment and its retry still hands back the same payment', async () => {
+    const op = { 'x-operation-id': `op-${crypto.randomBytes(4).toString('hex')}` };
+    const first = await pay({ paymentTypeId: 'paypal', amountCents: 777 }, op);
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    await db.collection('workspaces').doc(ws).update({ paymentTypes: [{ id: 'paypal', name: 'PayPal Business', method: 'card' }] });
+    const retry = await pay({ paymentTypeId: 'paypal', amountCents: 777 }, op);
+    assert.equal(retry.status, 200, JSON.stringify(retry.body));
+    const data = retry.body.data as { paymentId: string; replayed: boolean; payment: { paymentType: { name: string } } };
+    assert.deepEqual([data.paymentId, data.replayed], [(first.body.data as { paymentId: string }).paymentId, true]);
+    assert.equal(data.payment.paymentType.name, 'PayPal', 'the payment keeps the name it was recorded with');
   });
 
   test('without a type, a payment is as before', async () => {

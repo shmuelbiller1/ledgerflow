@@ -58,20 +58,32 @@ export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload
  * CC-09: the stored result of a payment operation this user already committed, or null. Used when a
  * retried request can no longer be rebuilt as it was sent (its payment type has since been removed).
  */
-export async function committedPaymentReplay(db: Firestore, workspaceId: string, operationId: string, uid: string): Promise<Record<string, unknown> | null> {
+export async function committedPaymentReplay(db: Firestore, workspaceId: string, operationId: string, uid: string, fingerprint: unknown): Promise<Record<string, unknown> | null> {
   const key = deriveScopedOperationKey(workspaceId, 'PAYMENT_CREATE', operationId);
   const snap = await db.collection('idempotencyKeys').doc(key).get();
-  const old = snap.exists ? snap.data() || {} : {};
-  if (old.actor !== uid || old.status !== 'success' || !old.result) return null;
+  if (!snap.exists) return null;
+  const old = snap.data() || {};
+  // the same refusal as createPaymentIdempotent: one operation id is one request by one person
+  if (old.actor !== uid || old.payloadHash !== paymentRequestHash(fingerprint)) {
+    throw Object.assign(new Error('Idempotency key reused for different payment details or actor'), { status: 409 });
+  }
+  if (old.status !== 'success' || !old.result) return null;
   return { ...(old.result as Record<string, unknown>), replayed: true };
+}
+
+/** The hash an idempotent payment operation is matched on. */
+export function paymentRequestHash(request: unknown): string {
+  return createHash('sha256').update(JSON.stringify(request)).digest('hex');
 }
 
 /** Idempotent manual/bulk payment posting: the result key and journal commit together.
  * The same key with different payment details or a different actor is always refused.
  */
-export async function createPaymentIdempotent(db: Firestore, payload: CreatePaymentPayload, operationId: string) {
+export async function createPaymentIdempotent(db: Firestore, payload: CreatePaymentPayload, operationId: string, fingerprint?: unknown) {
   const key = deriveScopedOperationKey(payload.workspaceId, 'PAYMENT_CREATE', operationId);
-  const payloadHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  // CC-09: when the payload holds details the server looked up (a payment type's name and method),
+  // the caller passes the request as sent, so a later rename or removal does not change the hash
+  const payloadHash = paymentRequestHash(fingerprint ?? payload);
   return db.runTransaction(async (tx: Transaction) => {
     const keyRef = db.collection('idempotencyKeys').doc(key);
     const previous = await tx.get(keyRef);

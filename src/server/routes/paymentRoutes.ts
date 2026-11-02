@@ -76,14 +76,17 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment operation ID' });
     }
-    // CC-09: a payment type is looked up in the workspace, never trusted from the client
+    // CC-09: a payment type is looked up in the workspace, never trusted from the client. An idempotent
+    // request with a type is matched on what was sent (the type's id), not on its current name or method,
+    // so renaming or removing the type cannot turn a retry into a conflict or a second payment.
+    const typedRequestFingerprint = () => ({ ...rest, paymentTypeId, paymentDate: rest.paymentDate || null, workspaceId, uid: authReq.user!.uid });
     let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
     if (paymentTypeId) {
       const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
       if (!type) {
         // the same operation may already have been recorded (its reply lost) before the type was removed:
         // hand that payment back rather than ask for another type, which would record it a second time
-        const committed = operationId ? await committedPaymentReplay(db, workspaceId, operationId, authReq.user.uid) : null;
+        const committed = operationId ? await committedPaymentReplay(db, workspaceId, operationId, authReq.user.uid, typedRequestFingerprint()) : null;
         if (committed) return res.json({ status: 'success', data: committed });
         return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
       }
@@ -93,7 +96,7 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
     const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
     const result = operationId
-      ? await createPaymentIdempotent(db, paymentInput, operationId)
+      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined)
       : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
     // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
     // them when replaying an already-committed payment operation.
