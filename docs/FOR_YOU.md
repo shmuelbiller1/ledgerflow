@@ -625,3 +625,6 @@ in Vercel (Settings → Environment Variables) and redeploy. Every notice is che
 before anything happens. *Default I used:* the setting is optional. Without it, nothing changes and Sync works
 as today. Banks connected before you set it keep working with Sync. They get automatic updates once they are
 reconnected (or I can add a one-time "register webhook" step for existing connections if you want it).
+
+## 2 Nov — API keys can no longer change workspace settings (PR #490)
+CodeRabbit found that an API key with only `read:workspaces` could change workspace settings (payment types, alerts, modules, roles…), because every `/workspaces` request mapped to that read scope. Writes there now need `write:workspaces`, which no key can be issued, so keys can read workspace settings but not change them. **Default used:** keep it locked. If an integration of yours needs to change workspace settings with a key, say so and I'll add `write:workspaces` as an issuable scope.
