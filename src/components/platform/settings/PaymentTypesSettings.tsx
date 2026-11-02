@@ -2,7 +2,7 @@ import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
 import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { doc, getDoc, updateDoc } from '../../../lib/db/firestore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '../../../lib/accountDefaults';
@@ -30,29 +30,50 @@ export function PaymentTypesSettings() {
   const full = saved.length >= MAX_PAYMENT_TYPES;
   const canAdd = canEdit && !saving && clean !== '' && clean.length <= MAX_PAYMENT_TYPE_NAME && !duplicate && !full;
 
-  // one save at a time; the reply is ignored after a sign-out or account switch. It rejects when the
-  // save fails (after saying so), so an inline edit stays open with what was typed.
-  const save = (next: PaymentType[], done: string, onSaved?: () => void): Promise<void> => {
+  // One save at a time. Each change is applied to the list as it is in the database just before the
+  // write (not to this screen's copy), so another person's addition or rename made meanwhile is kept.
+  // A change that no longer fits the current list (the name was taken meanwhile) is refused. The reply
+  // is ignored after a sign-out or account switch, and its message and draft clearing only belong to
+  // the workspace still open. It rejects when the save fails (after saying so), so an inline edit
+  // stays open with what was typed.
+  const save = (change: (current: PaymentType[]) => PaymentType[] | string, done: string, onSaved?: () => void): Promise<void> => {
     if (!workspaceId || saving || !canEdit) return Promise.reject(new Error('Not saved'));
     setSaving(true);
     const startedBy = useAuthStore.getState().user?.uid;
-    const paymentTypes = normalizePaymentTypes(next);
-    return updateDoc(doc(db, 'workspaces', workspaceId), { paymentTypes }).then(() => {
+    const ref = doc(db, 'workspaces', workspaceId);
+    let paymentTypes: PaymentType[] = [];
+    return getDoc(ref).then(snap => {
+      const next = change(normalizePaymentTypes((snap.data() as { paymentTypes?: unknown } | undefined)?.paymentTypes));
+      if (typeof next === 'string') throw Object.assign(new Error(next), { shown: true });
+      paymentTypes = normalizePaymentTypes(next);
+      return updateDoc(ref, { paymentTypes });
+    }).then(() => {
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;
       now.setWorkspaces(now.workspaces.map(w => (w.id === workspaceId ? { ...w, paymentTypes } : w)));
+      if (now.currentWorkspaceId !== workspaceId) return;
       onSaved?.();
       toast.success(done);
     }, (err: unknown) => {
-      console.error('[Settings] Failed to save payment types:', err);
-      toast.error('Payment types could not be saved (owners and accountants can change them).');
+      if ((err as { shown?: boolean }).shown) toast.error((err as Error).message);
+      else {
+        console.error('[Settings] Failed to save payment types:', err);
+        toast.error('Payment types could not be saved (owners and accountants can change them).');
+      }
       throw err;
     }).finally(() => setSaving(false));
   };
 
+  const taken = (list: PaymentType[], name: string, exceptId?: string) =>
+    list.some(x => x.id !== exceptId && x.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+
   const rename = (t: PaymentType, next: string | number): Promise<void> => {
-    const renamed = renamePaymentType(saved, t.id, String(next));
-    return save(renamed, `Renamed to ${String(next).trim()}`);
+    const name = String(next).trim().replace(/\s+/g, ' ');
+    return save(current => {
+      if (!current.some(x => x.id === t.id)) return `${t.name} was removed meanwhile.`;
+      if (taken(current, name, t.id)) return `${name} is already a payment type.`;
+      return renamePaymentType(current, t.id, name);
+    }, `Renamed to ${name}`);
   };
   const renameProblem = (t: PaymentType, next: string | number): string | null => {
     const clean = String(next).trim().replace(/\s+/g, ' ');
@@ -65,7 +86,12 @@ export function PaymentTypesSettings() {
   const add = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!canAdd) return;
-    save([...saved, { id: newPaymentTypeId(saved), name: clean, method }], `${clean} added`, () => setName('')).catch(() => undefined); // the failure was already said
+    const added = { name: clean, method };
+    save(current => {
+      if (taken(current, added.name)) return `${added.name} is already a payment type.`;
+      if (current.length >= MAX_PAYMENT_TYPES) return `Up to ${MAX_PAYMENT_TYPES} payment types.`;
+      return [...current, { id: newPaymentTypeId(current), ...added }];
+    }, `${clean} added`, () => setName('')).catch(() => undefined); // the failure was already said
   };
 
   const hint = duplicate ? `${clean} is already a payment type.` : full ? `Up to ${MAX_PAYMENT_TYPES} payment types.` : clean.length > MAX_PAYMENT_TYPE_NAME ? `Up to ${MAX_PAYMENT_TYPE_NAME} characters.` : '';
@@ -88,7 +114,7 @@ export function PaymentTypesSettings() {
                 type="button"
                 disabled={saving}
                 aria-label={`Remove ${t.name}`}
-                onClick={() => { save(saved.filter(x => x.id !== t.id), `${t.name} removed`).catch(() => undefined); }}
+                onClick={() => { save(current => current.filter(x => x.id !== t.id), `${t.name} removed`).catch(() => undefined); }}
                 className="min-h-11 min-w-11 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)]"
               >
                 <X aria-hidden="true" className="w-3.5 h-3.5" />
