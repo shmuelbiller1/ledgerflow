@@ -10,6 +10,8 @@ import {
   SERVERLESS_DEFAULT_POOL_MAX,
   STANDALONE_DEFAULT_POOL_MAX,
 } from '../server/db/pgFirestore';
+import { resetStockMovesReadyForTests, stockMovesReady } from '../server/services/stockMoveService';
+import { allocationLedgerReady, resetAllocationLedgerReadyForTests } from '../server/services/allocationLedger';
 import type { Transaction } from '../types';
 
 /** Builds a balanced sample ledger transaction with full dimensional and line metadata. */
@@ -59,8 +61,9 @@ function makeTransaction(overrides: Partial<Transaction> & { notes?: string } = 
 }
 
 /** Creates an in-memory pg.Client implementation for deterministic single-connection pool tests. */
-function makeSingleSlotClientClass(options: { failRulesOnce?: boolean } = {}) {
+function makeSingleSlotClientClass(options: { failRulesOnce?: boolean; failRegclassOnce?: boolean; onRegclass?: () => void } = {}) {
   let failedOnce = false;
+  let failedRegclassOnce = false;
   return class SingleSlotPgClient extends EventEmitter {
     ref() {}
     unref() {}
@@ -84,11 +87,26 @@ function makeSingleSlotClientClass(options: { failRulesOnce?: boolean } = {}) {
         }
         return Promise.reject(err);
       }
+      if (/to_regclass/i.test(sql) && options.failRegclassOnce && !failedRegclassOnce) {
+        failedRegclassOnce = true;
+        const err = new Error('simulated to_regclass failure');
+        if (callback) {
+          void Promise.resolve().then(() => callback(err));
+          return undefined;
+        }
+        return Promise.reject(err);
+      }
       let res: { rows: unknown[]; rowCount: number } = { rows: [], rowCount: 1 };
       if (/lf_rules/i.test(sql)) {
         res = {
           rows: [{ table_name: 'workspaces' }, { table_name: 'transactions' }],
           rowCount: 2,
+        };
+      } else if (/to_regclass/i.test(sql)) {
+        options.onRegclass?.();
+        res = {
+          rows: [{ ok: true }],
+          rowCount: 1,
         };
       } else if (/select id, data::text as data/i.test(sql)) {
         res = {
@@ -459,6 +477,87 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
       const outsideSnap = await poolReadPromise!;
       assert.equal((outsideSnap as { exists: boolean }).exists, false);
     } finally {
+      await pool.end();
+    }
+  });
+
+  test('stockMovesReady and allocationLedgerReady reuse the active transaction client on cold start at max=1 and coalesce pool probes', async () => {
+    resetStockMovesReadyForTests();
+    resetAllocationLedgerReadyForTests();
+
+    let regclassQueries = 0;
+    const pool = new pg.Pool({
+      max: 1,
+      connectionTimeoutMillis: 200,
+      Client: makeSingleSlotClientClass({
+        onRegclass: () => {
+          regclassQueries += 1;
+        },
+      }) as unknown as typeof pg.Client,
+    });
+    const db = new Firestore({ pool });
+
+    try {
+      const txFlags = await db.runTransaction(async (t) => {
+        const stockOk = await stockMovesReady(db, t);
+        const allocOk = await allocationLedgerReady(db, t);
+        return { stockOk, allocOk };
+      });
+      assert.deepEqual(txFlags, { stockOk: true, allocOk: true });
+      assert.equal(regclassQueries, 2);
+
+      // Reset caches and verify concurrent non-transactional probes coalesce into 1 query each
+      resetStockMovesReadyForTests();
+      resetAllocationLedgerReadyForTests();
+      regclassQueries = 0;
+      const [s1, s2, s3] = await Promise.all([stockMovesReady(db), stockMovesReady(db), stockMovesReady(db)]);
+      assert.deepEqual([s1, s2, s3], [true, true, true]);
+      assert.equal(regclassQueries, 1, 'concurrent stockMovesReady pool probes must coalesce');
+
+      const [a1, a2, a3] = await Promise.all([
+        allocationLedgerReady(db),
+        allocationLedgerReady(db),
+        allocationLedgerReady(db),
+      ]);
+      assert.deepEqual([a1, a2, a3], [true, true, true]);
+      assert.equal(regclassQueries, 2, 'concurrent allocationLedgerReady pool probes must coalesce');
+    } finally {
+      resetStockMovesReadyForTests();
+      resetAllocationLedgerReadyForTests();
+      await pool.end();
+    }
+  });
+
+  test('tablesExist failure inside runTransaction marks tx state failed and rethrows on subsequent tx reads', async () => {
+    resetStockMovesReadyForTests();
+    const pool = new pg.Pool({
+      max: 1,
+      connectionTimeoutMillis: 150,
+      Client: makeSingleSlotClientClass({ failRegclassOnce: true }) as unknown as typeof pg.Client,
+    });
+    const db = new Firestore({ pool });
+
+    let followUpError: unknown = null;
+    try {
+      await assert.rejects(
+        db.runTransaction(async (t) => {
+          try {
+            await stockMovesReady(db, t);
+          } catch {
+            try {
+              await t.get(db.collection('workspaces').doc('ws-1'));
+            } catch (err) {
+              followUpError = err;
+            }
+          }
+          return 'swallowed';
+        }),
+        /simulated to_regclass failure/,
+      );
+      assert.ok(followUpError instanceof Error);
+      assert.match(followUpError.message, /simulated to_regclass failure/);
+    } finally {
+      resetStockMovesReadyForTests();
       await pool.end();
     }
   });

@@ -433,7 +433,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
       ...(payload.withholdingRatePercent !== undefined ? { withholdingRatePercent: payload.withholdingRatePercent } : {}),
       ...(payload.withholdingCertificate ? { withholdingCertificate: payload.withholdingCertificate } : {}),
     });
-    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db);
+    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
     paymentNumber = await allocateInTransaction(db, tx, workspaceId, 'payment');
     paymentData.number = paymentNumber;
 
