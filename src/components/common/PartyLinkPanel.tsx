@@ -4,6 +4,8 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { linkableVendorIds, linkedPair, partyNetPosition } from '../../lib/partyLink';
 import { formatCurrency } from '../../lib/utils';
 import type { PartySide } from './PartyModal';
@@ -29,6 +31,10 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   // the browser holds at most a capped slice of each list: say so instead of presenting a partial answer as complete
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const incomplete = ['customers', 'vendors', 'invoices', 'bills'].some(c => truncated[c]);
+  // until every input has arrived (or while one failed) an empty list is not a zero: withhold the totals
+  const { loading } = useLedgerCollections('customers', 'vendors', 'invoices', 'bills');
+  const failed = useDataNeedsStore(s => ['customers', 'vendors', 'invoices', 'bills'].some(c => s.failed[c as 'bills']));
+  const totalsReady = !loading && !failed;
 
   const activeVendors = useMemo(() => vendors.filter(v => v.status !== 'inactive' && !(v as { isArchived?: boolean }).isArchived), [vendors]);
   const vendorIds = useMemo(() => new Set(vendors.map(v => v.id)), [vendors]);
@@ -81,7 +87,10 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
           Not every contact or document is loaded in this browser, so a link or part of these totals may be missing. Check the receivables and payables reports for the full figures.
         </p>
       )}
-      {position && (
+      {position && !totalsReady && (
+        <p role="status" className="text-xs text-[var(--muted)]">{failed ? 'Some invoices, bills or contacts could not be loaded, so the totals are not shown.' : 'Loading invoices and bills…'}</p>
+      )}
+      {position && totalsReady && (
         <dl className="grid grid-cols-3 gap-2 text-sm" aria-label="Net position with this business">
           <div><dt className="text-xs text-[var(--muted)]">They owe us</dt><dd className="font-mono">{formatCurrency(position.receivableCents, currency)}</dd></div>
           <div><dt className="text-xs text-[var(--muted)]">We owe them</dt><dd className="font-mono">{formatCurrency(position.payableCents, currency)}</dd></div>
