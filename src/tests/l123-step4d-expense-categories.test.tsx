@@ -100,6 +100,15 @@ describe('L-123 step 4d: expense by category (no database)', () => {
     assert.ok(table().includes(formatCurrency(900)) && table().includes(formatCurrency(200)));
     assert.ok(document.body.textContent!.includes(formatCurrency(1800)), 'the header total is every entry\'s');
     assert.match(screen.getByTestId('expense-category-source').textContent || '', /read from every entry on the server/);
+    // an account renamed in its category asks the server again (Codex on #495): Fuel's category becomes "Travel"
+    const asked = urls.length;
+    accounts[3] = { ...accounts[3], category: 'Travel' };
+    useLedgerStore.setState({ accounts: [...accounts] });
+    await waitFor(() => assert.ok(table().includes('Travel'), table()), { timeout: 5000 });
+    assert.ok(urls.length > asked, 'the server is asked again');
+    accounts[3] = { ...accounts[3], category: 'Fuel' };
+    useLedgerStore.setState({ accounts: [...accounts] });
+    await waitFor(() => assert.ok(table().includes('Fuel'), table()), { timeout: 5000 });
     cleanup();
 
     stubFetch(500);

@@ -24,7 +24,11 @@ export function useServerExpenseByCategory(from: string | undefined, to: string 
   const needed = incomplete && !!workspaceId && !!from && !!to && from <= to;
   // any loaded entry dated from `from` on can change the server's answer (a reversal dated after the range too)
   const revision = useMemo(() => (needed ? rangeRevision(transactions || [], from!) : ''), [needed, transactions, from]);
-  const key = needed ? `${workspaceId}|${from}|${to}|${(transactions || []).length}|${revision}` : '';
+  // the server groups by each account's type, category and name too: a change to any of them asks again (Codex on #495)
+  const accountsRevision = useMemo(() => (needed
+    ? JSON.stringify((accounts || []).map(a => [a.id, a.type, a.category, a.name]).sort((x, y) => String(x[0]).localeCompare(String(y[0]))))
+    : ''), [needed, accounts]);
+  const key = needed ? `${workspaceId}|${from}|${to}|${(transactions || []).length}|${revision}|${accountsRevision}` : '';
   const [answer, setAnswer] = useState<{ key: string; workspaceId: string; categories: CategoryExpenseBreakdown[] | null } | null>(null);
 
   useEffect(() => {
