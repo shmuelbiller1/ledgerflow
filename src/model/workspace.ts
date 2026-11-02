@@ -144,6 +144,8 @@ export interface Workspace {
   taxRounding?: 'half_up' | 'half_even' | 'down';
   /** CC-08: the workspace's own payment terms, in days (Net N), offered on invoices with the standard ones. */
   paymentTermDays?: number[];
+  /** CC-09: the workspace's own payment types, each under one of the five payment methods. */
+  paymentTypes?: Array<{ id: string; name: string; method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'other' }>;
   fiscalYearStartDay?: number;
   fiscalYearEnd?: string;
   // Set only by the server or a platform admin (the database refuses them from the browser)

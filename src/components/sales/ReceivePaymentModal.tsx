@@ -6,6 +6,7 @@ import { X, DollarSign, Sparkles } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { isUndepositedFundsAccount } from '../../lib/accountUtils';
 import { fitsPaymentAccount, paymentModeAccountId } from '../../lib/accountDefaults';
+import { normalizePaymentTypes } from '../../lib/paymentTypes';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -52,6 +53,9 @@ export default function ReceivePaymentModal({
   const [date, setDate] = useState<string>(getLocalDateISO());
   const [amountDollars, setAmountDollars] = useState<string>('');
   const [method, setMethod] = useState<'cash' | 'check' | 'bank_transfer' | 'card' | 'other'>('bank_transfer');
+  // CC-09: one of the workspace's payment types, if chosen; its method is `method`
+  const paymentTypes = normalizePaymentTypes(useAuthStore(s => s.getCurrentWorkspace()?.paymentTypes));
+  const [paymentTypeId, setPaymentTypeId] = useState('');
   const [reference, setReference] = useState<string>('');
   const [depositAccountId, setDepositAccountId] = useState<string>('');
   const [allocationsMap, setAllocationsMap] = useState<Record<string, string>>({});
@@ -216,6 +220,7 @@ export default function ReceivePaymentModal({
           paymentDate: date,
           amountCents: paymentAmountCents,
           paymentMethod: method,
+          ...(paymentTypeId ? { paymentTypeId } : {}),
           referenceNumber: reference || '',
           memo: memo || '',
           customerId: contactType === 'customer' ? contactId : undefined,
@@ -426,8 +431,13 @@ export default function ReceivePaymentModal({
               </label>
               <select
                 id="pay-method"
-                value={method}
-                onChange={e => setMethod(e.target.value as unknown as React.SetStateAction<"cash" | "check" | "bank_transfer" | "card" | "other">)}
+                value={paymentTypeId ? `type:${paymentTypeId}` : method}
+                onChange={e => {
+                  const value = e.target.value;
+                  const type = value.startsWith('type:') ? paymentTypes.find(t => `type:${t.id}` === value) : undefined;
+                  setPaymentTypeId(type ? type.id : '');
+                  setMethod(type ? type.method : value as 'cash' | 'check' | 'bank_transfer' | 'card' | 'other');
+                }}
                 className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
               >
                 <option value="bank_transfer">Bank Transfer / Wire</option>
@@ -435,6 +445,11 @@ export default function ReceivePaymentModal({
                 <option value="card">Credit / Debit Card</option>
                 <option value="cash">Cash</option>
                 <option value="other">Other</option>
+                {paymentTypes.length > 0 && (
+                  <optgroup label="Your payment types">
+                    {paymentTypes.map(t => <option key={t.id} value={`type:${t.id}`}>{t.name}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
 

@@ -41,7 +41,7 @@ import { RetentionError, updateRetention } from '../services/retentionService';
 import { budgetControlRouter } from './budgetControlRoutes';
 import { completeSetup, recordOpeningBalances, SetupError } from '../services/openingBalanceService';
 import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
-import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter } from './savedListRoutes';
+import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter, paymentTypeRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
 import { planFor } from '../../lib/plans';
 
@@ -250,6 +250,7 @@ workspaceRouter.use('/:workspaceId/allocation-rules', requireWorkspaceRole(LEDGE
 workspaceRouter.use('/:workspaceId/price-lists', requireWorkspaceRole(LEDGER_ADMIN_ROLES), priceListRouter);
 workspaceRouter.use('/:workspaceId/sales-reps', requireWorkspaceRole(LEDGER_ADMIN_ROLES), salesRepRouter);
 workspaceRouter.use('/:workspaceId/tax-profiles', requireWorkspaceRole(LEDGER_ADMIN_ROLES), taxProfileRouter);
+workspaceRouter.use('/:workspaceId/payment-types', requireWorkspaceRole(LEDGER_ADMIN_ROLES), paymentTypeRouter); // CC-09
 workspaceRouter.use('/:workspaceId/role-dashboards', requireWorkspaceRole(['owner']), roleDashboardRouter);
 workspaceRouter.use('/:workspaceId/approval-delegate', requireWorkspaceRole(LEDGER_ADMIN_ROLES), approvalDelegateRouter);
 

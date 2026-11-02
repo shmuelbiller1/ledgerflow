@@ -26,12 +26,12 @@ describe('Each API key has its own limit (database)', { skip: !url && 'LF_TEST_D
   let db: Firestore;
   let server: Server;
   let base = '';
-  const makeKey = async (limit: number) => {
+  const makeKey = async (limit: number, scopes: string[] = ['read:transactions']) => {
     const keyId = `lf_id_${ws}_${crypto.randomBytes(8).toString('hex')}`;
     const secret = crypto.randomBytes(32).toString('hex');
     await db.collection('apiKeys').doc(keyId).set({
       id: keyId, workspaceId: ws, uid: 'owner-1', name: 'Test key', keyHash: crypto.createHash('sha256').update(secret).digest('hex'),
-      scopes: ['read:transactions'], expiresAt: 'never', createdAt: new Date().toISOString(), rateLimitPerMinute: limit,
+      scopes, expiresAt: 'never', createdAt: new Date().toISOString(), rateLimitPerMinute: limit,
     });
     return `${keyId}.${secret}`;
   };
@@ -47,6 +47,8 @@ describe('Each API key has its own limit (database)', { skip: !url && 'LF_TEST_D
     const app = express();
     app.use(express.json());
     app.use('/api/v1/transactions', apiAuthenticate, transactionRouter);
+    // CC-09: only the scope check matters here, so the workspace routes answer with a plain ok
+    app.use('/api/v1/workspaces', apiAuthenticate, (_req, res) => { res.json({ status: 'success' }); });
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
@@ -67,5 +69,16 @@ describe('Each API key has its own limit (database)', { skip: !url && 'LF_TEST_D
     assert.equal(refused.status, 429);
     assert.equal(refused.headers.get('ratelimit-limit') ?? refused.headers.get('ratelimit-policy')?.split(';')[0], '10');
     assert.equal((await read(other)).status, 200, 'its own allowance');
+  });
+
+  test('a key that may read workspaces cannot change their settings (CC-09: payment types)', async () => {
+    const key = await makeKey(100, ['read:workspaces']);
+    const get = await fetch(`${base}/api/v1/workspaces/${ws}/usage?workspaceId=${ws}`, { headers: { 'x-api-key': key } });
+    assert.equal(get.status, 200);
+    const post = await fetch(`${base}/api/v1/workspaces/${ws}/payment-types?workspaceId=${ws}`, {
+      method: 'POST', headers: { 'x-api-key': key, 'content-type': 'application/json' }, body: JSON.stringify({ op: 'add', name: 'X', method: 'card' }),
+    });
+    assert.equal(post.status, 403);
+    assert.match(String((await post.json() as { message?: string }).message), /write:workspaces/);
   });
 });

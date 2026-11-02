@@ -49,7 +49,9 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       // tax rounding policy (Y-35, migration 20261101000000_workspace_tax_rounding)
       'taxRounding',
       // the workspace's own payment terms (CC-08, migration 20261102010000_workspace_payment_terms)
-      'paymentTermDays'
+      'paymentTermDays',
+      // the workspace's own payment types (CC-09, migration 20261102020000_workspace_payment_types)
+      'paymentTypes'
     ];
     for (const key of expectedWorkspaceKeys) {
       assert.ok(allowed.includes(key), `workspaces allowed fields missing '${key}'`);
