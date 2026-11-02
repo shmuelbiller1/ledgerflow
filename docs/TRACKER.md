@@ -1611,7 +1611,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CA-23 Loyalty
 - [ ] CA-24 Shipping rules
 - [x] CA-28 Mode of payment — Settings → Defaults has one account per payment method (cash, check, transfer, card, other), preselected on Record payment; unset = the Bank default (`paymentModeAccountId` in `src/lib/accountDefaults.ts`)
-- [ ] CA-29 Party link
+- [x] CA-29 Party link — a customer can be linked to the vendor that is the same business (customer page); both pages show what they owe us, what we owe them and the net (`src/lib/partyLink.ts`, `PartyLinkPanel`; migration `20261102000000_customer_linked_vendor`)
 - [ ] CA-30 Payment request
 - [ ] CA-31 Payment order
 - [ ] CB-15 Partner commission
