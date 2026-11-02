@@ -64,7 +64,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     ).finally(() => setSaving(false));
   };
 
-  if (side === 'vendor' && !pair && !truncated.customers) return null;
+  if (side === 'vendor' && !pair && !truncated.customers && totalsReady) return null; // hide only once customers loaded and nothing links here
 
   return (
     <section aria-labelledby={`${id}-title`} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -102,6 +102,9 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Not every contact or document is loaded in this browser, so a link or part of these totals may be missing. Check the receivables and payables reports for the full figures.
         </p>
+      )}
+      {!pair && side === 'vendor' && !totalsReady && (
+        <p role="status" className="text-xs text-[var(--muted)]">{failed ? 'Customers could not be loaded, so a linked customer cannot be checked.' : 'Checking for a linked customer…'}</p>
       )}
       {position && !totalsReady && (
         <p role="status" className="text-xs text-[var(--muted)]">{failed ? 'Some invoices, bills or contacts could not be loaded, so the totals are not shown.' : 'Loading invoices and bills…'}</p>
