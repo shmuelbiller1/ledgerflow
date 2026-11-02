@@ -111,6 +111,15 @@ describe('L-123 step 4d: expense by category (no database)', () => {
     await waitFor(() => assert.ok(table().includes('Fuel'), table()), { timeout: 5000 });
     cleanup();
 
+    // only the chart of accounts capped, Fuel not loaded: the loaded entries alone would leave Fuel out, so the server is asked
+    useLedgerStore.setState({ accounts: accounts.filter(a => a.name !== 'Fuel'), truncatedCollections: { chartAccounts: true } });
+    const before = urls.length;
+    render(<ExpenseByCategoryReportView selectedYear={Y} />);
+    await waitFor(() => assert.ok(table().includes('Office'), table()), { timeout: 5000 });
+    assert.ok(urls.length > before && urls.at(-1)!.includes('/expense-by-category'), 'a capped chart of accounts asks the server');
+    cleanup();
+    useLedgerStore.setState({ accounts, truncatedCollections: { transactions: true } });
+
     stubFetch(500);
     render(<ExpenseByCategoryReportView selectedYear={Y} />);
     await waitFor(() => assert.match(screen.getByTestId('expense-category-source').textContent || '', /loaded entries only/));

@@ -18,9 +18,11 @@ export function useServerExpenseByCategory(from: string | undefined, to: string 
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
+  // a capped chart of accounts leaves lines whose account is not loaded out of the sums, whatever the range (CodeRabbit on #495)
+  const accountsCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.chartAccounts));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const cutoff = useMemo(() => openingCutoff(transactions || []), [transactions]);
-  const incomplete = linesNeedServer(capped, cutoff, from);
+  const incomplete = accountsCapped || linesNeedServer(capped, cutoff, from);
   const needed = incomplete && !!workspaceId && !!from && !!to && from <= to;
   // any loaded entry dated from `from` on can change the server's answer (a reversal dated after the range too)
   const revision = useMemo(() => (needed ? rangeRevision(transactions || [], from!) : ''), [needed, transactions, from]);
