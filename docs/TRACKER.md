@@ -1548,7 +1548,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION BH–BP — CURRENCY · COMPLIANCE · OPS
 
-- [ ] BH-02 Storage model decision for 3-decimal currencies
+- [x] BH-02 Storage model decision for 3-decimal currencies — (decided and built with BM-04, PR #322: three-decimal dinars stored as fils; ticked 2 Nov)
 - [ ] BI-01 Fund accounting (vertical — recommend not building)
 - [ ] BI-02 Grant tracking
 - [ ] BI-03 SOA / SOFP
@@ -1578,7 +1578,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BL-04 Sender verification
 - [ ] BL-06 Resend
 - [ ] BL-07 Open / click tracking
-- [ ] BM-04 Per-currency rounding
+- [x] BM-04 Per-currency rounding — (AI #9, PR #322: `src/lib/currencyMinorUnits.ts`, amounts in each currency's own minor units; design `docs/design/BM-04-currency-minor-units.md`; ticked 2 Nov)
 - [~] BM-05 RTL number alignment (AI #1 Appearance settings shipped; AI #2, 11 Oct: P&L, balance sheet, period columns and aging/document-detail/totals isolate existing locale-formatted money with bdi; he-IL minus/accounting DOM cases, mixed Hebrew identity and phone CSV/print verified. Shared Money isolation retained. Remaining primary sales/purchase document lists belong to AI #1; no amounts or financial CSV formats changed.)
 - [ ] BM-06 `rateUsedId` per line
 - [x] BN-01 Structured JSON logging *(AI #1, 1 Nov, D-21: `src/server/utils/logger.ts` adds the request context (id, method, route, workspace) to every line and redacts personal fields; `src/server/http/requestContext.ts` gives each request an `x-request-id` and writes one JSON access line per /api request instead of the morgan text line; test `structured-logging.test.ts`.)*
