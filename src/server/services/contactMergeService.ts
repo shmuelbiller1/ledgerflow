@@ -155,7 +155,13 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
       let data = d.data();
       let hit = false;
       for (const path of side.recurring) {
-        if (readPath(data, path) === input.mergeId) { data = withPath(data, path, input.keepId); hit = true; }
+        if (readPath(data, path) === input.mergeId) {
+          data = withPath(data, path, input.keepId);
+          // the template's name follows its party, as the documents' do
+          const namePath = [...path.slice(0, -1), `${side.label}Name`];
+          if (readPath(data, namePath) !== undefined) data = withPath(data, namePath, keepName);
+          hit = true;
+        }
       }
       if (hit) updates.set(`recurring/${d.id}`, { collection: 'recurring', id: d.id, data });
     }

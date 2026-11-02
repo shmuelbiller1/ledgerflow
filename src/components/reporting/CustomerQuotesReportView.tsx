@@ -50,10 +50,11 @@ function CustomerQuotesContent() {
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed);
-  const { loading } = useLedgerCollections('estimates', 'customers');
+  const { loading } = useLedgerCollections('estimates', 'customers', 'recurring');
 
   const estimates = useLedgerStore(s => s.estimates) as Estimate[];
   const customers = useLedgerStore(s => s.customers) as Customer[];
+  const recurring = useLedgerStore(s => s.recurring) as Array<RecurringTransaction & { sourceEstimateId?: string }>;
 
   const [today, setToday] = useState<string>(() => getLocalDateISO());
   const [quoteState, setQuoteState] = useState('all');
@@ -165,8 +166,10 @@ function CustomerQuotesContent() {
   const canRepeat = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
   const [repeating, setRepeating] = useState(false);
   // CC-04: saves the schedule; the daily job makes a draft estimate (next number) on each date
+  // one schedule per estimate: an estimate already repeating is not set up again
+  const alreadyRepeating = Boolean(selectedEstimate && (recurring || []).some(r => r.sourceEstimateId === selectedEstimate.id && r.isActive !== false && r.status !== 'completed'));
   const repeat = (): void => {
-    if (!selectedEstimate || repeating || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
+    if (!selectedEstimate || repeating || alreadyRepeating || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
     setRepeating(true);
     void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
       .finally(() => setRepeating(false));
@@ -412,9 +415,9 @@ function CustomerQuotesContent() {
                   </select>
                 </label>
                 {canRepeat && (
-                  <button type="button" onClick={repeat} disabled={repeating || Boolean(recurringInfo.problem)} aria-busy={repeating}
+                  <button type="button" onClick={repeat} disabled={repeating || alreadyRepeating || Boolean(recurringInfo.problem)} aria-busy={repeating}
                     className="self-end min-h-11 px-3 rounded border text-sm disabled:opacity-50">
-                    Repeat this estimate
+                    {alreadyRepeating ? 'Already repeating' : 'Repeat this estimate'}
                   </button>
                 )}
               </div>

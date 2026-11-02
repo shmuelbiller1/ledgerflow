@@ -36,9 +36,12 @@ export function recurringEstimateProblem(schedule: { frequency?: string; custome
  * draft needs is copied here (the customer, lines and currency), and the number, dates, status and
  * any signing are left out — each copy gets its own when it is made.
  */
-export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency: RecurringTransaction['frequency']) {
-  const start = (estimate.date || getLocalDateISO()).slice(0, 10);
+export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency: RecurringTransaction['frequency'], today: string = getLocalDateISO()) {
+  const start = (estimate.date || today).slice(0, 10);
   const anchorDay = Number(start.split('-')[2]) || 1;
+  // an old estimate starts repeating from now: no draft for every date already gone by
+  let nextOccurrence = calculateNextOccurrence(start, frequency, anchorDay);
+  for (let steps = 0; steps < 1000 && nextOccurrence <= today.slice(0, 10); steps += 1) nextOccurrence = calculateNextOccurrence(nextOccurrence, frequency, anchorDay);
   const validityDays = estimateValidityDays(estimate);
   const { id: _id, number: _number, status: _status, date: _date, expiryDate: _expiry, signToken: _token, signTokenAt: _tokenAt,
     signature: _signature, convertedInvoiceId: _converted, orderedAt: _orderedAt, orderedBy: _orderedBy,
@@ -47,8 +50,9 @@ export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency
     description: `Recurring estimate: ${estimate.customerName || 'Customer'}`,
     amountCents: estimate.amountCents || 0,
     frequency,
-    nextOccurrence: calculateNextOccurrence(start, frequency, anchorDay),
+    nextOccurrence,
     anchorDay,
+    sourceEstimateId: estimate.id,
     isActive: true,
     status: 'active',
     type: 'estimate' as const,

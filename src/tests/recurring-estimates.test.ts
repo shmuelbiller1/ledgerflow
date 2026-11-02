@@ -18,7 +18,7 @@ const estimate = {
 };
 
 test('the schedule copies the customer and lines, never the number, dates or signing', () => {
-  const schedule = recurringEstimateSchedule(estimate, 'monthly');
+  const schedule = recurringEstimateSchedule(estimate, 'monthly', '2026-02-01');
   assert.equal(schedule.type, 'estimate');
   assert.equal(schedule.frequency, 'monthly');
   assert.equal(schedule.nextOccurrence, '2026-02-28', 'anchored to the 31st, February gets the 28th');
@@ -73,4 +73,11 @@ test('a recurring draft starts with none of its milestones invoiced (CC-04)', ()
     { id: 'e2', number: 'EST-2', date: '2026-02-01' });
   assert.deepEqual(draft.milestones?.map(m => m.invoicedAt), [undefined, undefined]);
   assert.deepEqual(draft.milestones?.map(m => m.label), ['Deposit', 'Rest']);
+});
+
+test('an old estimate starts repeating after today, not from its own date (CC-04)', () => {
+  const schedule = recurringEstimateSchedule({ id: 'e1', customerId: 'c1', date: '2023-03-15' } as never, 'monthly', '2026-11-02');
+  assert.equal(schedule.nextOccurrence, '2026-11-15');
+  assert.equal(schedule.anchorDay, 15);
+  assert.equal(schedule.sourceEstimateId, 'e1');
 });
