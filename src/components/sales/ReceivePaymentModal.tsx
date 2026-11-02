@@ -77,7 +77,9 @@ export default function ReceivePaymentModal({
 
   // CA-28: until the person picks an account, the one set for this payment method (Settings → Defaults)
   const accountMappings = useAuthStore(s => s.getCurrentWorkspace()?.defaultAccountMappings);
-  const selectedDepositAccountId = depositAccountId || paymentModeAccountId(method, cashAccounts, accountMappings);
+  // a picked account that has since been archived or deactivated is dropped, so the screen never submits an account it no longer lists
+  const pickedAccount = cashAccounts.some(a => a.id === depositAccountId) ? depositAccountId : '';
+  const selectedDepositAccountId = pickedAccount || paymentModeAccountId(method, cashAccounts, accountMappings);
 
   // Filter target open documents
   // oldest first, so a payment settles the oldest invoices/bills first (the store lists newest first)

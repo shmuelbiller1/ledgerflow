@@ -1,6 +1,6 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_ACCOUNT_SLOTS, paymentModeAccountId, paymentModeKey } from '../lib/accountDefaults';
+import { DEFAULT_ACCOUNT_SLOTS, accountInUse, paymentModeAccountId, paymentModeKey } from '../lib/accountDefaults';
 import type { ChartAccount } from '../types';
 
 /** CA-28: a default account per payment method (Settings → Defaults), preselected on the payment screen. */
@@ -48,5 +48,13 @@ describe('Mode of payment (CA-28)', () => {
 
   test('with nothing chosen, a bank comes before Undeposited Funds even when listed after it', () => {
     assert.equal(paymentModeAccountId('cash', [undeposited, checking], undefined), 'chk');
+  });
+
+  test('Undeposited Funds alone is the automatic account, and a reclassified choice is not shown as chosen', () => {
+    const slot = DEFAULT_ACCOUNT_SLOTS.find(s => s.key === paymentModeKey('cash'))!;
+    assert.equal(slot.automatic([undeposited])?.id, 'und');
+    const rent = acct('rent', 'Rent', { type: 'expense', category: 'Expense' });
+    assert.equal(accountInUse(slot, [checking, rent], { 'payment cash': 'rent' }).chosen, false);
+    assert.equal(paymentModeAccountId('cash', [checking, rent], { 'payment cash': 'rent' }), 'chk');
   });
 });

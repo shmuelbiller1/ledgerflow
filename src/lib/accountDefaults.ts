@@ -32,6 +32,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash', check: 'Check', bank_transfer: 'Bank transfer', card: 'Card', other: 'Other',
 };
 export const paymentModeKey = (method: PaymentMethod) => `payment ${method}`;
+const isPaymentModeSlot = (slot: { key: string }) => slot.key.startsWith('payment ');
 /** Accounts a payment can be received into or paid from: bank/cash by role, or Undeposited Funds (Settings and Record payment). */
 export const fitsPaymentAccount = (a: ChartAccount) => role(a) === 'cash' || isUndepositedFundsAccount(a);
 
@@ -42,7 +43,7 @@ function paymentModeSlots(): DefaultAccountSlot[] {
     hint: 'The account a payment received or made this way uses, unless you pick another on the payment',
     fits: fitsPaymentAccount,
     // not chosen: the Bank default as chosen above, else the automatic bank (what Record payment preselects)
-    automatic: (accounts, mappings) => accounts.find(a => a.id === mappings?.cash && fitsPaymentAccount(a)) || accounts.find(a => role(a) === 'cash'),
+    automatic: (accounts, mappings) => accounts.find(a => a.id === mappings?.cash && fitsPaymentAccount(a)) || accounts.find(a => role(a) === 'cash') || accounts.find(fitsPaymentAccount),
   }));
 }
 
@@ -111,7 +112,7 @@ export const DEFAULT_ACCOUNT_SLOTS: DefaultAccountSlot[] = [
  */
 export function paymentModeAccountId(method: PaymentMethod, candidates: ChartAccount[], mappings: Record<string, string | undefined> | undefined): string {
   const usable = candidates.filter(a => !a.isArchived && a.isActive !== false);
-  const ids = new Set(usable.map(a => a.id));
+  const ids = new Set(usable.filter(fitsPaymentAccount).map(a => a.id));
   for (const key of [paymentModeKey(method), 'cash']) {
     const id = mappings?.[key];
     if (id && ids.has(id)) return id;
@@ -123,7 +124,8 @@ export function paymentModeAccountId(method: PaymentMethod, candidates: ChartAcc
 /** The account a slot uses now: the chosen one if it still exists, else the automatic one. */
 export function accountInUse(slot: DefaultAccountSlot, accounts: ChartAccount[], mappings: Record<string, string | undefined> | undefined): { account?: ChartAccount; chosen: boolean } {
   const usable = accounts.filter(a => !a.isArchived && a.isActive !== false);
-  const chosen = usable.find(a => a.id === mappings?.[slot.key]);
+  // a payment-method choice that no longer fits (reclassified) is not used by Record payment, so it is not shown as chosen
+  const chosen = usable.find(a => a.id === mappings?.[slot.key] && (!isPaymentModeSlot(slot) || slot.fits(a)));
   return chosen ? { account: chosen, chosen: true } : { account: slot.automatic(usable, mappings), chosen: false };
 }
 
