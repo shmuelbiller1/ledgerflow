@@ -1,3 +1,4 @@
+import { normalizeSearchText } from './textNormalization';
 import { isFixedTerm, type FixedTerm } from './paymentTerms';
 
 /**
@@ -18,7 +19,7 @@ export const MAX_CUSTOMER_GROUP_NAME = 60;
 const ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
 /** How two group names are compared (case and runs of spaces ignored); the name is kept as typed. */
-export const customerGroupNameKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+export const customerGroupNameKey = (name: string): string => normalizeSearchText(name.trim().replace(/\s+/g, ' '));
 
 /** Keeps well-formed groups only: a valid id, a name (1–60 characters), and valid terms if any; ids and names once each. */
 export function normalizeCustomerGroups(input: unknown): CustomerGroup[] {
