@@ -150,6 +150,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const pricesIncludeTax = invoice.pricesIncludeTax ?? (invoice.taxVersion === 2 ? false : Boolean(invoice.taxInclusive));
   const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';
   const paymentTermDays = useAuthStore(s => s.getCurrentWorkspace()?.paymentTermDays); // CC-08
+  const customerGroups = useAuthStore(s => s.getCurrentWorkspace()?.customerGroups); // CC-11: a group's default terms
   const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax, taxRounding);
   const depositCents = depositAppliedCents({ amountCents: totals.amountCents, depositCents: invoice.depositCents });
   const currency = invoice.currency || workspaceCurrency;
@@ -301,7 +302,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};
                     // a new invoice takes the customer's usual terms, and the due date follows (I-23)
-                    const terms = !editingExisting ? termsForCustomer(cust as { id: string; paymentTerms?: string } | undefined, pastInvoices) : null;
+                    const terms = !editingExisting ? termsForCustomer(cust as { id: string; paymentTerms?: string; groupId?: string } | undefined, pastInvoices, customerGroups) : null;
                     const termsChange = terms ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) } : {};
                     setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}

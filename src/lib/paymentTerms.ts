@@ -91,15 +91,18 @@ export function termOptions(workspaceDays: unknown, current?: unknown): Array<{ 
 }
 
 /**
- * Terms for a customer's new invoice (I-23): the customer's own, else the terms on their most
- * recent invoice, else none (the form keeps its default).
+ * Terms for a customer's new invoice (I-23): the customer's own, else its group's (CC-11), else the
+ * terms on their most recent invoice, else none (the form keeps its default).
  */
 export function termsForCustomer(
-  customer: { id: string; paymentTerms?: string } | undefined,
+  customer: { id: string; paymentTerms?: string; groupId?: string } | undefined,
   invoices: Array<{ customerId?: string; paymentTerms?: string; date?: string; status?: string }>,
+  groups?: ReadonlyArray<{ id: string; paymentTerms?: string }>,
 ): FixedTerm | null {
   if (!customer) return null;
   if (isFixedTerm(customer.paymentTerms)) return customer.paymentTerms;
+  const groupTerms = customer.groupId ? groups?.find(g => g.id === customer.groupId)?.paymentTerms : undefined;
+  if (isFixedTerm(groupTerms)) return groupTerms;
   const last = invoices
     .filter(i => i.customerId === customer.id && i.status !== 'void' && isFixedTerm(i.paymentTerms))
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0];

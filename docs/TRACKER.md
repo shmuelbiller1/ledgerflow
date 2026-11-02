@@ -1627,7 +1627,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [x] CC-08 Payment terms entity — Settings has the workspace's own Net N terms (1–365 days) next to Due on Receipt / Net 15 / 30 / 60; invoices offer them and set the due date (`termOptions`, `PaymentTermsSettings`; migration `20261102010000_workspace_payment_terms`)
 - [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card; changed only through the server, one change at a time); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
 - [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
-- [ ] CC-11 Client-group settings
+- [x] CC-11 Client-group settings — Settings has customer groups with default payment terms (kept by the server, one change at a time); a customer joins a group on its page and new invoices take the group's terms when it has none (`src/lib/customerGroups.ts`, `customerGroupService`, `CustomerGroupsSettings`; migration `20261102030000_customer_groups`)
 - [ ] CC-12 Passkeys
 - [ ] CC-13 User-defined scheduler
 - [ ] CC-14 Tasks + statuses

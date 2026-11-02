@@ -23,6 +23,7 @@ import InstallAppPanel from './InstallAppPanel';
 import { db } from '../../../firebase';
 import { PaymentTermsSettings } from './PaymentTermsSettings';
 import { PaymentTypesSettings } from './PaymentTypesSettings';
+import { CustomerGroupsSettings } from './CustomerGroupsSettings';
 import { doc, updateDoc } from '../../../lib/db/firestore';
 
 export default function AppearanceSettings() {
@@ -470,6 +471,9 @@ export default function AppearanceSettings() {
 
           {/* Payment types (CC-09) */}
           <PaymentTypesSettings />
+
+          {/* Customer groups (CC-11) */}
+          <CustomerGroupsSettings />
 
           {/* High Contrast Toggle */}
           <div className="p-5 bg-[var(--panel)] border border-[var(--line)] rounded-xl flex items-center justify-between">

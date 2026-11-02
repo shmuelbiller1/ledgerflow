@@ -395,6 +395,8 @@ export interface Customer {
   deliveryMethod?: DeliveryMethod;
   /** CA-29: the vendor that is the same business (party link); set on the customer side only. */
   linkedVendorId?: string;
+  /** CC-11: the customer group it belongs to (Settings → Customer groups) */
+  groupId?: string;
   /** People to deal with at the customer (Y-21). */
   contacts?: ContactPerson[];
   /** Notes timeline, newest first (Y-25). */

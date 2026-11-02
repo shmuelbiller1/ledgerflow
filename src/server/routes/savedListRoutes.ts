@@ -7,6 +7,7 @@ import { setTaxProfiles, TaxProfileError } from '../services/taxProfileService';
 import { RoleDashboardError, setRoleDashboard } from '../services/roleDashboardService';
 import { DelegateError, setApprovalDelegate } from '../services/approvalDelegateService';
 import { changePaymentTypes, PaymentTypeError } from '../services/paymentTypeService';
+import { changeCustomerGroups, CustomerGroupError } from '../services/customerGroupService';
 
 /**
  * A workspace's saved lists that only the server writes, each replaced whole with PUT: the split
@@ -78,4 +79,13 @@ paymentTypeRouter.post('/', async (req, res) => {
   try {
     res.json({ status: 'success', ...(await changePaymentTypes(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email, change: req.body })) });
   } catch (err) { fail(res, err, (e): e is PaymentTypeError => e instanceof PaymentTypeError, 'payment types'); }
+});
+
+// CC-11: the workspace's customer groups, one change at a time: POST .../customer-groups {op: 'add', name, paymentTerms?} | {op: 'rename', id, name} | {op: 'setTerms', id, paymentTerms} | {op: 'remove', id}
+export const customerGroupRouter = express.Router({ mergeParams: true });
+customerGroupRouter.post('/', async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  try {
+    res.json({ status: 'success', ...(await changeCustomerGroups(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email, change: req.body })) });
+  } catch (err) { fail(res, err, (e): e is CustomerGroupError => e instanceof CustomerGroupError, 'customer groups'); }
 });
