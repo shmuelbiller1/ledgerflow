@@ -1,3 +1,5 @@
+import { PartyDetailButton } from '../common/PartyDetailButton';
+import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { StageChip } from '../collaboration/StageChip';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -62,6 +64,7 @@ export default function Purchases() {
 
   const [activeSubTab, setActiveSubTab] = useState<'bills' | 'vendors'>('bills');
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const detailOpenerId = useDetailReturnFocus(selectedVendorId);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
@@ -525,6 +528,8 @@ export default function Purchases() {
                         validate={x => String(x) ? null : 'A vendor needs a name'}
                         onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')} />
                       <ArchivedBadge party={v} />
+                            <PartyDetailButton id={detailOpenerId(v.id)} side="vendor" name={v.name}
+                              onOpen={() => setSelectedVendorId(v.id)} />
                     </td>
                     <td className="p-4 text-slate-600 dark:text-slate-400">
                       <InlineEdit value={v.category} label={`Category of ${v.name}`} placeholder="Standard" canEdit={canEditContacts}
