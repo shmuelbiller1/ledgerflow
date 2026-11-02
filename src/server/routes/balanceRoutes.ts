@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, expenseByCategoryOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
@@ -145,5 +145,34 @@ balanceRouter.get('/asset-register', async (req, res) => {
   } catch (err) {
     console.error('[balances] could not read the asset register', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read the asset register', details: errorMessage(err) });
+  }
+});
+
+/**
+ * L-123 step 4d: GET /api/v1/balances/expense-by-category?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member,
+ * as GET /. The expense breakdown by category over every postable entry of the range (expenseByCategoryOver), for the
+ * "Expense Breakdown by Category" report when the loaded list is capped. Read-only.
+ */
+balanceRouter.get('/expense-by-category', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
+    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
+  }
+  const db = getDb();
+  try {
+    await validateWorkspaceMember(db, workspaceId, requestUser(req));
+  } catch (err) {
+    const message = errorMessage(err);
+    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
+    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+  }
+  try {
+    const result = await expenseByCategoryOver(db, workspaceId, from, to);
+    res.json({ status: 'success', workspaceId, from, to, categories: result.categories, entriesRead: result.entriesRead });
+  } catch (err) {
+    console.error('[balances] could not read the expense categories', errorMessage(err));
+    res.status(500).json({ status: 'error', message: 'Could not read the expense categories', details: errorMessage(err) });
   }
 });

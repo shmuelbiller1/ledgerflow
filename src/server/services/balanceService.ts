@@ -51,7 +51,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
   if (ownData && ownData.workspaceId === workspaceId) seen.set(own.id, { ...ownData, id: own.id });
   return [...seen.values()];
 }
-import { computeTopExpensesAndIncome, type TopLineItem } from '../../lib/reportGenerators';
+import { computeExpenseByCategory, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type TopLineItem } from '../../lib/reportGenerators';
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
 
 export const UNASSIGNED = 'Unassigned';
@@ -402,4 +402,21 @@ export async function salesByItemOver(db: Firestore, workspaceId: string, from: 
     reversals.push(...(await tx().where('metadata.reversesTxId', 'in', ids).get()).docs.map(entryOf));
   }
   return { ...computeSalesByItem({ invoices, items, transactions: [...cogs, ...reversals], accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
+}
+
+/**
+ * L-123 step 4d: the expense breakdown by category dated `from`…`to` over every postable entry (what
+ * `computeExpenseByCategory` gives over the full history). A category can be set on a line, so per-account sums cannot
+ * give it. As for the top lines, entries are read from `from` on, so a reversal dated after the range still cancels the
+ * entry it reverses in the transaction counts.
+ */
+export async function expenseByCategoryOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ categories: CategoryExpenseBreakdown[]; entriesRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A category range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const [accountsSnap, entriesSnap] = await Promise.all([
+    db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
+    db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).get(),
+  ]);
+  const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
+  const entries = entriesSnap.docs.map(entryOf);
+  return { categories: computeExpenseByCategory(accounts, entries, from, to), entriesRead: entries.length };
 }
