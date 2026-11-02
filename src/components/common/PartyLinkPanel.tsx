@@ -47,7 +47,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     return ids;
   }, [vendors, vendorsCapped, storedVendorId, side, partyId]);
   const pair = linkedPair(side, partyId, customers, vendorIds);
-  const position = useMemo(() => (pair ? partyNetPosition(pair, invoices, bills) : null), [pair?.customerId, pair?.vendorId, invoices, bills]); // eslint-disable-line react-hooks/exhaustive-deps
+  const position = pair ? partyNetPosition(pair, invoices, bills) : null;
   const other = pair ? (side === 'customer' ? vendors.find(v => v.id === pair.vendorId) : customers.find(c => c.id === pair.customerId)) : undefined;
   const choices = side === 'customer' ? linkableVendorIds(partyId, customers, activeVendors.map(v => v.id)) : [];
 
