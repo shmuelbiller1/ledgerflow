@@ -51,7 +51,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
   if (ownData && ownData.workspaceId === workspaceId) seen.set(own.id, { ...ownData, id: own.id });
   return [...seen.values()];
 }
-import { computeExpenseByCategory, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type TopLineItem } from '../../lib/reportGenerators';
+import { computeExpenseByCategory, computeIncomeBySource, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type TopLineItem } from '../../lib/reportGenerators';
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
 
 export const UNASSIGNED = 'Unassigned';
@@ -423,4 +423,14 @@ export async function salesByItemOver(db: Firestore, workspaceId: string, from: 
 export async function expenseByCategoryOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ categories: CategoryExpenseBreakdown[]; entriesRead: number }> {
   const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
   return { categories: computeExpenseByCategory(accounts, entries, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4e: income by source (payee, else the line's description, else the account) dated `from`…`to` over every
+ * postable entry, what `computeIncomeBySource` gives over the full history. A source is per entry or line, so
+ * per-account sums cannot give it.
+ */
+export async function incomeBySourceOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ sources: IncomeBySourceBreakdown[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { sources: computeIncomeBySource(accounts, entries, from, to), entriesRead: entries.length };
 }

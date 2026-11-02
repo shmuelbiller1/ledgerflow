@@ -74,7 +74,8 @@ export function computeExpenseByCategory(
   endDate?: string
 ): CategoryExpenseBreakdown[] {
   const accountMap = new Map(accounts.map(a => [a.id, a]));
-  const catTotals: Record<string, { total: number; count: number }> = {};
+  // keyed by text from entries (a line's category): no prototype, so "__proto__" is an ordinary key (CodeRabbit on #496)
+  const catTotals: Record<string, { total: number; count: number }> = Object.create(null);
   const paired = reversalPairIds(transactions);
   let grandTotal = 0;
 
@@ -117,7 +118,8 @@ export function computeIncomeBySource(
   endDate?: string
 ): IncomeBySourceBreakdown[] {
   const accountMap = new Map(accounts.map(a => [a.id, a]));
-  const sourceTotals: Record<string, { total: number; count: number }> = {};
+  // keyed by text from entries (payee, line description): no prototype, so "__proto__" is an ordinary key (CodeRabbit on #496)
+  const sourceTotals: Record<string, { total: number; count: number }> = Object.create(null);
   const paired = reversalPairIds(transactions);
   let grandTotal = 0;
 
