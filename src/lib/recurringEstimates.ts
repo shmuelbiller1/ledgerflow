@@ -9,7 +9,7 @@
  */
 import type { Estimate, RecurringTransaction } from '../types';
 import { calculateNextOccurrence } from './recurringEngine';
-import { getLocalDateISO } from './utils';
+import { getLocalDateISO } from './calendarDate';
 
 const DAY_MS = 86_400_000;
 /** An estimate may repeat monthly, quarterly or yearly (not daily or weekly). */
