@@ -142,13 +142,24 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     });
     assert.equal(calls, beforeHiddenCount, 'hidden tab must not execute background polling ticks');
 
+    // While still hidden, stretch the interval so no regular tick can land in the short window after resume:
+    // on a slow CI runner the 40 ms interval did (4 !== 3, 2 Nov). Re-rendering while hidden starts nothing.
+    rerender(
+      <PollingHarness
+        callback={callback}
+        intervalMs={60_000}
+        options={{ enabled: true, minResumeIntervalMs: 10 }}
+      />,
+    );
+    assert.equal(calls, beforeHiddenCount, 'changing the interval while hidden must not poll');
+
     // Return to tab: immediate catch-up tick fires without waiting another full interval
     setDocumentVisibility('visible');
     await act(async () => {
       document.dispatchEvent(new window.Event('visibilitychange'));
       await new Promise((r) => setTimeout(r, 5));
     });
-    assert.equal(calls, beforeHiddenCount + 1, 'returning to visible tab should refresh immediately');
+    assert.equal(calls, beforeHiddenCount + 1, 'returning to visible tab should refresh immediately, exactly once');
 
     // Deduplicate overlapping slow in-flight executions
     const slowControl: { unblock?: () => void } = {};
