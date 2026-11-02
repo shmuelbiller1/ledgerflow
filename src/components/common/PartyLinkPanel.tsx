@@ -47,7 +47,9 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     return ids;
   }, [vendors, vendorsCapped, storedVendorId, side, partyId]);
   const pair = linkedPair(side, partyId, customers, vendorIds);
-  const position = pair ? partyNetPosition(pair, invoices, bills) : null;
+  // a link kept only from the stored id (capped list) stays editable, but its totals wait until the vendor is confirmed loaded
+  const vendorConfirmed = !!pair && vendors.some(v => v.id === pair.vendorId);
+  const position = pair && vendorConfirmed ? partyNetPosition(pair, invoices, bills) : null;
   const other = pair ? (side === 'customer' ? vendors.find(v => v.id === pair.vendorId) : customers.find(c => c.id === pair.customerId)) : undefined;
   const choices = side === 'customer' ? linkableVendorIds(partyId, customers, activeVendors.map(v => v.id)) : [];
 
