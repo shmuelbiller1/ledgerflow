@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { hierarchy, treemap, partition, arc } from 'd3';
+import { hierarchy, treemap, partition } from 'd3-hierarchy';
+import { arc } from 'd3-shape';
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, Tooltip } from 'recharts';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
