@@ -1,7 +1,7 @@
 # Stage 6 Verification Report — Deep Forensic Vercel, Serverless Trace & Bundle Footprint Reduction
 
 - **Date**: `2026-11-02`
-- **Branch**: `arena/4984c23f-ledgerflow`
+- **Branch**: `arena/4984c23f-ledgerflow` (`PR #486`)
 - **Baseline Commits**:
   - Original pre-optimization baseline: `093cdcf6` (`main` prior to Stage 1 `PR #454`)
   - Stage 6 immediate `Before` baseline: `31a54141ee60e916585196fc0832162ac20815b4` (`main` after Stage 5 `PR #483`), fast-forwarded cleanly onto `a55cbc82` (`PR #484`)
@@ -19,9 +19,9 @@
    - `supabaseStorage.ts` was the sole server importer of `@supabase/supabase-js`, pulling `@supabase/auth-js`, `@supabase/realtime-js`, `@supabase/postgrest-js`, and `ws` (`~892 KiB` raw) into the backend solely to call `.list()` and `.remove()` on Supabase Storage.
    - Switched `supabaseStorage.ts` to Supabase's official standalone `StorageClient` from `@supabase/storage-js` (preserving legacy JWT `service_role` Bearer headers, modern `sb_secret_` / `sb_publishable_` `apikey`-only headers, 1,000-item pagination, 1,000-key batch deletion, and `StorageNotConfiguredError`), and locked `@supabase/supabase-js`, `@supabase/auth-js`, `@supabase/realtime-js`, and `@supabase/postgrest-js` out of the server bundle in `src/tests/server-bundle-boundary.test.ts`.
 
-3. **Initial Frontend Bootstrap Decoupling (`assets/app-[hash].js`: `459.17 kB -> 192.93 kB`, `-58.0%`)**:
+3. **Initial Frontend Bootstrap Decoupling (`assets/app-[hash].js`: `459.17 kB -> 193.33 kB`, `-57.9%`)**:
    - Two leaf imports (`InitializationScreen.tsx -> SYSTEM_GLOSSARY` and `useUIStore.ts -> reportPreferences.ts -> REPORT_TABS_REGISTRY / SCREEN_TABS_REGISTRY / SETTINGS_TABS_REGISTRY`) pulled the entire `src/config/registry.tsx` (`71.6 KiB`) plus English/Hebrew screen-help prose (`screenHelp.ts` `67.2 KiB` + `screenHelpHe.ts` `32.1 KiB` = `170.9 KiB`) into the initial HTML bootstrap chunk before `RootLayout` even mounted.
-   - Extracted `src/config/systemGlossary.ts` (re-exported by `registry.tsx`) and `src/config/routeIds.ts` (enforced 1-to-1 with `registry.tsx` in unit tests), moved `decimal.js` into long-term cached `vendor-utils`, and extracted `src/lib/screenHelpSummary.ts` (enforced 1-to-1 with `helpCenterArticles.ts`) so `ScreenHelpHeader` no longer pulls the full 20-article step-by-step Help Center corpus (`44.53 kB`) into the upfront PWA precache.
+   - Extracted `src/config/systemGlossary.ts` (re-exported by `registry.tsx`), `src/config/pluginDiscovery.ts` (shared Vite plugin route discovery), and `src/config/routeIds.ts` (including dynamically discovered plugin route IDs, enforced 1-to-1 with `registry.tsx` in unit tests), and moved `decimal.js` into long-term cached `vendor-utils`.
 
 4. **Chart `d3` Submodule Tree-Shaking & `package.json` Hygiene**:
    - Replaced umbrella `from 'd3'` imports in `AccountIcicle.tsx` and `ChartExploration.tsx` with direct `d3-hierarchy` and `d3-shape` imports and narrowed `vite.config.ts` (`optimizeDeps.include` + `vendor-viz`), trimming `319` unused modules from the Vite production graph (`5,157 -> 4,838` modules) and shrinking `vendor-viz` from `493.95 kB` to `465.36 kB`.
@@ -35,9 +35,9 @@
 |---|---:|---:|---:|---:|---:|
 | **Traced serverless function (`@vercel/nft` on `api/index.mjs`)** | `2,922` files / `61,404,590 B` (`58.56 MiB`) | `1,081` files / `22,143,845 B` (`21.12 MiB`) | **`53` files / `8,917,507 B` (`8.50 MiB`)** | **`-1,028` files (`-95.1%`) / `-13,226,338 B` (`-59.7%`)** | **`-2,869` files (`-98.2%`) / `-52,487,083 B` (`-85.5%`)** |
 | **Backend bundle (`build/api.cjs` / `build/server.cjs`)** | `10,968,104 B` *(unbundled ext, leaked UI+Vite)* | `2,015,048 B` / `2,027,933 B` *(unbundled `--packages=external`)* | **`6,950,077 B` / `6,960,054 B`** *(self-contained minified; unbundled source graph `2,013,412 B`)* | Self-contained (`-13.23 MiB` net traced function weight) | **`-85.5%` net serverless package** |
-| **Frontend initial download (`index.html` + initial JS/CSS, `7` files)** | `1,970,876 B` raw / `543,535 B` gz | `1,381,714 B` raw / `381,283 B` gz (`app-*.js`: `459.17 kB`) | **`1,148,749 B` raw / `311,937 B` gz** (`app-*.js`: **`192.93 kB`**) | **`-232,965 B` raw (`-16.9%`) / `-69,346 B` gz (`-18.2%`)** (`app-*.js`: **`-58.0%`**) | **`-822,127 B` raw (`-41.7%`) / `-231,598 B` gz (`-42.6%`)** |
-| **PWA precache (`dist/sw.js`)** | `277` entries / `8,535,204 B` raw / `2,550,699 B` gz | `85` entries / `1,814,152 B` raw / `540,120 B` gz (`vendor-viz`: `493.95 kB`) | **`86` entries / `1,792,262 B` raw / `534,322 B` gz** (`vendor-viz`: **`465.36 kB`**) | **`-21,890 B` raw (`-1.2%`) / `-5,798 B` gz (`-1.1%`)** (`vendor-viz`: **`-28.59 kB`**) | **`-6,742,942 B` raw (`-79.0%`) / `-2,016,377 B` gz (`-79.1%`)** |
-| **Build duration & Peak RSS (`npm run build`)** | `35,210 ms` / `~1,810 MiB` | `31,317 ms` / `1,827.2 MiB` (`5,157` Vite modules) | **`27,776 ms` / `1,770.5 MiB`** (**`4,838` Vite modules**) | **`-3,541 ms` (`-11.3%`) / `-56.7 MiB` (`-3.1%`)** | **`-7,434 ms` (`-21.1%`)** |
+| **Frontend initial download (`index.html` + initial JS/CSS, `7` files)** | `1,970,876 B` raw / `543,535 B` gz | `1,381,714 B` raw / `381,283 B` gz (`app-*.js`: `459.17 kB`) | **`1,148,684 B` raw / `312,055 B` gz** (`app-*.js`: **`193.33 kB`**) | **`-233,030 B` raw (`-16.9%`) / `-69,228 B` gz (`-18.2%`)** (`app-*.js`: **`-57.9%`**) | **`-822,192 B` raw (`-41.7%`) / `-231,480 B` gz (`-42.6%`)** |
+| **PWA precache (`dist/sw.js`)** | `277` entries / `8,535,204 B` raw / `2,550,699 B` gz | `85` entries / `1,814,152 B` raw / `540,120 B` gz (`vendor-viz`: `493.95 kB`) | **`86` entries / `1,822,777 B` raw / `543,914 B` gz** (`vendor-viz`: **`465.36 kB`**, **`-28.59 kB`**) | `+8,625 B` raw (`+0.5%`) / `+3,794 B` gz (`+0.7%`) | **`-6,712,427 B` raw (`-78.6%`) / `-2,006,785 B` gz (`-78.7%`)** |
+| **Build duration & Peak RSS (`npm run build`)** | `35,210 ms` / `~1,810 MiB` | `31,317 ms` / `1,827.2 MiB` (`5,157` Vite modules) | **`29,063 ms` / `1,721.4 MiB`** (**`4,837` Vite modules**) | **`-2,254 ms` (`-7.2%`) / `-105.8 MiB` (`-5.8%`)** | **`-6,147 ms` (`-17.5%`)** |
 | **Serverless API cold-start (`import("./api/index.mjs")`)** | `918.0 ms` / `224.6 MiB` RSS | `628.1 ms` / `162.9 MiB` RSS | **`432.9 ms` / `136.7 MiB` RSS** | **`-195.2 ms` (`-31.1%`) / `-26.2 MiB` (`-16.1%`)** | **`-485.1 ms` (`-52.8%`) / `-87.9 MiB` (`-39.1%`)** |
 | **Standalone prod HTTP boot (`build/server.cjs` -> `/api/health` 200)** | `~920 ms` / `~225 MiB` RSS | `642.7 ms` / `158.7 MiB` RSS | **`438.9 ms` / `132.9 MiB` RSS** | **`-203.8 ms` (`-31.7%`) / `-25.8 MiB` (`-16.3%`)** | **`-52.3%` time / `-40.9%` RSS** |
 
@@ -50,7 +50,7 @@
   - Traced serverless function (`api/index.mjs` via `@vercel/nft`): **`8.50 MiB`** (`53` files, down from `58.56 MiB` originally and `21.12 MiB` after Stage 1).
   - Static frontend `dist/` output: **`~8.6 MiB`**.
   - `.vercelignore`-filtered source upload context: **`~13.5 MiB`**.
-- **Category approaching ~9 GB**: Because a single deployment's combined build output (`~17.1 MiB` total static + serverless function) and source upload (`~13.5 MiB`) are each well under `20 MiB`, approaching ~9 GB on Vercel corresponds to **cumulative `Build Outputs` + `Deployment Source Uploads` retained across high-frequency CI/preview deployments** (`>1,200` historical commits/deployments) or **Fast Origin Transfer / Function Invocations** across repeated preview traffic. Cutting the traced serverless function from `58.56 MiB -> 21.12 MiB -> 8.50 MiB` (`-85.5%` cumulative) directly reduces per-deploy serverless build output storage and cold-start unpacking overhead by nearly 6.9×.
+- **Category approaching ~9 GB**: Because a single deployment's combined build output (`~17.1 MiB` total static + serverless function) and source upload (`~13.5 MiB`) are each well under `20 MiB`, approaching ~9 GB on Vercel corresponds to **cumulative `Build Outputs` + `Deployment Source Uploads` retained across high-frequency CI/preview deployments** (`>1,200` historical commits/deployments) or **Fast Origin Transfer / Function Invocations** across repeated preview traffic. Cutting the traced serverless function from `58.56 MiB -> 21.12 MiB -> 8.50 MiB` (`-85.5%` cumulative) directly reduces per-deploy serverless build output storage and cold-start unpacking overhead by nearly `6.9x`.
 
 ---
 
@@ -66,4 +66,4 @@
 - `src/tests/quality-ratchet.test.ts`: **PASS (`filesOver800 = 0`)**
 - `src/tests/server-bundle-boundary.test.ts`, `src/tests/vercel-ignore-boundary.test.ts`, `src/tests/pwa-bundle-optimization.test.ts`, `src/tests/stage6-footprint-optimization.test.ts`: **PASS**
 - `scripts/db-test.ts setup && scripts/db-test.ts rls` (PGlite 48 migrations + RLS policy suite) & `src/tests/document-pdf.test.ts` (`15/15` incl. DB-backed PDF branding preview): **PASS**
-- 4-shard unit test coverage gate (`npm run coverage:gate` across `1,299` files / `4,286` tests): **PASS** — `lines 77.07%` (`>=75%`), `branches 77.91%` (`>=72%`), `functions 77.78%` (`>=73%`) *(on this 2-vCPU sandbox, only `report-speed-12m.test.tsx` `A-229`'s 1,500 ms 10-screen wall-clock cold-import budget clocked `1,947.55 ms` vs `2,387–2,637 ms` pre-Stage 6; validated on 4-core GitHub Actions CI + full 5-shard Playwright E2E suite on PR)*.
+- Full CI Unit Shards `1/4..4/4`, Timezone Shards (`America/Los_Angeles` `1..3`, `Pacific/Auckland` `1..3`), Coverage Gate (`lines 77.07%`, `branches 77.91%`, `functions 77.78%`), Playwright Browser Shards `1/5..5/5`, and `Playwright E2E Smoke Suite`: **PASS**

@@ -13,7 +13,8 @@
 import { lazy } from 'react';
 import { withScreenHelp } from './screenHelp';
 import { SYSTEM_GLOSSARY as sharedSystemGlossary } from './systemGlossary';
-import type { ComponentType, ElementType } from 'react';
+import { discoverPluginModules, extractPluginRouteIds } from './pluginDiscovery';
+import type { ElementType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   FileArchive, CalendarClock,
@@ -27,21 +28,18 @@ import {
 
 // Plugin Discovery Engine (Upgraded to dynamic code-splitting and bundle optimization - Point 5)
 // Vite replaces the call at build time; outside Vite (unit tests) there are simply no plugins.
-let pluginModules: Record<string, () => Promise<{ default: ComponentType }>> = {};
-try { pluginModules = import.meta.glob<{ default: ComponentType }>('../plugins/*.tsx'); } catch { /* not running under Vite */ }
+const pluginModules = discoverPluginModules();
 const dynamicTabs: AppTabDefinition[] = [];
 const dynamicComponents: Record<string, ElementType> = {};
-for (const path in pluginModules) {
-  const fileName = path.split('/').pop()?.replace('.tsx', '') || '';
-  if (fileName && fileName !== 'README' && fileName !== 'README.md') {
+for (const path of Object.keys(pluginModules)) {
+  const [fileName] = extractPluginRouteIds([path]);
+  if (fileName) {
     const formattedName = fileName.replace(/([A-Z])/g, ' $1').trim();
-    
+
     // Wrap component lazily using React.lazy code-splitting
-    dynamicComponents[fileName] = lazy(() => {
-      return pluginModules[path]().then((mod) => {
-        return { default: mod.default };
-      });
-    });
+    dynamicComponents[fileName] = lazy(() =>
+      pluginModules[path]().then((mod) => ({ default: mod.default })),
+    );
 
     dynamicTabs.push({
       id: fileName,

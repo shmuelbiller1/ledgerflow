@@ -7,9 +7,9 @@ import {
   type ScreenHelpEntry,
 } from "../../lib/screenHelpIndex";
 import {
-  articleTitlesForScreen,
-  findScreenHelpDocSummary,
-} from "../../lib/screenHelpSummary";
+  articlesForScreen,
+  findScreenHelpDoc,
+} from "../../lib/helpCenterArticles";
 
 export function ScreenHelpDialog({
   entry,
@@ -22,8 +22,8 @@ export function ScreenHelpDialog({
 }) {
   const { dialogProps, titleId } = useDialog(onClose);
   const [lang, setLang] = useState<"en" | "he">("en");
-  const screenDoc = useMemo(() => findScreenHelpDocSummary(activeTab), [activeTab]);
-  const related = useMemo(() => articleTitlesForScreen(activeTab).slice(0, 3), [activeTab]);
+  const screenDoc = useMemo(() => findScreenHelpDoc(activeTab), [activeTab]);
+  const related = useMemo(() => articlesForScreen(activeTab).slice(0, 3), [activeTab]);
 
   return createPortal(
     <div {...dialogProps} className="fixed inset-0 z-[180] bg-black/50 p-3 flex items-center justify-center">

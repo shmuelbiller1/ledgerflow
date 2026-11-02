@@ -17,67 +17,38 @@ import {
   SETTINGS_TABS_REGISTRY,
   SYSTEM_GLOSSARY as glossaryReexport,
 } from '../config/registry';
-import { REPORT_TAB_IDS, SCREEN_TAB_IDS, SETTINGS_TAB_IDS } from '../config/routeIds';
 import {
-  HOW_TO_ARTICLES,
-  SCREEN_HELP_DOCS,
-  articlesForScreen,
-  findScreenHelpDoc,
-} from '../lib/helpCenterArticles';
-import {
-  HOW_TO_ARTICLE_TITLES,
-  SCREEN_HELP_DOC_SUMMARIES,
-  articleTitlesForScreen,
-  findScreenHelpDocSummary,
-} from '../lib/screenHelpSummary';
+  REPORT_TAB_IDS,
+  SCREEN_TAB_IDS,
+  SETTINGS_TAB_IDS,
+  buildScreenTabIds,
+} from '../config/routeIds';
+import { discoverPluginModules, extractPluginRouteIds } from '../config/pluginDiscovery';
 
 describe('Stage 6: Serverless, Bootstrap & Bundle Footprint Invariants', () => {
-  test('routeIds leaf module stays in exact 1-to-1 parity with registry.tsx', () => {
+  test('routeIds and pluginDiscovery stay in exact 1-to-1 parity with registry.tsx', () => {
     assert.deepEqual(SCREEN_TAB_IDS, SCREEN_TABS_REGISTRY.map((tab) => tab.id));
     assert.deepEqual(REPORT_TAB_IDS, REPORT_TABS_REGISTRY.map((report) => report.id));
     assert.deepEqual(SETTINGS_TAB_IDS, SETTINGS_TABS_REGISTRY.map((setting) => setting.id));
     assert.equal(glossaryLeaf, glossaryReexport, 'registry.tsx must re-export SYSTEM_GLOSSARY from systemGlossary.ts');
-  });
 
-  test('screenHelpSummary leaf module stays in exact 1-to-1 parity with helpCenterArticles.ts', () => {
+    assert.deepEqual(discoverPluginModules(), {});
     assert.deepEqual(
-      SCREEN_HELP_DOC_SUMMARIES,
-      SCREEN_HELP_DOCS.map((doc) => ({
-        slug: doc.slug,
-        screenIds: doc.screenIds,
-        docPath: doc.docPath,
-        summaryHe: doc.summaryHe,
-      })),
+      extractPluginRouteIds([
+        '../plugins/CustomVatReport.tsx',
+        '../plugins/README.tsx',
+        '../plugins/README.md',
+        '../plugins/BankFeedBridge.tsx',
+      ]),
+      ['CustomVatReport', 'BankFeedBridge'],
     );
-    assert.deepEqual(
-      HOW_TO_ARTICLE_TITLES,
-      HOW_TO_ARTICLES.map((article) => ({
-        id: article.id,
-        screenId: article.screenId,
-        titleEn: article.titleEn,
-        titleHe: article.titleHe,
-      })),
-    );
-
-    for (const screenId of ['dashboard', 'sales', 'purchases', 'reports', 'settings', '__unknown__']) {
-      const fullDoc = findScreenHelpDoc(screenId);
-      const summaryDoc = findScreenHelpDocSummary(screenId);
-      assert.equal(summaryDoc.slug, fullDoc.slug);
-      assert.equal(summaryDoc.docPath, fullDoc.docPath);
-      assert.equal(summaryDoc.summaryHe, fullDoc.summaryHe);
-
-      const fullArticles = articlesForScreen(screenId);
-      const summaryArticles = articleTitlesForScreen(screenId);
-      assert.deepEqual(
-        summaryArticles,
-        fullArticles.map((article) => ({
-          id: article.id,
-          screenId: article.screenId,
-          titleEn: article.titleEn,
-          titleHe: article.titleHe,
-        })),
-      );
-    }
+    const withPlugins = buildScreenTabIds([
+      '../plugins/CustomVatReport.tsx',
+      '../plugins/README.tsx',
+    ]);
+    assert.ok(withPlugins.includes('dashboard'));
+    assert.ok(withPlugins.includes('CustomVatReport'));
+    assert.equal(withPlugins.includes('README'), false);
   });
 
   test('standalone Supabase Storage client handles auth headers, pagination, batch deletes, and missing prefixes', async () => {
@@ -224,8 +195,7 @@ describe('Stage 6: Serverless, Bootstrap & Bundle Footprint Invariants', () => {
     }
 
     const assetsDir = path.resolve('dist/assets');
-    const swPath = path.resolve('dist/sw.js');
-    if (fs.existsSync(assetsDir) && fs.existsSync(swPath)) {
+    if (fs.existsSync(assetsDir)) {
       const assetFiles = fs.readdirSync(assetsDir);
       const appEntry = assetFiles.find((file) => file.startsWith('app-'));
       assert.ok(appEntry, 'Expected app-[hash].js entry chunk');
@@ -233,13 +203,6 @@ describe('Stage 6: Serverless, Bootstrap & Bundle Footprint Invariants', () => {
       assert.ok(
         appBytes < 260_000,
         `Initial app-[hash].js bootstrap chunk should stay compact (<260 KB), got ${appBytes} B`,
-      );
-
-      const sw = fs.readFileSync(swPath, 'utf8');
-      assert.equal(
-        /helpCenterArticles-/.test(sw),
-        false,
-        'Full Help Center article corpus must load on demand in Help & Guide rather than upfront in sw.js precache',
       );
     }
   });
