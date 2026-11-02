@@ -1,3 +1,4 @@
+import ReportSkeleton from '../reporting/ReportSkeleton';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -99,7 +100,7 @@ export default function Settings() {
               className="space-y-10"
             >
               {ActiveComponent && (
-                <Suspense fallback={<div className="h-40 flex items-center justify-center font-bold text-[var(--muted)] uppercase tracking-widest text-xs">Loading module...</div>}>
+                <Suspense fallback={<ReportSkeleton rows={10} label="Loading settings…" />}>
                   <ViewErrorBoundary viewName={(activeTabDef as typeof activeTabDef & { name?: string })?.label?.en || activeSubTab}>
                     <ActiveComponent />
                   </ViewErrorBoundary>
