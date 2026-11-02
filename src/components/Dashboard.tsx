@@ -96,7 +96,7 @@ export default function Dashboard() {
             if (accountsFailure) retryCollection('accounts');
           }} className="mt-4 min-h-11 rounded-xl bg-[var(--text)] px-5 py-2 text-xs font-bold text-[var(--surface)]">Try again</button>
         </div>
-      : <LoadingState what="your books" />;
+      : <LoadingState what="your books" rows={12} />;
   }
 
   if ((needsSetup || setupStarted) && !setupClosed) {

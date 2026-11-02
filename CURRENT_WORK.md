@@ -23,6 +23,8 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 
 **AI #3 next update — 2 November:** A-264 keyboard paths implemented on `arena/1165c885-ledgerflow`: five browser journeys passed, 17 focused regressions passed; types/lint/build clean. Pending CI/lead review; A-266/A-267 remain open. [Evidence](docs/verification/ai3-a264-2026-11-02.md).
 
+**AI #3 A-266 — 2 November:** Loading skeletons + measured layout stability on ten busy screens implemented on `arena/0c91798f-ledgerflow`; **11 browser checks**, **23 focused tests**, types/lint/build passed. Max observed main-region shift **0.0615** (<0.1) at 1280×900 on the journey fixture. Pending CI/lead review. A-267 is next. [Evidence](docs/verification/ai3-a266-2026-11-02.md).
+
 **Pull request for this branch**
 
 | PR | State |
