@@ -196,7 +196,7 @@ export default defineConfig({
     // F-49: scan every screen up front. Lazily loaded screens otherwise reveal new dependencies mid-session,
     // and the dev server reloads the page under a running browser test ("Failed to find script").
     entries: ['index.html', 'src/**/*.tsx'],
-    include: ['recharts', 'd3'],
+    include: ['recharts', 'd3-hierarchy', 'd3-shape'],
     esbuildOptions: {
       target: 'esnext'
     }
@@ -215,13 +215,13 @@ export default defineConfig({
           if (/[/\\]node_modules[/\\]@supabase[/\\]/.test(id)) {
             return 'vendor-supabase';
           }
-          if (/[/\\]node_modules[/\\](?:date-fns|zustand|clsx|tailwind-merge)[/\\]/.test(id)) {
+          if (/[/\\]node_modules[/\\](?:date-fns|decimal\.js|zustand|clsx|tailwind-merge)[/\\]/.test(id)) {
             return 'vendor-utils';
           }
           if (/[/\\]node_modules[/\\](?:motion|framer-motion|motion-dom|motion-utils|sonner)[/\\]/.test(id)) {
             return 'vendor-ui';
           }
-          if (/[/\\]node_modules[/\\](?:recharts|d3|d3-[^/\\]+|victory-vendor)[/\\]/.test(id)) {
+          if (/[/\\]node_modules[/\\](?:recharts|d3-[^/\\]+|victory-vendor)[/\\]/.test(id)) {
             return 'vendor-viz';
           }
           return undefined;

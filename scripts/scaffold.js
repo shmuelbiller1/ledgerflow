@@ -168,9 +168,10 @@ test('${title}: posted amounts per account, drafts and other periods left out', 
 });
 `);
 
-  console.log('\nAdd these 2 lines to src/config/registry.tsx:');
+  console.log('\nAdd these 2 lines to src/config/registry.tsx, then add the report ID to REPORT_TAB_IDS in src/config/routeIds.ts:');
   console.log(`  REPORT_COMPONENTS:     '${name}View': lazy(() => import('../components/reporting/${name}View')),`);
   console.log(`  REPORT_TABS_REGISTRY:  { id: '${kebab}', label: { en: '${title}', he: '${title}' }, componentName: '${name}View', icon: FileText },`);
+  console.log(`  REPORT_TAB_IDS:        append '${kebab}' in src/config/routeIds.ts`);
 } else {
   usage();
 }

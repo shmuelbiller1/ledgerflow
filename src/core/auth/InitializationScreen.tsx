@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { SYSTEM_GLOSSARY } from '../../config/registry';
+import { SYSTEM_GLOSSARY } from '../../config/systemGlossary';
 
 export function InitializationScreen({ language }: { language: string }) {
   return (
