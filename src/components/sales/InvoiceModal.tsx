@@ -325,6 +325,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                       // the previous customer's terms do not carry over to one with none; terms chosen by hand stay
                       : !editingExisting && termsInherited ? { paymentTerms: undefined, ...(dueDateEdited ? {} : { dueDate: invoice.date || '' }) } : {};
                     if (!editingExisting) setTermsInherited(Boolean(terms));
+                    if (terms) setDueDateEdited(false);
                     setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
@@ -379,7 +380,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               <select id="inv-payment-terms" aria-invalid={Boolean(fieldErrors["inv-payment-terms"])} aria-describedby={fieldErrors["inv-payment-terms"] ? 'inv-payment-terms-error' : undefined}
                 value={invoice.paymentTerms || 'due_on_receipt'}
                 // the due date follows the terms (it stayed on the invoice date before; L-186)
-                onChange={(e) => { setTermsInherited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
+                onChange={(e) => { setTermsInherited(false); if (isFixedTerm(e.target.value)) setDueDateEdited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               >
                 {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
@@ -424,7 +425,12 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 type="date"
                 required
                 value={invoice.date}
-                onChange={(e) => setInvoice({ ...invoice, date: e.target.value, ...(isFixedTerm(invoice.paymentTerms) && e.target.value ? { dueDate: calculateDueDate(e.target.value, invoice.paymentTerms) } : {}) })}
+                onChange={(e) => {
+                  const terms = invoice.paymentTerms;
+                  const recalc = isFixedTerm(terms) && e.target.value ? { dueDate: calculateDueDate(e.target.value, terms) } : null;
+                  if (recalc) setDueDateEdited(false); // the due date follows the terms again
+                  setInvoice({ ...invoice, date: e.target.value, ...recalc });
+                }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               />{fieldError("inv-date")}
             </div>

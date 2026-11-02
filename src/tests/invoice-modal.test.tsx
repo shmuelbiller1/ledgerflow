@@ -190,6 +190,10 @@ describe('Invoice dialog', () => {
     type(input('Customer'), 'Walk-in');
     assert.equal(terms(), 'due_on_receipt', 'inherited terms are still dropped');
     assert.equal(input('Due Date').value, '2026-07-01', 'a due date typed by hand stays');
+    type(input('Customer'), 'Bulk Co');
+    type(input('Invoice Date'), '2026-06-01');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(input('Due Date').value, '2026-06-01', 'once the terms set the date again, it resets with them');
   });
 
   test('all save actions report required fields under their input and retain the draft', async () => {
