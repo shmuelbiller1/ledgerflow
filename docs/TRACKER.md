@@ -1573,7 +1573,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BK-02 QBO API import
 - [~] BK-03 Wave import — **10 Oct (Claude)**: Wave's customers, vendors, items and chart of accounts exports import with their columns and account types recognised (CE-09). **Open:** its transactions.
 - [ ] BK-04 FreshBooks import
-- [ ] BK-10 Full workspace archive
+- [x] BK-10 Full workspace archive — (AI #5, E-21: `src/lib/workspaceArchive.ts`, Settings → Backup & Export; ticked 2 Nov)
 - [ ] BL-02 Spam complaints
 - [ ] BL-04 Sender verification
 - [ ] BL-06 Resend
@@ -1587,11 +1587,11 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BN-04 SLO tracking
 - [ ] BN-05 Synthetic uptime
 - [ ] BN-06 Alert routing
-- [ ] BN-07 Runbooks
+- [x] BN-07 Runbooks — (AI #4, D-14: `docs/runbooks/`; ticked 2 Nov)
 - [ ] BO-04 Video walkthroughs
 - [ ] BP-01 Docker compose
 - [ ] BP-02 Emulator setup docs
-- [ ] BP-03 ADRs
+- [x] BP-03 ADRs — (AI #4, D-13: `docs/adr/` 0001–0007; ticked 2 Nov)
 - [ ] BP-04 Storybook
 - [ ] BP-06 Load tests
 - [ ] BP-07 Canary rollout
@@ -1626,7 +1626,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CC-07 Multiple gateways
 - [ ] CC-08 Payment terms entity
 - [ ] CC-09 Payment types entity
-- [ ] CC-10 Expense categories
+- [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
 - [ ] CC-11 Client-group settings
 - [ ] CC-12 Passkeys
 - [ ] CC-13 User-defined scheduler
