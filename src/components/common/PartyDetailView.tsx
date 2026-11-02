@@ -12,6 +12,7 @@ import CustomerPortalLink from '../sales/CustomerPortalLink';
 import VendorTaxRecordsButton from '../purchases/VendorTaxRecordsButton';
 import AttachmentsPanel from './AttachmentsPanel';
 import PartyProfilePanel from './PartyProfilePanel';
+import PartyLinkPanel from './PartyLinkPanel';
 import UnappliedPayments from './UnappliedPayments';
 
 export interface PartyDetailViewProps {
@@ -114,6 +115,7 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
 
       {side === 'customer' ? <CustomerTaxCertificatesButton /> : <VendorTaxRecordsButton />}
       <PartyProfilePanel side={side} party={party} />
+      <PartyLinkPanel side={side} partyId={partyId} />
       <UnappliedPayments side={side} partyId={partyId} />
       <AttachmentsPanel
         target={{ collection: side === 'customer' ? 'customers' : 'vendors', id: partyId, label: party.name }}
