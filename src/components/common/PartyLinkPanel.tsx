@@ -23,6 +23,11 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const { updateEntity } = useEntityOperations();
   const canEdit = useCurrentRole() !== 'viewer';
   const [saving, setSaving] = useState(false);
+  // the vendor picked while its save runs or after it was refused, so a retry does not need picking again
+  const [pending, setPending] = useState<string | null>(null);
+  // the browser holds at most a capped slice of each list: say so instead of presenting a partial answer as complete
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const incomplete = ['customers', 'vendors', 'invoices', 'bills'].some(c => truncated[c]);
 
   const activeVendors = useMemo(() => vendors.filter(v => v.status !== 'inactive' && !(v as { isArchived?: boolean }).isArchived), [vendors]);
   const vendorIds = useMemo(() => new Set(vendors.map(v => v.id)), [vendors]);
@@ -35,10 +40,14 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const link = (vendorId: string) => {
     if (saving || !canEdit || side !== 'customer') return;
     setSaving(true);
-    void updateEntity('customers', partyId, { linkedVendorId: vendorId }, vendorId ? 'Vendor linked' : 'Link removed').finally(() => setSaving(false));
+    setPending(vendorId);
+    updateEntity('customers', partyId, { linkedVendorId: vendorId }, vendorId ? 'Vendor linked' : 'Link removed').then(
+      () => setPending(null),
+      () => undefined, // refused (e.g. the vendor was just linked elsewhere): keep the choice shown; updateEntity reported it
+    ).finally(() => setSaving(false));
   };
 
-  if (side === 'vendor' && !pair) return null;
+  if (side === 'vendor' && !pair && !truncated.customers) return null;
 
   return (
     <section aria-labelledby={`${id}-title`} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -50,7 +59,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
           <label htmlFor={`${id}-vendor`} className="text-xs text-[var(--muted)]">Linked vendor</label>
           <select
             id={`${id}-vendor`}
-            value={pair?.vendorId || ''}
+            value={pending ?? (pair?.vendorId || '')}
             disabled={saving}
             aria-busy={saving}
             onChange={e => link(e.target.value)}
@@ -65,6 +74,11 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
         <p className="text-sm text-[var(--text)]">{other ? `Linked to vendor ${other.name}` : 'Not linked to a vendor'}</p>
       ))}
       {side === 'vendor' && other && <p className="text-sm text-[var(--text)]">Linked to customer {other.name}</p>}
+      {incomplete && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Not every contact or document is loaded in this browser, so a link or part of these totals may be missing. Check the receivables and payables reports for the full figures.
+        </p>
+      )}
       {position && (
         <dl className="grid grid-cols-3 gap-2 text-sm" aria-label="Net position with this business">
           <div><dt className="text-xs text-[var(--muted)]">They owe us</dt><dd className="font-mono">{formatCurrency(position.receivableCents, currency)}</dd></div>
