@@ -1621,7 +1621,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CC-01 Per-recipient invitation links + view tracking
 - [ ] CC-02 Design templates
 - [ ] CC-03 Proposals
-- [ ] CC-04 Recurring quotes
+- [x] CC-04 Recurring quotes — Reports → Customer quotes: "Repeat this estimate" saves a monthly/quarterly/yearly schedule; the daily job makes a numbered draft estimate on each date (no signing link, nothing sent) and tells the team (`generateEstimate` in `recurringService.ts`, `estimate.draft_ready`)
 - [ ] CC-06 Gateway tokens
 - [ ] CC-07 Multiple gateways
 - [x] CC-08 Payment terms entity — Settings has the workspace's own Net N terms (1–365 days) next to Due on Receipt / Net 15 / 30 / 60; invoices offer them and set the due date (`termOptions`, `PaymentTermsSettings`; migration `20261102010000_workspace_payment_terms`)
