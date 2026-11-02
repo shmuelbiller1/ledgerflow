@@ -1,0 +1,55 @@
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from './accountDefaults';
+
+/**
+ * CC-09: the workspace's own payment types (for example "PayPal" or "Bit"). Each belongs to one of
+ * the five payment methods, which stays what postings, reports and the default deposit account
+ * (CA-28) use; the type's name is kept on the payment so it can be told apart and reported.
+ */
+export interface PaymentType {
+  id: string;
+  name: string;
+  method: PaymentMethod;
+}
+
+export const MAX_PAYMENT_TYPES = 50;
+export const MAX_PAYMENT_TYPE_NAME = 60;
+const ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+export const isPaymentMethod = (value: unknown): value is PaymentMethod =>
+  typeof value === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_METHOD_LABELS, value);
+
+/** Keeps well-formed types only: a valid id, a name (1–60 characters) and a known method; ids and names once each. */
+export function normalizePaymentTypes(input: unknown): PaymentType[] {
+  if (!Array.isArray(input)) return [];
+  const out: PaymentType[] = [];
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') continue;
+    const { id, name, method } = raw as Record<string, unknown>;
+    if (typeof id !== 'string' || !ID.test(id) || !isPaymentMethod(method) || typeof name !== 'string') continue;
+    const clean = name.trim().replace(/\s+/g, ' ');
+    const key = clean.toLocaleLowerCase();
+    if (!clean || clean.length > MAX_PAYMENT_TYPE_NAME || ids.has(id) || names.has(key)) continue;
+    ids.add(id);
+    names.add(key);
+    out.push({ id, name: clean, method });
+    if (out.length >= MAX_PAYMENT_TYPES) break;
+  }
+  return out;
+}
+
+export function findPaymentType(types: unknown, id: unknown): PaymentType | undefined {
+  return typeof id === 'string' ? normalizePaymentTypes(types).find(t => t.id === id) : undefined;
+}
+
+/** A new id for a type named `name`, unique among `existing`. */
+export function newPaymentTypeId(name: string, existing: ReadonlyArray<{ id: string }>): string {
+  const base = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'type';
+  const taken = new Set(existing.map(t => t.id));
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}

@@ -22,6 +22,8 @@ export interface CreatePaymentPayload {
   paymentDate: string;
   amountCents: number;
   paymentMethod?: string;
+  /** CC-09: the workspace payment type chosen (its method is paymentMethod); resolved by the route */
+  paymentType?: { id: string; name: string };
   referenceNumber?: string;
   memo?: string;
   customerId?: string;
@@ -128,6 +130,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
     cashAccountId,
     offsetAccountId,
     estimateId,
+    paymentType,
     allocations = []
   } = payload;
 
@@ -316,6 +319,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
       // where the unapplied part is held (BE-12): the deposits/prepayments account, else A/R or A/P
       advanceAccountId: advance?.id || resolvedOffsetAccountId,
       ...(estimateId ? { estimateId } : {}),
+      ...(paymentType ? { paymentType: { id: paymentType.id, name: paymentType.name } } : {}),
       currency: paymentCurrency || baseCurrency,
       exchangeRate: paymentRate,
       status: 'posted',

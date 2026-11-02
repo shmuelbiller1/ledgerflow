@@ -11,6 +11,7 @@ import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../ser
 import { createDeposit, DepositError } from '../services/depositService';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { afterPaymentRecorded } from '../services/afterPayment';
+import { findPaymentType } from '../../lib/paymentTypes';
 
 export const paymentRouter = express.Router();
 
@@ -26,6 +27,8 @@ const paymentInputSchema = z.object({
   paymentDate: z.string().optional(),
   cashAccountId: z.string().min(1),
   paymentMethod: z.string().optional(),
+  /** CC-09: one of the workspace's payment types; the server takes its method and name from the workspace */
+  paymentTypeId: z.string().min(1).max(40).optional(),
   referenceNumber: z.string().optional(),
   memo: z.string().optional(),
   customerId: z.string().optional(),
@@ -57,11 +60,18 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     if (!parsed.success) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment payload', details: parsed.error.issues });
     }
-    const { workspaceId, sendRemittance, ...payload } = parsed.data;
+    const { workspaceId, sendRemittance, paymentTypeId, ...rest } = parsed.data;
 
     const db = dbOverride || getDb();
     const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
     const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    // CC-09: a payment type is looked up in the workspace, never trusted from the client
+    let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
+    if (paymentTypeId) {
+      const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
+      if (!type) return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
+      payload = { ...rest, paymentMethod: type.method, paymentType: { id: type.id, name: type.name } };
+    }
 
     if (!authReq.user.admin) {
       const userRole = await getWorkspaceUserRole(db, workspaceId, authReq.user.uid);

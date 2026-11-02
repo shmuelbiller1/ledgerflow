@@ -246,6 +246,8 @@ export interface Payment {
   currency?: string;
   exchangeRate?: number;
   method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'other';
+  /** CC-09: the workspace payment type it was recorded with (its method is `method`) */
+  paymentType?: { id: string; name: string };
   reference?: string;                   // cheque number, wire ref
   depositAccountId: string;             // which bank/cash account it hit
   allocations: PaymentAllocation[];
