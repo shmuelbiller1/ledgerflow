@@ -21,6 +21,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import MoneyDisplayPanel from './MoneyDisplayPanel';
 import InstallAppPanel from './InstallAppPanel';
 import { db } from '../../../firebase';
+import { PaymentTermsSettings } from './PaymentTermsSettings';
 import { doc, updateDoc } from '../../../lib/db/firestore';
 
 export default function AppearanceSettings() {
@@ -462,6 +463,9 @@ export default function AppearanceSettings() {
             </select>
             <p className="text-[10px] text-[var(--muted)]">How the tax on an invoice or bill is rounded to the cent when it is created or edited. Documents already saved keep their tax.</p>
           </div>
+
+          {/* Payment terms (CC-08) */}
+          <PaymentTermsSettings />
 
           {/* High Contrast Toggle */}
           <div className="p-5 bg-[var(--panel)] border border-[var(--line)] rounded-xl flex items-center justify-between">

@@ -2,7 +2,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { documentCurrencies } from '../../lib/exchangeRates';
 import { latestDocumentFor } from '../../lib/repeatDocument';
-import { calculateDueDate, isFixedTerm, termsForCustomer } from '../../lib/paymentTerms';
+import { calculateDueDate, isFixedTerm, termOptions, termsForCustomer } from '../../lib/paymentTerms';
 import { isArchivedParty } from '../../lib/contacts';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -149,6 +149,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const taxCode = taxChoice === 'custom' ? customRateCode(Number(invoice.taxRate) || 0) : salesCodes.find(c => c.id === taxChoice) || null;
   const pricesIncludeTax = invoice.pricesIncludeTax ?? (invoice.taxVersion === 2 ? false : Boolean(invoice.taxInclusive));
   const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';
+  const paymentTermDays = useAuthStore(s => s.getCurrentWorkspace()?.paymentTermDays); // CC-08
   const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax, taxRounding);
   const depositCents = depositAppliedCents({ amountCents: totals.amountCents, depositCents: invoice.depositCents });
   const currency = invoice.currency || workspaceCurrency;
@@ -359,10 +360,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 onChange={(e) => setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) })}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               >
-                <option value="due_on_receipt">Due on Receipt</option>
-                <option value="net_15">Net 15</option>
-                <option value="net_30">Net 30</option>
-                <option value="net_60">Net 60</option>
+                {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
+                {termOptions(paymentTermDays, invoice.paymentTerms).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>{fieldError("inv-payment-terms")}
             </div>
 
