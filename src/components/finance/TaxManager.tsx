@@ -269,7 +269,7 @@ export default function TaxManager({
           <p className="text-xs text-[var(--muted)] font-bold uppercase tracking-wider mt-1">Rough tax reserve estimate — not tax advice. Confirm with your accountant.</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
              <select 
                aria-label="Tax reserve fiscal year"
