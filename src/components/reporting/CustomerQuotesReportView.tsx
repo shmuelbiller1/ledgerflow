@@ -146,7 +146,7 @@ function CustomerQuotesContent() {
     if (!selectedEstimate) return null;
     const problem = recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId });
     if (problem) return { problem, nextOccurrence: '', drafts: [], validityDays: 0 };
-    const schedule = recurringEstimateSchedule(selectedEstimate, frequency);
+    const schedule = recurringEstimateSchedule(selectedEstimate, frequency, today);
     const validityDays = estimateValidityDays(selectedEstimate);
     const drafts = estimateDraftsDue(
       [{
@@ -173,7 +173,7 @@ function CustomerQuotesContent() {
   const repeat = (): void => {
     if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
     setRepeating(true);
-    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
+    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency, today), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
       .finally(() => setRepeating(false));
   };
 
@@ -428,7 +428,7 @@ function CustomerQuotesContent() {
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>
-                    First recurring occurrence after {selectedEstimate.date}:{' '}
+                    First draft if set to repeat today:{' '}
                     <strong>{recurringInfo.nextOccurrence || 'None'}</strong>
                   </div>
                   <div>
