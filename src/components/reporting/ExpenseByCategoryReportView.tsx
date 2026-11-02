@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
-import { computeExpenseByCategory } from '../../lib/reportGenerators';
 import { PieChart } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import ExpenseBillCategories from './ExpenseBillCategories';
+import { useServerExpenseByCategory } from '../../hooks/useServerExpenseByCategory';
 
 interface Props {
   selectedYear?: number;
@@ -21,7 +21,6 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
-  const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const bills = useLedgerStore(s => s.bills);
   const { loading: billsLoading } = useLedgerCollections('bills');
@@ -35,9 +34,8 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
-  const breakdowns = useMemo(() => {
-    return computeExpenseByCategory(accounts, transactions, start, end);
-  }, [accounts, transactions, start, end]);
+  // L-123 step 4d: with the loaded list capped, the breakdown comes from the server (every entry of the range)
+  const { categories: breakdowns, source } = useServerExpenseByCategory(start, end);
 
   const totalExpenseCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
@@ -62,6 +60,14 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {source !== 'loaded' && (
+        <p className="text-xs text-neutral-600" data-testid="expense-category-source">
+          {source === 'server'
+            ? 'Not every entry is loaded in this browser: these totals are read from every entry on the server.'
+            : 'Not every entry is loaded in this browser and the server could not be asked: these totals cover the loaded entries only, so they may be too low.'}
+        </p>
+      )}
 
       <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
         accounts={accounts} bills={bills} startDate={start} endDate={end}
