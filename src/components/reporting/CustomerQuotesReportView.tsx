@@ -168,8 +168,10 @@ function CustomerQuotesContent() {
   // CC-04: saves the schedule; the daily job makes a draft estimate (next number) on each date
   // one schedule per estimate: an estimate already repeating is not set up again
   const alreadyRepeating = Boolean(selectedEstimate && (recurring || []).some(r => r.sourceEstimateId === selectedEstimate.id && r.isActive !== false && r.status !== 'completed'));
+  // until the full list of schedules is here, absence does not prove there is none
+  const schedulesUnknown = loading || Boolean(truncated.recurring || failed.recurring);
   const repeat = (): void => {
-    if (!selectedEstimate || repeating || alreadyRepeating || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
+    if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
     setRepeating(true);
     void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
       .finally(() => setRepeating(false));
@@ -415,7 +417,7 @@ function CustomerQuotesContent() {
                   </select>
                 </label>
                 {canRepeat && (
-                  <button type="button" onClick={repeat} disabled={repeating || alreadyRepeating || Boolean(recurringInfo.problem)} aria-busy={repeating}
+                  <button type="button" onClick={repeat} disabled={repeating || alreadyRepeating || schedulesUnknown || Boolean(recurringInfo.problem)} aria-busy={repeating}
                     className="self-end min-h-11 px-3 rounded border text-sm disabled:opacity-50">
                     {alreadyRepeating ? 'Already repeating' : 'Repeat this estimate'}
                   </button>
