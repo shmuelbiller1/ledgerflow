@@ -12,13 +12,13 @@ All measurements in this report were captured under **Node.js `v24.22.2`** (`eng
 | **Stage 2** (Task 4) | `#473` | `0cd843f` | Audited repository files across runtime, build-input, CI/dev, and historical audit categories; hardened `.vercelignore`; redirected `tsconfig.node.json` `tsBuildInfoFile` to `node_modules/.cache/tsbuildinfo.node`; untracked `tsconfig.node.tsbuildinfo`, `"dump of not final stuff"`, and `test/data/05-versions-space.pdf` | `src/tests/vercel-ignore-boundary.test.ts` |
 | **Stage 3** (Task 5) | `#477` | `c1122e5` | Fixed `1 B` `vendor-react` chunk (`223.22 kB`); pruned Zod from initial client shell (`retentionPolicy`, `brandingConstants`); split lazy routes/modals; narrowed Workbox `globPatterns` to app-shell assets (`427 -> 85` entries); switched SW to `registerType: 'prompt'` (`pwaUpdateManager.ts`) with unsaved-work protection and `/api/` `NetworkOnly` rule | `src/tests/pwa-bundle-optimization.test.ts` |
 | **Stage 4** (Task 6) | `#480` | `94266143` | Added visibility/connectivity-aware `useVisibilityPolling` across 5 polling surfaces; gated `ApiHub` & `SystemCommandCenter` polling by active tab; serialized `useCollaborators` presence mutations; converted `LedgerEngine.normalizationCache` to bounded scan-resistant workspace-keyed metadata LRU (`2 × 25,000`); sized serverless `pg.Pool` to `5` (`poolConfig.ts`) and eliminated cold-start `lf_rules` / nested `crudRoutes` pool deadlocks | `src/tests/polling-and-subscriptions.test.tsx`, `src/tests/normalization-cache-and-pool.test.ts` |
-| **Stage 5** (Post-merge hardening & inventory) | Current branch (`arena/1af54dd7-ledgerflow`) | Pending review | Reused active `Transaction` `PoolClient` (`t.tablesExist(...)`) inside `stockMovesReady(db, t)` and `allocationLedgerReady(db, tx)` (eliminating cold-start `runTransaction` pool starvation across `cogsStockService`, `ledgerBulkCommit`, `reverseRoutes`, `deliveryService`, `paymentService`, `bankLineService`, and `onlinePaymentService`) + coalesced concurrent pool probes; broke `partyReports <-> computeReports` cycle (`7 -> 0` Rollup circular-chunk warnings); recorded cumulative verification and export investigation inventory | Extended `src/tests/normalization-cache-and-pool.test.ts` & `src/tests/pwa-bundle-optimization.test.ts` |
+| **Stage 5** (Post-merge hardening & inventory) | `#483` (`arena/1af54dd7-ledgerflow`) | Measured on `043770c092c96993998c4bcb39fb27f52fa10c30` (`043770c`; pending merge) | Reused active `Transaction` `PoolClient` (`t.tablesExist(...)`) inside `stockMovesReady(db, t)` and `allocationLedgerReady(db, tx)` (eliminating cold-start `runTransaction` pool starvation across `cogsStockService`, `ledgerBulkCommit`, `reverseRoutes`, `deliveryService`, `paymentService`, `bankLineService`, and `onlinePaymentService`) + coalesced concurrent pool probes; broke `partyReports <-> computeReports` cycle (`7 -> 0` Rollup circular-chunk warnings); recorded cumulative verification and export investigation inventory | Extended `src/tests/normalization-cache-and-pool.test.ts` & `src/tests/pwa-bundle-optimization.test.ts` |
 
 ---
 
-## 2. Cumulative End-to-End Metrics (`b01bb43` Baseline → `a5b14f1` Pre-Stage-5 → Stage 5 Final)
+## 2. Cumulative End-to-End Metrics (`b01bb43` Baseline → `a5b14f1` Pre-Stage-5 → `043770c` Stage 5 Final)
 
-| Metric (Node `v24.22.2`) | Baseline (`b01bb43`) | Pre-Stage-5 `main` (`a5b14f1`) | Stage 5 Final | Cumulative Delta vs Baseline |
+| Metric (Node `v24.22.2`) | Baseline (`b01bb43`) | Pre-Stage-5 `main` (`a5b14f1`) | Stage 5 Final (`043770c`) | Cumulative Delta vs Baseline |
 |---|---:|---:|---:|---:|
 | **Standalone backend bundle (`build/server.cjs`)** | `10,968,104 B` (`10.46 MiB`) | `2,025,932 B` (`1.93 MiB`) | `2,027,933 B` (`1.93 MiB`) | **`-81.5%`** (`-8.53 MiB`) |
 | **Serverless API bundle (`build/api.cjs`)** | N/A (shared `10.46 MiB` `server.cjs`) | `2,013,047 B` (`1.92 MiB`) | `2,015,048 B` (`1.92 MiB`) | **`-81.6%`** vs baseline server bundle |
@@ -38,13 +38,13 @@ All measurements in this report were captured under **Node.js `v24.22.2`** (`eng
 
 ---
 
-## 3. Vercel ~9 GB Usage Category Root-Cause Attribution
+## 3. Vercel ~9 GB Usage Category Estimate & Attribution
 
 - **Measured per-deployment artifacts**:
   - Single traced serverless function (`api/index.mjs`): `58.56 MiB` before → `21.12 MiB` after (`-63.9%`), well below Vercel's `250 MB` unzipped function limit.
   - Static `dist/` build output: `~8.9 MiB` across hashed assets.
   - Deployment source upload context: `82.78 MiB` before → `~14.15 MiB` after (`-82.9%`).
-- **Category approaching ~9 GB**: **Cumulative `Build Outputs + Deployment Source Uploads` retained across high-frequency preview and `main` deployment history** (`>1,200` monthly commits/PR builds × `~83 MiB` source context + `~59 MiB` function bundle + `~9 MiB` static output per deployment easily exceeds `9 GB` of cumulative retained deployment storage/transfer).
+- **Unverified cumulative-volume estimate for ~9 GB**: Because no single deployment approaches `9 GB`, an arithmetic estimate over high-frequency preview and `main` deployment cadence (`>1,200` monthly commits/PR builds × `~83 MiB` prior source context + `~59 MiB` function bundle + `~9 MiB` static output per deployment) points to cumulative **`Build Outputs + Deployment Source Uploads`** as the most plausible candidate category. Account-level Vercel deduplication, retention policies, and exact metered category totals are not observable from the repository and remain unverified.
 - **Live Vercel account billing meter**: `unknown` from the repository sandbox (no Vercel billing API credentials exist in the repo environment).
 
 ---
@@ -53,7 +53,7 @@ All measurements in this report were captured under **Node.js `v24.22.2`** (`eng
 
 | Category | Representative Paths | Git Tracking | Vercel Upload (`.vercelignore`) | Rationale |
 |---|---|---|---|---|
-| **Runtime & Build Inputs** | `src/**` (excl. `src/tests/**`), `server.ts`, `api/index.mjs`, `public/**`, `index.html`, `vite.config.ts`, `vercel.json`, `scripts/vercel-csp.ts`, `src/server/assets/fonts/*.ttf` | Tracked | **Included** (enforced by `vercel-ignore-boundary.test.ts` AST reachability check) | Required by `npm run build` or bundled serverless/static runtime |
+| **Runtime & Build Inputs** | `src/**` (excl. `src/tests/**`), `server.ts`, `api/index.mjs`, `public/**`, `index.html`, `vite.config.ts`, `vercel.json`, `scripts/vercel-csp.ts`, `src/server/assets/fonts/*.ttf` | Tracked | **Included** (enforced by `vercel-ignore-boundary.test.ts` required-file checks and regex-based scanning of literal relative module specifiers with handwritten path resolution; non-literal/macro forms such as `import.meta.glob` are outside that scan and verified via `npm run build` in CI) | Required by `npm run build` or bundled serverless/static runtime |
 | **Canonical Code Intelligence & Governance Docs** | `docs/CODE_ATLAS.jsonl` (`34.34 MiB`, pinned reviewer annotations + `.github/workflows/code-atlas.yml` integrity gate), `docs/**`, `AGENTS.md`, `CURRENT_WORK.md` | Tracked | **Excluded** | Enforced in CI (`code-atlas.yml`) and agent coordination; zero runtime/build role |
 | **Historical Audit & Visual Baselines** | `audit/**` (`~7.1 MiB`), `archive/**`, `e2e/__screenshots__/**` | Tracked | **Excluded** | Preserved per launch-audit & visual-regression evidence rules; never read by production build |
 | **CI / Test / Database Migration Assets** | `src/tests/**`, `e2e/**`, `supabase/**`, `stryker.config.json`, `playwright*.ts` | Tracked | **Excluded** | Exercised in GitHub Actions CI and local verification; not needed on Vercel build servers |
