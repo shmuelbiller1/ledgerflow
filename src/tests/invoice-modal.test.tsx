@@ -170,6 +170,23 @@ describe('Invoice dialog', () => {
     assert.equal((screen.getByLabelText('Payment Terms') as HTMLSelectElement).value, 'net_15', 'terms the caller set are kept');
   });
 
+  test('picking another customer with no usual terms drops the previous customer\'s; terms chosen by hand stay (CC-11)', () => {
+    useAuthStore.setState({ workspaces: [{ id: 'w1', name: 'W', currency: 'USD', customerGroups: [{ id: 'cg_w', name: 'Wholesale', paymentTerms: 'net_45' }] } as Workspace] });
+    useLedgerStore.setState({ invoices: [] });
+    const people = [makeCustomer({ id: 'c2', name: 'Bulk Co', groupId: 'cg_w' } as never), makeCustomer({ id: 'c3', name: 'Walk-in' })];
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={people} accounts={accounts} />);
+    const terms = () => (screen.getByLabelText('Payment Terms') as HTMLSelectElement).value;
+    type(input('Invoice Date'), '2026-05-01');
+    type(input('Customer'), 'Bulk Co');
+    assert.equal(terms(), 'net_45');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'due_on_receipt', 'the previous customer\'s terms do not carry over');
+    assert.equal(input('Due Date').value, '2026-05-01');
+    type(screen.getByLabelText('Payment Terms'), 'net_30');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'net_30', 'terms chosen by hand stay');
+  });
+
   test('all save actions report required fields under their input and retain the draft', async () => {
     const saved = setup();
     for (const action of ['Save Draft', 'Save & Close', 'Send Invoice']) {

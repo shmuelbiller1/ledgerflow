@@ -80,6 +80,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   ]);
 
   const [filledFrom, setFilledFrom] = useState<Partial<Invoice> | undefined>(undefined);
+  // whether the terms came from a customer (not chosen by hand), so picking another customer with no
+  // usual terms puts the default back instead of keeping the previous customer's (CC-11)
+  const [termsInherited, setTermsInherited] = useState(false);
   if (isOpen && initialInvoice && initialInvoice !== filledFrom) {
     // Copy a changed pre-filled invoice once per opening (adjusting state during render).
     setFilledFrom(initialInvoice);
@@ -91,6 +94,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
       ? termsForCustomer(safeCustomers.find(c => c.id === initialInvoice.customerId) as { id: string; paymentTerms?: string; groupId?: string } | undefined,
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;
+    setTermsInherited(Boolean(preset));
     setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : {
       ...prev, ...initialInvoice,
       ...(preset ? { paymentTerms: preset, dueDate: calculateDueDate(initialInvoice.date || prev.date || '', preset) } : {}),
@@ -313,7 +317,11 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};
                     // a new invoice takes the customer's usual terms, and the due date follows (I-23)
                     const terms = !editingExisting ? termsForCustomer(cust as { id: string; paymentTerms?: string; groupId?: string } | undefined, pastInvoices, customerGroups) : null;
-                    const termsChange = terms ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) } : {};
+                    const termsChange = terms
+                      ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) }
+                      // the previous customer's terms do not carry over to one with none; terms chosen by hand stay
+                      : !editingExisting && termsInherited ? { paymentTerms: undefined, dueDate: invoice.date || '' } : {};
+                    if (!editingExisting) setTermsInherited(Boolean(terms));
                     setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
@@ -368,7 +376,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               <select id="inv-payment-terms" aria-invalid={Boolean(fieldErrors["inv-payment-terms"])} aria-describedby={fieldErrors["inv-payment-terms"] ? 'inv-payment-terms-error' : undefined}
                 value={invoice.paymentTerms || 'due_on_receipt'}
                 // the due date follows the terms (it stayed on the invoice date before; L-186)
-                onChange={(e) => setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) })}
+                onChange={(e) => { setTermsInherited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               >
                 {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
