@@ -12,6 +12,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useEntityOperations } from '../../hooks/useEntityOperations';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 import {
   acceptQuoteProblem,
   customerOpenQuotes,
@@ -158,6 +160,17 @@ function CustomerQuotesContent() {
     );
     return { problem: null, nextOccurrence: schedule.nextOccurrence, drafts, validityDays };
   }, [selectedEstimate, frequency, today]);
+  const { addEntity } = useEntityOperations();
+  const role = useCurrentRole();
+  const canRepeat = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
+  const [repeating, setRepeating] = useState(false);
+  // CC-04: saves the schedule; the daily job makes a draft estimate (next number) on each date
+  const repeat = (): void => {
+    if (!selectedEstimate || repeating || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId })) return;
+    setRepeating(true);
+    addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
+      .finally(() => setRepeating(false));
+  };
 
   const partial = Boolean(
     truncated.estimates || truncated.customers || failed.estimates || failed.customers,
@@ -382,7 +395,7 @@ function CustomerQuotesContent() {
             <div className="border border-[var(--line)] rounded p-4 space-y-3 bg-[var(--panel)]">
               <h3 className="font-semibold text-base">Recurring estimate schedule ({selectedEstimate.number})</h3>
               <p className="text-xs text-[var(--muted)]">
-                Previews repeating quote dates and draft estimates due on or before {today} (validity window: {recurringInfo.validityDays} days).
+                Each repeat is a new draft estimate with the next number, made by the daily job on its date; nothing is sent. Shown: drafts due on or before {today} (validity window: {recurringInfo.validityDays} days).
               </p>
               <div className="flex flex-wrap gap-3">
                 <label className="flex flex-col gap-1 text-sm">
@@ -398,6 +411,12 @@ function CustomerQuotesContent() {
                     ))}
                   </select>
                 </label>
+                {canRepeat && (
+                  <button type="button" onClick={repeat} disabled={repeating || Boolean(recurringInfo.problem)} aria-busy={repeating}
+                    className="self-end min-h-11 px-3 rounded border text-sm disabled:opacity-50">
+                    Repeat this estimate
+                  </button>
+                )}
               </div>
               {recurringInfo.problem ? (
                 <p role="alert" className="text-sm text-amber-700">{recurringInfo.problem}</p>

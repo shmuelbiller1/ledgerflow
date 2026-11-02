@@ -4,13 +4,16 @@
  *  - a recurring **invoice** creates a draft invoice for the team to review and send, and tells
  *    them (invoices are posted when a person saves them, like any other invoice);
  *  - a recurring **bill** (BE-08) creates a draft bill the same way, for the team to check and save;
+ *  - a recurring **estimate** (CC-04) creates a draft estimate with the next number, for the team to
+ *    check and send (nothing is sent or posted);
  *  - a recurring **entry** is posted to the ledger only if its lines use real accounts of the
  *    workspace and balance; otherwise nothing is written and the schedule shows the problem.
  * Before this, invoice schedules wrote ledger entries with blank accounts and no workspace.
  */
 import { getDb, FieldValue } from '../db/firestore';
 import type { DocumentData, Firestore } from '../db/firestore';
-import type { Bill, Invoice, RecurringTransaction, Transaction } from '../../types';
+import type { Bill, Estimate, Invoice, RecurringTransaction, Transaction } from '../../types';
+import { nextEstimateDraft } from '../../lib/recurringEstimates';
 import { findDueRecurring } from '../../lib/recurringEngine';
 import { addDaysYMD } from '../../lib/fiscalCalendar';
 import { assertPostingOpen } from '../../lib/periodLock';
@@ -30,6 +33,7 @@ export interface ProcessRecurringResult {
     txId?: string;
     invoiceId?: string;
     billId?: string;
+    estimateId?: string;
   }>;
 }
 
@@ -41,6 +45,10 @@ export function isInvoiceSchedule(rule: Partial<RecurringTransaction>): boolean 
 
 export function isBillSchedule(rule: Partial<RecurringTransaction> & { billTemplate?: unknown }): boolean {
   return rule.type === 'bill' || Boolean(rule.billTemplate);
+}
+
+export function isEstimateSchedule(rule: Partial<RecurringTransaction> & { estimateTemplate?: unknown }): boolean {
+  return rule.type === 'estimate' || Boolean(rule.estimateTemplate);
 }
 
 /** Why a recurring entry can't be posted, or null when it can. */
@@ -161,6 +169,48 @@ async function generateBill(db: Firestore, rule: RecurringTransaction & { billTe
   return { billId: billRef.id };
 }
 
+/** CC-04: a draft estimate copied from the schedule, with the next estimate number. */
+async function generateEstimate(db: Firestore, rule: RecurringTransaction & { estimateTemplate?: DocumentData }, date: string, nextOccurrence: string) {
+  const key = `${rule.id}:${date}`;
+  const existing = await db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1).get();
+  if (!existing.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
+  const t = (rule.estimateTemplate || {}) as Partial<Estimate> & DocumentData;
+  if (!t.customerId) throw new Error('The schedule has no customer');
+  const workspace = (await db.collection('workspaces').doc(rule.workspaceId).get()).data() || {};
+  const number = await allocateNextNumber(db, rule.workspaceId, 'estimate');
+  const estimateRef = db.collection('estimates').doc();
+  const draft = nextEstimateDraft(t, { id: estimateRef.id, number, date });
+  const estimate: DocumentData = {
+    ...draft,
+    workspaceId: rule.workspaceId,
+    uid: rule.uid,
+    currency: (t.currency as string | undefined) || workspace.currency || 'USD',
+    recurrenceOccurrenceKey: key,
+    metadata: { recurringTemplateId: rule.id, generatedAt: new Date().toISOString() },
+    createdAt: new Date().toISOString(),
+  };
+  delete estimate.validityDays;
+  for (const k of Object.keys(estimate)) if (estimate[k] === undefined) delete estimate[k];
+  await db.runTransaction(async (tx) => {
+    const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
+    const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
+    if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
+    if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
+    tx.set(estimateRef, estimate);
+    tx.update(db.collection('recurring').doc(rule.id), {
+      nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
+      lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),
+    });
+  });
+  await notify(db, {
+    workspaceId: rule.workspaceId, workspace, kind: 'estimate.draft_ready',
+    title: `Recurring estimate ${number} is ready`,
+    message: `A draft for ${String(estimate.customerName || 'the customer')} dated ${date}. Check it and send it.`,
+    eventKey: `estimate.draft_ready:${key}`, recordId: estimateRef.id,
+  });
+  return { estimateId: estimateRef.id };
+}
+
 async function generateEntry(db: Firestore, rule: RecurringTransaction, generated: Partial<Transaction>, nextOccurrence: string) {
   const date = String(generated.date);
   const key = `${rule.id}:${date}`;
@@ -219,7 +269,9 @@ export async function processRecurring(db: Firestore, asOf?: string): Promise<Pr
         ? await generateInvoice(db, rule, String(item.transaction.date), item.updatedNextOccurrence)
         : isBillSchedule(rule)
           ? await generateBill(db, rule, String(item.transaction.date), item.updatedNextOccurrence)
-          : await generateEntry(db, rule, item.transaction, item.updatedNextOccurrence);
+          : isEstimateSchedule(rule)
+            ? await generateEstimate(db, rule, String(item.transaction.date), item.updatedNextOccurrence)
+            : await generateEntry(db, rule, item.transaction, item.updatedNextOccurrence);
       result.processedCount++;
       result.details.push({ operationId, status: 'success', ...out });
     } catch (err) {
@@ -233,7 +285,7 @@ export async function processRecurring(db: Firestore, asOf?: string): Promise<Pr
         result.details.push({ operationId, status: 'failed', error: why });
         logger.warn('recurring occurrence failed', { operationId, error: why });
         // S-12: the people who keep the books hear about it (once per occurrence), not only the job log
-        const what = isInvoiceSchedule(rule) ? 'invoice' : isBillSchedule(rule) ? 'bill' : 'entry';
+        const what = isInvoiceSchedule(rule) ? 'invoice' : isBillSchedule(rule) ? 'bill' : isEstimateSchedule(rule) ? 'estimate' : 'entry';
         await notify(db, {
           workspaceId: rule.workspaceId, kind: 'recurring.failed',
           title: `A recurring ${what} could not be created`,
