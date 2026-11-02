@@ -61,6 +61,17 @@ describe('L-123 step 4d: expense by category (no database)', () => {
     assert.deepEqual(briefIncome(computeIncomeBySource(accounts, loaded, from, to)), ['Sales 800 1 100.0']);
   });
 
+  test('a source or category named "__proto__" is an ordinary row and leaves Object.prototype alone (CodeRabbit on #496)', () => {
+    const odd = ledger(ws, (k, account) => {
+      if (k === 1 && account === 'sales') return { description: '__proto__' };
+      return k === 0 && account === 'rent' ? { category: '__proto__' } : {};
+    });
+    assert.deepEqual(briefIncome(computeIncomeBySource(accounts, odd, from, to)), ['__proto__ 1500 1 65.2', 'Sales 800 1 34.8']);
+    assert.deepEqual(brief(computeExpenseByCategory(accounts, odd, from, to)), ['__proto__ 900 1 50.0', 'Rent 700 1 38.9', 'Fuel 200 1 11.1']);
+    assert.equal(({} as Record<string, unknown>).total, undefined);
+    assert.equal(({} as Record<string, unknown>).count, undefined);
+  });
+
   test('income by source on screen: no request when not capped; every entry\'s sources when capped; a note when it fails', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: {} } as never);
