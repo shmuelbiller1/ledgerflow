@@ -364,15 +364,26 @@ export async function activityOver(db: Firestore, workspaceId: string, from: str
  * a reversal dated after the range still takes the entry it reverses (dated inside it) out of the list, as it does in
  * the browser. Only a reversal dated before `from` that reverses an entry inside the range is not seen.
  */
-export async function topLinesOver(db: Firestore, workspaceId: string, from: string, to: string, limit: number): Promise<{ topExpenses: TopLineItem[]; topIncome: TopLineItem[]; entriesRead: number }> {
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A line range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+/**
+ * The chart and every entry dated `from` on (postable or not, as the browser passes its loaded list), for the range
+ * reports below: entries after the range are read too, so a reversal dated after it still cancels the entry it reverses.
+ */
+async function accountsAndEntriesFrom(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ accounts: ChartAccount[]; entries: ReturnType<typeof entryOf>[] }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A report range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const [accountsSnap, entriesSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
     db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).get(),
   ]);
-  const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
-  // every entry read, postable or not, as the browser passes its loaded list (the report itself keeps the postable ones)
-  const entries = entriesSnap.docs.map(entryOf);
+  return { accounts: accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount), entries: entriesSnap.docs.map(entryOf) };
+}
+
+/**
+ * L-123 step 4a: the largest single expense and income lines dated `from`…`to` over every postable entry (what
+ * `computeTopExpensesAndIncome` gives over the full history). Only a reversal dated before `from` that reverses an
+ * entry inside the range is not seen.
+ */
+export async function topLinesOver(db: Firestore, workspaceId: string, from: string, to: string, limit: number): Promise<{ topExpenses: TopLineItem[]; topIncome: TopLineItem[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
   return { ...computeTopExpensesAndIncome(accounts, entries, limit, from, to), entriesRead: entries.length };
 }
 
@@ -407,16 +418,9 @@ export async function salesByItemOver(db: Firestore, workspaceId: string, from: 
 /**
  * L-123 step 4d: the expense breakdown by category dated `from`…`to` over every postable entry (what
  * `computeExpenseByCategory` gives over the full history). A category can be set on a line, so per-account sums cannot
- * give it. As for the top lines, entries are read from `from` on, so a reversal dated after the range still cancels the
- * entry it reverses in the transaction counts.
+ * give it.
  */
 export async function expenseByCategoryOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ categories: CategoryExpenseBreakdown[]; entriesRead: number }> {
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A category range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
-  const [accountsSnap, entriesSnap] = await Promise.all([
-    db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
-    db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).get(),
-  ]);
-  const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
-  const entries = entriesSnap.docs.map(entryOf);
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
   return { categories: computeExpenseByCategory(accounts, entries, from, to), entriesRead: entries.length };
 }

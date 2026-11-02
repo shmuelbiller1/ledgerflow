@@ -55,6 +55,28 @@ const validDate = (d: string) => DATE.test(d) && !Number.isNaN(Date.parse(`${d}T
 /** Longest range one request may ask for (the browser asks for at most 18 months or a year). */
 const MAX_DAYS = 3 * 366;
 
+/** workspaceId, from and to of a range route (from ≤ to, at most MAX_DAYS); otherwise null, the 400 already sent. */
+function rangeQuery(req: express.Request, res: express.Response, extraValid = true, extraMessage = ''): { workspaceId: string; from: string; to: string } | null {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS || !extraValid) {
+    res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days)${extraMessage} are required` });
+    return null;
+  }
+  return { workspaceId, from, to };
+}
+
+/** Sends a range route's answer, or its 500 with `what` in the message. */
+async function answerRange(res: express.Response, what: string, read: () => Promise<Record<string, unknown>>): Promise<void> {
+  try {
+    res.json({ status: 'success', ...(await read()) });
+  } catch (err) {
+    console.error(`[balances] could not read ${what}`, errorMessage(err));
+    res.status(500).json({ status: 'error', message: `Could not read ${what}`, details: errorMessage(err) });
+  }
+}
+
 /**
  * L-123 step 3e: GET /api/v1/balances/activity?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member of the
  * workspace (a viewer too), as GET /. Per month (YYYY-MM) of every postable entry dated from…to: per account id the
@@ -87,23 +109,15 @@ balanceRouter.get('/activity', async (req, res) => {
  * for the "Top Financial Line Items" report when the loaded list is capped. limit 1…100 (default 25). Read-only.
  */
 balanceRouter.get('/top-lines', async (req, res) => {
-  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
-  const from = typeof req.query.from === 'string' ? req.query.from : '';
-  const to = typeof req.query.to === 'string' ? req.query.to : '';
   const limit = req.query.limit === undefined ? 25 : Number(req.query.limit);
-  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS
-    || !Number.isInteger(limit) || limit < 1 || limit > 100) {
-    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) and a limit of 1–100 are required` });
-  }
+  const range = rangeQuery(req, res, Number.isInteger(limit) && limit >= 1 && limit <= 100, ' and a limit of 1–100');
+  if (!range) return;
   const db = getDb();
-  if (!(await allowMember(db, workspaceId, req, res))) return;
-  try {
-    const result = await topLinesOver(db, workspaceId, from, to, limit);
-    res.json({ status: 'success', workspaceId, from, to, limit, topExpenses: result.topExpenses, topIncome: result.topIncome, entriesRead: result.entriesRead });
-  } catch (err) {
-    console.error('[balances] could not read the top lines', errorMessage(err));
-    res.status(500).json({ status: 'error', message: 'Could not read the top lines', details: errorMessage(err) });
-  }
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the top lines', async () => {
+    const result = await topLinesOver(db, range.workspaceId, range.from, range.to, limit);
+    return { ...range, limit, topExpenses: result.topExpenses, topIncome: result.topIncome, entriesRead: result.entriesRead };
+  });
 });
 
 /**
@@ -111,21 +125,14 @@ balanceRouter.get('/top-lines', async (req, res) => {
  * sales-by-item report over every invoice dated from…to and the cost of goods sold posted for them. Read-only.
  */
 balanceRouter.get('/sales-by-item', async (req, res) => {
-  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
-  const from = typeof req.query.from === 'string' ? req.query.from : '';
-  const to = typeof req.query.to === 'string' ? req.query.to : '';
-  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
-    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
-  }
+  const range = rangeQuery(req, res);
+  if (!range) return;
   const db = getDb();
-  if (!(await allowMember(db, workspaceId, req, res))) return;
-  try {
-    const result = await salesByItemOver(db, workspaceId, from, to);
-    res.json({ status: 'success', workspaceId, from, to, rows: result.rows, totals: result.totals, invoicesRead: result.invoicesRead });
-  } catch (err) {
-    console.error('[balances] could not read sales by item', errorMessage(err));
-    res.status(500).json({ status: 'error', message: 'Could not read sales by item', details: errorMessage(err) });
-  }
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'sales by item', async () => {
+    const result = await salesByItemOver(db, range.workspaceId, range.from, range.to);
+    return { ...range, rows: result.rows, totals: result.totals, invoicesRead: result.invoicesRead };
+  });
 });
 
 /**
@@ -154,25 +161,12 @@ balanceRouter.get('/asset-register', async (req, res) => {
  * "Expense Breakdown by Category" report when the loaded list is capped. Read-only.
  */
 balanceRouter.get('/expense-by-category', async (req, res) => {
-  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
-  const from = typeof req.query.from === 'string' ? req.query.from : '';
-  const to = typeof req.query.to === 'string' ? req.query.to : '';
-  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || (Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) {
-    return res.status(400).json({ status: 'error', message: `workspaceId, from and to (YYYY-MM-DD, from ≤ to, at most ${MAX_DAYS} days) are required` });
-  }
+  const range = rangeQuery(req, res);
+  if (!range) return;
   const db = getDb();
-  try {
-    await validateWorkspaceMember(db, workspaceId, requestUser(req));
-  } catch (err) {
-    const message = errorMessage(err);
-    if (/not found/i.test(message)) return res.status(404).json({ status: 'error', message: 'Workspace not found' });
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
-  }
-  try {
-    const result = await expenseByCategoryOver(db, workspaceId, from, to);
-    res.json({ status: 'success', workspaceId, from, to, categories: result.categories, entriesRead: result.entriesRead });
-  } catch (err) {
-    console.error('[balances] could not read the expense categories', errorMessage(err));
-    res.status(500).json({ status: 'error', message: 'Could not read the expense categories', details: errorMessage(err) });
-  }
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the expense categories', async () => {
+    const result = await expenseByCategoryOver(db, range.workspaceId, range.from, range.to);
+    return { ...range, categories: result.categories, entriesRead: result.entriesRead };
+  });
 });

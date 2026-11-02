@@ -21,45 +21,19 @@
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
+import { Y, from, to, chart, entries as ledger, loadedOf, balanceRouteHarness } from './helpers/l123RangeLedger';
 import assert from 'node:assert/strict';
-import crypto from 'crypto';
 import React from 'react';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import ExpenseByCategoryReportView from '../components/reporting/ExpenseByCategoryReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { formatCurrency, workspaceYearMonth } from '../lib/utils';
+import { formatCurrency } from '../lib/utils';
 import { computeExpenseByCategory, type CategoryExpenseBreakdown } from '../lib/reportGenerators';
 import { openingCutoff } from '../lib/serverBalances';
-import type { ChartAccount, Transaction } from '../types';
-import type { Firestore } from '../server/db/pgFirestore';
+// E1's Rent line carries its own category
+const entries = (ws: string) => ledger(ws, (k, account) => (k === 0 && account === 'rent' ? { category: 'Office' } : {}));
 
-const Y = workspaceYearMonth().year;
-const from = `${Y}-01-01`, to = `${Y}-12-31`;
-const chart = (ws: string): ChartAccount[] => [
-  { id: `${ws}_cash`, workspaceId: ws, uid: 'owner-1', code: '1000', name: 'Cash', type: 'asset', category: 'Cash' } as ChartAccount,
-  { id: `${ws}_sales`, workspaceId: ws, uid: 'owner-1', code: '4000', name: 'Sales', type: 'income', category: 'Sales' } as ChartAccount,
-  { id: `${ws}_rent`, workspaceId: ws, uid: 'owner-1', code: '6000', name: 'Rent', type: 'expense', category: 'Rent' } as ChartAccount,
-  { id: `${ws}_fuel`, workspaceId: ws, uid: 'owner-1', code: '6100', name: 'Fuel', type: 'expense', category: 'Fuel' } as ChartAccount,
-];
-const LINES: Array<[string, Array<[string, number]>]> = [
-  ['01-05', [['rent', 900], ['cash', -900]]],
-  ['01-12', [['cash', 1500], ['sales', -1500]]],
-  ['02-03', [['fuel', 300], ['cash', -300]]],
-  ['02-10', [['rent', 700], ['cash', -700]]],
-  ['03-01', [['cash', 800], ['sales', -800]]],
-  ['03-15', [['fuel', 200], ['cash', -200]]],
-  ['04-02', [['cash', 300], ['fuel', -300]]],
-];
-const entries = (ws: string): Transaction[] => LINES.map(([day, lines], k) => ({
-  id: `${ws}_e${k + 1}`, workspaceId: ws, uid: 'owner-1', date: `${Y}-${day}`, description: `E${k + 1}`,
-  totalAmountCents: Math.max(...lines.map(([, c]) => Math.abs(c))), currency: 'USD', status: 'completed', type: 'journal',
-  ...(k === 6 ? { metadata: { isReversal: true, reversesTxId: `${ws}_e3` } } : {}),
-  lines: lines.map(([a, amountCents]) => ({ accountId: `${ws}_${a}`, amountCents, ...(k === 0 && a === 'rent' ? { category: 'Office' } : {}) })),
-}) as Transaction);
-const loadedOf = (all: Transaction[]) => all.slice(3);
 const brief = (rows: CategoryExpenseBreakdown[]) => rows.map(r => `${r.category} ${r.totalAmountCents} ${r.transactionCount} ${r.percentage.toFixed(1)}`);
 const TRUTH = ['Office 900 1 50.0', 'Rent 700 1 38.9', 'Fuel 200 1 11.1'];
 
@@ -129,44 +103,13 @@ describe('L-123 step 4d: expense by category (no database)', () => {
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
-const OWNER = 'owner-1';
 
 describe('L-123 step 4d: GET /api/v1/balances/expense-by-category', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
-  let db: Firestore;
-  let server: Server;
-  let base = '';
-  const realFetch = globalThis.fetch;
-  const ws = `ws_l123g_${crypto.randomBytes(4).toString('hex')}`;
-  const get = async (q: Record<string, string>, uid = OWNER) => {
-    const res = await realFetch(`${base}/api/v1/balances/expense-by-category?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-    return { status: res.status, body: await res.json() as { categories: CategoryExpenseBreakdown[]; entriesRead: number } };
-  };
-
-  before(async () => {
-    process.env.DATABASE_URL = url;
-    const express = (await import('express')).default;
-    const { getDb } = await import('../server/db/firestore');
-    db = getDb();
-    const app = express();
-    app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
-    app.use('/api/v1/balances', (await import('../server/routes/balanceRoutes')).balanceRouter);
-    server = app.listen(0);
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'L-123 step 4d', currency: 'USD', timezone: 'UTC', members: [OWNER] });
-    await db.pool.query(`insert into public."chartAccounts" (id, data) select a->>'id', a from jsonb_array_elements($1::jsonb) a`, [JSON.stringify(chart(ws))]);
-    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(entries(ws))]);
-  });
-
-  after(async () => {
-    server?.close();
-    for (const table of ['transactions', 'chartAccounts', 'workspaces']) {
-      await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
-    }
-    const { getSupabase } = await import('../lib/db/client');
-    getSupabase().realtime.disconnect();
-    await getSupabase().auth.dispose();
-    await db.terminate();
-  });
+  const db = balanceRouteHarness(url, 'l123g', w => ({ accounts: chart(w), entries: entries(w) }));
+  const ws = db.ws;
+  const get = (q: Record<string, string>, uid?: string) => db.get<{ categories: CategoryExpenseBreakdown[]; entriesRead: number }>('expense-by-category', q, uid);
+  before(() => db.start());
+  after(() => db.stop());
 
   test('every entry of the range: the hand-worked breakdown, not the loaded four\'s; a reversal after the range counts; members only', async () => {
     const year = await get({ workspaceId: ws, from, to });
