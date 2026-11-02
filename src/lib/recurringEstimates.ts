@@ -106,6 +106,8 @@ export function nextEstimateDraft(
     date,
     expiryDate: expiry,
     status: 'draft',
+    // each copy bills its own milestones: none is invoiced yet
+    ...(Array.isArray(estimate.milestones) ? { milestones: estimate.milestones.map(({ invoicedAt: _done, ...m }) => m) } : {}),
     signToken: undefined,
     signTokenAt: undefined,
     signature: undefined,

@@ -34,7 +34,7 @@ const SIDES: Record<PartySide, { party: string; label: string; refs: Reference[]
       { collection: 'transactions', path: ['metadata', 'customerId'] },
       { collection: 'transactions', path: ['metadata', 'contactId'] },
     ],
-    recurring: [['invoiceTemplate', 'customerId'], ['template', 'customerId']],
+    recurring: [['invoiceTemplate', 'customerId'], ['estimateTemplate', 'customerId'], ['template', 'customerId']],
   },
   vendor: {
     party: 'vendors',

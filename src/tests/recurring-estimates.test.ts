@@ -67,3 +67,10 @@ test('each copy is a new draft with the next number and date, and nothing that c
   assert.equal(draft.lines.length, 1);
   assert.equal(estimateValidityDays({ date: '2026-01-01', expiryDate: '2026-01-01' }), 30, 'a zero-day validity falls back to 30');
 });
+
+test('a recurring draft starts with none of its milestones invoiced (CC-04)', () => {
+  const draft = nextEstimateDraft({ customerId: 'c1', milestones: [{ id: 'm1', label: 'Deposit', percent: 50, invoicedAt: '2026-01-02' }, { id: 'm2', label: 'Rest', percent: 50 }] } as never,
+    { id: 'e2', number: 'EST-2', date: '2026-02-01' });
+  assert.deepEqual(draft.milestones?.map(m => m.invoicedAt), [undefined, undefined]);
+  assert.deepEqual(draft.milestones?.map(m => m.label), ['Deposit', 'Rest']);
+});
