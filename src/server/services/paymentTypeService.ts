@@ -7,7 +7,7 @@
 import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
-import { isPaymentMethod, MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, type PaymentType } from '../../lib/paymentTypes';
+import { isPaymentMethod, paymentTypeNameKey, MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, type PaymentType } from '../../lib/paymentTypes';
 import { writeServerAuditLog } from './auditLogService';
 
 export class PaymentTypeError extends Error {
@@ -23,13 +23,13 @@ export type PaymentTypeChange =
   | { op: 'remove'; id: unknown };
 
 const cleanName = (name: unknown): string => {
-  const clean = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
+  const clean = typeof name === 'string' ? name.trim() : ''; // kept as typed; compared by paymentTypeNameKey
   if (!clean) throw new PaymentTypeError(400, 'Enter a name');
   if (clean.length > MAX_PAYMENT_TYPE_NAME) throw new PaymentTypeError(400, `Up to ${MAX_PAYMENT_TYPE_NAME} characters`);
   return clean;
 };
 const taken = (list: PaymentType[], name: string, exceptId?: string) =>
-  list.some(t => t.id !== exceptId && t.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+  list.some(t => t.id !== exceptId && paymentTypeNameKey(t.name) === paymentTypeNameKey(name));
 
 /** The list after one change, or a PaymentTypeError saying why it does not fit the current list. */
 export function applyPaymentTypeChange(current: PaymentType[], change: PaymentTypeChange, newId: () => string): { types: PaymentType[]; said: string } {

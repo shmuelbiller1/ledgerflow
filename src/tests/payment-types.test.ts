@@ -37,9 +37,11 @@ test('CC-09: a new type id is random, never derived from the name, and unique in
 });
 
 test('CC-09: renaming keeps the id and method; an empty, long or taken name changes nothing', () => {
-  const list = normalizePaymentTypes([{ id: 'pt_a', name: 'PayPal', method: 'card' }, { id: 'pt_b', name: 'Bit', method: 'bank_transfer' }]);
-  assert.deepEqual(renamePaymentType(list, 'pt_a', '  Pay  Pal '), [{ id: 'pt_a', name: 'Pay Pal', method: 'card' }, list[1]]);
-  for (const bad of ['', '   ', 'x'.repeat(61), 'bit']) assert.equal(renamePaymentType(list, 'pt_a', bad), list, bad);
+  const list = normalizePaymentTypes([{ id: 'pt_a', name: 'PayPal', method: 'card' }, { id: 'pt_b', name: 'Bit  App', method: 'bank_transfer' }]);
+  assert.equal(list[1].name, 'Bit  App', 'a stored name keeps its spacing');
+  assert.equal(renamePaymentType(list, 'pt_a', ' bit app '), list, 'a name equal but for case and spacing is taken');
+  assert.deepEqual(renamePaymentType(list, 'pt_a', '  Pay  Pal '), [{ id: 'pt_a', name: 'Pay  Pal', method: 'card' }, list[1]], 'kept as typed, only trimmed');
+  for (const bad of ['', '   ', 'x'.repeat(61), 'BIT   app']) assert.equal(renamePaymentType(list, 'pt_a', bad), list, bad);
   assert.deepEqual(renamePaymentType(list, 'pt_a', 'PAYPAL')[0].name, 'PAYPAL', 'its own name in another case is fine');
 });
 

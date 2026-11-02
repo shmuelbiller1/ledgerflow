@@ -99,7 +99,10 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
           return isWrite ? "write:ledger" : "read:ledger";
         }
         if (cleanPath.includes("/workspaces")) {
-          return "read:workspaces";
+          // Workspace settings (payment types, alerts, modules, roles, members…) are changed by people
+          // in the app, not by API keys: no key can be issued "write:workspaces", so a key that may
+          // read workspaces cannot change them (a key holder acts with its owner's role).
+          return isWrite ? "write:workspaces" : "read:workspaces";
         }
         if (cleanPath.includes("/metrics")) {
           return "read:transactions";

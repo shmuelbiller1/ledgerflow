@@ -15,6 +15,9 @@ export const MAX_PAYMENT_TYPES = 50;
 export const MAX_PAYMENT_TYPE_NAME = 60;
 const ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
+/** How two names are compared (case and runs of spaces ignored); the name itself is kept as typed. */
+export const paymentTypeNameKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
 export const isPaymentMethod = (value: unknown): value is PaymentMethod =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_METHOD_LABELS, value);
 
@@ -28,8 +31,8 @@ export function normalizePaymentTypes(input: unknown): PaymentType[] {
     if (!raw || typeof raw !== 'object') continue;
     const { id, name, method } = raw as Record<string, unknown>;
     if (typeof id !== 'string' || !ID.test(id) || !isPaymentMethod(method) || typeof name !== 'string') continue;
-    const clean = name.trim().replace(/\s+/g, ' ');
-    const key = clean.toLocaleLowerCase();
+    const clean = name.trim();
+    const key = paymentTypeNameKey(clean);
     if (!clean || clean.length > MAX_PAYMENT_TYPE_NAME || ids.has(id) || names.has(key)) continue;
     ids.add(id);
     names.add(key);
@@ -59,8 +62,8 @@ export function newPaymentTypeId(existing: ReadonlyArray<{ id: string }>): strin
 
 /** The list with one type renamed (its id and method kept); unchanged if the name is empty, too long or taken. */
 export function renamePaymentType(types: PaymentType[], id: string, name: string): PaymentType[] {
-  const clean = name.trim().replace(/\s+/g, ' ');
+  const clean = name.trim();
   if (!clean || clean.length > MAX_PAYMENT_TYPE_NAME) return types;
-  if (types.some(t => t.id !== id && t.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) return types;
+  if (types.some(t => t.id !== id && paymentTypeNameKey(t.name) === paymentTypeNameKey(clean))) return types;
   return types.map(t => (t.id === id ? { ...t, name: clean } : t));
 }

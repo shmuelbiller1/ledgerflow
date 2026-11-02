@@ -5,7 +5,7 @@ import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '../../../lib/accountDefaults';
-import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, type PaymentType } from '../../../lib/paymentTypes';
+import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, paymentTypeNameKey, type PaymentType } from '../../../lib/paymentTypes';
 import InlineEdit from '../../ui/InlineEdit';
 
 /**
@@ -24,8 +24,8 @@ export function PaymentTypesSettings() {
   const [method, setMethod] = useState<PaymentMethod>('card');
   const [saving, setSaving] = useState(false);
 
-  const clean = name.trim().replace(/\s+/g, ' ');
-  const duplicate = clean !== '' && saved.some(t => t.name.toLocaleLowerCase() === clean.toLocaleLowerCase());
+  const clean = name.trim();
+  const duplicate = clean !== '' && saved.some(t => paymentTypeNameKey(t.name) === paymentTypeNameKey(clean));
   const full = saved.length >= MAX_PAYMENT_TYPES;
   const canAdd = canEdit && !saving && clean !== '' && clean.length <= MAX_PAYMENT_TYPE_NAME && !duplicate && !full;
 
@@ -61,14 +61,14 @@ export function PaymentTypesSettings() {
   };
 
   const rename = (t: PaymentType, next: string | number): Promise<void> => {
-    const name = String(next).trim().replace(/\s+/g, ' ');
+    const name = String(next).trim();
     return save({ op: 'rename', id: t.id, name }, `Renamed to ${name}`);
   };
   const renameProblem = (t: PaymentType, next: string | number): string | null => {
-    const clean = String(next).trim().replace(/\s+/g, ' ');
+    const clean = String(next).trim();
     if (!clean) return 'Enter a name';
     if (clean.length > MAX_PAYMENT_TYPE_NAME) return `Up to ${MAX_PAYMENT_TYPE_NAME} characters`;
-    if (saved.some(x => x.id !== t.id && x.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) return `${clean} is already a payment type`;
+    if (saved.some(x => x.id !== t.id && paymentTypeNameKey(x.name) === paymentTypeNameKey(clean))) return `${clean} is already a payment type`;
     return null;
   };
 
