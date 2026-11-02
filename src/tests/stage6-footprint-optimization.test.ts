@@ -195,6 +195,9 @@ describe('Stage 6: Serverless, Bootstrap & Bundle Footprint Invariants', () => {
     }
 
     const assetsDir = path.resolve('dist/assets');
+    if (process.env.LF_REQUIRE_BUILT_DIST === '1') {
+      assert.equal(fs.existsSync(assetsDir), true, 'Expected built dist/assets directory when LF_REQUIRE_BUILT_DIST=1');
+    }
     if (fs.existsSync(assetsDir)) {
       const assetFiles = fs.readdirSync(assetsDir);
       const appEntry = assetFiles.find((file) => file.startsWith('app-'));

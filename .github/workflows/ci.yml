@@ -202,10 +202,12 @@ jobs:
           HUSKY: 0
       - name: Build production client and server
         run: npm run build
-      - name: Confirm deployable artifacts exist
+      - name: Confirm deployable artifacts exist and pass bundle invariants
         run: |
           test -s dist/index.html
           test -s build/server.cjs
+          test -s build/api.cjs
+          LF_REQUIRE_BUILT_DIST=1 NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic npx tsx --test src/tests/pwa-bundle-optimization.test.ts src/tests/stage6-footprint-optimization.test.ts
 
   # The whole unit suite again in a time zone ahead of and one behind UTC, in parallel with the
   # job above (run one after the other they took the job past its time limit).
