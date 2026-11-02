@@ -57,4 +57,11 @@ describe('Mode of payment (CA-28)', () => {
     assert.equal(accountInUse(slot, [checking, rent], { 'payment cash': 'rent' }).chosen, false);
     assert.equal(paymentModeAccountId('cash', [checking, rent], { 'payment cash': 'rent' }), 'chk');
   });
+
+  test('with nothing chosen, an account Settings would not offer is skipped in favour of one it would', () => {
+    const rounding = acct('rnd', 'Rounding', { category: 'Bank', subtype: 'rounding' } as Partial<ChartAccount>);
+    const slot = DEFAULT_ACCOUNT_SLOTS.find(s => s.key === paymentModeKey('cash'))!;
+    const expected = slot.automatic([rounding, undeposited])?.id;
+    assert.equal(paymentModeAccountId('cash', [rounding, undeposited], undefined), expected);
+  });
 });
