@@ -35,6 +35,11 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const { loading } = useLedgerCollections('customers', 'vendors', 'invoices', 'bills');
   const failed = useDataNeedsStore(s => ['customers', 'vendors', 'invoices', 'bills'].some(c => s.failed[c as 'bills']));
   const totalsReady = !loading && !failed;
+  // the vendor page's "is anything linked here" answer depends on customers alone
+  const isGuest = useAuthStore(s => s.isGuest && !s.user); // demo: what was seeded is all there is
+  const customersLoaded = useDataNeedsStore(s => !!s.loaded.customers) || isGuest;
+  const customersFailed = useDataNeedsStore(s => !!s.failed.customers);
+  const customersReady = customersLoaded && !customersFailed;
 
   const activeVendors = useMemo(() => vendors.filter(v => v.status !== 'inactive' && !(v as { isArchived?: boolean }).isArchived), [vendors]);
   // a capped vendor list may not hold the linked vendor: then trust the stored link rather than show "Not linked"
@@ -64,7 +69,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     ).finally(() => setSaving(false));
   };
 
-  if (side === 'vendor' && !pair && !truncated.customers && totalsReady) return null; // hide only once customers loaded and nothing links here
+  if (side === 'vendor' && !pair && !truncated.customers && customersReady) return null; // hide only once customers loaded and nothing links here
 
   return (
     <section aria-labelledby={`${id}-title`} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -84,6 +89,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
           >
             <option value="">Not linked</option>
             {pair && !choices.includes(pair.vendorId) && <option value={pair.vendorId}>{other?.name || pair.vendorId}</option>}
+            {pending && pending !== pair?.vendorId && !choices.includes(pending) && <option value={pending}>{vendors.find(v => v.id === pending)?.name || pending}</option>}
             {choices.map(vid => <option key={vid} value={vid}>{vendors.find(v => v.id === vid)?.name || vid}</option>)}
           </select>
           {pending !== null && !saving && (
@@ -103,8 +109,8 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
           Not every contact or document is loaded in this browser, so a link or part of these totals may be missing. Check the receivables and payables reports for the full figures.
         </p>
       )}
-      {!pair && side === 'vendor' && !totalsReady && (
-        <p role="status" className="text-xs text-[var(--muted)]">{failed ? 'Customers could not be loaded, so a linked customer cannot be checked.' : 'Checking for a linked customer…'}</p>
+      {!pair && side === 'vendor' && !customersReady && (
+        <p role="status" className="text-xs text-[var(--muted)]">{customersFailed ? 'Customers could not be loaded, so a linked customer cannot be checked.' : 'Checking for a linked customer…'}</p>
       )}
       {position && !totalsReady && (
         <p role="status" className="text-xs text-[var(--muted)]">{failed ? 'Some invoices, bills or contacts could not be loaded, so the totals are not shown.' : 'Loading invoices and bills…'}</p>
