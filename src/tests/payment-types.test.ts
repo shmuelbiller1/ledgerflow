@@ -131,6 +131,26 @@ describe('Payment types on the payment route (database)', { skip: !url && 'LF_TE
     assert.equal(data.payment.paymentType.name, 'PayPal', 'the payment keeps the name it was recorded with');
   });
 
+  test('changes are made by the server one at a time; two people adding at once both keep theirs', async () => {
+    const { changePaymentTypes } = await import('../server/services/paymentTypeService');
+    await db.collection('workspaces').doc(ws).update({ paymentTypes: [] });
+    const as = (uid: string, change: Record<string, unknown>) => changePaymentTypes(db, { workspaceId: ws, uid, change: change as never });
+    await Promise.all([as('owner-1', { op: 'add', name: 'Bit', method: 'bank_transfer' }), as('owner-1', { op: 'add', name: 'PayBox', method: 'bank_transfer' })]);
+    const names = () => db.collection('workspaces').doc(ws).get().then(d => ((d.data()?.paymentTypes || []) as { name: string }[]).map(t => t.name).sort());
+    assert.deepEqual(await names(), ['Bit', 'PayBox']);
+    const bit = ((await db.collection('workspaces').doc(ws).get()).data()?.paymentTypes as { id: string; name: string }[]).find(t => t.name === 'Bit')!;
+    assert.match(bit.id, /^pt_[0-9a-f]{16}$/);
+    await assert.rejects(as('owner-1', { op: 'add', name: 'bit', method: 'card' }), /already a payment type/);
+    await assert.rejects(as('owner-1', { op: 'rename', id: bit.id, name: 'PAYBOX' }), /already a payment type/);
+    await assert.rejects(as('owner-1', { op: 'remove', id: 'pt_gone' }), /removed meanwhile/);
+    await assert.rejects(as('owner-1', { op: 'add', name: 'X', method: 'bitcoin' }), /payment method/);
+    await assert.rejects(as('someone-else', { op: 'add', name: 'X', method: 'card' }), /owners and accountants/);
+    await as('owner-1', { op: 'rename', id: bit.id, name: 'Bit app' });
+    await as('owner-1', { op: 'remove', id: bit.id });
+    assert.deepEqual(await names(), ['PayBox']);
+    await db.collection('workspaces').doc(ws).update({ paymentTypes: [{ id: 'paypal', name: 'PayPal', method: 'card' }] });
+  });
+
   test('without a type, a payment is as before', async () => {
     const res = await pay({ paymentMethod: 'check' });
     assert.equal(res.status, 200, JSON.stringify(res.body));

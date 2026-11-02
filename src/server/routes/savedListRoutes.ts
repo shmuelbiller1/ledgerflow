@@ -6,6 +6,7 @@ import { SalesRepError, setSalesReps } from '../services/salesRepService';
 import { setTaxProfiles, TaxProfileError } from '../services/taxProfileService';
 import { RoleDashboardError, setRoleDashboard } from '../services/roleDashboardService';
 import { DelegateError, setApprovalDelegate } from '../services/approvalDelegateService';
+import { changePaymentTypes, PaymentTypeError } from '../services/paymentTypeService';
 
 /**
  * A workspace's saved lists that only the server writes, each replaced whole with PUT: the split
@@ -68,4 +69,13 @@ approvalDelegateRouter.put('/', async (req, res) => {
   try {
     res.json({ status: 'success', ...(await setApprovalDelegate(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email, to: req.body?.to, until: req.body?.until, clear: req.body?.clear === true })) });
   } catch (err) { fail(res, err, (e): e is DelegateError => e instanceof DelegateError, 'hand-over'); }
+});
+
+// CC-09: the workspace's payment types, one change at a time: POST .../payment-types {op: 'add', name, method} | {op: 'rename', id, name} | {op: 'remove', id}
+export const paymentTypeRouter = express.Router({ mergeParams: true });
+paymentTypeRouter.post('/', async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  try {
+    res.json({ status: 'success', ...(await changePaymentTypes(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email, change: req.body })) });
+  } catch (err) { fail(res, err, (e): e is PaymentTypeError => e instanceof PaymentTypeError, 'payment types'); }
 });

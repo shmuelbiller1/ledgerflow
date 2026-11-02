@@ -1625,7 +1625,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CC-06 Gateway tokens
 - [ ] CC-07 Multiple gateways
 - [x] CC-08 Payment terms entity — Settings has the workspace's own Net N terms (1–365 days) next to Due on Receipt / Net 15 / 30 / 60; invoices offer them and set the due date (`termOptions`, `PaymentTermsSettings`; migration `20261102010000_workspace_payment_terms`)
-- [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
+- [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card; changed only through the server, one change at a time); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
 - [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
 - [ ] CC-11 Client-group settings
 - [ ] CC-12 Passkeys
