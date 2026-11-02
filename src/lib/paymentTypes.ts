@@ -1,4 +1,3 @@
-import { normalizeSearchText } from './textNormalization';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from './accountDefaults';
 
 /**
@@ -17,7 +16,7 @@ export const MAX_PAYMENT_TYPE_NAME = 60;
 const ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
 /** How two names are compared (case and runs of spaces ignored); the name itself is kept as typed. */
-export const paymentTypeNameKey = (name: string): string => normalizeSearchText(name.trim().replace(/\s+/g, ' '));
+export const paymentTypeNameKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 
 export const isPaymentMethod = (value: unknown): value is PaymentMethod =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_METHOD_LABELS, value);
