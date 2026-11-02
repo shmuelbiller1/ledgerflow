@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef } from 'react';
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 type FieldError = { node: HTMLParagraphElement; previousInvalid: string | null };
+/** Distinguish native controls from forms and grouped radio lists. */
 const isField = (target: unknown): target is Field => target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement;
 
 /** Delegated native constraint errors, including dynamically added lines. The hook owns only
@@ -78,5 +79,10 @@ export function useNativeFormErrors(active = true, context?: unknown) {
     const field = formRef.current?.elements.namedItem(nameOrId);
     if (isField(field)) { show(field, message); field.focus(); }
   }, [show]);
-  return { formRef, showFieldError };
+  // Dependent controls can invalidate the presentation without receiving an input event.
+  const clearFieldError = useCallback((nameOrId: string) => {
+    const field = formRef.current?.elements.namedItem(nameOrId);
+    if (isField(field)) clear(field);
+  }, [clear]);
+  return { formRef, showFieldError, clearFieldError };
 }

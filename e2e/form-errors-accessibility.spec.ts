@@ -103,3 +103,43 @@ test('A-267 journal: an unassigned second line focuses that account, not the val
   await missing.fill('5000 - Expense');
   await expect(missing).not.toHaveAttribute('aria-invalid', 'true');
 });
+
+test('A-267 review: changing a bundle part clears the stale native quantity alert and revalidates on submit', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(document.getElementById('root')?.childElementCount));
+  const item = forms[3].mount;
+  await mountJourney(page, { workspaceId: 'a267-bundle', ledger: {}, mounts: [{ ...item, props: {
+    ...item.props, allItems: [{ id: 'part', name: 'Bundle part', itemType: 'stock' }],
+  } }] });
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('#inv-item-name').fill('Bundle');
+  await dialog.locator('#inv-sku').fill('BUNDLE');
+  await dialog.locator('#inv-unit-cost').fill('0');
+  await dialog.locator('#inv-unit-price').fill('0');
+  await dialog.locator('#inv-reorder-point').fill('0');
+  const part = dialog.locator('#inv-bundle-part');
+  const quantity = dialog.locator('#inv-bundle-qty');
+  const save = dialog.getByRole('button', { name: 'Add to Inventory', exact: true });
+  await part.selectOption('part');
+  await quantity.fill('0');
+  await save.focus(); await page.keyboard.press('Enter');
+  await expect(quantity).toBeFocused();
+  const nativeErrorId = (await quantity.getAttribute('aria-describedby'))!.split(/\s+/).find(id => id !== 'inv-bundle-candidate-error')!;
+  expect(nativeErrorId).toBeTruthy();
+  await expect(page.locator(`[id="${nativeErrorId}"]`)).toBeVisible();
+  await part.selectOption('');
+  await expect(page.locator(`[id="${nativeErrorId}"]`)).toHaveCount(0);
+  await expect(quantity).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(quantity).not.toHaveAttribute('aria-describedby', /field-error/);
+  await expect(quantity).toHaveValue('0');
+  expect(await quantity.evaluate(el => (el as HTMLInputElement).validity.rangeUnderflow)).toBe(true);
+  // Clearing presentation is not permission to save an invalid number.
+  await save.focus(); await page.keyboard.press('Enter');
+  await expect(quantity).toBeFocused();
+  await expect(quantity).toHaveAttribute('aria-invalid', 'true');
+  await expect(quantity).toHaveAccessibleDescription(/.+/);
+  expect(await captured(page, 'save')).toHaveLength(0);
+  await quantity.fill('1');
+  await expect(quantity).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(quantity).not.toHaveAttribute('aria-describedby', /field-error/);
+});

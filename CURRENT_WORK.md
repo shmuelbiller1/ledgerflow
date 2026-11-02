@@ -27,6 +27,8 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 
 **AI #3 A-267 — 2 November:** Five-form accessible-error batch on `arena/d2828711-ledgerflow`: **74/74 focused tests, 17/17 Chromium**, types/lint/build passed (0 errors/42 warnings). Existing FX test inputs/figures unchanged. **Partial:** owner left the journal footer's new required-description validation/test-contract change for lead review; broad native validation is not added to that save path. Full DB-backed gates await PR CI. [Evidence](docs/verification/ai3-a267-2026-11-02.md). Lead: assign next batch after resolving the remaining A-267 contract.
 
+**AI #3 PR #497 review follow-up:** Confirmed/fixed CodeRabbit's orphaned bundle quantity alert when its part selection changes, using shared hook cleanup; regression proved red before the fix. **75/75 focused tests, 18/18 Chromium** passed; initial-head full CI `41539208734` green, follow-up CI pending. Journal footer decision still belongs to the lead. See A-267 evidence above.
+
 **Pull request for this branch**
 
 | PR | State |

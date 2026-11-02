@@ -45,6 +45,7 @@ interface JournalEntryModalProps {
   initialEntry?: { description?: string; reference?: string; lines: JournalLine[]; adjusting?: boolean };
 }
 
+/** Edit a journal draft; field alerts describe existing refusals without changing posting rules. */
 export default function JournalEntryModal({ isOpen, onClose, user, accounts, workspaceId, initialEntry }: JournalEntryModalProps) {
   const [description, setDescription] = useState(initialEntry?.description || '');
   const [date, setDate] = useState(getLocalDateISO());

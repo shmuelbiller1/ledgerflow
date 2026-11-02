@@ -62,6 +62,7 @@ function placeFields(initial?: { metadata?: Record<string, unknown> } | null) {
   return { placeCountry: place?.country || '', placeState: place?.state || '', placeCity: place?.city || '' };
 }
 
+/** Edit either contact type, announcing validation without changing the saved payload. */
 export default function PartyModal({ side, isOpen, initial, onClose, onSave }: PartyModalProps) {
   const { formRef, showFieldError } = useNativeFormErrors(isOpen, initial);
   const noun = side === 'customer' ? 'Customer' : 'Vendor';

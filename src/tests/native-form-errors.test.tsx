@@ -7,7 +7,7 @@ import { useNativeFormErrors } from '../hooks/useNativeFormErrors';
 
 afterEach(cleanup);
 function Form({ active = true, extra = false, context = 'one' }: { active?: boolean; extra?: boolean; context?: string }) {
-  const { formRef, showFieldError } = useNativeFormErrors(active, context);
+  const { formRef, showFieldError, clearFieldError } = useNativeFormErrors(active, context);
   return <form ref={formRef}>
     <p id="existing-help">Keep this help</p>
     <label>First<input name="first" required aria-describedby="existing-help" /></label>
@@ -15,6 +15,8 @@ function Form({ active = true, extra = false, context = 'one' }: { active?: bool
     {extra && <label>Dynamic<input name="dynamic" required /></label>}
     <button type="button" onClick={() => formRef.current?.reportValidity()}>Validate</button>
     <button type="button" onClick={() => showFieldError('first', '<script>Unsafe name</script>')}>Custom</button>
+    <button type="button" onClick={() => clearFieldError('first')}>Clear first</button>
+    <button type="button" onClick={() => clearFieldError('missing')}>Clear missing</button>
     <button type="reset">Reset</button>
   </form>;
 }
@@ -93,4 +95,24 @@ test('closing before deferred focus runs does not move focus to an obsolete form
   await act(async () => { await Promise.resolve(); });
   assert.equal(screen.queryAllByRole('alert').length, 0);
   assert.equal(document.activeElement, document.body);
+});
+
+
+test('dependent-control cleanup removes only its native alert and keeps required constraints', async () => {
+  render(<Form />);
+  fireEvent.click(screen.getByText('Validate'));
+  await act(async () => { await Promise.resolve(); });
+  fireEvent.click(screen.getByText('Clear first'));
+  const first = screen.getByLabelText('First') as HTMLInputElement;
+  assert.equal(first.getAttribute('aria-describedby'), 'existing-help');
+  assert.equal(first.hasAttribute('aria-invalid'), false);
+  assert.equal(first.validity.valueMissing, true);
+  assert.equal(screen.getAllByRole('alert').length, 1, 'second field error stays');
+  fireEvent.click(screen.getByText('Clear missing'));
+  fireEvent.click(screen.getByText('Clear first'));
+  fireEvent.click(screen.getByText('Validate'));
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(first.getAttribute('aria-invalid'), 'true');
+  assert.equal(document.activeElement, first);
+  assert.equal(screen.getAllByRole('alert').length, 2);
 });

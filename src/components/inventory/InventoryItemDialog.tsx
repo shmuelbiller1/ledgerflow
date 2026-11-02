@@ -36,7 +36,7 @@ interface InventoryItemDialogProps {
 
 /** The add / edit item form of the Inventory screen (F-16: moved out of Inventory.tsx). */
 export default function InventoryItemDialog({ open, editingItem, categories, taxCodes = [], allItems = [], canChangeStock, onClose, onSubmit, onItemImageChange, onAdjust, onRevalue }: InventoryItemDialogProps) {
-  const { formRef } = useNativeFormErrors(open);
+  const { formRef, clearFieldError } = useNativeFormErrors(open);
   // ISS-130: with stock on hand the cost is on the books; it changes by a revaluation, never by this form
   // ISS-130: stock above zero has a value on the books; its cost changes only through a revaluation
   const costLocked = (Number(editingItem?.quantityAtHand) || 0) > 0;
@@ -231,7 +231,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   <input type="hidden" name="bundleParts" value={JSON.stringify(parts)} />
                   <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="inv-bundle-label">
                     <label htmlFor="inv-bundle-part" className="sr-only">Item to add as a bundle part</label>
-                    <select aria-invalid={Boolean(candidateProblem || partsProblem)} aria-describedby={[candidateProblem && 'inv-bundle-candidate-error', partsProblem && 'inv-bundle-parts-error'].filter(Boolean).join(' ') || undefined} id="inv-bundle-part" value={partToAdd} onChange={e => setPartToAdd(e.target.value)}
+                    <select aria-invalid={Boolean(candidateProblem || partsProblem)} aria-describedby={[candidateProblem && 'inv-bundle-candidate-error', partsProblem && 'inv-bundle-parts-error'].filter(Boolean).join(' ') || undefined} id="inv-bundle-part" value={partToAdd} onChange={e => { clearFieldError('inv-bundle-qty'); setPartToAdd(e.target.value); }}
                       className="max-w-full min-w-0 px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl font-bold text-sm">
                       <option value="">Choose an item…</option>
                       {choices.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
