@@ -1,3 +1,4 @@
+import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
@@ -35,6 +36,7 @@ interface InventoryItemDialogProps {
 
 /** The add / edit item form of the Inventory screen (F-16: moved out of Inventory.tsx). */
 export default function InventoryItemDialog({ open, editingItem, categories, taxCodes = [], allItems = [], canChangeStock, onClose, onSubmit, onItemImageChange, onAdjust, onRevalue }: InventoryItemDialogProps) {
+  const { formRef } = useNativeFormErrors(open);
   // ISS-130: with stock on hand the cost is on the books; it changes by a revaluation, never by this form
   // ISS-130: stock above zero has a value on the books; its cost changes only through a revaluation
   const costLocked = (Number(editingItem?.quantityAtHand) || 0) > 0;
@@ -72,9 +74,6 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
     }
     return rows.sort((a, b) => a.description.localeCompare(b.description, undefined, { sensitivity: 'base' }));
   }, [dimensionNodes, levelDrafts]);
-  const levelsProblem = locationNodes
-    .map(n => levelProblem(levelDrafts[n.id]?.min || '', levelDrafts[n.id]?.max || ''))
-    .find(Boolean) as string | undefined;
   const levelsJson = JSON.stringify(Object.fromEntries(locationNodes.flatMap(n => {
     const draft = levelDrafts[n.id] || { min: '', max: '' };
     if ((!draft.min.trim() && !draft.max.trim()) || levelProblem(draft.min, draft.max)) return [];
@@ -108,7 +107,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   <X aria-hidden="true" size={20} className="text-zinc-400" />
                 </button>
               </div>
-              <form onSubmit={event => { if (partsProblem) { event.preventDefault(); return; } onSubmit(event); }} className="p-4 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <form ref={formRef} onSubmit={event => { if (partsProblem) { event.preventDefault(); formRef.current?.querySelector<HTMLSelectElement>('#inv-bundle-part')?.focus(); return; } onSubmit(event); }} className="p-4 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="sm:col-span-2 space-y-2">
                   <label htmlFor="inv-item-name" className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Item Name</label>
                   <input 
@@ -232,17 +231,17 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   <input type="hidden" name="bundleParts" value={JSON.stringify(parts)} />
                   <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="inv-bundle-label">
                     <label htmlFor="inv-bundle-part" className="sr-only">Item to add as a bundle part</label>
-                    <select id="inv-bundle-part" value={partToAdd} onChange={e => setPartToAdd(e.target.value)}
+                    <select aria-invalid={Boolean(candidateProblem || partsProblem)} aria-describedby={[candidateProblem && 'inv-bundle-candidate-error', partsProblem && 'inv-bundle-parts-error'].filter(Boolean).join(' ') || undefined} id="inv-bundle-part" value={partToAdd} onChange={e => setPartToAdd(e.target.value)}
                       className="max-w-full min-w-0 px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl font-bold text-sm">
                       <option value="">Choose an item…</option>
                       {choices.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                     <label htmlFor="inv-bundle-qty" className="sr-only">How many of the part one bundle holds</label>
-                    <input id="inv-bundle-qty" type="number" min={1} step={1} value={partQuantity} onChange={e => setPartQuantity(e.target.value)}
+                    <input id="inv-bundle-qty" aria-invalid={Boolean(candidateProblem)} aria-describedby={candidateProblem ? 'inv-bundle-candidate-error' : undefined} type="number" min={1} step={1} value={partQuantity} onChange={e => setPartQuantity(e.target.value)}
                       className="w-24 px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl font-bold text-sm" />
                     <button type="button" disabled={!partToAdd || Boolean(candidateProblem)} onClick={addPart} className="px-4 py-3 rounded-2xl bg-[var(--text)] text-[var(--surface)] text-xs font-black uppercase tracking-widest">Add part</button>
                   </div>
-                  {candidateProblem && <p role="alert" className="text-xs text-[var(--muted)]">{candidateProblem}</p>}
+                  {candidateProblem && <p id="inv-bundle-candidate-error" role="alert" className="text-xs text-[var(--muted)]">{candidateProblem}</p>}
                   {parts.length > 0 && (
                     <ul className="flex flex-wrap gap-2" aria-label="Bundle parts chosen">
                       {parts.map(part => (
@@ -254,7 +253,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                       ))}
                     </ul>
                   )}
-                  {partsProblem && <p role="alert" className="text-[10px] text-amber-600">{partsProblem}</p>}
+                  {partsProblem && <p id="inv-bundle-parts-error" role="alert" className="text-[10px] text-amber-600">{partsProblem}</p>}
                   <p className="text-[10px] text-[var(--muted)]">Record the parts and quantities that define this bundle. Automatic expansion into invoice lines is not available here; saving this configuration does not move stock or post an entry.</p>
                   <label className="flex items-center gap-2 text-[10px] text-[var(--muted)]">
                     <input type="checkbox" name="assembleOnDemand" defaultChecked={Boolean(editingItem?.assembleOnDemand)} />
@@ -286,24 +285,26 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   {locationNodes.length === 0 && (
                     <p className="text-[10px] text-[var(--muted)]">No locations yet — add Location values under Settings → Dimensions &amp; Labels first.</p>
                   )}
-                  {locationNodes.map(node => (
-                    <div key={node.id} className="flex flex-wrap items-center gap-2">
+                  {locationNodes.map(node => {
+                    const problem = levelProblem(levelDrafts[node.id]?.min || '', levelDrafts[node.id]?.max || '');
+                    const errorId = `inv-level-error-${node.id}`;
+                    return <div key={node.id} className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-semibold min-w-28 flex-1">{node.description}</span>
                       <label htmlFor={`inv-level-min-${node.id}`} className="sr-only">Minimum at {node.description}</label>
                       <input id={`inv-level-min-${node.id}`} type="number" min="0" step="1" placeholder="Min"
-                        aria-label={`Minimum at ${node.description}`}
+                        aria-label={`Minimum at ${node.description}`} aria-invalid={Boolean(problem)} aria-describedby={problem ? errorId : undefined}
                         value={levelDrafts[node.id]?.min || ''}
                         onChange={e => setLevelDrafts(prev => ({ ...prev, [node.id]: { min: e.target.value, max: prev[node.id]?.max || '' } }))}
                         className="w-24 px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl font-bold text-sm" />
                       <label htmlFor={`inv-level-max-${node.id}`} className="sr-only">Maximum at {node.description}</label>
                       <input id={`inv-level-max-${node.id}`} type="number" min="0" step="1" placeholder="Max"
-                        aria-label={`Maximum at ${node.description}`}
+                        aria-label={`Maximum at ${node.description}`} aria-invalid={Boolean(problem)} aria-describedby={problem ? errorId : undefined}
                         value={levelDrafts[node.id]?.max || ''}
                         onChange={e => setLevelDrafts(prev => ({ ...prev, [node.id]: { min: prev[node.id]?.min || '', max: e.target.value } }))}
                         className="w-24 px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl font-bold text-sm" />
-                    </div>
-                  ))}
-                  {levelsProblem && <p role="alert" className="text-[10px] text-amber-600">{levelsProblem}</p>}
+                      {problem && <p id={errorId} role="alert" className="text-[10px] text-amber-600">{problem}</p>}
+                    </div>;
+                  })}
                   <p className="text-[10px] text-[var(--muted)]">When a location falls below its minimum, the reorder suggestions offer to top it up to the maximum. Blank leaves the location out; this never moves stock by itself.</p>
                 </fieldset>
                 <div className="space-y-2">

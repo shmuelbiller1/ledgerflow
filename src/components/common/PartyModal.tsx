@@ -1,3 +1,4 @@
+import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React, { useState } from 'react';
 import { DOCUMENT_LANGUAGES, MAX_CONTACT_TERMS } from '../../lib/documentLanguage';
 import { taxExemptionOf } from '../../lib/taxExemption';
@@ -62,6 +63,7 @@ function placeFields(initial?: { metadata?: Record<string, unknown> } | null) {
 }
 
 export default function PartyModal({ side, isOpen, initial, onClose, onSave }: PartyModalProps) {
+  const { formRef, showFieldError } = useNativeFormErrors(isOpen, initial);
   const noun = side === 'customer' ? 'Customer' : 'Vendor';
   const editing = Boolean(initial?.id);
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
@@ -96,7 +98,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // "required" lets a name of only spaces through; spaces around an email would break sending
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { showFieldError('partyName', 'Enter a name, not just spaces.'); return; }
     const party: Party = { name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), status: form.status };
     if (side === 'vendor') party.category = form.category.trim() || 'Standard';
     if (!editing) party.balanceCents = 0;
@@ -136,10 +138,10 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <Labelled labelClassName={labelClass} label={`${noun} Name`}>
-              <input type="text" required value={form.name} onChange={e => set({ name: e.target.value })} className={field} />
+              <input name="partyName" type="text" required value={form.name} onChange={e => set({ name: e.target.value })} className={field} />
             </Labelled>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
