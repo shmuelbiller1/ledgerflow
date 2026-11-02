@@ -84,6 +84,12 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
             {pair && !choices.includes(pair.vendorId) && <option value={pair.vendorId}>{other?.name || pair.vendorId}</option>}
             {choices.map(vid => <option key={vid} value={vid}>{vendors.find(v => v.id === vid)?.name || vid}</option>)}
           </select>
+          {pending !== null && !saving && (
+            <span className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400" role="status">
+              Not saved
+              <button type="button" onClick={() => link(pending)} className="min-h-11 px-3 border border-[var(--line)] rounded-lg text-[var(--text)]">Try again</button>
+            </span>
+          )}
           {pair?.vendorId && <RelatedRecordEditButton target={{ kind: 'vendors', id: pair.vendorId }} />}
         </div>
       ) : (
