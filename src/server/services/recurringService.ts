@@ -181,15 +181,6 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     await markProblem(db, rule.id, 'The estimate has no lines');
     throw new Error('The estimate has no lines');
   }
-  // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
-  const source = (rule as { sourceEstimateId?: string }).sourceEstimateId;
-  if (source) {
-    const siblings = await db.collection('recurring').where('workspaceId', '==', rule.workspaceId).where('sourceEstimateId', '==', source).get();
-    const first = siblings.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; isActive?: boolean; createdAt?: string }))
-      .filter(r => r.isActive !== false)
-      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || a.id.localeCompare(b.id))[0];
-    if (first && first.id !== rule.id) throw new RecurringSkip(`Estimate ${source} already repeats on schedule ${first.id}`);
-  }
   const workspace = (await db.collection('workspaces').doc(rule.workspaceId).get()).data() || {};
   const estimateRef = db.collection('estimates').doc();
   let number = '';
@@ -198,6 +189,16 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
+    // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
+    // (read inside this serializable transaction, so a schedule saved meanwhile is seen or the write retries)
+    const source = (rule as { sourceEstimateId?: string }).sourceEstimateId;
+    if (source) {
+      const siblings = await tx.get(db.collection('recurring').where('workspaceId', '==', rule.workspaceId).where('sourceEstimateId', '==', source));
+      const first = siblings.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; isActive?: boolean; createdAt?: string }))
+        .filter(r => r.isActive !== false)
+        .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || a.id.localeCompare(b.id))[0];
+      if (first && first.id !== rule.id) throw new RecurringSkip(`Estimate ${source} already repeats on schedule ${first.id}`);
+    }
     // the number is taken in the same transaction, so a skipped draft leaves no gap
     number = await allocateInTransaction(db, tx, rule.workspaceId, 'estimate');
     const draft = nextEstimateDraft(t, { id: estimateRef.id, number, date });
