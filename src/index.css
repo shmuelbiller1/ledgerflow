@@ -292,12 +292,14 @@
 }
 
 /* E-28: with "reduce motion" on (system setting), CSS animations and transitions finish at once;
-   motion/react animations follow the same setting (MotionConfig reducedMotion="user" in main.tsx). */
+   Motion animations follow both preferences through ReducedMotionProvider. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }
@@ -319,4 +321,14 @@
 .sentence-case-controls :is(button, h1, h2, h3, h4, h5, h6),
 .sentence-case-controls :is(button, h1, h2, h3, h4, h5, h6) * {
   text-transform: none;
+}
+
+/* The explicit accessibility preference is independent of the device's media setting. */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
 }

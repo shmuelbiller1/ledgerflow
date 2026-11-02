@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MotionConfig } from 'motion/react';
+import { ReducedMotionProvider } from './components/ReducedMotionProvider';
 import App from './App';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
@@ -13,11 +13,11 @@ initPWAUpdateManager(registerSW);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/* E-28: animations follow the system "reduce motion" setting */}
-    <MotionConfig reducedMotion="user">
+    {/* A-265: OS and in-app preferences also skip opacity/spring animations. */}
+    <ReducedMotionProvider>
       <FallbackBoundary>
         <App />
       </FallbackBoundary>
-    </MotionConfig>
+    </ReducedMotionProvider>
   </React.StrictMode>
 );
