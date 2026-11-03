@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
@@ -6,9 +6,11 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import {
-  grossMarginByItemGroup, groupMarginCsvHeaders, groupMarginCsvRows, monthsBetween,
+  groupMarginCsvHeaders, groupMarginCsvRows,
 } from '../../lib/grossMarginByGroup';
 import ReportTableScroll from './ReportTableScroll';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
+import { useServerItemGroupMargin } from '../../hooks/useServerProfitability';
 
 const monthShort = (month: string) =>
   new Date(`${month}-15T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
@@ -21,28 +23,17 @@ const pctText = (value: number | null) => (value === null ? '—' : `${value.toF
  * partly estimated from recorded unit costs, exactly as Sales by Item marks it.
  */
 export default function GrossMarginByItemGroupReportView() {
-  const invoices = useLedgerStore(state => state.invoices);
-  const inventory = useLedgerStore(state => state.inventory);
-  const transactions = useLedgerStore(state => state.transactions);
-  const accounts = useLedgerStore(state => state.accounts);
   const truncated = useLedgerStore(state => state.truncatedCollections);
   const failed = useDataNeedsStore(state => state.failed);
-  const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('invoices', 'inventory');
   const thisYear = Number(getLocalDateISO().slice(0, 4));
   const [year, setYear] = useState(thisYear);
 
   const home = workspace?.currency || 'USD';
-  const report = useMemo(() => grossMarginByItemGroup({
-    invoices: invoices.filter(i => !workspaceId || i.workspaceId === workspaceId),
-    items: inventory.filter(i => !workspaceId || i.workspaceId === workspaceId),
-    transactions: transactions.filter(t => !workspaceId || t.workspaceId === workspaceId),
-    accounts,
-    months: monthsBetween(`${year}-01`, `${year}-12`),
-  }), [invoices, inventory, transactions, accounts, workspaceId, year]);
+  const { report, source } = useServerItemGroupMargin(year);
 
-  const partial = truncated.invoices || truncated.inventory || truncated.transactions || failed.invoices || failed.inventory;
+  const partial = source !== 'server' && (truncated.invoices || truncated.inventory || truncated.transactions || failed.invoices || failed.inventory);
   const anyEstimate = report.rows.some(r => r.costIsEstimate);
 
   return <section aria-label="Gross margin by item group" className="p-4 space-y-4 min-w-0">
@@ -68,6 +59,7 @@ export default function GrossMarginByItemGroupReportView() {
 
     {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading invoices and items…</p>}
     {partial && <p role="alert" className="text-sm">The loaded invoices, items or entries are capped or failed. These figures may be incomplete.</p>}
+    <RangeReportSourceNote source={source} testId="item-group-margin-source" what="these figures" />
 
     <ReportTableScroll>
       <table className="w-full text-sm">

@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useLedgerCollections } from './useLedgerCollections';
 import { customerGrossProfit } from '../lib/customerGrossProfit';
+import { grossMarginByItemGroup, monthsBetween } from '../lib/grossMarginByGroup';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../lib/profitabilityLines';
 import { useServerRangeReport, type RangeReportSource } from './useServerRangeReport';
 
@@ -62,4 +63,18 @@ export function useServerCustomerGrossProfit(from: string, to: string, enabled: 
     path: 'customer-gross-profit', from: enabled ? from : undefined, to: enabled ? to : undefined, extraKey, alsoIncomplete: listsCapped, parse: parseRows, loaded,
   });
   return { rows: report, source };
+}
+
+export type ItemGroupMargin = ReturnType<typeof grossMarginByItemGroup>;
+const parseGroups = (body: Record<string, unknown>) => (Array.isArray(body.rows) && Array.isArray(body.months) && Array.isArray(body.totals) ? body as unknown as ItemGroupMargin : null);
+
+/**
+ * L-123 step 4k: gross margin by item group for each month of `year` (grossMarginByItemGroup), from the server
+ * (GET /api/v1/balances/item-group-margin) on the same terms as profitability.
+ */
+export function useServerItemGroupMargin(year: number): { report: ItemGroupMargin; source: RangeReportSource } {
+  const from = `${year}-01-01`, to = `${year}-12-31`;
+  const { input, listsCapped, extraKey } = useInvoiceReportInputs(from);
+  const loaded = useMemo(() => grossMarginByItemGroup({ ...input, months: monthsBetween(`${year}-01`, `${year}-12`) }), [input, year]);
+  return useServerRangeReport({ path: 'item-group-margin', from, to, extraKey, alsoIncomplete: listsCapped, parse: parseGroups, loaded });
 }

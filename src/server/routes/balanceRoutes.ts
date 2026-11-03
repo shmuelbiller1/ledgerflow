@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -191,10 +191,11 @@ rangeReportRoute('/income-by-source', 'the income sources', (db, ws, from, to) =
  * expense per month of that calendar year and their averages over every postable entry (monthlyAveragesOver), for
  * "Monthly Averages" when the loaded lists are capped.
  */
-rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from, to) => monthlyAveragesOver(db, ws, from, to), {
-  valid: (from, to) => /^\d{4}-01-01$/.test(from) && to === `${from.slice(0, 4)}-12-31`,
+const ONE_CALENDAR_YEAR = {
+  valid: (from: string, to: string) => /^\d{4}-01-01$/.test(from) && to === `${from.slice(0, 4)}-12-31`,
   message: 'covering one calendar year',
-});
+};
+rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from, to) => monthlyAveragesOver(db, ws, from, to), ONE_CALENDAR_YEAR);
 
 /**
  * L-123 step 4g: GET /api/v1/balances/tag-breakdown?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — income and expense by
@@ -241,3 +242,10 @@ balanceRouter.get('/profitability', async (req, res) => {
  * by customer" when the loaded lists are capped.
  */
 rangeReportRoute('/customer-gross-profit', 'the customer gross profit', (db, ws, from, to) => customerGrossProfitOver(db, ws, from, to));
+
+/**
+ * L-123 step 4k: GET /api/v1/balances/item-group-margin?workspaceId=…&from=YYYY-01-01&to=YYYY-12-31 — gross margin by
+ * item group for each month of that calendar year over every invoice and its cost of goods sold (itemGroupMarginOver),
+ * for "Gross margin by item group" when the loaded lists are capped.
+ */
+rangeReportRoute('/item-group-margin', 'the gross margin by item group', (db, ws, from, to) => itemGroupMarginOver(db, ws, from, to), ONE_CALENDAR_YEAR);
