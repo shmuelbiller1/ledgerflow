@@ -68,7 +68,10 @@ describe('L-123 step 4f: monthly averages (no database)', () => {
 const url = process.env.LF_TEST_DATABASE_URL;
 
 describe('L-123 step 4f: GET /api/v1/balances/monthly-averages', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
-  const db = balanceRouteHarness(url, 'l123i', w => ({ accounts: chart(w), entries: entries(w) }));
+  // E8, timestamped on December 31 (Codex on #498): Fuel +100 / Cash −100 — Dec expense 100, still inside the year
+  const withYearEnd = (w: string) => [...entries(w), { ...entries(w)[5], id: `${w}_e8`, date: `${Y}-12-31T18:00:00.000Z`, description: 'E8',
+    lines: [{ accountId: `${w}_fuel`, amountCents: 100 }, { accountId: `${w}_cash`, amountCents: -100 }] }];
+  const db = balanceRouteHarness(url, 'l123i', w => ({ accounts: chart(w), entries: withYearEnd(w) }));
   before(() => db.start());
   after(() => db.stop());
 
@@ -76,9 +79,10 @@ describe('L-123 step 4f: GET /api/v1/balances/monthly-averages', { skip: !url &&
     const get = (q: Record<string, string>, uid?: string) => db.get<{ summary: MonthlyAverageSummary; entriesRead: number }>('monthly-averages', { workspaceId: db.ws, ...q }, uid);
     const year = await get({ from: `${Y}-01-01`, to: `${Y}-12-31` });
     assert.equal(year.status, 200);
-    assert.deepEqual([year.body.summary.monthlyAverageIncomeCents, year.body.summary.monthlyAverageExpenseCents], EVERY.avg);
-    assert.deepEqual(months(year.body.summary), EVERY.months);
-    assert.equal(year.body.entriesRead, 7);
+    // with E8: expense months Jan 900 · Feb 1,000 · Mar 200 · Apr −300 · Dec 100 → 1,900 / 5 = 380; Jan, Feb above 570
+    assert.deepEqual([year.body.summary.monthlyAverageIncomeCents, year.body.summary.monthlyAverageExpenseCents], [1150, 380]);
+    assert.deepEqual(months(year.body.summary), [...EVERY.months, 'Dec 0/100']);
+    assert.equal(year.body.entriesRead, 8, 'a December 31 entry with a time of day is inside the year');
     const before = await get({ from: `${Y - 1}-01-01`, to: `${Y - 1}-12-31` });
     assert.equal(before.status, 200);
     assert.equal(before.body.entriesRead, 0, 'an earlier year reads only its own entries, not the later ones (CodeRabbit on #498)');

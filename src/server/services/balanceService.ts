@@ -373,7 +373,7 @@ async function accountsAndEntriesFrom(db: Firestore, workspaceId: string, from: 
   const [accountsSnap, entriesSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
     (throughTo
-      ? db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<=', to)
+      ? db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to))
       : db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from)).get(),
   ]);
   return { accounts: accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount), entries: entriesSnap.docs.map(entryOf) };
