@@ -83,9 +83,9 @@ export function balanceRouteHarness(url: string | undefined, name: string, rows:
       await getSupabase().auth.dispose();
       await db.terminate();
     },
-    async get<B>(path: string, q: Record<string, string>, uid = OWNER): Promise<{ status: number; body: B }> {
+    async get<B>(path: string, q: Record<string, string>, uid = OWNER): Promise<{ status: number; body: B; cacheControl: string | null }> {
       const res = await realFetch(`${base}/api/v1/balances/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-      return { status: res.status, body: await res.json() as B };
+      return { status: res.status, body: await res.json() as B, cacheControl: res.headers.get('cache-control') };
     },
   };
 }

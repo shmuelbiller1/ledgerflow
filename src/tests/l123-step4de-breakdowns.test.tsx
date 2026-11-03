@@ -207,6 +207,7 @@ describe('L-123 step 4d: GET /api/v1/balances/expense-by-category', { skip: !url
     const year = await getTags({ workspaceId: ws, from, to });
     assert.equal(year.status, 200);
     assert.deepEqual(briefTags(year.body.tags), TRUTH_TAGS);
+    assert.equal(year.cacheControl, 'no-store', 'a workspace\'s figures are not kept by the browser (CodeRabbit on #499)');
     assert.equal((await getTags({ workspaceId: ws, from, to }, 'stranger')).status, 403);
   });
 
