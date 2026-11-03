@@ -20,6 +20,7 @@ import { balanceRouteHarness } from './helpers/balanceRouteHarness';
 import { Y, from, to, chart, stock, invoices, entries, clients } from './helpers/l123SalesLedger';
 import { SalesTrendsView } from '../components/reporting/DocumentTrendsView';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { salesTrends, trendWindowStart, type TrendRow } from '../lib/documentTrends';
 
 const brief = (rows: TrendRow[]) => rows.map(r => `${r.month.slice(5)} ${r.name} ${r.cents}`).sort();
@@ -35,7 +36,7 @@ const input = (ws: string, loadedOnly = false) => ({
 
 describe('L-123 step 4l: sales trends (no database)', () => {
   const ws = 'component-workspace';
-  afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); });
+  afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); useDataNeedsStore.setState({ failed: {} }); });
 
   test('the window starts eleven months back; every invoice gives the hand-worked months; the loaded two do not', () => {
     assert.equal(trendWindowStart(to), from);
@@ -64,6 +65,26 @@ describe('L-123 step 4l: sales trends (no database)', () => {
     for (const [f, t] of [[from, to], [`${Y - 1}-01-01`, prevTo]]) {
       assert.ok(asked.some(u => u.includes(`/api/v1/balances/sales-trends?workspaceId=${ws}&from=${f}&to=${t}&group=customer`)), asked.join('\n'));
     }
+  });
+
+  test('screen: bills and vendors that failed to load do not hold back sales trends; failed invoices ask the server', async () => {
+    setComponentWorkspace('owner');
+    const own = input(ws, true);
+    useLedgerStore.setState({ customers: own.customers, vendors: [], bills: [], invoices: own.invoices, inventory: own.items,
+      transactions: own.transactions, accounts: own.accounts } as never);
+    markComponentCollectionsLoaded('customers', 'invoices', 'inventory', 'transactions', 'accounts');
+    // vendors and bills never loaded (a failed first read leaves them unloaded); invoices loaded, then failed on a later read
+    useDataNeedsStore.setState(s => ({ loaded: { ...s.loaded, vendors: false, bills: false }, failed: { vendors: 'offline', bills: 'offline', invoices: 'offline' } }));
+    let asked = 0;
+    globalThis.fetch = (async (u: RequestInfo | URL) => {
+      asked += 1;
+      const q = new URL(String(u), 'http://x').searchParams;
+      return Response.json({ status: 'success', rows: salesTrends(input(ws), q.get('to')!, q.get('group') as 'customer') });
+    }) as typeof fetch;
+    render(<SalesTrendsView endDate={to} />);
+    await waitFor(() => assert.ok(document.body.textContent!.includes('Beta'), document.body.textContent!), { timeout: 5000 });
+    assert.ok(asked > 0);
+    assert.equal(screen.queryByText(/Loading report records/), null);
   });
 });
 
