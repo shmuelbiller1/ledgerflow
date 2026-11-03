@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -234,3 +234,10 @@ balanceRouter.get('/profitability', async (req, res) => {
   if (!(await allowMember(db, range.workspaceId, req, res))) return;
   await answerRange(res, 'the profitability', async () => ({ ...range, by, ...await profitabilityOver(db, range.workspaceId, by as ProfitabilityBy, range.from, range.to) }));
 });
+
+/**
+ * L-123 step 4j: GET /api/v1/balances/customer-gross-profit?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — gross profit
+ * by customer over every invoice of the range and its cost of goods sold (customerGrossProfitOver), for "Gross profit
+ * by customer" when the loaded lists are capped.
+ */
+rangeReportRoute('/customer-gross-profit', 'the customer gross profit', (db, ws, from, to) => customerGrossProfitOver(db, ws, from, to));

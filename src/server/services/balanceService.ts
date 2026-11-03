@@ -23,6 +23,7 @@
 import crypto from 'crypto';
 import type { ChartAccount, Customer, InventoryItem, Invoice, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
+import { customerGrossProfit } from '../../lib/customerGrossProfit';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
@@ -489,4 +490,14 @@ export async function monthlyAveragesOver(db: Firestore, workspaceId: string, fr
 export async function tagReportOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ tags: TagBreakdown[]; entriesRead: number }> {
   const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
   return { tags: computeTagReport(accounts, entries, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4j: gross profit by customer dated `from`…`to` (customerGrossProfit) over every invoice of the period and
+ * the cost of goods sold posted for them, with the customers' names.
+ */
+export async function customerGrossProfitOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ rows: ReturnType<typeof customerGrossProfit>; invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  const customers = (await db.collection('customers').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
+  return { rows: customerGrossProfit({ ...sales, customers, startDate: from, endDate: to }), invoicesRead: sales.invoices.length };
 }
