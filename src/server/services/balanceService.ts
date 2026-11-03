@@ -21,8 +21,9 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { ChartAccount, InventoryItem, Invoice, Transaction } from '../../types';
+import type { ChartAccount, Customer, InventoryItem, Invoice, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
+import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
 import { activityByMonth, type ActivityByMonth, type PendingReversals, PENDING_REVERSAL, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
@@ -394,7 +395,11 @@ export async function topLinesOver(db: Firestore, workspaceId: string, from: str
  * of goods sold posted for those invoices and the reversals of those postings (at any date), so a capped browser
  * list of invoices or entries does not leave sales out or show an estimated cost where one was posted.
  */
-export async function salesByItemOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<SalesByItemReport & { invoicesRead: number }> {
+/**
+ * Every invoice dated `from`…`to`, the items and accounts, the cost of goods sold posted for those invoices and the
+ * reversals of those postings (at any date): what the sales-by-item and profitability reports read.
+ */
+async function invoiceSalesInputs(db: Firestore, workspaceId: string, from: string, to: string) {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A sales range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const [accountsSnap, itemsSnap, invoicesSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
@@ -414,7 +419,35 @@ export async function salesByItemOver(db: Firestore, workspaceId: string, from: 
   for (const ids of chunks(cogs.map(t => t.id))) {
     reversals.push(...(await tx().where('metadata.reversesTxId', 'in', ids).get()).docs.map(entryOf));
   }
-  return { ...computeSalesByItem({ invoices, items, transactions: [...cogs, ...reversals], accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
+  return { accounts, items, invoices, transactions: [...cogs, ...reversals] };
+}
+
+export async function salesByItemOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<SalesByItemReport & { invoicesRead: number }> {
+  const { accounts, items, invoices, transactions } = await invoiceSalesInputs(db, workspaceId, from, to);
+  return { ...computeSalesByItem({ invoices, items, transactions, accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
+}
+
+/**
+ * L-123 step 4i: profitability by customer, item or project dated `from`…`to` (profitabilityLines) over every invoice
+ * of the period and the cost of goods sold posted for them; by project, also every entry from `from` on (its expenses
+ * by project, and a later reversal still cancels its pair) and the projects' cost budgets.
+ */
+export async function profitabilityOver(db: Firestore, workspaceId: string, by: ProfitabilityBy, from: string, to: string): Promise<{ lines: ProfitabilityLine[]; invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  const ofWorkspace = async <T>(name: string) => (await db.collection(name).where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as T);
+  let transactions = sales.transactions;
+  if (by === 'project') {
+    const seen = new Set(transactions.map(t => t.id));
+    const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+    transactions = [...transactions, ...entries.filter(t => !seen.has(t.id))];
+  }
+  const lines = profitabilityLines(by, {
+    ...sales, transactions,
+    customers: by === 'customer' ? await ofWorkspace<Customer>('customers') : [],
+    projects: by === 'project' ? await ofWorkspace<ProfitabilityInput['projects'][number]>('projects') : [],
+    startDate: from, endDate: to,
+  });
+  return { lines, invoicesRead: sales.invoices.length };
 }
 
 /**
