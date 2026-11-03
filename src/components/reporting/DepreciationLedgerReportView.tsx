@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { depreciationLedger } from '../../lib/depreciationLedger';
+import { useServerDepreciationLedger } from '../../hooks/useServerAssetRegister';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -13,11 +13,11 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export default function DepreciationLedgerReportView() {
   const { loading } = useLedgerCollections('assets', 'transactions');
-  const assets = useLedgerStore(s => s.assets);
-  const transactions = useLedgerStore(s => s.transactions);
   const [from, setFrom] = useState(`${getLocalDateISO().slice(0, 4)}-01-01`);
   const [to, setTo] = useState(getLocalDateISO());
-  const rows = from <= to ? depreciationLedger(assets || [], transactions || [], from, to) : [];
+  // L-123 step 4h: with the loaded assets or entries capped, the ledger comes from the server (every asset and run)
+  const ledger = useServerDepreciationLedger(from, to, from <= to);
+  const rows = ledger?.rows || [];
   const sum = (k: 'costCents' | 'openingCents' | 'periodCents' | 'closingCents' | 'bookValueCents') => rows.reduce((s, r) => s + r[k], 0);
   const money = (cents: number) => formatCurrency(cents);
 
@@ -28,6 +28,7 @@ export default function DepreciationLedgerReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
         <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
+      {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what="these figures" />}
       {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">The period starts after it ends.</p>}
       {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
       {!loading && from <= to && rows.length === 0 && <p className="text-sm text-[var(--muted)]">No fixed assets in this period.</p>}
