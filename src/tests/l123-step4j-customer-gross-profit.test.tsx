@@ -6,7 +6,9 @@
  * Hand-worked case (cents) on the step 4 sales ledger (src/tests/helpers/l123SalesLedger.ts), year Y:
  *   Acme (I1 W×2 2,000, cost posted 700; I3 W×1 1,000, posted cost reversed so the estimate 300) → 3,000 · 1,000 · 2,000
  *   Beta (I2 G×1 1,500, no cost posted so the estimate 500)                                     → 1,500 · 500 · 1,000
- *   I4 is a draft, left out. The year before has no invoices, so each previous profit is 0 and the change is the profit.
+ *   I4 is a draft, left out. The year before has no invoices.
+ * On screen the mocked year before answers Beta 400 then Acme 1,500 (reversed, other names): matched by id, Acme shows
+ * previous 15.00 / change 5.00 and Beta 4.00 / 6.00; matching by position or name would give other figures.
  * The browser holds the newest two invoices (I3, I4) and the entries C3, C3R: only Acme 1,000 · 300 · 700.
  */
 import './helpers/dom';
@@ -49,10 +51,18 @@ describe('L-123 step 4j: customer gross profit (no database)', () => {
     globalThis.fetch = (async (u: RequestInfo | URL) => {
       asked.push(String(u));
       const q = new URL(String(u), 'http://x').searchParams;
+      if (q.get('from') === prevFrom) {
+        const row = (id: string, name: string, marginCents: number) => ({ id, name, salesCents: marginCents, costCents: 0, marginCents, marginPct: 100, quantity: 1, costIsEstimate: false });
+        return Response.json({ status: 'success', rows: [row(`${ws}_beta`, 'Old B', 400), row(`${ws}_acme`, 'Old A', 1500)] });
+      }
       return Response.json({ status: 'success', rows: customerGrossProfit(input(ws, false, q.get('from')!, q.get('to')!)) });
     }) as typeof fetch;
     render(<CustomerGrossProfitView startDate={from} endDate={to} compareStartDate={prevFrom} compareEndDate={prevTo} />);
     await waitFor(() => assert.ok(document.body.textContent!.includes('Beta'), document.body.textContent!), { timeout: 5000 });
+    const cells = (name: string) => [...document.querySelectorAll('tbody tr')].find(r => r.querySelector('th')?.textContent === name)!.lastElementChild!.textContent!.replace(/[^0-9./-]/g, '');
+    await waitFor(() => assert.equal(cells('Acme'), '15.00/5.00'), { timeout: 5000 });
+    assert.equal(cells('Beta'), '4.00/6.00');
+    assert.match(screen.getByTestId('customer-gross-profit-compare-source').textContent || '', /read from every entry on the server/);
     assert.match(screen.getByTestId('customer-gross-profit-source').textContent || '', /read from every entry on the server/);
     assert.equal(screen.queryByText(/These figures are provisional/), null);
     for (const [f, t] of [[from, to], [prevFrom, prevTo]]) {
