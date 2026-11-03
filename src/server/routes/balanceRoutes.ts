@@ -2,7 +2,7 @@ import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
-import { assetRegisterAsOf } from '../services/assetRegisterService';
+import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
 /**
@@ -201,3 +201,21 @@ rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from, to)
  * lists are capped.
  */
 rangeReportRoute('/tag-breakdown', 'the tag breakdown', (db, ws, from, to) => tagReportOver(db, ws, from, to));
+
+/**
+ * L-123 step 4h: GET /api/v1/balances/depreciation-ledger?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — any member. The
+ * depreciation ledger over every asset and posted run (depreciationLedgerOver), for the ledger screen when the loaded
+ * assets or entries are capped. Only runs are read, so the period is not limited to three years; the report's own date
+ * rule (from 1900 on) applies. Read-only.
+ */
+balanceRouter.get('/depreciation-ledger', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  if (!workspaceId || !validDate(from) || !validDate(to) || !validCustomReportPeriod({ startDate: from, endDate: to })) {
+    return res.status(400).json({ status: 'error', message: 'workspaceId, from and to (YYYY-MM-DD, from ≤ to) are required' });
+  }
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  await answerRange(res, 'the depreciation ledger', async () => ({ workspaceId, from, to, ...await depreciationLedgerOver(db, workspaceId, from, to) }));
+});
