@@ -24,6 +24,7 @@ import crypto from 'crypto';
 import type { ChartAccount, Customer, InventoryItem, Invoice, Transaction } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
+import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
@@ -500,4 +501,13 @@ export async function customerGrossProfitOver(db: Firestore, workspaceId: string
   const sales = await invoiceSalesInputs(db, workspaceId, from, to);
   const customers = (await db.collection('customers').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
   return { rows: customerGrossProfit({ ...sales, customers, startDate: from, endDate: to }), invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4k: gross margin by item group for each month of `from`…`to` (grossMarginByItemGroup) over every invoice
+ * of the range and the cost of goods sold posted for them.
+ */
+export async function itemGroupMarginOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<ReturnType<typeof grossMarginByItemGroup> & { invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  return { ...grossMarginByItemGroup({ ...sales, months: monthsBetween(from.slice(0, 7), to.slice(0, 7)) }), invoicesRead: sales.invoices.length };
 }
