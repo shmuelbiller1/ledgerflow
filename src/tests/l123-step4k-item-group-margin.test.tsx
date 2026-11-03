@@ -20,6 +20,7 @@ import { balanceRouteHarness } from './helpers/balanceRouteHarness';
 import { Y, from, to, chart, stock, invoices, entries, clients } from './helpers/l123SalesLedger';
 import GrossMarginByItemGroupReportView from '../components/reporting/GrossMarginByItemGroupReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { grossMarginByItemGroup, monthsBetween, type GroupMarginRow } from '../lib/grossMarginByGroup';
 
 const brief = (rows: GroupMarginRow[]) => rows.map(r => `${r.group} ${r.salesCents}/${r.costCents}/${r.marginCents}`).sort();
@@ -32,7 +33,7 @@ const input = (ws: string, loadedOnly = false) => ({
 
 describe('L-123 step 4k: gross margin by item group (no database)', () => {
   const ws = 'component-workspace';
-  afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); });
+  afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); useDataNeedsStore.setState({ failed: {} }); });
 
   test('every invoice gives the hand-worked groups and months; the loaded two do not', () => {
     const all = grossMarginByItemGroup(input(ws));
@@ -59,6 +60,26 @@ describe('L-123 step 4k: gross margin by item group (no database)', () => {
     assert.equal(screen.queryByText(/may be incomplete/), null);
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/item-group-margin?workspaceId=${ws}&from=${from}&to=${to}`)), asked.join('\n'));
   });
+
+  for (const [what, setUp] of [
+    ['a capped entry list', () => useLedgerStore.setState({ truncatedCollections: { transactions: true } })],
+    ['entries that failed to load', () => useDataNeedsStore.setState({ failed: { transactions: 'offline' } })],
+    ['accounts that failed to load', () => useDataNeedsStore.setState({ failed: { accounts: 'offline' } })],
+  ] as const) {
+    test(`screen: ${what} also asks the server (cost of goods sold can be posted before the year)`, async () => {
+      setComponentWorkspace('owner');
+      const own = input(ws, true);
+      useLedgerStore.setState({ customers: clients(ws), invoices: own.invoices, inventory: own.items, transactions: own.transactions, accounts: own.accounts } as never);
+      markComponentCollectionsLoaded('customers', 'invoices', 'inventory', 'transactions', 'accounts');
+      setUp();
+      let asked = 0;
+      globalThis.fetch = (async () => { asked += 1; return Response.json({ status: 'success', ...grossMarginByItemGroup(input(ws)) }); }) as typeof fetch;
+      render(<GrossMarginByItemGroupReportView />);
+      await waitFor(() => assert.ok(document.body.textContent!.includes('Gizmos'), document.body.textContent!), { timeout: 5000 });
+      assert.ok(asked > 0);
+      assert.match(screen.getByTestId('item-group-margin-source').textContent || '', /read from every entry on the server/);
+    });
+  }
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;

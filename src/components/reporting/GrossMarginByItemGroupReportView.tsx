@@ -33,7 +33,8 @@ export default function GrossMarginByItemGroupReportView() {
   const home = workspace?.currency || 'USD';
   const { report, source } = useServerItemGroupMargin(year);
 
-  const partial = source !== 'server' && (truncated.invoices || truncated.inventory || truncated.transactions || failed.invoices || failed.inventory);
+  const partial = source !== 'server' && (truncated.invoices || truncated.inventory || truncated.transactions || truncated.chartAccounts
+    || failed.invoices || failed.inventory || failed.transactions || failed.accounts);
   const anyEstimate = report.rows.some(r => r.costIsEstimate);
 
   return <section aria-label="Gross margin by item group" className="p-4 space-y-4 min-w-0">
@@ -58,7 +59,7 @@ export default function GrossMarginByItemGroupReportView() {
     </div>
 
     {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading invoices and items…</p>}
-    {partial && <p role="alert" className="text-sm">The loaded invoices, items or entries are capped or failed. These figures may be incomplete.</p>}
+    {partial && <p role="alert" className="text-sm">The loaded invoices, items, entries or accounts are capped or failed. These figures may be incomplete.</p>}
     <RangeReportSourceNote source={source} testId="item-group-margin-source" what="these figures" />
 
     <ReportTableScroll>
