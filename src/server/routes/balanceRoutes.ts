@@ -1,9 +1,10 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
+import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
 
 /**
  * L-123 step 3 (docs/design/L-123-server-balances.md): the account balances the browser shows, read by the server.
@@ -218,4 +219,18 @@ balanceRouter.get('/depreciation-ledger', async (req, res) => {
   const db = getDb();
   if (!(await allowMember(db, workspaceId, req, res))) return;
   await answerRange(res, 'the depreciation ledger', async () => ({ workspaceId, from, to, ...await depreciationLedgerOver(db, workspaceId, from, to) }));
+});
+
+/**
+ * L-123 step 4i: GET /api/v1/balances/profitability?workspaceId=…&by=customer|item|project&from=YYYY-MM-DD&to=YYYY-MM-DD
+ * — any member. Profitability over every invoice of the range and its cost of goods sold (by project, every entry
+ * too; profitabilityOver), for the Profitability screen when the loaded lists are capped. Read-only.
+ */
+balanceRouter.get('/profitability', async (req, res) => {
+  const by = typeof req.query.by === 'string' ? req.query.by : '';
+  const range = rangeQuery(req, res, (PROFITABILITY_BY as readonly string[]).includes(by), ' and by (customer, item or project)');
+  if (!range) return;
+  const db = getDb();
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the profitability', async () => ({ ...range, by, ...await profitabilityOver(db, range.workspaceId, by as ProfitabilityBy, range.from, range.to) }));
 });
