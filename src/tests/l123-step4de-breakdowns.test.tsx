@@ -23,6 +23,10 @@
  * same way; a source is the entry's payee, else the line's description, else the account. E2's Sales line is described
  * "Acme". Every entry: Acme 1,500 (1) · Sales 800 (1), total 2,300, shares 65.2 % · 34.8 %. The loaded four alone:
  * Sales 800 (1) only — Acme is missing.
+ *
+ * L-123 step 4g: "Tag & Analytical Dimension Breakdown" (TagBreakdownReportView, GET /api/v1/balances/tag-breakdown).
+ * E1's Rent line and E2's Sales line carry the tag "Q1". Every entry: Q1 income 1,500 · expense 900 · net 600 · 2
+ * lines. The loaded four carry no tags, so the browser alone shows none.
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -33,20 +37,24 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import ExpenseByCategoryReportView from '../components/reporting/ExpenseByCategoryReportView';
 import IncomeBySourceReportView from '../components/reporting/IncomeBySourceReportView';
+import TagBreakdownReportView from '../components/reporting/TagBreakdownReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency } from '../lib/utils';
-import { computeExpenseByCategory, computeIncomeBySource, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown } from '../lib/reportGenerators';
+import { computeExpenseByCategory, computeIncomeBySource, computeTagReport, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type TagBreakdown } from '../lib/reportGenerators';
 import { openingCutoff } from '../lib/serverBalances';
 // E1's Rent line carries its own category; E2's Sales line is described "Acme"
+// step 4g: both lines also carry the tag "Q1"
 const entries = (ws: string) => ledger(ws, (k, account) => {
-  if (k === 0 && account === 'rent') return { category: 'Office' };
-  return k === 1 && account === 'sales' ? { description: 'Acme' } : {};
+  if (k === 0 && account === 'rent') return { category: 'Office', tags: ['Q1'] };
+  return k === 1 && account === 'sales' ? { description: 'Acme', tags: ['Q1'] } : {};
 });
 
 const brief = (rows: CategoryExpenseBreakdown[]) => rows.map(r => `${r.category} ${r.totalAmountCents} ${r.transactionCount} ${r.percentage.toFixed(1)}`);
 const TRUTH = ['Office 900 1 50.0', 'Rent 700 1 38.9', 'Fuel 200 1 11.1'];
 const briefIncome = (rows: IncomeBySourceBreakdown[]) => rows.map(r => `${r.source} ${r.totalAmountCents} ${r.transactionCount} ${r.percentage.toFixed(1)}`);
 const TRUTH_INCOME = ['Acme 1500 1 65.2', 'Sales 800 1 34.8'];
+const briefTags = (rows: TagBreakdown[]) => rows.map(r => `${r.tag} ${r.incomeCents}/${r.expenseCents}/${r.netCents} ${r.count}`);
+const TRUTH_TAGS = ['Q1 1500/900/600 2'];
 
 describe('L-123 step 4d: expense by category (no database)', () => {
   const ws = 'component-workspace';
@@ -59,6 +67,18 @@ describe('L-123 step 4d: expense by category (no database)', () => {
     assert.deepEqual(brief(computeExpenseByCategory(accounts, loaded, from, to)), ['Rent 700 1 116.7', 'Fuel -100 1 -16.7']);
     assert.deepEqual(briefIncome(computeIncomeBySource(accounts, all, from, to)), TRUTH_INCOME);
     assert.deepEqual(briefIncome(computeIncomeBySource(accounts, loaded, from, to)), ['Sales 800 1 100.0']);
+    assert.deepEqual(briefTags(computeTagReport(accounts, all, from, to)), TRUTH_TAGS);
+    assert.deepEqual(briefTags(computeTagReport(accounts, loaded, from, to)), []);
+  });
+
+  test('tag breakdown on screen: the server\'s tags when capped, none from the loaded four', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
+    globalThis.fetch = (async () => Response.json({ status: 'success', tags: computeTagReport(accounts, all, from, to) })) as typeof fetch;
+    render(<TagBreakdownReportView selectedYear={Y} />);
+    await waitFor(() => assert.ok(document.body.textContent!.includes('Q1'), document.body.textContent!), { timeout: 5000 });
+    assert.ok(document.body.textContent!.includes(formatCurrency(600)), 'Q1 net 600');
+    assert.match(screen.getByTestId('tag-breakdown-source').textContent || '', /read from every entry on the server/);
   });
 
   test('a source or category named "__proto__" is an ordinary row and leaves Object.prototype alone (CodeRabbit on #496)', () => {
@@ -67,6 +87,8 @@ describe('L-123 step 4d: expense by category (no database)', () => {
       return k === 0 && account === 'rent' ? { category: '__proto__' } : {};
     });
     assert.deepEqual(briefIncome(computeIncomeBySource(accounts, odd, from, to)), ['__proto__ 1500 1 65.2', 'Sales 800 1 34.8']);
+    const oddTags = ledger(ws, (k, account) => (k === 0 && account === 'rent' ? { tags: ['__proto__'] } : {}));
+    assert.deepEqual(briefTags(computeTagReport(accounts, oddTags, from, to)), ['__proto__ 0/900/-900 1']);
     assert.deepEqual(brief(computeExpenseByCategory(accounts, odd, from, to)), ['__proto__ 900 1 50.0', 'Rent 700 1 38.9', 'Fuel 200 1 11.1']);
     assert.equal(({} as Record<string, unknown>).total, undefined);
     assert.equal(({} as Record<string, unknown>).count, undefined);
@@ -178,6 +200,14 @@ describe('L-123 step 4d: GET /api/v1/balances/expense-by-category', { skip: !url
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
     assert.equal((await get({ workspaceId: ws, from: '2010-01-01', to })).status, 400, 'more than three years');
     assert.equal((await get({ workspaceId: 'ws_missing_l123g', from, to })).status, 404);
+  });
+
+  test('tag breakdown: every entry\'s tags, members only', async () => {
+    const getTags = (q: Record<string, string>, uid?: string) => db.get<{ tags: TagBreakdown[]; entriesRead: number }>('tag-breakdown', q, uid);
+    const year = await getTags({ workspaceId: ws, from, to });
+    assert.equal(year.status, 200);
+    assert.deepEqual(briefTags(year.body.tags), TRUTH_TAGS);
+    assert.equal((await getTags({ workspaceId: ws, from, to }, 'stranger')).status, 403);
   });
 
   test('income by source: every entry\'s sources, members only', async () => {

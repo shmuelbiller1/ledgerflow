@@ -287,7 +287,8 @@ export function computeTagReport(
   endDate?: string
 ): TagBreakdown[] {
   const accountMap = new Map(accounts.map(a => [a.id, a]));
-  const tagMap: Record<string, { income: number; expense: number; count: number }> = {};
+  // keyed by tags typed on entries and lines: no prototype, so "__proto__" is an ordinary tag (as for #496)
+  const tagMap: Record<string, { income: number; expense: number; count: number }> = Object.create(null);
   const paired = reversalPairIds(transactions);
 
   for (const tx of transactions) {
