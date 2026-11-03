@@ -51,7 +51,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
   if (ownData && ownData.workspaceId === workspaceId) seen.set(own.id, { ...ownData, id: own.id });
   return [...seen.values()];
 }
-import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type MonthlyAverageSummary, type TopLineItem } from '../../lib/reportGenerators';
+import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages, computeTagReport, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type MonthlyAverageSummary, type TagBreakdown, type TopLineItem } from '../../lib/reportGenerators';
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
 
 export const UNASSIGNED = 'Unassigned';
@@ -442,7 +442,18 @@ export async function incomeBySourceOver(db: Firestore, workspaceId: string, fro
  * `computeMonthlyAverages` gives over the full history). Transfer lines are left out, so the per-account activity
  * cannot be used for it. It pairs no reversals, so only the year's own entries are read (CodeRabbit on #498).
  */
-export async function monthlyAveragesOver(db: Firestore, workspaceId: string, year: number): Promise<{ summary: MonthlyAverageSummary; entriesRead: number }> {
-  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, `${year}-01-01`, `${year}-12-31`, true);
-  return { summary: computeMonthlyAverages(accounts, entries, year), entriesRead: entries.length };
+export async function monthlyAveragesOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ summary: MonthlyAverageSummary; entriesRead: number }> {
+  // the route's own YYYY-01-01 / YYYY-12-31 strings, so a year below 1000 keeps its four digits (CodeRabbit on #498)
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  return { summary: computeMonthlyAverages(accounts, entries, Number(from.slice(0, 4))), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4g: income and expense by tag (the entry's tags and the line's) dated `from`…`to` over every postable
+ * entry, what `computeTagReport` gives over the full history. Tags are set on entries and lines, so per-account sums
+ * cannot give it; entries after the range are read so a later reversal still takes its pair out of the counts.
+ */
+export async function tagReportOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ tags: TagBreakdown[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { tags: computeTagReport(accounts, entries, from, to), entriesRead: entries.length };
 }

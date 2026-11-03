@@ -86,6 +86,9 @@ describe('L-123 step 4f: GET /api/v1/balances/monthly-averages', { skip: !url &&
     const before = await get({ from: `${Y - 1}-01-01`, to: `${Y - 1}-12-31` });
     assert.equal(before.status, 200);
     assert.equal(before.body.entriesRead, 0, 'an earlier year reads only its own entries, not the later ones (CodeRabbit on #498)');
+    const early = await get({ from: '0999-01-01', to: '0999-12-31' });
+    assert.equal(early.status, 200, 'a year below 1000 keeps its four digits (CodeRabbit on #498)');
+    assert.equal(early.body.entriesRead, 0);
     assert.equal((await get({ from: `${Y}-01-01`, to: `${Y}-06-30` })).status, 400, 'not a whole year');
     assert.equal((await get({ from: `${Y}-02-01`, to: `${Y}-12-31` })).status, 400, 'not from January 1');
     assert.equal((await get({ from: `${Y}-01-01`, to: `${Y}-12-31` }, 'stranger')).status, 403);

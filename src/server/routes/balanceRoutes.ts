@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
@@ -67,8 +67,10 @@ function rangeQuery(req: express.Request, res: express.Response, extraValid = tr
   return { workspaceId, from, to };
 }
 
-/** Sends a range route's answer, or its 500 with `what` in the message. */
+/** Sends a range route's answer (never cached), or its 500 with `what` in the message. */
 async function answerRange(res: express.Response, what: string, read: () => Promise<Record<string, unknown>>): Promise<void> {
+  // a workspace's figures: no browser keeps them for a later user of the same URL (CodeRabbit on #499, CWE-524)
+  res.setHeader('Cache-Control', 'no-store');
   try {
     res.json({ status: 'success', ...(await read()) });
   } catch (err) {
@@ -188,7 +190,14 @@ rangeReportRoute('/income-by-source', 'the income sources', (db, ws, from, to) =
  * expense per month of that calendar year and their averages over every postable entry (monthlyAveragesOver), for
  * "Monthly Averages" when the loaded lists are capped.
  */
-rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from) => monthlyAveragesOver(db, ws, Number(from.slice(0, 4))), {
+rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from, to) => monthlyAveragesOver(db, ws, from, to), {
   valid: (from, to) => /^\d{4}-01-01$/.test(from) && to === `${from.slice(0, 4)}-12-31`,
   message: 'covering one calendar year',
 });
+
+/**
+ * L-123 step 4g: GET /api/v1/balances/tag-breakdown?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — income and expense by
+ * tag over every postable entry of the range (tagReportOver), for "Tag & Analytical Dimension Breakdown" when the loaded
+ * lists are capped.
+ */
+rangeReportRoute('/tag-breakdown', 'the tag breakdown', (db, ws, from, to) => tagReportOver(db, ws, from, to));
