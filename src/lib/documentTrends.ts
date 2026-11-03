@@ -15,6 +15,8 @@ function trendMonths(asOfDate:string){
   return {startDate,endDate:index===11?asOfDate:monthEnd,month:startDate.slice(0,7)};
  });
 }
+/** L-123 step 4l: the first day of the twelve-month trend window that ends on `asOfDate`. */
+export function trendWindowStart(asOfDate:string):string{return trendMonths(asOfDate)[0].startDate;}
 export interface SalesTrendInput {customers:Customer[];invoices:Invoice[];items:InventoryItem[];transactions:Transaction[];accounts:ChartAccount[]}
 export function salesTrends(input:SalesTrendInput,asOfDate:string,group:'customer'|'item'):TrendRow[]{
  return trendMonths(asOfDate).flatMap(period=>{

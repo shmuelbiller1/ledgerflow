@@ -1,7 +1,8 @@
+import { trendWindowStart } from '../../lib/documentTrends';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -249,3 +250,24 @@ rangeReportRoute('/customer-gross-profit', 'the customer gross profit', (db, ws,
  * for "Gross margin by item group" when the loaded lists are capped.
  */
 rangeReportRoute('/item-group-margin', 'the gross margin by item group', (db, ws, from, to) => itemGroupMarginOver(db, ws, from, to), ONE_CALENDAR_YEAR);
+
+/** The window of a sales trend: `from` is the first day of the twelve months that end on `to`. */
+function isTrendWindow(from: string, to: string): boolean {
+  try { return from === trendWindowStart(to); } catch { return false; }
+}
+
+/**
+ * L-123 step 4l: GET /api/v1/balances/sales-trends?workspaceId=…&group=customer|item&from=…&to=YYYY-MM-DD — sales per
+ * month by customer or item over the twelve months ending `to` (`from` is the window's first day) over every invoice of
+ * the window and its cost of goods sold (salesTrendsOver), for "Sales trends" when the loaded lists are capped.
+ */
+balanceRouter.get('/sales-trends', async (req, res) => {
+  const group = typeof req.query.group === 'string' ? req.query.group : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  const range = rangeQuery(req, res, (group === 'customer' || group === 'item') && isTrendWindow(from, to), ' covering the twelve months that end on to, and group (customer or item)');
+  if (!range) return;
+  const db = getDb();
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the sales trends', async () => ({ ...range, group, ...await salesTrendsOver(db, range.workspaceId, group as 'customer' | 'item', range.from, range.to) }));
+});
