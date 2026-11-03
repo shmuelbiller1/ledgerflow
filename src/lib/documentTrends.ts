@@ -3,7 +3,7 @@ import {computeSalesByItem} from '../server/reports/itemReports';
 import {computeVendorBalanceSummary} from '../server/reports/partyReports';
 import {customerGrossProfit} from './customerGrossProfit';
 import {isOpeningBalanceDocument} from './partyOpeningBalance';
-import {addToDateISO,monthBoundsISO} from './utils';
+import {addToDateISO,monthBoundsISO} from './calendarDate';
 import {validCustomReportPeriod} from './reportCustomPeriod';
 export interface TrendRow {id:string;month:string;partyId:string;name:string;cents:number}
 function trendMonths(asOfDate:string){
