@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
+import React from 'react';
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
-import { computeMonthlyAverages } from '../../lib/reportGenerators';
+import { useServerMonthlyAverages } from '../../hooks/useServerMonthlyAverages';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { Calendar, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import ReportEmptyState from './ReportEmptyState';
 import { ReportProvenanceNote } from './ReportProvenanceNote';
@@ -14,15 +14,11 @@ interface Props {
 export const AverageMonthlyReportView: React.FC<Props> = ({
   selectedYear = workspaceYearMonth().year
 }) => {
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
-
   const provenance = useBrowserProvenance(STATEMENT_COLLECTIONS, false);
-  const summary = useMemo(() => {
-    return computeMonthlyAverages(accounts, transactions, selectedYear);
-  }, [accounts, transactions, selectedYear]);
+  // L-123 step 4f: with the loaded lists capped, the months come from the server (every entry of the year)
+  const { summary, source } = useServerMonthlyAverages(selectedYear);
   const noActivity = summary.monthlyData.every(month => month.incomeCents === 0 && month.expenseCents === 0);
-  const historyComplete = provenance.completeness === 'complete';
+  const historyComplete = source === 'server' || provenance.completeness === 'complete';
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="monthly-averages-report">
@@ -37,6 +33,7 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
           </p>
         </div>
       </div>
+      <RangeReportSourceNote source={source} testId="monthly-averages-source" what="these figures" />
       {noActivity && !historyComplete && <ReportProvenanceNote provenance={provenance} />}
       {noActivity && <ReportEmptyState title="No income or expenses in the loaded records for this year"
         description={historyComplete

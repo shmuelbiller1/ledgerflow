@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 
@@ -156,9 +156,12 @@ balanceRouter.get('/asset-register', async (req, res) => {
 });
 
 /** A read-only range report route (rangeQuery, any member, answerRange): `read` gives the report's fields. */
-function rangeReportRoute(path: string, what: string, read: (db: ReturnType<typeof getDb>, workspaceId: string, from: string, to: string) => Promise<Record<string, unknown>>): void {
+function rangeReportRoute(path: string, what: string, read: (db: ReturnType<typeof getDb>, workspaceId: string, from: string, to: string) => Promise<Record<string, unknown>>,
+  shape?: { valid: (from: string, to: string) => boolean; message: string }): void {
   balanceRouter.get(path, async (req, res) => {
-    const range = rangeQuery(req, res);
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
+    const range = rangeQuery(req, res, !shape || shape.valid(from, to), shape ? ` ${shape.message}` : '');
     if (!range) return;
     const db = getDb();
     if (!(await allowMember(db, range.workspaceId, req, res))) return;
@@ -179,3 +182,13 @@ rangeReportRoute('/expense-by-category', 'the expense categories', (db, ws, from
  * are capped.
  */
 rangeReportRoute('/income-by-source', 'the income sources', (db, ws, from, to) => incomeBySourceOver(db, ws, from, to));
+
+/**
+ * L-123 step 4f: GET /api/v1/balances/monthly-averages?workspaceId=…&from=YYYY-01-01&to=YYYY-12-31 — income and
+ * expense per month of that calendar year and their averages over every postable entry (monthlyAveragesOver), for
+ * "Monthly Averages" when the loaded lists are capped.
+ */
+rangeReportRoute('/monthly-averages', 'the monthly averages', (db, ws, from) => monthlyAveragesOver(db, ws, Number(from.slice(0, 4))), {
+  valid: (from, to) => /^\d{4}-01-01$/.test(from) && to === `${from.slice(0, 4)}-12-31`,
+  message: 'covering one calendar year',
+});
