@@ -368,11 +368,13 @@ export async function activityOver(db: Firestore, workspaceId: string, from: str
  * The chart and every entry dated `from` on (postable or not, as the browser passes its loaded list), for the range
  * reports below: entries after the range are read too, so a reversal dated after it still cancels the entry it reverses.
  */
-async function accountsAndEntriesFrom(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ accounts: ChartAccount[]; entries: ReturnType<typeof entryOf>[] }> {
+async function accountsAndEntriesFrom(db: Firestore, workspaceId: string, from: string, to: string, throughTo = false): Promise<{ accounts: ChartAccount[]; entries: ReturnType<typeof entryOf>[] }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A report range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const [accountsSnap, entriesSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
-    db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).get(),
+    (throughTo
+      ? db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<=', to)
+      : db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from)).get(),
   ]);
   return { accounts: accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount), entries: entriesSnap.docs.map(entryOf) };
 }
@@ -438,9 +440,9 @@ export async function incomeBySourceOver(db: Firestore, workspaceId: string, fro
 /**
  * L-123 step 4f: income and expense per month of `year` and their averages over every postable entry (what
  * `computeMonthlyAverages` gives over the full history). Transfer lines are left out, so the per-account activity
- * cannot be used for it.
+ * cannot be used for it. It pairs no reversals, so only the year's own entries are read (CodeRabbit on #498).
  */
 export async function monthlyAveragesOver(db: Firestore, workspaceId: string, year: number): Promise<{ summary: MonthlyAverageSummary; entriesRead: number }> {
-  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, `${year}-01-01`, `${year}-12-31`);
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, `${year}-01-01`, `${year}-12-31`, true);
   return { summary: computeMonthlyAverages(accounts, entries, year), entriesRead: entries.length };
 }

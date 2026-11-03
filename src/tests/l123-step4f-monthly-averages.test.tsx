@@ -79,6 +79,9 @@ describe('L-123 step 4f: GET /api/v1/balances/monthly-averages', { skip: !url &&
     assert.deepEqual([year.body.summary.monthlyAverageIncomeCents, year.body.summary.monthlyAverageExpenseCents], EVERY.avg);
     assert.deepEqual(months(year.body.summary), EVERY.months);
     assert.equal(year.body.entriesRead, 7);
+    const before = await get({ from: `${Y - 1}-01-01`, to: `${Y - 1}-12-31` });
+    assert.equal(before.status, 200);
+    assert.equal(before.body.entriesRead, 0, 'an earlier year reads only its own entries, not the later ones (CodeRabbit on #498)');
     assert.equal((await get({ from: `${Y}-01-01`, to: `${Y}-06-30` })).status, 400, 'not a whole year');
     assert.equal((await get({ from: `${Y}-02-01`, to: `${Y}-12-31` })).status, 400, 'not from January 1');
     assert.equal((await get({ from: `${Y}-01-01`, to: `${Y}-12-31` }, 'stranger')).status, 403);
