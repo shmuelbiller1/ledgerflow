@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useLedgerCollections } from './useLedgerCollections';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityLine } from '../lib/profitabilityLines';
 import { useServerRangeReport, type RangeReportSource } from './useServerRangeReport';
 
@@ -13,6 +14,7 @@ const parseLines = (body: Record<string, unknown>) => (Array.isArray(body.lines)
  * the loaded lists, as the server reads at most three years.
  */
 export function useServerProfitability(by: ProfitabilityBy, from: string | undefined, to: string | undefined): { lines: ProfitabilityLine[]; source: RangeReportSource } {
+  useLedgerCollections('customers', 'inventory', 'invoices');
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const items = useLedgerStore(s => s.inventory);
