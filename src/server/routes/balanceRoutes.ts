@@ -67,8 +67,10 @@ function rangeQuery(req: express.Request, res: express.Response, extraValid = tr
   return { workspaceId, from, to };
 }
 
-/** Sends a range route's answer, or its 500 with `what` in the message. */
+/** Sends a range route's answer (never cached), or its 500 with `what` in the message. */
 async function answerRange(res: express.Response, what: string, read: () => Promise<Record<string, unknown>>): Promise<void> {
+  // a workspace's figures: no browser keeps them for a later user of the same URL (CodeRabbit on #499, CWE-524)
+  res.setHeader('Cache-Control', 'no-store');
   try {
     res.json({ status: 'success', ...(await read()) });
   } catch (err) {
