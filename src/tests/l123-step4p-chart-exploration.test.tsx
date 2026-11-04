@@ -77,6 +77,18 @@ describe('L-123 step 4p: chart exploration (no database)', () => {
       assert.ok(treemap.includes(`Rent: ${formatCurrency(500, 'USD')}`), treemap);
     }, { timeout: 5000 });
   });
+
+  test('screen: server payment points show while the local invoices are still loading', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: entries(ws).slice(1), invoices: [], truncatedCollections: { transactions: true } } as never);
+    markComponentCollectionsLoaded('accounts', 'transactions');
+    useDataNeedsStore.setState(s => ({ loaded: { ...s.loaded, invoices: false }, failed: {} }));
+    globalThis.fetch = (async () => Response.json({ status: 'success', leaves: expenseChartLeaves(chart(ws), entries(ws), from, to), points: invoicePaymentPoints(invoices(ws)) })) as typeof fetch;
+    render(<ChartExploration months={months} currency="USD" />);
+    await waitFor(() => assert.match(screen.getByTestId('chart-exploration-source').textContent || '', /read from every entry on the server/), { timeout: 5000 });
+    const payments = screen.getByRole('region', { name: 'Invoice amount vs days to pay' }).textContent || '';
+    assert.ok(!/No visible data/i.test(payments), payments);
+  });
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
