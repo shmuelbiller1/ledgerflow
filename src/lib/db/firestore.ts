@@ -622,7 +622,9 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
       new QueryDocumentSnapshot(new DocumentReference(q.firestore, q.collectionId, r.id), r.data))));
   };
 
-  const fullLoad = async () => {
+  // `floor`: a change cursor already processed. A reload reads the state after it, so the cursor never moves back to
+  // re-read those changes (which could repeat the delta read and the reload on every notification).
+  const fullLoad = async (floor: string | null = null) => {
     if (target instanceof DocumentReference) {
       const snap = await getDoc(target);
       if (active) onNext(snap);
@@ -636,7 +638,7 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
     }
     const rows = await fetchRows(q);
     current = rows.map(r => ({ id: r.id, data: r.data, updatedAt: r.updated_at || '' }));
-    latest = latestUpdate(current, null);
+    latest = latestUpdate(current, floor);
     if (active) emitList();
   };
 
@@ -647,13 +649,13 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
     let changed: LiveRow[] = [];
     if (latest) {
       const fetched = await fetchChanged(q, String(wsFilter.value), changedSince(latest));
-      if (fetched === null) return fullLoad();
+      if (fetched === null) return fullLoad(latest);
       changed = fetched;
     } else if (deletes.length === 0) {
       return fullLoad(); // nothing loaded yet to measure changes from
     }
     const out = mergeChanges(current, changed, deletes, { filters: q.filters, orders: q.orders, limitCount: q.limitCount });
-    if (out.rows === null) return fullLoad();
+    if (out.rows === null) return fullLoad(latestUpdate(changed, latest));
     latest = latestUpdate(changed, latest);
     if (out.changed) {
       current = out.rows;
