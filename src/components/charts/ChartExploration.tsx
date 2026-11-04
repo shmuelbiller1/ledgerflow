@@ -38,7 +38,8 @@ export default function ChartExploration({ months, currency }: { months: string[
   // a list that failed to load counts as settled (its first read never marks it loaded): the server answers then
   const settled = useDataNeedsStore(state => Boolean(state.loaded.invoices || state.failed.invoices));
   const waiting = loading && !settled;
-  const { data, source } = useServerChartExploration(months, !waiting);
+  // the expense maps need only the accounts and entries; only the payment points wait for the invoices
+  const { data, source } = useServerChartExploration(months, true);
   const leaves = data.leaves;
   const rows = leaves.map(leaf => ({ id: leaf.id, label: leaf.label, cents: leaf.cents, path: JSON.stringify(leaf.path) }));
   const points = data.points;

@@ -12,6 +12,8 @@ import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { formatCurrency } from '../lib/utils';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { balanceRouteHarness } from './helpers/balanceRouteHarness';
 import ChartExploration from '../components/charts/ChartExploration';
@@ -60,6 +62,20 @@ describe('L-123 step 4p: chart exploration (no database)', () => {
     render(<ChartExploration months={months} currency="USD" />);
     await waitFor(() => assert.match(screen.getByTestId('chart-exploration-source').textContent || '', /read from every entry on the server/), { timeout: 5000 });
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/chart-exploration?workspaceId=${ws}&from=${from}&to=${to}`)), asked.join('\n'));
+    const treemap = screen.getByRole('region', { name: 'Expenses by category treemap' }).textContent || '';
+    assert.ok(treemap.includes(`Rent: ${formatCurrency(500, 'USD')}`), treemap);
+  });
+
+  test('screen: the expense maps draw while the invoices are still loading', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: entries(ws), invoices: [], truncatedCollections: {} } as never);
+    markComponentCollectionsLoaded('accounts', 'transactions');
+    useDataNeedsStore.setState(s => ({ loaded: { ...s.loaded, invoices: false }, failed: {} }));
+    render(<ChartExploration months={months} currency="USD" />);
+    await waitFor(() => {
+      const treemap = screen.getByRole('region', { name: 'Expenses by category treemap' }).textContent || '';
+      assert.ok(treemap.includes(`Rent: ${formatCurrency(500, 'USD')}`), treemap);
+    }, { timeout: 5000 });
   });
 });
 
