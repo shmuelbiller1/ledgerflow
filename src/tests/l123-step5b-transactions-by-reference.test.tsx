@@ -18,6 +18,7 @@ import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers
 import TransactionsByReferenceView from '../components/reporting/TransactionsByReferenceView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { computeTransactionsByReference, type TransactionsByReference } from '../server/reports/referenceReport';
 import type { Transaction } from '../types';
 
@@ -75,6 +76,24 @@ describe('L-123 step 5b: transactions by reference (no database)', () => {
     globalThis.fetch = (async () => new Response('{}', { status: 500 })) as typeof fetch;
     render(<TransactionsByReferenceView startDate={from} endDate={to} />);
     await waitFor(() => assert.match(screen.getByTestId('transactions-by-reference-source').textContent || '', /may be incomplete/), { timeout: 5000 });
+  });
+
+  test('screen: a guest\'s seeded lists are whole: nothing is asked and no note (CodeRabbit on #512)', () => {
+    setComponentWorkspace('owner');
+    const before = useAuthStore.getState();
+    useAuthStore.setState({ isGuest: true, user: null } as never);
+    useDataNeedsStore.setState({ loaded: {}, failed: {} });
+    useLedgerStore.setState({ accounts: chart(ws), transactions: all, invoices: [], bills: [], truncatedCollections: {} } as never);
+    let asked = 0;
+    globalThis.fetch = (async () => { asked++; return new Response('{}'); }) as typeof fetch;
+    try {
+      render(<TransactionsByReferenceView startDate={from} endDate={to} />);
+      assert.equal(screen.queryByTestId('transactions-by-reference-source'), null);
+      assert.ok(document.body.textContent!.includes('CHK-1'));
+      assert.equal(asked, 0);
+    } finally {
+      useAuthStore.setState({ isGuest: before.isGuest, user: before.user } as never);
+    }
   });
 
   test('screen: whole lists ask nothing and show no note', () => {

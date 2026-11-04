@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerCollections } from './useLedgerCollections';
 import { computeTransactionsByReference, type TransactionsByReference } from '../server/reports/referenceReport';
@@ -24,7 +25,9 @@ export function useServerTransactionsByReference(from: string, to: string): { re
   const documentsShort = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.bills));
   // a list that failed, or is still loading (a retry clears the failure before it loads), leaves the loaded list short;
   // a failed entries load also leaves no oldest loaded day to go by (CodeRabbit on #512)
-  const documentsFailed = useDataNeedsStore(s => (['transactions', 'invoices', 'bills'] as const).some(k => Boolean(s.failed[k]) || !s.loaded[k]));
+  // a guest's lists are seeded, never "loaded" by a subscription (as useLedgerCollections treats them)
+  const isGuest = useAuthStore(s => s.isGuest && !s.user);
+  const documentsFailed = useDataNeedsStore(s => !isGuest && (['transactions', 'invoices', 'bills'] as const).some(k => Boolean(s.failed[k]) || !s.loaded[k]));
   const loaded = useMemo(() => computeTransactionsByReference(transactions || [], { invoices, bills }, from, to), [transactions, invoices, bills, from, to]);
   // a document's number names its postings
   const extraKey = useMemo(() => JSON.stringify([(invoices || []).map(i => [i.id, i.number]), (bills || []).map(b => [b.id, b.number])]), [invoices, bills]);
