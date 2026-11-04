@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -356,3 +356,10 @@ balanceRouter.get('/customer-lifetime-value', async (req, res) => {
  * entries, invoices or bills are capped.
  */
 rangeReportRoute('/transactions-by-reference', 'the transactions by reference', (db, ws, from, to) => referencesOver(db, ws, from, to));
+
+/**
+ * L-123 step 5a: GET /api/v1/balances/general-ledger?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — every account's
+ * general ledger over the range, its opening line summed by the server (generalLedgerOver), for "General Ledger" when
+ * the loaded entries are capped.
+ */
+rangeReportRoute('/general-ledger', 'the general ledger', (db, ws, from, to) => generalLedgerOver(db, ws, from, to));
