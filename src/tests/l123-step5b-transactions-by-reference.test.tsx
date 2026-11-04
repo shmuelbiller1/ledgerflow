@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { Y, from, to, chart, entries as ledger, loadedOf, balanceRouteHarness } from './helpers/l123RangeLedger';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import TransactionsByReferenceView from '../components/reporting/TransactionsByReferenceView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
@@ -68,9 +68,19 @@ describe('L-123 step 5b: transactions by reference (no database)', () => {
     }
   });
 
+  test('screen: a list still loading (a retry clears its failure first) is not shown as complete (CodeRabbit on #512)', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: [], invoices: [], bills: [], truncatedCollections: {} } as never);
+    markComponentCollectionsLoaded('invoices', 'bills');
+    globalThis.fetch = (async () => new Response('{}', { status: 500 })) as typeof fetch;
+    render(<TransactionsByReferenceView startDate={from} endDate={to} />);
+    await waitFor(() => assert.match(screen.getByTestId('transactions-by-reference-source').textContent || '', /may be incomplete/), { timeout: 5000 });
+  });
+
   test('screen: whole lists ask nothing and show no note', () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts: chart(ws), transactions: all, invoices: [], bills: [], truncatedCollections: {} } as never);
+    markComponentCollectionsLoaded('transactions', 'invoices', 'bills');
     let asked = 0;
     globalThis.fetch = (async () => { asked++; return new Response('{}'); }) as typeof fetch;
     render(<TransactionsByReferenceView startDate={from} endDate={to} />);
