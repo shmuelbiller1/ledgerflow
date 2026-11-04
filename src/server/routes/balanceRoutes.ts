@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -326,3 +326,23 @@ balanceRouter.get('/spread-waterfall', async (req, res) => {
  * (chartExplorationOver), for the dashboard's chart exploration when the loaded lists are capped.
  */
 rangeReportRoute('/chart-exploration', 'the chart exploration', (db, ws, from, to) => chartExplorationOver(db, ws, from, to));
+
+/**
+ * L-123 step 4q: GET /api/v1/balances/customer-lifetime-value?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD&lifespan=1…20 —
+ * customer lifetime value as of `to` over every issued invoice from `from` (0001-01-01 for all recorded history), its
+ * cost of goods sold and the credit notes (customerLifetimeValueOver). It reads documents, not entries, so it takes any
+ * span, unlike the other range routes. For "Customer lifetime value" when the loaded lists are capped.
+ */
+balanceRouter.get('/customer-lifetime-value', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  const lifespan = Number(req.query.lifespan);
+  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || !Number.isInteger(lifespan) || lifespan < 1 || lifespan > 20) {
+    res.status(400).json({ status: 'error', message: 'workspaceId, from and to (YYYY-MM-DD, from ≤ to) and lifespan (1–20 years) are required' });
+    return;
+  }
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  await answerRange(res, 'the customer lifetime value', async () => ({ workspaceId, from, to, lifespan, ...await customerLifetimeValueOver(db, workspaceId, from, to, lifespan) }));
+});

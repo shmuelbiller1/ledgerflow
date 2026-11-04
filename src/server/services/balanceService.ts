@@ -21,9 +21,10 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction, Vendor, DimensionNode } from '../../types';
+import type { Bill, ChartAccount, CreditNote, Customer, InventoryItem, Invoice, Transaction, Vendor, DimensionNode } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
+import { customerLifetimeValue, type CustomerLifetimeValueReport } from '../../lib/customerLifetimeValue';
 import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
 import { expenseChartLeaves, invoicePaymentPoints, type ExpenseChartLeaf } from '../../lib/chartExploration';
 import { spreadWaterfall, type SpreadSide, type Waterfall } from '../../lib/spreadWaterfall';
@@ -593,4 +594,27 @@ export async function chartExplorationOver(db: Firestore, workspaceId: string, f
   ]);
   const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
   return { leaves: expenseChartLeaves(accounts, entries as unknown as Transaction[], from, to), points: invoicePaymentPoints(invoices), entriesRead: entries.length, invoicesRead: invoices.length };
+}
+
+/** L-123 step 4q: the first day "all recorded history" stands for when Customer lifetime value has no start date. */
+export const ALL_HISTORY_FROM = '0001-01-01';
+
+/**
+ * L-123 step 4q: customer lifetime value as of `asOf` (customerLifetimeValue) over every issued invoice from `from`
+ * (ALL_HISTORY_FROM for all recorded history) to `asOf`, the cost of goods sold posted for them, every credit note up to
+ * `asOf` and the customers' names. Documents, not entries, so the three-year entry range does not apply.
+ */
+export async function customerLifetimeValueOver(db: Firestore, workspaceId: string, from: string, asOf: string, lifespanYears: number):
+  Promise<{ report: CustomerLifetimeValueReport; invoicesRead: number; creditNotesRead: number }> {
+  const [sales, notesSnap, customersSnap] = await Promise.all([
+    invoiceSalesInputs(db, workspaceId, from, asOf),
+    db.collection('creditNotes').where('workspaceId', '==', workspaceId).where('date', '<', nextDay(asOf)).get(),
+    db.collection('customers').where('workspaceId', '==', workspaceId).get(),
+  ]);
+  const creditNotes = notesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as CreditNote);
+  const customers = customersSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
+  const report = customerLifetimeValue({
+    ...sales, customers, creditNotes, asOfDate: asOf, from: from === ALL_HISTORY_FROM ? undefined : from, lifespanYears,
+  });
+  return { report, invoicesRead: sales.invoices.length, creditNotesRead: creditNotes.length };
 }

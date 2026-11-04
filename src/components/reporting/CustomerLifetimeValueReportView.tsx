@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useServerCustomerLifetimeValue } from '../../hooks/useServerCustomerLifetimeValue';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { customerLifetimeValue, customerLifetimeValueCsvRows, CUSTOMER_LIFETIME_VALUE_CSV_HEADERS, DEFAULT_LIFESPAN_YEARS } from '../../lib/customerLifetimeValue';
+import { customerLifetimeValueCsvRows, CUSTOMER_LIFETIME_VALUE_CSV_HEADERS, DEFAULT_LIFESPAN_YEARS } from '../../lib/customerLifetimeValue';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -22,15 +24,8 @@ export default function CustomerLifetimeValueReportView({ startDate = '', asOfDa
 
 /** The report for the window and the as-of date it is given (see the wrapper above). */
 export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string; asOf: string }) {
-  const customers = useLedgerStore(state => state.customers);
-  const invoices = useLedgerStore(state => state.invoices);
-  const creditNotes = useLedgerStore(state => state.creditNotes);
-  const items = useLedgerStore(state => state.inventory);
-  const transactions = useLedgerStore(state => state.transactions);
-  const accounts = useLedgerStore(state => state.accounts);
   const truncated = useLedgerStore(state => state.truncatedCollections);
   const failed = useDataNeedsStore(state => state.failed);
-  const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts');
   const [lifespan, setLifespan] = useState(String(DEFAULT_LIFESPAN_YEARS));
@@ -40,22 +35,12 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
   const lifespanYears = Number(lifespan);
   const usableLifespan = Number.isInteger(lifespanYears) && lifespanYears >= 1 && lifespanYears <= 20;
 
-  const report = useMemo(() => {
-    if (!valid || !usableLifespan) return null;
-    return customerLifetimeValue({
-      customers: customers.filter(customer => !workspaceId || customer.workspaceId === workspaceId),
-      invoices: invoices.filter(invoice => !workspaceId || invoice.workspaceId === workspaceId),
-      creditNotes: creditNotes.filter(note => !workspaceId || note.workspaceId === workspaceId),
-      items: items.filter(item => !workspaceId || item.workspaceId === workspaceId),
-      transactions: transactions.filter(entry => !workspaceId || entry.workspaceId === workspaceId),
-      accounts: accounts.filter(account => !workspaceId || account.workspaceId === workspaceId),
-      asOfDate: asOf,
-      from: from || undefined,
-      lifespanYears: usableLifespan ? lifespanYears : DEFAULT_LIFESPAN_YEARS,
-    });
-  }, [customers, invoices, creditNotes, items, transactions, accounts, workspaceId, asOf, from, valid, usableLifespan, lifespanYears]);
+  // a list that failed to load counts as settled (its first read never marks it loaded): the server answers then
+  const settled = useDataNeedsStore(state => (['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).every(key => state.loaded[key] || Boolean(state.failed[key])));
+  const waiting = loading && !settled;
+  const { report, source } = useServerCustomerLifetimeValue(asOf, from, usableLifespan ? lifespanYears : DEFAULT_LIFESPAN_YEARS, valid && usableLifespan && !waiting);
 
-  const partial = (['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(key => truncated[key] || failed[key]);
+  const partial = source !== 'server' && ((['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.chartAccounts));
   const currency = workspace?.currency || 'USD';
 
   return <section aria-label="Customer lifetime value" className="p-4 space-y-4 min-w-0">
@@ -76,9 +61,10 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
     </div>
     {lifespanProblem && <p role="alert" className="text-sm">{lifespanProblem}</p>}
 
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading customers and invoices…</p>}
+    {waiting && <p role="status" className="text-sm text-[var(--muted)]">Loading customers and invoices…</p>}
     {!valid && <p role="alert">Choose a valid report period and date.</p>}
     {partial && <p role="alert" className="text-sm text-[var(--muted)]">The loaded history is capped or failed at the database. These figures are provisional.</p>}
+    <RangeReportSourceNote source={source} testId="customer-lifetime-value-source" what="these figures" />
 
     {report && <ReportTableScroll>
       <table className="w-full text-sm">
@@ -104,7 +90,7 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
           </tr>)}
         </tbody>
       </table>
-      {valid && !loading && !report.rows.length && <p className="text-sm text-[var(--muted)]">No issued invoice in this window.</p>}
+      {valid && !waiting && !report.rows.length && <p className="text-sm text-[var(--muted)]">No issued invoice in this window.</p>}
     </ReportTableScroll>}
 
     <p className="text-xs text-[var(--muted)]">Credit notes reduce revenue but never the recorded cost, so a customer who returned everything shows a loss rather than a made-up zero. The average annual profit spreads the whole recorded history, including its first partial year.</p>
