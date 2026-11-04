@@ -623,17 +623,23 @@ export async function customerLifetimeValueOver(db: Firestore, workspaceId: stri
 
 /**
  * L-123 step 5b: "Transactions by Reference" of `from`…`to` over every postable entry of the range, an invoice or bill
- * posting named by its document's number (every invoice and bill of the workspace is read for the numbers).
+ * posting named by its document's number (only referenced workspace documents are read, in chunks of 100).
  */
 export async function referencesOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ references: TransactionsByReference; entriesRead: number }> {
-  const [{ entries }, invoicesSnap, billsSnap] = await Promise.all([
-    accountsAndEntriesFrom(db, workspaceId, from, to, true),
-    db.collection('invoices').where('workspaceId', '==', workspaceId).get(),
-    db.collection('bills').where('workspaceId', '==', workspaceId).get(),
-  ]);
+  const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
   const numbered = (d: { id: string; data: () => unknown }) => ({ id: d.id, number: String((d.data() as { number?: unknown }).number ?? '') });
+  const referencedDocuments = async (collection: 'invoices' | 'bills', key: 'invoiceId' | 'billId') => {
+    const ids = [...new Set((entries as Transaction[]).map(e => e.metadata?.[key]).filter((id): id is string => typeof id === 'string'))];
+    const documents: { id: string; number: string }[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const snap = await db.collection(collection).where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
+      documents.push(...snap.docs.map(numbered));
+    }
+    return documents;
+  };
+  const [invoices, bills] = await Promise.all([referencedDocuments('invoices', 'invoiceId'), referencedDocuments('bills', 'billId')]);
   return {
-    references: computeTransactionsByReference(entries as Transaction[], { invoices: invoicesSnap.docs.map(numbered), bills: billsSnap.docs.map(numbered) }, from, to),
+    references: computeTransactionsByReference(entries as Transaction[], { invoices, bills }, from, to),
     entriesRead: entries.length,
   };
 }
