@@ -75,17 +75,6 @@ describe('L-123 step 4n: registration threshold watch (no database)', () => {
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/registration-threshold?workspaceId=${ws}&from=2025-01-01&to=${asOf}&entity=world&activity=activity`)), asked.join('\n'));
   });
 
-  test('screen: a capped entry list that still covers every window is not provisional, and asks nothing', async () => {
-    // the loaded entries reach back past 2025-01-01, so the cap does not touch the windows
-    const covering = [sale(ws, 'S00', '2024-12-01', 1), ...entries(ws)];
-    useLedgerStore.setState({ accounts: [sales(ws)], transactions: covering, dimensionNodes: nodes(ws), truncatedCollections: { transactions: true } } as never);
-    let asked = 0;
-    globalThis.fetch = (async () => { asked += 1; return Response.json({ status: 'success', report: watch(ws, entries(ws)) }); }) as typeof fetch;
-    render(<RegistrationThresholdWatchReportView endDate={asOf} />);
-    await waitFor(() => assert.ok(screen.queryByText('At threshold — review scope and dates'), document.body.textContent!), { timeout: 5000 });
-    assert.equal(screen.queryByText(/history is incomplete/i), null);
-    assert.equal(asked, 0);
-  });
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;

@@ -5,6 +5,7 @@ import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerCollections } from './useLedgerCollections';
 import { spreadWaterfall, type SpreadSide, type Waterfall } from '../lib/spreadWaterfall';
 import { rangeRevision } from '../lib/serverTopLines';
+import { isPostable } from '../lib/txFilters';
 import { useServerRangeReport, type RangeReportSource } from './useServerRangeReport';
 
 const parseWaterfall = (body: Record<string, unknown>) => {
@@ -31,7 +32,7 @@ export function useServerSpreadWaterfall(side: SpreadSide, from: string, to: str
     const scoped = <T extends { workspaceId?: string }>(rows: T[] | undefined) => (rows || []).filter(r => !workspaceId || !r.workspaceId || r.workspaceId === workspaceId);
     return { transactions: scoped(transactions), documents: side === 'invoice' ? scoped(invoices) : scoped(bills) };
   }, [workspaceId, transactions, invoices, bills, side]);
-  const loaded = useMemo(() => (enabled ? spreadWaterfall(own.transactions, own.documents, side, { startDate: from, endDate: to }) : null), [enabled, own, side, from, to]);
+  const loaded = useMemo(() => (enabled ? spreadWaterfall(own.transactions.filter(isPostable), own.documents, side, { startDate: from, endDate: to }) : null), [enabled, own, side, from, to]);
   const query = useMemo(() => ({ side }), [side]);
   const extraKey = useMemo(() => JSON.stringify([rangeRevision(own.transactions, ''), own.documents.map(d => [d.id, d.number, 'customerName' in d ? d.customerName : (d as { vendorName?: string }).vendorName])]), [own]);
   // The entry list is capped wherever it is capped, not only before `from` (shares after the period count as deferred).

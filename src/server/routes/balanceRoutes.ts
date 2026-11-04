@@ -1,5 +1,6 @@
 import { trendWindowStart } from '../../lib/documentTrends';
 import { thresholdWindowStart } from '../../lib/registrationThresholdWatch';
+import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
@@ -307,7 +308,12 @@ balanceRouter.get('/registration-threshold', async (req, res) => {
  */
 balanceRouter.get('/spread-waterfall', async (req, res) => {
   const side = typeof req.query.side === 'string' ? req.query.side : '';
-  const range = rangeQuery(req, res, side === 'invoice' || side === 'bill', ' and side (invoice or bill)');
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  // the waterfall lists at most 36 months (monthsBetween); a longer period would count months it does not show
+  const months = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to ? monthsBetween(from, to) : [];
+  const covered = months.length > 0 && months[months.length - 1] === to.slice(0, 7);
+  const range = rangeQuery(req, res, (side === 'invoice' || side === 'bill') && covered, ' and side (invoice or bill), at most 36 months');
   if (!range) return;
   const db = getDb();
   if (!(await allowMember(db, range.workspaceId, req, res))) return;

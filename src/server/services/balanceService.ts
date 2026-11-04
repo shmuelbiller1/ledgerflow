@@ -578,7 +578,8 @@ export async function spreadWaterfallOver(db: Firestore, workspaceId: string, si
     const snap = await db.collection(side === 'invoice' ? 'invoices' : 'bills').where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
     documents.push(...snap.docs.map(d => ({ ...(d.data() as object), id: d.id })));
   }
-  return { waterfall: spreadWaterfall(entries as never, documents, side, { startDate: from, endDate: to }), entriesRead: entries.length };
+  const postable = entries.filter(e => isPostable(e as unknown as Transaction));
+  return { waterfall: spreadWaterfall(postable as never, documents, side, { startDate: from, endDate: to }), entriesRead: entries.length };
 }
 
 /**
