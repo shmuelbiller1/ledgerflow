@@ -25,6 +25,7 @@ import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction,
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
+import { expenseChartLeaves, invoicePaymentPoints, type ExpenseChartLeaf } from '../../lib/chartExploration';
 import { spreadWaterfall, type SpreadSide, type Waterfall } from '../../lib/spreadWaterfall';
 import { registrationThresholdWatch, type RegistrationThresholdWatch } from '../../lib/registrationThresholdWatch';
 import type { TaxProfiles } from '../../lib/tax/profile';
@@ -579,4 +580,17 @@ export async function spreadWaterfallOver(db: Firestore, workspaceId: string, si
   }
   const postable = entries.filter(e => isPostable(e as unknown as Transaction));
   return { waterfall: spreadWaterfall(postable as never, documents, side, { startDate: from, endDate: to }), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4p: the chart exploration for `from`…`to` — expense and cost-of-sales leaves from every postable entry of
+ * the range (expenseChartLeaves) and the amount-vs-days-to-pay points of the range's paid invoices (invoicePaymentPoints).
+ */
+export async function chartExplorationOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ leaves: ExpenseChartLeaf[]; points: ReturnType<typeof invoicePaymentPoints>; entriesRead: number; invoicesRead: number }> {
+  const [{ accounts, entries }, invoicesSnap] = await Promise.all([
+    accountsAndEntriesFrom(db, workspaceId, from, to, true),
+    db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+  ]);
+  const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
+  return { leaves: expenseChartLeaves(accounts, entries as unknown as Transaction[], from, to), points: invoicePaymentPoints(invoices), entriesRead: entries.length, invoicesRead: invoices.length };
 }

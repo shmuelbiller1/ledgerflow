@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -319,3 +319,10 @@ balanceRouter.get('/spread-waterfall', async (req, res) => {
   if (!(await allowMember(db, range.workspaceId, req, res))) return;
   await answerRange(res, 'the spread waterfall', async () => ({ ...range, side, ...await spreadWaterfallOver(db, range.workspaceId, side as 'invoice' | 'bill', range.from, range.to) }));
 });
+
+/**
+ * L-123 step 4p: GET /api/v1/balances/chart-exploration?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — the expense
+ * maps and invoice payment points for the selected months over every entry and invoice of the range
+ * (chartExplorationOver), for the dashboard's chart exploration when the loaded lists are capped.
+ */
+rangeReportRoute('/chart-exploration', 'the chart exploration', (db, ws, from, to) => chartExplorationOver(db, ws, from, to));
