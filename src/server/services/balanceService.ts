@@ -62,6 +62,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
 }
 import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages, computeTagReport, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type MonthlyAverageSummary, type TagBreakdown, type TopLineItem } from '../../lib/reportGenerators';
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
+import { computeGeneralLedger } from '../reports/computeReports';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -617,4 +618,16 @@ export async function customerLifetimeValueOver(db: Firestore, workspaceId: stri
     ...sales, customers, creditNotes, asOfDate: asOf, from: from === ALL_HISTORY_FROM ? undefined : from, lifespanYears,
   });
   return { report, invoicesRead: sales.invoices.length, creditNotesRead: creditNotes.length };
+}
+
+/**
+ * L-123 step 5a: the general ledger of `from`…`to` for every account, over every postable entry of the range, with
+ * each account's opening line from the sums through the day before `from` (balancesAsOf, the closed-year snapshot when
+ * there is one). What `computeGeneralLedger` gives over the full history, without reading the years before `from`.
+ */
+export async function generalLedgerOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ ledger: ReturnType<typeof computeGeneralLedger>; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  const before = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const opening = await balancesAsOf(db, workspaceId, before);
+  return { ledger: computeGeneralLedger(accounts, entries as Transaction[], from, to, undefined, opening.accounts), entriesRead: entries.length + opening.entriesRead };
 }

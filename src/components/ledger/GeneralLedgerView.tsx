@@ -3,6 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeGeneralLedger } from '../../server/reports/computeReports';
+import { useServerGeneralLedger } from '../../hooks/useServerGeneralLedger';
+import { RangeReportSourceNote } from '../reporting/RangeReportSourceNote';
 import { Search, BookOpen, Printer } from 'lucide-react';
 import { Labelled } from '../ui/Labelled';
 
@@ -20,7 +22,6 @@ function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['ac
 
 export default function GeneralLedgerView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: { startDate?: string; endDate?: string; embedded?: boolean } = {}) {
   const accounts = useLedgerStore(s => s.accounts);
-  const transactions = useLedgerStore(s => s.transactions);
 
   const [startDate, setStartDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageStartDate || undefined, '2026-01-01');
   const [endDate, setEndDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageEndDate || undefined, getLocalDateISO());
@@ -28,15 +29,10 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const glData = useMemo(() => {
-    return computeGeneralLedger(
-      accounts,
-      transactions,
-      startDate,
-      endDate,
-      selectedAccountId === 'all' ? undefined : selectedAccountId
-    );
-  }, [accounts, transactions, startDate, endDate, selectedAccountId]);
+  // L-123 step 5a: the server's ledger when the loaded entries are capped; one account is picked from it
+  const { ledger, source } = useServerGeneralLedger(startDate, endDate);
+  const glData = useMemo(() => (selectedAccountId === 'all' ? ledger : { ...ledger, accounts: ledger.accounts.filter(a => a.accountId === selectedAccountId) }),
+    [ledger, selectedAccountId]);
 
   const filteredAccounts = useMemo(() => {
     if (!searchTerm) return glData.accounts;
@@ -50,6 +46,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <RangeReportSourceNote source={source} testId="general-ledger-source" what="these balances and lines" />
       {/* Header */}
       <div className="flex flex-wrap items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
