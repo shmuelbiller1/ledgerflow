@@ -24,4 +24,12 @@ describe('Truncation Guard Suite (AA-05)', () => {
         `Static query for ${coll} must record truncation via setCollectionTruncated`);
     }
   });
+
+  test('a failed reference-data load marks the dimension labels incomplete, not complete-and-empty', () => {
+    const content = readFileSync(join(process.cwd(), 'src/hooks/useLedgerData.ts'), 'utf-8');
+    const loader = content.slice(content.indexOf('const loadReferenceData'), content.indexOf('void loadReferenceData()'));
+    const failure = loader.slice(loader.lastIndexOf('} catch (err) {'));
+    assert.ok(failure.includes("setCollectionTruncated('dimensionNodes', true)"), 'the catch must mark the dimension nodes incomplete');
+    assert.ok(failure.includes('!nodesSettled'), 'only when the nodes were not already set');
+  });
 });
