@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -338,8 +338,11 @@ balanceRouter.get('/customer-lifetime-value', async (req, res) => {
   const from = typeof req.query.from === 'string' ? req.query.from : '';
   const to = typeof req.query.to === 'string' ? req.query.to : '';
   const lifespan = Number(req.query.lifespan);
-  if (!workspaceId || !validDate(from) || !validDate(to) || from > to || !Number.isInteger(lifespan) || lifespan < 1 || lifespan > 20) {
-    res.status(400).json({ status: 'error', message: 'workspaceId, from and to (YYYY-MM-DD, from ≤ to) and lifespan (1–20 years) are required' });
+  // `to` and any `from` but the all-history marker must be dates the calculation accepts (years 1900–2999), so a bad
+  // date is a 400 before any read, and a `from` before 1900 cannot slip past the credit-note window.
+  const datesOk = from === ALL_HISTORY_FROM ? validCustomReportPeriod({ startDate: to, endDate: to }) : validCustomReportPeriod({ startDate: from, endDate: to });
+  if (!workspaceId || !datesOk || !Number.isInteger(lifespan) || lifespan < 1 || lifespan > 20) {
+    res.status(400).json({ status: 'error', message: 'workspaceId, from (YYYY-MM-DD, or 0001-01-01 for all history) and to (YYYY-MM-DD, 1900–2999, from ≤ to) and lifespan (1–20 years) are required' });
     return;
   }
   const db = getDb();

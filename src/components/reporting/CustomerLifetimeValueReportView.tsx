@@ -64,7 +64,7 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
     {waiting && <p role="status" className="text-sm text-[var(--muted)]">Loading customers and invoices…</p>}
     {!valid && <p role="alert">Choose a valid report period and date.</p>}
     {partial && <p role="alert" className="text-sm text-[var(--muted)]">The loaded history is capped or failed at the database. These figures are provisional.</p>}
-    <RangeReportSourceNote source={source} testId="customer-lifetime-value-source" what="these figures" />
+    <RangeReportSourceNote source={source} testId="customer-lifetime-value-source" what="these figures" reads="every issued invoice, the cost of goods sold posted for it, every credit note and every customer" />
 
     {report && <ReportTableScroll>
       <table className="w-full text-sm">

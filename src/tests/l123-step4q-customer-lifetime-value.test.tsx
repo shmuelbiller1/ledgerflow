@@ -54,7 +54,7 @@ describe('L-123 step 4q: customer lifetime value (no database)', () => {
     const asked: string[] = [];
     globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', report: all(ws) }); }) as typeof fetch;
     render(<CustomerLifetimeValuePanel asOf={asOf} />);
-    await waitFor(() => assert.match(screen.getByTestId('customer-lifetime-value-source').textContent || '', /read from every entry on the server/), { timeout: 5000 });
+    await waitFor(() => assert.match(screen.getByTestId('customer-lifetime-value-source').textContent || '', /read from every issued invoice, the cost of goods sold posted for it, every credit note and every customer on the server/), { timeout: 5000 });
     assert.ok(document.body.textContent!.includes('2023-03-01'), document.body.textContent!);
     assert.equal(screen.queryByText(/These figures are provisional/), null);
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/customer-lifetime-value?workspaceId=${ws}&from=0001-01-01&to=${asOf}&lifespan=3`)), asked.join('\n'));
@@ -79,6 +79,8 @@ describe('L-123 step 4q: GET /api/v1/balances/customer-lifetime-value', { skip: 
     assert.deepEqual(brief((await get({ from: '2026-01-01', to: asOf, lifespan: '3' })).body.report), ['Alpha 1 1700/800/900 2026-03-01…2026-03-01']);
     assert.equal((await get({ from: '0001-01-01', to: asOf, lifespan: '21' })).status, 400);
     assert.equal((await get({ from: 'x', to: asOf, lifespan: '3' })).status, 400);
+    assert.equal((await get({ from: '0001-01-01', to: '3000-01-01', lifespan: '3' })).status, 400);
+    assert.equal((await get({ from: '1800-01-01', to: asOf, lifespan: '3' })).status, 400);
     assert.equal((await get({ from: '0001-01-01', to: asOf, lifespan: '3' }, 'stranger')).status, 403);
   });
 });
