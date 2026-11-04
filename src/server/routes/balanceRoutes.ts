@@ -3,7 +3,7 @@ import { thresholdWindowStart } from '../../lib/registrationThresholdWatch';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -298,4 +298,18 @@ balanceRouter.get('/registration-threshold', async (req, res) => {
   const db = getDb();
   if (!(await allowMember(db, range.workspaceId, req, res))) return;
   await answerRange(res, 'the registration-threshold watch', async () => ({ ...range, ...await registrationThresholdOver(db, range.workspaceId, range.from, range.to, { entityDimensionId, activityDimensionId }) }));
+});
+
+/**
+ * L-123 step 4o: GET /api/v1/balances/spread-waterfall?workspaceId=…&side=invoice|bill&from=YYYY-MM-DD&to=YYYY-MM-DD —
+ * the deferred-revenue or prepaid-expense waterfall for the period over every recognition entry of that side, at any
+ * date (spreadWaterfallOver), for the Spread waterfall screen when the loaded lists are capped.
+ */
+balanceRouter.get('/spread-waterfall', async (req, res) => {
+  const side = typeof req.query.side === 'string' ? req.query.side : '';
+  const range = rangeQuery(req, res, side === 'invoice' || side === 'bill', ' and side (invoice or bill)');
+  if (!range) return;
+  const db = getDb();
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the spread waterfall', async () => ({ ...range, side, ...await spreadWaterfallOver(db, range.workspaceId, side as 'invoice' | 'bill', range.from, range.to) }));
 });

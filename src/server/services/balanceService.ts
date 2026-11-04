@@ -25,6 +25,7 @@ import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction,
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
+import { spreadWaterfall, type SpreadSide, type Waterfall } from '../../lib/spreadWaterfall';
 import { registrationThresholdWatch, type RegistrationThresholdWatch } from '../../lib/registrationThresholdWatch';
 import type { TaxProfiles } from '../../lib/tax/profile';
 import { purchaseTrendsByVendor, salesTrends, type TrendRow } from '../../lib/documentTrends';
@@ -558,4 +559,23 @@ export async function registrationThresholdOver(db: Firestore, workspaceId: stri
     accounts, transactions: entries as unknown as Transaction[], profiles: ws.taxProfiles, dimensionNodes, ...dims, asOf: to, baseCurrency: ws.currency,
   });
   return { report, entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4o: the deferred-revenue (invoice) or prepaid-expense (bill) waterfall for `from`…`to` (spreadWaterfall)
+ * over every recognition entry of that side, at any date (shares before the period count as earned, after it as
+ * deferred), with the labels of the invoices or bills they spread.
+ */
+export async function spreadWaterfallOver(db: Firestore, workspaceId: string, side: SpreadSide, from: string, to: string): Promise<{ waterfall: Waterfall; entriesRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A waterfall period is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const type = side === 'invoice' ? 'revenue-recognition' : 'prepaid-recognition';
+  const tag = side === 'invoice' ? 'spreadOfInvoiceId' : 'spreadOfBillId';
+  const entries = (await db.collection('transactions').where('workspaceId', '==', workspaceId).where('metadata.type', '==', type).get()).docs.map(entryOf);
+  const ids = [...new Set(entries.map(e => (e as { metadata?: Record<string, unknown> }).metadata?.[tag]).filter((id): id is string => typeof id === 'string'))];
+  const documents: { id: string; number?: string; customerName?: string; vendorName?: string }[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const snap = await db.collection(side === 'invoice' ? 'invoices' : 'bills').where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
+    documents.push(...snap.docs.map(d => ({ ...(d.data() as object), id: d.id })));
+  }
+  return { waterfall: spreadWaterfall(entries as never, documents, side, { startDate: from, endDate: to }), entriesRead: entries.length };
 }
