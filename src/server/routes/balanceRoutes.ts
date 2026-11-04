@@ -1,8 +1,9 @@
 import { trendWindowStart } from '../../lib/documentTrends';
+import { thresholdWindowStart } from '../../lib/registrationThresholdWatch';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -279,3 +280,22 @@ balanceRouter.get('/sales-trends', async (req, res) => {
  */
 rangeReportRoute('/purchase-trends', 'the purchase trends', (db, ws, from, to) => purchaseTrendsOver(db, ws, from, to),
   { valid: isTrendWindow, message: 'covering the twelve months that end on to' });
+
+/**
+ * L-123 step 4n: GET /api/v1/balances/registration-threshold?workspaceId=…&from=…&to=YYYY-MM-DD&entity=…&activity=… —
+ * the registration-threshold watch as of `to` over every postable entry from `from` (1 January of the year before `to`)
+ * through `to` (registrationThresholdOver), for "Registration threshold watch" when the loaded lists are capped.
+ * `entity` and `activity` are the dimension ids the reader chose, or empty.
+ */
+balanceRouter.get('/registration-threshold', async (req, res) => {
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  const dim = (key: string) => (typeof req.query[key] === 'string' ? (req.query[key] as string) : '');
+  const entityDimensionId = dim('entity'), activityDimensionId = dim('activity');
+  const shapeOk = /^\d{4}-\d{2}-\d{2}$/.test(to) && from === thresholdWindowStart(to) && entityDimensionId.length <= 200 && activityDimensionId.length <= 200;
+  const range = rangeQuery(req, res, shapeOk, ' starting on 1 January of the year before to');
+  if (!range) return;
+  const db = getDb();
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the registration-threshold watch', async () => ({ ...range, ...await registrationThresholdOver(db, range.workspaceId, range.from, range.to, { entityDimensionId, activityDimensionId }) }));
+});
