@@ -153,7 +153,8 @@ export interface MergeOutcome {
 /**
  * Apply changed rows and deleted ids to the current result. When the current result was cut by
  * the limit, a row that leaves it would have to be replaced by the next one, which isn't loaded,
- * so that case asks for a full reload.
+ * so that case asks for a full reload. So does a loaded row whose sort key changed there: it may now rank behind a
+ * row that was never loaded.
  */
 export function mergeChanges(current: readonly LiveRow[], changed: readonly LiveRow[], deletedIds: readonly string[], q: LiveQueryShape): MergeOutcome {
   const byId = new Map(current.map(r => [r.id, r]));
@@ -170,6 +171,9 @@ export function mergeChanges(current: readonly LiveRow[], changed: readonly Live
     const before = byId.get(row.id);
     if (match) {
       if (!before || before.updatedAt !== row.updatedAt || JSON.stringify(before.data) !== JSON.stringify(row.data)) {
+        // a loaded row whose sort key changed in a list cut by the limit may now rank behind a row that was never
+        // loaded (an entry moved to an earlier date): only a reload knows, so treat it like a row that left
+        if (before && wasFull && q.orders.some(o => JSON.stringify(fieldValue(before, o.field)) !== JSON.stringify(fieldValue(row, o.field)))) left = true;
         byId.set(row.id, row);
         didChange = true;
       }
