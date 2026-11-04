@@ -538,9 +538,9 @@ type OnError = (err: FirestoreError) => void;
 
 let channelCounter = 0;
 
-/** Rows changed since `since` in one workspace, oldest change first; null when too many (reload). */
+/** Rows changed since `since` in one workspace, oldest change first; `overflow` when there are more than MAX_CHANGED_ROWS (the caller reloads). */
 const MAX_CHANGED_ROWS = 2000;
-async function fetchChanged(q: Query, workspaceId: string, since: string): Promise<LiveRow[] | null> {
+async function fetchChanged(q: Query, workspaceId: string, since: string): Promise<{ rows: LiveRow[]; overflow: boolean }> {
   const client = q.firestore.client();
   const out: LiveRow[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
@@ -553,8 +553,8 @@ async function fetchChanged(q: Query, workspaceId: string, since: string): Promi
     if (error) throw toFirestoreError(error, q.collectionId);
     const page = (data || []) as Row[];
     out.push(...page.map(r => ({ id: r.id, data: r.data, updatedAt: r.updated_at || '' })));
-    if (out.length > MAX_CHANGED_ROWS) return null;
-    if (page.length < PAGE_SIZE) return out;
+    if (out.length > MAX_CHANGED_ROWS) return { rows: out, overflow: true };
+    if (page.length < PAGE_SIZE) return { rows: out, overflow: false };
   }
 }
 
@@ -622,7 +622,9 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
       new QueryDocumentSnapshot(new DocumentReference(q.firestore, q.collectionId, r.id), r.data))));
   };
 
-  const fullLoad = async () => {
+  // `floor`: a change cursor already processed. A reload reads the state after it, so the cursor never moves back to
+  // re-read those changes (which could repeat the delta read and the reload on every notification).
+  const fullLoad = async (floor: string | null = null) => {
     if (target instanceof DocumentReference) {
       const snap = await getDoc(target);
       if (active) onNext(snap);
@@ -636,7 +638,7 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
     }
     const rows = await fetchRows(q);
     current = rows.map(r => ({ id: r.id, data: r.data, updatedAt: r.updated_at || '' }));
-    latest = latestUpdate(current, null);
+    latest = latestUpdate(current, floor);
     if (active) emitList();
   };
 
@@ -647,13 +649,14 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
     let changed: LiveRow[] = [];
     if (latest) {
       const fetched = await fetchChanged(q, String(wsFilter.value), changedSince(latest));
-      if (fetched === null) return fullLoad();
-      changed = fetched;
+      // Too many changes: reload, with the cursor moved past the changes scanned so the next delta does not rescan them.
+      if (fetched.overflow) return fullLoad(latestUpdate(fetched.rows, latest));
+      changed = fetched.rows;
     } else if (deletes.length === 0) {
       return fullLoad(); // nothing loaded yet to measure changes from
     }
     const out = mergeChanges(current, changed, deletes, { filters: q.filters, orders: q.orders, limitCount: q.limitCount });
-    if (out.rows === null) return fullLoad();
+    if (out.rows === null) return fullLoad(latestUpdate(changed, latest));
     latest = latestUpdate(changed, latest);
     if (out.changed) {
       current = out.rows;

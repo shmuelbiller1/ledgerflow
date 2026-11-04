@@ -192,6 +192,7 @@ export function useLedgerData() {
     // #100: a read started for one workspace never fills the store after the user switched books
     let cancelled = false;
     const stillHere = () => !cancelled && useAuthStore.getState().currentWorkspaceId === currentWorkspaceId && useAuthStore.getState().user?.uid === userUid;
+    let nodesSettled = false;
     const loadReferenceData = async () => {
       try {
         const snapTemplates = await getDocs(query(collection(db, 'customTemplates'), where('uid', '==', userUid), limit(500)));
@@ -232,8 +233,12 @@ export function useLedgerData() {
           }
         }
         useLedgerStore.getState().setDimensionNodes(nodes);
+        nodesSettled = true;
       } catch (err) {
         console.warn('[Ledger] Error loading reference data:', err);
+        // the dimension labels never arrived: mark them incomplete (as a capped list is) so the screens that read them
+        // say so and the reports that need them ask the server, instead of reading an empty list as complete
+        if (!nodesSettled && stillHere()) useLedgerStore.getState().setCollectionTruncated('dimensionNodes', true);
       }
     };
     void loadReferenceData();

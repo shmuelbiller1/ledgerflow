@@ -121,7 +121,7 @@ describe('L-123 step 4d: expense by category (no database)', () => {
 
     stubFetch(500);
     render(<IncomeBySourceReportView selectedYear={Y} />);
-    await waitFor(() => assert.match(screen.getByTestId('income-source-source').textContent || '', /loaded entries only/));
+    await waitFor(() => assert.match(screen.getByTestId('income-source-source').textContent || '', /server could not be asked: .* may be incomplete/));
     assert.ok(!table().includes('Acme'));
   });
 
@@ -173,7 +173,7 @@ describe('L-123 step 4d: expense by category (no database)', () => {
 
     stubFetch(500);
     render(<ExpenseByCategoryReportView selectedYear={Y} />);
-    await waitFor(() => assert.match(screen.getByTestId('expense-category-source').textContent || '', /loaded entries only/));
+    await waitFor(() => assert.match(screen.getByTestId('expense-category-source').textContent || '', /server could not be asked: .* may be incomplete/));
     assert.ok(!table().includes('Office'));
     assert.ok(table().includes(formatCurrency(700)));
   });
