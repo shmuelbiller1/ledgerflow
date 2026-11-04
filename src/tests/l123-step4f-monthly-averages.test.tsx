@@ -50,7 +50,7 @@ describe('L-123 step 4f: monthly averages (no database)', () => {
     const cases: Array<{ capped: boolean; fail?: boolean; avg: number; note: RegExp | null }> = [
       { capped: false, avg: 200, note: null },
       { capped: true, avg: 450, note: /read from every entry on the server/ },
-      { capped: true, fail: true, avg: 200, note: /loaded entries only/ },
+      { capped: true, fail: true, avg: 200, note: /server could not be asked: .* may be incomplete/ },
     ];
     for (const c of cases) {
       if (c.fail) stubFetch(500);
