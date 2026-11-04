@@ -6,6 +6,7 @@ import { rangeRevision } from '../lib/serverTopLines';
 import { useLedgerCollections } from './useLedgerCollections';
 import { customerGrossProfit } from '../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../lib/grossMarginByGroup';
+import { salesTrends, trendWindowStart, type TrendRow } from '../lib/documentTrends';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../lib/profitabilityLines';
 import { useServerRangeReport, type RangeReportSource } from './useServerRangeReport';
 
@@ -83,4 +84,22 @@ export function useServerItemGroupMargin(year: number): { report: ItemGroupMargi
   const { input, listsCapped, extraKey } = useInvoiceReportInputs(from);
   const loaded = useMemo(() => grossMarginByItemGroup({ ...input, months: monthsBetween(`${year}-01`, `${year}-12`) }), [input, year]);
   return useServerRangeReport({ path: 'item-group-margin', from, to, extraKey, alsoIncomplete: listsCapped, parse: parseGroups, loaded });
+}
+
+const parseTrends = (body: Record<string, unknown>) => (Array.isArray(body.rows) ? body.rows as TrendRow[] : null);
+
+/**
+ * L-123 step 4l: sales per month by customer or item over the twelve months ending `asOf` (salesTrends), from the server
+ * (GET /api/v1/balances/sales-trends) on the same terms as profitability. `enabled` false (an invalid date, loading,
+ * purchases) keeps the loaded rows and asks nothing.
+ */
+export function useServerSalesTrends(asOf: string, group: 'customer' | 'item', enabled: boolean): { rows: TrendRow[]; source: RangeReportSource } {
+  const from = enabled ? trendWindowStart(asOf) : undefined;
+  const { input, listsCapped, extraKey } = useInvoiceReportInputs(from);
+  const loaded = useMemo(() => (enabled ? salesTrends(input, asOf, group) : []), [enabled, input, asOf, group]);
+  const query = useMemo(() => ({ group }), [group]);
+  const { report, source } = useServerRangeReport({
+    path: 'sales-trends', from, to: enabled ? asOf : undefined, query, extraKey, alsoIncomplete: listsCapped, parse: parseTrends, loaded,
+  });
+  return { rows: report, source };
 }
