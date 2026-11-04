@@ -129,3 +129,34 @@ describe('L-123 step 5b: GET /api/v1/balances/transactions-by-reference', { skip
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
   });
 });
+
+describe('L-123 step 5b: the route reads only the invoices and bills its entries name (CodeRabbit on #512)', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
+  // E2 names invoice INV-7 of this workspace; E5 names an invoice id that belongs to another workspace
+  const named = (ws: string): Transaction[] => entries(ws).map((e, k) => {
+    if (k === 1) return { ...e, metadata: { invoiceId: `${ws}_inv7` } };
+    return k === 4 ? { ...e, metadata: { invoiceId: `${ws}_foreign` } } : e;
+  });
+  const db = balanceRouteHarness(url, 'l123refdocs', w => ({ accounts: chart(w), entries: named(w) }));
+  const ws = db.ws;
+  const docs = [
+    { id: `${ws}_inv7`, workspaceId: ws, uid: 'owner-1', number: 'INV-7' },
+    { id: `${ws}_foreign`, workspaceId: `${ws}_other`, uid: 'someone', number: 'NOT-OURS' },
+    { id: `${ws}_unrelated`, workspaceId: ws, uid: 'owner-1', number: 'INV-99' },
+  ];
+  before(async () => {
+    await db.start();
+    const { getDb } = await import('../server/db/firestore');
+    await getDb().pool.query(`insert into public.invoices (id, data) select d->>'id', d from jsonb_array_elements($1::jsonb) d`, [JSON.stringify(docs)]);
+  });
+  after(async () => {
+    const { getDb } = await import('../server/db/firestore');
+    await getDb().pool.query('delete from public.invoices where id = any($1::text[])', [docs.map(d => d.id)]).catch(() => {});
+    await db.stop();
+  });
+
+  test('an invoice posting is named by its number; another workspace\'s invoice is not', async () => {
+    const r = await db.get<{ references: TransactionsByReference }>('transactions-by-reference', { workspaceId: ws, from, to });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(brief(r.body.references), ['CHK-1 E1 900', 'CHK-2 E4 700', 'CHK-10 E6 200', 'INV-7 E2 1500', '4 refs, 3 without']);
+  });
+});
