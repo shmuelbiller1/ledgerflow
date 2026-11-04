@@ -31,10 +31,14 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   }, [report.rows, searchTerm]);
 
   const exportCsv = () => {
-    downloadCsv(`transactions_by_reference_${startDate}_${endDate}.csv`,
+    // only what is loaded, the server not reached: the file says so in its name and first row (CodeRabbit on #512)
+    const incomplete = source === 'loaded-incomplete';
+    downloadCsv(`transactions_by_reference_${startDate}_${endDate}${incomplete ? '_INCOMPLETE' : ''}.csv`,
       ['Reference', 'Date', 'Description', 'From', 'Amount'],
-      shown.map(r => [r.reference, r.date, r.description, r.source, csvMoney(r.amountCents)]));
-    toast.success('Transactions by Reference exported to CSV');
+      [...(incomplete ? [['INCOMPLETE: only the entries loaded in this browser; the server could not be asked', '', '', '', '']] : []),
+        ...shown.map(r => [r.reference, r.date, r.description, r.source, csvMoney(r.amountCents)])]);
+    if (incomplete) toast.warning('Exported, marked incomplete: only the entries loaded in this browser');
+    else toast.success('Transactions by Reference exported to CSV');
   };
 
   const columns: ColumnDef<ReferenceRow>[] = [

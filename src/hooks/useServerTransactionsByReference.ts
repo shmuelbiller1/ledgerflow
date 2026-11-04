@@ -22,7 +22,8 @@ export function useServerTransactionsByReference(from: string, to: string): { re
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
   const documentsShort = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.bills));
-  const documentsFailed = useDataNeedsStore(s => Boolean(s.failed.invoices || s.failed.bills));
+  // a failed entries load leaves no oldest loaded day, so it is named here too (CodeRabbit on #512)
+  const documentsFailed = useDataNeedsStore(s => Boolean(s.failed.transactions || s.failed.invoices || s.failed.bills));
   const loaded = useMemo(() => computeTransactionsByReference(transactions || [], { invoices, bills }, from, to), [transactions, invoices, bills, from, to]);
   // a document's number names its postings
   const extraKey = useMemo(() => JSON.stringify([(invoices || []).map(i => [i.id, i.number]), (bills || []).map(b => [b.id, b.number])]), [invoices, bills]);

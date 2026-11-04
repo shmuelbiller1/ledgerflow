@@ -17,6 +17,7 @@ import { Y, from, to, chart, entries as ledger, loadedOf, balanceRouteHarness } 
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import TransactionsByReferenceView from '../components/reporting/TransactionsByReferenceView';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { computeTransactionsByReference, type TransactionsByReference } from '../server/reports/referenceReport';
 import type { Transaction } from '../types';
 
@@ -50,6 +51,21 @@ describe('L-123 step 5b: transactions by reference (no database)', () => {
     render(<TransactionsByReferenceView startDate={from} endDate={to} />);
     await waitFor(() => assert.match(screen.getByTestId('transactions-by-reference-source').textContent || '', /server could not be asked: .* may be incomplete/), { timeout: 5000 });
     assert.ok(!document.body.textContent!.includes('CHK-1 '));
+  });
+
+  test('screen: a failed entries load asks the server (no oldest loaded day to go by; CodeRabbit on #512)', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: [], invoices: [], bills: [], truncatedCollections: {} } as never);
+    useDataNeedsStore.setState(s => ({ failed: { ...s.failed, transactions: true } }) as never);
+    let asked = 0;
+    globalThis.fetch = (async () => { asked++; return Response.json({ status: 'success', references: computeTransactionsByReference(all, {}, from, to) }); }) as typeof fetch;
+    try {
+      render(<TransactionsByReferenceView startDate={from} endDate={to} />);
+      await waitFor(() => assert.ok(document.body.textContent!.includes('CHK-1')), { timeout: 5000 });
+      assert.equal(asked, 1);
+    } finally {
+      useDataNeedsStore.setState(s => ({ failed: { ...s.failed, transactions: false } }) as never);
+    }
   });
 
   test('screen: whole lists ask nothing and show no note', () => {
