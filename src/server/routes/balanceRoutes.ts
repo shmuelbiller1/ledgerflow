@@ -2,7 +2,7 @@ import { trendWindowStart } from '../../lib/documentTrends';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -271,3 +271,11 @@ balanceRouter.get('/sales-trends', async (req, res) => {
   if (!(await allowMember(db, range.workspaceId, req, res))) return;
   await answerRange(res, 'the sales trends', async () => ({ ...range, group, ...await salesTrendsOver(db, range.workspaceId, group as 'customer' | 'item', range.from, range.to) }));
 });
+
+/**
+ * L-123 step 4m: GET /api/v1/balances/purchase-trends?workspaceId=…&from=…&to=YYYY-MM-DD — amounts billed per month by
+ * vendor over the twelve months ending `to` (`from` is the window's first day) over every bill of the window
+ * (purchaseTrendsOver), for "Purchase trends by vendor" when the loaded lists are capped.
+ */
+rangeReportRoute('/purchase-trends', 'the purchase trends', (db, ws, from, to) => purchaseTrendsOver(db, ws, from, to),
+  { valid: isTrendWindow, message: 'covering the twelve months that end on to' });

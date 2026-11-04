@@ -21,11 +21,11 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { ChartAccount, Customer, InventoryItem, Invoice, Transaction } from '../../types';
+import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction, Vendor } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
-import { salesTrends, type TrendRow } from '../../lib/documentTrends';
+import { purchaseTrendsByVendor, salesTrends, type TrendRow } from '../../lib/documentTrends';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
@@ -521,4 +521,19 @@ export async function salesTrendsOver(db: Firestore, workspaceId: string, group:
   const sales = await invoiceSalesInputs(db, workspaceId, from, to);
   const customers = (await db.collection('customers').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
   return { rows: salesTrends({ ...sales, customers }, to, group), invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4l: amounts billed per month by vendor over the twelve months ending `to` (purchaseTrendsByVendor; `from`
+ * is that window's first day) over every bill of the window, with the workspace's vendors.
+ */
+export async function purchaseTrendsOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ rows: TrendRow[]; billsRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A purchase range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const [vendorsSnap, billsSnap] = await Promise.all([
+    db.collection('vendors').where('workspaceId', '==', workspaceId).get(),
+    db.collection('bills').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+  ]);
+  const vendors = vendorsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Vendor);
+  const bills = billsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Bill);
+  return { rows: purchaseTrendsByVendor(vendors, bills, to), billsRead: bills.length };
 }
