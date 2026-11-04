@@ -235,6 +235,14 @@ function candidatesForEntityDimension(profiles: TaxProfiles | null | undefined, 
  * Turn posted revenue lines into comparison rows. An exact activity label is required; unrecognized
  * and unassigned revenue is counted separately instead of being silently included or treated as zero.
  */
+/**
+ * L-123 step 4n: the first day any registration-threshold window reaches back to as of `asOf`: 1 January of the year
+ * before (the EU previous-calendar-year window; the trailing-12-month and quarter windows start later).
+ */
+export function thresholdWindowStart(asOf: string): string {
+  return `${Number(asOf.slice(0, 4)) - 1}-01-01`;
+}
+
 export function registrationThresholdWatch(input: RegistrationThresholdWatchInput): RegistrationThresholdWatch {
   const { accounts, transactions, profiles, asOf } = input;
   const entityDimensionId = input.entityDimensionId || '';

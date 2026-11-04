@@ -23,8 +23,8 @@ export function balanceRouteHarness(wsPrefix: string, name: string) {
       const res = await realFetch(`${base}/api/v1/balances/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
       return { status: res.status, body: await res.json() as T };
     },
-    /** Starts the API and writes the workspace and each table's rows (whole documents, by id). */
-    async start(rows: Record<string, unknown[]>) {
+    /** Starts the API and writes the workspace (with `workspace`'s extra fields) and each table's rows (whole documents, by id). */
+    async start(rows: Record<string, unknown[]>, workspace: Record<string, unknown> = {}) {
       process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
       const express = (await import('express')).default;
       db = (await import('../../server/db/firestore')).getDb();
@@ -33,7 +33,7 @@ export function balanceRouteHarness(wsPrefix: string, name: string) {
       app.use('/api/v1/balances', (await import('../../server/routes/balanceRoutes')).balanceRouter);
       server = app.listen(0);
       base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-      await db.collection('workspaces').doc(ws).set({ uid: OWNER, name, currency: 'USD', timezone: 'UTC', members: [OWNER] });
+      await db.collection('workspaces').doc(ws).set({ uid: OWNER, name, currency: 'USD', timezone: 'UTC', members: [OWNER], ...workspace });
       tables = [...Object.keys(rows), 'workspaces'];
       for (const [table, list] of Object.entries(rows)) {
         await db.pool.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(list)]);

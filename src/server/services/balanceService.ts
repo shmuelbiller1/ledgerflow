@@ -21,10 +21,12 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction, Vendor } from '../../types';
+import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction, Vendor, DimensionNode } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { customerGrossProfit } from '../../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
+import { registrationThresholdWatch, type RegistrationThresholdWatch } from '../../lib/registrationThresholdWatch';
+import type { TaxProfiles } from '../../lib/tax/profile';
 import { purchaseTrendsByVendor, salesTrends, type TrendRow } from '../../lib/documentTrends';
 import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
@@ -536,4 +538,24 @@ export async function purchaseTrendsOver(db: Firestore, workspaceId: string, fro
   const vendors = vendorsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Vendor);
   const bills = billsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Bill);
   return { rows: purchaseTrendsByVendor(vendors, bills, to), billsRead: bills.length };
+}
+
+/**
+ * L-123 step 4n: the registration-threshold watch as of `to` (registrationThresholdWatch) over every postable entry
+ * from `from` (thresholdWindowStart(to), which covers every window the rules use) through `to`, with the workspace's
+ * tax profiles, base currency and dimension nodes, and the entity and activity dimensions the reader chose.
+ */
+export async function registrationThresholdOver(db: Firestore, workspaceId: string, from: string, to: string,
+  dims: { entityDimensionId: string; activityDimensionId: string }): Promise<{ report: RegistrationThresholdWatch; entriesRead: number }> {
+  const [{ accounts, entries }, workspaceSnap, nodesSnap] = await Promise.all([
+    accountsAndEntriesFrom(db, workspaceId, from, to, true),
+    db.collection('workspaces').doc(workspaceId).get(),
+    db.collection('dimensionNodes').where('workspaceId', '==', workspaceId).get(),
+  ]);
+  const ws = (workspaceSnap.data() || {}) as { taxProfiles?: TaxProfiles | null; currency?: string };
+  const dimensionNodes = nodesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as DimensionNode);
+  const report = registrationThresholdWatch({
+    accounts, transactions: entries as unknown as Transaction[], profiles: ws.taxProfiles, dimensionNodes, ...dims, asOf: to, baseCurrency: ws.currency,
+  });
+  return { report, entriesRead: entries.length };
 }

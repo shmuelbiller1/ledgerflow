@@ -3,7 +3,8 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { registrationThresholdWatch } from '../../lib/registrationThresholdWatch';
+import { useServerRegistrationThreshold } from '../../hooks/useServerRegistrationThreshold';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { IL_OSEK_PATUR_CEILINGS } from '../../lib/tax/ilOsekPaturThresholds';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -14,9 +15,6 @@ interface DimensionSelection { key: string; entity: string; activity: string }
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
 export default function RegistrationThresholdWatchReportView({ endDate = '' }: { endDate?: string }) {
-  const accounts = useLedgerStore(state => state.accounts);
-  const transactions = useLedgerStore(state => state.transactions);
-  const dimensionNodes = useLedgerStore(state => state.dimensionNodes);
   const truncated = useLedgerStore(state => state.truncatedCollections);
   const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
@@ -38,19 +36,17 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
   const [chosenAsOf, setChosenAsOf] = useState<string | null>(null);
   const asOf = chosenAsOf ?? (endDate || getLocalDateISO());
   const valid = validCustomReportPeriod({ startDate: asOf, endDate: asOf });
-  const partial = (['accounts', 'transactions'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.dimensionNodes);
+
   const currency = workspace?.currency;
 
-  const report = useMemo(() => valid && !loading ? registrationThresholdWatch({
-    accounts: accounts.filter(row => !workspaceId || row.workspaceId === workspaceId),
-    transactions: transactions.filter(row => !workspaceId || row.workspaceId === workspaceId),
-    profiles: workspace?.taxProfiles,
-    dimensionNodes,
-    entityDimensionId,
-    activityDimensionId,
-    asOf,
-    baseCurrency: currency,
-  }) : null, [accounts, transactions, dimensionNodes, workspaceId, workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, currency, valid, loading]);
+  // A list that failed to load counts as settled (its first read never marks it loaded): the server answers then.
+  const settled = useDataNeedsStore(state => (['accounts', 'transactions'] as const).every(key => state.loaded[key] || Boolean(state.failed[key])));
+  const waiting = loading && !settled;
+  const input = useMemo(() => (valid && !waiting ? {
+    profiles: workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, baseCurrency: currency,
+  } : null), [workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, currency, valid, waiting]);
+  const { report, source } = useServerRegistrationThreshold(input);
+  const partial = source !== 'server' && ((['accounts', 'transactions'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.dimensionNodes || truncated.chartAccounts));
 
   const setEntityDimension = (entity: string) => setDimensionSelection({
     key: selectionKey,
@@ -94,10 +90,11 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
       <p>Create these as values in the selected activity dimension (Settings → Dimensions), then assign them to the relevant posted revenue lines. For the EU label, use it only after checking supplier establishment, customer/supply type and goods-dispatch scope.</p>
     </div>
 
-    {loading && <p role="status">Loading posted sales and dimension labels…</p>}
+    {waiting && <p role="status">Loading posted sales and dimension labels…</p>}
     {!valid && <p role="alert">Choose a valid report as-of date.</p>}
     {partial && <p role="alert">Loaded account, transaction or dimension-label history is incomplete or failed to load. Any comparisons shown are provisional; missing records are not treated as zero.</p>}
     {!activityDimensionId && <p role="note">Choose an activity-label dimension to compare posted sales. No activity is inferred from account names or descriptions.</p>}
+    <RangeReportSourceNote source={source} testId="registration-threshold-source" what="these comparisons" />
     {report && report.entitiesMissingCountry.length > 0 && <p role="alert">No country fact is set in the Tax profile for: {report.entitiesMissingCountry.join(', ')}. Those entities are not assigned a jurisdictional rule.</p>}
     {report && report.unclassifiedRevenueLineCount > 0 && <p role="alert">{report.unclassifiedRevenueLineCount} posted revenue line(s) have no supported activity label and are excluded from threshold comparisons.</p>}
     {report && report.invalidSplitLineCount > 0 && <p role="alert">{report.invalidSplitLineCount} posted revenue line(s) have invalid split-allocation weights and are excluded.</p>}
@@ -127,7 +124,7 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
         </td>
       </tr>)}</tbody>
     </table></ReportTableScroll>}
-    {report && report.rows.length === 0 && !loading && <p>No threshold comparison can be made from the recognized posted sales. Configure an entity country in Tax profiles and assign a supported activity label to revenue lines; unclassified or absent activity is not assumed to be zero.</p>}
+    {report && report.rows.length === 0 && !waiting && <p>No threshold comparison can be made from the recognized posted sales. Configure an entity country in Tax profiles and assign a supported activity label to revenue lines; unclassified or absent activity is not assumed to be zero.</p>}
     <details className="text-sm" data-osek-patur-history>
       <summary className="min-h-11 cursor-pointer">Israel: the osek patur ceiling, year by year (A-100)</summary>
       <p className="text-[var(--muted)]">
