@@ -65,6 +65,19 @@ describe('L-123 step 5a: general ledger (no database)', () => {
     assert.ok(asked.some(u => u.includes(`from=${later}&to=${to}`)), asked.join('\n'));
   });
 
+  test('screen: a change to a loaded entry before the period asks the server again (its opening lines move; CodeRabbit on #511)', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
+    const later = `${Y}-03-01`;
+    let asked = 0;
+    globalThis.fetch = (async () => { asked++; return Response.json({ status: 'success', ledger: computeGeneralLedger(accounts, all, later, to) }); }) as typeof fetch;
+    render(<GeneralLedgerView startDate={later} endDate={to} />);
+    await waitFor(() => assert.equal(asked, 1), { timeout: 5000 });
+    // E4 (Y-02-10, before the period) is edited
+    useLedgerStore.setState({ transactions: loaded.map(t => (t.id === `${ws}_e4` ? { ...t, description: 'E4 edited' } : t)) });
+    await waitFor(() => assert.equal(asked, 2), { timeout: 5000 });
+  });
+
   test('screen: the server cannot be asked: the loaded ledger, with a note that it may be incomplete', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
