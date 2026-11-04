@@ -46,6 +46,8 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
     profiles: workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, baseCurrency: currency,
   } : null), [workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, currency, valid, waiting]);
   const { report, source } = useServerRegistrationThreshold(input);
+  // A capped entry list stays provisional even when it seems to cover the windows: an edit that moves a loaded entry
+  // before them leaves the cap unrefilled, so in-window entries can be missing (CodeRabbit on #507).
   const partial = source !== 'server' && ((['accounts', 'transactions'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.dimensionNodes || truncated.chartAccounts));
 
   const setEntityDimension = (entity: string) => setDimensionSelection({

@@ -74,6 +74,7 @@ describe('L-123 step 4n: registration threshold watch (no database)', () => {
     assert.equal(screen.queryByText(/history is incomplete/i), null);
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/registration-threshold?workspaceId=${ws}&from=2025-01-01&to=${asOf}&entity=world&activity=activity`)), asked.join('\n'));
   });
+
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;
