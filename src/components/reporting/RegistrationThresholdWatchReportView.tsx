@@ -46,10 +46,9 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
     profiles: workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, baseCurrency: currency,
   } : null), [workspace?.taxProfiles, entityDimensionId, activityDimensionId, asOf, currency, valid, waiting]);
   const { report, source } = useServerRegistrationThreshold(input);
-  // A capped entry list alone is incomplete only when the windows reach past its oldest day; the hook says so with
-  // 'loaded-incomplete'. The other lists the hook does not judge by date, so their caps and failures count as they are.
-  const partial = source === 'loaded-incomplete' || (source !== 'server'
-    && ((['accounts', 'transactions'] as const).some(key => failed[key]) || Boolean(truncated.accounts || truncated.dimensionNodes || truncated.chartAccounts)));
+  // A capped entry list stays provisional even when it seems to cover the windows: an edit that moves a loaded entry
+  // before them leaves the cap unrefilled, so in-window entries can be missing (CodeRabbit on #507).
+  const partial = source !== 'server' && ((['accounts', 'transactions'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.dimensionNodes || truncated.chartAccounts));
 
   const setEntityDimension = (entity: string) => setDimensionSelection({
     key: selectionKey,
