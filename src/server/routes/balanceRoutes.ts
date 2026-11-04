@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -349,3 +349,10 @@ balanceRouter.get('/customer-lifetime-value', async (req, res) => {
   if (!(await allowMember(db, workspaceId, req, res))) return;
   await answerRange(res, 'the customer lifetime value', async () => ({ workspaceId, from, to, lifespan, ...await customerLifetimeValueOver(db, workspaceId, from, to, lifespan) }));
 });
+
+/**
+ * L-123 step 5b: GET /api/v1/balances/transactions-by-reference?workspaceId=…&from=YYYY-MM-DD&to=YYYY-MM-DD — every
+ * posted entry of the range under its reference (referencesOver), for "Transactions by Reference" when the loaded
+ * entries, invoices or bills are capped.
+ */
+rangeReportRoute('/transactions-by-reference', 'the transactions by reference', (db, ws, from, to) => referencesOver(db, ws, from, to));
