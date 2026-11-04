@@ -2,32 +2,28 @@ import React, { useMemo, useState } from 'react';
 import { Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
-import { useLedgerStore } from '../../stores/useLedgerStore';
-import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useUIStore } from '../../stores/useUIStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
-import { computeTransactionsByReference, ReferenceRow } from '../../server/reports/referenceReport';
+import type { ReferenceRow } from '../../server/reports/referenceReport';
+import { useServerTransactionsByReference } from '../../hooks/useServerTransactionsByReference';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 
 /**
  * Transactions by Reference (J-06): posted entries listed under their reference: a cheque or bank
  * reference, or the invoice or bill number (src/server/reports/referenceReport.ts).
  */
 export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate?: string }> = ({ startDate: pageStartDate, endDate: pageEndDate }) => {
-  const transactions = useLedgerStore(s => s.transactions);
-  const invoices = useLedgerStore(s => s.invoices);
-  const bills = useLedgerStore(s => s.bills);
-  useLedgerCollections('bills', 'invoices');
   const openRecord = useUIStore(s => s.openRecord);
   const periodKey = JSON.stringify([pageStartDate, pageEndDate]);
   const [startDate, setStartDate] = usePageSyncedState(periodKey, pageStartDate || undefined, () => getFiscalYearBounds().startDate);
   const [endDate, setEndDate] = usePageSyncedState(periodKey, pageEndDate || undefined, () => getFiscalYearBounds().endDate);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const report = useMemo(() => computeTransactionsByReference(transactions || [], { invoices, bills }, startDate, endDate),
-    [transactions, invoices, bills, startDate, endDate]);
+  // L-123 step 5b: the server's list when the loaded entries, invoices or bills are short
+  const { report, source } = useServerTransactionsByReference(startDate, endDate);
 
   const shown = useMemo(() => {
     const term = searchTerm.trim().toLocaleLowerCase();
@@ -35,10 +31,14 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   }, [report.rows, searchTerm]);
 
   const exportCsv = () => {
-    downloadCsv(`transactions_by_reference_${startDate}_${endDate}.csv`,
+    // only what is loaded, the server not reached: the file says so in its name and first row (CodeRabbit on #512)
+    const incomplete = source === 'loaded-incomplete';
+    downloadCsv(`transactions_by_reference_${startDate}_${endDate}${incomplete ? '_INCOMPLETE' : ''}.csv`,
       ['Reference', 'Date', 'Description', 'From', 'Amount'],
-      shown.map(r => [r.reference, r.date, r.description, r.source, csvMoney(r.amountCents)]));
-    toast.success('Transactions by Reference exported to CSV');
+      [...(incomplete ? [['INCOMPLETE: only the entries loaded in this browser; the server could not be asked', '', '', '', '']] : []),
+        ...shown.map(r => [r.reference, r.date, r.description, r.source, csvMoney(r.amountCents)])]);
+    if (incomplete) toast.warning('Exported, marked incomplete: only the entries loaded in this browser');
+    else toast.success('Transactions by Reference exported to CSV');
   };
 
   const columns: ColumnDef<ReferenceRow>[] = [
@@ -80,6 +80,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
         sumKeys={['amountCents']}
         getRowId={(r) => r.transactionId}
       />
+      <RangeReportSourceNote source={source} testId="transactions-by-reference-source" what="these references" reads="every entry and every invoice and bill number" />
       <p className="text-xs text-[var(--muted)]" role="status">
         {report.referenceCount} reference(s).{report.withoutReference > 0 ? ` ${report.withoutReference} posted entr${report.withoutReference === 1 ? 'y has' : 'ies have'} no reference and are not listed.` : ''}
       </p>

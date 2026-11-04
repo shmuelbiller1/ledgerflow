@@ -62,6 +62,7 @@ async function documentHistory(db: Firestore, workspaceId: string, id: string): 
 }
 import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages, computeTagReport, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type MonthlyAverageSummary, type TagBreakdown, type TopLineItem } from '../../lib/reportGenerators';
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
+import { computeTransactionsByReference, type TransactionsByReference } from '../reports/referenceReport';
 import { computeGeneralLedger } from '../reports/computeReports';
 
 export const UNASSIGNED = 'Unassigned';
@@ -618,6 +619,26 @@ export async function customerLifetimeValueOver(db: Firestore, workspaceId: stri
     ...sales, customers, creditNotes, asOfDate: asOf, from: from === ALL_HISTORY_FROM ? undefined : from, lifespanYears,
   });
   return { report, invoicesRead: sales.invoices.length, creditNotesRead: creditNotes.length };
+}
+
+/**
+ * L-123 step 5b: "Transactions by Reference" of `from`…`to` over every postable entry of the range, an invoice or bill
+ * posting named by its document's number (only the invoices and bills its entries name are read).
+ */
+export async function referencesOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ references: TransactionsByReference; entriesRead: number }> {
+  const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  // only the invoices and bills the range's entries name are read, 100 ids a query (as spreadWaterfallOver; CodeRabbit on #512)
+  const idsOf = (key: 'invoiceId' | 'billId') => [...new Set(entries.map(e => (e.metadata as Record<string, unknown> | undefined)?.[key]).filter((id): id is string => typeof id === 'string' && id !== ''))];
+  const numbersOf = async (collection: 'invoices' | 'bills', ids: string[]) => {
+    const out: { id: string; number: string }[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const snap = await db.collection(collection).where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
+      snap.docs.forEach(d => out.push({ id: d.id, number: String((d.data() as { number?: unknown }).number ?? '') }));
+    }
+    return out;
+  };
+  const [invoices, bills] = await Promise.all([numbersOf('invoices', idsOf('invoiceId')), numbersOf('bills', idsOf('billId'))]);
+  return { references: computeTransactionsByReference(entries as Transaction[], { invoices, bills }, from, to), entriesRead: entries.length };
 }
 
 /**
