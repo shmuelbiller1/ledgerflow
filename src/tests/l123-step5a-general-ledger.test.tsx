@@ -54,6 +54,17 @@ describe('L-123 step 5a: general ledger (no database)', () => {
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/general-ledger?workspaceId=${ws}&from=${from}&to=${to}`)), asked.join('\n'));
   });
 
+  test('screen: a period after the oldest loaded day still asks the server, since the opening lines need older entries (CodeRabbit on #511)', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
+    const later = `${Y}-03-01`;
+    const asked: string[] = [];
+    globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', ledger: computeGeneralLedger(accounts, all, later, to) }); }) as typeof fetch;
+    render(<GeneralLedgerView startDate={later} endDate={to} />);
+    await waitFor(() => assert.match(screen.getByTestId('general-ledger-source').textContent || '', /read from every entry on the server/), { timeout: 5000 });
+    assert.ok(asked.some(u => u.includes(`from=${later}&to=${to}`)), asked.join('\n'));
+  });
+
   test('screen: the server cannot be asked: the loaded ledger, with a note that it may be incomplete', async () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
