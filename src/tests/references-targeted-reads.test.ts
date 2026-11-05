@@ -44,3 +44,16 @@ test('empty reference lists skip both document collections', async () => {
   } } as unknown as Firestore;
   assert.deepEqual(await referencesOver(db, 'ws', from, to), { references: { rows: [], referenceCount: 0, withoutReference: 0 }, entriesRead: 0 });
 });
+
+test('entries without document references skip invoice and bill reads', async () => {
+  const transactions = entries('ws').map(transaction => ({ ...transaction, metadata: {} }));
+  const db = { collection(collection: string) {
+    assert.ok(['transactions', 'chartAccounts'].includes(collection));
+    return { where() { return this; }, async get() {
+      return { docs: collection === 'transactions' ? transactions.map(transaction => ({ id: transaction.id, data: () => transaction })) : [] };
+    } };
+  } } as unknown as Firestore;
+  const result = await referencesOver(db, 'ws', from, to);
+  assert.deepEqual(result.references, computeTransactionsByReference(transactions as Transaction[], { invoices: [], bills: [] }, from, to));
+  assert.equal(result.entriesRead, transactions.length);
+});
