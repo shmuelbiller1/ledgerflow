@@ -77,6 +77,18 @@ export async function waitForFiniteAnimations(page: Page): Promise<void> {
  * Runs axe, attaches the whole result to the report, and fails when a screen has more serious or
  * critical violations than its baseline entry allows — or any it did not have before.
  */
+/** Wait for finite CSS/Web Animations to settle before measuring colors or accessible names. */
+export async function waitForFiniteAnimations(page: Page): Promise<void> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter(animation => {
+      const endTime = animation.effect?.getComputedTiming().endTime;
+      return Number.isFinite(endTime) && animation.playState === 'running';
+    });
+    await Promise.all(finite.map(animation => animation.finished.catch(() => undefined)));
+  });
+}
+
 export async function expectNoNewAccessibilityIssues(
   page: Page,
   key: string,

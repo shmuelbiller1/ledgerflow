@@ -828,36 +828,36 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 
 Same rules as every helper AI.
 
-- [ ] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
-- [ ] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
+- [~] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
+- [~] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
 - [ ] **F-46 → moved to AI #4 (21 Oct, AI #7 inactive)** Browser journey test W10: make a backup, change records, restore it → P&L, balance sheet and trial balance equal the figures from before the change (exact amounts).** Use the e2e journey fixture from F-41; owner role; no change to restore code (report failures to AI #1).
 - [x] **F-47 Browser journey test W12: two books with known figures → group report shows the combined totals and the eliminations; export matches the screen.** — AI #4, 23 Oct, PR #370: original journey plus W12-GOLD at 1280/390px, with rendered summary rows compared directly to parsed CSV rows. Local Chromium 3/3; full CI run 39996381151 green on `944ecb8`. Evidence: `verification/ai4-d47-w12-2026-10-23.md`.
-- [ ] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
-- [ ] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
-- [ ] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
-- [ ] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
-- [ ] **G-5 Feature flags screen** — owners turn optional modules on/off (existing BB-07 modules) with explanations.
-- [ ] **G-6 Translation file** — move screen strings for 10 screens into a translation table (English/Hebrew) without changing behaviour.
-- [ ] **G-7 Accessibility statement** — docs page with the WCAG level reached and known gaps.
-- [ ] **G-8 Onboarding emails** — day 1/3/7 emails for a new owner (templates only, sent through the existing mail path behind a setting).
+- [x] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
+- [x] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
+- [x] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
+- [x] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
+- [x] **G-5 Feature flags screen** — owners turn optional modules on/off (existing BB-07 modules) with explanations.
+- [x] **G-6 Translation file** — move screen strings for 10 screens into a translation table (English/Hebrew) without changing behaviour.
+- [x] **G-7 Accessibility statement** — docs page with the WCAG level reached and known gaps.
+- [x] **G-8 Onboarding emails** — day 1/3/7 emails for a new owner (templates only, sent through the existing mail path behind a setting).
 
 ### More for AI #8 (spare): product polish (Claude, 13 Oct). Same rules: one branch/PR per task from the latest main, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's).
 
-- [ ] **G-9 Onboarding: sample company per country (IL, US, UK) with realistic data** *(18 Oct: IL and US only for now)*
-- [ ] **G-10 Help centre: 20 short how-to articles (EN/HE) linked from screens**
-- [ ] **G-11 In-app search of help articles**
-- [ ] **G-12 Keyboard shortcut sheet screen**
-- [ ] **G-13 Accessibility statement page**
-- [ ] **G-14 Status page link and incident banner**
-- [ ] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
-- [ ] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
+- [x] **G-9 Onboarding: sample company per country (IL, US) with realistic data** *(AI #8; verified in `docs/verification/ai8-verification-2026-10-20.md`: 12-month balanced double-entry books, real report checks, and guest-only sandbox gate; UK remains intentionally out of scope)*
+- [x] **G-10 Help centre: 20 short how-to articles (EN/HE) linked from screens**
+- [x] **G-11 In-app search of help articles**
+- [x] **G-12 Keyboard shortcut sheet screen**
+- [x] **G-13 Accessibility statement page**
+- [x] **G-14 Status page link and incident banner**
+- [x] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
+- [x] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
 - [ ] **G-17 Vendor portal: vendor uploads a bill PDF to a staging inbox**
 - [ ] **G-18 Mobile: receipt photo capture flow to a draft expense**
 - [ ] **G-19 Mobile: approve bills and expenses from the phone**
-- [ ] **G-20 Notifications centre polish: group by type, mark all read**
-- [ ] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
-- [ ] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
-- [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
+- [x] **G-20 Notifications centre polish: group by type, mark all read**
+- [x] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
+- [x] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
+- [x] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - [ ] **G-24 First-hour journey test (W1, P2-1): sign up → company details → chart of accounts → first invoice → first report, no dead ends; browser test plus a list of every place a new user got stuck.**
 
 
@@ -2068,3 +2068,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - 2026-11-05 AI #8 PR handoff: [fork draft #14](https://github.com/Chaim-Richard/ledgerflow/pull/14) is open for review; **do not merge** its outdated fork-base comparison, which includes unrelated upstream synchronization. Creating the narrow upstream PR was denied by GitHub integration permissions (HTTP 403). Details, test status, backup verification and recovery: [`07-pr-and-recovery-checkpoint.md`](../audit/agent8-2026-11-05-session-2033/07-pr-and-recovery-checkpoint.md).
 - 2026-10-28 AI #6 (Arena, `arena/3310a772-ledgerflow`) — **S-22 source-pinned rate-limit audit delta; review-only, no application/schema changes.** At upstream `main` `b4a92158dcd804438e4791e02c53594613f6c75f`, the `/api/v1/brain` shared Postgres 20/min limiter is mounted before `apiAuthenticate`, so human requests use an IP bucket, not the available UID branch (API keys also have their own post-auth key limiter). The merged #404 statement that `/api/ai` and `/api/v1/ai` have “no limit at all” is too broad: current generic IP caps are 1,000/15m on `/api/*` and 100/min on `/api/v1/*`, but no specialized shared per-user AI cap is mounted. `authRateLimiter` (5/15m/IP) is exported but unused; browser sign-in/signup/reset call Supabase Auth directly, and the deployed provider limits remain unknown. S-22 stays open; no RELEASE_GATE row is claimed. Evidence: [`docs/verification/ai6-s22-rate-limit-audit-2026-10-28.md`](verification/ai6-s22-rate-limit-audit-2026-10-28.md). Node 24.12.0 / disposable Postgres 18.4: DB setup (46 migrations plus the test stub), focused tests **18/18**, route-order reproduction and RLS pass; typecheck and build pass; ESLint **0 errors / 42 warnings**. The full unsharded `npm test` exceeded the 30-minute sandbox limit and was stopped; no full-suite result is claimed. Vercel's red authorization status observed on AI #8's separate PR #424 is consistent with the owner's paused automatic previews, not treated as a code-test failure. No server code was patched.
 
+
+- 2026-10-28 AI #8: G-9 was already implemented and verified on `main` (IL + US only, per the 18 Oct scope; UK intentionally excluded). Started F-48 on `ai8/f-48-deterministic-axe`: reduce animation-related accessibility-test flakes by emulating reduced motion and waiting for finite animations before axe scans. Implementation pushed to this branch; local Playwright/Chromium execution is unavailable in this GitHub-only session, so F-48 remains pending validation and is not ticked complete. Vercel preview status is not used as a code verdict because automatic previews are paused for usage limits.
+- 2026-10-28 AI #8: F-49 queue check: `vite.config.ts` on current main already scans `index.html` plus `src/**/*.tsx` and pre-includes `recharts`/`d3`, explicitly documenting the lazy-screen dependency re-optimization failure. This is implementation evidence only; no fresh-browser first-run reproduction was available here, so it remains `[~]`, not complete. Next verification should start a fresh Vite process and run the browser suite without retries masking a reload.
+- 2026-10-28 AI #8: F-48 review follow-up: CodeRabbit identified that Motion animations can escape `document.getAnimations()` in the W14 journey fixture. Updated `e2e/support/journeyFixture.ts` to wrap all mounted screens in `MotionConfig reducedMotion="always"` before mounting, and refreshed the stale `CURRENT_WORK.md` header. Original PR head `d0603259` had all Actions checks green (five browser shards, E2E smoke, unit suites, lint/typecheck/DB rules, accounting/security coverage, production build, CodeQL); the follow-up commits do not yet have a new Actions run, so F-48 remains `[~]` pending validation of the updated head.
