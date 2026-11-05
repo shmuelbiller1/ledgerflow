@@ -156,8 +156,12 @@ describe('L-123 step 5c: query and years (no database)', () => {
     assert.equal(min.getAttribute('aria-invalid'), 'true');
     // the typed text stays for the user to correct
     assert.equal(min.value, '45035996273704.9600001');
+    assert.match(screen.getByTestId('query-min-refused').textContent ?? '', /last valid minimum still applies/);
     fireEvent.change(min, { target: { value: '' } });
     assert.equal(screen.queryByTestId('query-min-refused'), null);
+    // refused with no earlier minimum: the message says no minimum applies, not that an earlier one does
+    fireEvent.change(min, { target: { value: '45035996273704.9600001' } });
+    assert.match(screen.getByTestId('query-min-refused').textContent ?? '', /no minimum applies until a valid amount is entered/);
   });
 
   test('query text ignores Hebrew vowel marks (CodeRabbit on #516)', () => {

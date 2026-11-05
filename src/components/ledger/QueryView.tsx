@@ -235,7 +235,9 @@ export default function QueryView() {
             </Labelled>
             {minRefused && (
               <p id="query-min-refused" role="alert" data-testid="query-min-refused" className="mt-1 text-[11px] text-rose-700">
-                This amount cannot be used as a minimum; the last valid minimum still applies.
+                {queryFilter.minAmountCents === undefined
+                  ? 'This amount cannot be used as a minimum; no minimum applies until a valid amount is entered.'
+                  : 'This amount cannot be used as a minimum; the last valid minimum still applies.'}
               </p>
             )}
           </div>
