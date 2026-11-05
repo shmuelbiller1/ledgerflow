@@ -10,6 +10,7 @@ import { inBackground } from '../../lib/inBackground';
 export default function AskLoop() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const { handleUpdateTransaction } = useTransactionActions();
   const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
 
@@ -105,7 +106,9 @@ export default function AskLoop() {
             </div>
             <h2 className="font-bold text-[var(--text)] text-lg mb-1">Inbox Zero — All Caught Up!</h2>
             <p className="text-[var(--muted)] text-sm max-w-md">
-              All transactions in your General Ledger are fully categorized and verified. No pending questions.
+              {capped
+                ? 'All loaded entries are fully categorized and verified. No pending questions among the loaded entries.'
+                : 'All transactions in your General Ledger are fully categorized and verified. No pending questions.'}
             </p>
           </div>
         ) : (

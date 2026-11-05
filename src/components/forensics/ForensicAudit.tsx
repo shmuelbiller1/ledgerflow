@@ -132,7 +132,7 @@ const ForensicAudit = React.memo(() => {
 
   return (
     <div className="space-y-12 pb-24">
-      <LoadedEntriesOnlyNote testId="forensic-audit-loaded-only" what="these findings" />
+      <LoadedEntriesOnlyNote testId="forensic-audit-loaded-only" what="the Benford analysis and transaction compliance checks" />
       {/* Header */}
       <div className="flex items-end justify-between">
         <div className="space-y-2">
