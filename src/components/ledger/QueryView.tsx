@@ -30,6 +30,10 @@ export default function QueryView() {
     status: 'all'
   });
 
+  // the minimum as typed: an amount the query cannot hold exactly is refused visibly, and the last good minimum
+  // stays in force rather than the query running without one (CodeRabbit on #516)
+  const [minText, setMinText] = useState('');
+  const minRefused = minText.trim() !== '' && typedAmountCents(minText) === undefined;
   const [savedQueryName, setSavedQueryName] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setShowSaveModal(false), showSaveModal);
@@ -165,7 +169,7 @@ export default function QueryView() {
             <span>Query Filters & Criteria</span>
           </h2>
           <button
-            onClick={() => setQueryFilter({ searchTerm: '', startDate: '', endDate: '', minAmountCents: undefined, maxAmountCents: undefined, accountIds: [], status: 'all' })}
+            onClick={() => { setMinText(''); setQueryFilter({ searchTerm: '', startDate: '', endDate: '', minAmountCents: undefined, maxAmountCents: undefined, accountIds: [], status: 'all' }); }}
             className="text-xs text-[var(--muted)] hover:text-slate-600 font-medium"
           >
             Reset All
@@ -215,12 +219,25 @@ export default function QueryView() {
             <Labelled labelClassName="block text-xs font-semibold text-slate-700 mb-1" label="Min Amount ($)">
               <input
                 type="number"
-                value={queryFilter.minAmountCents !== undefined ? queryFilter.minAmountCents / 100 : ''}
-                onChange={e => setQueryFilter({ ...queryFilter, minAmountCents: e.target.value ? typedAmountCents(e.target.value) : undefined })}
+                value={minText}
+                aria-invalid={minRefused}
+                aria-describedby={minRefused ? 'query-min-refused' : undefined}
+                onChange={e => {
+                  const text = e.target.value;
+                  setMinText(text);
+                  if (text.trim() === '') { setQueryFilter({ ...queryFilter, minAmountCents: undefined }); return; }
+                  const cents = typedAmountCents(text);
+                  if (cents !== undefined) setQueryFilter({ ...queryFilter, minAmountCents: cents });
+                }}
                 placeholder="0.00"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </Labelled>
+            {minRefused && (
+              <p id="query-min-refused" role="alert" data-testid="query-min-refused" className="mt-1 text-[11px] text-rose-700">
+                This amount cannot be used as a minimum; the last valid minimum still applies.
+              </p>
+            )}
           </div>
         </div>
       </div>

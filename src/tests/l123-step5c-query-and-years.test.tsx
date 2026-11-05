@@ -12,7 +12,8 @@ import './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import QueryView from '../components/ledger/QueryView';
 import { Y, from, to, chart, entries, loadedOf, balanceRouteHarness } from './helpers/l123RangeLedger';
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -140,6 +141,23 @@ describe('L-123 step 5c: query and years (no database)', () => {
     assert.equal(typedAmountCents('.5'), 50);
     assert.equal(typedAmountCents('abc'), undefined);
     assert.equal(typedAmountCents(''), undefined);
+  });
+
+  test('QueryView: a minimum too large to hold exactly is refused visibly and the last good minimum stays (CodeRabbit on #516)', async () => {
+    setComponentWorkspace('owner');
+    markComponentCollectionsLoaded('transactions');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: loaded, truncatedCollections: {} } as never);
+    render(<QueryView />);
+    const min = screen.getByLabelText('Min Amount ($)') as HTMLInputElement;
+    fireEvent.change(min, { target: { value: '5' } });
+    assert.equal(screen.queryByTestId('query-min-refused'), null);
+    fireEvent.change(min, { target: { value: '45035996273704.9600001' } });
+    assert.ok(screen.getByTestId('query-min-refused'));
+    assert.equal(min.getAttribute('aria-invalid'), 'true');
+    // the typed text stays for the user to correct
+    assert.equal(min.value, '45035996273704.9600001');
+    fireEvent.change(min, { target: { value: '' } });
+    assert.equal(screen.queryByTestId('query-min-refused'), null);
   });
 
   test('query text ignores Hebrew vowel marks (CodeRabbit on #516)', () => {
