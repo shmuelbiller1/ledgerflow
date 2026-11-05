@@ -10,6 +10,7 @@ import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { Firestore } from '../server/db/pgFirestore';
+import { commitLedgerBulk } from '../server/services/ledgerBulkCommit';
 import { postDocument } from '../server/services/documentPostService';
 import { getDb } from '../server/db/firestore';
 import { isPostable } from '../lib/txFilters';
@@ -123,4 +124,74 @@ describe('audit F1/F2: credit postings', { skip: !url }, () => {
       assert.equal(netOn(await entriesOf(db, ws), `${ws}_ar`), 0);
     });
   });
+  for (const collection of ['creditNotes', 'vendorCredits'] as const) {
+    const party = collection === 'creditNotes' ? { customerId: 'customer' } : { vendorId: 'vendor' };
+    test(`${collection}: identical issuance retries succeed, changed reasons refuse before dropping the mutation`, async () => {
+      await isolated(async (db, ws) => {
+        const id = `${ws}_credit`;
+        const data = { ...credit(ws, id, 'open').data, ...party, reason: 'Original reason' };
+        const input = { collection, docId: id, workspaceId: ws, action: 'create' as const, data };
+        await postDocument(db, { uid: 'owner' } as never, input);
+        const [entry] = await entriesOf(db, ws);
+        const retry = { workspaceId: ws, transactions: [{ ...entry, id: `${entry.id}_retry` }], entityMutation: input };
+        assert.equal((await commitLedgerBulk(db, { uid: 'owner' } as never, retry)).body.replayed, true);
+        await assert.rejects(commitLedgerBulk(db, { uid: 'owner' } as never, {
+          ...retry, entityMutation: { ...input, data: { ...data, reason: 'Changed reason' } },
+        }), (error: { status?: number }) => error.status === 409);
+        assert.equal((await db.collection(collection).doc(id).get()).data()?.reason, 'Original reason');
+        assert.equal((await entriesOf(db, ws)).length, 1);
+      });
+    });
+
+    test(`${collection}: a stale empty draft plan cannot undo issuance`, async () => {
+      await isolated(async (db, ws) => {
+        const id = `${ws}_credit`;
+        const input = { collection, docId: id, workspaceId: ws, action: 'create' as const,
+          data: { ...credit(ws, id, 'open').data, ...party } };
+        await postDocument(db, { uid: 'owner' } as never, input);
+        await assert.rejects(commitLedgerBulk(db, { uid: 'owner' } as never, {
+          workspaceId: ws, transactions: [], entityMutation: { collection, docId: id, action: 'update', data: { status: 'draft' } },
+        }), (error: { status?: number }) => error.status === 409);
+        assert.equal((await db.collection(collection).doc(id).get()).data()?.status, 'open');
+        assert.equal((await entriesOf(db, ws)).length, 1);
+        await postDocument(db, { uid: 'owner' } as never, { ...input, action: 'update', data: { status: 'draft' } });
+        // Once properly reversed, empty draft retries are safe.
+        await commitLedgerBulk(db, { uid: 'owner' } as never, {
+          workspaceId: ws, transactions: [], entityMutation: { collection, docId: id, action: 'update', data: { status: 'draft' } },
+        });
+        assert.equal(netOn(await entriesOf(db, ws), `${ws}_ar`), 0);
+      });
+    });
+  }
+
+  test('reversals: both aliases, workspace scope, nonpostable history, and repeated targets', async () => {
+    await isolated(async (db, ws) => {
+      await postDocument(db, { uid: 'owner' } as never, credit(ws, `${ws}_cn`, 'open'));
+      const [entry] = await entriesOf(db, ws);
+      const reversal = (id: string, field = 'reversesTxId') => ({ ...entry, id,
+        metadata: { isReversal: true, [field]: entry.id },
+        lines: entry.lines.map(line => ({ ...line, amountCents: -line.amountCents })),
+      }) as Transaction;
+      const commit = (transactions: Transaction[]) => commitLedgerBulk(db, { uid: 'owner' } as never, { workspaceId: ws, transactions });
+      for (const field of ['reversesTxId', 'reversedTransactionId']) {
+        const prior = reversal(`${ws}_prior`, field);
+        await db.collection('transactions').doc(prior.id).set(prior);
+        await assert.rejects(commit([reversal(`${ws}_next`)]), (error: { status?: number }) => error.status === 409);
+        await db.collection('transactions').doc(prior.id).delete();
+      }
+      await assert.rejects(commit([reversal(`${ws}_a`), reversal(`${ws}_b`, 'reversedTransactionId')]),
+        (error: { status?: number }) => error.status === 409);
+      const ignored = reversal(`${ws}_ignored`, 'reversedTransactionId');
+      await db.collection('transactions').doc(ignored.id).set({ ...ignored, status: 'draft' });
+      const foreign = reversal(`${ws}_foreign`, 'reversedTransactionId');
+      await db.collection('transactions').doc(foreign.id).set({ ...foreign, workspaceId: `${ws}_other` });
+      try {
+        await commit([reversal(`${ws}_valid`)]);
+        assert.equal(netOn(await entriesOf(db, ws), `${ws}_ar`), 0);
+      } finally {
+        await db.collection('transactions').doc(foreign.id).delete();
+      }
+    });
+  });
+
 });
