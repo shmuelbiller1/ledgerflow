@@ -1,0 +1,77 @@
+name: Nightly stability
+
+# F-32 / F-34 / F-38 (AI #7, 19 Oct). Three daily checks that never block a pull request:
+#  1. the browser suite runs three times and the tests that differ are named (a flaky test is
+#     reported, never re-run until it passes);
+#  2. the public health endpoint is polled, so a dead deployment is noticed by us first;
+#  3. the perf budgets file is validated, so a budget cannot be deleted silently.
+# The owner's rule stays: no screenshot refresh here, no assertion changes, no auto-merge.
+on:
+  schedule:
+    - cron: '17 3 * * *'   # 03:17 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-stability
+  cancel-in-progress: false
+
+jobs:
+  flaky:
+    name: Flaky test detector (3 runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Compare three browser runs
+        run: npx tsx scripts/flaky-tests.ts --runs 3 || true
+        continue-on-error: true
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-report
+          path: |
+            test-results/**
+            playwright-report/**
+          retention-days: 7
+
+  uptime:
+    name: Health endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Poll the public health endpoint
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "HEALTH_URL repository variable is not set; skipping (set it in Settings → Variables)."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            body=$(curl -fsS --max-time 10 "$HEALTH_URL/api/health" || true)
+            echo "attempt $attempt: ${body:-no answer}"
+            case "$body" in
+              *'"status":"ok"'*) echo "healthy"; exit 0 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::the health endpoint did not answer ok three times"
+          exit 1
+
+  budgets:
+    name: Perf budgets present and valid
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run check:perf-budgets

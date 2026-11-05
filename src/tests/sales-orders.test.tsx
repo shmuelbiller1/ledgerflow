@@ -160,6 +160,41 @@ describe('On the estimates screen', () => {
     assert.ok(written(calls, 'invoices').some(d => d.amountCents === 60001));
   });
 
+  test('leaving the order invoice with a part chosen asks first (I-07)', () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ estimates: [order()], invoices: [], payments: [], customers: [] });
+    stubServer();
+    render(<EstimatesView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Invoice order EST-12' }));
+
+    const realConfirm = window.confirm;
+    let asked = 0;
+    try {
+      window.confirm = () => { asked += 1; return false; };
+      fireEvent.click(screen.getByLabelText('A percentage of the order'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      assert.equal(asked, 1, 'the guard asks');
+      assert.ok(screen.getByRole('heading', { name: 'Invoice order EST-12' }), 'refused: the draft stays');
+
+      window.confirm = () => { asked += 1; return true; };
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      assert.equal(asked, 2);
+      assert.equal(screen.queryByRole('heading', { name: 'Invoice order EST-12' }), null, 'confirmed: it closes');
+    } finally {
+      window.confirm = realConfirm;
+    }
+
+    // An untouched dialog closes without a question.
+    fireEvent.click(screen.getByRole('button', { name: 'Invoice order EST-12' }));
+    window.confirm = () => { throw new Error('must not ask when nothing changed'); };
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    } finally {
+      window.confirm = realConfirm;
+    }
+    assert.equal(screen.queryByRole('heading', { name: 'Invoice order EST-12' }), null);
+  });
+
   test('a viewer sees the orders but gets no Order or Invoice; Declined closes a quote', async () => {
     setComponentWorkspace('viewer');
     useLedgerStore.setState({ estimates: [order(), order({ id: 'q2', number: 'EST-13', orderedAt: undefined, status: 'sent' })], invoices: [], payments: [], customers: [] });
