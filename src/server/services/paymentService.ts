@@ -9,6 +9,11 @@ import { writeServerAuditLog } from './auditLogService';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import type { ChartAccount } from '../../types';
 import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
+import { isIsoDate } from '../../lib/warehouseRecordUtils';
+
+/** who may record a payment (the same roles the payment route checks), and the system actor of online payments */
+const PAYMENT_WRITERS = ['owner', 'accountant', 'bookkeeper'];
+const SYSTEM_ACTOR = 'system';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
@@ -165,6 +170,13 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
     if (!wsSnap.exists) throw new Error('NOT_FOUND');
     const wsData = wsSnap.data() || {};
 
+    // audit F5: the shared payment boundary refuses a date that is not a real calendar day, before any write
+    if (!isIsoDate(String(paymentDate ?? ''))) throw Object.assign(new Error('The payment date must be a real date (YYYY-MM-DD)'), { status: 400 });
+    // audit F4: the actor's role as the workspace has it now, inside the save; a person demoted or removed after the
+    // route's check cannot still post. Online card payments post as the system, which the webhook signature authorises.
+    if (uid !== SYSTEM_ACTOR && !PAYMENT_WRITERS.includes(workspaceRole(wsData, uid))) {
+      throw new Error('Forbidden: requires owner, accountant, or bookkeeper role');
+    }
     assertPostingOpen(paymentDate, wsData, uid);
 
     // 2. Validate cash account exists and belongs to workspace
