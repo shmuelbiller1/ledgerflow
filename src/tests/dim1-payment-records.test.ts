@@ -43,7 +43,7 @@ function memoryDb(seed: Record<string, Doc>) {
 }
 
 const seed = (): Record<string, Doc> => ({
-  'workspaces/ws': { id: 'ws', currency: 'USD' },
+  'workspaces/ws': { id: 'ws', uid: 'u', currency: 'USD' },
   'chartAccounts/bank': { id: 'bank', name: 'Bank', workspaceId: 'ws' },
   'chartAccounts/ar': { id: 'ar', name: 'Accounts Receivable', workspaceId: 'ws' },
   'chartAccounts/ap': { id: 'ap', name: 'Accounts Payable', workspaceId: 'ws' },

@@ -81,6 +81,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
     // Setup Workspace with lockDate = '2026-08-31'
     db.data.set('workspaces/ws-1', {
       id: 'ws-1',
+      uid: 'user-1',
       lockDate: '2026-08-31'
     });
 
@@ -128,7 +129,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
     const db = new MockTransactionalDb();
 
     // Setup Workspace
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
 
     // Setup Invoice with total 5000 cents, 0 paid
     db.data.set('invoices/inv-200', {
@@ -163,7 +164,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
   test('Valid payment atomically updates invoice amountPaidCents, creates payment document, and posts balanced general ledger transaction', async () => {
     const db = new MockTransactionalDb();
 
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', name: 'Cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', name: 'AR', workspaceId: 'ws-1' });
 
@@ -212,7 +213,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
     const db = new MockTransactionalDb();
 
     db.data.set('workspaces/ws-victim', { id: 'ws-victim' });
-    db.data.set('workspaces/ws-attacker', { id: 'ws-attacker' });
+    db.data.set('workspaces/ws-attacker', { id: 'ws-attacker', uid: 'attacker-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-attacker' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-attacker' });
 
@@ -243,7 +244,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
   test('Overpayment prevention: rejects allocation exceeding remaining document balance', async () => {
     const db = new MockTransactionalDb();
 
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
 
@@ -270,7 +271,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Deposit (AF-03): paying what the deposit left marks the invoice paid; paying more is refused', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-dep', { id: 'inv-dep', workspaceId: 'ws-1', amountCents: 12000, depositCents: 3000, amountPaidCents: 0, status: 'pending' });
@@ -289,7 +290,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Rejects payment if cash account belongs to another workspace', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash-other', { id: 'acc-cash-other', workspaceId: 'ws-other' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-1', { id: 'inv-1', workspaceId: 'ws-1', amountCents: 10000, amountPaidCents: 0, status: 'pending' });
@@ -309,7 +310,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Rejects payment if invoice has no workspaceId', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-no-ws', { id: 'inv-no-ws', amountCents: 10000, amountPaidCents: 0, status: 'pending' });
@@ -329,7 +330,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Rejects payment against a void or draft document', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-void', { id: 'inv-void', workspaceId: 'ws-1', amountCents: 10000, amountPaidCents: 0, status: 'void' });
@@ -349,7 +350,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Rejects payment with duplicate invoice allocations', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-1', { id: 'inv-1', workspaceId: 'ws-1', amountCents: 10000, amountPaidCents: 0, status: 'pending' });
@@ -372,7 +373,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
 
   test('Rejects payment when allocations exceed payment amount', async () => {
     const db = new MockTransactionalDb();
-    db.data.set('workspaces/ws-1', { id: 'ws-1' });
+    db.data.set('workspaces/ws-1', { id: 'ws-1', uid: 'user-1' });
     db.data.set('chartAccounts/acc-cash', { id: 'acc-cash', workspaceId: 'ws-1' });
     db.data.set('chartAccounts/acc-ar', { id: 'acc-ar', workspaceId: 'ws-1' });
     db.data.set('invoices/inv-1', { id: 'inv-1', workspaceId: 'ws-1', amountCents: 10000, amountPaidCents: 0, status: 'pending' });
