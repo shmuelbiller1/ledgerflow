@@ -16,7 +16,7 @@ interface Draft { id?: string; name: string; percent: string; customerIds: strin
 const toDraft = (r: SalesRep): Draft => ({ id: r.id, name: r.name, percent: String(r.commissionPercent), customerIds: [...(r.customerIds || [])] });
 const fromDraft = (d: Draft) => ({
   ...(d.id ? { id: d.id } : {}), name: d.name,
-  commissionPercent: d.percent.trim() === '' ? NaN : Number(d.percent.replace(',', '.')),
+  commissionPercent: d.percent.trim() === '' ? Number.NaN : Number(d.percent.replace(',', '.')),
   ...(d.customerIds.length ? { customerIds: d.customerIds } : {}),
 });
 

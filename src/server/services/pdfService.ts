@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { depositAppliedCents } from '../../lib/documentMath';
 import { brandColor, LOGO_DATA_URL, MAX_LOGO_BYTES } from '../../lib/branding';
 import type { BrandedDocument, WorkspaceBranding } from '../../lib/branding';
@@ -59,7 +59,7 @@ export interface PdfDocument {
   signature?: { name?: string; signedAt?: string };
 }
 
-export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; branding?: WorkspaceBranding }
+export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; timezone?: string; branding?: WorkspaceBranding }
 
 export interface PdfOptions {
   /** The invoice's public payment page; printed as a QR code on invoices. */
@@ -140,7 +140,7 @@ export function layoutDocumentPdf(
   };
   const totalCents = Number(doc.amountCents) || 0;
 
-  const meta: Array<[string, string]> = [[words.number, clean(doc.number || doc.id || 'N/A', 60)], [words.date, clean(doc.date || getLocalDateISO(), 10)]];
+  const meta: Array<[string, string]> = [[words.number, clean(doc.number || doc.id || 'N/A', 60)], [words.date, clean(doc.date || getDateInTimezoneISO(new Date(), workspace?.timezone), 10)]];
   if ((type === 'invoice' || type === 'estimate' || type === 'bill' || type === 'purchaseOrder') && doc.dueDate) {
     meta.push([type === 'estimate' ? words.validUntil : type === 'purchaseOrder' ? words.deliverBy : words.due, clean(doc.dueDate, 10)]);
   }

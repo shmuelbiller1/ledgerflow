@@ -75,20 +75,54 @@ export function realizedFxFor(side: AllocationSide, baseClearedCents: number, ba
 
 let readyAt = 0;
 let ready = false;
-/** Whether the table exists (cached; looked for again after a minute when missing). Without it, no rows. */
-export async function allocationLedgerReady(db: Firestore): Promise<boolean> {
+let readyInFlight: Promise<boolean> | null = null;
+let warnedMissing = false;
+
+function recordAllocationLedgerReady(exists: boolean): boolean {
+  ready = exists;
+  readyAt = Date.now();
+  if (!exists && !warnedMissing) {
+    warnedMissing = true;
+    console.warn('[allocations] the paymentAllocations table is missing: apply supabase/migrations/20261025010000_payment_allocations.sql. No payment ledger rows are written until then.');
+  }
+  return exists;
+}
+
+/**
+ * Whether the allocation-ledger tables exist (cached; looked for again after a minute when missing).
+ * Pass the active `Transaction` when called inside `db.runTransaction` so cold-start probes reuse
+ * the checked-out transaction client instead of acquiring a second connection from `db.pool`.
+ */
+export async function allocationLedgerReady(db: Firestore, t?: unknown): Promise<boolean> {
   const pool = (db as unknown as { pool?: { query: (q: string) => Promise<{ rows: Array<{ ok: boolean }> }> } }).pool;
   if (!pool) return false;
   if (ready || Date.now() - readyAt < 60_000) return ready;
-  readyAt = Date.now();
-  try {
-    const result = await pool.query(`select to_regclass('public."paymentAllocations"') is not null and to_regclass('public."allocationOperations"') is not null as ok`);
-    ready = Boolean(result.rows[0]?.ok);
-  } catch {
-    ready = false;
+  const txTablesExist = (t as { tablesExist?: (...names: string[]) => Promise<boolean> } | undefined)?.tablesExist;
+  if (typeof txTablesExist === 'function') {
+    const exists = await txTablesExist.call(t, 'paymentAllocations', 'allocationOperations');
+    return recordAllocationLedgerReady(exists);
   }
-  if (!ready) console.warn('[allocations] the paymentAllocations table is missing: apply supabase/migrations/20261025010000_payment_allocations.sql. No payment ledger rows are written until then.');
-  return ready;
+  if (readyInFlight) return readyInFlight;
+  const probe: Promise<boolean> = (async () => {
+    try {
+      const result = await pool.query(`select to_regclass('public."paymentAllocations"') is not null and to_regclass('public."allocationOperations"') is not null as ok`);
+      return recordAllocationLedgerReady(Boolean(result.rows[0]?.ok));
+    } catch {
+      return recordAllocationLedgerReady(false);
+    }
+  })().finally(() => {
+    if (readyInFlight === probe) readyInFlight = null;
+  });
+  readyInFlight = probe;
+  return probe;
+}
+
+/** @internal Resets cached allocation-ledger readiness state between unit tests. */
+export function resetAllocationLedgerReadyForTests(): void {
+  readyAt = 0;
+  ready = false;
+  readyInFlight = null;
+  warnedMissing = false;
 }
 
 export interface SplitInput {

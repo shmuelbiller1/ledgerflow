@@ -1,3 +1,4 @@
+import { useServerEntryYears } from '../../hooks/useServerEntryYears';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ReportSkeleton from './ReportSkeleton';
 import { usePerformanceTrace } from '../../hooks/usePerformanceTrace';
@@ -83,17 +84,21 @@ const Reports = React.memo(() => {
   // N-12: a report that knows the figure's filter gets it explained from the server
   const [drillDownExplain, setDrillDownExplain] = useState<ExplainRequest | undefined>(undefined);
   const [linkNotice, setLinkNotice] = useState('');
+  const { years: serverYears, failed: serverYearsFailed } = useServerEntryYears();
   const availableYears = useMemo(() => {
-    if (!transactions || transactions.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
+    if ((!transactions || transactions.length === 0) && serverYears.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
     const yearsSet = new Set<number>(linked.year ? [linked.year] : []);
-    for (let i = 0; i < transactions.length; i++) {
-      const d = transactions[i].date;
+    const list = transactions || [];
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i].date;
       if (d && d.length >= 4) {
-        yearsSet.add(parseInt(d.slice(0, 4), 10));
+        yearsSet.add(Number.parseInt(d.slice(0, 4), 10));
       }
     }
+    // L-123 step 5c: with capped entries the server names the years before the oldest loaded day too
+    serverYears.forEach(y => yearsSet.add(y));
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [transactions, linked.year]);
+  }, [transactions, linked.year, serverYears]);
 
   const [selectedYear, setSelectedYear] = useState<number>(() => {
     if (linked.year) return linked.year;
@@ -102,7 +107,7 @@ const Reports = React.memo(() => {
     for (let i = 0; i < transactions.length; i++) {
       const d = transactions[i].date;
       if (d && d.length >= 4) {
-        const y = parseInt(d.slice(0, 4), 10);
+        const y = Number.parseInt(d.slice(0, 4), 10);
         if (y > maxYear) maxYear = y;
       }
     }
@@ -116,8 +121,8 @@ const Reports = React.memo(() => {
     const monthsSet = new Set<number>();
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
-      if (t.date && t.date.length >= 10 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-        monthsSet.add(parseInt(t.date.slice(5, 7), 10) - 1);
+      if (t.date && t.date.length >= 10 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+        monthsSet.add(Number.parseInt(t.date.slice(5, 7), 10) - 1);
       }
     }
     if (monthsSet.size === 0) return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -130,8 +135,8 @@ const Reports = React.memo(() => {
     let maxMonth = -1;
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
-      if (t.date && t.date.length >= 7 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-        const m = parseInt(t.date.slice(5, 7), 10) - 1;
+      if (t.date && t.date.length >= 7 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+        const m = Number.parseInt(t.date.slice(5, 7), 10) - 1;
         if (m > maxMonth) maxMonth = m;
       }
     }
@@ -179,16 +184,18 @@ const Reports = React.memo(() => {
       for (let i = 0; i < transactions.length; i++) {
         const d = transactions[i].date;
         if (d && d.length >= 4) {
-          const y = parseInt(d.slice(0, 4), 10);
+          const y = Number.parseInt(d.slice(0, 4), 10);
           yearsSet.add(y);
           if (y > maxYear) maxYear = y;
         }
       }
+      // a year only the server names (before the oldest loaded day) stays chosen (Codex on #516)
+      serverYears.forEach(y => yearsSet.add(y));
       if (maxYear > 0 && !yearsSet.has(selectedYear) && !linked.year) {
         setSelectedYear(maxYear);
       }
     }
-  }, [transactions, selectedYear, linked.year]);
+  }, [transactions, selectedYear, linked.year, serverYears]);
 
   useEffect(() => {
     if (transactions && transactions.length > 0) {
@@ -196,8 +203,8 @@ const Reports = React.memo(() => {
       const monthsSet = new Set<number>();
       for (let i = 0; i < transactions.length; i++) {
         const t = transactions[i];
-        if (t.date && t.date.length >= 7 && parseInt(t.date.slice(0, 4), 10) === selectedYear) {
-          const m = parseInt(t.date.slice(5, 7), 10) - 1;
+        if (t.date && t.date.length >= 7 && Number.parseInt(t.date.slice(0, 4), 10) === selectedYear) {
+          const m = Number.parseInt(t.date.slice(5, 7), 10) - 1;
           monthsSet.add(m);
           if (m > maxMonth) maxMonth = m;
         }
@@ -343,6 +350,7 @@ const Reports = React.memo(() => {
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
+            {serverYearsFailed && <span role="status" data-testid="report-years-incomplete" className="text-[10px] text-[var(--muted)]">Older years may be missing: the server could not be asked.</span>}
 
             {/* Dynamic Month/Quarter Selector */}
             {timeframe === 'month' && (

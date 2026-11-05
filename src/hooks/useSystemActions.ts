@@ -6,8 +6,8 @@ import { signOut } from '../lib/db/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
-import { BUSINESS_TEMPLATES } from '../lib/businessTemplates';
 
+/** Provides workspace-level system actions including sign-out, template application, and workspace creation. */
 export function useSystemActions() {
   const user = useAuthStore(s => s.user);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -68,7 +68,15 @@ export function useSystemActions() {
 
   const handleSelectTemplate = useCallback(async (templateId: string) => {
     if (!user || !currentWorkspaceId) return;
-    const template = BUSINESS_TEMPLATES[templateId];
+    let template: { name?: string } | undefined;
+    try {
+      const { BUSINESS_TEMPLATES } = await import('../lib/businessTemplates');
+      template = BUSINESS_TEMPLATES[templateId];
+    } catch (e) {
+      console.error("Template catalog failed to load:", e);
+      toast.error('Templates could not load. Check your connection and try again.');
+      return;
+    }
     if (!template) return;
     const loader = toast.loading(`Setting up the ${template.name} chart of accounts...`);
     try {

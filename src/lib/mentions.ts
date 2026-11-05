@@ -11,7 +11,7 @@ export interface Mentionable { uid: string; email?: string }
 export function mentionedPeople(text: string, people: Mentionable[], writer?: string): string[] {
   const found: string[] = [];
   for (const match of String(text || '').matchAll(MENTION)) {
-    const name = match[2].replace(/[.]+$/, '').toLocaleLowerCase();
+    const name = match[2].replace(/(?<![.])[.]+$/, '').toLocaleLowerCase();
     const person = people.find(p => {
       const email = (p.email || '').toLocaleLowerCase();
       return Boolean(email) && (email === name || email.split('@')[0] === name);

@@ -8,7 +8,8 @@ import { hoursToPay, sharedTime, sharedTimeMessage, type PayableTime } from '../
 import { TIME_KIND } from '../../lib/timeEntries';
 import { payRunLines, payRunTotals, totalsOfLines, type PayRunAccounts, type PayRunEmployeeLine, type PayRunTotals, type PaySchedule } from '../../lib/payRunPosting';
 import { isCashAccount } from '../../lib/txFilters';
-import { formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+import { formatTzDate } from '../../lib/calendarDate';
 import { addDaysYMD } from '../../lib/fiscalCalendar';
 import type { ChartAccount, Employee } from '../../types';
 import { writeServerAuditLog } from './auditLogService';

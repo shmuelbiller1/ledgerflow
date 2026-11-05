@@ -5,7 +5,7 @@ import type { ApiLog } from "./serverKit";
 import { safeRequestTarget } from "./safeRequestTarget";
 
 /** Only record a specified workspace, never a guess based on an API-key prefix. */
-function requestWorkspaceId(req: express.Request): string | undefined {
+export function requestWorkspaceId(req: express.Request): string | undefined {
   const user = requestUser(req);
   const fromKey = typeof user?.developerWorkspaceId === 'string' ? user.developerWorkspaceId : undefined;
   const fromPath = (req.originalUrl || req.url || '').match(/^\/api\/(?:v1\/)?workspaces\/([^/?#]+)/)?.[1];

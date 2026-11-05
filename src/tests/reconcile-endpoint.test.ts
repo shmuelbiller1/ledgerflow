@@ -54,6 +54,9 @@ class MockDb {
       create: (docRef: TestDocumentReference, newData: TestDocument) => {
         snapshotMap.set(docRef.key, newData);
       },
+      delete: (docRef: TestDocumentReference) => {
+        snapshotMap.delete(docRef.key);
+      },
       set: (docRef: TestDocumentReference, newData: TestDocument) => {
         snapshotMap.set(docRef.key, newData);
       },
@@ -70,9 +73,7 @@ class MockDb {
     };
 
     const res = await updateFunction(tx);
-    for (const [k, v] of snapshotMap.entries()) {
-      this.data.set(k, v);
-    }
+    this.data = snapshotMap;
     return res;
   }
 
@@ -171,6 +172,110 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
 
     const line = db.getDocData('bankLines', 'line-locked');
     assert.equal(line.status, 'pending', 'Bank line status must remain unchanged after aborted reconciliation');
+  });
+
+  test('AF-001: a bank line in another currency is not matched as home-currency money', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-eur', { id: 'line-eur', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'EUR' });
+    db.data.set('bankLines/line-usd', { id: 'line-usd', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'USD' });
+    const run = async (id: string) => {
+      let statusCode = 200;
+      let jsonBody: TestResponseBody | null = null;
+      const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id, type: 'updateBankLine', data: { status: 'matched' } }] } } as unknown as express.Request;
+      const res: express.Response = {
+        status: (code: number) => { statusCode = code; return res; },
+        json: (data: TestResponseBody) => { jsonBody = data; return res; },
+      } as unknown as express.Response;
+      await handleReconcile(req, res, db as unknown as Firestore);
+      return { statusCode, jsonBody: jsonBody as TestResponseBody | null };
+    };
+    const refused = await run('line-eur');
+    assert.equal(refused.statusCode, 400);
+    assert.match(String(refused.jsonBody?.error), /in EUR, not USD/);
+    assert.equal(db.getDocData('bankLines', 'line-eur').status, 'pending', 'nothing written');
+    assert.equal((await run('line-usd')).statusCode, 200, 'a line in the books\' currency still matches');
+    assert.equal(db.getDocData('bankLines', 'line-usd').status, 'matched');
+  });
+
+  test('AF-001: undoing a match applies what the bank changed since (CodeRabbit on #439)', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, currency: 'USD', bankChange: 'modified', bankCorrection: { date: '2026-10-21', description: 'New', amountCents: -650, currency: 'USD' } });
+    db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Gone', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
+    db.data.set('chartAccounts/acc-1', { id: 'acc-1', workspaceId: 'ws-1', name: 'Cash', type: 'asset' });
+    db.data.set('chartAccounts/acc-2', { id: 'acc-2', workspaceId: 'ws-1', name: 'Revenue', type: 'revenue' });
+    db.data.set('transactions/tx-b', { id: 'tx-b', workspaceId: 'ws-1', uid: 'user-owner', date: '2026-10-20', description: 'Gone', totalAmountCents: 100, currency: 'USD', type: 'actual', status: 'reconciled', lines: [{ accountId: 'acc-1', amountCents: -100 }, { accountId: 'acc-2', amountCents: 100 }] });
+    const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-mod', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: { status: 'completed' } },
+    ] } } as unknown as express.Request;
+    let statusCode = 200;
+    const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
+    await handleReconcile(req, res, db as unknown as Firestore);
+    assert.equal(statusCode, 200);
+    const mod = db.getDocData('bankLines', 'line-mod');
+    assert.deepEqual([mod.status, mod.date, mod.description, mod.amountCents, mod.bankChange, mod.bankCorrection], ['pending', '2026-10-21', 'New', -650, null, null]);
+    assert.equal(db.getDocData('bankLines', 'line-gone'), undefined, 'a line the bank withdrew does not come back to To review');
+  });
+
+  test('AF-001: a withdrawn line is not deleted while its entry stays reconciled (CodeRabbit on #455)', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
+    // the entry exists and is valid, so a refusal can only come from the release rule
+    db.data.set('chartAccounts/acc-1', { id: 'acc-1', workspaceId: 'ws-1', name: 'Cash', type: 'asset' });
+    db.data.set('chartAccounts/acc-2', { id: 'acc-2', workspaceId: 'ws-1', name: 'Revenue', type: 'revenue' });
+    db.data.set('transactions/tx-b', { id: 'tx-b', workspaceId: 'ws-1', uid: 'user-owner', date: '2026-10-20', description: 'Gone', totalAmountCents: 100, currency: 'USD', type: 'actual', status: 'reconciled', lines: [{ accountId: 'acc-1', amountCents: -100 }, { accountId: 'acc-2', amountCents: 100 }] });
+    const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } }] } } as unknown as express.Request;
+    let statusCode = 200;
+    const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
+    await handleReconcile(req, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line stays');
+    // an update that leaves the entry reconciled does not count as releasing it
+    const noop = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: {} },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(noop, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.ok(db.getDocData('bankLines', 'line-gone'), 'the line still stays');
+    assert.equal(db.getDocData('transactions', 'tx-b').status, 'reconciled', 'the entry is unchanged');
+    // a release followed by an update that puts the entry back to reconciled is refused too
+    const undone = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: { status: 'completed' } },
+      { id: 'tx-b', type: 'updateTransaction', data: {} },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(undone, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.ok(db.getDocData('bankLines', 'line-gone'));
+    assert.equal(db.getDocData('transactions', 'tx-b').status, 'reconciled');
+    // and the same request with a real release goes through: the refusal above came from the rule
+    const real = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'line-gone', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } },
+      { id: 'tx-b', type: 'updateTransaction', data: { status: 'completed' } },
+    ] } } as unknown as express.Request;
+    statusCode = 200;
+    await handleReconcile(real, res, db as unknown as Firestore);
+    assert.equal(statusCode, 200);
+    assert.equal(db.getDocData('bankLines', 'line-gone'), undefined);
+  });
+
+  test('AF-001: undo refuses a bank correction dated in a closed period (Codex on #455)', async () => {
+    const db = new MockDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', lockDate: '2026-09-30', roles: { 'user-owner': 'owner' } });
+    db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-02', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, bankChange: 'modified', bankCorrection: { date: '2026-09-29', description: 'New', amountCents: -500, currency: 'USD' } });
+    const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'line-mod', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } }] } } as unknown as express.Request;
+    let statusCode = 200;
+    const res: express.Response = { status: (c: number) => { statusCode = c; return res; }, json: () => res } as unknown as express.Response;
+    await handleReconcile(req, res, db as unknown as Firestore);
+    assert.equal(statusCode, 400);
+    assert.equal(db.getDocData('bankLines', 'line-mod').status, 'matched', 'nothing written');
   });
 
   test('Undo sets bank line back to pending and transaction back to completed with audit log', async () => {

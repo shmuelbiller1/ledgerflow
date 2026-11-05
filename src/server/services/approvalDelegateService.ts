@@ -1,6 +1,6 @@
 import type { Firestore } from '../db/firestore';
 import { delegationProblem, type ApprovalDelegate } from '../../lib/approvalDelegation';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { writeServerAuditLog } from './auditLogService';
 import { notify } from './notificationService';
 

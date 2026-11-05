@@ -6,7 +6,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { workspaceRole } from '../../lib/periodLock';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { ChartAccount } from '../../types';
 import { writeServerAuditLog } from './auditLogService';
 import { allocationLedgerReady, liveStoredRowsOf, recordAllocation, reverseAllocation } from './allocationLedger';

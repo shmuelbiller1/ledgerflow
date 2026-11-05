@@ -10,6 +10,7 @@ import {
   timeByPersonProject, timeByProjectCsvRows, TIME_BY_PROJECT_CSV_HEADERS,
 } from '../../lib/timeByPersonProject';
 import ReportTableScroll from './ReportTableScroll';
+import { inBackground } from '../../lib/inBackground';
 
 const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
 
@@ -30,7 +31,7 @@ export default function TimeByProjectReportView() {
   useEffect(() => {
     if (!workspaceId) return;
     let alive = true;
-    (async () => {
+    inBackground((async () => {
       try {
         const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time`, {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
@@ -41,7 +42,7 @@ export default function TimeByProjectReportView() {
       } catch (error) {
         if (alive) setState({ workspaceId, error: error instanceof Error ? error.message : String(error) });
       }
-    })();
+    })());
     return () => { alive = false; };
   }, [workspaceId, attempt]);
 

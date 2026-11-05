@@ -27,6 +27,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { focusOnMount } from '../../lib/focusOnMount';
 import { pageIndex, searchPages } from '../../config/pageIndex';
 import { pageKey, type PinnedPage } from '../../lib/pinnedPages';
+import { inBackground } from '../../lib/inBackground';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -441,7 +442,7 @@ const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? []
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && parsedIntent.type !== 'unknown') {
                     e.preventDefault();
-                    handleExecuteIntent();
+                    inBackground(handleExecuteIntent());
                   }
                 }}
                 disabled={isExecuting}

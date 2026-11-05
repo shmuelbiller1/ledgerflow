@@ -25,6 +25,7 @@
  *   end, after the reads, as in Firestore.
  */
 import pg from 'pg';
+import { timePoolQueries } from './slowQueryLog';
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import {
@@ -415,6 +416,24 @@ export class Transaction {
     return { runner: this.runner, state: this.state };
   }
 
+  /**
+   * Checks whether every named `public` table exists using this transaction's checked-out
+   * PostgreSQL client so cold-start readiness checks inside `runTransaction` never block on `db.pool`.
+   */
+  async tablesExist(...tableNames: string[]): Promise<boolean> {
+    if (this.state.failure) throw this.state.failure;
+    if (tableNames.length === 0) return true;
+    try {
+      const checks = tableNames.map((_, i) => `to_regclass($${i + 1}) is not null`).join(' and ');
+      const params = tableNames.map(name => `public."${name.replaceAll('"', '""')}"`);
+      const res = await this.runner.query<{ ok: boolean }>(`select (${checks}) as ok`, params);
+      return Boolean(res.rows[0]?.ok);
+    } catch (err) {
+      this.state.failure = err;
+      throw err;
+    }
+  }
+
   /** @internal Applies the buffered writes (called by runTransaction before COMMIT). */
   async flush(): Promise<void> {
     await this.firestore.executeOps(this.ops, this.runner, this.state);
@@ -429,69 +448,21 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // Connection settings
 // ---------------------------------------------------------------------------
 
-export interface FirestoreSettings {
-  /** Postgres connection string. Default: DATABASE_URL, then POSTGRES_URL, then SUPABASE_DB_URL. */
-  connectionString?: string;
-  /** An existing pool (tests). */
-  pool?: pg.Pool;
-  /** Maximum connections in the pool. Default: PG_POOL_MAX or 10. */
-  max?: number;
-}
+import {
+  DATABASE_CA_WARNING,
+  SERVERLESS_DEFAULT_POOL_MAX,
+  STANDALONE_DEFAULT_POOL_MAX,
+  poolConfigFromEnv,
+  type FirestoreSettings,
+} from './pg/poolConfig';
 
-function isLocalHost(url: URL): boolean {
-  const host = url.hostname.replace(/^\[|\]$/g, '');
-  return ['localhost', '127.0.0.1', '::1', ''].includes(host) || (url.searchParams.get('host') || '').startsWith('/');
-}
-
-/** Startup warning when a remote database is reached without certificate verification. */
-export const DATABASE_CA_WARNING = '[Database] DATABASE_CA_CERT is not set: the connection to the remote database is '
-  + 'encrypted but the server certificate is NOT verified. Set DATABASE_CA_CERT to the database CA certificate '
-  + '(Supabase dashboard > Database > SSL) to verify it.';
-
-let caWarningLogged = false;
-const warnOnceAtStartup = (message: string): void => {
-  if (caWarningLogged) return;
-  caWarningLogged = true;
-  console.warn(message);
+export {
+  DATABASE_CA_WARNING,
+  SERVERLESS_DEFAULT_POOL_MAX,
+  STANDALONE_DEFAULT_POOL_MAX,
+  poolConfigFromEnv,
+  type FirestoreSettings,
 };
-
-export function poolConfigFromEnv(
-  settings: FirestoreSettings = {},
-  env: NodeJS.ProcessEnv = process.env,
-  warn: (message: string) => void = warnOnceAtStartup,
-): pg.PoolConfig {
-  const raw = settings.connectionString
-    || env.DATABASE_URL || env.POSTGRES_URL || env.SUPABASE_DB_URL;
-  if (!raw) {
-    throw new FirestoreError(14, 'No database configured. Set DATABASE_URL (or POSTGRES_URL) to the Supabase Postgres connection string.');
-  }
-  const url = new URL(raw);
-  const local = isLocalHost(url);
-  // TLS is configured below; libpq-style URL flags would override it inside pg.
-  for (const param of ['sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'uselibpqcompat', 'supa', 'pgbouncer']) {
-    url.searchParams.delete(param);
-  }
-  const ca = env.DATABASE_CA_CERT?.replace(/\\n/g, '\n').trim();
-  let ssl: pg.PoolConfig['ssl'];
-  if (!local) {
-    // Supabase signs its database certificates with its own root CA. With DATABASE_CA_CERT
-    // (the CA from the Supabase dashboard) the certificate is verified; without it the
-    // connection is still encrypted but the server is not authenticated, so say so (AUD-20).
-    if (ca) {
-      ssl = { ca, rejectUnauthorized: true };
-    } else {
-      ssl = { rejectUnauthorized: false };
-      warn(DATABASE_CA_WARNING);
-    }
-  }
-  return {
-    connectionString: url.toString(),
-    ssl,
-    max: settings.max || Number(env.PG_POOL_MAX) || 10,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 15_000,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Firestore
@@ -501,11 +472,16 @@ type TxContext = { runner: Runner; state: TxState } | null;
 
 export class Firestore {
   private poolInstance: pg.Pool | null = null;
-  private tableList: Promise<Set<string>> | null = null;
+  private resolvedTables: Set<string> | null = null;
+  private poolTableList: Promise<Set<string>> | null = null;
+  private readonly runnerTableLists = new WeakMap<Runner, Promise<Set<string>>>();
   private readonly warnedCollections = new Set<string>();
 
   constructor(private readonly settingsValue: FirestoreSettings = {}) {
-    if (settingsValue.pool) this.poolInstance = settingsValue.pool;
+    if (settingsValue.pool) {
+      this.poolInstance = settingsValue.pool;
+      timePoolQueries(settingsValue.pool as never);
+    }
   }
 
   /** firebase-admin compatibility; connection settings come from FirestoreSettings. */
@@ -514,6 +490,7 @@ export class Firestore {
   get pool(): pg.Pool {
     if (!this.poolInstance) {
       this.poolInstance = new pg.Pool(poolConfigFromEnv(this.settingsValue));
+      timePoolQueries(this.poolInstance as never); // D-22: slow queries are logged by shape
       this.poolInstance.on('error', err => {
         console.error('[Database] Idle connection error:', err.message);
       });
@@ -524,7 +501,8 @@ export class Firestore {
   async terminate(): Promise<void> {
     const pool = this.poolInstance;
     this.poolInstance = null;
-    this.tableList = null;
+    this.resolvedTables = null;
+    this.poolTableList = null;
     if (pool && !this.settingsValue.pool) await pool.end();
   }
 
@@ -601,21 +579,65 @@ export class Firestore {
   }
 
   /** @internal Names of the document tables (from lf_rules, one row per collection). */
-  async tables(): Promise<Set<string>> {
-    if (!this.tableList) {
-      this.tableList = this.pool
+  async tables(runner: Runner = this.pool, state: TxState | null = null): Promise<Set<string>> {
+    if (state && state.failure !== undefined) {
+      throw translateError(state.failure, 'Loading collections');
+    }
+    if (this.resolvedTables) {
+      return this.resolvedTables;
+    }
+    if (runner !== this.pool) {
+      let pending = this.runnerTableLists.get(runner);
+      if (!pending) {
+        pending = runner
+          .query<{ table_name: string }>('select table_name from public.lf_rules')
+          .then(r => {
+            const set = new Set(r.rows.map(row => row.table_name));
+            this.resolvedTables = set;
+            return set;
+          })
+          .catch(err => {
+            this.runnerTableLists.delete(runner);
+            if (state && state.failure === undefined) {
+              state.failure = err;
+            }
+            throw translateError(err, 'Loading collections');
+          });
+        this.runnerTableLists.set(runner, pending);
+      }
+      return pending;
+    }
+    if (!this.poolTableList) {
+      this.poolTableList = this.pool
         .query<{ table_name: string }>('select table_name from public.lf_rules')
-        .then(r => new Set(r.rows.map(row => row.table_name)))
+        .then(r => {
+          const set = new Set(r.rows.map(row => row.table_name));
+          this.resolvedTables = set;
+          return set;
+        })
         .catch(err => {
-          this.tableList = null;
+          this.poolTableList = null;
           throw translateError(err, 'Loading collections');
         });
     }
-    return this.tableList;
+    return this.poolTableList;
   }
 
-  private async hasTable(collectionId: string): Promise<boolean> {
-    const known = (await this.tables()).has(collectionId);
+  /** Selects the active transaction runner or rethrows its recorded failure before touching the pool. */
+  private runnerForTables(tx: TxContext): { runner: Runner; state: TxState | null } {
+    if (tx) {
+      if (tx.state.failure !== undefined) {
+        throw translateError(tx.state.failure, 'Loading collections');
+      }
+      return { runner: tx.runner, state: tx.state };
+    }
+    return { runner: this.pool, state: null };
+  }
+
+  /** Checks whether a collection has a backing document table, logging a one-time warning when absent. */
+  private async hasTable(collectionId: string, tx: TxContext = null): Promise<boolean> {
+    const { runner, state } = this.runnerForTables(tx);
+    const known = (await this.tables(runner, state)).has(collectionId);
     if (!known && !this.warnedCollections.has(collectionId)) {
       this.warnedCollections.add(collectionId);
       console.warn(`[Database] Collection "${collectionId}" has no table; reads return nothing.`);
@@ -643,7 +665,7 @@ export class Firestore {
     }
     const rows = new Map<string, DocRow>();
     for (const [collectionId, ids] of byCollection) {
-      if (!(await this.hasTable(collectionId))) continue;
+      if (!(await this.hasTable(collectionId, tx))) continue;
       const unique = Array.from(new Set(ids));
       const sql = unique.length === 1
         ? `select id, data::text as data, created_at, updated_at from public.${quoteIdent(collectionId)} where id = $1`
@@ -657,7 +679,7 @@ export class Firestore {
   /** @internal */
   async runQuery<T>(query: Query<T>, tx: TxContext): Promise<QuerySnapshot<T>> {
     const readTime = Timestamp.now();
-    if (!(await this.hasTable(query.collectionId))) return new QuerySnapshot<T>(query, [], readTime);
+    if (!(await this.hasTable(query.collectionId, tx))) return new QuerySnapshot<T>(query, [], readTime);
     const spec = query.querySpec;
     const p = new Params();
     const sql = `select id, data::text as data, created_at, updated_at from public.${quoteIdent(query.collectionId)}`
@@ -671,7 +693,7 @@ export class Firestore {
 
   /** @internal */
   async countQuery<T>(query: Query<T>, tx: TxContext): Promise<number> {
-    if (!(await this.hasTable(query.collectionId))) return 0;
+    if (!(await this.hasTable(query.collectionId, tx))) return 0;
     const spec = query.querySpec;
     const p = new Params();
     const inner = `select 1 from public.${quoteIdent(query.collectionId)}` + compileWhere(spec, p)
@@ -709,9 +731,12 @@ export class Firestore {
 
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
+    if (state && state.failure !== undefined) {
+      throw translateError(state.failure, 'Writing document');
+    }
     const tx: TxContext = state ? { runner, state } : null;
     for (const op of ops) {
-      if (!(await this.tables()).has(op.ref.collectionId)) {
+      if (!(await this.tables(runner, state)).has(op.ref.collectionId)) {
         throw invalid(`Unknown collection "${op.ref.collectionId}": add a table for it in supabase/migrations`);
       }
       let result: pg.QueryResult;

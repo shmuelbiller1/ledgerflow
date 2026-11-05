@@ -1,5 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
-import { useState, useEffect, useId, useCallback } from 'react';
+import { useState, useEffect, useId, useCallback, useRef } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 import { toast } from 'sonner';
@@ -9,8 +9,11 @@ import { convertXeroAccounts as _convertXeroAccounts } from '../../lib/xeroAdapt
 import { db, getIdToken } from '../../firebase';
 import { collection, query, where, getDocs } from '../../lib/db/firestore';
 import { useTimeout } from '../../hooks/useTimeout';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import { AVAILABLE_SCOPES, ApiLogEntry, PublicKeyRow } from './ApiHubShared';
+import { copyText } from '../../lib/clipboard';
+/** Provides state, API key lifecycle actions, sandbox runner, and visibility-gated log polling for ApiHub. */
 export function useApiHubModel() {
   const formId = useId();
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -24,6 +27,8 @@ export function useApiHubModel() {
   const [apiLogs, setApiLogs] = useState<ApiLogEntry[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  // bumped when a new key replaces the shown one: a copy of the old key must not mark the new one copied
+  const keyGeneration = useRef(0);
   const { setSafeTimeout } = useTimeout();
   const [activeTab, setActiveTab] = useState<'overview' | 'keys' | 'logs' | 'docs' | 'billing' | 'sandbox'>('overview');
   const [activeDoc, setActiveDoc] = useState('post-transaction');
@@ -68,17 +73,22 @@ export function useApiHubModel() {
   const [fieldMatchDesc, setFieldMatchDesc] = useState('Uber Trip transport ride\nAWS Cloud Services database bill\nMonthly advisory fee Deloitte business');
   const [fieldAIPrompt, setFieldAIPrompt] = useState('Explain what operational cost adjustments we should carry out based on our high software subscription drift.');
 
+  const workspaceId = currentWorkspace?.id ?? null;
+  const userUid = user?.uid ?? null;
+
   const loadBillingStatus = useCallback(async function loadBillingStatus() {
-    if (!currentWorkspace?.id || !user) return;
+    if (!workspaceId || !userUid) return;
     try {
       const token = await getIdToken();
-      const res = await fetch(`/api/v1/billing/status?workspaceId=${currentWorkspace.id}`, {
+      const res = await fetch(`/api/v1/billing/status?workspaceId=${workspaceId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       if (res.ok) {
         const data = await res.json();
+        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
         if (data.seatCount) {
           setSimSeatsCount(data.seatCount);
         }
@@ -86,7 +96,7 @@ export function useApiHubModel() {
     } catch (e) {
       console.error("Failed to load billing status", e);
     }
-  }, [currentWorkspace, user]);
+  }, [workspaceId, userUid]);
 
   const handleCheckout = async (plan: string) => {
     if (!currentWorkspace?.id || !user) return;
@@ -115,14 +125,15 @@ export function useApiHubModel() {
   };
 
   const loadWorkspaceKeys = useCallback(async function loadWorkspaceKeys() {
-    if (!currentWorkspace?.id || !user) return;
+    if (!workspaceId || !userUid) return;
     try {
       const q = query(
         collection(db, 'apiKeys'),
-        where('workspaceId', '==', currentWorkspace.id),
-        where('uid', '==', user.uid)
+        where('workspaceId', '==', workspaceId),
+        where('uid', '==', userUid)
       );
       const snap = await getDocs(q);
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       const keys = snap.docs.map(d => {
         const data = d.data();
         return {
@@ -139,40 +150,66 @@ export function useApiHubModel() {
     } catch (e) {
       console.error(e);
     }
-  }, [currentWorkspace, user]);
+  }, [workspaceId, userUid]);
 
   const fetchLogs = useCallback(async function fetchLogs() {
-    if (!currentWorkspace?.id) return;
+    if (!workspaceId) return;
     try {
-      const token = user ? await getIdToken() : '';
+      const token = userUid ? await getIdToken() : '';
       const authHeader = `Bearer ${(apiKey || token)}`;
-      const res = await fetch(`/api/v1/logs?workspaceId=${currentWorkspace.id}`, {
+      const res = await fetch(`/api/v1/logs?workspaceId=${workspaceId}`, {
         headers: {
           'Authorization': authHeader
         }
       });
       if (res.ok) {
         const data = await res.json();
+        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
         setApiLogs(data);
       }
     } catch (e) {
       console.error("Failed to fetch logs", e);
     }
-  }, [apiKey, currentWorkspace, user]);
+  }, [apiKey, workspaceId, userUid]);
 
   useEffect(() => {
-    if (!currentWorkspace?.id) return;
+    if (!workspaceId) return undefined;
     const timer = setTimeout(() => {
-      loadBillingStatus();
-      loadWorkspaceKeys();
-      fetchLogs();
+      void loadBillingStatus();
+      void loadWorkspaceKeys();
+      void fetchLogs();
     }, 0);
-    const interval = setInterval(fetchLogs, 5000);
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
     };
-  }, [currentWorkspace?.id, activeTab, fetchLogs, loadBillingStatus, loadWorkspaceKeys]);
+  }, [workspaceId, fetchLogs, loadBillingStatus, loadWorkspaceKeys]);
+
+  // Refresh credentials or billing summary once in the foreground when opening the relevant tab
+  const prevActiveTabRef = useRef(activeTab);
+  useEffect(() => {
+    const prevTab = prevActiveTabRef.current;
+    prevActiveTabRef.current = activeTab;
+    if (!workspaceId || prevTab === activeTab) return undefined;
+    if (activeTab !== 'keys' && activeTab !== 'sandbox' && activeTab !== 'billing') {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      if (activeTab === 'keys' || activeTab === 'sandbox') {
+        void loadWorkspaceKeys();
+      } else {
+        void loadBillingStatus();
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [activeTab, workspaceId, loadWorkspaceKeys, loadBillingStatus]);
+
+  const isLogsPollingTab = activeTab === 'logs' || activeTab === 'billing';
+  useVisibilityPolling(fetchLogs, 5_000, {
+    enabled: Boolean(workspaceId) && isLogsPollingTab,
+    runImmediately: true,
+  });
 
   const generateNewKey = async () => {
     if (!currentWorkspace?.id || !user) return;
@@ -200,11 +237,13 @@ export function useApiHubModel() {
       }
 
       const data = await res.json();
+      keyGeneration.current += 1;
       setApiKey(data.apiKey);
+      setIsCopied(false);
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
       });
-      loadWorkspaceKeys();
+      void loadWorkspaceKeys();
       setShowCreateModal(false);
     } catch (e) {
       console.error(e);
@@ -231,9 +270,11 @@ export function useApiHubModel() {
       }
 
       toast.success('Key Revoked.');
-      loadWorkspaceKeys();
+      void loadWorkspaceKeys();
       if (apiKey.startsWith(keyId)) {
+        keyGeneration.current += 1;
         setApiKey('');
+        setIsCopied(false);
       }
     } catch (e) {
       console.error(e);
@@ -243,10 +284,14 @@ export function useApiHubModel() {
 
   const copyKey = () => {
     if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
-    setIsCopied(true);
-    setSafeTimeout(() => setIsCopied(false), 2000);
-    toast.success('Key copied to clipboard');
+    const generation = keyGeneration.current;
+    void copyText(apiKey).then(ok => {
+      if (generation !== keyGeneration.current) return;
+      if (!ok) { toast.error('The browser blocked copying. Select the key above and copy it by hand.'); return; }
+      setIsCopied(true);
+      setSafeTimeout(() => { if (generation === keyGeneration.current) setIsCopied(false); }, 2000);
+      toast.success('Key copied to clipboard');
+    });
   };
 
   const getEndpointPath = (endpoint: string) => {
@@ -499,8 +544,8 @@ export function useApiHubModel() {
       const data = await res.json();
       setSandboxResult(data);
 
-      fetchLogs();
-      loadBillingStatus();
+      void fetchLogs();
+      void loadBillingStatus();
       toast.success(`API Ingestion Completed in ${duration}ms`, {
         description: `HTTP Status ${res.status}`
       });

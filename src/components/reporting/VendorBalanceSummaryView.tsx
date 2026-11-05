@@ -4,7 +4,7 @@ import { Building, Mail, Phone } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../server/reports/computeReports';
+import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../server/reports/partyReports';
 import { toast } from 'sonner';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';

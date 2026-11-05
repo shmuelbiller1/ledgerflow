@@ -66,7 +66,7 @@ export function explainNetProfit(transactions: readonly Transaction[], month: st
     expenseMap.forEach((amt, payee) => { if (amt > biggestExp.amt) biggestExp = { payee, amt }; });
 
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const monthIndex = parseInt(month.split('-')[1], 10) - 1;
+    const monthIndex = Number.parseInt(month.split('-')[1], 10) - 1;
     const monthStr = monthNames[monthIndex] || month;
 
     let sentence = `You generated $${(netProfit/100).toFixed(0)} in net earnings for ${monthStr}: $${(revenue/100).toFixed(0)} in operating revenue`;

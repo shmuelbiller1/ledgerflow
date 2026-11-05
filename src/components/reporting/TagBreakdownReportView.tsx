@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
+import React from 'react';
 import { formatCurrency } from '../../lib/utils';
-import { computeTagReport } from '../../lib/reportGenerators';
+import { useServerTagBreakdown } from '../../hooks/useServerTagBreakdown';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { Tag, Hash } from 'lucide-react';
 
 interface Props {
@@ -15,15 +15,11 @@ export const TagBreakdownReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
-
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
-  const tagData = useMemo(() => {
-    return computeTagReport(accounts, transactions, start, end);
-  }, [accounts, transactions, start, end]);
+  // L-123 step 4g: with the loaded lists capped, the tags come from the server (every entry of the range)
+  const { tags: tagData, source } = useServerTagBreakdown(start, end);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="tag-breakdown-report">
@@ -38,6 +34,8 @@ export const TagBreakdownReportView: React.FC<Props> = ({
           </p>
         </div>
       </div>
+
+      <RangeReportSourceNote source={source} testId="tag-breakdown-source" />
 
       {tagData.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 text-neutral-500 text-xs">

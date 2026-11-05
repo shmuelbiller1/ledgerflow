@@ -1,6 +1,6 @@
 import type { LockException } from '../lib/periodLock';
 import type { EmailTemplates } from '../lib/emailTemplates';
-import type { WorkspaceBranding } from '../lib/branding';
+import type { WorkspaceBranding } from '../lib/brandingConstants';
 import type { ReminderSettings } from '../lib/reminders';
 import type { InvoiceApprovalSettings } from '../lib/invoiceApproval';
 import type { MoneyDisplaySettings } from '../lib/moneyFormat';
@@ -140,6 +140,14 @@ export interface Workspace {
   apiQuotaMonthlyLimitCents?: number;
   computeCreditBalance?: number;
   fiscalYearStartMonth?: number;
+  /** Y-35: how tax on a document is rounded to cents (unset = half up). */
+  taxRounding?: 'half_up' | 'half_even' | 'down';
+  /** CC-08: the workspace's own payment terms, in days (Net N), offered on invoices with the standard ones. */
+  paymentTermDays?: number[];
+  /** CC-09: the workspace's own payment types, each under one of the five payment methods. */
+  paymentTypes?: Array<{ id: string; name: string; method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'other' }>;
+  /** CC-11: the workspace's customer groups and their defaults (written only by the server). */
+  customerGroups?: Array<{ id: string; name: string; paymentTerms?: string }>;
   fiscalYearStartDay?: number;
   fiscalYearEnd?: string;
   // Set only by the server or a platform admin (the database refuses them from the browser)
@@ -153,7 +161,7 @@ export interface Workspace {
   /** The start date of the books (opening balances). Server-only. */
   openingBalanceDate?: string;
   /** How long logs are kept, recovery window, legal hold (src/lib/retention.ts). Server-only. */
-  retention?: Partial<import('../lib/retention').RetentionSettings>;
+  retention?: Partial<import('../lib/retentionPolicy').RetentionSettings>;
   /** 'pending_deletion' while a deleted workspace waits out its 30 days */
   status?: string;
   creditCostMultiplier?: number;

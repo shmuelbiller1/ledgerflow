@@ -40,6 +40,7 @@ import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../l
 
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { inBackground } from '../../lib/inBackground';
 
 export default function Vault() {
   const uploadId = useId();
@@ -296,8 +297,8 @@ export default function Vault() {
   const allTags = Array.from(new Set(documents.flatMap(d => d.tags || [])));
 
   return (
-    <div className="space-y-8 h-full flex flex-col">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 h-full min-w-0 flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0">
         <div>
           <h1 className="text-3xl md:text-5xl font-black text-[var(--text)] tracking-tighter mb-2">Documents</h1>
           <p className="text-[var(--muted)] font-black text-[10px] uppercase tracking-widest truncate opacity-80">Enterprise Secure Storage • Encryption Active</p>
@@ -313,8 +314,8 @@ export default function Vault() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 bg-[var(--surface)] p-3 rounded-[32px] border border-[var(--line)] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.1)]">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 bg-[var(--surface)] p-3 rounded-[32px] border border-[var(--line)] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.1)]">
+        <div className="relative min-w-0 w-full sm:w-auto flex-1">
           <Search aria-hidden="true" className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--muted)] opacity-40" size={24} />
           <input 
             aria-label="Search documents by name, tag, or checksum"
@@ -324,14 +325,14 @@ export default function Vault() {
             className="w-full pl-16 pr-6 h-12 bg-transparent border-none focus:ring-0 text-sm font-bold placeholder:opacity-30"
           />
         </div>
-        <div className="h-8 w-[1px] bg-slate-200" />
-        <div className="flex items-center gap-3 p-1">
+        <div className="hidden sm:block h-8 w-[1px] bg-slate-200" />
+        <div className="flex items-center gap-3 p-1 min-w-0 max-w-full sm:max-w-[50%] overflow-x-auto shrink-0">
           {['all', ...allTags].map(tag => (
             <button
               key={tag}
               onClick={() => setFilterTag(tag === 'all' ? null : tag)}
               className={cn(
-                "px-6 h-10 rounded-[32px] text-[10px] font-black uppercase tracking-[0.2em] transition-all border",
+                "shrink-0 px-6 h-11 rounded-[32px] text-[10px] font-black uppercase tracking-[0.2em] transition-all border",
                 (filterTag === tag || (tag === 'all' && !filterTag))
                   ? "bg-slate-900 text-white border-slate-800 shadow-lg" 
                   : "bg-[var(--ink)]/50 text-[var(--muted)] border-[var(--line)] hover:bg-[var(--ink)]"
@@ -386,10 +387,10 @@ export default function Vault() {
                 ))}
               </div>
 
-              <div className="absolute top-6 right-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-2">
+              <div className="absolute top-6 right-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center gap-2">
                  <AsyncButton 
                   aria-label={`Delete document ${docItem.name}`}
-                  onClick={async () => { handleDelete(docItem.id); }}
+                  onClick={async () => { inBackground(handleDelete(docItem.id)); }}
                   className="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"
                 >
                   <Trash2 aria-hidden="true" size={18} />

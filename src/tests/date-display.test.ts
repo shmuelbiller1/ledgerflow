@@ -2,7 +2,7 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { DATE_DISPLAY_FORMATS, formatDate, setDateDisplayFormat } from '../lib/utils';
-import { civilDateParts } from '../lib/calendarDate';
+import { civilDateParts, civilDayOfMonth, civilMonthDay, civilMonthYear } from '../lib/calendarDate';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Workspace } from '../types';
 
@@ -22,6 +22,19 @@ describe('Date display', () => {
     assert.equal(formatDate('2026-12-31'), 'Dec 31, 2026');
     assert.equal(formatDate(undefined), '');
     assert.equal(formatDate('not a date'), 'not a date');
+  });
+
+  test('short civil displays read the stored day on every device (#342 list badges)', () => {
+    // The forensic badges and the reconciliation ledger rows used to format a workspace-midnight
+    // instant in the device zone, so New Year's Day read as last year across zones.
+    assert.equal(civilMonthDay('2026-01-01'), 'Jan 01');
+    assert.equal(civilMonthYear('2026-01-01'), 'Jan 2026');
+    assert.equal(civilDayOfMonth('2026-01-01'), '01');
+    assert.equal(civilMonthDay('2026-12-31'), 'Dec 31');
+    assert.equal(civilMonthYear('2025-02-28'), 'Feb 2025');
+    assert.equal(civilMonthDay('2026-02-30'), '', 'an impossible day shows nothing instead of throwing');
+    assert.equal(civilMonthDay('not a date'), '');
+    assert.equal(civilMonthDay(undefined), '');
   });
 
   test('a calendar date is the same day in every time zone (no UTC shift)', () => {

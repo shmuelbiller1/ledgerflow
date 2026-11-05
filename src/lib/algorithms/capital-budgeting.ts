@@ -121,18 +121,18 @@ export const CAPITAL_BUDGETING_ALGO: AlgorithmDefinition = {
     }
 
     const chartData = [
-      { Parameter: 'Cost of Equity', 'Rate (%)': parseFloat((ke * 100).toFixed(2)) },
-      { Parameter: 'Cost of Debt (After-Tax)', 'Rate (%)': parseFloat((kd * (1 - tax) * 100).toFixed(2)) },
-      { Parameter: 'Blended WACC', 'Rate (%)': parseFloat(waccPct) }
+      { Parameter: 'Cost of Equity', 'Rate (%)': Number.parseFloat((ke * 100).toFixed(2)) },
+      { Parameter: 'Cost of Debt (After-Tax)', 'Rate (%)': Number.parseFloat((kd * (1 - tax) * 100).toFixed(2)) },
+      { Parameter: 'Blended WACC', 'Rate (%)': Number.parseFloat(waccPct) }
     ];
 
-    const irrFormatted = !isNaN(irr) ? `${(irr * 100).toFixed(2)}%` : 'N/A';
-    const isIrrViable = !isNaN(irr) && irr >= wacc;
+    const irrFormatted = !Number.isNaN(irr) ? `${(irr * 100).toFixed(2)}%` : 'N/A';
+    const isIrrViable = !Number.isNaN(irr) && irr >= wacc;
 
     const insights = [
       `The enterprise hurdle rate (WACC) is calculated at ${waccPct}%, factoring an equity weight of ${inputs['equityDebtRatio']}% and a tax shield on debt of ${inputs['taxRatePct']}%.`,
       `The projected NPV stands at $${npv.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 })} against an initial capital outlay of $${initialInvestment.toLocaleString()}.`,
-      !isNaN(irr) 
+      !Number.isNaN(irr) 
         ? (isIrrViable ? `The Internal Rate of Return (IRR) is ${irrFormatted}, clearing the ${waccPct}% WACC hurdle rate and indicating a value-accretive investment.` : `The Internal Rate of Return (IRR) is ${irrFormatted}, failing to meet the ${waccPct}% hurdle rate.`)
         : 'Internal Rate of Return (IRR) could not be calculated due to non-standard cash flow pattern.',
       profitabilityIndex >= 1 
@@ -149,7 +149,7 @@ export const CAPITAL_BUDGETING_ALGO: AlgorithmDefinition = {
     return {
       metrics: [
         { label: 'WACC (Hurdle Rate)', value: `${waccPct}%`, color: 'blue' },
-        { label: 'Internal Rate of Return (IRR)', value: irrFormatted, color: isIrrViable ? 'green' : !isNaN(irr) ? 'red' : 'gray' },
+        { label: 'Internal Rate of Return (IRR)', value: irrFormatted, color: isIrrViable ? 'green' : !Number.isNaN(irr) ? 'red' : 'gray' },
         { label: 'Net Present Value', value: `$${Math.round(npv).toLocaleString()}`, color: npv >= 0 ? 'green' : 'red' },
         { label: 'Profitability Index', value: profitabilityIndex.toFixed(2), color: profitabilityIndex >= 1 ? 'green' : 'red' },
         { label: 'Discounted Payback', value: discountedPayback !== -1 ? `${discountedPayback.toFixed(1)} Yrs` : 'Never', color: discountedPayback !== -1 ? 'green' : 'red' }

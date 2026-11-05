@@ -3,7 +3,7 @@ import { Field as _Field } from '../common/Field';
 import { SchemaForm as _SchemaForm } from '../common/SchemaForm';
 import React, { useState } from 'react';
 import { ChartAccount } from '../../types';
-import { Archive, ArchiveRestore, BookOpen, GitMerge, MoreVertical, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, GitMerge, MoreVertical, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import type { AccountGroupLayoutRow } from '../../lib/accountGroups';
 import InlineEdit from '../ui/InlineEdit';
 import MergeAccountDialog from './MergeAccountDialog';
 import { AccountGroupToggle } from './AccountGroupControls';
+import { EmptyState } from '../ui/EmptyState';
 import { isIncomeAccount } from '../../lib/accountUtils';
 
 /** Edit in place (I-22): one field of an account. System accounts keep their code (the database refuses it). */
@@ -49,9 +50,11 @@ interface ChartOfAccountsViewProps {
   formatCurrency: (val: number) => string;
   onDrillDown: (accountName: string) => void;
   onDeleteAccount: (id: string) => void;
+  /** opens the add-account form — the empty chart's "Add your first account" action (A-262) */
+  onAddAccount?: () => void;
 }
 
-export default function ChartOfAccountsView({ accounts, searchTerm, formatCurrency, onDrillDown, onDeleteAccount }: ChartOfAccountsViewProps) {
+export default function ChartOfAccountsView({ accounts, searchTerm, formatCurrency, onDrillDown, onDeleteAccount, onAddAccount }: ChartOfAccountsViewProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showOptionsId, setShowOptionsId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -244,16 +247,13 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
               : accountGroupLayout(filteredFlat.map(account => ({ ...account, parentId: undefined })), byCode).map(row => renderRow(row))}
             {accounts.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-16 text-center">
-                  <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
-                    <div className="w-12 h-12 bg-[var(--ink)] border border-[var(--line)] rounded-xl flex items-center justify-center text-[var(--muted)] shadow-3xs">
-                      <BookOpen aria-hidden="true" size={20} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-[var(--text)] uppercase tracking-wide text-xs">No accounts yet</p>
-                      <p className="text-[11px] text-[var(--muted)] mt-1">Choose a chart of accounts to get started, or add your first account.</p>
-                    </div>
-                  </div>
+                <td colSpan={6}>
+                  <EmptyState
+                    title="No accounts yet"
+                    description="Choose a chart of accounts to get started, or add your first account."
+                    actionLabel={onAddAccount ? 'Add your first account' : undefined}
+                    onAction={onAddAccount}
+                  />
                 </td>
               </tr>
             )}

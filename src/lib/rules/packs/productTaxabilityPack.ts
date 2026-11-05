@@ -36,7 +36,7 @@ export function productTaxabilityPack(): TaxRulePack {
     const rate = row.treatment === 'exempt' ? 0 : row.rate ?? 0;
     return [rateRule({
       id: `us-cat-${slug(row.state)}-${slug(row.category)}-${slug(row.validFrom)}`,
-      name: `${row.state} ${row.category}: ${row.treatment === 'exempt' ? 'exempt' : `reduced ${(rate * 100).toFixed(3).replace(/\.?0+$/, '')}%`}`,
+      name: `${row.state} ${row.category}: ${row.treatment === 'exempt' ? 'exempt' : `reduced ${(rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%`}`,
       when: [where('country', ['US']), where('state', [row.state]), where('productCategory', [row.category])],
       effect: { kind: 'rate', level: 'state', name: `${row.state} ${row.category}`, rate },
       // an exemption switches the state's own rate rule off for that category (the graph's `exclude`); a reduced rate is

@@ -104,14 +104,14 @@ export function detectPotentialTransfers(
     if (pairedIds.has(txA.id)) continue;
 
     const dateA = new Date(txA.date).getTime();
-    if (isNaN(dateA)) continue;
+    if (Number.isNaN(dateA)) continue;
 
     for (let j = i + 1; j < postables.length; j++) {
       const txB = postables[j];
       if (pairedIds.has(txB.id)) continue;
 
       const dateB = new Date(txB.date).getTime();
-      if (isNaN(dateB)) continue;
+      if (Number.isNaN(dateB)) continue;
 
       const daysDiff = Math.abs(dateA - dateB) / (1000 * 60 * 60 * 24);
       if (daysDiff > windowDays) continue;

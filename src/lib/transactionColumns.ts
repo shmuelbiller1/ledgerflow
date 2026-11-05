@@ -53,5 +53,5 @@ export function readHiddenColumns(key: string): ReadonlySet<string> {
 
 /** Narrowest the table can be: its fixed widths plus room for the description (the 1fr column). */
 export function gridMinWidth(template: string, descriptionMin = 240): number {
-  return template.split(' ').reduce((sum, track) => sum + (track.endsWith('px') ? parseInt(track, 10) : descriptionMin), 0);
+  return template.split(' ').reduce((sum, track) => sum + (track.endsWith('px') ? Number.parseInt(track, 10) : descriptionMin), 0);
 }

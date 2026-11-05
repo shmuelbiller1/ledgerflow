@@ -90,9 +90,9 @@ export const CASH_CONVERSION_CYCLE_ALGO: AlgorithmDefinition = {
     const ccc = dio + dso - dpo;
 
     const chartData = [
-       { Metric: 'Days Inventory (DIO)', Days: parseFloat(dio.toFixed(1)) },
-       { Metric: 'Days Sales (DSO)', Days: parseFloat(dso.toFixed(1)) },
-       { Metric: 'Days Payable (DPO)', Days: -parseFloat(dpo.toFixed(1)) } // Negative as it offsets
+       { Metric: 'Days Inventory (DIO)', Days: Number.parseFloat(dio.toFixed(1)) },
+       { Metric: 'Days Sales (DSO)', Days: Number.parseFloat(dso.toFixed(1)) },
+       { Metric: 'Days Payable (DPO)', Days: -Number.parseFloat(dpo.toFixed(1)) } // Negative as it offsets
     ];
 
     let cccColor = 'green';

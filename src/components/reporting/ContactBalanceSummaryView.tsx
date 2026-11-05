@@ -9,7 +9,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import {
   computeContactBalanceSummary, computeCustomerBalanceSummary, computeVendorBalanceSummary, ContactBalanceSummaryRow,
-} from '../../server/reports/computeReports';
+} from '../../server/reports/partyReports';
 
 /**
  * Contact Balance Summary (J-03): every customer and vendor with what they owe you, what you owe

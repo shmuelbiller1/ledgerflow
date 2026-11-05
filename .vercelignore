@@ -1,0 +1,60 @@
+# Local dependencies, caches, and build/test outputs
+node_modules/
+build/
+dist/
+coverage/
+playwright-report/
+test-results/
+.playwright-artifacts-*/
+.vercel/
+.cache/
+work/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Local environment files (Vercel injects configured project env vars directly)
+.env*
+
+# Documentation, generated code-intelligence indexes, and historical archives
+# (verified non-build, non-runtime: 48.18 MiB including 34.34 MiB docs/CODE_ATLAS.jsonl & 11.45 MiB verification PNGs)
+/docs/
+/audit/
+/archive/
+
+# CI workflows, Git hooks, database migrations/RLS tests, and standalone SDK
+/.github/
+/.husky/
+/supabase/
+/sdk/
+
+# End-to-end, unit, and fixture test suites (verified non-build, non-runtime)
+/e2e/
+/test/
+/src/tests/
+/src/lib/receiptFixtures.ts
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
+**/*.spec.ts
+**/*.spec.tsx
+
+# Developer/CI scripts — keep ONLY scripts/vercel-csp.ts (invoked by `npm run build`)
+/scripts/*
+!/scripts/vercel-csp.ts
+
+# Root documentation, AI instructions, linter/test configs, and quality-ratchet baselines
+**/AGENTS.md
+/API_DOCS.md
+/CLAUDE.md
+/CURRENT_WORK.md
+/LICENSE.md
+/README.md
+/security_spec.md
+/bug-patterns-baseline.json
+/bug-patterns-sites.json
+/ledger-door-baseline.json
+/quality-baseline.json
+/eslint.config.js
+/playwright.config.ts
+/stryker.config.json

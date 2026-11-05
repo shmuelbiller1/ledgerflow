@@ -1,6 +1,15 @@
 import type { Invoice, Bill, Payment, CreditNote, VendorCredit, Customer, Vendor } from "../../types";
-import { INVOICE_IS_ISSUED, BILL_IS_ISSUED } from "./computeReports";
-import { getLocalDateISO } from "../../lib/utils";
+import { getDateInTimezoneISO, getLocalDateISO } from "../../lib/calendarDate";
+
+/** Invoice statuses treated as issued for customer balance and party statement reporting. */
+export const INVOICE_IS_ISSUED = new Set<Invoice['status']>([
+  'sent', 'approved', 'invoiced', 'pending', 'overdue', 'partially_paid', 'paid'
+]);
+
+/** Bill statuses treated as issued for vendor balance and party statement reporting. */
+export const BILL_IS_ISSUED = new Set<Bill['status']>([
+  'pending', 'approved', 'unpaid', 'overdue', 'partially_paid', 'paid'
+]);
 
 export function toBaseCents(amountCents: number = 0, exchangeRate?: number): number {
   const rate = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 1;
@@ -25,9 +34,10 @@ export function computeCustomerBalanceSummary(
   payments: Payment[] = [],
   creditNotes: CreditNote[] = [],
   asOfDateOrStartDate?: string,
-  endDate?: string
+  endDate?: string,
+  timezone?: string
 ): CustomerBalanceSummaryRow[] {
-  const end = endDate || asOfDateOrStartDate || getLocalDateISO();
+  const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return customers.map(cust => {
     const custId = cust.id;
@@ -106,9 +116,10 @@ export function computeVendorBalanceSummary(
   payments: Payment[] = [],
   vendorCredits: VendorCredit[] = [],
   asOfDateOrStartDate?: string,
-  endDate?: string
+  endDate?: string,
+  timezone?: string
 ): VendorBalanceSummaryRow[] {
-  const end = endDate || asOfDateOrStartDate || getLocalDateISO();
+  const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return vendors.map(vendor => {
     const vendorId = vendor.id;

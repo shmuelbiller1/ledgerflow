@@ -6,19 +6,22 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken, db } from '../../../firebase';
 import { doc, getDoc } from '../../../lib/db/firestore';
-import { DEFAULT_BRAND_COLOR, MAX_LOGO_BYTES } from '../../../lib/branding';
-import type { WorkspaceBranding } from '../../../lib/branding';
+import { DEFAULT_BRAND_COLOR, MAX_LOGO_BYTES } from '../../../lib/brandingConstants';
+import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { brandingForLabels, brandingProfilesProblem, labelKey } from '../../../lib/entityBranding';
 import type { BrandingProfiles } from '../../../lib/entityBranding';
+import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const areaField = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
+/** Per-dimension-label branding overrides editor scoped to the active user and workspace. */
 export default function BrandingProfilesSettings() {
   const uid = useAuthStore(s => s.user?.uid), workspaceId = useAuthStore(s => s.currentWorkspaceId);
   return <Scoped key={JSON.stringify([uid, workspaceId])} />;
 }
 
+/** Inner workspace-scoped editor managing per-label branding profile drafts and saves. */
 function Scoped() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const uid = useAuthStore(s => s.user?.uid);
@@ -35,6 +38,8 @@ function Scoped() {
 
   const [target, setTarget] = useState('books');
   const [editing, setEditing] = useState<{ target: string; original: WorkspaceBranding | undefined; draft: WorkspaceBranding } | null>(null);
+  const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.original || {});
+  useEffect(() => (dirty ? registerUnsavedWorkGuard(() => true) : undefined), [dirty]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');

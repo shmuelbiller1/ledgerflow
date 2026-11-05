@@ -17,8 +17,8 @@ export function suggestNextDimensionNodeId(dimensionId: string, nodes: Dimension
 
   const existingIds = nodes
     .filter(n => n.dimensionId === dimensionId && n.id.startsWith(prefix))
-    .map(n => parseInt(n.id.substring(1), 10))
-    .filter(n => !isNaN(n));
+    .map(n => Number.parseInt(n.id.substring(1), 10))
+    .filter(n => !Number.isNaN(n));
 
   if (existingIds.length === 0) return `${prefix}1`;
   const max = Math.max(...existingIds);

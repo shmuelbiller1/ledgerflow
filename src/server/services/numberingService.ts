@@ -1,5 +1,5 @@
 import type { DocumentData, Firestore, Transaction } from '../db/firestore';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { workspaceRole } from '../../lib/periodLock';
 import { writeServerAuditLog } from './auditLogService';
 

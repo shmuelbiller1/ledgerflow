@@ -16,7 +16,7 @@
  */
 import type { Firestore } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import {
   createReturnAuthorization, returnAuthorizationCapacityProblem, returnAuthorizationId, returnAuthorizationNumber,
   returnAuthorizationsFromMetadata, rmaFieldPath, transitionReturnAuthorization,

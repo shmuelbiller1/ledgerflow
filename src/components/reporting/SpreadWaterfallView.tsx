@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { spreadWaterfall, type SpreadSide } from '../../lib/spreadWaterfall';
+import { type SpreadSide } from '../../lib/spreadWaterfall';
+import { useServerSpreadWaterfall } from '../../hooks/useServerSpreadWaterfall';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
@@ -15,18 +17,15 @@ import ReportTableScroll from './ReportTableScroll';
  */
 export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
   const [side, setSide] = useState<SpreadSide>('invoice');
-  const transactions = useLedgerStore(s => s.transactions);
-  const invoices = useLedgerStore(s => s.invoices);
-  const bills = useLedgerStore(s => s.bills);
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency);
   const { loading } = useLedgerCollections('transactions', 'invoices', 'bills');
+  // A list that failed to load counts as settled (its first read never marks it loaded): the server answers then.
+  const settled = useDataNeedsStore(s => (['transactions', side === 'invoice' ? 'invoices' : 'bills'] as const).every(k => s.loaded[k] || Boolean(s.failed[k])));
+  const waiting = loading && !settled;
   const valid = validCustomReportPeriod({ startDate, endDate });
-  const result = useMemo(
-    () => (valid && !loading ? spreadWaterfall(transactions || [], (side === 'invoice' ? invoices : bills) || [], side, { startDate, endDate }) : null),
-    [valid, loading, transactions, invoices, bills, side, startDate, endDate],
-  );
+  const { waterfall: result, source } = useServerSpreadWaterfall(side, startDate, endDate, valid && !waiting);
   const title = side === 'invoice' ? 'Deferred revenue waterfall' : 'Prepaid expenses waterfall';
   const done = side === 'invoice' ? 'Earned' : 'Expensed';
   const left = side === 'invoice' ? 'Still deferred' : 'Still prepaid';
@@ -47,9 +46,10 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
           <option value="bill">Expenses (bills)</option>
         </select>
       </label>
-      {loading && <p role="status">Loading entries…</p>}
+      {waiting && <p role="status">Loading entries…</p>}
       {!valid && <p role="alert">Choose a valid report period.</p>}
-      {(truncated.transactions || failed.transactions) && <p role="alert">Loaded ledger history is incomplete or failed. These figures are provisional.</p>}
+      {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => truncated[k] || failed[k]) && <p role="alert">Loaded ledger history is incomplete or failed. These figures are provisional.</p>}
+      <RangeReportSourceNote source={source} testId="spread-waterfall-source" what="these figures" />
       {result && (
         <ReportTableScroll>
           <table className="w-full text-sm">

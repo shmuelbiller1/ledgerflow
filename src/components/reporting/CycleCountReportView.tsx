@@ -49,7 +49,7 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
 
   const currency = workspace?.currency || 'USD';
   const locations = useMemo(() => (nodes || []).filter(n => n.dimensionId === 'location' && n.status !== 'archived'), [nodes]);
-  const locationName = (id: string) => (id === NO_LOCATION ? 'No location' : resolveDimensionLabel(nodes, id ? 'location' : 'location', id) || id);
+  const locationName = (id: string) => (id === NO_LOCATION ? 'No location' : resolveDimensionLabel(nodes, 'location', id) || id);
 
   useEffect(() => {
     let live = true;

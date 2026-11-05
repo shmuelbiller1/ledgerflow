@@ -1,5 +1,6 @@
 import { auth } from "../firebase";
 import { reportError, OperationType as GlobalOperationType } from "./utils";
+import { markReported } from './inBackground';
 
 export enum OperationType {
   CREATE = 'create',
@@ -59,5 +60,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   reportError(error, operationType as unknown as GlobalOperationType, path, { auth: authInfo });
   
   // Re-throw to trigger boundary if needed, but the reporter already notified the UI via toast
-  throw new Error(JSON.stringify(errInfo));
+  throw markReported(new Error(JSON.stringify(errInfo)));
 }

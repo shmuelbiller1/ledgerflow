@@ -4,12 +4,11 @@ import type { PeriodLockSettings } from '../../lib/periodLock';
 import crypto from 'crypto';
 import { CLOSE_ITEM_IDS } from '../../lib/closeChecklist';
 import { closeStepsProblem, STEP_PREFIX, type CloseStep } from '../../lib/closeSteps';
-import { formatTzDate } from '../../lib/utils';
+import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import { dayNumber } from '../../lib/fiscalCalendar';
 import { writeServerAuditLog } from './auditLogService';
 import { rebuildSnapshots } from './balanceService';
 import { supersedeClosings } from './periodClosingService';
-import { addToDateISO } from '../../lib/utils';
 import { balancesAsOf, snapshotChanges, takeClosingSnapshot, type ClosingSnapshot } from '../../lib/closingSnapshot';
 import type { ChartAccount, Transaction as LedgerEntry } from '../../types';
 

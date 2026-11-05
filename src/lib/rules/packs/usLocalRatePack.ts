@@ -142,7 +142,7 @@ export function usLocalRatePack(rows: readonly StateLocalRateRow[]): TaxRulePack
     ).map(other => other.id);
     rules.push(rateRule<LocalRateEffect>({
       id,
-      name: `${row.jurisdiction} ${combined ? 'combined' : 'component'} local sales tax ${(row.rate * 100).toFixed(3).replace(/\.?0+$/, '')}%`,
+      name: `${row.jurisdiction} ${combined ? 'combined' : 'component'} local sales tax ${(row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%`,
       when: [
         { attribute: 'country', op: 'in', values: ['US'] },
         { attribute: 'state', op: 'in', values: [row.state] },

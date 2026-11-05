@@ -5,7 +5,7 @@ import { requestUser } from '../auth/requestUser';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { generateDocumentPdf } from '../services/pdfService';
 import { BrandingSchema } from '../../lib/branding';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import type { WorkspaceBranding } from '../../lib/branding';
 
 /**

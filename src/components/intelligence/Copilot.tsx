@@ -262,7 +262,7 @@ export default function Copilot() {
               ))}
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="relative flex items-center group">
+          <form onSubmit={(e) => { e.preventDefault(); void ask(input); }} className="relative flex items-center group">
             <input aria-label="Ask Copilot"
               className="flex-1 w-full bg-[var(--ink)] border-2 border-[var(--line)] rounded-2xl px-6 py-4 text-sm focus:bg-[var(--surface)] focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition-all placeholder:text-slate-400 font-medium tracking-tight shadow-sm" 
               placeholder="Ask Copilot about cash runway, AR aging, spending patterns, or financial ratios…" 

@@ -94,3 +94,9 @@ describe('Quick entries', () => {
     assert.equal(IntentResolver.resolveEntry('spent 5 on tea\n\nspent 6 on cake')?.length, 2);
   });
 });
+
+test('S8786: input with a line over 500 characters is left whole to the fallback parser', () => {
+  const long = `bought ${'x'.repeat(560)} 40`;
+  assert.equal(IntentResolver.resolveEntry(`tea 5\n${long}`), null);
+  assert.ok(IntentResolver.resolveEntry('tea 5'));
+});

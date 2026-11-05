@@ -21,12 +21,50 @@
  * Dates are book dates: an entry stored with a clock time counts on its calendar day (`transactionDate`).
  */
 import crypto from 'crypto';
-import type { ChartAccount, Transaction } from '../../types';
+import type { Bill, ChartAccount, CreditNote, Customer, InventoryItem, Invoice, Transaction, Vendor, DimensionNode } from '../../types';
 import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
+import { customerGrossProfit } from '../../lib/customerGrossProfit';
+import { customerLifetimeValue, type CustomerLifetimeValueReport } from '../../lib/customerLifetimeValue';
+import { grossMarginByItemGroup, monthsBetween } from '../../lib/grossMarginByGroup';
+import { expenseChartLeaves, invoicePaymentPoints, type ExpenseChartLeaf } from '../../lib/chartExploration';
+import { spreadWaterfall, type SpreadSide, type Waterfall } from '../../lib/spreadWaterfall';
+import { registrationThresholdWatch, type RegistrationThresholdWatch } from '../../lib/registrationThresholdWatch';
+import type { TaxProfiles } from '../../lib/tax/profile';
+import { purchaseTrendsByVendor, salesTrends, type TrendRow } from '../../lib/documentTrends';
+import { profitabilityLines, type ProfitabilityBy, type ProfitabilityInput, type ProfitabilityLine } from '../../lib/profitabilityLines';
 import { calculateNetIncome, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
 import { getLineDimension } from '../../lib/dimensionUtils';
-import { activityByMonth, type ActivityByMonth } from '../../lib/periodActivity';
-import { computeTopExpensesAndIncome, type TopLineItem } from '../../lib/reportGenerators';
+import { activityByMonth, type ActivityByMonth, type PendingReversals, PENDING_REVERSAL, type PreviewLock, withoutReplacedPostings } from '../../lib/periodActivity';
+import { effectiveLockDate, type LockException, type PeriodLockSettings } from '../../lib/periodLock';
+import { todayIn } from './postingContextLoader';
+
+/** The workspace's lock, for a preview of what saving a document would post (#444). */
+async function previewLock(db: Firestore, workspaceId: string, uid: string): Promise<PreviewLock | undefined> {
+  // the lock that applies to this user (a soft close counts for a bookkeeper), and today in the workspace's time
+  // zone: the same rules the save follows (postingContextLoader), so the preview and the books agree (Codex on #447)
+  const ws = (await db.collection('workspaces').doc(workspaceId).get()).data() as (PeriodLockSettings & { lockException?: LockException | null; timezone?: string }) | undefined;
+  const lockDate = ws ? effectiveLockDate(ws, uid) : null;
+  if (!ws || !lockDate) return undefined;
+  return { lockDate, lockException: ws.lockException ?? null, today: todayIn(ws.timezone) };
+}
+
+/** Every entry of document `id` at any date: its own posting and the ones made for it as a bill or an invoice. */
+async function documentHistory(db: Firestore, workspaceId: string, id: string): Promise<Entry[]> {
+  const tx = db.collection('transactions').where('workspaceId', '==', workspaceId);
+  const [bills, invoices, own] = await Promise.all([
+    tx.where('metadata.billId', '==', id).get(), tx.where('metadata.invoiceId', '==', id).get(), db.collection('transactions').doc(id).get(),
+  ]);
+  const seen = new Map<string, Entry>();
+  for (const d of [...bills.docs, ...invoices.docs]) seen.set(d.id, entryOf(d));
+  const ownData = own.exists ? own.data() as Transaction : null;
+  if (ownData && ownData.workspaceId === workspaceId) seen.set(own.id, { ...ownData, id: own.id });
+  return [...seen.values()];
+}
+import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages, computeTagReport, computeTopExpensesAndIncome, type CategoryExpenseBreakdown, type IncomeBySourceBreakdown, type MonthlyAverageSummary, type TagBreakdown, type TopLineItem } from '../../lib/reportGenerators';
+import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
+import { computeTransactionsByReference, type TransactionsByReference } from '../reports/referenceReport';
+import { computeGeneralLedger } from '../reports/computeReports';
+import { entryMatches, ENTRY_QUERY_LIMIT, type EntryQuery } from '../../lib/entryQuery';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -318,11 +356,18 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
  * L-123 step 3e: activity per account per month (net, gross debits, gross credits) and entry counts over every
  * postable entry dated `from`…`to` (src/lib/periodActivity.ts). Reads the entries of the range only, no snapshot.
  */
-export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ months: ActivityByMonth; entriesRead: number }> {
+/** `excludeDocumentId`: the document being edited; the postings its save would replace are left out (BudgetLeft counts its new amount). */
+export async function activityOver(db: Firestore, workspaceId: string, from: string, to: string, excludeDocumentId?: string, uid = ''): Promise<{ months: ActivityByMonth; entriesRead: number; pendingReversal?: PendingReversals }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`An activity range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const snap = await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get();
   const entries = snap.docs.map(entryOf);
-  return { months: activityByMonth(entries, from, to), entriesRead: entries.length };
+  const counted = excludeDocumentId
+    // which postings a save replaces depends on reversals at any date, not only those inside the range
+    ? withoutReplacedPostings(entries, excludeDocumentId, await documentHistory(db, workspaceId, excludeDocumentId), await previewLock(db, workspaceId, uid)) : entries;
+  // the reversals a save would post (#444), on their own too: the browser adds them to the months it supplies
+  // itself when it does not hold the locked posting (Codex on #447)
+  const pending = counted.filter(t => t.id.endsWith(PENDING_REVERSAL));
+  return { months: activityByMonth(counted, from, to), entriesRead: entries.length, ...(pending.length ? { pendingReversal: Object.fromEntries(pending.map(t => [t.id, activityByMonth([t], from, to)])) } : {}) };
 }
 
 /**
@@ -331,14 +376,298 @@ export async function activityOver(db: Firestore, workspaceId: string, from: str
  * a reversal dated after the range still takes the entry it reverses (dated inside it) out of the list, as it does in
  * the browser. Only a reversal dated before `from` that reverses an entry inside the range is not seen.
  */
-export async function topLinesOver(db: Firestore, workspaceId: string, from: string, to: string, limit: number): Promise<{ topExpenses: TopLineItem[]; topIncome: TopLineItem[]; entriesRead: number }> {
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A line range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+/**
+ * The chart and every entry dated `from` on (postable or not, as the browser passes its loaded list), for the range
+ * reports below: entries after the range are read too, so a reversal dated after it still cancels the entry it reverses.
+ */
+async function accountsAndEntriesFrom(db: Firestore, workspaceId: string, from: string, to: string, throughTo = false): Promise<{ accounts: ChartAccount[]; entries: ReturnType<typeof entryOf>[] }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A report range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
   const [accountsSnap, entriesSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
-    db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).get(),
+    (throughTo
+      ? db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to))
+      : db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '>=', from)).get(),
+  ]);
+  return { accounts: accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount), entries: entriesSnap.docs.map(entryOf) };
+}
+
+/**
+ * L-123 step 4a: the largest single expense and income lines dated `from`…`to` over every postable entry (what
+ * `computeTopExpensesAndIncome` gives over the full history). Only a reversal dated before `from` that reverses an
+ * entry inside the range is not seen.
+ */
+export async function topLinesOver(db: Firestore, workspaceId: string, from: string, to: string, limit: number): Promise<{ topExpenses: TopLineItem[]; topIncome: TopLineItem[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { ...computeTopExpensesAndIncome(accounts, entries, limit, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4b: the sales-by-item report (`computeSalesByItem`) over every invoice dated `from`…`to`, with the cost
+ * of goods sold posted for those invoices and the reversals of those postings (at any date), so a capped browser
+ * list of invoices or entries does not leave sales out or show an estimated cost where one was posted.
+ */
+/**
+ * Every invoice dated `from`…`to`, the items and accounts, the cost of goods sold posted for those invoices and the
+ * reversals of those postings (at any date): what the sales-by-item and profitability reports read.
+ */
+async function invoiceSalesInputs(db: Firestore, workspaceId: string, from: string, to: string) {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A sales range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const [accountsSnap, itemsSnap, invoicesSnap] = await Promise.all([
+    db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
+    db.collection('inventory').where('workspaceId', '==', workspaceId).get(),
+    db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
   ]);
   const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
-  // every entry read, postable or not, as the browser passes its loaded list (the report itself keeps the postable ones)
-  const entries = entriesSnap.docs.map(entryOf);
-  return { ...computeTopExpensesAndIncome(accounts, entries, limit, from, to), entriesRead: entries.length };
+  const items = itemsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as InventoryItem);
+  const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
+  const chunks = <T>(list: T[], size = 100) => { const out: T[][] = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
+  const tx = () => db.collection('transactions').where('workspaceId', '==', workspaceId);
+  const cogs: Transaction[] = [];
+  for (const ids of chunks(invoices.map(i => i.id))) {
+    cogs.push(...(await tx().where('metadata.cogsForInvoiceId', 'in', ids).get()).docs.map(entryOf));
+  }
+  const reversals: Transaction[] = [];
+  for (const ids of chunks(cogs.map(t => t.id))) {
+    reversals.push(...(await tx().where('metadata.reversesTxId', 'in', ids).get()).docs.map(entryOf));
+  }
+  return { accounts, items, invoices, transactions: [...cogs, ...reversals] };
+}
+
+export async function salesByItemOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<SalesByItemReport & { invoicesRead: number }> {
+  const { accounts, items, invoices, transactions } = await invoiceSalesInputs(db, workspaceId, from, to);
+  return { ...computeSalesByItem({ invoices, items, transactions, accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
+}
+
+/**
+ * L-123 step 4i: profitability by customer, item or project dated `from`…`to` (profitabilityLines) over every invoice
+ * of the period and the cost of goods sold posted for them; by project, also every entry from `from` on (its expenses
+ * by project, and a later reversal still cancels its pair) and the projects' cost budgets.
+ */
+export async function profitabilityOver(db: Firestore, workspaceId: string, by: ProfitabilityBy, from: string, to: string): Promise<{ lines: ProfitabilityLine[]; invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  const ofWorkspace = async <T>(name: string) => (await db.collection(name).where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as T);
+  let transactions = sales.transactions;
+  if (by === 'project') {
+    const seen = new Set(transactions.map(t => t.id));
+    const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+    transactions = [...transactions, ...entries.filter(t => !seen.has(t.id))];
+  }
+  const lines = profitabilityLines(by, {
+    ...sales, transactions,
+    customers: by === 'customer' ? await ofWorkspace<Customer>('customers') : [],
+    projects: by === 'project' ? await ofWorkspace<ProfitabilityInput['projects'][number]>('projects') : [],
+    startDate: from, endDate: to,
+  });
+  return { lines, invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4d: the expense breakdown by category dated `from`…`to` over every postable entry (what
+ * `computeExpenseByCategory` gives over the full history). A category can be set on a line, so per-account sums cannot
+ * give it.
+ */
+export async function expenseByCategoryOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ categories: CategoryExpenseBreakdown[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { categories: computeExpenseByCategory(accounts, entries, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4e: income by source (payee, else the line's description, else the account) dated `from`…`to` over every
+ * postable entry, what `computeIncomeBySource` gives over the full history. A source is per entry or line, so
+ * per-account sums cannot give it.
+ */
+export async function incomeBySourceOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ sources: IncomeBySourceBreakdown[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { sources: computeIncomeBySource(accounts, entries, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4f: income and expense per month of `year` and their averages over every postable entry (what
+ * `computeMonthlyAverages` gives over the full history). Transfer lines are left out, so the per-account activity
+ * cannot be used for it. It pairs no reversals, so only the year's own entries are read (CodeRabbit on #498).
+ */
+export async function monthlyAveragesOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ summary: MonthlyAverageSummary; entriesRead: number }> {
+  // the route's own YYYY-01-01 / YYYY-12-31 strings, so a year below 1000 keeps its four digits (CodeRabbit on #498)
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  return { summary: computeMonthlyAverages(accounts, entries, Number(from.slice(0, 4))), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4g: income and expense by tag (the entry's tags and the line's) dated `from`…`to` over every postable
+ * entry, what `computeTagReport` gives over the full history. Tags are set on entries and lines, so per-account sums
+ * cannot give it; entries after the range are read so a later reversal still takes its pair out of the counts.
+ */
+export async function tagReportOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ tags: TagBreakdown[]; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+  return { tags: computeTagReport(accounts, entries, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4j: gross profit by customer dated `from`…`to` (customerGrossProfit) over every invoice of the period and
+ * the cost of goods sold posted for them, with the customers' names.
+ */
+export async function customerGrossProfitOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ rows: ReturnType<typeof customerGrossProfit>; invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  const customers = (await db.collection('customers').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
+  return { rows: customerGrossProfit({ ...sales, customers, startDate: from, endDate: to }), invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4k: gross margin by item group for each month of `from`…`to` (grossMarginByItemGroup) over every invoice
+ * of the range and the cost of goods sold posted for them.
+ */
+export async function itemGroupMarginOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<ReturnType<typeof grossMarginByItemGroup> & { invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  return { ...grossMarginByItemGroup({ ...sales, months: monthsBetween(from.slice(0, 7), to.slice(0, 7)) }), invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4l: sales per month by customer or item over the twelve months ending `to` (salesTrends; `from` is that
+ * window's first day) over every invoice of the window and the cost of goods sold posted for them.
+ */
+export async function salesTrendsOver(db: Firestore, workspaceId: string, group: 'customer' | 'item', from: string, to: string): Promise<{ rows: TrendRow[]; invoicesRead: number }> {
+  const sales = await invoiceSalesInputs(db, workspaceId, from, to);
+  const customers = (await db.collection('customers').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
+  return { rows: salesTrends({ ...sales, customers }, to, group), invoicesRead: sales.invoices.length };
+}
+
+/**
+ * L-123 step 4l: amounts billed per month by vendor over the twelve months ending `to` (purchaseTrendsByVendor; `from`
+ * is that window's first day) over every bill of the window, with the workspace's vendors.
+ */
+export async function purchaseTrendsOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ rows: TrendRow[]; billsRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A purchase range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const [vendorsSnap, billsSnap] = await Promise.all([
+    db.collection('vendors').where('workspaceId', '==', workspaceId).get(),
+    db.collection('bills').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+  ]);
+  const vendors = vendorsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Vendor);
+  const bills = billsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Bill);
+  return { rows: purchaseTrendsByVendor(vendors, bills, to), billsRead: bills.length };
+}
+
+/**
+ * L-123 step 4n: the registration-threshold watch as of `to` (registrationThresholdWatch) over every postable entry
+ * from `from` (thresholdWindowStart(to), which covers every window the rules use) through `to`, with the workspace's
+ * tax profiles, base currency and dimension nodes, and the entity and activity dimensions the reader chose.
+ */
+export async function registrationThresholdOver(db: Firestore, workspaceId: string, from: string, to: string,
+  dims: { entityDimensionId: string; activityDimensionId: string }): Promise<{ report: RegistrationThresholdWatch; entriesRead: number }> {
+  const [{ accounts, entries }, workspaceSnap, nodesSnap] = await Promise.all([
+    accountsAndEntriesFrom(db, workspaceId, from, to, true),
+    db.collection('workspaces').doc(workspaceId).get(),
+    db.collection('dimensionNodes').where('workspaceId', '==', workspaceId).get(),
+  ]);
+  const ws = (workspaceSnap.data() || {}) as { taxProfiles?: TaxProfiles | null; currency?: string };
+  const dimensionNodes = nodesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as DimensionNode);
+  const report = registrationThresholdWatch({
+    accounts, transactions: entries as unknown as Transaction[], profiles: ws.taxProfiles, dimensionNodes, ...dims, asOf: to, baseCurrency: ws.currency,
+  });
+  return { report, entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4o: the deferred-revenue (invoice) or prepaid-expense (bill) waterfall for `from`…`to` (spreadWaterfall)
+ * over every recognition entry of that side, at any date (shares before the period count as earned, after it as
+ * deferred), with the labels of the invoices or bills they spread.
+ */
+export async function spreadWaterfallOver(db: Firestore, workspaceId: string, side: SpreadSide, from: string, to: string): Promise<{ waterfall: Waterfall; entriesRead: number }> {
+  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A waterfall period is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
+  const type = side === 'invoice' ? 'revenue-recognition' : 'prepaid-recognition';
+  const tag = side === 'invoice' ? 'spreadOfInvoiceId' : 'spreadOfBillId';
+  const entries = (await db.collection('transactions').where('workspaceId', '==', workspaceId).where('metadata.type', '==', type).get()).docs.map(entryOf);
+  const ids = [...new Set(entries.map(e => (e as { metadata?: Record<string, unknown> }).metadata?.[tag]).filter((id): id is string => typeof id === 'string'))];
+  const documents: { id: string; number?: string; customerName?: string; vendorName?: string }[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const snap = await db.collection(side === 'invoice' ? 'invoices' : 'bills').where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
+    documents.push(...snap.docs.map(d => ({ ...(d.data() as object), id: d.id })));
+  }
+  const postable = entries.filter(e => isPostable(e as unknown as Transaction));
+  return { waterfall: spreadWaterfall(postable as never, documents, side, { startDate: from, endDate: to }), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 4p: the chart exploration for `from`…`to` — expense and cost-of-sales leaves from every postable entry of
+ * the range (expenseChartLeaves) and the amount-vs-days-to-pay points of the range's paid invoices (invoicePaymentPoints).
+ */
+export async function chartExplorationOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ leaves: ExpenseChartLeaf[]; points: ReturnType<typeof invoicePaymentPoints>; entriesRead: number; invoicesRead: number }> {
+  const [{ accounts, entries }, invoicesSnap] = await Promise.all([
+    accountsAndEntriesFrom(db, workspaceId, from, to, true),
+    db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+  ]);
+  const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
+  return { leaves: expenseChartLeaves(accounts, entries as unknown as Transaction[], from, to), points: invoicePaymentPoints(invoices), entriesRead: entries.length, invoicesRead: invoices.length };
+}
+
+/** L-123 step 4q: the first day "all recorded history" stands for when Customer lifetime value has no start date. */
+export const ALL_HISTORY_FROM = '0001-01-01';
+
+/**
+ * L-123 step 4q: customer lifetime value as of `asOf` (customerLifetimeValue) over every issued invoice from `from`
+ * (ALL_HISTORY_FROM for all recorded history) to `asOf`, the cost of goods sold posted for them, every credit note up to
+ * `asOf` and the customers' names. Documents, not entries, so the three-year entry range does not apply.
+ */
+export async function customerLifetimeValueOver(db: Firestore, workspaceId: string, from: string, asOf: string, lifespanYears: number):
+  Promise<{ report: CustomerLifetimeValueReport; invoicesRead: number; creditNotesRead: number }> {
+  const [sales, notesSnap, customersSnap] = await Promise.all([
+    invoiceSalesInputs(db, workspaceId, from, asOf),
+    db.collection('creditNotes').where('workspaceId', '==', workspaceId).where('date', '<', nextDay(asOf)).get(),
+    db.collection('customers').where('workspaceId', '==', workspaceId).get(),
+  ]);
+  const creditNotes = notesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as CreditNote);
+  const customers = customersSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Customer);
+  const report = customerLifetimeValue({
+    ...sales, customers, creditNotes, asOfDate: asOf, from: from === ALL_HISTORY_FROM ? undefined : from, lifespanYears,
+  });
+  return { report, invoicesRead: sales.invoices.length, creditNotesRead: creditNotes.length };
+}
+
+/**
+ * L-123 step 5b: "Transactions by Reference" of `from`…`to` over every postable entry of the range, an invoice or bill
+ * posting named by its document's number (only the invoices and bills its entries name are read).
+ */
+export async function referencesOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ references: TransactionsByReference; entriesRead: number }> {
+  const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  // only the invoices and bills the range's entries name are read, 100 ids a query (as spreadWaterfallOver; CodeRabbit on #512)
+  const idsOf = (key: 'invoiceId' | 'billId') => [...new Set(entries.map(e => (e.metadata as Record<string, unknown> | undefined)?.[key]).filter((id): id is string => typeof id === 'string' && id !== ''))];
+  const numbersOf = async (collection: 'invoices' | 'bills', ids: string[]) => {
+    const out: { id: string; number: string }[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const snap = await db.collection(collection).where('workspaceId', '==', workspaceId).where('__name__', 'in', ids.slice(i, i + 100)).get();
+      snap.docs.forEach(d => out.push({ id: d.id, number: String((d.data() as { number?: unknown }).number ?? '') }));
+    }
+    return out;
+  };
+  const [invoices, bills] = await Promise.all([numbersOf('invoices', idsOf('invoiceId')), numbersOf('bills', idsOf('billId'))]);
+  return { references: computeTransactionsByReference(entries as Transaction[], { invoices, bills }, from, to), entriesRead: entries.length };
+}
+
+/**
+ * L-123 step 5a: the general ledger of `from`…`to` for every account, over every postable entry of the range, with
+ * each account's opening line from the sums through the day before `from` (balancesAsOf, the closed-year snapshot when
+ * there is one). What `computeGeneralLedger` gives over the full history, without reading the years before `from`.
+ */
+export async function generalLedgerOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ ledger: ReturnType<typeof computeGeneralLedger>; entriesRead: number }> {
+  const { accounts, entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  const before = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const opening = await balancesAsOf(db, workspaceId, before);
+  return { ledger: computeGeneralLedger(accounts, entries as Transaction[], from, to, undefined, opening.accounts), entriesRead: entries.length + opening.entriesRead };
+}
+
+/**
+ * L-123 step 5c: the posted entries of `from`…`to` that match the Query screen's filter (entryMatches), newest first,
+ * at most ENTRY_QUERY_LIMIT of them; `total` counts every match.
+ */
+export async function entryQueryOver(db: Firestore, workspaceId: string, from: string, to: string, query: Omit<EntryQuery, 'startDate' | 'endDate'>): Promise<{ entries: Transaction[]; total: number; entriesRead: number }> {
+  const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  const q: EntryQuery = { ...query, startDate: from, endDate: to };
+  const hits = (entries as Transaction[]).filter(e => entryMatches(e, q)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (a.id || '').localeCompare(b.id || ''));
+  return { entries: hits.slice(0, ENTRY_QUERY_LIMIT), total: hits.length, entriesRead: entries.length };
+}
+
+/** L-123 step 5c: every year (YYYY) that has an entry in the workspace, newest first, read in one query. */
+export async function entryYearsOf(db: Firestore, workspaceId: string): Promise<number[]> {
+  const { rows } = await db.pool.query<{ y: string }>(
+    `select distinct substr(data->>'date', 1, 4) as y from public.transactions where workspace_id = $1 and data->>'date' ~ '^[0-9]{4}-'`, [workspaceId]);
+  return rows.map(r => Number(r.y)).filter(y => Number.isInteger(y)).sort((a, b) => b - a);
 }

@@ -296,7 +296,7 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                     step="0.000001"
                     disabled={isLocked}
                     value={exchangeRate}
-                    onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1.0)}
+                    onChange={(e) => setExchangeRate(Number.parseFloat(e.target.value) || 1.0)}
                     placeholder="e.g. 1.08"
                     className="w-full px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-900/10 focus:border-emerald-500 outline-none transition-all text-xs font-mono font-bold text-emerald-900"
                   />
@@ -576,7 +576,7 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                       {!isLocked && (
                         <button aria-label="Remove attached document"
                           onClick={() => setFileUrls(prev => prev.filter((_, index) => index !== i))}
-                          className="absolute top-1 right-1 p-1 bg-red-500/80 hover:bg-red-500 text-white rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 p-1 bg-red-500/80 hover:bg-red-500 text-white rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity"
                         >
                           <Trash2 aria-hidden="true" size={12} />
                         </button>

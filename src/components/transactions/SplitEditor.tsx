@@ -149,7 +149,7 @@ export default function SplitEditor({
                       type="number"
                       placeholder="Qty"
                       value={line.quantity || ''}
-                      onChange={(e) => updateLine(idx, { quantity: parseFloat(e.target.value) || 1 })}
+                      onChange={(e) => updateLine(idx, { quantity: Number.parseFloat(e.target.value) || 1 })}
                       className="w-16 px-2 py-1.5 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-xs font-mono text-center text-[var(--muted)] focus:border-indigo-600 outline-none"
                     />
                     <span className="text-[var(--muted)] text-[10px] font-black uppercase">×</span>
@@ -196,7 +196,7 @@ export default function SplitEditor({
                     <button 
                       aria-label={`Remove split line ${idx + 1}`}
                       onClick={() => removeLine(idx)}
-                      className="text-[var(--muted)] hover:text-rose-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 flex items-center justify-center hover:bg-rose-50/10 rounded-lg"
+                      className="text-[var(--muted)] hover:text-rose-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-all p-2 flex items-center justify-center hover:bg-rose-50/10 rounded-lg"
                     >
                       <Trash2 aria-hidden="true" size={16} />
                     </button>

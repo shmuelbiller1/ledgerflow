@@ -2,7 +2,7 @@ import type { Firestore } from '../db/firestore';
 import type { PdfDocument } from './pdfService';
 import type { Bill, CreditNote, Customer, Invoice, Payment, Vendor, VendorCredit } from '../../types';
 import { computeStatement } from '../reports/computeReports';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { resolveStatementScope, statementRows, type StatementScope } from '../../lib/statementScope';
 
 export interface LoadedStatement {

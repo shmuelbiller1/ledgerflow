@@ -6,7 +6,7 @@ import { writeServerAuditLog } from './auditLogService';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { isCashAccount } from '../../lib/txFilters';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import {
   PAYROLL_ACCOUNT_ROLES, PAYROLL_COLUMN_SETS, payrollEntries, readPayrollCsv,
   type PayrollAccounts, type PayrollLabelChoice, type PayrollPayDate, type PayrollProvider, type PayrollTotals,

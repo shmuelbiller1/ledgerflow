@@ -34,7 +34,7 @@ const SIDES: Record<PartySide, { party: string; label: string; refs: Reference[]
       { collection: 'transactions', path: ['metadata', 'customerId'] },
       { collection: 'transactions', path: ['metadata', 'contactId'] },
     ],
-    recurring: [['invoiceTemplate', 'customerId'], ['template', 'customerId']],
+    recurring: [['invoiceTemplate', 'customerId'], ['estimateTemplate', 'customerId'], ['template', 'customerId']],
   },
   vendor: {
     party: 'vendors',
@@ -46,6 +46,8 @@ const SIDES: Record<PartySide, { party: string; label: string; refs: Reference[]
       { collection: 'payments', path: ['contactId'], name: 'contactName' },
       { collection: 'transactions', path: ['metadata', 'vendorId'] },
       { collection: 'transactions', path: ['metadata', 'contactId'] },
+      // CA-29: the customer that is the same business keeps its link to the kept vendor
+      { collection: 'customers', path: ['linkedVendorId'] },
     ],
     recurring: [['billTemplate', 'vendorId'], ['template', 'vendorId']],
   },
@@ -56,6 +58,7 @@ const WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];
 const NOUNS: Record<string, string> = {
   invoices: 'invoice', estimates: 'estimate', creditNotes: 'credit note', payments: 'payment', transactions: 'ledger entry',
   bills: 'bill', vendorCredits: 'vendor credit', purchaseOrders: 'purchase order', recurring: 'recurring schedule',
+  customers: 'customer link',
 };
 /** Kept as they are on the kept contact, never copied from the duplicate. */
 const OWN_FIELDS = new Set(['id', 'workspaceId', 'uid', 'createdAt', 'updatedAt', 'status', 'importBatchId', 'name', 'contacts', 'tags', 'noteLog']);
@@ -138,12 +141,27 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
         updates.set(key, { collection: ref.collection, id: d.id, data: next });
       }
     }
+    if (side.party === 'vendors') {
+      // a vendor links to one customer: if the kept vendor already has one, the duplicate's link is dropped
+      const keptLink = await t.get(db.collection('customers').where('workspaceId', '==', input.workspaceId).where('linkedVendorId', '==', input.keepId));
+      if (!keptLink.empty) {
+        for (const [key, u] of updates) {
+          if (u.collection === 'customers') updates.set(key, { ...u, data: { ...u.data, linkedVendorId: '' } });
+        }
+      }
+    }
     const schedules = await t.get(db.collection('recurring').where('workspaceId', '==', input.workspaceId));
     for (const d of schedules.docs) {
       let data = d.data();
       let hit = false;
       for (const path of side.recurring) {
-        if (readPath(data, path) === input.mergeId) { data = withPath(data, path, input.keepId); hit = true; }
+        if (readPath(data, path) === input.mergeId) {
+          data = withPath(data, path, input.keepId);
+          // the template's name follows its party, as the documents' do
+          const namePath = [...path.slice(0, -1), `${side.label}Name`];
+          if (readPath(data, namePath) !== undefined) data = withPath(data, namePath, keepName);
+          hit = true;
+        }
       }
       if (hit) updates.set(`recurring/${d.id}`, { collection: 'recurring', id: d.id, data });
     }
@@ -155,8 +173,10 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
       t.set(db.collection(collection).doc(id), { ...data, updatedAt: now });
       moved[collection] = (moved[collection] || 0) + 1;
     }
-    t.update(keepRef, { ...mergedPartyFields(keep, dup, note), updatedAt: now });
+    // Delete the duplicate before updating the kept record so a carried-over
+    // unique value (e.g. customers.linkedVendorId) never collides with itself.
     t.delete(dupRef);
+    t.update(keepRef, { ...mergedPartyFields(keep, dup, note), updatedAt: now });
     await writeServerAuditLog({
       workspaceId: input.workspaceId, uid: input.uid, email: input.email,
       action: `${input.side.toUpperCase()}_MERGED`, entityType: side.party, entityId: input.keepId,

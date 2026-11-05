@@ -5,6 +5,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { HandOver } from '../collaboration/HandOver';
 import { useHandOvers } from '../collaboration/useHandOvers';
+import { inBackground } from '../../lib/inBackground';
 
 export default function InboxView() {
   const transactions = useLedgerStore(s => s.transactions);
@@ -89,21 +90,21 @@ export default function InboxView() {
   };
 
   const handleAutoFile = () => {
-    _handleCategorize(highConfidence.map(t => t.id), 'Auto-filed');
+    inBackground(_handleCategorize(highConfidence.map(t => t.id), 'Auto-filed'));
   };
 
   const handleBatchConfirm = () => {
     const saasAcc = accounts.find(a => a.name.toLowerCase().includes('software') || a.name.toLowerCase().includes('saas') || a.name.toLowerCase().includes('subscription')) || accounts.find(a => a.type === 'expense');
-    _handleCategorize(mediumConfidence.map(t => t.id), 'Software / SaaS', saasAcc?.id);
+    inBackground(_handleCategorize(mediumConfidence.map(t => t.id), 'Software / SaaS', saasAcc?.id));
   };
 
   const handleResolveLow = (id: string, category: string) => {
     if (category.toLowerCase().includes('business')) {
       const bizAcc = accounts.find(a => a.name.toLowerCase().includes('office') || a.name.toLowerCase().includes('general') || a.type === 'expense');
-      _handleCategorize([id], 'Business Expense', bizAcc?.id);
+      inBackground(_handleCategorize([id], 'Business Expense', bizAcc?.id));
     } else {
       const ownerDrawAcc = accounts.find(a => a.type === 'equity' || a.name.toLowerCase().includes('draw') || a.name.toLowerCase().includes('distribution')) || accounts.find(a => a.type === 'equity');
-      _handleCategorize([id], 'Owner Draw', ownerDrawAcc?.id);
+      inBackground(_handleCategorize([id], 'Owner Draw', ownerDrawAcc?.id));
     }
   };
 

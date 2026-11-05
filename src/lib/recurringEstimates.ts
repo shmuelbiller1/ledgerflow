@@ -9,7 +9,7 @@
  */
 import type { Estimate, RecurringTransaction } from '../types';
 import { calculateNextOccurrence } from './recurringEngine';
-import { getLocalDateISO } from './utils';
+import { getLocalDateISO } from './calendarDate';
 
 const DAY_MS = 86_400_000;
 /** An estimate may repeat monthly, quarterly or yearly (not daily or weekly). */
@@ -23,8 +23,9 @@ export function estimateValidityDays(estimate: Partial<Estimate>): number {
 }
 
 /** Why an estimate cannot repeat, in plain words, or null when it can. */
-export function recurringEstimateProblem(schedule: { frequency?: string; customerId?: string }): string | null {
+export function recurringEstimateProblem(schedule: { frequency?: string; customerId?: string; lines?: unknown[] }): string | null {
   if (!schedule.customerId) return 'A recurring estimate needs a customer.';
+  if (Array.isArray(schedule.lines) && schedule.lines.length === 0) return 'An estimate with no lines cannot repeat.';
   if (!ESTIMATE_FREQUENCIES.includes(schedule.frequency as RecurringTransaction['frequency'])) {
     return 'An estimate can repeat monthly, quarterly or yearly.';
   }
@@ -36,9 +37,12 @@ export function recurringEstimateProblem(schedule: { frequency?: string; custome
  * draft needs is copied here (the customer, lines and currency), and the number, dates, status and
  * any signing are left out — each copy gets its own when it is made.
  */
-export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency: RecurringTransaction['frequency']) {
-  const start = (estimate.date || getLocalDateISO()).slice(0, 10);
+export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency: RecurringTransaction['frequency'], today: string = getLocalDateISO()) {
+  const start = (estimate.date || today).slice(0, 10);
   const anchorDay = Number(start.split('-')[2]) || 1;
+  // an old estimate starts repeating from now: no draft for every date already gone by
+  let nextOccurrence = calculateNextOccurrence(start, frequency, anchorDay);
+  for (let steps = 0; steps < 1000 && nextOccurrence <= today.slice(0, 10); steps += 1) nextOccurrence = calculateNextOccurrence(nextOccurrence, frequency, anchorDay);
   const validityDays = estimateValidityDays(estimate);
   const { id: _id, number: _number, status: _status, date: _date, expiryDate: _expiry, signToken: _token, signTokenAt: _tokenAt,
     signature: _signature, convertedInvoiceId: _converted, orderedAt: _orderedAt, orderedBy: _orderedBy,
@@ -47,8 +51,9 @@ export function recurringEstimateSchedule(estimate: Partial<Estimate>, frequency
     description: `Recurring estimate: ${estimate.customerName || 'Customer'}`,
     amountCents: estimate.amountCents || 0,
     frequency,
-    nextOccurrence: calculateNextOccurrence(start, frequency, anchorDay),
+    nextOccurrence,
     anchorDay,
+    sourceEstimateId: estimate.id,
     isActive: true,
     status: 'active',
     type: 'estimate' as const,
@@ -106,6 +111,8 @@ export function nextEstimateDraft(
     date,
     expiryDate: expiry,
     status: 'draft',
+    // each copy bills its own milestones: none is invoiced yet
+    ...(Array.isArray(estimate.milestones) ? { milestones: estimate.milestones.map(({ invoicedAt: _done, ...m }) => m) } : {}),
     signToken: undefined,
     signTokenAt: undefined,
     signature: undefined,

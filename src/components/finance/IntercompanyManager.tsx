@@ -293,7 +293,7 @@ export default function IntercompanyManager() {
                         type="number" 
                         placeholder="0.00"
                         value={formData.amountCents / 100}
-                        onChange={e => setFormData({...formData, amountCents: Math.round(parseFloat(e.target.value || '0') * 100)})}
+                        onChange={e => setFormData({...formData, amountCents: Math.round(Number.parseFloat(e.target.value || '0') * 100)})}
                         className="w-full p-4 bg-white rounded-2xl border-2 border-[var(--line)] font-black text-2xl font-mono focus:border-[#0047AB] outline-none transition-all"
                       />
                     </Labelled>
@@ -303,7 +303,7 @@ export default function IntercompanyManager() {
                           type="number"
                           placeholder="0.00"
                           value={formData.targetAmountCents / 100}
-                          onChange={e => setFormData({...formData, targetAmountCents: Math.round(parseFloat(e.target.value || '0') * 100)})}
+                          onChange={e => setFormData({...formData, targetAmountCents: Math.round(Number.parseFloat(e.target.value || '0') * 100)})}
                           className="w-full p-3 bg-white rounded-2xl border-2 border-[var(--line)] font-mono focus:border-[#0047AB] outline-none transition-all"
                         />
                       </Labelled>

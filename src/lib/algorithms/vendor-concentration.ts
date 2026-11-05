@@ -69,7 +69,7 @@ export const VENDOR_CONCENTRATION_ALGO: AlgorithmDefinition = {
       if (index < topN) {
         chartData.push({
           Vendor: vendor,
-          'Share %': parseFloat(marketShare.toFixed(1)),
+          'Share %': Number.parseFloat(marketShare.toFixed(1)),
           Spend: spend / 100
         });
         topNSpend += spend;
@@ -80,7 +80,7 @@ export const VENDOR_CONCENTRATION_ALGO: AlgorithmDefinition = {
     if (sortedVendors.length > topN) {
       chartData.push({
         Vendor: 'All Others',
-        'Share %': parseFloat(((totalSpend - topNSpend) / totalSpend * 100).toFixed(1)),
+        'Share %': Number.parseFloat(((totalSpend - topNSpend) / totalSpend * 100).toFixed(1)),
         Spend: (totalSpend - topNSpend) / 100
       });
     }

@@ -1,4 +1,4 @@
-import { REPORT_TABS_REGISTRY, SCREEN_TABS_REGISTRY, SETTINGS_TABS_REGISTRY } from '../config/registry';
+import { REPORT_TAB_IDS, SCREEN_TAB_IDS, SETTINGS_TAB_IDS } from '../config/routeIds';
 import { normalizePinned, pageKey, type PinnedPage } from './pinnedPages';
 
 export const MAX_RECENT_REPORTS = 5;
@@ -21,11 +21,11 @@ export interface LocalReportPreferences extends ReportPreferences {
 
 export type ReportPreferencesSyncStatus = 'device' | 'loading' | 'saving' | 'synced' | 'error';
 
-const VALID_REPORT_IDS: ReadonlySet<string> = new Set(REPORT_TABS_REGISTRY.map(report => report.id));
+const VALID_REPORT_IDS: ReadonlySet<string> = new Set(REPORT_TAB_IDS);
 const VALID_PAGE_KEYS: ReadonlySet<string> = new Set([
-  ...SCREEN_TABS_REGISTRY.map(tab => tab.id),
-  ...REPORT_TABS_REGISTRY.map(report => pageKey({ tab: 'reports', sub: report.id })),
-  ...SETTINGS_TABS_REGISTRY.map(settings => pageKey({ tab: 'settings', sub: settings.id })),
+  ...SCREEN_TAB_IDS,
+  ...REPORT_TAB_IDS.map(id => pageKey({ tab: 'reports', sub: id })),
+  ...SETTINGS_TAB_IDS.map(id => pageKey({ tab: 'settings', sub: id })),
 ]);
 
 /** Recent IDs are bounded, unique and limited to reports that still exist. */

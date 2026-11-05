@@ -1,3 +1,4 @@
+import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User } from '../../lib/db/auth';
@@ -44,6 +45,7 @@ interface JournalEntryModalProps {
   initialEntry?: { description?: string; reference?: string; lines: JournalLine[]; adjusting?: boolean };
 }
 
+/** Edit a journal draft; field alerts describe existing refusals without changing posting rules. */
 export default function JournalEntryModal({ isOpen, onClose, user, accounts, workspaceId, initialEntry }: JournalEntryModalProps) {
   const [description, setDescription] = useState(initialEntry?.description || '');
   const [date, setDate] = useState(getLocalDateISO());
@@ -215,13 +217,16 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
   const createJournalLine = (): JournalEditorLine =>
     toEditorLine({ class: '', location: '', project: '', dimensions: {} }, `added-${nextLineKey.current++}`);
 
+  const { formRef, showFieldError } = useNativeFormErrors(isOpen);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) {
+      showFieldError('je-date', `Ledger period is sealed. Cannot modify entries on or before ${lockDate}.`);
       toast.error(`Ledger period is sealed. Cannot modify entries on or before ${lockDate}.`);
       return;
     }
     if (!totals.isBalanced) {
+      showFieldError('je-line-debit-0', 'Journal entry must be balanced (Debits = Credits)');
       toast.error('Journal entry must be balanced (Debits = Credits)');
       return;
     }
@@ -229,6 +234,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     try {
       const isForeignCurrency = transactionCurrency !== baseCurrency;
       if (isForeignCurrency && !(exchangeRate && exchangeRate > 0)) {
+        showFieldError('je-fx-rate', `Enter the exchange rate: how much 1 ${transactionCurrency} is in ${baseCurrency}`);
         toast.error(`Enter the exchange rate: how much 1 ${transactionCurrency} is in ${baseCurrency}`);
         return;
       }
@@ -236,6 +242,8 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
       
       const filteredLines = lines.filter(l => l.accountId && ((l.debit || 0) > 0 || (l.credit || 0) > 0));
       if (filteredLines.length < 2) {
+        const missingAccount = lines.findIndex(line => !line.accountId);
+        showFieldError(missingAccount >= 0 ? `je-line-acc-${missingAccount}` : 'je-line-debit-0', 'At least two lines with account assignments are required for double-entry.');
         toast.error('At least two lines with account assignments are required for double-entry.');
         return;
       }
@@ -311,7 +319,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
       const token = await getIdToken();
       if (autoReverse) {
         const problem = reversalDateProblem(date, reverseOn);
-        if (problem) { toast.error(problem); return; }
+        if (problem) { showFieldError('je-reverse-on', problem); toast.error(problem); return; }
       }
       // with a reversal: both entries in one request, so there is never one without the other (R-05)
       const res = autoReverse
@@ -390,7 +398,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             </div>
 
             {/* Form Content */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
+            <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
               {isLocked && (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-start gap-3">
                   <AlertCircle size={20} className="shrink-0 mt-0.5" />
@@ -487,7 +495,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
                        step="0.000001"
                        min="0"
                        value={exchangeRate ?? ''}
-                       onChange={(e) => { setRateTyped(true); const n = parseFloat(e.target.value); setExchangeRate(Number.isFinite(n) && n > 0 ? n : null); }}
+                       onChange={(e) => { setRateTyped(true); const n = Number.parseFloat(e.target.value); setExchangeRate(Number.isFinite(n) && n > 0 ? n : null); }}
                        placeholder="Type the rate"
                        required
                        className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:outline-none focus:border-[var(--brass-line)] focus:bg-[var(--surface)] transition-all font-mono font-bold text-[var(--text)]"
