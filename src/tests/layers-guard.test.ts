@@ -31,12 +31,27 @@ function filesIn(dir: string): string[] {
   return out;
 }
 
-/** Every module specifier an import/export statement names. */
+/**
+ * Is this import statement type-only? A type-only import names a type that the compiler erases, so it
+ * carries no server code into the browser bundle and is not a layer violation. Both spellings count:
+ * `import type { X } from '…'` and the inline `import { type X } from '…'`.
+ */
+function isTypeOnlyImport(line: string): boolean {
+  const trimmed = line.trim();
+  if (/^(import|export)\s+type\b/.test(trimmed)) return true;
+  const braces = trimmed.match(/\{([^}]*)\}/);
+  if (!braces) return false;
+  const bindings = braces[1].split(',').map(b => b.trim()).filter(Boolean);
+  return bindings.length > 0 && bindings.every(b => /^type\s+/.test(b));
+}
+
+/** Every module specifier a value import/export statement names (type-only ones are erased). */
 export function importsOf(source: string): Array<{ specifier: string; line: number }> {
   const found: Array<{ specifier: string; line: number }> = [];
   const lines = source.split('\n');
   lines.forEach((line, index) => {
     if (!/\b(import|export)\b/.test(line)) return;
+    if (isTypeOnlyImport(line)) return;
     const match = line.match(/(?:from\s+|import\s*\(\s*)['"]([^'"]+)['"]/);
     if (match) found.push({ specifier: match[1], line: index + 1 });
   });
@@ -90,6 +105,20 @@ describe('F-40 architecture layers', () => {
     const allowed = importsOf(fs.readFileSync('src/components/reporting/StatementView.tsx', 'utf8'));
     assert.ok(allowed.some(i => i.specifier.includes('/server/reports/')), 'the reports exception is exercised');
     assert.deepEqual(layersViolations(['src/components/reporting/StatementView.tsx']), []);
+  });
+
+  test('type-only imports are erased and do not count, value imports beside them still do', () => {
+    const typeOnly = "import type { ClosingLine } from '../../server/services/periodClosingService';";
+    const inlineTypeOnly = "import { type ClosingLine } from '../../server/services/periodClosingService';";
+    const valueImport = "import { closeThePeriod } from '../../server/services/periodClosingService';";
+    assert.deepEqual(importsOf(typeOnly), [], 'a type-only import carries no server code');
+    assert.deepEqual(importsOf(inlineTypeOnly), [], 'the inline `type` modifier is erased too');
+    assert.equal(importsOf(valueImport).length, 1, 'a value import is still a violation subject');
+    assert.deepEqual(
+      importsOf(`${typeOnly}\n${valueImport}`).map(i => i.line),
+      [2],
+      'the value import on the next line is still seen',
+    );
   });
 
   test('a wrong import is classified with its file and the rule it breaks', () => {
