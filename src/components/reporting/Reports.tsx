@@ -189,11 +189,13 @@ const Reports = React.memo(() => {
           if (y > maxYear) maxYear = y;
         }
       }
+      // a year only the server names (before the oldest loaded day) stays chosen (Codex on #516)
+      serverYears.forEach(y => yearsSet.add(y));
       if (maxYear > 0 && !yearsSet.has(selectedYear) && !linked.year) {
         setSelectedYear(maxYear);
       }
     }
-  }, [transactions, selectedYear, linked.year]);
+  }, [transactions, selectedYear, linked.year, serverYears]);
 
   useEffect(() => {
     if (transactions && transactions.length > 0) {

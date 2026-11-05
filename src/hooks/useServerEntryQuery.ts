@@ -15,8 +15,12 @@ const parseMatches = (body: Record<string, unknown>): Matches | null =>
  * full count). Without dates the server is not asked (it reads at most three years): the loaded matches, marked
  * incomplete when capped.
  */
-export function useServerEntryQuery(filter: EntryQuery): { results: Transaction[]; total: number; source: RangeReportSource } {
+export function useServerEntryQuery(input: EntryQuery): { results: Transaction[]; total: number; source: RangeReportSource } {
   useLedgerCollections('transactions');
+  // amounts typed as 19.99 arrive as 1998.9999…: whole cents, for the server and the loaded matches alike (Codex on #516)
+  const cents = (v: number | undefined) => (v === undefined || !Number.isFinite(v) ? undefined : Math.round(v));
+  const filter = useMemo<EntryQuery>(() => ({ ...input, minAmountCents: cents(input.minAmountCents), maxAmountCents: cents(input.maxAmountCents) }),
+    [input]);
   const transactions = useLedgerStore(s => s.transactions);
   const loaded = useMemo(() => {
     const entries = (transactions || []).filter(tx => entryMatches(tx, filter));

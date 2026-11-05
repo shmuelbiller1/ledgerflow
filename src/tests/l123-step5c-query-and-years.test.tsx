@@ -59,6 +59,16 @@ describe('L-123 step 5c: query and years (no database)', () => {
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/entry-query?workspaceId=${ws}&from=${from}&to=${to}&min=500`)), asked.join('\n'));
   });
 
+  test('query: an amount typed with cents (19.99 → 1998.9999…) is sent as whole cents (Codex on #516)', async () => {
+    setComponentWorkspace('owner');
+    markComponentCollectionsLoaded('transactions');
+    useLedgerStore.setState({ accounts: chart(ws), transactions: loaded, truncatedCollections: { transactions: true } } as never);
+    const asked: string[] = [];
+    globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', entries: [], total: 0 }); }) as typeof fetch;
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 19.99 * 100 }} />);
+    await waitFor(() => assert.ok(asked.some(u => u.includes('&min=1999')), asked.join('\n')), { timeout: 5000 });
+  });
+
   test('years: asked only when capped; the server\'s years are given', async () => {
     setComponentWorkspace('owner');
     let asked = 0;
