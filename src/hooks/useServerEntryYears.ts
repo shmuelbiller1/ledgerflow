@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -12,12 +12,19 @@ import { workspaceScope } from '../lib/serverAction';
  */
 export function useServerEntryYears(): { years: number[]; failed: boolean } {
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
-  // a failed answer is asked again when the loaded entries change: a capped list keeps its length, so the list
-  // itself, which every snapshot replaces, is the signal (CodeRabbit and Codex on #516)
+  // a capped list keeps its length, so the list itself, which every snapshot replaces, signals a change
   const transactions = useLedgerStore(s => s.transactions);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const [answer, setAnswer] = useState<{ workspaceId: string; years: number[]; failed: boolean } | null>(null);
-  const retryOn = answer?.failed ? transactions : null;
+  // a failed request is asked again only when a later entries snapshot arrives, never because of its own result
+  // (CodeRabbit on #516): the failure is noted in a ref, and only a change of the loaded entries bumps the attempt
+  const failedRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!failedRef.current) return;
+    failedRef.current = false;
+    setAttempt(n => n + 1);
+  }, [transactions]);
   useEffect(() => {
     if (!capped || !workspaceId) return;
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
@@ -27,10 +34,14 @@ export function useServerEntryYears(): { years: number[]; failed: boolean } {
       const body = await res.json().catch(() => ({})) as { years?: unknown };
       if (!res.ok || !Array.isArray(body.years)) throw new Error(`entry-years ${res.status}`);
       return body.years.filter((y): y is number => Number.isInteger(y));
-    })().then(years => { if (live && scope.isCurrent()) setAnswer({ workspaceId, years, failed: false }); })
-      .catch(() => { if (live && scope.isCurrent()) setAnswer(a => ({ workspaceId, years: a?.workspaceId === workspaceId ? a.years : [], failed: true })); });
+    })().then(years => { if (live && scope.isCurrent()) { failedRef.current = false; setAnswer({ workspaceId, years, failed: false }); } })
+      .catch(() => {
+        if (!live || !scope.isCurrent()) return;
+        failedRef.current = true;
+        setAnswer(a => ({ workspaceId, years: a?.workspaceId === workspaceId ? a.years : [], failed: true }));
+      });
     return () => { live = false; };
-  }, [capped, workspaceId, retryOn]);
+  }, [capped, workspaceId, attempt]);
   if (!capped || answer?.workspaceId !== workspaceId) return { years: [], failed: false };
   return { years: answer.years, failed: answer.failed };
 }

@@ -87,13 +87,20 @@ describe('L-123 step 5c: query and years (no database)', () => {
     setComponentWorkspace('owner');
     useLedgerStore.setState({ transactions: loadedOf(entries(ws)), truncatedCollections: { transactions: true } } as never);
     let ok = false;
-    globalThis.fetch = (async () => (ok ? Response.json({ status: 'success', years: [Y, 2021] }) : new Response('{}', { status: 500 }))) as typeof fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => (++calls, ok ? Response.json({ status: 'success', years: [Y, 2021] }) : new Response('{}', { status: 500 }))) as typeof fetch;
     render(<YearsProbe />);
     await waitFor(() => assert.equal(screen.getByTestId('years').textContent, ' failed'), { timeout: 5000 });
+    // the failure alone asks nothing more: only a later entries snapshot does (CodeRabbit on #516)
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(calls, 1);
     ok = true;
     // a capped list keeps its length as new entries replace old ones (Codex on #516)
     useLedgerStore.setState({ transactions: [...loadedOf(entries(ws))] });
     await waitFor(() => assert.equal(screen.getByTestId('years').textContent, `${Y},2021`), { timeout: 5000 });
+    // and the success that follows does not ask again
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(calls, 2);
   });
 
   test('query text ignores Hebrew vowel marks (CodeRabbit on #516)', () => {
