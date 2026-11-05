@@ -1,0 +1,61 @@
+
+> ledgerflow@0.1.0 db:test-setup
+> tsx scripts/db-test.ts setup
+
+applied supabase/tests/plain-postgres-stub.sql
+applied supabase/migrations/20260924190000_init.sql
+applied supabase/migrations/20260924200000_harden_functions.sql
+applied supabase/migrations/20260924210000_server_ids.sql
+applied supabase/migrations/20260924220000_two_step_login.sql
+applied supabase/migrations/20260924230000_more_indexes.sql
+applied supabase/migrations/20260925000000_workspace_fields.sql
+applied supabase/migrations/20260925010000_more_allowed_fields.sql
+applied supabase/migrations/20260925020000_import_batch.sql
+applied supabase/migrations/20260925030000_period_close.sql
+applied supabase/migrations/20260925040000_email_settings.sql
+applied supabase/migrations/20260928000000_notifications.sql
+applied supabase/migrations/20260928010000_purchase_orders.sql
+applied supabase/migrations/20260929000000_tax_returns.sql
+applied supabase/migrations/20261002000000_updated_at_indexes.sql
+applied supabase/migrations/20261003000000_contact_fields.sql
+applied supabase/migrations/20261005000000_inventory_quantity_server_only.sql
+applied supabase/migrations/20261006000000_customer_no_statements.sql
+applied supabase/migrations/20261007000000_contact_delivery_method.sql
+applied supabase/migrations/20261007010000_invoice_approval.sql
+applied supabase/migrations/20261008000000_invoice_approval_guard.sql
+applied supabase/migrations/20261009000000_loans.sql
+applied supabase/migrations/20261010000000_workspace_money_display.sql
+applied supabase/migrations/20261011000000_scheduled_reports.sql
+applied supabase/migrations/20261012000000_client_queries.sql
+applied supabase/migrations/20261013000000_recovery_codes.sql
+applied supabase/migrations/20261013010000_list_order_indexes.sql
+applied supabase/migrations/20261013020000_pay_runs_server_only.sql
+applied supabase/migrations/20261013030000_private_helpers.sql
+applied supabase/migrations/20261013040000_require_two_step.sql
+applied supabase/migrations/20261013050000_chart_account_workpapers.sql
+applied supabase/migrations/20261013060000_stock_moves.sql
+applied supabase/migrations/20261013070000_workspace_groups.sql
+applied supabase/migrations/20261014010000_unique_asset_tags.sql
+applied supabase/migrations/20261014020000_workspace_custom_fields.sql
+applied supabase/migrations/20261015000000_purchase_order_blanket.sql
+applied supabase/migrations/20261020120000_inventory_cost_server_only.sql
+applied supabase/migrations/20261021000000_shared_rate_limit_entries.sql
+applied supabase/migrations/20261021010000_inventory_cost_editable_at_zero.sql
+applied supabase/migrations/20261022000000_rma_server_only.sql
+applied supabase/migrations/20261023000000_period_balances.sql
+applied supabase/migrations/20261023010000_repost_queue.sql
+applied supabase/migrations/20261023200000_report_preferences.sql
+applied supabase/migrations/20261024000000_period_closings.sql
+applied supabase/migrations/20261025000000_stock_closings.sql
+applied supabase/migrations/20261025010000_payment_allocations.sql
+applied supabase/migrations/20261027000000_server_fields_allowed.sql
+applied supabase/migrations/20261101000000_workspace_tax_rounding.sql
+applied supabase/migrations/20261102000000_customer_linked_vendor.sql
+applied supabase/migrations/20261102010000_workspace_payment_terms.sql
+applied supabase/migrations/20261102020000_workspace_payment_types.sql
+applied supabase/migrations/20261102030000_customer_groups.sql
+
+> ledgerflow@0.1.0 test:rules
+> tsx scripts/db-test.ts rls
+
+ALL RLS TESTS PASSED
