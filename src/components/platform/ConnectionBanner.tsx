@@ -11,19 +11,17 @@ export const ConnectionBanner: React.FC = () => {
   useEffect(() => {
     if (!isOnline) {
       wasOfflineRef.current = true;
-      const clearTimer = setTimeout(() => setShowReconnected(false), 0);
-      return () => clearTimeout(clearTimer);
+      setShowReconnected(false);
     } else if (wasOfflineRef.current) {
-      // Transitioned from offline to online
+      // Transitioned from offline to online: confirm once, in the same render as the reconnection,
+      // then let the confirmation lapse. (Deferring the confirmation by a tick hid it whenever the
+      // store change came from outside an act() scope, so the banner said nothing at all.)
       wasOfflineRef.current = false;
-      const showTimer = setTimeout(() => setShowReconnected(true), 0);
+      setShowReconnected(true);
       const timer = setTimeout(() => {
         setShowReconnected(false);
       }, 3500);
-      return () => {
-        clearTimeout(showTimer);
-        clearTimeout(timer);
-      };
+      return () => clearTimeout(timer);
     }
   }, [isOnline]);
 
