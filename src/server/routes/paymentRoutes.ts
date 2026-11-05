@@ -97,9 +97,10 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     // Existing clients without an operation ID remain compatible; callers with a stable ID
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
     const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
+    const authorization = { platformAdmin: authReq.user.admin === true };
     const result = operationId
-      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined)
-      : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
+      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined, authorization)
+      : { ...(await createPaymentAtomic(db, paymentInput, authorization)), replayed: false };
     // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
     // them when replaying an already-committed payment operation.
     const remittance = result.replayed ? undefined : await afterPaymentRecorded(db, { ...result.payment, id: result.paymentId }, authReq.user.uid, { remittance: sendRemittance });

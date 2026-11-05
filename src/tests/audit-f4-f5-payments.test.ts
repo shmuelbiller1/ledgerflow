@@ -35,11 +35,11 @@ const payment = (ws: string, extra: Record<string, unknown> = {}) => ({
 });
 const count = async (db: Firestore, collection: string, ws: string) => (await db.collection(collection).where('workspaceId', '==', ws).get()).size;
 
-async function post(db: Firestore, body: Record<string, unknown>) {
+async function post(db: Firestore, body: Record<string, unknown>, user = { uid: 'actor', admin: false }, headers = {}) {
   let status = 200;
   let response: unknown;
   const res = { status(n: number) { status = n; return this; }, json(b: unknown) { response = b; return b; } };
-  await handleCreatePayment({ body, headers: {}, user: { uid: 'actor' } } as never, res as never, db as never);
+  await handleCreatePayment({ body, headers, user } as never, res as never, db as never);
   return { status, response };
 }
 
@@ -60,6 +60,36 @@ describe('audit F4/F5: payments', { skip: !url }, () => {
       const { status, response } = await post(db, payment(ws, { paymentDate: '2028-02-29' }));
       assert.equal(status, 200, JSON.stringify(response));
       assert.equal(await count(db, 'transactions', ws), 1);
+    });
+  });
+
+  for (const idempotent of [false, true]) {
+    test(`F4: platform admin without workspace membership posts${idempotent ? ' idempotently' : ''}`, async () => {
+      await isolated(async (db, ws) => {
+        const body = payment(ws, { paymentDate: '2026-11-01' });
+        const user = { uid: 'platform-admin', admin: true };
+        const headers = idempotent ? { 'idempotency-key': 'admin-payment' } : {};
+        const result = await post(db, body, user, headers);
+        assert.equal(result.status, 200, JSON.stringify(result.response));
+        if (idempotent) {
+          const replay = await post(db, body, user, headers);
+          assert.equal(replay.status, 200, JSON.stringify(replay.response));
+          assert.equal((replay.response as { data: { replayed: boolean } }).data.replayed, true);
+        }
+        assert.equal(await count(db, 'payments', ws), 1);
+        assert.equal(await count(db, 'transactions', ws), 1);
+      });
+    });
+  }
+
+  test('F4: payment body cannot authorize a viewer as platform admin', async () => {
+    await isolated(async (db, ws) => {
+      await db.collection('workspaces').doc(ws).update({ roles: { actor: 'viewer' } });
+      const body = payment(ws, { paymentDate: '2026-11-01', admin: true, platformAdmin: true, authorization: { platformAdmin: true } });
+      assert.equal((await post(db, body)).status, 403);
+      await assert.rejects(createPaymentAtomic(db, { ...body, uid: 'actor' } as never), /Forbidden/);
+      assert.equal(await count(db, 'payments', ws), 0);
+      assert.equal(await count(db, 'transactions', ws), 0);
     });
   });
 

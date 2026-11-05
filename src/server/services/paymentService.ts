@@ -55,8 +55,13 @@ export interface CreatePaymentPayload {
 
 const PAYMENT_METHODS = new Set(['cash', 'check', 'bank_transfer', 'card', 'other']);
 
-export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload) {
-  return db.runTransaction((tx: unknown) => createPaymentInTransaction(db, tx, payload));
+/** Server-only authorization context, supplied from the authenticated user, never the payment body. */
+interface PaymentAuthorization {
+  platformAdmin?: boolean;
+}
+
+export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
+  return db.runTransaction((tx: unknown) => createPaymentInTransaction(db, tx, payload, authorization));
 }
 
 /**
@@ -84,7 +89,7 @@ export function paymentRequestHash(request: unknown): string {
 /** Idempotent manual/bulk payment posting: the result key and journal commit together.
  * The same key with different payment details or a different actor is always refused.
  */
-export async function createPaymentIdempotent(db: Firestore, payload: CreatePaymentPayload, operationId: string, fingerprint?: unknown) {
+export async function createPaymentIdempotent(db: Firestore, payload: CreatePaymentPayload, operationId: string, fingerprint?: unknown, authorization?: PaymentAuthorization) {
   const key = deriveScopedOperationKey(payload.workspaceId, 'PAYMENT_CREATE', operationId);
   // CC-09: when the payload holds details the server looked up (a payment type's name and method),
   // the caller passes the request as sent, so a later rename or removal does not change the hash
@@ -100,7 +105,7 @@ export async function createPaymentIdempotent(db: Firestore, payload: CreatePaym
       if (old.status === 'success' && old.result) return { ...old.result, replayed: true };
       throw Object.assign(new Error('Payment operation is already in progress'), { status: 409 });
     }
-    const result = await createPaymentInTransaction(db, tx, payload);
+    const result = await createPaymentInTransaction(db, tx, payload, authorization);
     const now = new Date();
     tx.set(keyRef, {
       id: key, workspaceId: payload.workspaceId, actor: payload.uid,
@@ -144,7 +149,7 @@ function payeeLabels<T extends { accountId: string; amountCents: number }>(weigh
   return spreadLabels(lines as never, all) as unknown as T[];
 }
 
-export async function createPaymentInTransaction(db: any, tx: any, payload: CreatePaymentPayload) {
+export async function createPaymentInTransaction(db: any, tx: any, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
   const {
     workspaceId,
     uid,
@@ -174,7 +179,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
     if (!isIsoDate(String(paymentDate ?? ''))) throw Object.assign(new Error('The payment date must be a real date (YYYY-MM-DD)'), { status: 400 });
     // audit F4: the actor's role as the workspace has it now, inside the save; a person demoted or removed after the
     // route's check cannot still post. Online card payments post as the system, which the webhook signature authorises.
-    if (uid !== SYSTEM_ACTOR && !PAYMENT_WRITERS.includes(workspaceRole(wsData, uid))) {
+    if (authorization?.platformAdmin !== true && uid !== SYSTEM_ACTOR && !PAYMENT_WRITERS.includes(workspaceRole(wsData, uid))) {
       throw new Error('Forbidden: requires owner, accountant, or bookkeeper role');
     }
     assertPostingOpen(paymentDate, wsData, uid);
