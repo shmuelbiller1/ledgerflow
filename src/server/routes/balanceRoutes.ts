@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, entryQueryOver, entryYearsOf, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -363,3 +363,29 @@ rangeReportRoute('/transactions-by-reference', 'the transactions by reference', 
  * the loaded entries are capped.
  */
 rangeReportRoute('/general-ledger', 'the general ledger', (db, ws, from, to) => generalLedgerOver(db, ws, from, to));
+
+/**
+ * L-123 step 5c: GET /api/v1/balances/entry-query?workspaceId=…&from&to[&q=text][&min=cents][&max=cents][&accounts=id,id]
+ * — the Query screen's matches over every posted entry of the range (entryQueryOver), when the loaded entries are capped.
+ */
+balanceRouter.get('/entry-query', async (req, res) => {
+  const text = (k: string) => (typeof req.query[k] === 'string' ? req.query[k] as string : '');
+  const cents = (k: string) => (text(k) === '' ? undefined : Number(text(k)));
+  const min = cents('min'), max = cents('max');
+  const accountIds = text('accounts') ? text('accounts').split(',').filter(Boolean) : [];
+  const ok = [min, max].every(v => v === undefined || Number.isSafeInteger(v)) && text('q').length <= 200 && accountIds.length <= 200;
+  const range = rangeQuery(req, res, ok, ', q (at most 200 characters), min and max (whole cents), accounts (at most 200 ids)');
+  if (!range) return;
+  const db = getDb();
+  if (!(await allowMember(db, range.workspaceId, req, res))) return;
+  await answerRange(res, 'the matching entries', async () => ({ ...range, ...await entryQueryOver(db, range.workspaceId, range.from, range.to, { searchTerm: text('q') || undefined, minAmountCents: min, maxAmountCents: max, accountIds }) }));
+});
+
+/** L-123 step 5c: GET /api/v1/balances/entry-years?workspaceId=… — every year with an entry (entryYearsOf), for the Reports year list. */
+balanceRouter.get('/entry-years', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  if (!workspaceId) { res.status(400).json({ status: 'error', message: 'workspaceId is required' }); return; }
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  await answerRange(res, 'the years with entries', async () => ({ workspaceId, years: await entryYearsOf(db, workspaceId) }));
+});

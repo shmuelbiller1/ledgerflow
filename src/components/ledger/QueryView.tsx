@@ -1,8 +1,9 @@
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useSavedViewsStore, SavedViewFilter } from '../../stores/useSavedViewsStore';
-import { isPostable, isTransactionInDateRange, getAbsoluteTotal } from '../../lib/txFilters';
+import { getAbsoluteTotal } from '../../lib/txFilters';
+import { useServerEntryQuery } from '../../hooks/useServerEntryQuery';
+import { RangeReportSourceNote } from '../reporting/RangeReportSourceNote';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { ColumnDef } from '@tanstack/react-table';
@@ -16,7 +17,6 @@ import { csvMoney, downloadCsv } from '../../lib/csvExport';
 // Inspired by Fava (beancount/fava - MIT License) ad-hoc ledger query engine architecture.
 
 export default function QueryView() {
-  const transactions = useLedgerStore(s => s.transactions);
   const { addSavedView } = useSavedViewsStore();
 
   const [queryFilter, setQueryFilter] = useState<SavedViewFilter>({
@@ -33,51 +33,8 @@ export default function QueryView() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setShowSaveModal(false), showSaveModal);
 
-  // Execute query against transactions using txFilters primitives
-  const queryResults = useMemo(() => {
-    return transactions.filter(tx => {
-      if (!isPostable(tx)) return false;
-
-      // Date range filter
-      if (queryFilter.startDate || queryFilter.endDate) {
-        if (!isTransactionInDateRange(tx, queryFilter.startDate, queryFilter.endDate)) {
-          return false;
-        }
-      }
-
-      // Account filter
-      if (queryFilter.accountIds && queryFilter.accountIds.length > 0) {
-        const txAccountIds = (tx.lines || []).map(l => l.accountId);
-        if (!queryFilter.accountIds.some(id => txAccountIds.includes(id))) {
-          return false;
-        }
-      }
-
-      // Amount Range
-      const totalCents = getAbsoluteTotal(tx);
-      if (queryFilter.minAmountCents !== undefined && totalCents < queryFilter.minAmountCents) {
-        return false;
-      }
-      if (queryFilter.maxAmountCents !== undefined && totalCents > queryFilter.maxAmountCents) {
-        return false;
-      }
-
-      // Text search
-      if (queryFilter.searchTerm) {
-        const term = queryFilter.searchTerm.toLowerCase();
-        const matchesDesc = (tx.description || '').toLowerCase().includes(term);
-        const matchesPayee = (tx.payee || '').toLowerCase().includes(term);
-        const matchesLines = (tx.lines || []).some(l => 
-          (l.accountName || '').toLowerCase().includes(term) || (l.description || '').toLowerCase().includes(term)
-        );
-        if (!matchesDesc && !matchesPayee && !matchesLines) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [transactions, queryFilter]);
+  // L-123 step 5c: the server's matches when the loaded entries are capped (src/lib/entryQuery.ts is the filter)
+  const { results: queryResults, source, total } = useServerEntryQuery(queryFilter);
 
   // Define TanStack columns
   const columns = useMemo<ColumnDef<Transaction, unknown>[]>(() => [
@@ -165,6 +122,8 @@ export default function QueryView() {
 
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
+      <RangeReportSourceNote source={source} testId="query-source" what="these matches" />
+      {total > queryResults.length && <p className="text-xs text-neutral-600" data-testid="query-limited">Showing the first {queryResults.length} of {total} matching entries. Narrow the dates or the search to see the rest.</p>}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
