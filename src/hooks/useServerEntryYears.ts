@@ -12,10 +12,12 @@ import { workspaceScope } from '../lib/serverAction';
  */
 export function useServerEntryYears(): { years: number[]; failed: boolean } {
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
-  // a failed answer is asked again when the loaded entries change (CodeRabbit on #516)
-  const revision = useLedgerStore(s => (s.transactions || []).length);
+  // a failed answer is asked again when the loaded entries change: a capped list keeps its length, so the list
+  // itself, which every snapshot replaces, is the signal (CodeRabbit and Codex on #516)
+  const transactions = useLedgerStore(s => s.transactions);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const [answer, setAnswer] = useState<{ workspaceId: string; years: number[]; failed: boolean } | null>(null);
+  const retryOn = answer?.failed ? transactions : null;
   useEffect(() => {
     if (!capped || !workspaceId) return;
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
@@ -28,7 +30,7 @@ export function useServerEntryYears(): { years: number[]; failed: boolean } {
     })().then(years => { if (live && scope.isCurrent()) setAnswer({ workspaceId, years, failed: false }); })
       .catch(() => { if (live && scope.isCurrent()) setAnswer(a => ({ workspaceId, years: a?.workspaceId === workspaceId ? a.years : [], failed: true })); });
     return () => { live = false; };
-  }, [capped, workspaceId, revision]);
+  }, [capped, workspaceId, retryOn]);
   if (!capped || answer?.workspaceId !== workspaceId) return { years: [], failed: false };
   return { years: answer.years, failed: answer.failed };
 }

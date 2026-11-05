@@ -91,7 +91,8 @@ describe('L-123 step 5c: query and years (no database)', () => {
     render(<YearsProbe />);
     await waitFor(() => assert.equal(screen.getByTestId('years').textContent, ' failed'), { timeout: 5000 });
     ok = true;
-    useLedgerStore.setState({ transactions: entries(ws) });
+    // a capped list keeps its length as new entries replace old ones (Codex on #516)
+    useLedgerStore.setState({ transactions: [...loadedOf(entries(ws))] });
     await waitFor(() => assert.equal(screen.getByTestId('years').textContent, `${Y},2021`), { timeout: 5000 });
   });
 
