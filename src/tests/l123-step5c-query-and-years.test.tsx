@@ -85,6 +85,10 @@ describe('L-123 step 5c: query and years (no database)', () => {
     // the typed text is converted exactly: 67,108,864.01 is 6,710,886,401 cents (× 100 would give 6710886401.000001)
     render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: typedAmountCents('67108864.01') }} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=6710886401')), asked.join('\n')), { timeout: 5000 });
+    cleanup();
+    // a part cent too small for a float beside a large whole still lifts the minimum (CodeRabbit on #516)
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: typedAmountCents('5000000000.0000001') }} />);
+    await waitFor(() => assert.ok(asked.some(u => u.includes('&min=500000000001')), asked.join('\n')), { timeout: 5000 });
   });
 
   test('years: asked only when capped; the server\'s years are given', async () => {
@@ -125,7 +129,11 @@ describe('L-123 step 5c: query and years (no database)', () => {
     assert.equal(typedAmountCents('1.1'), 110);
     assert.equal(typedAmountCents('0.29'), 29);
     assert.equal(typedAmountCents('67108864.01'), 6710886401);
-    assert.equal(typedAmountCents('5000000000.004'), 500000000000.4);
+    assert.equal(typedAmountCents('5000000000.004'), 500000000000.5);
+    // however small the part cent, it is kept: the minimum then rounds up past it
+    assert.equal(typedAmountCents('5000000000.0000001'), 500000000000.5);
+    assert.equal(Math.ceil(typedAmountCents('5000000000.0000001')!), 500000000001);
+    assert.equal(typedAmountCents('19.990'), 1999);
     assert.equal(typedAmountCents('.5'), 50);
     assert.equal(typedAmountCents('abc'), undefined);
     assert.equal(typedAmountCents(''), undefined);
