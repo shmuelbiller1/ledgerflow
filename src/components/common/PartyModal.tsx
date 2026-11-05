@@ -1,9 +1,11 @@
+import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React, { useState } from 'react';
 import { DOCUMENT_LANGUAGES, MAX_CONTACT_TERMS } from '../../lib/documentLanguage';
 import { taxExemptionOf } from '../../lib/taxExemption';
 import { withholdingOf } from '../../lib/tax/withholding';
 import { Plus, Trash2, X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
+import { normalizeCustomerGroups } from '../../lib/customerGroups';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { Labelled } from '../ui/Labelled';
 import { cleanContacts, parseTags, STANDARD_CONTACT_ROLES } from '../../lib/contacts';
@@ -29,6 +31,8 @@ export interface PartyFields {
   status?: string;
   category?: string;
   currency?: string;
+  /** CC-11: the customer group (customers only) */
+  groupId?: string;
   /** How documents go out on their own (Y-27); 'email' is left out of a new contact, it is the default. */
   deliveryMethod?: DeliveryMethod;
   tags?: string[];
@@ -58,14 +62,17 @@ function placeFields(initial?: { metadata?: Record<string, unknown> } | null) {
   return { placeCountry: place?.country || '', placeState: place?.state || '', placeCity: place?.city || '' };
 }
 
+/** Edit either contact type, announcing validation without changing the saved payload. */
 export default function PartyModal({ side, isOpen, initial, onClose, onSave }: PartyModalProps) {
+  const { formRef, showFieldError } = useNativeFormErrors(isOpen, initial);
   const noun = side === 'customer' ? 'Customer' : 'Vendor';
   const editing = Boolean(initial?.id);
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const customerGroups = normalizeCustomerGroups(useAuthStore(s => s.getCurrentWorkspace()?.customerGroups)); // CC-11
   const blank = () => ({
     name: initial?.name || '', email: initial?.email || '', phone: initial?.phone || '', address: initial?.address || '',
     status: (initial?.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
-    category: initial?.category || 'Standard', currency: initial?.currency || '', tags: (initial?.tags || []).join(', '),
+    category: initial?.category || 'Standard', currency: initial?.currency || '', groupId: initial?.groupId || '', tags: (initial?.tags || []).join(', '),
     deliveryMethod: preferredDelivery(initial),
     language: typeof initial?.metadata?.documentLanguage === 'string' ? initial.metadata.documentLanguage : '',
     terms: typeof initial?.metadata?.documentTerms === 'string' ? initial.metadata.documentTerms : '',
@@ -92,7 +99,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // "required" lets a name of only spaces through; spaces around an email would break sending
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { showFieldError('partyName', 'Enter a name, not just spaces.'); return; }
     const party: Party = { name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), status: form.status };
     if (side === 'vendor') party.category = form.category.trim() || 'Standard';
     if (!editing) party.balanceCents = 0;
@@ -101,11 +108,13 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
     const address = form.address.trim();
     if (address || (editing && initial?.address)) party.address = address;
     if (form.currency || (editing && initial?.currency)) party.currency = form.currency;
+    // CC-11: written when chosen, or cleared ('') when a customer leaves its group
+    if (side === 'customer' && (form.groupId || (editing && initial?.groupId))) party.groupId = form.groupId;
     // Email is what happened before anyone could choose, so it is only written when it was set before
     if (form.deliveryMethod !== 'email' || (editing && initial?.deliveryMethod)) party.deliveryMethod = form.deliveryMethod;
     if (tags.length || (editing && initial?.tags?.length)) party.tags = tags;
     const taxPlace = form.placeCountry.trim() ? { country: form.placeCountry.trim().toUpperCase(), ...(form.placeState.trim() ? { state: form.placeState.trim().toUpperCase() } : {}), ...(form.placeCity.trim() ? { city: form.placeCity.trim() } : {}) } : null;
-    const whtRate = form.whtRate.trim() === '' ? NaN : Number(form.whtRate);
+    const whtRate = form.whtRate.trim() === '' ? Number.NaN : Number(form.whtRate);
     const withholding = Number.isFinite(whtRate) && whtRate >= 0 && whtRate <= 100 ? { ratePercent: whtRate, ...(form.whtNumber.trim() ? { number: form.whtNumber.trim() } : {}), ...(form.whtUntil ? { expires: form.whtUntil } : {}) } : null;
     const exemption = form.exemptNumber.trim() ? { number: form.exemptNumber.trim(), ...(form.exemptUntil ? { expires: form.exemptUntil } : {}) } : null;
     if (form.language || form.terms.trim() || exemption || taxPlace || withholding || form.vatNumber.trim() || initial?.metadata?.vatNumber || initial?.metadata?.withholding || initial?.metadata?.documentLanguage || initial?.metadata?.documentTerms || initial?.metadata?.taxExemption || initial?.metadata?.taxPlace) {
@@ -130,10 +139,10 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <Labelled labelClassName={labelClass} label={`${noun} Name`}>
-              <input type="text" required value={form.name} onChange={e => set({ name: e.target.value })} className={field} />
+              <input name="partyName" type="text" required value={form.name} onChange={e => set({ name: e.target.value })} className={field} />
             </Labelled>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -178,6 +187,17 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
               </Labelled>
             </div>
           </div>
+          {side === 'customer' && (customerGroups.length > 0 || form.groupId) && (
+            <div>
+              <Labelled labelClassName={labelClass} label="Customer group (its default payment terms apply when this customer has none)">
+                <select value={form.groupId} onChange={e => set({ groupId: e.target.value })} className={field}>
+                  <option value="">No group</option>
+                  {customerGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  {form.groupId && !customerGroups.some(g => g.id === form.groupId) && <option value={form.groupId}>A removed group</option>}
+                </select>
+              </Labelled>
+            </div>
+          )}
           <div>
             <Labelled labelClassName={labelClass} label={`Preferred delivery for ${side === 'customer' ? 'invoices and statements' : 'bills and remittances'}`}>
               <select value={form.deliveryMethod} onChange={e => set({ deliveryMethod: e.target.value as DeliveryMethod })} className={field}>

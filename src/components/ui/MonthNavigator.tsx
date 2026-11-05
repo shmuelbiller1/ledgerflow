@@ -44,7 +44,7 @@ export const MonthNavigator: React.FC<MonthNavigatorProps> = ({
         onClick={() => stepMonth(-1)}
         id="btn-month-nav-prev"
         aria-label="Previous month"
-        className="p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition"
+        className="min-h-11 min-w-11 p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition"
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
@@ -58,7 +58,7 @@ export const MonthNavigator: React.FC<MonthNavigatorProps> = ({
         onClick={() => stepMonth(1)}
         id="btn-month-nav-next"
         aria-label="Next month"
-        className="p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition"
+        className="min-h-11 min-w-11 p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition"
       >
         <ChevronRight className="w-4 h-4" />
       </button>
@@ -68,7 +68,7 @@ export const MonthNavigator: React.FC<MonthNavigatorProps> = ({
         id="btn-month-nav-reset"
         title="Reset to current month"
         aria-label="Current month"
-        className="p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition ml-0.5"
+        className="min-h-11 min-w-11 p-1 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded transition ml-0.5"
       >
         <RotateCcw className="w-3.5 h-3.5" />
       </button>

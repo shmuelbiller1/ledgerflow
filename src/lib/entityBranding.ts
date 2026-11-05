@@ -12,7 +12,7 @@
  * override is just a WorkspaceBranding that leaves out what it doesn't change.
  */
 
-import type { WorkspaceBranding } from './branding';
+import type { WorkspaceBranding } from './brandingConstants';
 
 export interface BrandingProfiles {
   labels?: Record<string, WorkspaceBranding>;

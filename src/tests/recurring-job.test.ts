@@ -8,8 +8,9 @@
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
-import { invalidEntryReason, isBillSchedule, isInvoiceSchedule } from '../server/services/recurringService';
+import { invalidEntryReason, isBillSchedule, isEstimateSchedule, isInvoiceSchedule } from '../server/services/recurringService';
 import { recurringBillSchedule } from '../lib/recurringBills';
+import { recurringEstimateSchedule } from '../lib/recurringEstimates';
 import type { Firestore } from '../server/db/pgFirestore';
 
 describe('Recurring schedules: checks', () => {
@@ -19,6 +20,8 @@ describe('Recurring schedules: checks', () => {
     assert.equal(isInvoiceSchedule({ template: { lines: [] } }), false);
     assert.equal(isBillSchedule({ type: 'bill' }), true);
     assert.equal(isBillSchedule({ type: 'invoice' }), false);
+    assert.equal(isEstimateSchedule({ type: 'estimate' }), true);
+    assert.equal(isEstimateSchedule({ type: 'bill' }), false);
   });
 
   test('a repeating bill\'s schedule copies the vendor, lines and tax, not its number, dates or payments', () => {
@@ -77,7 +80,7 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
   });
 
   after(async () => {
-    for (const table of ['recurring', 'invoices', 'bills', 'transactions', 'chartAccounts', 'notifications', 'numberingSeries', 'workspaces']) {
+    for (const table of ['recurring', 'invoices', 'estimates', 'bills', 'transactions', 'chartAccounts', 'notifications', 'numberingSeries', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     }
     await db.terminate();
@@ -140,5 +143,34 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
     const notes = (await db.collection('notifications').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
     assert.ok(notes.some(n => n.kind === 'bill.draft_ready'));
     assert.equal((await processRecurring(db, '2026-09-02')).processedCount, 0, 'once per date');
+  });
+
+  test('a recurring estimate (CC-04) becomes a numbered draft estimate for its date, once; nothing is sent', async () => {
+    const schedule = recurringEstimateSchedule({ id: 'e1', number: 'EST-1', customerId: 'c9', customerName: 'Acme', date: '2026-08-05', expiryDate: '2026-08-19',
+      status: 'accepted', amountCents: 9900, lines: [{ description: 'Retainer', quantity: 1, unitPriceCents: 9900, amountCents: 9900 }], signToken: 'secret' } as never, 'monthly', '2026-08-06');
+    await rule('est', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-06T00:00:00Z' });
+    // the same estimate set to repeat a second time: only the first schedule makes drafts
+    await rule('est2', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-07T00:00:00Z' });
+    // a schedule whose estimate has no lines makes nothing and says why
+    await rule('estbad', { ...schedule, sourceEstimateId: 'e-bad', estimateTemplate: { ...schedule.estimateTemplate, lines: [] }, nextOccurrence: '2026-09-05', anchorDay: 5 });
+    const result = await processRecurring(db, '2026-09-05');
+    assert.equal(result.details.filter(d => d.estimateId).length, 1, JSON.stringify(result.details));
+    const estimates = (await db.collection('estimates').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
+    assert.equal(estimates.length, 1);
+    const e = estimates[0];
+    assert.deepEqual([e.status, e.date, e.expiryDate, e.customerName, e.amountCents, e.currency], ['draft', '2026-09-05', '2026-09-19', 'Acme', 9900, 'EUR']);
+    assert.ok(e.number && e.number !== 'EST-1', 'a new number');
+    assert.equal(e.signToken, undefined, 'no signing link carried over');
+    assert.equal(e.validityDays, undefined);
+    assert.equal(e.lines[0].description, 'Retainer', 'the lines are copied');
+    assert.match(String((await db.collection('recurring').doc(id('estbad')).get()).data()?.lastErrorCode), /no lines/);
+    assert.equal((await db.collection('recurring').doc(id('est')).get()).data()?.nextOccurrence, '2026-10-05');
+    const notes = (await db.collection('notifications').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
+    assert.ok(notes.some(n => n.kind === 'estimate.draft_ready'));
+    assert.equal((await processRecurring(db, '2026-09-05')).details.filter(d => d.estimateId).length, 0, 'once per date');
+    // a schedule for the same estimate that sorts first (an earlier clock) still makes no second draft that date
+    await rule('est0', { ...schedule, nextOccurrence: '2026-09-05', anchorDay: 5, createdAt: '2026-08-01T00:00:00Z' });
+    await processRecurring(db, '2026-09-05');
+    assert.equal((await db.collection('estimates').where('workspaceId', '==', ws).get()).docs.length, 1, 'one draft per estimate and date');
   });
 });

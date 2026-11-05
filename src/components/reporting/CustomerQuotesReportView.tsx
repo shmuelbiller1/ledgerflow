@@ -12,6 +12,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useEntityOperations } from '../../hooks/useEntityOperations';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 import {
   acceptQuoteProblem,
   customerOpenQuotes,
@@ -48,10 +50,11 @@ function CustomerQuotesContent() {
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed);
-  const { loading } = useLedgerCollections('estimates', 'customers');
+  const { loading } = useLedgerCollections('estimates', 'customers', 'recurring');
 
   const estimates = useLedgerStore(s => s.estimates) as Estimate[];
   const customers = useLedgerStore(s => s.customers) as Customer[];
+  const recurring = useLedgerStore(s => s.recurring) as Array<RecurringTransaction & { sourceEstimateId?: string }>;
 
   const [today, setToday] = useState<string>(() => getLocalDateISO());
   const [quoteState, setQuoteState] = useState('all');
@@ -141,9 +144,9 @@ function CustomerQuotesContent() {
 
   const recurringInfo = useMemo(() => {
     if (!selectedEstimate) return null;
-    const problem = recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId });
+    const problem = recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId, lines: selectedEstimate.lines || [] });
     if (problem) return { problem, nextOccurrence: '', drafts: [], validityDays: 0 };
-    const schedule = recurringEstimateSchedule(selectedEstimate, frequency);
+    const schedule = recurringEstimateSchedule(selectedEstimate, frequency, today);
     const validityDays = estimateValidityDays(selectedEstimate);
     const drafts = estimateDraftsDue(
       [{
@@ -158,6 +161,22 @@ function CustomerQuotesContent() {
     );
     return { problem: null, nextOccurrence: schedule.nextOccurrence, drafts, validityDays };
   }, [selectedEstimate, frequency, today]);
+  const { addEntity } = useEntityOperations();
+  const role = useCurrentRole();
+  const canRepeat = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
+  const [repeating, setRepeating] = useState(false);
+  // CC-04: saves the schedule; the daily job makes a draft estimate (next number) on each date
+  // one schedule per estimate: an estimate already repeating is not set up again
+  const alreadyRepeating = Boolean(selectedEstimate && (recurring || []).some(r => r.sourceEstimateId === selectedEstimate.id && r.isActive !== false && r.status !== 'completed'));
+  // until the full list of schedules is here, absence does not prove there is none
+  const schedulesUnknown = loading || Boolean(truncated.recurring || failed.recurring);
+  const repeat = (): void => {
+    if (!selectedEstimate || repeating || alreadyRepeating || schedulesUnknown || recurringEstimateProblem({ frequency, customerId: selectedEstimate.customerId, lines: selectedEstimate.lines || [] })) return;
+    setRepeating(true);
+    // the saved schedule starts from the real date; the assessment date only drives the preview
+    void addEntity('recurring', recurringEstimateSchedule(selectedEstimate, frequency, getLocalDateISO()), `Estimate ${selectedEstimate.number} will repeat ${frequency}`)
+      .finally(() => setRepeating(false));
+  };
 
   const partial = Boolean(
     truncated.estimates || truncated.customers || failed.estimates || failed.customers,
@@ -382,7 +401,7 @@ function CustomerQuotesContent() {
             <div className="border border-[var(--line)] rounded p-4 space-y-3 bg-[var(--panel)]">
               <h3 className="font-semibold text-base">Recurring estimate schedule ({selectedEstimate.number})</h3>
               <p className="text-xs text-[var(--muted)]">
-                Previews repeating quote dates and draft estimates due on or before {today} (validity window: {recurringInfo.validityDays} days).
+                Each repeat is a new draft estimate with the next number, made by the daily job on its date; nothing is sent. Shown: drafts due on or before {today} (validity window: {recurringInfo.validityDays} days).
               </p>
               <div className="flex flex-wrap gap-3">
                 <label className="flex flex-col gap-1 text-sm">
@@ -398,13 +417,19 @@ function CustomerQuotesContent() {
                     ))}
                   </select>
                 </label>
+                {canRepeat && (
+                  <button type="button" onClick={repeat} disabled={repeating || alreadyRepeating || schedulesUnknown || Boolean(recurringInfo.problem)} aria-busy={repeating}
+                    className="self-end min-h-11 px-3 rounded border text-sm disabled:opacity-50">
+                    {alreadyRepeating ? 'Already repeating' : 'Repeat this estimate'}
+                  </button>
+                )}
               </div>
               {recurringInfo.problem ? (
                 <p role="alert" className="text-sm text-amber-700">{recurringInfo.problem}</p>
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>
-                    First recurring occurrence after {selectedEstimate.date}:{' '}
+                    First draft if it had been set to repeat on {today} (a schedule saved now starts from today&apos;s date):{' '}
                     <strong>{recurringInfo.nextOccurrence || 'None'}</strong>
                   </div>
                   <div>

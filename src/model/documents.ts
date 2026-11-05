@@ -246,6 +246,8 @@ export interface Payment {
   currency?: string;
   exchangeRate?: number;
   method: 'cash' | 'check' | 'bank_transfer' | 'card' | 'other';
+  /** CC-09: the workspace payment type it was recorded with (its method is `method`) */
+  paymentType?: { id: string; name: string };
   reference?: string;                   // cheque number, wire ref
   depositAccountId: string;             // which bank/cash account it hit
   allocations: PaymentAllocation[];
@@ -391,6 +393,10 @@ export interface Customer {
   currency?: string;
   /** How this customer wants documents (invoices, statements); unset means Email (Y-27). */
   deliveryMethod?: DeliveryMethod;
+  /** CA-29: the vendor that is the same business (party link); set on the customer side only. */
+  linkedVendorId?: string;
+  /** CC-11: the customer group it belongs to (Settings → Customer groups) */
+  groupId?: string;
   /** People to deal with at the customer (Y-21). */
   contacts?: ContactPerson[];
   /** Notes timeline, newest first (Y-25). */

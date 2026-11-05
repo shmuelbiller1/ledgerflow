@@ -11,7 +11,10 @@ import { getIdToken } from '../../firebase';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { formatCurrency, formatDate, formatTzDate, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useDialog } from '../../hooks/useDialog';
 import DisposeAssetDialog from './DisposeAssetDialog';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import TransferAssetDialog from './TransferAssetDialog';
 import AssetLabels from './AssetLabels';
 import { assetMatches, missingTags } from '../../lib/assetTags';
@@ -41,7 +44,7 @@ export const FixedAssetsView: React.FC = () => {
   const assets = useLedgerStore(s => s.assets) as FixedAsset[] | undefined;
   const accounts = useLedgerStore(s => s.accounts) as ChartAccount[] | undefined;
   const bills = useLedgerStore(s => s.bills);
-  useLedgerCollections('assets', 'bills');
+  const { loading } = useLedgerCollections('assets', 'bills');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const { addEntity, updateEntity } = useEntityOperations();
   const role = useCurrentRole();
@@ -51,6 +54,7 @@ export const FixedAssetsView: React.FC = () => {
   const [runMonth, setRunMonth] = useState(() => previousMonth(today));
   const [running, setRunning] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const { dialogProps: addAssetDialogProps, titleId: addAssetTitleId } = useDialog(() => setIsAdding(false), isAdding);
   // X-03: the asset being sold or scrapped, and the one whose disposal is being undone
   const [disposing, setDisposing] = useState<FixedAsset | null>(null);
   const [moving, setMoving] = useState<FixedAsset | null>(null);
@@ -249,11 +253,15 @@ export const FixedAssetsView: React.FC = () => {
       {labels && <AssetLabels assets={shown} company={workspace?.name || ''} onClose={() => setLabels(false)} />}
 
       {list.length === 0 ? (
-        <div className="text-center py-12 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-          <Building className="w-8 h-8 text-[var(--muted)] mx-auto mb-3" aria-hidden="true" />
-          <h2 className="text-sm font-semibold text-[var(--text)]">No fixed assets yet</h2>
-          <p className="text-xs text-[var(--muted)] mt-1 max-w-md mx-auto">Add equipment, vehicles or computers; the month-end run posts their depreciation.</p>
-        </div>
+        // a register the session already knows is empty gets the words; still arriving gets the spinner
+        loading ? <LoadingState what="assets" /> : (
+          <EmptyState
+            title="No fixed assets yet"
+            description="Equipment, vehicles or computers the business bought show here; the month-end close posts their depreciation."
+            actionLabel={canWrite ? 'Add your first asset' : undefined}
+            onAction={canWrite ? () => setIsAdding(true) : undefined}
+          />
+        )
       ) : (
         <div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -353,10 +361,10 @@ export const FixedAssetsView: React.FC = () => {
       )}
 
       {isAdding && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="add-asset-title">
+        <div {...addAssetDialogProps} className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
             <div className="p-4 border-b border-[var(--line)] flex items-center justify-between">
-              <h2 id="add-asset-title" className="text-sm font-bold text-[var(--text)]">Add a fixed asset</h2>
+              <h2 id={addAssetTitleId} className="text-sm font-bold text-[var(--text)]">Add a fixed asset</h2>
               <button type="button" onClick={() => setIsAdding(false)} className="p-1.5 text-[var(--muted)] rounded-md" aria-label="Close">
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>

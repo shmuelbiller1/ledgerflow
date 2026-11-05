@@ -3,20 +3,8 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { CORE_KEYS, LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
+import { COLLECTION_LABELS, collectionList, CORE_KEYS, LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import type { LedgerKey } from '../../lib/ledgerCollections';
-
-/** What each collection is called on screen. */
-const COLLECTION_LABELS: Record<LedgerKey, string> = {
-  transactions: 'entries', accounts: 'accounts', taxRates: 'tax codes', autoRules: 'rules', customers: 'customers',
-  vendors: 'vendors', invoices: 'invoices', creditNotes: 'credit notes', payments: 'payments', estimates: 'estimates',
-  bills: 'bills', vendorCredits: 'vendor credits', inventory: 'items', budgets: 'budgets', projects: 'projects',
-  journalEntries: 'journal entries', payRuns: 'pay runs', employees: 'employees', bankLines: 'bank lines',
-  reconciliations: 'reconciliations', auditLogs: 'activity', recurring: 'recurring schedules', assets: 'fixed assets', loans: 'loans',
-  scenarios: 'scenarios',
-};
-
-const list = (labels: string[]) => labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 
 /**
  * One line above every screen about the workspace's data (I-01, I-02, AA-02): what is still
@@ -43,7 +31,7 @@ export default function DataStatusBar() {
   const loadingNote = loadingKeys.length > 0 && (
     <div role="status" className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)] shadow-md">
       <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-      <span>Loading {list(loadingKeys.map(k => COLLECTION_LABELS[k]))}…</span>
+      <span>Loading {collectionList(loadingKeys)}…</span>
     </div>
   );
   if (!failedKeys.length && !cut.length) return loadingNote || null;
@@ -53,7 +41,7 @@ export default function DataStatusBar() {
       {failedKeys.length > 0 && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-[var(--neg)]">
           <AlertTriangle size={14} aria-hidden="true" />
-          <span>Couldn't load {list(failedKeys.map(k => COLLECTION_LABELS[k]))}. Screens that use them may look empty. Check your connection, then</span>
+          <span>Couldn't load {collectionList(failedKeys)}. Screens that use them may look empty. Check your connection, then</span>
           {failedKeys.map(k => (
             <button key={k} type="button" onClick={() => retry(k)} className="underline font-semibold">
               try again{failedKeys.length > 1 ? ` (${COLLECTION_LABELS[k]})` : ''}
@@ -63,7 +51,7 @@ export default function DataStatusBar() {
       )}
       {cut.length > 0 && (
         <div role="status" className="text-[var(--brass)]">
-          Only the most recent {list(cut.map(k => `${LEDGER_COLLECTIONS[k].cap.toLocaleString()} ${COLLECTION_LABELS[k]}`))} are loaded: totals on screen may be incomplete.
+          Only the most recent {cut.map(k => `${LEDGER_COLLECTIONS[k].cap.toLocaleString()} ${COLLECTION_LABELS[k]}`).join(' and ')} are loaded: totals on screen may be incomplete.
         </div>
       )}
     </div>

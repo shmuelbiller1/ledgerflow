@@ -429,10 +429,17 @@ export interface BankStatementLine {
   exchangeRate?: number;
   matchedTransactionId?: string;
   status: 'pending' | 'matched' | 'ignored';
+  /** the bank corrected ('modified') or withdrew ('removed') this line after it was matched: review it */
+  bankChange?: 'modified' | 'removed';
+  bankCorrection?: { date: string; description: string; amountCents: number; currency?: string };
   /** EG-9: the statement line's source fingerprint; one bank line per fingerprint */
   importIdentity?: string;
   /** EG-9: what the bank rules suggest (server-written; nothing is posted until accepted) */
   suggestion?: import('../lib/bankRules').BankRuleSuggestion | null;
+  /** AF-001: the line's own currency (a Plaid row may differ from the books'); amountCents is in its minor units */
+  currency?: string;
+  /** AF-001: where the line came from ('plaid' for the bank feed) */
+  source?: string;
 }
 
 export interface FilterCriteria {

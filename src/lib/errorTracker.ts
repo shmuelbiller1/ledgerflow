@@ -18,6 +18,15 @@ function sanitizeText(input: string): string {
 }
 
 /**
+ * Redacts public capability tokens (/c/<token>, /e/<token>, /i/<token>, /invite/<token>)
+ * before persisting or transmitting telemetry URLs.
+ */
+export function sanitizeTelemetryUrl(input: string): string {
+  if (!input) return '';
+  return input.replace(/(\/(?:c|e|i|invite)\/)[^/?#]+/g, '$1[REDACTED]');
+}
+
+/**
  * Reports an error to the backend telemetry error logger and stores in recent buffer
  */
 export async function reportClientError(
@@ -56,7 +65,7 @@ export async function reportClientError(
     message: sanitizeText(message).slice(0, 2000),
     stack: stack ? sanitizeText(stack).slice(0, 4000) : undefined,
     componentStack: extra?.componentStack ? sanitizeText(extra.componentStack).slice(0, 2000) : undefined,
-    url: typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
+    url: typeof window !== 'undefined' ? sanitizeTelemetryUrl(window.location.pathname + window.location.search) : '',
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
     appVersion: '0.1.0',
     release: 'ledgerflow-prod-v1',

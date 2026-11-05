@@ -5,6 +5,8 @@ import React, { useRef, useState, useMemo } from 'react';
 import { X, DollarSign, Sparkles } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { isUndepositedFundsAccount } from '../../lib/accountUtils';
+import { fitsPaymentAccount, paymentModeAccountId } from '../../lib/accountDefaults';
+import { normalizePaymentTypes } from '../../lib/paymentTypes';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -51,6 +53,9 @@ export default function ReceivePaymentModal({
   const [date, setDate] = useState<string>(getLocalDateISO());
   const [amountDollars, setAmountDollars] = useState<string>('');
   const [method, setMethod] = useState<'cash' | 'check' | 'bank_transfer' | 'card' | 'other'>('bank_transfer');
+  // CC-09: one of the workspace's payment types, if chosen; its method is `method`
+  const paymentTypes = normalizePaymentTypes(useAuthStore(s => s.getCurrentWorkspace()?.paymentTypes));
+  const [paymentTypeId, setPaymentTypeId] = useState('');
   const [reference, setReference] = useState<string>('');
   const [depositAccountId, setDepositAccountId] = useState<string>('');
   const [allocationsMap, setAllocationsMap] = useState<Record<string, string>>({});
@@ -66,13 +71,19 @@ export default function ReceivePaymentModal({
   // Filter bank/cash accounts
   const cashAccounts = useMemo(() => {
     // Bank/cash accounts, plus Undeposited Funds (received now, taken to the bank later with "Make deposit")
-    return (accounts || []).filter(a => 
-      a.type === 'asset' && 
-      (a.category === 'Cash' || a.category === 'Bank' || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('checking') || isUndepositedFundsAccount(a))
+    // CA-28: also every account Settings → Defaults offers for a payment method (the same rule), active ones only
+    return (accounts || []).filter(a =>
+      !a.isArchived && a.isActive !== false && (fitsPaymentAccount(a) || (
+      a.type === 'asset' &&
+      (a.category === 'Cash' || a.category === 'Bank' || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('checking') || isUndepositedFundsAccount(a))))
     );
   }, [accounts]);
 
-  const selectedDepositAccountId = depositAccountId || cashAccounts[0]?.id || '';
+  // CA-28: until the person picks an account, the one set for this payment method (Settings → Defaults)
+  const accountMappings = useAuthStore(s => s.getCurrentWorkspace()?.defaultAccountMappings);
+  // a picked account that has since been archived or deactivated is dropped, so the screen never submits an account it no longer lists
+  const pickedAccount = cashAccounts.some(a => a.id === depositAccountId) ? depositAccountId : '';
+  const selectedDepositAccountId = pickedAccount || paymentModeAccountId(method, cashAccounts, accountMappings);
 
   // Filter target open documents
   // oldest first, so a payment settles the oldest invoices/bills first (the store lists newest first)
@@ -126,11 +137,11 @@ export default function ReceivePaymentModal({
   }
 
   // the currency of what is being paid: the documents chosen (one payment is one currency)
-  const payDoc = openDocs.find(d => parseFloat(allocationsMap[d.id] || '') > 0) || openDocs.find(d => d.id === defaultDocumentId);
+  const payDoc = openDocs.find(d => Number.parseFloat(allocationsMap[d.id] || '') > 0) || openDocs.find(d => d.id === defaultDocumentId);
   const payCurrency = payDoc?.currency || homeCurrency;
   // BM-04: amounts typed in the payment's currency, in its own decimals (whole yen, three-decimal dinars)
   const digits = currencyDigits(payCurrency);
-  const toMinor = (text: string) => { const p = parseFloat(text); return isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits); };
+  const toMinor = (text: string) => { const p = Number.parseFloat(text); return Number.isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits); };
   const paymentAmountCents = toMinor(amountDollars);
   const totalAllocatedCents = Object.values(allocationsMap).reduce((sum, val) => sum + toMinor(val), 0);
 
@@ -189,8 +200,8 @@ export default function ReceivePaymentModal({
       // Allocations array
       const allocations: { documentId: string; documentType: 'invoice' | 'bill'; amountCents: number }[] = [];
       Object.entries(allocationsMap).forEach(([docId, valStr]) => {
-        const p = parseFloat(valStr);
-        const cents = isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits);
+        const p = Number.parseFloat(valStr);
+        const cents = Number.isNaN(p) || p <= 0 ? 0 : Math.round(p * 10 ** digits);
         if (cents > 0) {
           allocations.push({
             documentId: docId,
@@ -209,6 +220,7 @@ export default function ReceivePaymentModal({
           paymentDate: date,
           amountCents: paymentAmountCents,
           paymentMethod: method,
+          ...(paymentTypeId ? { paymentTypeId } : {}),
           referenceNumber: reference || '',
           memo: memo || '',
           customerId: contactType === 'customer' ? contactId : undefined,
@@ -368,7 +380,7 @@ export default function ReceivePaymentModal({
                   {homeCurrency} for 1 {payCurrency} on the payment day
                 </label>
                 <input id="pay-day-rate" type="number" step="0.000001" min="0" placeholder={String(payDoc?.rate || '')}
-                  value={dayRate ?? ''} onChange={e => { setRateTyped(true); setDayRateSource('typed'); const n = parseFloat(e.target.value); setDayRate(Number.isFinite(n) && n > 0 ? n : null); }}
+                  value={dayRate ?? ''} onChange={e => { setRateTyped(true); setDayRateSource('typed'); const n = Number.parseFloat(e.target.value); setDayRate(Number.isFinite(n) && n > 0 ? n : null); }}
                   className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono" />
                 <p className="mt-1 text-[11px] text-[var(--muted)]" role="status">
                   {dayRate
@@ -419,8 +431,13 @@ export default function ReceivePaymentModal({
               </label>
               <select
                 id="pay-method"
-                value={method}
-                onChange={e => setMethod(e.target.value as unknown as React.SetStateAction<"cash" | "check" | "bank_transfer" | "card" | "other">)}
+                value={paymentTypeId ? `type:${paymentTypeId}` : method}
+                onChange={e => {
+                  const value = e.target.value;
+                  const type = value.startsWith('type:') ? paymentTypes.find(t => `type:${t.id}` === value) : undefined;
+                  setPaymentTypeId(type ? type.id : '');
+                  setMethod(type ? type.method : value as 'cash' | 'check' | 'bank_transfer' | 'card' | 'other');
+                }}
                 className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
               >
                 <option value="bank_transfer">Bank Transfer / Wire</option>
@@ -428,6 +445,11 @@ export default function ReceivePaymentModal({
                 <option value="card">Credit / Debit Card</option>
                 <option value="cash">Cash</option>
                 <option value="other">Other</option>
+                {paymentTypes.length > 0 && (
+                  <optgroup label="Your payment types">
+                    {paymentTypes.map(t => <option key={t.id} value={`type:${t.id}`}>{t.name}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
 

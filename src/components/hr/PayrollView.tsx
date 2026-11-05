@@ -158,7 +158,7 @@ const PayrollViewContent: React.FC = () => {
     const session = inlineRecordAdapter.session();
     if (!session?.writable) { setEmployeeError('Your workspace role cannot add employees.'); return; }
 
-    const salaryCents = Math.round(parseFloat(empSalary) * 100);
+    const salaryCents = Math.round(Number.parseFloat(empSalary) * 100);
     if (!Number.isSafeInteger(salaryCents) || salaryCents < 0) { setEmployeeError('Enter a valid annual salary.'); return; }
     if (empEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empEmail)) { setEmployeeError('Enter a valid email address.'); return; }
     const identity = employeeDraftIdentity.current ??= { id: `emp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString() };
@@ -247,7 +247,7 @@ const PayrollViewContent: React.FC = () => {
             Progressive gross-to-net calculations, statutory tax withholding schedules, and atomic general ledger postings.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {canRunPayroll && (
             <button onClick={() => setImportOpen(true)} className="min-h-11 px-3.5 py-2 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg border border-neutral-300 cursor-pointer" id="import-payroll-btn">
               Import from payroll provider

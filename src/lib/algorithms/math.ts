@@ -43,7 +43,7 @@ export function benfordsLawExpected(digit: number): number {
 export function extractFirstDigit(num: number): number {
   const str = Math.abs(num).toString().replace('.', '');
   for (let i = 0; i < str.length; i++) {
-    const digit = parseInt(str[i], 10);
+    const digit = Number.parseInt(str[i], 10);
     if (digit >= 1 && digit <= 9) return digit;
   }
   return 0; // If no non-zero digit found
@@ -96,7 +96,7 @@ export function calculateIRR(initialInvestment: number, cashFlows: number[], max
     }
     
     if (Math.abs(derivative) < 1e-10) {
-      return NaN;
+      return Number.NaN;
     }
 
     let newRate = rate - npv / derivative;
@@ -107,5 +107,5 @@ export function calculateIRR(initialInvestment: number, cashFlows: number[], max
     }
     rate = newRate;
   }
-  return NaN; // Return NaN if not converged fully
+  return Number.NaN; // Return NaN if not converged fully
 }

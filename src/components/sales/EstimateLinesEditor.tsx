@@ -10,7 +10,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { customerPricer, lineAmountCents, setLineDescription } from '../../lib/invoiceLines';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { blankEstimateLine, type EstimateLineDraft } from '../../lib/estimateLines';
-import { formatCurrency, parseAmountToCents } from '../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../lib/utils';
 
 const input = 'w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
@@ -52,14 +52,15 @@ export function EstimateLinesEditor({ lines, onChange, currency, customerId }: {
                 <input aria-label={`Quantity, line ${i + 1}`} inputMode="decimal" value={line.quantityText} className={`${input} text-right font-mono`}
                   onChange={e => change(line.id, l => {
                     const quantity = Number(e.target.value);
-                    return { ...l, quantityText: e.target.value, quantity, amountCents: lineAmountCents(quantity, l.rateCents) };
+                    return { ...l, quantityText: e.target.value, quantity, amountCents: l.rateCents < 0 ? 0 : lineAmountCents(quantity, l.rateCents) };
                   })} />
               </td>
               <td className="py-1 px-1">
                 <input aria-label={`Price, line ${i + 1} (${currency})`} inputMode="decimal" value={line.priceText} className={`${input} text-right font-mono`}
                   onChange={e => change(line.id, l => {
-                    const rateCents = parseAmountToCents(e.target.value);
-                    return { ...l, priceText: e.target.value, rateCents, amountCents: lineAmountCents(l.quantity, rateCents) };
+                    // a half-typed or mistyped price ('1.2.3') is not a price yet: -1 keeps the line unsaveable, the box keeps typing
+                    const rateCents = readAmountCents(e.target.value) ?? -1;
+                    return { ...l, priceText: e.target.value, rateCents, amountCents: rateCents < 0 ? 0 : lineAmountCents(l.quantity, rateCents) };
                   })} />
               </td>
               <td className="py-1 px-1 text-right font-mono">{formatCurrency(line.amountCents, currency)}</td>

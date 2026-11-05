@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import React from 'react';
 import { useUIStore } from '../stores/useUIStore';
-import { SYSTEM_GLOSSARY } from '../config/registry';
+import { SYSTEM_GLOSSARY } from '../config/systemGlossary';
 
 /**
  * Enterprise Lexicon Translation Hook

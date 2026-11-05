@@ -81,7 +81,7 @@ export default function PdfPreviewModal({
       document.body.removeChild(a);
       toast.success('PDF downloaded');
     } else {
-      downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
+      void downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
     }
   };
 
@@ -154,7 +154,7 @@ export default function PdfPreviewModal({
                 onClick={() => {
                   setError(null);
                   setIsLoading(true);
-                  fetchDocumentPdfBlob(documentType, documentId, workspaceId, period)
+                  void fetchDocumentPdfBlob(documentType, documentId, workspaceId, period)
                     .then((blob) => {
                       const url = URL.createObjectURL(blob);
                       setBlobUrl(url);

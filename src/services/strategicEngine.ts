@@ -530,7 +530,7 @@ export class StrategicEngine {
     // 5. DETERMINISTIC CONSOLIDATION
     const analyzedItems = items.map(item => {
       const itemNameLower = item.name.toLowerCase();
-      const skuLower = item.sku.toLowerCase();
+      const skuLower = (item.sku || '').toLowerCase(); // an imported item may not carry a SKU: match by name only
       
       // RELATIONAL DATA DISCOVERY (SKU prioritized over description)
       const itemTransactions = postableTxs.filter(t => {

@@ -6,6 +6,7 @@ import { getIdToken } from '../../firebase';
 import { isUndepositedFundsAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useDialog } from '../../hooks/useDialog';
 
 type WaitingPayment = { id: string; number?: string; contactName?: string; date?: string; amountCents: number; holdingId: string };
 
@@ -19,6 +20,7 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
   const [date, setDate] = useState(getLocalDateISO());
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const { dialogProps, titleId } = useDialog(onClose);
 
   const holdingIds = useMemo(() => new Set((accounts || []).filter(isUndepositedFundsAccount).map(a => a.id)), [accounts]);
   const bankAccounts = useMemo(() => (accounts || []).filter(a => resolveAccountRole(a) === 'cash'), [accounts]);
@@ -60,10 +62,10 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="make-deposit-title">
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
-          <h2 id="make-deposit-title" className="text-lg font-bold">Make deposit</h2>
+          <h2 id={titleId} className="text-lg font-bold">Make deposit</h2>
           <p className="text-xs text-[var(--muted)]">Payments received into Undeposited Funds, taken to the bank together.</p>
         </div>
         {holdingIds.size === 0 ? (

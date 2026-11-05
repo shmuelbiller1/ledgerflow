@@ -1,14 +1,9 @@
 import { calculateNetIncome, isPostable, isRevenueAccount, isExpenseAccount, lineAmount, isTransactionInDateRange } from "../../lib/txFilters";
 import { isUndepositedFundsAccount, openingDebitCents, resolveAccountRole } from "../../lib/accountUtils";
 import type { Invoice, Bill, Payment, Customer, Vendor, Transaction, ChartAccount, TransactionLine, CreditNote, VendorCredit } from "../../types";
+import { INVOICE_IS_ISSUED, BILL_IS_ISSUED } from "./partyReports";
 
-export const INVOICE_IS_ISSUED = new Set<Invoice['status']>([
-  'sent', 'approved', 'invoiced', 'pending', 'overdue', 'partially_paid', 'paid'
-]);
-
-export const BILL_IS_ISSUED = new Set<Bill['status']>([
-  'pending', 'approved', 'unpaid', 'overdue', 'partially_paid', 'paid'
-]);
+export { INVOICE_IS_ISSUED, BILL_IS_ISSUED };
 
 export function computeProfitAndLoss(accounts: ChartAccount[], transactions: Transaction[], startDate?: string, endDate?: string) {
   const start = startDate || "1970-01-01";

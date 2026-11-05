@@ -9,6 +9,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { deliveryLabel, deliveryPhrase, preferredDelivery } from '../../lib/delivery';
 import { approvalDetail, approvalStatus, isApproverRole } from '../../lib/invoiceApproval';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { useDialog } from '../../hooks/useDialog';
 
 /**
  * Email an invoice or a payment reminder to the customer, and see every email sent for it
@@ -45,6 +46,7 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
   const [events, setEvents] = useState<LogEvent[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
+  const { dialogProps, titleId } = useDialog(onClose);
   const base = `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/emails`;
 
   useEffect(() => {
@@ -69,10 +71,10 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="invoice-email-title">
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-xl">
         <div className="flex items-center justify-between border-b border-[var(--line)] p-4">
-          <h2 id="invoice-email-title" className="text-sm font-bold text-[var(--text)] inline-flex items-center gap-2">
+          <h2 id={titleId} className="text-sm font-bold text-[var(--text)] inline-flex items-center gap-2">
             <Mail className="w-4 h-4" aria-hidden="true" /> Email invoice {invoice.number || invoice.id}
           </h2>
           <button type="button" onClick={onClose} className="p-1 text-[var(--muted)]" aria-label="Close"><X className="w-4 h-4" aria-hidden="true" /></button>

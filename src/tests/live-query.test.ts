@@ -66,6 +66,19 @@ describe('Live query merging', () => {
     assert.equal(mergeChanges([], [row('x', { name: 'c' })], [], odd).rows, null);
   });
 
+  test('a loaded row whose sort key moves in a list cut by its limit asks for a reload; elsewhere it just re-sorts', () => {
+    // newest two entries by date; c (2026-01-01) was never loaded
+    const q: LiveQueryShape = { filters: [ws], orders: [{ field: 'date', direction: 'desc' }], limitCount: 2 };
+    const current = [row('a', { workspaceId: 'w1', date: '2026-03-01' }), row('b', { workspaceId: 'w1', date: '2026-02-01' })];
+    // b moves to 2025-06-01: c may now outrank it, which only the database knows
+    assert.equal(mergeChanges(current, [row('b', { workspaceId: 'w1', date: '2025-06-01' }, '2026-10-02T10:00:00.000000+00:00')], [], q).rows, null);
+    // a change that leaves the sort key alone merges in place
+    assert.deepEqual(mergeChanges(current, [row('b', { workspaceId: 'w1', date: '2026-02-01', memo: 'x' }, '2026-10-02T10:00:00.000000+00:00')], [], q).rows?.map(r => r.id), ['a', 'b']);
+    // a list the limit did not cut has nothing missing: it just re-sorts
+    const roomy: LiveQueryShape = { ...q, limitCount: 10 };
+    assert.deepEqual(mergeChanges(current, [row('a', { workspaceId: 'w1', date: '2025-01-01' }, '2026-10-02T10:00:00.000000+00:00')], [], roomy).rows?.map(r => r.id), ['b', 'a']);
+  });
+
   test('the next fetch starts a little before the latest change seen', () => {
     const latest = latestUpdate([row('a', {}, '2026-10-01T10:00:00.5+00:00'), row('b', {}, '2026-10-01T10:00:05+00:00')], null);
     assert.equal(latest, '2026-10-01T10:00:05+00:00');

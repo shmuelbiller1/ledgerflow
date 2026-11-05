@@ -10,7 +10,7 @@
  * the registry, so the screen cannot quietly start describing a schedule that no longer exists.
  */
 import { addDaysYMD } from './fiscalCalendar';
-import { formatTzDate } from './utils';
+import { formatTzDate } from './calendarDate';
 
 /** when the daily run is set for, in UTC — `vercel.json`'s cron, checked against this in a test */
 export const DAILY_RUN_AT_UTC = { hour: 6, minute: 10 } as const;

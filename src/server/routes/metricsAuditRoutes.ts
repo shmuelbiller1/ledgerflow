@@ -88,7 +88,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
             mrrCents: calculatedMRR,
             ltvCents: ltv,
             churnPercentage: churnRateProxy * 100,
-            grossMarginPercentage: totalRevenueCents > 0 ? parseFloat(((totalRevenueCents - totalExpenseCents) / totalRevenueCents * 100).toFixed(2)) : 100
+            grossMarginPercentage: totalRevenueCents > 0 ? Number.parseFloat(((totalRevenueCents - totalExpenseCents) / totalRevenueCents * 100).toFixed(2)) : 100
           }
         };
       } else if (businessType === 'realestate' || businessType === 'real_estate') {
@@ -107,7 +107,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
         const rentalRevenue = rentalRevenueCents || totalRevenueCents;
         const noiCents = rentalRevenue - totalExpenseCents;
         const baseCapitalInvested = totalAssetsCents || 100000000; // $1,000,000 baseline
-        const capRate = parseFloat(((noiCents / baseCapitalInvested) * 100).toFixed(2));
+        const capRate = Number.parseFloat(((noiCents / baseCapitalInvested) * 100).toFixed(2));
 
         shiftingMetrics = {
           industryType: "Real Estate Property Management",
@@ -116,7 +116,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
             rentalRevenueCents,
             impliedCapitalInvestedCents: baseCapitalInvested,
             capRateRealizedPercentage: capRate,
-            expenseToIncomeRatioPercentage: totalRevenueCents > 0 ? parseFloat((totalExpenseCents / totalRevenueCents * 100).toFixed(2)) : 0
+            expenseToIncomeRatioPercentage: totalRevenueCents > 0 ? Number.parseFloat((totalExpenseCents / totalRevenueCents * 100).toFixed(2)) : 0
           }
         };
       } else if (businessType === 'retail' || businessType === 'manufacturing' || businessType === 'inventory') {
@@ -133,11 +133,11 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
         }, 0) || Math.round(totalExpenseCents * 0.40);
 
         const grossProfitCents = totalRevenueCents - cogsCents;
-        const grossMargin = totalRevenueCents > 0 ? parseFloat((grossProfitCents / totalRevenueCents * 100).toFixed(2)) : 0;
+        const grossMargin = totalRevenueCents > 0 ? Number.parseFloat((grossProfitCents / totalRevenueCents * 100).toFixed(2)) : 0;
         
         const inventoryAccountVal = accounts.filter(a => a.name.toLowerCase().includes('inventory'))
           .reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0) || 5000000;
-        const inventoryTurnover = parseFloat((cogsCents / inventoryAccountVal).toFixed(2));
+        const inventoryTurnover = Number.parseFloat((cogsCents / inventoryAccountVal).toFixed(2));
 
         shiftingMetrics = {
           industryType: "Retail Commerce & Goods Optimization",
@@ -153,7 +153,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
         const monthlyBurnRate = Math.round(totalExpenseCents / 12) || 400000;
         const fireNestEggCents = monthlyBurnRate * 12 * 25;
         const netCashCents = totalRevenueCents - totalExpenseCents;
-        const savingsRate = totalRevenueCents > 0 ? parseFloat((netCashCents / totalRevenueCents * 100).toFixed(2)) : 0;
+        const savingsRate = totalRevenueCents > 0 ? Number.parseFloat((netCashCents / totalRevenueCents * 100).toFixed(2)) : 0;
 
         shiftingMetrics = {
           industryType: "General / Personal Portfolio",
@@ -161,7 +161,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
             monthlyBurnCents: monthlyBurnRate,
             fireTargetNestEggCents: fireNestEggCents,
             savingsRatePercentage: savingsRate,
-            runwayMonthsRemaining: monthlyBurnRate > 0 ? parseFloat((totalAssetsCents / monthlyBurnRate).toFixed(1)) : 99
+            runwayMonthsRemaining: monthlyBurnRate > 0 ? Number.parseFloat((totalAssetsCents / monthlyBurnRate).toFixed(1)) : 99
           }
         };
       }
@@ -365,7 +365,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
       const maxClientIncome = customerIncomes[0]?.amountCents || 0;
       const totalIncomeCents = totalRevenue || 1;
-      const concentrationRatio = parseFloat((maxClientIncome / totalIncomeCents).toFixed(4));
+      const concentrationRatio = Number.parseFloat((maxClientIncome / totalIncomeCents).toFixed(4));
       
       const isHighConcentrationRisk = concentrationRatio > 0.40;
       const concentrationMultiplierHaircut = isHighConcentrationRisk ? 0.85 : 1.00;
@@ -386,7 +386,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
            itemId: item.id,
            sku: item.sku || 'N/A',
            name: item.name,
-           calculatedMarginPercentage: parseFloat((margin * 100).toFixed(2)),
+           calculatedMarginPercentage: Number.parseFloat((margin * 100).toFixed(2)),
            recommendation
          };
       });

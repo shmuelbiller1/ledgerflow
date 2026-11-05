@@ -196,7 +196,7 @@ class AIService {
       let dependentsCount = 0;
       const match = text.match(/(\d+)\s*(kids|child|children|dependents)/);
       if (match) {
-        dependentsCount = parseInt(match[1], 10);
+        dependentsCount = Number.parseInt(match[1], 10);
       } else if (text.includes('child') || text.includes('kid')) {
         dependentsCount = 1;
         if (text.includes('kids') || text.includes('children')) dependentsCount = 2;

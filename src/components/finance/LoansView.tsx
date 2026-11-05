@@ -72,8 +72,8 @@ function emptyForm(): LoanForm {
 function asDraft(form: LoanForm): LoanDraft {
   return {
     lender: form.lender,
-    principalCents: form.principal.trim() ? readAmountCents(form.principal) ?? NaN : 0,
-    annualRate: form.ratePercent.trim() ? Number(form.ratePercent) / 100 : NaN,
+    principalCents: form.principal.trim() ? readAmountCents(form.principal) ?? Number.NaN : 0,
+    annualRate: form.ratePercent.trim() ? Number(form.ratePercent) / 100 : Number.NaN,
     termMonths: Number(form.termMonths),
     startDate: form.startDate,
     firstPaymentDate: form.firstPaymentDate,

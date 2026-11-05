@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { RequireRole } from '../../ui/RequireRole';
 import { useUIStore } from '../../../stores/useUIStore';
 import RetentionSettingsPanel from './RetentionSettingsPanel';
-import { retentionFor } from '../../../lib/retention';
+import { retentionFor } from '../../../lib/retentionPolicy';
 import AsyncButton from '../../ui/AsyncButton';
 import RecoveryCodesPanel from './RecoveryCodesPanel';
 import RequireTwoStepPanel from './RequireTwoStepPanel';
@@ -19,6 +19,7 @@ import TwoPersonRulePanel from './TwoPersonRulePanel';
 import AccessReviewPanel from './AccessReviewPanel';
 import { TWO_STEP_CHANGED } from '../../../lib/accessReview';
 import AuditEvidencePackPanel from './AuditEvidencePackPanel';
+import { inBackground } from '../../../lib/inBackground';
 
 type AuthenticatorFactor = Awaited<ReturnType<ReturnType<typeof multiFactor>['getFactors']>>[number];
 
@@ -136,6 +137,7 @@ function TwoStepLoginPanel() {
   );
 }
 
+/** Workspace security, period locking, two-step authentication, retention, and deletion settings. */
 export default function SecuritySettings() {
   const lockDate = useLedgerStore(s => s.lockDate);
   const [isResetting, setIsResetting] = useState(false);
@@ -322,7 +324,7 @@ export default function SecuritySettings() {
                         }
                         if (!res.ok) throw new Error(body.error || 'Failed to delete account');
                         toast.success('Your account was deleted.');
-                        auth.signOut();
+                        inBackground(auth.signOut(), 'Your account was deleted, but signing out failed. Sign out again, or close this tab.');
                       } catch (err) {
                         const described = describeError(err, 'delete');
                         toast.error(described.title, { description: described.remedy });

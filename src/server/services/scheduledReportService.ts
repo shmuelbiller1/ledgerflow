@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
 import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
-import { addToDateISO, formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
+import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
   agingTable, balanceSheetTable, lastFinishedPeriod, profitAndLossTable, reportCsv, reportEmailHtml,
   scheduleProblem, SCHEDULED_REPORTS, type ReportPeriod, type ReportTable, type ScheduledReport,
@@ -51,11 +52,12 @@ export async function buildReport(db: Firestore, workspaceId: string, schedule: 
 
 export interface ReportSendResult { sent: number; failed: string[]; delivered: string[]; errors: Record<string, string> }
 
-export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string }, schedule: ScheduledReport, period: ReportPeriod,
+export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: ScheduledReport, period: ReportPeriod,
   options: { skip?: Set<string>; idempotencyPrefix?: string } = {}): Promise<ReportSendResult> {
   const table = await buildReport(db, workspace.id, schedule, period);
   const currency = workspace.currency || 'USD';
-  const html = reportEmailHtml(table, { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency) });
+  const moneyDisplay = workspace.moneyDisplay;
+  const html = reportEmailHtml(table, { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, moneyDisplay) });
   const attachment = { filename: `${schedule.report}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(table)}`, 'utf8'), contentType: 'text/csv' };
   const delivered: string[] = [];
   const failed: string[] = [];
@@ -142,7 +144,7 @@ export async function sendScheduleNow(db: Firestore, input: { workspaceId: strin
   const problem = scheduleProblem(schedule);
   if (problem) throw new ScheduledReportError(400, problem);
   const period = lastFinishedPeriod(schedule.frequency, today(ws, input.now || new Date()));
-  return { period, ...(await sendReport(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string }, schedule, period)) };
+  return { period, ...(await sendReport(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, schedule, period)) };
 }
 
 /** The daily run: every workspace's schedules whose last finished period has not been delivered to every address yet. */
@@ -172,7 +174,7 @@ export async function runWorkspaceSchedules(db: Firestore, workspaceId: string, 
     if (!claim) continue;
     let result: Pick<ReportSendResult, 'delivered' | 'errors'>;
     try {
-      result = await sendReport(db, { id: workspaceId, name: ws.name as string, currency: ws.currency as string }, schedule, period,
+      result = await sendReport(db, { id: workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, schedule, period,
         { skip: claim.delivered, idempotencyPrefix: `report_${workspaceId}_${schedule.id}_${period.key}` });
     } catch (err) {
       // the report itself could not be made: every address not yet delivered counts as failed, tried again later

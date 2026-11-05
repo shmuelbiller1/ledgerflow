@@ -48,6 +48,7 @@ import { defaultOffsetAccount, inventoryAccountsOf } from '../../lib/inventoryAc
 import { adjustStockRequest, countStockRequest } from '../../services/stockRequests';
 import InlineEdit from '../ui/InlineEdit';
 import InlineAdd from '../ui/InlineAdd';
+import { EmptyState } from '../ui/EmptyState';
 import CogsDialog from './CogsDialog';
 import StockPolicySwitch from './StockPolicySwitch';
 import StockHistoryDialog from './StockHistoryDialog';
@@ -160,9 +161,9 @@ export default function Inventory() {
       // ISS-130: the cost of stock on hand changes only by a revaluation, so the form leaves it alone
       ...((Number(editingItem.quantityAtHand) || 0) > 0 ? {} : { unitCostCents: TruthEngine.parseAmountToCents(formData.get('unitCost') as string) }),
       // the quantity changes only through Adjust stock, a count or a sale, which post to the books
-      reorderPoint: parseInt(formData.get('reorderPoint') as string, 10) || 0,
+      reorderPoint: Number.parseInt(formData.get('reorderPoint') as string, 10) || 0,
       measurementUnit: formData.get('measurementUnit') as string || undefined,
-      unitsPerPackage: formData.get('unitsPerPackage') ? parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
+      unitsPerPackage: formData.get('unitsPerPackage') ? Number.parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
       category: formData.get('category') as string,
       // BF-01: an item with stock on hand stays a stock item
       itemType: formData.get('itemType') === 'service' && !editingItem.quantityAtHand ? 'service' : (editingItem.quantityAtHand ? editingItem.itemType || 'stock' : 'stock'),
@@ -202,9 +203,9 @@ export default function Inventory() {
       unitPriceCents: TruthEngine.parseAmountToCents(formData.get('unitPrice') as string),
       unitCostCents: TruthEngine.parseAmountToCents(formData.get('unitCost') as string),
       quantityAtHand: 0,
-      reorderPoint: parseInt(formData.get('reorderPoint') as string, 10) || 0,
+      reorderPoint: Number.parseInt(formData.get('reorderPoint') as string, 10) || 0,
       measurementUnit: formData.get('measurementUnit') as string || undefined,
-      unitsPerPackage: formData.get('unitsPerPackage') ? parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
+      unitsPerPackage: formData.get('unitsPerPackage') ? Number.parseInt(formData.get('unitsPerPackage') as string, 10) || 1 : undefined,
       category: formData.get('category') as string,
       itemType: formData.get('itemType') === 'service' ? 'service' : 'stock',
       defaultTaxCodeId: (formData.get('defaultTaxCodeId') as string) || undefined,
@@ -475,6 +476,7 @@ export default function Inventory() {
           existing={items.map(i => i.name)} onAdd={quickAddItem} />
       )}
       <div className="bg-[var(--surface)] rounded-[40px] border border-[var(--line)] overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <caption className="sr-only">Inventory items</caption>
           <thead>
@@ -642,7 +644,7 @@ export default function Inventory() {
                   )}
                 </td>
                 <td className="px-8 py-5 text-right">
-                  <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                     {item.quantityAtHand > 0 && (
                       <button 
                         onClick={() => setCogsItem(item)}
@@ -686,11 +688,21 @@ export default function Inventory() {
             ))}
           </tbody>
         </table>
+        </div>
         {filteredItems.length === 0 && !loading && (
-          <div className="py-20 text-center">
-            <Package aria-hidden="true" size={40} className="text-zinc-200 mx-auto mb-4" />
-            <p className="text-sm text-zinc-400 font-bold uppercase tracking-widest">No inventory items found</p>
-          </div>
+          items.length === 0 ? (
+            <EmptyState
+              title="No items yet"
+              description="Items are what you sell or buy — stock, services, parts. Each can carry price, cost and stock level."
+              actionLabel={canChangeStock ? 'Add your first item' : undefined}
+              onAction={canChangeStock ? () => setIsAdding(true) : undefined}
+            />
+          ) : (
+            <EmptyState
+              title="No items match these filters"
+              description="Choose another search, category or tax category above to widen the list."
+            />
+          )
         )}
       </div>
 

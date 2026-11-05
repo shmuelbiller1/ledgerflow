@@ -116,7 +116,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         <div className="flex items-center gap-2">
           <button
             onClick={exportToCSV}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
+            className="min-h-11 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
           >
             <Download aria-hidden="true" className="w-4 h-4" />
             Export CSV
@@ -154,7 +154,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
               placeholder={`Search by ${isCustomer ? 'customer' : 'vendor'}...`}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+              className="min-h-11 w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             />
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total)}</bdi>
                   </td>
                   <td className="p-4 text-right">
-                    <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); setSelectedPartyId(row.partyId); }} className="p-1 rounded-md">
+                    <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
                       <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                     </button>
                   </td>

@@ -88,7 +88,7 @@ export default function CogsDialog({ item, workspaceId, accounts, currency, onCl
           <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest" label="Units Sold / Dispatched">
             <input
               type="number" min="1" max={item.quantityAtHand} value={quantity} required
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onChange={(e) => setQuantity(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
               className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-2xl focus:outline-none focus:ring-2 focus:ring-zinc-900 font-bold"
             />
           </Labelled>

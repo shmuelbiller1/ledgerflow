@@ -88,7 +88,7 @@ export function isUpdatedAtMismatch(expected: unknown, current: unknown): boolea
     if (typeof v.toDate === 'function') return v.toDate().getTime();
     if (typeof v.seconds === 'number') return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
     const ms = new Date(raw as string | number | Date).getTime();
-    return isNaN(ms) ? null : ms;
+    return Number.isNaN(ms) ? null : ms;
   };
   const expMs = getMs(expected);
   const curMs = getMs(current);

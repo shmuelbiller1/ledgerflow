@@ -198,7 +198,7 @@ function useRulesSettingsModel() {
   const handleSaveRule = async () => {
     if (!canEditRules || !formPriority.trim() || !Number.isSafeInteger(Number(formPriority))) return;
     const tags = formAddTags.split(',').map(t => t.trim()).filter(Boolean);
-    const amountThresh = formAmountThreshold ? parseFloat(formAmountThreshold) : undefined;
+    const amountThresh = formAmountThreshold ? Number.parseFloat(formAmountThreshold) : undefined;
 
     const ruleData: AutoRule = {
       ...editingRule,
@@ -219,7 +219,7 @@ function useRulesSettingsModel() {
         descriptionContains: formDescContains || undefined,
         vendor: formVendor || undefined,
         category: formCategory || undefined,
-        amountThreshold: isNaN(amountThresh as number) ? undefined : amountThresh
+        amountThreshold: Number.isNaN(amountThresh as number) ? undefined : amountThresh
       },
       action: {
         ...editingRule?.action,
@@ -246,7 +246,7 @@ function useRulesSettingsModel() {
 
   const handleTestSingleRule = () => {
     const tags = formAddTags.split(',').map(t => t.trim()).filter(Boolean);
-    const amountThresh = formAmountThreshold ? parseFloat(formAmountThreshold) : undefined;
+    const amountThresh = formAmountThreshold ? Number.parseFloat(formAmountThreshold) : undefined;
 
     const tempRule: AutoRule = {
       id: 'test-rule',
@@ -259,7 +259,7 @@ function useRulesSettingsModel() {
         descriptionContains: formDescContains || undefined,
         vendor: formVendor || undefined,
         category: formCategory || undefined,
-        amountThreshold: isNaN(amountThresh as number) ? undefined : amountThresh
+        amountThreshold: Number.isNaN(amountThresh as number) ? undefined : amountThresh
       },
       action: {
         targetAccountId: formTargetAccountId || undefined,

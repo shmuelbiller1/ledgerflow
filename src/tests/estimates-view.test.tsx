@@ -19,7 +19,7 @@ afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
 test('estimate creation preserves mixed-language fields in the persisted request', async () => {
   const calls = stubFetchWithBodies(200, { number: 'EST-2026-1' });
   const view = render(<EstimatesView />);
-  assert.ok(view.getByText(/No estimates found/));
+  assert.ok(view.getByText(/No estimates yet/));
   fireEvent.click(view.getByRole('button', { name: 'New Estimate' }));
   fireEvent.change(view.getByLabelText('Customer *'), { target: { value: 'cust-1' } });
   fireEvent.change(view.getByLabelText('Amount ($) *'), { target: { value: '123.45' } });

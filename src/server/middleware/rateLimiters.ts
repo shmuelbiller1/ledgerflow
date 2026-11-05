@@ -27,6 +27,18 @@ export const publicInvoiceLimiter = rateLimit({
 });
 
 /**
+ * AU-1: Plaid's webhook is public; each request with an unknown key id costs a call to Plaid before it
+ * can be refused. Plaid sends a handful of notices per connection, so 60 per minute per IP is ample.
+ */
+export const plaidWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 'error', code: 'RATE_LIMIT_EXCEEDED', message: 'Too many webhook requests.' },
+});
+
+/**
  * Rate limiter for compute-heavy PDF generation endpoints.
  * 10 requests per minute per IP.
  */

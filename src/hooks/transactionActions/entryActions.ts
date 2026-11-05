@@ -205,7 +205,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           if (line.accountName && line.accountName !== 'Uncategorized' && line.accountName !== 'Manual Review') {
             const searchDesc = line.description || (optimisticTx.lines.length === 1 ? optimisticTx.description : undefined);
             if (searchDesc) {
-              recordRulePattern(searchDesc, line.accountId || 'unassigned', line.accountName, line.tags, line.dimensions);
+              void recordRulePattern(searchDesc, line.accountId || 'unassigned', line.accountName, line.tags, line.dimensions);
             }
           }
         });
@@ -522,7 +522,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           if (line.accountName && line.accountName !== 'Uncategorized' && line.accountName !== 'Manual Review') {
             const searchDesc = line.description || (updates.lines?.length === 1 ? description : undefined);
             if (searchDesc && line.accountId) {
-              recordRulePattern(searchDesc, line.accountId, line.accountName, line.tags, line.dimensions);
+              void recordRulePattern(searchDesc, line.accountId, line.accountName, line.tags, line.dimensions);
             }
           }
         });

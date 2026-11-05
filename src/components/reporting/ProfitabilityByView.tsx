@@ -1,25 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { customerGrossProfit } from '../../lib/customerGrossProfit';
-import { computeProjectProfitability } from '../../lib/projectProfitability';
-import { computeSalesByItem, yearRange } from '../../server/reports/itemReports';
+import { useServerProfitability } from '../../hooks/useServerProfitability';
+import type { ProfitabilityBy, ProfitabilityLine } from '../../lib/profitabilityLines';
+import { yearRange } from '../../server/reports/itemReports';
+import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { formatCurrency } from '../../lib/utils';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 
-type By = 'customer' | 'item' | 'project';
-interface Line {
-  label: string;
-  revenueCents: number;
-  costCents: number;
-  marginCents: number;
-  marginPct: number | null;
-  estimate: boolean;
-  budgetCents?: number | null;
-  budgetRemainingCents?: number | null;
-  budgetUsedPct?: number | null;
-}
+type By = ProfitabilityBy;
+type Line = ProfitabilityLine;
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -30,44 +20,15 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selectedYear }) => {
   const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts', 'projects');
-  const customers = useLedgerStore(s => s.customers);
-  const invoices = useLedgerStore(s => s.invoices);
-  const inventory = useLedgerStore(s => s.inventory);
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
-  const projects = useLedgerStore(s => s.projects);
   const [by, setBy] = useState<By>('customer');
   const initial = yearRange(selectedYear ?? new Date().getFullYear());
   const [startDate, setStartDate] = useState(initial.startDate || '');
   const [endDate, setEndDate] = useState(initial.endDate || '');
   const validPeriod = !startDate || !endDate || startDate <= endDate;
 
-  const lines: Line[] = useMemo(() => {
-    if (loading || !validPeriod) return [];
-    const range = { startDate: startDate || undefined, endDate: endDate || undefined };
-    if (by === 'customer') {
-      return customerGrossProfit({ customers: customers || [], invoices: invoices || [], items: inventory || [], transactions: transactions || [], accounts: accounts || [], ...range })
-        .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
-    }
-    if (by === 'item') {
-      return computeSalesByItem({ invoices: invoices || [], items: inventory || [], transactions: transactions || [], accounts: accounts || [], ...range }).rows
-        .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
-    }
-    return computeProjectProfitability({
-      invoices: invoices || [], transactions: transactions || [], accounts: accounts || [],
-      items: inventory || [], projects: projects || [], ...range,
-    }).map(r => ({
-      label: r.project,
-      revenueCents: r.revenueCents,
-      costCents: r.costCents,
-      marginCents: r.marginCents,
-      marginPct: r.marginPct,
-      estimate: r.costIsEstimate,
-      budgetCents: r.budgetCents,
-      budgetRemainingCents: r.budgetRemainingCents,
-      budgetUsedPct: r.budgetUsedPct,
-    }));
-  }, [by, loading, validPeriod, startDate, endDate, customers, invoices, inventory, transactions, accounts, projects]);
+  // L-123 step 4i: with the loaded lists capped, the lines come from the server (every invoice and entry of the period)
+  const server = useServerProfitability(by, startDate || undefined, endDate || undefined);
+  const lines: Line[] = useMemo(() => (loading || !validPeriod ? [] : server.lines), [loading, validPeriod, server.lines]);
 
   const total = useMemo(() => {
     const revenue = lines.reduce((s, l) => s + l.revenueCents, 0);
@@ -115,6 +76,7 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
         <BarChart3 aria-hidden="true" size={20} className="text-[var(--muted)]" />
         <h2 id="profitability-by-title" className="text-lg font-bold text-[var(--text)]">Profitability</h2>
       </div>
+      {!loading && validPeriod && <RangeReportSourceNote source={server.source} testId="profitability-source" what="these figures" />}
       <div className="flex flex-wrap gap-4 items-end">
         <label className="flex flex-col gap-1 text-sm text-[var(--muted)] w-fit">By
           <select value={by} onChange={e => setBy(e.target.value as By)} className={field}>

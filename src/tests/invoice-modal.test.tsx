@@ -158,6 +158,44 @@ describe('Invoice dialog', () => {
     assert.equal(input('Due Date').value, '2026-07-31');
   });
 
+  test('a new invoice opened for a chosen customer starts with its group\'s terms; set terms are kept (CC-11)', () => {
+    useAuthStore.setState({ workspaces: [{ id: 'w1', name: 'W', currency: 'USD', customerGroups: [{ id: 'cg_w', name: 'Wholesale', paymentTerms: 'net_45' }] } as Workspace] });
+    useLedgerStore.setState({ invoices: [] });
+    const grouped = [makeCustomer({ id: 'c2', name: 'Bulk Co', groupId: 'cg_w' } as never)];
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={grouped} accounts={accounts} initialInvoice={{ customerId: 'c2', customerName: 'Bulk Co', date: '2026-05-01' }} />);
+    assert.equal((screen.getByLabelText('Payment Terms') as HTMLSelectElement).value, 'net_45');
+    assert.equal(input('Due Date').value, '2026-06-15');
+    cleanup();
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={grouped} accounts={accounts} initialInvoice={{ customerId: 'c2', customerName: 'Bulk Co', date: '2026-05-01', paymentTerms: 'net_15', dueDate: '2026-05-16' }} />);
+    assert.equal((screen.getByLabelText('Payment Terms') as HTMLSelectElement).value, 'net_15', 'terms the caller set are kept');
+  });
+
+  test('picking another customer with no usual terms drops the previous customer\'s; terms chosen by hand stay (CC-11)', () => {
+    useAuthStore.setState({ workspaces: [{ id: 'w1', name: 'W', currency: 'USD', customerGroups: [{ id: 'cg_w', name: 'Wholesale', paymentTerms: 'net_45' }] } as Workspace] });
+    useLedgerStore.setState({ invoices: [] });
+    const people = [makeCustomer({ id: 'c2', name: 'Bulk Co', groupId: 'cg_w' } as never), makeCustomer({ id: 'c3', name: 'Walk-in' })];
+    render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={people} accounts={accounts} />);
+    const terms = () => (screen.getByLabelText('Payment Terms') as HTMLSelectElement).value;
+    type(input('Invoice Date'), '2026-05-01');
+    type(input('Customer'), 'Bulk Co');
+    assert.equal(terms(), 'net_45');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'due_on_receipt', 'the previous customer\'s terms do not carry over');
+    assert.equal(input('Due Date').value, '2026-05-01');
+    type(screen.getByLabelText('Payment Terms'), 'net_30');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'net_30', 'terms chosen by hand stay');
+    type(input('Customer'), 'Bulk Co');
+    type(input('Due Date'), '2026-07-01');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(terms(), 'due_on_receipt', 'inherited terms are still dropped');
+    assert.equal(input('Due Date').value, '2026-07-01', 'a due date typed by hand stays');
+    type(input('Customer'), 'Bulk Co');
+    type(input('Invoice Date'), '2026-06-01');
+    type(input('Customer'), 'Walk-in');
+    assert.equal(input('Due Date').value, '2026-06-01', 'once the terms set the date again, it resets with them');
+  });
+
   test('all save actions report required fields under their input and retain the draft', async () => {
     const saved = setup();
     for (const action of ['Save Draft', 'Save & Close', 'Send Invoice']) {

@@ -1,6 +1,6 @@
 import type { Firestore } from '../db/firestore';
 import { assetRemindersDue, reminderText } from '../../lib/assetReminders';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { logger } from '../utils/logger';
 import { notify } from './notificationService';
 

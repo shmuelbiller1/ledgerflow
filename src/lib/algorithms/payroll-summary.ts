@@ -24,7 +24,7 @@ export const PAYROLL_SUMMARY_ALGO: AlgorithmDefinition = {
   ],
   compute: (ctx, inputs: { "year": string; [key: string]: unknown }): AlgoResult => {
     const employees = ctx.entities?.employees || [];
-    const year = parseInt(inputs['year'] || '2026', 10);
+    const year = Number.parseInt(inputs['year'] || '2026', 10);
     
     const activeEmployees = employees.filter((e) => e.status === 'Active');
 

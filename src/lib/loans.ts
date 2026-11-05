@@ -125,7 +125,7 @@ export function newLoanReference(id: string): string {
 /** "6.5% a year", "0% a year" — how the rate reads, for screens and sentences. */
 export function formatLoanRate(annualRate: number): string {
   const percent = annualRate * 100;
-  const text = Number.isInteger(percent) ? String(percent) : percent.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  const text = Number.isInteger(percent) ? String(percent) : percent.toFixed(4).replace(/(?<!0)0+$/, '').replace(/\.$/, '');
   return `${text}% a year`;
 }
 

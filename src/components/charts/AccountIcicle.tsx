@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { hierarchy, partition } from 'd3';
+import { hierarchy, partition } from 'd3-hierarchy';
 import { accountIcicleTree, type BalanceMember, type AccountBlock } from '../../lib/chartDrillShapes';
 import { formatCurrency } from '../../lib/utils';
 import { ChartTooltip } from './ChartFrame';

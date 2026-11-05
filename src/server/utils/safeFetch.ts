@@ -29,8 +29,8 @@ const systemResolver: HostResolver = hostname => dns.lookup(hostname, { all: tru
  * Checks if an IPv4 address is in a private, loopback, link-local, or reserved range.
  */
 export function isPrivateOrReservedIPv4(ip: string): boolean {
-  const parts = ip.split('.').map(p => parseInt(p, 10));
-  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+  const parts = ip.split('.').map(p => Number.parseInt(p, 10));
+  if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) {
     return true; // Invalid IP is treated as unsafe
   }
 
