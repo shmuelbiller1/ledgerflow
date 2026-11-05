@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { hierarchy, treemap, partition, arc } from 'd3';
+import React, { useState } from 'react';
+import { hierarchy, treemap, partition } from 'd3-hierarchy';
+import { arc } from 'd3-shape';
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, Tooltip } from 'recharts';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { expenseChartLeaves, invoicePaymentPoints } from '../../lib/chartExploration';
-import { formatCurrency, monthBoundsISO } from '../../lib/utils';
+import { useServerChartExploration } from '../../hooks/useServerChartExploration';
+import { RangeReportSourceNote } from '../reporting/RangeReportSourceNote';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { formatCurrency } from '../../lib/utils';
 import ChartFrame, { ChartTooltip } from './ChartFrame';
 import type { ChartRow } from './ChartFrame';
 interface Node { id?: string; name: string; value?: number; children?: Node[] }
@@ -31,14 +33,18 @@ function ExpenseMap({ rows, radial, currency, focusedCategory }: { rows: ChartRo
   return <div className="relative w-full h-full"><svg onPointerLeave={() => setHovered(null)} viewBox="0 0 500 260" role="img" aria-label="Expense category treemap; exact values in Table" className="w-full h-full">{nodes.map((node, index) => <g key={node.data.id}><rect onPointerEnter={() => setHovered(node.data.id || null)} x={node.x0} y={node.y0} width={Math.max(0, node.x1 - node.x0)} height={Math.max(0, node.y1 - node.y0)} fill={`hsl(${index * 47 % 360} 55% 45%)`}><title>{node.ancestors().reverse().map(item => item.data.name).join(' / ')}: {formatCurrency(node.value, currency)}</title></rect></g>)}</svg>{tooltip}</div>;
 }
 export default function ChartExploration({ months, currency }: { months: string[]; currency?: string }) {
-  const accounts = useLedgerStore(state => state.accounts), transactions = useLedgerStore(state => state.transactions), invoices = useLedgerStore(state => state.invoices);
   const uid = useAuthStore(state => state.user?.uid), workspace = useAuthStore(state => state.currentWorkspaceId);
   const { loading } = useLedgerCollections('invoices');
-  const leaves = useMemo(() => months.length ? expenseChartLeaves(accounts, transactions.filter(tx => months.includes(tx.date.slice(0, 7))), `${months[0]}-01`, monthBoundsISO(`${months[months.length - 1]}-01`).end) : [], [accounts, transactions, months]);
+  // a list that failed to load counts as settled (its first read never marks it loaded): the server answers then
+  const settled = useDataNeedsStore(state => Boolean(state.loaded.invoices || state.failed.invoices));
+  const waiting = loading && !settled;
+  // the expense maps need only the accounts and entries; only the payment points wait for the invoices
+  const { data, source } = useServerChartExploration(months, true);
+  const leaves = data.leaves;
   const rows = leaves.map(leaf => ({ id: leaf.id, label: leaf.label, cents: leaf.cents, path: JSON.stringify(leaf.path) }));
-  const points = useMemo(() => invoicePaymentPoints(invoices.filter(invoice => (!workspace || invoice.workspaceId === workspace) && months.includes((invoice.date || '').slice(0, 7)))), [invoices, workspace, months]);
-  return <div key={`${uid}:${workspace}`} className="space-y-4"><p className="text-sm text-[var(--muted)]">Expense maps use posted net account amounts and the chart-of-accounts hierarchy for the selected months. Zero/negative net amounts are retained in the table and omitted from area diagrams. Invoice points require a fully paid invoice with a recorded payment date; missing dates and partial payments are excluded.</p>
-    <ChartFrame title="Invoice amount vs days to pay" rows={loading ? [] : points} currency={currency} series={[{ key: 'cents', name: 'Invoice amount' }, { key: 'days', name: 'Days to pay', unit: 'days' }]}>{({ rows, hidden }) => hidden.has('days') || hidden.has('cents') ? <p>Show both invoice amount and days to draw the scatter plot.</p> : <ResponsiveContainer width="100%" height="100%"><ScatterChart><XAxis type="number" dataKey="days" name="Days to pay" unit=" days" /><YAxis type="number" dataKey="cents" name="Invoice amount" width={90} tickFormatter={value => formatCurrency(Number(value), currency)} /><Tooltip content={<ChartTooltip currency={currency} />} /><Scatter data={rows} fill="#4f46e5" /></ScatterChart></ResponsiveContainer>}</ChartFrame>
+  const points = data.points;
+  return <div key={`${uid}:${workspace}`} className="space-y-4"><p className="text-sm text-[var(--muted)]">Expense maps use posted net account amounts and the chart-of-accounts hierarchy for the selected months. Zero/negative net amounts are retained in the table and omitted from area diagrams. Invoice points require a fully paid invoice with a recorded payment date; missing dates and partial payments are excluded.</p><RangeReportSourceNote source={source} testId="chart-exploration-source" what="these charts" />
+    <ChartFrame title="Invoice amount vs days to pay" rows={waiting && source !== 'server' ? [] : points} currency={currency} series={[{ key: 'cents', name: 'Invoice amount' }, { key: 'days', name: 'Days to pay', unit: 'days' }]}>{({ rows, hidden }) => hidden.has('days') || hidden.has('cents') ? <p>Show both invoice amount and days to draw the scatter plot.</p> : <ResponsiveContainer width="100%" height="100%"><ScatterChart><XAxis type="number" dataKey="days" name="Days to pay" unit=" days" /><YAxis type="number" dataKey="cents" name="Invoice amount" width={90} tickFormatter={value => formatCurrency(Number(value), currency)} /><Tooltip content={<ChartTooltip currency={currency} />} /><Scatter data={rows} fill="#4f46e5" /></ScatterChart></ResponsiveContainer>}</ChartFrame>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">{[false, true].map(radial => <ChartFrame key={`${workspace}:${radial}`} title={radial ? 'Expenses by category sunburst' : 'Expenses by category treemap'} rows={rows} categories currency={currency} series={[{ key: 'cents', name: 'Net expense' }]}>{({ rows, focusedCategory }) => <ExpenseMap rows={rows} radial={radial} currency={currency} focusedCategory={focusedCategory} />}</ChartFrame>)}</div>
   </div>;
 }

@@ -1412,7 +1412,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION U — PAYROLL LIFECYCLE
 
-- [ ] U-12 Refuse paying the same time entry twice inside one pay run — **AI #2 review, 11 Oct (TOOL_REVIEW F13), AI #1 payroll ownership**: two active hourly employees can select the same `timeUid`; one approved 60-minute entry at 2500 cents/hour then produces two 2500-cent employee lines, gross 5000 cents. Later-run paid markers do not deduplicate this run. Agree the employee/person linking rule or authoritative allocation, and verify duplicate-entry refusal on the server and approval/release lifecycle. Pure selector/totals reproduction confirmed; no synthetic payroll posting performed.
+- [x] U-12 (done in 7d41a654: `u12-shared-time.test.ts`) Refuse paying the same time entry twice inside one pay run — **AI #2 review, 11 Oct (TOOL_REVIEW F13), AI #1 payroll ownership**: two active hourly employees can select the same `timeUid`; one approved 60-minute entry at 2500 cents/hour then produces two 2500-cent employee lines, gross 5000 cents. Later-run paid markers do not deduplicate this run. Agree the employee/person linking rule or authoritative allocation, and verify duplicate-entry refusal on the server and approval/release lifecycle. Pure selector/totals reproduction confirmed; no synthetic payroll posting performed.
 
 # SECTION V — PROJECTS & TIME
 
@@ -1434,7 +1434,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] Y-07 Yodlee
 - [ ] Y-29 Sending domain with SPF/DKIM
 - [ ] Y-32 Data region selection
-- [ ] Y-35 Rounding policy setting
+- [x] Y-35 Rounding policy setting — Settings → Appearance "Tax rounding": half up (default, unchanged), half to even, or down; invoices and bills use it for the tax when created or edited (`roundTaxCents` in `src/lib/taxCodes.ts`; migration `20261101000000_workspace_tax_rounding`)
 
 # SECTION Z — API · DATA QUALITY · MULTI-ENTITY · INTEGRATIONS
 
@@ -1548,7 +1548,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION BH–BP — CURRENCY · COMPLIANCE · OPS
 
-- [ ] BH-02 Storage model decision for 3-decimal currencies
+- [x] BH-02 Storage model decision for 3-decimal currencies — (decided and built with BM-04, PR #322: three-decimal dinars stored as fils; ticked 2 Nov)
 - [ ] BI-01 Fund accounting (vertical — recommend not building)
 - [ ] BI-02 Grant tracking
 - [ ] BI-03 SOA / SOFP
@@ -1573,25 +1573,25 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BK-02 QBO API import
 - [~] BK-03 Wave import — **10 Oct (Claude)**: Wave's customers, vendors, items and chart of accounts exports import with their columns and account types recognised (CE-09). **Open:** its transactions.
 - [ ] BK-04 FreshBooks import
-- [ ] BK-10 Full workspace archive
+- [x] BK-10 Full workspace archive — (AI #5, E-21: `src/lib/workspaceArchive.ts`, Settings → Backup & Export; ticked 2 Nov)
 - [ ] BL-02 Spam complaints
 - [ ] BL-04 Sender verification
 - [ ] BL-06 Resend
 - [ ] BL-07 Open / click tracking
-- [ ] BM-04 Per-currency rounding
+- [x] BM-04 Per-currency rounding — (AI #9, PR #322: `src/lib/currencyMinorUnits.ts`, amounts in each currency's own minor units; design `docs/design/BM-04-currency-minor-units.md`; ticked 2 Nov)
 - [~] BM-05 RTL number alignment (AI #1 Appearance settings shipped; AI #2, 11 Oct: P&L, balance sheet, period columns and aging/document-detail/totals isolate existing locale-formatted money with bdi; he-IL minus/accounting DOM cases, mixed Hebrew identity and phone CSV/print verified. Shared Money isolation retained. Remaining primary sales/purchase document lists belong to AI #1; no amounts or financial CSV formats changed.)
-- [ ] BM-06 `rateUsedId` per line
-- [ ] BN-01 Structured JSON logging
-- [ ] BN-02 Slow-query log
+- [x] BM-06 `rateUsedId` per line — (AI #9, PR #332: `metadata.ratesUsed` on payment entries, shown in the entry detail; `src/tests/bm06-rate-used.test.ts`; ticked 2 Nov)
+- [x] BN-01 Structured JSON logging *(AI #1, 1 Nov, D-21: `src/server/utils/logger.ts` adds the request context (id, method, route, workspace) to every line and redacts personal fields; `src/server/http/requestContext.ts` gives each request an `x-request-id` and writes one JSON access line per /api request instead of the morgan text line; test `structured-logging.test.ts`.)*
+- [x] BN-02 Slow-query log *(AI #1, 1 Nov, D-22: `src/server/db/slowQueryLog.ts` times every pool and transaction query; one over 500 ms (or `SLOW_QUERY_MS`) is logged with its shape only — literals as `?`, parameter count, never values — plus the request context from the D-21 logger; test `slow-query-log.test.ts`.)*
 - [ ] BN-03 Usage dashboard
 - [ ] BN-04 SLO tracking
 - [ ] BN-05 Synthetic uptime
 - [ ] BN-06 Alert routing
-- [ ] BN-07 Runbooks
+- [x] BN-07 Runbooks — (AI #4, D-14: `docs/runbooks/`; ticked 2 Nov)
 - [ ] BO-04 Video walkthroughs
 - [ ] BP-01 Docker compose
 - [ ] BP-02 Emulator setup docs
-- [ ] BP-03 ADRs
+- [x] BP-03 ADRs — (AI #4, D-13: `docs/adr/` 0001–0007; ticked 2 Nov)
 - [ ] BP-04 Storybook
 - [ ] BP-06 Load tests
 - [ ] BP-07 Canary rollout
@@ -1610,8 +1610,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CA-22 Coupons
 - [ ] CA-23 Loyalty
 - [ ] CA-24 Shipping rules
-- [ ] CA-28 Mode of payment
-- [ ] CA-29 Party link
+- [x] CA-28 Mode of payment — Settings → Defaults has one account per payment method (cash, check, transfer, card, other), preselected on Record payment; unset = the Bank default (`paymentModeAccountId` in `src/lib/accountDefaults.ts`)
+- [x] CA-29 Party link — a customer can be linked to the vendor that is the same business (customer page); both pages show what they owe us, what we owe them and the net (`src/lib/partyLink.ts`, `PartyLinkPanel`; migration `20261102000000_customer_linked_vendor`)
 - [ ] CA-30 Payment request
 - [ ] CA-31 Payment order
 - [ ] CB-15 Partner commission
@@ -1621,13 +1621,13 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CC-01 Per-recipient invitation links + view tracking
 - [ ] CC-02 Design templates
 - [ ] CC-03 Proposals
-- [ ] CC-04 Recurring quotes
+- [x] CC-04 Recurring quotes — Reports → Customer quotes: "Repeat this estimate" saves a monthly/quarterly/yearly schedule; the daily job makes a numbered draft estimate on each date (no signing link, nothing sent) and tells the team (`generateEstimate` in `recurringService.ts`, `estimate.draft_ready`)
 - [ ] CC-06 Gateway tokens
 - [ ] CC-07 Multiple gateways
-- [ ] CC-08 Payment terms entity
-- [ ] CC-09 Payment types entity
-- [ ] CC-10 Expense categories
-- [ ] CC-11 Client-group settings
+- [x] CC-08 Payment terms entity — Settings has the workspace's own Net N terms (1–365 days) next to Due on Receipt / Net 15 / 30 / 60; invoices offer them and set the due date (`termOptions`, `PaymentTermsSettings`; migration `20261102010000_workspace_payment_terms`)
+- [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card; changed only through the server, one change at a time); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
+- [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
+- [x] CC-11 Client-group settings — Settings has customer groups with default payment terms (kept by the server, one change at a time); a customer joins a group on its page and new invoices take the group's terms when it has none (`src/lib/customerGroups.ts`, `customerGroupService`, `CustomerGroupsSettings`; migration `20261102030000_customer_groups`)
 - [ ] CC-12 Passkeys
 - [ ] CC-13 User-defined scheduler
 - [ ] CC-14 Tasks + statuses
@@ -1743,16 +1743,17 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 - [ ] SL Spreadsheet Lab (GridCraft, optional, later) — see PLAN §11. Read-only analysis in an isolated iframe; never writes to the books. SL-1..SL-5. Licence default in FOR_YOU 46.
 
 ### From the owner's second AI audit (13 Oct) — only the parts the code check showed are real gaps
-- [~] AU-1 (17 Oct: server done — `/sync` uses `/transactions/sync` from a saved `syncCursor` per connection, all pages, cursor saved only after the last page, a mid-read change restarts from the same cursor; returns `transactions` (added) plus `modified` and `removed`; test `plaid-sync-cursor.test.ts`. Left: the Banking screen applying `modified`/`removed` to imported lines, and the Plaid webhook) Plaid: move from `transactionsGet` (plaidRoutes.ts) to `/transactions/sync` with a saved cursor per item, handling added / modified / removed, webhook replay safe.
-- [ ] AU-4 Migration acceptance by reconciliation: after a QuickBooks/CSV import, show trial balance, A/R, A/P, cash and tax payable against the source, not just a record count.
-- [ ] ACC-1 Owner "Give access" screen (owner request, 13 Oct): as platform admin, type a person's email, pick Full / Pro / Growth / tester, and it sets bypassBilling or the plan on their workspaces (and can make them admin), with an audit line. Today this needs SQL or the System Command Center per workspace.
-- [ ] ACC-2 Settings → Billing & Plan: remove jargon ("Precision Core v2.0", "institutional rule bridges", "Documentation Protocol … topological registries"); show "Free access (given by LedgerFlow)" when bypassBilling is on; plan names match everywhere (sandbox/growth vs Free/Growth/Pro).
+- [~] AU-1 (17 Oct: server done — `/sync` uses `/transactions/sync` from a saved `syncCursor` per connection, all pages, cursor saved only after the last page, a mid-read change restarts from the same cursor; returns `transactions` (added) plus `modified` and `removed`; test `plaid-sync-cursor.test.ts`. 31 Oct: corrections and deletions are applied to stored lines on the server (AF-001, #439/#455), and the Plaid webhook is in (`/api/webhook/plaid`: a verified SYNC_UPDATES_AVAILABLE notice syncs that connection from its cursor; `plaid-webhook.test.ts`). Merged as #458 with a first sync on connect, webhook registration on reconnect and 503 for Plaid to retry. Left: you set `PLAID_WEBHOOK_URL` in Vercel, see docs/FOR_YOU.md; follow-up: a durable job queue so the webhook answers at once and a failed first sync is retried on its own, CodeRabbit on #458) Plaid: move from `transactionsGet` (plaidRoutes.ts) to `/transactions/sync` with a saved cursor per item, handling added / modified / removed, webhook replay safe.
+- [x] AU-4 (done in 4e1aafcd: Reports → Import acceptance, `ImportAcceptanceView`) Migration acceptance by reconciliation: after a QuickBooks/CSV import, show trial balance, A/R, A/P, cash and tax payable against the source, not just a record count.
+- [x] ACC-1 (31 Oct: System Command Center → Deep User Matrix → Give access; `POST /api/v1/admin/give-access`, `src/server/routes/giveAccessRoutes.ts`, test `acc1-give-access.test.ts`) Owner "Give access" screen (owner request, 13 Oct): as platform admin, type a person's email, pick Full / Pro / Growth / tester, and it sets bypassBilling or the plan on their workspaces (and can make them admin), with an audit line. Today this needs SQL or the System Command Center per workspace.
+- [x] ACC-1b (31 Oct) Seat checks count the owner twice when the owner is also in `members` (`workspaceRoutes.ts` invite, `invitePublicRoutes.ts` accept, `TeamSettings.tsx`): count unique people (`uid` + `members`), so a 5-seat plan really allows 5. Older than #460; noted there by Codex/CodeRabbit.
+- [x] ACC-2 (31 Oct: the jargon was already gone; free access now says "Free access (given by LedgerFlow)", and plan names come from `src/lib/plans.ts` on the badge and the usage panel) Settings → Billing & Plan: remove jargon ("Precision Core v2.0", "institutional rule bridges", "Documentation Protocol … topological registries"); show "Free access (given by LedgerFlow)" when bypassBilling is on; plan names match everywhere (sandbox/growth vs Free/Growth/Pro).
 
 ### Prevent the whole family (owner, 13 Oct: "what can prevent all these types of bugs?") — before the single fixes
 - [~] PREV-0 **Bug-pattern scanner** (13 Oct, done): `scripts/bug-patterns.ts` finds the seven patterns behind #96–#111 in every client file; `docs/BUG_PATTERNS.md` lists each place (a checklist); `src/tests/bug-patterns.test.ts` fails if any count rises and if the issue sites stop being found. Shared fixes in `src/lib/serverAction.ts` (ActionResult, runOnce, workspaceScope, allSettledWrites). First fixes: #105 transfer (success only when saved, one click), #109 bank file only for accepted payments and no double payment on retry.
 - [~] PREV-1 (helpers in `src/lib/serverAction.ts`: runOnce, ActionResult, operationIdFor; used by transfer, payments, import; a single hook still to do) One `useServerAction` hook for every save button: disabled while pending, one idempotency key per click, success shown only after the server confirms, every error shown (never swallowed). Then convert the screens in ISS-A to it.
-- [ ] PREV-5 Failure tests by default: a test harness that runs each save action with the server refusing, slow, or switched workspace mid-request, and asserts no success message, no partial write, no stale data. Every new save action gets these three cases.
-- [ ] PREV-6 Parsers: fuzz + real-file corpus (F-37, E-56) so import bugs like #101 are found before users.
+- [x] PREV-5 Failure tests by default: a test harness that runs each save action with the server refusing, slow, or switched workspace mid-request, and asserts no success message, no partial write, no stale data. Every new save action gets these three cases. *(AI #9: #313 PREV-5 money-save failure tests, #331 PREV-5b workspace switched mid-save.)*
+- [x] PREV-6 Parsers: fuzz + real-file corpus (F-37, E-56) so import bugs like #101 are found before users. *(AI #9: parser-corpus.test.ts + parser-fuzz.test.ts; odd statement files refused whole.)*
 
 ### Public issues (13 Oct) — money/data safety, AI #1 first (GitHub labels `money`, `priority`)
 
@@ -1760,42 +1761,43 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 
 Each is fixed with the acceptance test its section names. Server, posting, restore, jobs and security items are AI #1's; AUD-13/14/15 may go to a helper queue.
 
-- [ ] AUD-01 — Statement screen, server JSON and PDF do not have one scope contract
+- [x] AUD-01 (merged; ticked 31 Oct) — Statement screen, server JSON and PDF do not have one scope contract
 - [x] AUD-02 (18 Oct: every ledger entry in a backup is checked by the ledger door before anything is read or written — an unbalanced one restores nothing; test in `workspace-restore.test.ts`. 20 Oct: the closed-books check, the other-workspace ownership check and the reads of what is deleted now run inside the one serializable transaction that writes the backup, so nothing can change between checking and writing; 17 backup/restore tests incl. the main path pass. 20 Oct: invoices, bills, projects, credit notes and vendor credits in a backup must have the field types a save accepts (an amount as text refuses the backup; missing fields and older status labels are not judged, and unknown fields are kept); the backup export reads every table in one read-only serializable transaction, so it is one consistent moment of the books) — Restore commits atomically, but validation and ownership reads precede the commit transaction
-- [ ] AUD-03 — RMA decisions/history remain editable metadata, not server approval authority
-- [ ] AUD-04 — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
-- [ ] AUD-05 — Standalone background-job coverage differs from Vercel
-- [ ] AUD-09 — Privileged server access means SQL client guards are not a universal safety net
-- [ ] AUD-10 — Report fallback and cache completeness need one visible provenance contract
-- [ ] AUD-11 — Safe-fetch DNS validation is not a pinned connection
-- [ ] AUD-12 — Static Vercel CSP can disagree with the configurable Supabase project
-- [ ] AUD-13 — Async auth-derived UI state has no identity generation check
-- [ ] AUD-14 — A registered receipt algorithm is a hard-coded demonstration
-- [ ] AUD-15 — Client post-success cache inserts request entries rather than a canonical server result
-- [ ] AUD-19 — Altman analytical EBIT loses reversal signs
-- [ ] AUD-20 — Remote database TLS does not authenticate the server unless a CA is supplied
+- [x] AUD-03 (merged; ticked 31 Oct) — RMA decisions/history remain editable metadata, not server approval authority
+- [x] AUD-04 (merged; ticked 31 Oct) — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
+- [x] AUD-05 (merged; ticked 31 Oct) — Standalone background-job coverage differs from Vercel
+- [x] AUD-09 — Privileged server access means SQL client guards are not a universal safety net. *31 Oct: step 1, `aud09-write-access.test.ts`: all 89 write routes under `/api/v1/workspaces/:workspaceId` refuse a non-member (403), and every one a viewer may not use refuses a viewer (4xx); the writes a viewer may make by design are listed in `VIEWER_MAY`; `delete /tasks/:taskId` is tested on a real task (#464). 1 Nov: step 2, `aud09-outside-routers.test.ts` (#463): the write routes mounted outside `/workspaces` refuse non-members and viewers; it found that a viewer could post a journal through `/api/v1/revenue/recognize` and `/api/v1/lease/capitalize` (fixed: owner, accountant or bookkeeper). 1 Nov: step 3, `aud09-app-routes.test.ts` (real sign-in tokens) and Plaid in the router sweep: an accountant or bookkeeper could revoke a workspace API key (now owner only, as making one), and a non-member got 500 instead of 403 from `handleApiError` (fixed). A platform admin outside the workspace revokes a key (tested). 1 Nov: valid-body cases (#468): even the owner gets 400 with the reason ("does not belong to authorized workspace", "Period Locked") for another workspace's account or a closed date, on revenue and lease.*
+- [x] AUD-09a (1 Nov) The person who created a workspace can no longer be given another role on the role screen (they always count as owner, so the stored role disagreed); test `creator-role.test.ts` (CodeRabbit on #463).
+- [x] AUD-10 (merged; ticked 31 Oct) — Report fallback and cache completeness need one visible provenance contract
+- [x] AUD-11 (merged; ticked 31 Oct) — Safe-fetch DNS validation is not a pinned connection
+- [x] AUD-12 (merged; ticked 31 Oct) — Static Vercel CSP can disagree with the configurable Supabase project
+- [x] AUD-13 (merged; ticked 31 Oct) — Async auth-derived UI state has no identity generation check
+- [x] AUD-14 (merged; ticked 31 Oct) — A registered receipt algorithm is a hard-coded demonstration
+- [x] AUD-15 (merged; ticked 31 Oct) — Client post-success cache inserts request entries rather than a canonical server result
+- [x] AUD-19 (merged; ticked 31 Oct) — Altman analytical EBIT loses reversal signs
+- [x] AUD-20 (merged; ticked 31 Oct) — Remote database TLS does not authenticate the server unless a CA is supplied
 
 ## Issues and connections (18 Oct)
 
 - [~] ISS-130 *(→ AI #9 from 20 Oct; PR open, ai9/ISS-130)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
 - [x] ISS-131 *(AI #9, merged 20 Oct)* Inventory valuation as-of date mixes today's stock with past books (issue #131): historical quantities/costs from stock moves, or the comparison hidden for past dates.
-- [ ] ISS-143 RMA approvals and quantities enforced on the server in one transaction (issue #143, with AUD-03).
+- [x] ISS-143 RMA approvals and quantities enforced on the server in one transaction (issue #143, with AUD-03). *(AI #9, #302; AUD-03 done by the same PR.)*
 - [x] CON-1 *(AI #9, merged 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
 - [x] CON-2 *(AI #9, merged 20 Oct)* US nexus watch (138) on a screen from posted invoices, for the supported states.
 - [x] CON-3 *(AI #9, merged 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
 - [x] CON-4 *(AI #9, merged 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
-- [ ] CON-4b (from AI #9, #244) The Israeli VAT return record on the server carries its registration (dealer number), so "filed" can be attributed to one of several registrations; then let the screen clear it per registration. Also check the Eilat Law s.5 subsection numbers against the statute, and the PCN874 bi-monthly header month against the Tax Authority spec.
-- [ ] CON-1 *(→ AI #9 from 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
+- [x] CON-4b (merged; ticked 31 Oct) (from AI #9, #244) The Israeli VAT return record on the server carries its registration (dealer number), so "filed" can be attributed to one of several registrations; then let the screen clear it per registration. Also check the Eilat Law s.5 subsection numbers against the statute, and the PCN874 bi-monthly header month against the Tax Authority spec.
+- [x] CON-1 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
 - [~] CON-2 *(→ AI #9 from 20 Oct; PR open, ai9/CON-2)* US nexus watch (138) on a screen from posted invoices, for the supported states.
-- [ ] CON-3 *(→ AI #9 from 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
-- [ ] CON-4 *(→ AI #9 from 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
+- [x] CON-3 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
+- [x] CON-4 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
 - [x] DIM-1 (21 Oct: payments recorded on their own (Record payment, and applying a deposit later) carry the paid invoices'/bills' line labels in proportion; the part not applied stays unlabelled; worked figures in `dim1-payment-records.test.ts`. 18 Oct: invoices and bills — receivable/payable, tax, discount and retainage now carry the lines' labels in proportion, so each label balances; the lines' own revenue/expense lines keep exactly their labels; test `labels-every-side.test.ts`. 19 Oct: the payment posted with a paid invoice/bill now carries the document lines' labels in the same proportions — each label balances and a full payment clears each label's receivable/payable to 0 (300 random cases in `labels-every-side.test.ts`; 404 posting tests pass). Left: payments recorded separately (payment records applied to invoices/bills: bank, fees, FX difference)) Labels on every side of an entry (owner, 18 Oct): today only revenue/expense lines and the cost of goods carry the document line's labels. Carry them (in proportion) to receivable/payable, tax, discount, retainage, the payment entry (bank, fees, FX difference), and stock moves; so a P&L or balance sheet by label is complete. Test: an invoice with two labelled lines, paid with a fee → every line of every entry has the right labels and each label's books balance.
 - [ ] DIM-2 *(→ AI #9 from 20 Oct)* Stock moves keep where an item came from (vendor/bill/receipt line) and where it went (customer, project, label) — with issue #132 / P2-36.
 
 ## Audit of 18 Oct (audit/VERIFIED_BUG_REPORT.md) — AI #1 fixes these, each with the test the report names
 
 - [~] BUG-02 (18 Oct: P&L, balance sheet, trial balance and cash flow drop the server figures when a reload fails and ignore late answers (a request counter); existing report tests pass. Left: a screen test — rendering these views with a workspace set hangs the node test runner (also without the fix), see D-93) A failed report refetch leaves the previous period's server figures under the new date heading (P&L, balance sheet, trial balance, cash flow).
-- [ ] DIM-3 Each label kind gets an accounting role: informational (no balancing), fully attributed (every line has a value), or self-balancing (each value balances) — so balancing is applied only where it is required (strategy §16).
+- [x] DIM-3 (merged; ticked 31 Oct) Each label kind gets an accounting role: informational (no balancing), fully attributed (every line has a value), or self-balancing (each value balances) — so balancing is applied only where it is required (strategy §16).
 
 ## Integrity follow-up of 18 Oct (owner's request; independent AI examination at 507d3cc)
 
@@ -1828,3 +1830,7 @@ posting, tax maths, `src/server/`, schema, dependency or quality-baseline change
 - [~] **C-88** PDF consistency: Reports and report packs share their heading/cover; specialized server PDF routes remain separate.
 
 Review round (26 Oct): saved-view comparison/period restore, private query-key allowlisting, blocked-storage drafts, structural report-row detection, incomplete-history empty wording, exact formula-safe Excel headers, the ToolSandbox algorithm period, glossary Hebrew/search and the duplicate CF-06 row were corrected with focused tests. CI workflow `40424080429` refreshed and checked all 40 visual references; 18 intentional PNG changes were reviewed. Details in `docs/verification/ai2-launch-batch-2026-10-26.md` §5.
+
+## Money input fixes (AI #1, 28–29 Oct)
+- [x] **AF-010** typed amounts: `readAmountCents` on ten screens (#432); quick entry always posts two lines (#431); a mistyped estimate price no longer freezes the price box (#437).
+- [x] **AF-011** decimal comma: `12,50` read 1,250.00 and `1.234,56` read 1.23. Now `1.234,56`, `1 234,56` and `1234,56` read as the decimal everywhere, and `12,50` / `1,23` finish as a decimal only in comma-decimal books, so an en-US save still refuses a half-typed `1,234` (#438).

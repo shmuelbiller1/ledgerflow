@@ -603,3 +603,28 @@ Settings → Actions → General → Workflow permissions → tick **Allow GitHu
   a reference such as `3F2A9C1E`. **You see every tester's reports on Settings → Support, but only if your account is a
   platform admin.** If it isn't yet, tell me the email you sign in with and I'll make it one (it is one database step). *Default I used:*
   reports stay in the app; no email is sent. Say if you want an email for each new report, and to which address.
+
+## 31 Oct — one choice I made with a default: "Edit details" next to the bank account picker (AI #1, #457)
+
+The CSV import in Bank Feed Import now asks which bank account the statement belongs to. Codex points out that the
+repo's rule (src/components/AGENTS.md) wants an **Edit details** button beside every related-record picker. The
+details drawer today edits customers, vendors, projects and items only, so offering it for accounts means adding
+accounts to the drawer: its allowed fields, a save path through the account service, and tests. That is a small
+feature of its own. *Default I used:* no Edit details button on this picker for now; to correct an account you edit
+it on the Chart of Accounts screen. Say if you want accounts added to the details drawer, and I'll queue it.
+
+**Related, same PR:** CodeRabbit found that no button opens the legacy Bank Feed Import dialog at all (Ledger has a
+`bank_import` modal that nothing sets). The live statement import is Banking → Import statement. *Default I used:* keep
+the fixed dialog in the code, unreachable, and add no new entry point. Say if you'd rather I delete it.
+
+## 31 Oct — one setting for automatic bank feeds (AI #1, AU-1)
+
+Plaid can now tell LedgerFlow when a connected bank has new transactions, so bank lines arrive without anyone
+pressing Sync. To turn it on, add **`PLAID_WEBHOOK_URL`** = `https://<your production domain>/api/webhook/plaid`
+in Vercel (Settings → Environment Variables) and redeploy. Every notice is checked against Plaid's signature
+before anything happens. *Default I used:* the setting is optional. Without it, nothing changes and Sync works
+as today. Banks connected before you set it keep working with Sync. They get automatic updates once they are
+reconnected (or I can add a one-time "register webhook" step for existing connections if you want it).
+
+## 2 Nov — API keys can no longer change workspace settings (PR #490)
+CodeRabbit found that an API key with only `read:workspaces` could change workspace settings (payment types, alerts, modules, roles…), because every `/workspaces` request mapped to that read scope. Writes there now need `write:workspaces`, which no key can be issued, so keys can read workspace settings but not change them. **Default used:** keep it locked. If an integration of yours needs to change workspace settings with a key, say so and I'll add `write:workspaces` as an issuable scope.

@@ -1,3 +1,5 @@
+import { PartyDetailButton } from '../common/PartyDetailButton';
+import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
@@ -8,7 +10,6 @@ import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { differenceInDays } from 'date-fns';
 import { motion } from 'motion/react';
-
 import InvoiceModal from './InvoiceModal';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
 import { EmptyState } from '../ui/EmptyState';
@@ -33,7 +34,6 @@ import InvoiceEmailDialog from './InvoiceEmailDialog';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
 import ReceivePaymentModal from './ReceivePaymentModal';
-
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { computeCustomerBalanceSummary, toBaseCents } from '../../server/reports/partyReports';
@@ -50,6 +50,9 @@ import { StageChip } from '../collaboration/StageChip';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { inBackground } from '../../lib/inBackground';
 
 export default function Sales() {
   const user = useAuthStore(s => s.user);
@@ -57,12 +60,15 @@ export default function Sales() {
   const customers = useLedgerStore(s => s.customers);
   const accounts = useLedgerStore(s => s.accounts);
   const { loading } = useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
+  // A-235: one shared notice when what this screen needs could not be loaded, with "Try again"
+  const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments', 'accounts']);
   const { addEntity, updateEntity } = useEntityOperations();
   const canEditContacts = useCurrentRole() !== 'viewer';
   const [spreadingInvoice, setSpreadingInvoice] = useState<Invoice | null>(null);
   const [pickedInvoices, setPickedInvoices] = useState<Set<string>>(() => new Set());
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   // What each customer owes: the same calculation as the Customer Balance Summary report (open
   // invoices less payments and credits, base currency). It used to add unpaid invoice totals, then
@@ -228,9 +234,9 @@ export default function Sales() {
       if (asked === null) return; // the person backed out of the dialog; nothing is recorded
       note = asked;
     }
-    updateEntity('invoices', inv.id, {
+    inBackground(updateEntity('invoices', inv.id, {
       approval: approvalDecision(approvalSettings, decision, { uid: user?.uid, note }),
-    }, decision === 'approved' ? 'Approved — the invoice can be emailed now.' : 'Sent back for changes.');
+    }, decision === 'approved' ? 'Approved — the invoice can be emailed now.' : 'Sent back for changes.'));
   };
 
   const getStatusColor = (status: Invoice['status']) => {
@@ -251,6 +257,11 @@ export default function Sales() {
 
   return (
     <div className="space-y-8 pb-12">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
+      {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
+      {loading && (invoices.length > 0 || customers.length > 0) && (
+        <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
+      )}
       {/* Rule Header with brand gold backdrop */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[var(--brass-soft)] via-[var(--surface)]/40 to-[var(--panel)] p-6 rounded-2xl border border-[var(--brass-line)]/50 shadow-sm">
         <div className="absolute -top-16 -left-16 w-56 h-56 bg-[var(--brass)] opacity-10 rounded-full blur-3xl hidden md:block pointer-events-none" />
@@ -475,7 +486,7 @@ export default function Sales() {
                       )}
                     </td>
                     <td className="p-4 md:p-8">
-                      <div className="flex items-center gap-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                      <div className="flex items-center gap-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
                         {inv.status !== 'void' && (
                           <button
                             type="button"
@@ -610,7 +621,7 @@ export default function Sales() {
                             const spread = inv.revenueSchedule ? ' Its spread over months is undone too.' : '';
                             if (safeConfirm(`Void invoice ${inv.number || ''} for ${inv.customerName || 'this customer'} (${formatCurrency(inv.amountCents || 0, inv.currency)})? It stays on record as void and its entries are reversed.${spread}`)) {
                               if (inv.revenueSchedule && !(await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id))) return;
-                              onAddInvoice({ id: inv.id, status: 'void' });
+                              inBackground(onAddInvoice({ id: inv.id, status: 'void' }));
                             }
                           }}
                           className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-rose-500 transition-all"
@@ -699,9 +710,11 @@ export default function Sales() {
                               onSave={v => updateEntity('customers', cust.id, { name: v }, 'Name saved')}
                               className="font-black text-[var(--text)] text-lg tracking-tight" />
                             <ArchivedBadge party={cust} />
+                            <PartyDetailButton id={detailOpenerId(cust.id)} side="customer" name={cust.name}
+                              onOpen={() => setSelectedCustomerId(cust.id)} />
                             <button type="button"
-                              onClick={(e) => { e.stopPropagation(); updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`); }}
-                              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
+                              onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
+                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
@@ -727,9 +740,9 @@ export default function Sales() {
                       {formatCurrency(customerBalances[cust.id] ?? 0)}
                     </td>
                     <td className="p-4 md:p-8">
-                      <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all justify-end">
+                      <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all justify-end">
                         
-                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
+                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
                         {canEditContacts && <PartyRowActions side="customer" party={cust} />}
                       </div>
                     </td>

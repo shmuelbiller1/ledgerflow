@@ -61,7 +61,7 @@ export default function AuditLogViewer() {
       }
     }
 
-    init();
+    void init();
     
     return () => {
       mounted = false;
@@ -70,7 +70,7 @@ export default function AuditLogViewer() {
 
   const handleApplyFilter = () => {
     setLoading(true);
-    fetchLogs();
+    void fetchLogs();
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

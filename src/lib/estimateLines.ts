@@ -5,7 +5,7 @@
  * quantity (src/lib/salesOrders.ts).
  */
 import type { InvoiceLineDraft } from './invoiceLines';
-import { parseAmountToCents } from './utils';
+import { parseAmountToCents, readAmountCents } from './utils';
 import type { Estimate } from '../types';
 
 export interface EstimateLineDraft extends InvoiceLineDraft {
@@ -28,7 +28,7 @@ export function estimateLinesProblem(lines: EstimateLineDraft[]): string | null 
     const which = line.description.trim() || `line ${i + 1}`;
     if (!line.description.trim()) return `Describe line ${i + 1}`;
     if (!Number.isFinite(line.quantity) || line.quantity <= 0 || hundredths(line.quantity) !== line.quantity) return `Enter how many for ${which} (more than zero, two decimals at most)`;
-    if (line.priceText.trim() === '' || line.rateCents < 0) return `Enter the price of ${which}`;
+    if (line.priceText.trim() === '' || line.rateCents < 0 || readAmountCents(line.priceText) === null) return `Enter the price of ${which}`;
   }
   if (lines.reduce((s, l) => s + l.amountCents, 0) <= 0) return 'The quote must come to more than zero';
   return null;

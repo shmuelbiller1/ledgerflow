@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDb, assertPeriodOpen } from '../db/firestore';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { mayPostEntries } from '../http/ledgerWriter';
 
 const RecognizeRevenueSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -39,6 +40,7 @@ revenueRouter.post('/recognize', async (req, res) => {
     if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
       return res.status(403).json({ error: 'Not a member' });
     }
+    if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
 
     // 2. Check idempotency record AFTER authorization (#82)
     const idempotencyKey = (req.headers['idempotency-key'] as string) || (contractId && periodId ? `${contractId}_${periodId}` : undefined);
@@ -49,7 +51,8 @@ revenueRouter.post('/recognize', async (req, res) => {
       }
     }
 
-    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getLocalDateISO();
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
 
     // 3. Validate period lock
     await assertPeriodOpen(db, workspaceId, txDate, user.uid);

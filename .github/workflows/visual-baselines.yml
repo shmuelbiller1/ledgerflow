@@ -44,11 +44,13 @@ jobs:
         if: success()
         env:
           BRANCH: visual-baselines/${{ github.run_id }}
+          # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
+          SCREENS: ${{ inputs.screens }}
         run: |
           git add e2e/__screenshots__
           if git diff --cached --quiet; then echo "No image changed"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "test: candidate visual baselines (${{ inputs.screens }}) for review"
+          git commit -m "test: candidate visual baselines (${SCREENS}) for review"
           git push origin "HEAD:refs/heads/$BRANCH"
           echo "Review branch: $BRANCH" >> "$GITHUB_STEP_SUMMARY"

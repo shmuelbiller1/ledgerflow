@@ -39,6 +39,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       '/api/v1/auth/delete-account', // Auth action endpoint UI placeholder
       '/api/v1/keys/provision', // API key UI endpoint
       '/api/v1/admin/global-config', // Admin system config route
+      '/api/v1/admin/give-access', // ACC-1 Give access (giveAccessRoutes.ts, registered from adminRoutes.ts)
       '/api/v1/forensics/anomaly-scan', // Forensics route
       '/api/v1/public/registration-status', // Public registration status
       '/api/v1/status', // Developer API workspace status (server.ts), shown in ApiHub
@@ -66,6 +67,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       '/api/v1/support',
       '/api/v1/payments',
       '/api/v1/documents',
+      '/api/v1/open-items', // EG-1 open-item import (server.ts)
       '/api/v1/invoices',
       '/api/v1/email-events',
       '/api/v1/invites',

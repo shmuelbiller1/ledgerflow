@@ -25,6 +25,8 @@ import { provenanceFromResponse } from '../../lib/reportProvenance';
 import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import { statementTotalDrill, type StatementTotal } from '../../lib/statementDrill';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /** A P&L line as the report holds it; `parentId` is only for account groups (K-14). */
 interface PLAccount { name: string; code?: string; balance: number; parentId?: string }
@@ -55,6 +57,8 @@ interface ProfitAndLossViewProps {
 }
 
 const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDate, compareStartDate, compareEndDate }) => {
+  // A-235: the P&L reads the entries and the chart of accounts
+  const dataHealth = useScreenDataHealth(['transactions', 'accounts']);
   const formId = useId();
   const [columnMode, setColumnMode] = useState<ReportColumnMode>('total');
   const [showPercent, setShowPercent] = useState(false);
@@ -339,6 +343,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
 
   return (
     <div className="space-y-6">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="pl-statement-provenance" provenance={provenance} onRefresh={loadServerReport} busy={loadingStates.pl} />
 

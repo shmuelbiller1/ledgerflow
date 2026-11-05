@@ -2,7 +2,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { documentCurrencies } from '../../lib/exchangeRates';
 import { latestDocumentFor } from '../../lib/repeatDocument';
-import { calculateDueDate, isFixedTerm, termsForCustomer } from '../../lib/paymentTerms';
+import { calculateDueDate, isFixedTerm, termOptions, termsForCustomer } from '../../lib/paymentTerms';
 import { isArchivedParty } from '../../lib/contacts';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -80,11 +80,28 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   ]);
 
   const [filledFrom, setFilledFrom] = useState<Partial<Invoice> | undefined>(undefined);
+  // whether the terms came from a customer (not chosen by hand), so picking another customer with no
+  // usual terms puts the default back instead of keeping the previous customer's (CC-11)
+  const [termsInherited, setTermsInherited] = useState(false);
+  // a due date typed by hand is kept when the customer changes to one with no usual terms
+  const [dueDateEdited, setDueDateEdited] = useState(false);
   if (isOpen && initialInvoice && initialInvoice !== filledFrom) {
     // Copy a changed pre-filled invoice once per opening (adjusting state during render).
     setFilledFrom(initialInvoice);
     // Replace an existing invoice without leaking the previous record's optional fields.
-    setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : { ...prev, ...initialInvoice }));
+    // A new invoice opened for a chosen customer (e.g. from its row) starts with that customer's usual
+    // terms, as picking the customer in the form does (I-23, CC-11: its own, its group's, its last);
+    // terms the caller set, and every existing invoice, are kept as they are.
+    const preset = !initialInvoice.id && initialInvoice.customerId && !initialInvoice.paymentTerms
+      ? termsForCustomer(safeCustomers.find(c => c.id === initialInvoice.customerId) as { id: string; paymentTerms?: string; groupId?: string } | undefined,
+        pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
+      : null;
+    setTermsInherited(Boolean(preset));
+    setDueDateEdited(false);
+    setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : {
+      ...prev, ...initialInvoice,
+      ...(preset ? { paymentTerms: preset, dueDate: calculateDueDate(initialInvoice.date || prev.date || '', preset) } : {}),
+    }));
     if (initialInvoice.items && initialInvoice.items.length > 0) {
       setItems(initialInvoice.items);
     }
@@ -117,7 +134,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           console.error('Failed to fetch next invoice number', e);
         }
       };
-      fetchNextNumber();
+      void fetchNextNumber();
     }
   }, [isOpen, editingExisting]);
 
@@ -148,7 +165,10 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const taxChoice = invoice.taxCodeId || (Number(invoice.taxRate) > 0 ? 'custom' : '');
   const taxCode = taxChoice === 'custom' ? customRateCode(Number(invoice.taxRate) || 0) : salesCodes.find(c => c.id === taxChoice) || null;
   const pricesIncludeTax = invoice.pricesIncludeTax ?? (invoice.taxVersion === 2 ? false : Boolean(invoice.taxInclusive));
-  const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax);
+  const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';
+  const paymentTermDays = useAuthStore(s => s.getCurrentWorkspace()?.paymentTermDays); // CC-08
+  const customerGroups = useAuthStore(s => s.getCurrentWorkspace()?.customerGroups); // CC-11: a group's default terms
+  const totals = documentTotals(total, invoice.discountCents || 0, taxCode, pricesIncludeTax, taxRounding);
   const depositCents = depositAppliedCents({ amountCents: totals.amountCents, depositCents: invoice.depositCents });
   const currency = invoice.currency || workspaceCurrency;
   // the rate fills itself in for another currency until the person types one (BA-06, I-23)
@@ -299,8 +319,13 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};
                     // a new invoice takes the customer's usual terms, and the due date follows (I-23)
-                    const terms = !editingExisting ? termsForCustomer(cust as { id: string; paymentTerms?: string } | undefined, pastInvoices) : null;
-                    const termsChange = terms ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) } : {};
+                    const terms = !editingExisting ? termsForCustomer(cust as { id: string; paymentTerms?: string; groupId?: string } | undefined, pastInvoices, customerGroups) : null;
+                    const termsChange = terms
+                      ? { paymentTerms: terms, dueDate: calculateDueDate(invoice.date || '', terms) }
+                      // the previous customer's terms do not carry over to one with none; terms chosen by hand stay
+                      : !editingExisting && termsInherited ? { paymentTerms: undefined, ...(dueDateEdited ? {} : { dueDate: invoice.date || '' }) } : {};
+                    if (!editingExisting) setTermsInherited(Boolean(terms));
+                    if (terms) setDueDateEdited(false);
                     setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
@@ -355,13 +380,11 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               <select id="inv-payment-terms" aria-invalid={Boolean(fieldErrors["inv-payment-terms"])} aria-describedby={fieldErrors["inv-payment-terms"] ? 'inv-payment-terms-error' : undefined}
                 value={invoice.paymentTerms || 'due_on_receipt'}
                 // the due date follows the terms (it stayed on the invoice date before; L-186)
-                onChange={(e) => setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) })}
+                onChange={(e) => { setTermsInherited(false); if (isFixedTerm(e.target.value)) setDueDateEdited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               >
-                <option value="due_on_receipt">Due on Receipt</option>
-                <option value="net_15">Net 15</option>
-                <option value="net_30">Net 30</option>
-                <option value="net_60">Net 60</option>
+                {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
+                {termOptions(paymentTermDays, invoice.paymentTerms).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>{fieldError("inv-payment-terms")}
             </div>
 
@@ -388,7 +411,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                    min="0"
                    max="100"
                    value={invoice.progressPercentage || 0}
-                   onChange={(e) => setInvoice({ ...invoice, progressPercentage: parseInt(e.target.value, 10) })}
+                   onChange={(e) => setInvoice({ ...invoice, progressPercentage: Number.parseInt(e.target.value, 10) })}
                    className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
                  />{fieldError("inv-progress-pct")}
                </div>
@@ -402,7 +425,12 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 type="date"
                 required
                 value={invoice.date}
-                onChange={(e) => setInvoice({ ...invoice, date: e.target.value, ...(isFixedTerm(invoice.paymentTerms) && e.target.value ? { dueDate: calculateDueDate(e.target.value, invoice.paymentTerms) } : {}) })}
+                onChange={(e) => {
+                  const terms = invoice.paymentTerms;
+                  const recalc = isFixedTerm(terms) && e.target.value ? { dueDate: calculateDueDate(e.target.value, terms) } : null;
+                  if (recalc) setDueDateEdited(false); // the due date follows the terms again
+                  setInvoice({ ...invoice, date: e.target.value, ...recalc });
+                }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               />{fieldError("inv-date")}
             </div>
@@ -412,7 +440,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 type="date"
                 required
                 value={invoice.dueDate}
-                onChange={(e) => setInvoice({ ...invoice, dueDate: e.target.value })}
+                onChange={(e) => { setDueDateEdited(true); setInvoice({ ...invoice, dueDate: e.target.value }); }}
                 className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               />{fieldError("inv-due-date")}
             </div>
@@ -467,7 +495,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                    <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
                      aria-label="Tax rate (%)"
                      type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
-                     onChange={(e) => setInvoice({ ...invoice, taxRate: parseFloat(e.target.value || '0') })}
+                     onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
                      className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
                    />
                  )}
@@ -495,7 +523,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                  <label htmlFor="inv-exchange-rate" className="micro-label">Exchange Rate</label>
                  <input id="inv-exchange-rate" aria-invalid={Boolean(fieldErrors["inv-exchange-rate"])} aria-describedby={fieldErrors["inv-exchange-rate"] ? 'inv-exchange-rate-error' : undefined}
                    type="number" step="0.0001" min="0.0001" value={invoice.exchangeRate || 1}
-                   onChange={(e) => { setRateTyped(true); const rate = parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
+                   onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
                  />{fieldError("inv-exchange-rate")}
                  {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}

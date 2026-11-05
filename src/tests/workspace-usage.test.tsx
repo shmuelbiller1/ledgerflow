@@ -60,7 +60,7 @@ describe('Settings → Billing: usage', () => {
     setComponentWorkspace('owner');
     const calls = stubFetchWithBodies(200, { status: 'success', usage: { plan: 'free', unlimited: false, entries: { used: 100, limit: 100 }, seats: { used: 1, limit: 1 }, storageMb: { used: 410, limit: 500 } } });
     render(<UsagePanel />);
-    await waitFor(() => assert.ok(screen.getByText('Usage on the free plan')));
+    await waitFor(() => assert.ok(screen.getByText('Usage on the Free plan')));
     assert.equal(calls[0].url, '/api/v1/workspaces/component-workspace/usage');
     assert.ok(screen.getByText('100 of 100'));
     assert.equal(screen.getAllByRole('alert').length, 2, 'entries and people reached');
@@ -72,6 +72,6 @@ describe('Settings → Billing: usage', () => {
     setComponentWorkspace('owner');
     stubFetchWithBodies(200, { status: 'success', usage: { plan: 'pro', unlimited: true, entries: { used: 1, limit: 10000 }, seats: { used: 1, limit: 25 }, storageMb: { used: 0, limit: 25000 } } });
     render(<UsagePanel />);
-    await waitFor(() => assert.ok(screen.getByText('No limits apply to this workspace.')));
+    await waitFor(() => assert.ok(screen.getByText('Free access (given by LedgerFlow): no limits apply to this workspace.')));
   });
 });

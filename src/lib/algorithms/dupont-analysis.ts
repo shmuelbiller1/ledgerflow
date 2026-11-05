@@ -58,9 +58,9 @@ export const DUPONT_ANALYSIS_ALGO: AlgorithmDefinition = {
     const roe = profitMargin * assetTurnover * equityMultiplier;
 
     const chartData = [
-       { Component: 'Profit Margin', Value: parseFloat((profitMargin * 100).toFixed(2)) },
-       { Component: 'Asset Turnover', Value: parseFloat((assetTurnover * 100).toFixed(2)) },
-       { Component: 'Equity Multiplier', Value: parseFloat((equityMultiplier * 100).toFixed(2)) }
+       { Component: 'Profit Margin', Value: Number.parseFloat((profitMargin * 100).toFixed(2)) },
+       { Component: 'Asset Turnover', Value: Number.parseFloat((assetTurnover * 100).toFixed(2)) },
+       { Component: 'Equity Multiplier', Value: Number.parseFloat((equityMultiplier * 100).toFixed(2)) }
     ];
 
     let roeColor: string;

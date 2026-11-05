@@ -1,12 +1,11 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import ReportSkeleton from '../reporting/ReportSkeleton';
 
-/** Shown instead of "nothing here" while a screen's data is still loading (I-01). */
-export function LoadingState({ what }: { what: string }) {
+/** A named, non-interactive placeholder occupying the list's content area, not a bare spinner. */
+export function LoadingState({ what, rows = 5 }: { what: string; rows?: number }) {
   return (
-    <div role="status" className="p-8 text-center text-xs text-[var(--muted)] flex items-center justify-center gap-2">
-      <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-      Loading {what}…
+    <div className="w-full min-w-0 p-4 sm:p-6" data-loading-state>
+      <ReportSkeleton rows={rows} columns={3} label={`Loading ${what}…`} />
     </div>
   );
 }

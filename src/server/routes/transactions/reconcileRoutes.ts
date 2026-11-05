@@ -3,7 +3,7 @@ import { FieldValue } from '../../db/firestore';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../../schemas';
 import type { Transaction } from '../../../types';
-import { parseLocalDate } from '../../../lib/utils';
+import { parseDateInTimezone } from '../../../lib/calendarDate';
 import { getDb } from '../../db/firestore';
 import type { DocumentData, Firestore } from '../../db/firestore';
 import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
@@ -118,7 +118,32 @@ export async function handleReconcile(req: express.Request, res: express.Respons
             }
             const lineRef = db.collection('bankLines').doc(op.id);
             const validatedData = BankLineUpdateSchema.parse(op.data);
-            writes.push(() => t.update(lineRef, { ...validatedData, updatedAt: FieldValue.serverTimestamp() }));
+            // a bank line in another currency is not matched as home-currency money: its amount needs a
+            // conversion first (AF-001 follow-up, CodeRabbit on #439)
+            const lineCurrency = String(lineSnap.data()?.currency || '').toUpperCase();
+            const homeCurrency = String(wsData?.currency || 'USD').toUpperCase();
+            if (validatedData.status === 'matched' && lineCurrency && lineCurrency !== homeCurrency) {
+              throw new Error(`Bank line ${op.id} is in ${lineCurrency}, not ${homeCurrency}; it can't be matched until it is converted`);
+            }
+            // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
+            // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
+            const line = lineSnap.data() || {};
+            if (validatedData.status === 'pending' && line.bankChange === 'removed') {
+              // its entry must be released in the same request, or it would stay reconciled to nothing (CodeRabbit on #455)
+              // the last update to that entry decides its status, so that one must be the release (CodeRabbit on #455)
+              const entryOps = operations.filter((o: { type?: string; id?: string }) => o.type === 'updateTransaction' && o.id === line.matchedTransactionId) as Array<{ data?: { status?: unknown } }>;
+              if (line.matchedTransactionId && entryOps[entryOps.length - 1]?.data?.status !== 'completed') {
+                throw new Error(`Bank line ${op.id} was withdrawn by the bank: undo its entry's match in the same request`);
+              }
+              writes.push(() => t.delete(lineRef));
+              continue;
+            }
+            // the bank's new date must be in an open period too (Codex on #455)
+            if (validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection?.date) assertPostingOpen(line.bankCorrection.date, wsData, user.uid);
+            const correction = validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection && typeof line.bankCorrection === 'object'
+              ? { date: line.bankCorrection.date, description: line.bankCorrection.description, amountCents: line.bankCorrection.amountCents, currency: line.bankCorrection.currency, suggestion: null, bankChange: null, bankChangeAt: null, bankCorrection: null }
+              : {};
+            writes.push(() => t.update(lineRef, { ...validatedData, ...correction, updatedAt: FieldValue.serverTimestamp() }));
           } else if (op.type === 'updateTransaction') {
             const txSnap = txSnaps.get(op.id);
             if (!txSnap || !txSnap.exists || txSnap.data()?.workspaceId !== workspaceId) {
@@ -329,6 +354,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
       if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) return res.status(403).json({ error: 'Not a member' });
+      const wsTimezone = typeof wsDoc.data()?.timezone === 'string' ? wsDoc.data()?.timezone : undefined;
 
       // Fetch uncleared transactions for this workspace
       const snapshot = await db.collection('transactions')
@@ -345,7 +371,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
         let lineTime: number | null = null;
         if (bankLine.date) {
           try {
-            lineTime = parseLocalDate(bankLine.date).getTime();
+            lineTime = parseDateInTimezone(bankLine.date, wsTimezone).getTime();
           } catch {
             lineTime = null;
           }
@@ -362,7 +388,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
           let dateProximity = 0.5;
           if (lineTime && tx.date) {
             try {
-              const txTime = parseLocalDate(tx.date).getTime();
+              const txTime = parseDateInTimezone(tx.date, wsTimezone).getTime();
               const diffDays = Math.abs(lineTime - txTime) / (1000 * 60 * 60 * 24);
               if (diffDays === 0) dateProximity = 1.0;
               else if (diffDays <= 3) dateProximity = 0.9;

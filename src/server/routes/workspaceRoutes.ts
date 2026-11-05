@@ -41,8 +41,9 @@ import { RetentionError, updateRetention } from '../services/retentionService';
 import { budgetControlRouter } from './budgetControlRoutes';
 import { completeSetup, recordOpeningBalances, SetupError } from '../services/openingBalanceService';
 import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
-import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter } from './savedListRoutes';
+import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter, paymentTypeRouter, customerGroupRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
+import { planFor } from '../../lib/plans';
 
 export const workspaceRouter = express.Router();
 
@@ -249,6 +250,8 @@ workspaceRouter.use('/:workspaceId/allocation-rules', requireWorkspaceRole(LEDGE
 workspaceRouter.use('/:workspaceId/price-lists', requireWorkspaceRole(LEDGER_ADMIN_ROLES), priceListRouter);
 workspaceRouter.use('/:workspaceId/sales-reps', requireWorkspaceRole(LEDGER_ADMIN_ROLES), salesRepRouter);
 workspaceRouter.use('/:workspaceId/tax-profiles', requireWorkspaceRole(LEDGER_ADMIN_ROLES), taxProfileRouter);
+workspaceRouter.use('/:workspaceId/payment-types', requireWorkspaceRole(LEDGER_ADMIN_ROLES), paymentTypeRouter); // CC-09
+workspaceRouter.use('/:workspaceId/customer-groups', requireWorkspaceRole(LEDGER_ADMIN_ROLES), customerGroupRouter); // CC-11
 workspaceRouter.use('/:workspaceId/role-dashboards', requireWorkspaceRole(['owner']), roleDashboardRouter);
 workspaceRouter.use('/:workspaceId/approval-delegate', requireWorkspaceRole(LEDGER_ADMIN_ROLES), approvalDelegateRouter);
 
@@ -381,7 +384,7 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
   });
 
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success || !targetUid) return sendError(res, 'Invalid role payload or target user ID', 400, parsed.error?.issues);
+  if (!parsed.success || typeof targetUid !== 'string' || !targetUid) return sendError(res, 'Invalid role payload or target user ID', 400, parsed.error?.issues);
   const { role } = parsed.data;
 
   try {
@@ -398,8 +401,8 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
 
       previousRole = data.roles?.[targetUid] || (data.uid === targetUid ? 'owner' : 'viewer');
 
-      // Protect last owner from demotion
-      if (role !== 'owner' && ownerUids.includes(targetUid) && count <= 1) {
+      // the creator always counts as owner (workspaceRole), so never store another role for them; protect the last owner too
+      if (role !== 'owner' && (data.uid === targetUid || (ownerUids.includes(targetUid) && count <= 1))) {
         throw new Error('LAST_OWNER_PROTECTION');
       }
 
@@ -436,7 +439,7 @@ const handleUpdateRole = async (req: express.Request, res: express.Response) => 
     res.json({ status: 'success', targetUid, role, previousRole });
   } catch (err) {
     if (errorMessage(err) === 'LAST_OWNER_PROTECTION') {
-      return sendError(res, 'Cannot demote or remove the last owner of the workspace.', 400);
+      return sendError(res, 'Cannot demote the person who created the workspace, or its last owner.', 400);
     }
     if (errorMessage(err) === 'NOT_FOUND') return sendError(res, 'Workspace not found', 404);
     sendError(res, 'Failed to update workspace role', 500, errorMessage(err));
@@ -480,15 +483,11 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 
     const wsData = wsSnap.data() || {};
     const members: string[] = Array.isArray(wsData.members) ? wsData.members : [];
-    const maxSeats = wsData.maxSeats || 5;
-    const currentSeatCount = members.length + 1; // plus primary owner
+    const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats); // plan's seats, at least 5; free access: no cap
+    const currentSeatCount = new Set([...members, wsData.uid || 'owner']).size; // unique people: owner counted once (ACC-1b)
 
-    if (currentSeatCount >= maxSeats) {
-      return sendError(
-        res,
-        `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`,
-        402
-      );
+    if (wsData.bypassBilling !== true && currentSeatCount >= maxSeats) {
+      return sendError(res, `Payment Required: Workspace seat limit reached (${currentSeatCount}/${maxSeats} seats used). Upgrade plan to invite more team members.`, 402);
     }
 
     const invite = generateInviteToken(workspaceId, email, role);

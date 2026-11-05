@@ -11,6 +11,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { projectTasksFromProject } from '../../lib/projectTemplates';
 import type { ProjectsModel } from './Projects';
+import { inBackground } from '../../lib/inBackground';
 
 export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, selectedTemplateId, projectTemplates, handleApplyTemplate, handleToggleProjectTask, handleSaveProjectTemplate, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors }: ProjectsModel) {
   return (
@@ -152,7 +153,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                         <AsyncButton
                           aria-label={`Delete project ${project.name}`}
                           onClick={async () => {
-                            handleDeleteProject(project.id);
+                            inBackground(handleDeleteProject(project.id));
                           }}
                           className={cn(
                             "p-1.5 rounded-md transition-all",
@@ -324,7 +325,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-[var(--line)]">
-                    <div className="min-w-0 space-y-1"><button className="disabled:cursor-not-allowed disabled:opacity-50 w-full h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold uppercase tracking-wider text-[9px] transition-all flex items-center justify-center gap-2 shadow-3xs cursor-pointer" type="button" disabled aria-describedby="brief-help" title="Project brief generation is not available. Review the project details here." aria-label="Generate Brief">
+                    <div className="min-w-0 space-y-1"><button className="disabled:cursor-not-allowed disabled:opacity-50 w-full min-h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold uppercase tracking-wider text-[9px] transition-all flex items-center justify-center gap-2 shadow-3xs cursor-pointer" type="button" disabled aria-describedby="brief-help" title="Project brief generation is not available. Review the project details here." aria-label="Generate Brief">
                       <BarChart3 aria-hidden="true" size={12} className="text-slate-300" />
                       Generate Brief
                     </button>

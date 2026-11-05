@@ -31,6 +31,8 @@ import type { TaxComponent, TaxTreatment } from '../../lib/taxCodes';
 import { isIncomeAccount } from '../../lib/accountUtils';
 import { useServerActivity } from '../../hooks/useServerActivity';
 import { sumActivity, type ActivityByMonth } from '../../lib/periodActivity';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /**
  * L-123 step 3e: the year's gross income, expenses and sales tax from activity per account per month: a line's
@@ -118,7 +120,7 @@ function TaxRateForm({ initial, onSave, onCancel }: { initial: TaxRate | null; o
         {parts.slice(0, type === 'Sales' ? parts.length : 1).map((p, n) => (
           <div key={p.key} className="flex items-center gap-2">
             {type === 'Sales' && <input aria-label={`Part ${n + 1} name`} value={p.name} onChange={e => setPart(p.key, { name: e.target.value })} className={`${fieldClass} flex-1`} />}
-            <input aria-label={`Part ${n + 1} rate (%)`} type="number" step="0.001" min="0" max="100" value={p.rate} onChange={e => setPart(p.key, { rate: parseFloat(e.target.value || '0') })} className={`${fieldClass} w-28 text-right font-mono`} />
+            <input aria-label={`Part ${n + 1} rate (%)`} type="number" step="0.001" min="0" max="100" value={p.rate} onChange={e => setPart(p.key, { rate: Number.parseFloat(e.target.value || '0') })} className={`${fieldClass} w-28 text-right font-mono`} />
             <span aria-hidden="true">%</span>
             {type === 'Sales' && n > 0 && (
               <label className="flex items-center gap-1 text-xs whitespace-nowrap">
@@ -135,7 +137,7 @@ function TaxRateForm({ initial, onSave, onCancel }: { initial: TaxRate | null; o
             <Plus size={12} aria-hidden="true" /> Add a part
           </button>
         )}
-        {type === 'Sales' && <p className="text-xs text-[var(--muted)]">Total: {(total * 100).toFixed(3).replace(/\.?0+$/, '')}% of the amount before tax{treatment !== 'standard' ? ` · ${TAX_TREATMENTS[treatment]}` : ''}</p>}
+        {type === 'Sales' && <p className="text-xs text-[var(--muted)]">Total: {(total * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}% of the amount before tax{treatment !== 'standard' ? ` · ${TAX_TREATMENTS[treatment]}` : ''}</p>}
       </fieldset>
       <div className="pt-4 flex gap-3 border-t border-[var(--line)]">
         <button type="button" onClick={onCancel} className="flex-1 py-3 border border-[var(--line)] rounded-xl font-semibold">Cancel</button>
@@ -165,6 +167,8 @@ export default function TaxManager({
   onDeleteTaxRate: onDeleteProp
 }: TaxManagerProps = {}) {
   const transactions = useLedgerStore(state => state.transactions || []);
+  // A-235: the tax figures read the entries and the tax codes
+  const dataHealth = useScreenDataHealth(['transactions', 'taxRates', 'accounts']);
   // The screen is opened from the menu with no props: it reads the workspace's own tax codes and
   // accounts and saves through the normal path (it showed no codes and Add/Edit/Delete did
   // nothing before; L-184)
@@ -253,6 +257,7 @@ export default function TaxManager({
 
   return (
     <div className="space-y-12 p-4 md:p-6 lg:p-10 w-full max-w-[1550px] mx-auto pb-20 animate-in fade-in duration-500">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Rule Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-[var(--line)] pb-8">
         <div>
@@ -264,12 +269,12 @@ export default function TaxManager({
           <p className="text-xs text-[var(--muted)] font-bold uppercase tracking-wider mt-1">Rough tax reserve estimate — not tax advice. Confirm with your accountant.</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
              <select 
                aria-label="Tax reserve fiscal year"
                value={selectedYear}
-               onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+               onChange={(e) => setSelectedYear(Number.parseInt(e.target.value, 10))}
                className="px-6 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] text-[10px] font-black uppercase tracking-widest text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none cursor-pointer pr-10 shadow-sm"
              >
                {[2023, 2024, 2025, 2026].map(year => (
@@ -406,7 +411,7 @@ export default function TaxManager({
                       className="text-2xl font-black font-mono text-[var(--text)] tracking-tighter" />
                     {rate.components && rate.components.length > 1 && <p className="text-[10px] text-[var(--muted)]">{rate.components.map(c => `${c.name} ${c.rate}%${c.compound ? ' (on top)' : ''}`).join(' + ')}</p>}
                     {rate.treatment && rate.treatment !== 'standard' && <p className="text-[10px] text-[var(--muted)]">{TAX_TREATMENTS[rate.treatment]}</p>}
-                    <div className="flex items-center justify-end gap-3 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-3 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                       {canEdit && <button type="button" aria-label={`Edit tax ${rate.name}`} onClick={() => { setEditingRate(rate); setIsModalOpen(true); }} className="text-[var(--muted)] hover:text-[var(--text)] transition-colors"><Edit2 aria-hidden="true" size={14} /></button>}
                       {canEdit && <button type="button" aria-label={`Delete tax ${rate.name}`} onClick={() => { void onDeleteTaxRate(rate.id); }} className="text-[var(--muted)] hover:text-rose-500 transition-colors"><Trash2 aria-hidden="true" size={14} /></button>}
                     </div>

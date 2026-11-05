@@ -90,12 +90,12 @@ export default function CreditNotesView() {
 
   const handleCreateCustomerCreditNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountCents = Math.round(parseFloat(amountStr || '0') * 100);
+    const amountCents = Math.round(Number.parseFloat(amountStr || '0') * 100);
     if (!customerId) {
       toast.error('Please select a customer');
       return;
     }
-    if (isNaN(amountCents) || amountCents <= 0) {
+    if (Number.isNaN(amountCents) || amountCents <= 0) {
       toast.error('Please enter a valid positive amount');
       return;
     }
@@ -134,12 +134,12 @@ export default function CreditNotesView() {
 
   const handleCreateVendorCredit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountCents = Math.round(parseFloat(amountStr || '0') * 100);
+    const amountCents = Math.round(Number.parseFloat(amountStr || '0') * 100);
     if (!vendorId) {
       toast.error('Please select a vendor');
       return;
     }
-    if (isNaN(amountCents) || amountCents <= 0) {
+    if (Number.isNaN(amountCents) || amountCents <= 0) {
       toast.error('Please enter a valid positive amount');
       return;
     }

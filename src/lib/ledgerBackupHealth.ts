@@ -22,7 +22,7 @@ export function getBackupHealth(workspaceId?: string | null): BackupHealth {
     };
   }
   const lastDate = new Date(stored);
-  if (isNaN(lastDate.getTime())) {
+  if (Number.isNaN(lastDate.getTime())) {
     return { lastBackupAt: null, daysSinceLastBackup: null, isDue: true, status: 'never' };
   }
   const diffMs = Date.now() - lastDate.getTime();

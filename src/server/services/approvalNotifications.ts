@@ -1,6 +1,6 @@
 import type { DocumentData, Firestore } from '../db/firestore';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
-import { formatCurrency } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { notify } from './notificationService';
 
 /**

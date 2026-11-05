@@ -104,8 +104,8 @@ export const PARETO_ANALYSIS_ALGO: AlgorithmDefinition = {
       if (i < 20 || cumulativePct < 90) {
         chartData.push({
           Entity: entity.substring(0, 15),
-          'Volume ($)': parseFloat((volume / 100).toFixed(2)),
-          'Cumulative (%)': parseFloat(cumulativePct.toFixed(1))
+          'Volume ($)': Number.parseFloat((volume / 100).toFixed(2)),
+          'Cumulative (%)': Number.parseFloat(cumulativePct.toFixed(1))
         });
       }
     }

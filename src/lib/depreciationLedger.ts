@@ -26,8 +26,27 @@ export interface DepreciationLedgerRow {
 
 const RUN = 'depreciation-run';
 
+const day = (t: Transaction) => String(t.date || '').slice(0, 10);
+
+/**
+ * The runs reversed by `to`: a reversal dated after `to` had not happened yet, so the run still counts in a ledger
+ * or register through that day (CodeRabbit on #449). Covers both links, the reversal's own and the run's
+ * reversalEventId.
+ */
+function reversedAsOf(transactions: Transaction[], to: string): Set<string> {
+  const byId = new Map(transactions.map(t => [t.id, t]));
+  const isReversalEntry = (t: Transaction) => !!(t.metadata?.isReversal || t.metadata?.reversesTxId);
+  const reversed = reversedTransactionIds(transactions.filter(t => !isReversalEntry(t) || day(t) <= to)
+    .map(t => (t.reversalEventId && byId.has(t.reversalEventId) ? { ...t, reversalEventId: undefined } : t)));
+  for (const t of transactions) {
+    const reversal = t.reversalEventId ? byId.get(t.reversalEventId) : undefined;
+    if (reversal && day(reversal) <= to) reversed.add(t.id);
+  }
+  return reversed;
+}
+
 export function depreciationLedger(assets: FixedAsset[], transactions: Transaction[], from: string, to: string): DepreciationLedgerRow[] {
-  const reversed = reversedTransactionIds(transactions);
+  const reversed = reversedAsOf(transactions, to);
   const runs = transactions.filter(t => t.metadata?.type === RUN && isPostable(t) && !reversed.has(t.id) && !t.metadata?.isReversal);
   const byAsset = new Map<string, Array<{ date: string; month: string; cents: number }>>();
   for (const run of runs) {

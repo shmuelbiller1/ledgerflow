@@ -2,10 +2,9 @@ import express from "express";
 import cors from "cors";
 import compression from "compression";
 import helmet from "helmet";
-import morgan from "morgan";
 import { supabaseUrl } from "../auth/supabaseAuth";
 import { isAiStudioProxy } from "./origins";
-import { safeRequestTarget } from "./safeRequestTarget";
+import { requestContext } from "./requestContext";
 import {
   APP_INLINE_SCRIPT_HASHES, CSP_REPORT_PATH, configuredSupabaseConnectSources, connectSources,
   cspRollout, helmetDirectives, tightenedCspDirectives, tightenedCspHeaderValue,
@@ -66,9 +65,6 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
       next();
     });
   }
-  // The default :url token includes query parameters, which may contain credentials.
-  morgan.token("safe-url", req => safeRequestTarget(req.url || '/'));
-  app.use(morgan(":method :safe-url :status :res[content-length] - :response-time ms", {
-    skip: (req) => !req.url || !req.url.startsWith("/api")
-  }));
+  // D-21: request id + one JSON access line per /api request (replaces the morgan text line).
+  app.use(requestContext());
 }

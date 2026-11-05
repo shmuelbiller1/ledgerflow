@@ -54,7 +54,7 @@ export default function DefaultsSettings() {
       <ul className="divide-y divide-[var(--line)]">
         {DEFAULT_ACCOUNT_SLOTS.map(slot => {
           const inUse = accountInUse(slot, accounts, mappings);
-          const automatic = slot.automatic(accounts);
+          const automatic = slot.automatic(accounts, mappings);
           const id = `default-${slot.key.replace(/\s+/g, '-')}`;
           return (
             <li key={slot.key} className="py-3 grid gap-2 sm:grid-cols-[1fr_minmax(0,18rem)] sm:items-center">

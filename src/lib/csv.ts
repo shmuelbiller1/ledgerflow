@@ -79,3 +79,23 @@ function readCsv(input: string, delimiter: string): { rows: string[][]; unclosed
   if (cell !== '' || row.length > 0) endRow();
   return { rows: rows.map(r => r.map(c => c.trim())), unclosedQuote };
 }
+
+/**
+ * Sanitizes a string value against CSV/Formula injection attacks.
+ * Prevents execution of spreadsheet formulas starting with =, +, -, @, \t, \r
+ */
+export function sanitizeCsvCell(value: unknown): string {
+  if (value === null || value === undefined) return '""';
+  if (typeof value === 'number') return String(value);
+
+  let str = String(value);
+
+  // Purely formatted numbers (like -1,000.00 or -$50.00) are safe from formula injection
+  const isSafeNumber = /^-?\$?\s*\d{1,3}(,?\d{3})*(\.\d+)?$/.test(str);
+
+  if (!isSafeNumber && /^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
+
+  return `"${str.replace(/"/g, '""')}"`;
+}

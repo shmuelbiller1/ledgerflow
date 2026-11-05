@@ -64,7 +64,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
   const handleCreateTransfer = async () => {
     if (saving) return;
-    if (!fromAccountId || !toAccountId || !amount || parseFloat(amount) <= 0) {
+    if (!fromAccountId || !toAccountId || !amount || Number.parseFloat(amount) <= 0) {
       return;
     }
 
@@ -296,7 +296,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCreateTransfer}
-                  disabled={saving || !fromAccountId || !toAccountId || !amount || parseFloat(amount) <= 0}
+                  disabled={saving || !fromAccountId || !toAccountId || !amount || Number.parseFloat(amount) <= 0}
                   className="px-4 py-2 text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
                 >
                   <Check aria-hidden="true" className="w-3.5 h-3.5" />

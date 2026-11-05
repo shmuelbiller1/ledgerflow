@@ -45,7 +45,15 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       'numberingSeries', 'retention', 'setupCompletedAt', 'openingBalanceDate', 'branding', 'scheduledReportsSent',
       'closeSteps', 'ledgerHealth', 'alerts', 'alertsSent', 'payrollApproval', 'requireTwoStep', 'refuseNegativeStock',
       'modules', 'goodsLeaveWith', 'allocationRules', 'priceLists', 'salesReps', 'twoPersonRule', 'roleDashboards',
-      'approvalDelegates', 'taxProfiles', 'brandingProfiles', 'expensePolicy', 'budgetControl'
+      'approvalDelegates', 'taxProfiles', 'brandingProfiles', 'expensePolicy', 'budgetControl',
+      // tax rounding policy (Y-35, migration 20261101000000_workspace_tax_rounding)
+      'taxRounding',
+      // the workspace's own payment terms (CC-08, migration 20261102010000_workspace_payment_terms)
+      'paymentTermDays',
+      // the workspace's own payment types (CC-09, migration 20261102020000_workspace_payment_types)
+      'paymentTypes',
+      // the workspace's customer groups (CC-11, migration 20261102030000_customer_groups)
+      'customerGroups'
     ];
     for (const key of expectedWorkspaceKeys) {
       assert.ok(allowed.includes(key), `workspaces allowed fields missing '${key}'`);

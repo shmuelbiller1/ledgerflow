@@ -62,7 +62,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         }
       }
     
-      const maxLimit = parseInt(limit as string, 10) || 100;
+      const maxLimit = Number.parseInt(limit as string, 10) || 100;
       const fetchLimit = accountId ? 1000 : Math.min(maxLimit, 1000);
       queryFn = queryFn.limit(fetchLimit);
 
@@ -233,8 +233,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
 
            const wsId = txData?.workspaceId;
            authoritativeWsId = wsId;
-           // Verify workspace
-           const wsDoc = await db.collection('workspaces').doc(wsId).get();
+           // Verify workspace inside the same transaction so no second pool client is checked out while holding t
+           const wsDoc = await t.get(db.collection('workspaces').doc(wsId));
            const wsData = wsDoc.data();
            if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
              throw new Error('Not a member');

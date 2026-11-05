@@ -1,7 +1,24 @@
 import React from 'react';
 import { useReconciliationModel } from './useReconciliationModel';
 import { ReconciliationView } from './ReconciliationView';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 export default function Reconciliation() {
- return <ReconciliationView {...useReconciliationModel()} />;
+  const model = useReconciliationModel();
+  // A-235: matching reads entries, accounts and the bank feed (not saved reconciliations). When one of
+  // them did not arrive, say so above the screen instead of showing an empty match list.
+  const dataHealth = useScreenDataHealth(['transactions', 'accounts', 'bankLines']);
+  return (
+    // keeps ReconciliationView a growing flex child, so its match panes stay bounded and scroll inside
+    <div className="flex min-h-0 flex-1 flex-col h-full">
+      {/* only when something failed: a permanently padded block would move the screen down */}
+      {dataHealth.failedKeys.length > 0 && (
+        <div className="px-4 pt-4 sm:px-6 lg:px-8">
+          <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="reconciliation" />
+        </div>
+      )}
+      <ReconciliationView {...model} />
+    </div>
+  );
 }

@@ -17,7 +17,7 @@ import { EMAIL_MODES, type NotificationEmailMode } from '../../lib/notificationE
 import { createGroup, deleteGroup, keepRates, listGroups, setLineMerges, shareGroup, unshareGroup, updateGroup, WorkspaceGroupError } from '../services/workspaceGroupService';
 import { authAdmin } from '../auth/supabaseAuth';
 import { practiceRows } from '../services/practiceService';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
 
 export const accountRouter = express.Router();
 
@@ -146,7 +146,7 @@ accountRouter.put('/groups/:id/rates', async (req, res) => {
 accountRouter.get('/practice', async (req, res) => {
   const user = (req as unknown as AuthenticatedRequest).user;
   try {
-    const today = typeof req.query.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.today) ? req.query.today : getLocalDateISO();
+    const today = typeof req.query.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.today) ? req.query.today : getDateInTimezoneISO();
     res.json({ status: 'success', rows: await practiceRows(getDb(), user.uid, today) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'The practice view is not available right now', details: err instanceof Error ? err.message : String(err) });

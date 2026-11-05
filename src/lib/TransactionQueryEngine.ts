@@ -447,13 +447,13 @@ export class TransactionQueryEngine {
         }
 
         if (isMatch && keyValues['min']) {
-          const minVal = parseFloat(keyValues['min']);
-          if (!isNaN(minVal) && t._normalized.absAmount < minVal) isMatch = false;
+          const minVal = Number.parseFloat(keyValues['min']);
+          if (!Number.isNaN(minVal) && t._normalized.absAmount < minVal) isMatch = false;
         }
 
         if (isMatch && keyValues['max']) {
-          const maxVal = parseFloat(keyValues['max']);
-          if (!isNaN(maxVal) && t._normalized.absAmount > maxVal) isMatch = false;
+          const maxVal = Number.parseFloat(keyValues['max']);
+          if (!Number.isNaN(maxVal) && t._normalized.absAmount > maxVal) isMatch = false;
         }
 
         // Boolean 'is:' directives
@@ -530,20 +530,20 @@ export class TransactionQueryEngine {
         if (isMatch && relativeTimeMatch) {
           const tDateStr = t.date || '';
           if (parsedRelativeRel === 'this month') {
-             const tYear = parseInt(tDateStr.substring(0, 4), 10);
-             const tMonth = parseInt(tDateStr.substring(5, 7), 10) - 1;
+             const tYear = Number.parseInt(tDateStr.substring(0, 4), 10);
+             const tMonth = Number.parseInt(tDateStr.substring(5, 7), 10) - 1;
              if (tMonth !== parsedNowMonth || tYear !== parsedNowYear) isMatch = false;
           } else if (parsedRelativeRel === 'last month') {
              const lm = parsedNowMonth === 0 ? 11 : parsedNowMonth - 1;
              const lmy = parsedNowMonth === 0 ? parsedNowYear - 1 : parsedNowYear;
-             const tYear = parseInt(tDateStr.substring(0, 4), 10);
-             const tMonth = parseInt(tDateStr.substring(5, 7), 10) - 1;
+             const tYear = Number.parseInt(tDateStr.substring(0, 4), 10);
+             const tMonth = Number.parseInt(tDateStr.substring(5, 7), 10) - 1;
              if (tMonth !== lm || tYear !== lmy) isMatch = false;
           } else if (parsedRelativeRel === 'this year') {
-             const tYear = parseInt(tDateStr.substring(0, 4), 10);
+             const tYear = Number.parseInt(tDateStr.substring(0, 4), 10);
              if (tYear !== parsedNowYear) isMatch = false;
           } else if (parsedRelativeRel === 'last year') {
-             const tYear = parseInt(tDateStr.substring(0, 4), 10);
+             const tYear = Number.parseInt(tDateStr.substring(0, 4), 10);
              if (tYear !== parsedNowYear - 1) isMatch = false;
           } else if (parsedRelativeRel === 'last 30 days') {
              const tTime = parseLocalDate(tDateStr).getTime();
@@ -574,7 +574,7 @@ export class TransactionQueryEngine {
              startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
              if (tDateObj < startOfLastWeek || tDateObj >= startOfThisWeek) isMatch = false;
           } else if (parsedRelativeRel === 'ytd') {
-             const tYear = parseInt(tDateStr.substring(0, 4), 10);
+             const tYear = Number.parseInt(tDateStr.substring(0, 4), 10);
              const tDateObj = parseLocalDate(tDateStr);
              if (tYear !== parsedNowYear || tDateObj > parsedNow) isMatch = false;
           } else if (parsedRelativeRel === 'today') {
@@ -584,7 +584,7 @@ export class TransactionQueryEngine {
         if (isMatch && quarterMatch) {
           const q = normalizeSearchText(quarterMatch[1]);
           const tDateStr = t.date || '';
-          const tMonth = parseInt(tDateStr.substring(5, 7), 10) - 1;
+          const tMonth = Number.parseInt(tDateStr.substring(5, 7), 10) - 1;
           if (q === 'q1' && tMonth > 2) isMatch = false;
           else if (q === 'q2' && (tMonth < 3 || tMonth > 5)) isMatch = false;
           else if (q === 'q3' && (tMonth < 6 || tMonth > 8)) isMatch = false;

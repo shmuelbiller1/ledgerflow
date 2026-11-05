@@ -1,3 +1,5 @@
+import { PartyDetailButton } from '../common/PartyDetailButton';
+import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { StageChip } from '../collaboration/StageChip';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -40,6 +42,9 @@ import ListColumnChooser from '../ui/ListColumnChooser';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { inBackground } from '../../lib/inBackground';
 
 const NO_VENDORS: Vendor[] = [];
 const NO_BILLS: Bill[] = [];
@@ -51,12 +56,15 @@ export default function Purchases() {
   const { loading } = useLedgerCollections('bills', 'vendors');
   const schedules = useLedgerStore(s => s.recurring) || [];
   useLedgerCollections('recurring');
+  // A-235: the same notice every screen uses when its data could not be loaded
+  const dataHealth = useScreenDataHealth(['bills', 'vendors', 'recurring', 'accounts']);
   const { addEntity, updateEntity, deleteEntity } = useEntityOperations();
   const currentRole = useCurrentRole();
   const canEditContacts = currentRole !== 'viewer';
 
   const [activeSubTab, setActiveSubTab] = useState<'bills' | 'vendors'>('bills');
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const detailOpenerId = useDetailReturnFocus(selectedVendorId);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
@@ -216,6 +224,7 @@ export default function Purchases() {
 
   return (
     <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Purchases Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -435,7 +444,7 @@ export default function Purchases() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleVoidBill(b);
+                                inBackground(handleVoidBill(b));
                               }}
                               className="px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
                             >
@@ -447,7 +456,7 @@ export default function Purchases() {
                         {b.status === 'draft' && <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteBill(b);
+                            inBackground(handleDeleteBill(b));
                           }}
                           className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
                           title="Delete draft"
@@ -519,6 +528,8 @@ export default function Purchases() {
                         validate={x => String(x) ? null : 'A vendor needs a name'}
                         onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')} />
                       <ArchivedBadge party={v} />
+                            <PartyDetailButton id={detailOpenerId(v.id)} side="vendor" name={v.name}
+                              onOpen={() => setSelectedVendorId(v.id)} />
                     </td>
                     <td className="p-4 text-slate-600 dark:text-slate-400">
                       <InlineEdit value={v.category} label={`Category of ${v.name}`} placeholder="Standard" canEdit={canEditContacts}

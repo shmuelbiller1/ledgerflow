@@ -24,6 +24,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { inBackground } from '../../lib/inBackground';
 
 /**
  * Recurring invoices and entries. The daily job (src/server/services/recurringService.ts) runs
@@ -47,7 +48,7 @@ export default function RecurringTransactionsView() {
 
   const remove = (rule: RecurringTransaction) => {
     if (!window.confirm(`Delete the schedule "${rule.description}"? Invoices and entries it already created stay.`)) return;
-    deleteEntity('recurring', rule.id, 'Schedule deleted');
+    inBackground(deleteEntity('recurring', rule.id, 'Schedule deleted'));
   };
 
   const filteredRecurring = useMemo(() => {

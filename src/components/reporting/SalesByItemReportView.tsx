@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Package } from 'lucide-react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, cn } from '../../lib/utils';
-import { computeSalesByItem, yearRange } from '../../server/reports/itemReports';
+import { yearRange } from '../../server/reports/itemReports';
+import { useServerSalesByItem } from '../../hooks/useServerSalesByItem';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 
 interface Props {
@@ -14,18 +14,11 @@ interface Props {
 const pct = (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}%`);
 
 export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate, endDate }) => {
-  const invoices = useLedgerStore(s => s.invoices);
-  const items = useLedgerStore(s => s.inventory);
-  const transactions = useLedgerStore(s => s.transactions);
-  const accounts = useLedgerStore(s => s.accounts);
   useLedgerCollections('inventory', 'invoices');
 
   const { startDate: from, endDate: to } = startDate || endDate ? { startDate, endDate } : yearRange(selectedYear);
-  const report = useMemo(
-    () => computeSalesByItem({ invoices: invoices || [], items: items || [], transactions: transactions || [], accounts: accounts || [], startDate: from, endDate: to }),
-    [invoices, items, transactions, accounts, from, to]
-  );
-  const { rows, totals } = report;
+  // L-123 step 4b: the whole report from the server when the loaded invoices or entries are capped
+  const { rows, totals, source } = useServerSalesByItem(from, to);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="sales-by-item-report">
@@ -38,6 +31,8 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
           <p className="text-xs text-[var(--muted)] mt-0.5">
             Items sold on issued invoices, in your base currency, with cost of goods sold and margin.
           </p>
+          {source === 'server' && <p className="text-xs text-[var(--muted)] mt-1" data-testid="sales-by-item-source">Every invoice in this period, read from the server.</p>}
+          {source === 'loaded-incomplete' && <p role="status" className="text-xs text-amber-700 mt-1" data-testid="sales-by-item-source">Only the invoices loaded in this browser: some sales or posted costs may be missing.</p>}
         </div>
         <div className="flex items-center gap-6 bg-[var(--panel)] p-3 rounded-xl border border-[var(--line)]">
           <div>

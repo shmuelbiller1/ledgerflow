@@ -1,9 +1,12 @@
+import ReportSkeleton from '../reporting/ReportSkeleton';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { SETTINGS_TABS_REGISTRY, SETTINGS_COMPONENTS } from '../../config/registry';
 import { useUIStore } from '../../stores/useUIStore';
 import { ViewErrorBoundary } from '../common/ViewErrorBoundary';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 const SETTINGS_GROUPS = [
   { name: 'Workspace', ids: ['appearance', 'team', 'security', 'billing', 'modules', 'groups', 'shortcuts'] },
@@ -15,6 +18,8 @@ const SETTINGS_GROUPS = [
 
 export default function Settings() {
   const [search, setSearch] = useState('');
+  // A-235: several settings (defaults, numbering, tax profiles) read the chart of accounts
+  const dataHealth = useScreenDataHealth(['accounts']);
   const language = useUIStore(state => state.language);
   const activeSubTab = useUIStore(state => state.activeSettingsTab || 'appearance');
   const setActiveSubTab = useUIStore(state => state.setActiveSettingsTab);
@@ -60,6 +65,7 @@ export default function Settings() {
           <input id="settings-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a setting" className="w-full min-h-11 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3" />
         </div>
       </header>
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="settings that read your books" />
       <nav aria-label="Settings sections" className="space-y-3">
         {term && <p role="status" className="text-sm text-[var(--muted)]">{matchCount ? `${matchCount} settings found` : 'No settings match your search.'} Your current page stays open.</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -94,7 +100,7 @@ export default function Settings() {
               className="space-y-10"
             >
               {ActiveComponent && (
-                <Suspense fallback={<div className="h-40 flex items-center justify-center font-bold text-[var(--muted)] uppercase tracking-widest text-xs">Loading module...</div>}>
+                <Suspense fallback={<ReportSkeleton rows={10} label="Loading settings…" />}>
                   <ViewErrorBoundary viewName={(activeTabDef as typeof activeTabDef & { name?: string })?.label?.en || activeSubTab}>
                     <ActiveComponent />
                   </ViewErrorBoundary>

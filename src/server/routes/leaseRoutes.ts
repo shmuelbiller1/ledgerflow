@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDb, assertPeriodOpen } from '../db/firestore';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { mayPostEntries } from '../http/ledgerWriter';
 
 const CapitalizeLeaseSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -38,6 +39,7 @@ leaseRouter.post('/capitalize', async (req, res) => {
     if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
       return res.status(403).json({ error: 'Not a member' });
     }
+    if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
 
     // 2. Check idempotency record AFTER authorization (#82)
     const idempotencyKey = (req.headers['idempotency-key'] as string) || (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined);
@@ -48,7 +50,8 @@ leaseRouter.post('/capitalize', async (req, res) => {
       }
     }
 
-    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getLocalDateISO();
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
 
     // 3. Validate period lock
     await assertPeriodOpen(db, workspaceId, txDate, user.uid);

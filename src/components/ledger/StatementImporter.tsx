@@ -271,7 +271,7 @@ export default function StatementImporter({
     }
     setMappingError('');
     processResults(results as unknown as StatementResult[]);
-    if (results.length > 0 && csvData[0]) saveColumnLayout(csvData[0], mapping as ColumnMapping);
+    if (results.length > 0 && csvData[0]) void saveColumnLayout(csvData[0], mapping as ColumnMapping);
   };
 
   // Remember this bank's column layout (keyed by its header row) for the next import
@@ -521,7 +521,7 @@ export default function StatementImporter({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-3 md:col-span-3">
                     <Labelled labelClassName="micro-label !text-[var(--text)]" label="Header Rows to Skip">
-                      <input type="number" min="0" value={mapping.skipRows} onChange={(e) => setMapping({...mapping, skipRows: parseInt(e.target.value) || 0})} className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl font-bold text-sm text-[var(--text)] outline-none focus:border-[var(--brass-line)]" />
+                      <input type="number" min="0" value={mapping.skipRows} onChange={(e) => setMapping({...mapping, skipRows: Number.parseInt(e.target.value) || 0})} className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl font-bold text-sm text-[var(--text)] outline-none focus:border-[var(--brass-line)]" />
                     </Labelled>
                   </div>
                   {(['date', 'description', 'amount', 'debit', 'credit', 'payee', 'memo'] as const).map(field => (
@@ -529,7 +529,7 @@ export default function StatementImporter({
                       <Labelled labelClassName="micro-label !text-[var(--text)] capitalize" label={<>{field} Column</>}>
                         <select 
                           value={mapping[field]}
-                          onChange={(e) => setMapping({...mapping, [field]: parseInt(e.target.value, 10)})}
+                          onChange={(e) => setMapping({...mapping, [field]: Number.parseInt(e.target.value, 10)})}
                           className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl font-bold text-sm text-[var(--text)] outline-none focus:border-[var(--brass-line)] cursor-pointer"
                         >
                           <option value={-1}>Select Column</option>

@@ -19,10 +19,12 @@ import {
   requestPayloadHash,
 } from "../utils/idempotency";
 import { isSystemJobAuthorized } from "../auth/systemJobAuth";
+import { registerGiveAccessRoutes } from "./giveAccessRoutes";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerAdminRoutes(app: express.Express, ctx: ServerContext): void {
   const { apiLogs } = ctx;
+  registerGiveAccessRoutes(app); // ACC-1
   app.get("/api/v1/admin/telemetry", authenticate, requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const db = getDb();

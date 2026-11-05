@@ -3,7 +3,8 @@ import { ledgerCreate, ledgerMark } from './ledgerDoor';
 import type { DocumentData, Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
-import { formatCurrency, formatTzDate } from '../../lib/utils';
+import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+import { formatTzDate } from '../../lib/calendarDate';
 import {
   planFxRevaluation, revaluationDateProblem, reversalLines, REVALUATION_SIDES, revaluationReversalDate, revaluationSummary,
   type RevaluableDocument, type RevaluationDetail, type RevaluationLine, type RevaluationPlan, type RevaluationSkip,

@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb } from '../db/firestore';
-import { formatTzDate } from '../../lib/utils';
+import { formatTzDate } from '../../lib/calendarDate';
 import { requireWorkspaceRole } from './workspaceRoutes';
 import { stockCheckReport, StockClosingError, writeStockClosing } from '../services/stockClosingService';
 

@@ -62,7 +62,7 @@ export const EXPENSE_POLICY_ALGO: AlgorithmDefinition = {
     
     const chartData = Object.keys(riskByDay).map(day => ({
       Day: day.substring(0, 3), // Mon, Tue
-      'Risk Volume': parseFloat(riskByDay[day].toFixed(2))
+      'Risk Volume': Number.parseFloat(riskByDay[day].toFixed(2))
     }));
     
     const insights = [];

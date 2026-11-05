@@ -12,7 +12,9 @@
 
 import { lazy } from 'react';
 import { withScreenHelp } from './screenHelp';
-import type { ComponentType, ElementType } from 'react';
+import { SYSTEM_GLOSSARY as sharedSystemGlossary } from './systemGlossary';
+import { discoverPluginModules, extractPluginRouteIds } from './pluginDiscovery';
+import type { ElementType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   FileArchive, CalendarClock,
@@ -26,21 +28,18 @@ import {
 
 // Plugin Discovery Engine (Upgraded to dynamic code-splitting and bundle optimization - Point 5)
 // Vite replaces the call at build time; outside Vite (unit tests) there are simply no plugins.
-let pluginModules: Record<string, () => Promise<{ default: ComponentType }>> = {};
-try { pluginModules = import.meta.glob<{ default: ComponentType }>('../plugins/*.tsx'); } catch { /* not running under Vite */ }
+const pluginModules = discoverPluginModules();
 const dynamicTabs: AppTabDefinition[] = [];
 const dynamicComponents: Record<string, ElementType> = {};
-for (const path in pluginModules) {
-  const fileName = path.split('/').pop()?.replace('.tsx', '') || '';
-  if (fileName && fileName !== 'README' && fileName !== 'README.md') {
+for (const path of Object.keys(pluginModules)) {
+  const [fileName] = extractPluginRouteIds([path]);
+  if (fileName) {
     const formattedName = fileName.replace(/([A-Z])/g, ' $1').trim();
-    
+
     // Wrap component lazily using React.lazy code-splitting
-    dynamicComponents[fileName] = lazy(() => {
-      return pluginModules[path]().then((mod) => {
-        return { default: mod.default };
-      });
-    });
+    dynamicComponents[fileName] = lazy(() =>
+      pluginModules[path]().then((mod) => ({ default: mod.default })),
+    );
 
     dynamicTabs.push({
       id: fileName,
@@ -238,30 +237,7 @@ export const getVisibleTabs = (lang: string, isOwner: boolean, hiddenTabs?: stri
     );
 };
 
-export const SYSTEM_GLOSSARY: Record<string, Record<string, string>> = {
-  'dashboard.welcome.title': { en: 'Welcome to the System', he: 'ברוכים הבאים למערכת' },
-  'dashboard.welcome.subtitle': { en: 'Complete these steps to get your ERP fully operational.', he: 'השלם את השלבים האלה כדי להפעיל את המערכת.' },
-  'dashboard.onboarding.step1.title': { en: 'Create Workspace', he: 'צור סביבת עבודה' },
-  'dashboard.onboarding.step1.desc': { en: 'Set up your business profile and preferences.', he: 'הגדר את פרופיל העסק שלך והעדפותיך.' },
-  'dashboard.onboarding.step2.title': { en: 'Add Bank Accounts', he: 'הוסף חשבונות בנק' },
-  'dashboard.onboarding.step2.desc': { en: 'Connect or create asset accounts to track cash flow.', he: 'התחבר או צור חשבונות נכסים.' },
-  'dashboard.onboarding.step3.title': { en: 'Create First Invoice', he: 'צור חשבונית ראשונה' },
-  'dashboard.onboarding.step3.desc': { en: 'Get paid by your customers and record sales.', he: 'קבל תשלום מהלקוחות שלך ורשום מכירות.' },
-  appName: { en: 'LedgerFlow', he: 'לדג׳רפלואו' },
-  overview: { en: 'Overview', he: 'סקירה' },
-  transactions: { en: 'Transactions', he: 'תנועות' },
-  generalLedger: { en: 'General Ledger', he: 'ספר ראשי' },
-  trialBalance: { en: 'Trial Balance', he: 'מאזן בוחן' },
-  profitAndLoss: { en: 'Profit & Loss', he: 'רווח והפסד' },
-  balanceSheet: { en: 'Balance Sheet', he: 'מאזן' },
-  reconciliation: { en: 'Reconciliation', he: 'התאמות' },
-  settings: { en: 'Settings', he: 'הגדרות' },
-  budget: { en: 'Budgets', he: 'תקציבים' },
-  secureAuthentication: { en: 'Secure Authentication', he: 'אימות מאובטח' },
-  loginWithGoogle: { en: 'Login with Google', he: 'התחברות באמצעות Google' },
-  connectingSecureVault: { en: 'Connecting to Secure Vault', he: 'מתחבר לכספת מאובטחת' },
-  professionalFinancialManagement: { en: 'Professional financial management for modern business. Smart auditing and reporting.', he: 'ניהול פיננסי מקצועי לעסקים מודרניים. ניהול ביקורת כספיים חכם.' }
-};
+export const SYSTEM_GLOSSARY = sharedSystemGlossary;
 
 export interface CommandDefinition {
   id: string;

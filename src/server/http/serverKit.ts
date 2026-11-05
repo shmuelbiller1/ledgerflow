@@ -17,6 +17,7 @@ import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import type { DocumentData, Transaction } from "../db/firestore";
 import { verifyIdToken } from "../auth/supabaseAuth";
 import type { DecodedIdToken } from "../auth/supabaseAuth";
+import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 export function formatTzDate(d: Date = new Date(), timezone = 'UTC'): string {
   try {
@@ -137,7 +138,7 @@ export function calculateWorkspaceCharges(wsData: WorkspaceBillingOverrides | nu
  * Standard API error response
  */
 export function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
-  console.error("[API Error] %s: %s (Path: %s)", status, message, res.req?.originalUrl || "unknown", details || "");
+  console.error("[API Error] %s: %s (Path: %s)", status, logSafe(message), logSafe(res.req?.originalUrl || "unknown"), logSafeDetail(details));
   res.status(status).json({
     status: "error",
     message,
@@ -158,7 +159,8 @@ export function handleApiError(res: express.Response, err: unknown) {
   if (message.includes("UNAUTHENTICATED") || code === 16) {
     return sendError(res, "Unauthenticated: " + message, 401);
   }
-  if (message.includes("FORBIDDEN") || message.includes("PERMISSION_DENIED") || code === 7) {
+  // "not a member" is a refusal, not a server fault (AUD-09 step 3: a non-member revoking an API key got 500)
+  if (message.includes("FORBIDDEN") || message.includes("PERMISSION_DENIED") || /not a member/i.test(message) || code === 7) {
     return sendError(res, "Forbidden access: " + message, 403);
   }
   if (message.includes("NOT_FOUND") || code === 5) {
@@ -205,7 +207,8 @@ export async function authorizeWorkspace(req: AuthenticatedRequest, workspaceId:
       }
       const isCreditSensitive = isMutation || url.includes("/brain/");
 
-      if (isCreditSensitive) {
+      // ACC-1 (Codex on #460): free access given by LedgerFlow lifts the credit and spending gates too
+      if (isCreditSensitive && data?.bypassBilling !== true) {
         // 2. Compute credit balance checking
         const baseline = data?.computeCreditBalance !== undefined ? Number(data.computeCreditBalance) : 100000;
         const creditBalance = await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', baseline);

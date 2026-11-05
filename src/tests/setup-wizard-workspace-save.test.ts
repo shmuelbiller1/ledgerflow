@@ -29,6 +29,9 @@ test('the owner saves the business step on a workspace the server has written to
     await asOwner({ name: 'Biller Books', currency: 'ILS', timezone: 'Asia/Jerusalem', fiscalYearStartMonth: 1, fiscalYearStartDay: 1, updatedAt: '2026-10-27T05:01:00Z' });
     const saved = (await client.query('select data from public.workspaces where id = $1', [id])).rows[0].data;
     assert.equal(saved.name, 'Biller Books'); assert.equal(saved.currency, 'ILS'); assert.equal(saved.timezone, 'Asia/Jerusalem');
+    // Y-35: the tax rounding policy is a setting the owner may change
+    await asOwner({ taxRounding: 'half_even' });
+    assert.equal((await client.query('select data from public.workspaces where id = $1', [id])).rows[0].data.taxRounding, 'half_even');
     for (const patch of [{ modules: { inventory: true } }, { setupCompletedAt: null }, { requireTwoStep: true }]) {
       await assert.rejects(asOwner(patch), /cannot be changed/, JSON.stringify(patch));
     }

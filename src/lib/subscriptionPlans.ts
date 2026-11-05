@@ -22,7 +22,7 @@
  * Nothing here posts, sends or changes a recurring rule.
  */
 import type { Customer, RecurringTransaction } from '../types';
-import { getLocalDateISO } from './utils';
+import { getLocalDateISO } from './calendarDate';
 
 export type PlanStatus = 'active' | 'paused' | 'completed';
 

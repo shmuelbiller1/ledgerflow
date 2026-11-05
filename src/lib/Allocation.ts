@@ -10,7 +10,7 @@ export function allocateCents(totalCents: number, weights: number[]): number[] {
   }
   if (weights.length === 0) return [];
   if (weights.length === 1) {
-    if (typeof weights[0] !== 'number' || isNaN(weights[0]) || weights[0] < 0) {
+    if (typeof weights[0] !== 'number' || Number.isNaN(weights[0]) || weights[0] < 0) {
       throw new Error('allocateCents: invalid weight.');
     }
     return [Math.round(totalCents)];
@@ -18,7 +18,7 @@ export function allocateCents(totalCents: number, weights: number[]): number[] {
 
   let totalWeight = 0;
   for (const w of weights) {
-    if (typeof w !== 'number' || isNaN(w) || w < 0 || !isFinite(w)) {
+    if (typeof w !== 'number' || Number.isNaN(w) || w < 0 || !Number.isFinite(w)) {
       throw new Error('allocateCents: weights must be positive finite numbers.');
     }
     totalWeight += w;

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { formatDate } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
 import { safeConfirm, getLocalDateISO } from '../../lib/utils';
-import { retentionFor } from '../../lib/retention';
+import { retentionFor } from '../../lib/retentionPolicy';
 import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
 import type { ActionContext } from './shared';
 import { errorMessage } from './shared';

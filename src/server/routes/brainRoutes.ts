@@ -33,7 +33,7 @@ export function registerBrainRoutes(app: express.Express, _ctx: ServerContext): 
       const wsData = wsDoc.data() || {};
       const baseline = wsData.computeCreditBalance !== undefined ? wsData.computeCreditBalance : 100000;
       const creditBalance = await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', baseline);
-      if (creditBalance <= 0) {
+      if (creditBalance <= 0 && wsData.bypassBilling !== true) {
         return sendError(res, "This workspace has exhausted its Monthly AI Compute Token Budget/Credit Balance. Please upgrade your plan or top up credits.", 402);
       }
 
@@ -293,7 +293,7 @@ You MUST output a valid JSON object matching this schema exactly:
         queryDescription: description,
         prediction: prediction ? {
           category: prediction.category,
-          confidence: parseFloat(prediction.confidence.toFixed(4)),
+          confidence: Number.parseFloat(prediction.confidence.toFixed(4)),
           label: prediction.category.toUpperCase().replace(/\s+/g, "_")
         } : {
           category: "Uncategorized/Suspense",

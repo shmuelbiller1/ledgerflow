@@ -2,15 +2,16 @@ import express from 'express';
 import { z } from 'zod';
 import type { Firestore } from '../db/firestore';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { applyUnappliedPayment, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
+import { applyUnappliedPayment, committedPaymentReplay, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
 import { voidPayment } from '../services/paymentVoidService';
 import { extractCanonicalOperationId } from '../utils/idempotency';
-import { getLocalDateISO } from '../../lib/utils';
+import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { getWorkspaceUserRole, AuthenticatedRequest, requireWorkspaceRole } from './workspaceRoutes';
 import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../services/creditService';
 import { createDeposit, DepositError } from '../services/depositService';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { afterPaymentRecorded } from '../services/afterPayment';
+import { findPaymentType } from '../../lib/paymentTypes';
 
 export const paymentRouter = express.Router();
 
@@ -23,9 +24,11 @@ const paymentAllocationSchema = z.object({
 const paymentInputSchema = z.object({
   workspaceId: z.string().min(1),
   amountCents: z.number().int().positive(),
-  paymentDate: z.string().default(() => getLocalDateISO()),
+  paymentDate: z.string().optional(),
   cashAccountId: z.string().min(1),
   paymentMethod: z.string().optional(),
+  /** CC-09: one of the workspace's payment types; the server takes its method and name from the workspace */
+  paymentTypeId: z.string().min(1).max(40).optional(),
   referenceNumber: z.string().optional(),
   memo: z.string().optional(),
   customerId: z.string().optional(),
@@ -57,11 +60,11 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     if (!parsed.success) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment payload', details: parsed.error.issues });
     }
-    const { workspaceId, sendRemittance, ...payload } = parsed.data;
+    const { workspaceId, sendRemittance, paymentTypeId, ...rest } = parsed.data;
 
     const db = dbOverride || getDb();
-    await validateWorkspaceMember(db, workspaceId, authReq.user);
-
+    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
     if (!authReq.user.admin) {
       const userRole = await getWorkspaceUserRole(db, workspaceId, authReq.user.uid);
       if (!['owner', 'accountant', 'bookkeeper'].includes(userRole)) {
@@ -73,11 +76,27 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment operation ID' });
     }
+    // CC-09: a payment type is looked up in the workspace, never trusted from the client. An idempotent
+    // request with a type is matched on what was sent (the type's id), not on its current name or method,
+    // so renaming or removing the type cannot turn a retry into a conflict or a second payment.
+    const typedRequestFingerprint = () => ({ ...rest, paymentTypeId, paymentDate: rest.paymentDate || null, workspaceId, uid: authReq.user!.uid });
+    let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
+    if (paymentTypeId) {
+      const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
+      if (!type) {
+        // the same operation may already have been recorded (its reply lost) before the type was removed:
+        // hand that payment back rather than ask for another type, which would record it a second time
+        const committed = operationId ? await committedPaymentReplay(db, workspaceId, operationId, authReq.user.uid, typedRequestFingerprint()) : null;
+        if (committed) return res.json({ status: 'success', data: committed });
+        return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
+      }
+      payload = { ...rest, paymentMethod: type.method, paymentType: { id: type.id, name: type.name } };
+    }
     // Existing clients without an operation ID remain compatible; callers with a stable ID
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
-    const paymentInput = { ...payload, workspaceId, uid: authReq.user.uid };
+    const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
     const result = operationId
-      ? await createPaymentIdempotent(db, paymentInput, operationId)
+      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined)
       : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
     // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
     // them when replaying an already-committed payment operation.
@@ -116,7 +135,7 @@ const creditRefundSchema = z.object({
   creditId: z.string().min(1),
   amountCents: z.number().int().positive(),
   cashAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => getLocalDateISO()),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   memo: z.string().max(500).optional(),
 });
 
@@ -181,7 +200,7 @@ paymentRouter.post('/credits/auto-apply', ledgerWriters, async (req, res) => {
 const depositSchema = z.object({
   workspaceId: z.string().min(1),
   bankAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => getLocalDateISO()),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   paymentIds: z.array(z.string().min(1)).min(1).max(500),
   memo: z.string().max(500).optional(),
 });
@@ -220,10 +239,11 @@ paymentRouter.post('/:paymentId/apply', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid request', details: parsed.error.issues });
   try {
     const db = getDb();
-    await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
+    const { data: wsData } = await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
     const result = await applyUnappliedPayment(db, {
       workspaceId: parsed.data.workspaceId, uid: authReq.user.uid, paymentId: String((req.params as Record<string, string>).paymentId),
-      allocations: parsed.data.allocations, date: parsed.data.date || getLocalDateISO(),
+      allocations: parsed.data.allocations, date: parsed.data.date || getDateInTimezoneISO(new Date(), wsTimezone),
       operationId: extractCanonicalOperationId({ headers: req.headers }),
     });
     res.json({ status: 'success', data: result });

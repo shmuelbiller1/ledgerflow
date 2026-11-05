@@ -8,6 +8,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatDate, getLocalDateISO } from '../../lib/utils';
 import { useRecordChoices } from './recordChoices';
 import WatchingPanel from './WatchingPanel';
+import { EmptyState } from '../ui/EmptyState';
 import { isLate, MAX_TASK_NOTE, MAX_TASK_TITLE, sortTasks, TASK_RECORD_TYPES, taskProblem, type Task } from '../../lib/tasks';
 import type { RecordType } from '../../lib/recordLinks';
 
@@ -139,7 +140,14 @@ export default function TasksView() {
         {!tasks && !failed && <p role="status" className="text-sm text-[var(--muted)]">Loading…</p>}
         {tasks && (
           <ul className="rounded-xl border border-[var(--line)] bg-[var(--surface)] divide-y divide-[var(--line)]">
-            {shown.length === 0 && <li className="p-4 text-sm text-[var(--muted)]">{show === 'mine' ? 'Nothing for you to do.' : show === 'open' ? 'No open tasks.' : 'No finished tasks yet.'}</li>}
+            {shown.length === 0 && (
+              <li>
+                <EmptyState
+                  title={show === 'mine' ? 'Nothing for you to do' : show === 'open' ? 'No open tasks' : 'No finished tasks yet'}
+                  description="A task asks someone in the workspace to do something, optionally about a record. Give one with the form above and it appears here."
+                />
+              </li>
+            )}
             {shown.map(t => (
               <li key={t.id} className="p-4 flex flex-wrap items-start gap-3 text-sm">
                 <input type="checkbox" checked={t.status === 'done'} aria-label={`${t.status === 'done' ? 'Open again' : 'Done'}: ${t.title}`}

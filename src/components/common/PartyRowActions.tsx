@@ -61,7 +61,8 @@ export default function PartyRowActions({ side, party }: { side: PartySide; part
     }
   };
 
-  const button = 'p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--ink)] disabled:opacity-50';
+  // A-233: a 44 px tap target at 390 px — the icon is 16 px, the box around it is the target.
+  const button = 'inline-flex items-center justify-center min-h-11 min-w-11 p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--ink)] disabled:opacity-50';
   return (
     <span className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()} role="presentation">
       <button type="button" className={button} onClick={() => setArchived(!archived)}

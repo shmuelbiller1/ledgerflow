@@ -232,7 +232,7 @@ export async function prepareStockMoves(
   workspaceId: string,
   entries: LedgerEntry[]
 ): Promise<PreparedStockMoves> {
-  await stockMovesReady(db);
+  await stockMovesReady(db, t);
   const deltas = new Map<string, number>();
   const add = (itemId: string, delta: number) => deltas.set(itemId, round6((deltas.get(itemId) || 0) + delta));
   const pending: PendingMove[] = [];

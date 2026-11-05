@@ -7,7 +7,10 @@ import { WorkspaceRole, ROLE_DESCRIPTIONS, useCurrentRole } from '../../../hooks
 import { WorkspaceInvite, AuditLog } from '../../../types';
 import { RequireRole } from '../../ui/RequireRole';
 import InlineEdit from '../../ui/InlineEdit';
+import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
+import { copyWithFeedback } from '../../../lib/clipboard';
+import { planFor } from '../../../lib/plans';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -18,7 +21,9 @@ export default function TeamSettings() {
 function ScopedTeamSettings() {
   const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaceId = currentWorkspace?.id || 'default_workspace';
-  const maxSeats = currentWorkspace?.maxSeats || 5;
+  // same seat rule as the server (ACC-1): the plan's seats, at least 5; free access given by LedgerFlow has no cap
+  const maxSeats = currentWorkspace?.maxSeats || Math.max(5, planFor(currentWorkspace?.plan).limits.seats);
+  const unlimitedSeats = (currentWorkspace as { bypassBilling?: boolean } | undefined)?.bypassBilling === true;
 
   const [members, setMembers] = useState<string[]>([]);
   const [roles, setRoles] = useState<Record<string, WorkspaceRole>>({});
@@ -72,9 +77,9 @@ function ScopedTeamSettings() {
     return () => clearTimeout(scheduled);
   }, [fetchTeamData]);
 
-  const activeSeatCount = members.length + 1; // plus primary owner
+  const activeSeatCount = new Set([...members, ownerUid || currentWorkspace?.uid || 'owner']).size; // unique people, owner counted once (ACC-1b)
   const seatsRemaining = Math.max(0, maxSeats - activeSeatCount);
-  const isSeatLimitReached = activeSeatCount >= maxSeats;
+  const isSeatLimitReached = !unlimitedSeats && activeSeatCount >= maxSeats;
 
   const handleSendInvite = async (next: string | number) => {
     const email = String(next).trim();
@@ -121,8 +126,7 @@ function ScopedTeamSettings() {
 
   const handleCopyInviteLink = (inviteToken: string) => {
     const link = `${window.location.origin}/invite/${inviteToken}`;
-    navigator.clipboard?.writeText(link);
-    toast.success('Invite link copied to clipboard!');
+    void copyWithFeedback(link, 'Invite link copied to clipboard!');
   };
 
   const handleOpenMemberActivity = async (uid: string, email?: string) => {
@@ -168,17 +172,17 @@ function ScopedTeamSettings() {
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="text-[var(--muted)] uppercase tracking-wider text-[10px]">Seat Capacity</span>
             <span className={isSeatLimitReached ? "text-amber-500 font-mono" : "text-emerald-500 font-mono"}>
-              {activeSeatCount} / {maxSeats} Used
+              {activeSeatCount} / {unlimitedSeats ? 'Unlimited' : maxSeats} Used
             </span>
           </div>
           <div className="w-full h-2 bg-[var(--surface)] rounded-full overflow-hidden border border-[var(--line)]">
             <div
               className={`h-full transition-all ${isSeatLimitReached ? "bg-amber-500" : "bg-indigo-600"}`}
-              style={{ width: `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
+              style={{ width: unlimitedSeats ? '100%' : `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
             />
           </div>
           <div className="text-[10px] text-[var(--muted)] font-medium text-right">
-            {isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
+            {unlimitedSeats ? "Unlimited seats" : isSeatLimitReached ? "Limit reached · Upgrade required" : `${seatsRemaining} available seats`}
           </div>
         </div>
       </div>
@@ -333,7 +337,7 @@ function ScopedTeamSettings() {
             </div>
 
             {/* Invited Members Rows */}
-            {members.map((mUid) => {
+            {[...new Set(members)].filter(mUid => mUid !== (ownerUid || currentWorkspace?.uid)).map((mUid) => { /* owner shown once, in its own row (ACC-1b) */
               const currentRole = roles[mUid] || (mUid === ownerUid ? 'owner' : 'viewer');
               const isOwner = mUid === ownerUid;
 
@@ -383,9 +387,10 @@ function ScopedTeamSettings() {
             })}
 
             {members.length === 0 && (
-              <div className="py-6 text-center text-xs text-[var(--muted)] italic">
-                No additional bookkeepers or team members joined yet. Send an invitation above to collaborate.
-              </div>
+              <EmptyState
+                title="No team members yet"
+                description="Bookkeepers and accountants you invite show here with their role and activity. Send an invitation above to collaborate."
+              />
             )}
           </div>
         )}

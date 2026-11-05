@@ -592,6 +592,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
    * Closed periods, the lock exception, invites and the truncation flags used to stay, so the new
    * workspace was checked against the old one's closed months until its own loaded. */
   resetStore: () => {
+    LedgerEngine.clearNormalizationCache();
     set({
       periods: [],
       invites: [],

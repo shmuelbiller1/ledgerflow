@@ -50,7 +50,7 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
       }
     };
 
-    loadInvite();
+    void loadInvite();
   }, [token]);
 
   const handleAcceptInvite = async () => {

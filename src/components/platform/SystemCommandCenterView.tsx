@@ -11,6 +11,7 @@ import { BookA } from 'lucide-react';
 import { Labelled } from '../ui/Labelled';
 
 import { SystemUsersPanel } from './SystemUsersPanel';
+import { GiveAccessPanel } from './GiveAccessPanel';
 import { SystemTelemetryPanel } from './SystemTelemetryPanel';
 import { WorkspacePolicyDialog } from './WorkspacePolicyDialog';
 import { StressTestPanel } from './StressTestPanel';
@@ -137,7 +138,10 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
               </div>
             </div>
           ) : activeMainTab === 'users' ? (
-            <SystemUsersPanel model={model} />
+            <>
+              <GiveAccessPanel />
+              <SystemUsersPanel model={model} />
+            </>
           ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Main Left Side (Stats & Usage Table) */}

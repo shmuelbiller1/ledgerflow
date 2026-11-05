@@ -25,7 +25,11 @@ interface DataNeedsState {
   ask: (keys: readonly LedgerKey[]) => void;
   markLoaded: (key: LedgerKey) => void;
   markFailed: (key: LedgerKey, message: string, error?: unknown) => void;
-  /** clear a failure and its attempts; useLedgerData subscribes again ("Try again") */
+  /**
+   * Clear a failure and its attempts; useLedgerData subscribes again ("Try again"). The key goes
+   * back to loading (`loaded` false) so a screen shows its loading state until the fresh snapshot
+   * arrives — never quietly the stale list it had. A no-op when nothing failed for the key.
+   */
   retry: (key: LedgerKey) => void;
   /**
    * Clear the failures that may be tried automatically (`immediate` = the tab came back). The
@@ -63,9 +67,17 @@ export const useDataNeedsStore = create<DataNeedsState>((set) => ({
     trouble: { ...state.trouble, [key]: planRetry(error ?? message, state.trouble[key]?.attempts ?? 0, Date.now()) },
   })),
   retry: (key) => set((state) => {
+    // nothing to retry: the live subscription keeps its data marked loaded, and the screen is
+    // not told something new is coming
+    if (!state.failed[key] && !state.trouble[key]) return state;
+    const hadFailed = Boolean(state.failed[key]);
     const { [key]: _gone, ...failed } = state.failed;
     const { [key]: _goneTrouble, ...trouble } = state.trouble;
-    return { failed, trouble };
+    // a fresh read is on its way: the collection is loading again until its snapshot arrives
+    // (markLoaded), so a screen shows its loading state instead of silently going back to what
+    // it had — CodeRabbit on #436 (A-257)
+    const loaded = hadFailed ? { ...state.loaded, [key]: false } : state.loaded;
+    return { failed, trouble, loaded };
   }),
   retryTransientFailures: (now = Date.now(), immediate = false) => set((state) => {
     const cleared = Object.keys(state.failed).filter(key => {
@@ -74,8 +86,13 @@ export const useDataNeedsStore = create<DataNeedsState>((set) => ({
     });
     if (!cleared.length) return state;
     const failed = { ...state.failed };
-    for (const key of cleared) delete failed[key as LedgerKey];
-    return { failed };
+    const loaded = { ...state.loaded };
+    for (const key of cleared) {
+      delete failed[key as LedgerKey];
+      // the automatic new read is on its way: loading, not ready, until markLoaded (A-257)
+      loaded[key as LedgerKey] = false;
+    }
+    return { failed, loaded };
   }),
   retryAfterReconnect: () => set((state) => {
     // every failure but a refusal: connection trouble and any failure with no plan recorded
@@ -83,11 +100,14 @@ export const useDataNeedsStore = create<DataNeedsState>((set) => ({
     if (!cleared.length) return state;
     const failed = { ...state.failed };
     const trouble = { ...state.trouble };
+    const loaded = { ...state.loaded };
     for (const key of cleared) {
       delete failed[key as LedgerKey];
       delete trouble[key as LedgerKey];
+      // a fresh cycle of reads starts now: loading until each snapshot arrives (A-257)
+      loaded[key as LedgerKey] = false;
     }
-    return { failed, trouble };
+    return { failed, trouble, loaded };
   }),
   resetLoaded: (workspaceId) => set({ loaded: {}, loadedWorkspaceId: workspaceId ?? null, failed: {}, trouble: {} }),
 }));

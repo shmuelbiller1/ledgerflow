@@ -1,6 +1,6 @@
 # The accurate list — what is actually left before launch (2026-10-27)
 
-**Status: FINAL for this audit pass at the new pin.** Every open GitHub issue, every release-gate workflow row and every "ready/merged" claim reachable was checked against the code at one pinned revision, and the checks executable in this environment were executed. Browser journeys and the live deployment's configuration are named gaps, not re-executed here.
+**Status: final for the audit pass at the pinned revision, with a targeted current-main delta added 28 Oct.** The original audit findings remain pinned to `b4a92158`; the post-pin section below records relevant changes merged into upstream `main` through `a7c20385`. This is not a fresh full audit of current HEAD. Browser journeys and the live deployment configuration remain separate evidence gaps.
 
 - **Pinned revision:** `b4a92158dcd804438e4791e02c53594613f6c75f` (`upstream/main`, 2026-10-27 21:48 UTC). This is **54 commits ahead** of the previous audit pin `50ee1205` (2026-10-25 21:01 UTC). Audit branch `arena/b7d3879b-ledgerflow` = that pin + this audit's documents (no posting/money/server/migration change).
 - **Previous pin:** `50ee1205` → audited in `audit/FINAL_ACCURATE_LIST_2026-10-25.md` (4,616 tests with DB, 509 spec checks, probes for AF-011/AF-012).
@@ -9,7 +9,25 @@
 
 ---
 
-## 1. What actually blocks the synthetic beta (stage A) today — updated
+## Post-pin upstream changes checked 28 Oct 2026 (`main` at `a7c20385`)
+
+These changes landed after the audit pin `b4a92158` and supersede several statuses in the historical tables below. This is a targeted check of the relevant merged PRs, not a rerun of the entire audit.
+
+| Finding / issue | Current-main status | Evidence and limits |
+|---|---|---|
+| **AF-011 / #342 — civil date / tax year** | **Fixed in #426.** `civilYear()` reads the year from the stored date; `TaxManager` no longer filters by device-local `parseLocalDate(...).getFullYear()`. | [PR #426](https://github.com/shmuelbiller1/ledgerflow/pull/426) records timezone tests for Auckland and Los Angeles, plus type check and ESLint. The old probe result is historical evidence at its pinned revision, not current behavior. |
+| **AF-015 — P&L cache authorization** | **Fixed in #427.** Workspace membership is checked before serving cached P&L; revoked membership returns 403. | [PR #427](https://github.com/shmuelbiller1/ledgerflow/pull/427) records a test that reads, removes membership, and verifies denial on the next request; local DB-backed route/main-path/W1 checks 23/23. |
+| **AF-010 F2–F4 — amount parser** | **Partially fixed in #430 and #432.** Parenthesized negatives, malformed text, and non-finite input are handled; `readAmountCents()` protects ten screens from throwing or silently treating malformed text as zero. | [PR #430](https://github.com/shmuelbiller1/ledgerflow/pull/430) records 4,734/4,735 with one known unchanged `report-speed-12m` timing failure; [PR #432](https://github.com/shmuelbiller1/ledgerflow/pull/432) records targeted suites 123/123, type check and lint. This does **not** establish that every AF-010 subfinding is resolved. |
+| **Quick-entry save failure (new finding after this pin)** | **Fixed and hardened in #431.** Quick entry builds two distinct posting lines, validates amount/accounts/currency, retains retry identity and only reports success after the save. | [PR #431](https://github.com/shmuelbiller1/ledgerflow/pull/431) records targeted tests 22/22, type check and lint. The PR also documents follow-up hardening for retries and workspace switches. |
+| **AF-001 / #151 — durable bank cursor** | **Still open in this checked delta.** | Remains assigned to AI #1; the original audit found cursor advancement without durable bank-line writes. Re-check current implementation before treating this as a fresh verification. |
+| **AF-012 / #161 — override chains** | **Latent; not shown fixed by these commits.** | The shipped-pack probe at the original pin found 584 rules, 67 overrides, and zero chains. Keep as a latent linter/graph-validation issue, not a claim of a current wrong shipped rate. |
+| **G-05 test banner** | **Code fixed; deployment still unverified.** | The actual invited-tester production build must show the banner; source presence and environment-variable logic are not deployment proof. |
+
+Upstream `main` was **11 commits ahead** of `b4a92158` when checked (`b4a92158` → `a7c20385`). The original DB-backed 51/51 evidence remains pinned to `50ee1205`; those suites were not rerun at `b4a92158` in the audit environment. Do not infer they ran at `a7c20385` from this document.
+
+---
+
+## 1. What actually blocks the synthetic beta (stage A) at the original pin `b4a92158` — updated
 
 This is the **delta** since `50ee1205`. Three of the four blockers from the last list are now resolved in code; the fourth is narrowed.
 

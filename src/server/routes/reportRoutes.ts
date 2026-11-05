@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getDb, validateWorkspaceMember } from "../db/firestore";
 import { isOpenBill, isOpenInvoice, isPostable, lineAmount } from "../../lib/txFilters";
 import { ReportRangeSchema, WorkspaceIdSchema } from "../../schemas";
-import { getLocalDateISO } from "../../lib/utils";
+import { getDateInTimezoneISO } from "../../lib/calendarDate";
 import crypto from "crypto";
 import {
   computeProfitAndLoss,
@@ -29,6 +29,7 @@ import { openingDebitCents } from '../../lib/accountUtils';
 export { balanceRouter } from './balanceRoutes'; // L-123 step 3, mounted at /api/v1/balances
 import { grossOf, labelOpeningOf, openingBefore, openingKey } from '../reports/reportOpening';
 import { serverProvenance, type ReportProvenance } from '../../lib/reportProvenance';
+import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 export const reportRouter = express.Router();
 
@@ -60,7 +61,7 @@ interface AuthenticatedRequest extends express.Request {
 }
 
 function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
-  console.error(`[API Error] ${status}: ${message} (Path: ${res.req?.originalUrl || "unknown"})`, details || "");
+  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, logSafeDetail(details));
   res.status(status).json({
     status: "error",
     message,
@@ -70,7 +71,7 @@ function sendError(res: express.Response, message: string, status: number = 500,
 
 async function authorizeWorkspace(req: AuthenticatedRequest, workspaceId: string) {
   const db = getDb();
-  await validateWorkspaceMember(db, workspaceId, req.user);
+  return validateWorkspaceMember(db, workspaceId, req.user);
 }
 
 async function getReportContext(req: AuthenticatedRequest, workspaceId: string, startDate?: string, endDate?: string) {
@@ -178,7 +179,7 @@ reportRouter.get("/aging", async (req, res) => {
   const { workspaceId, type } = result.data;
 
   try {
-    await authorizeWorkspace(authReq, workspaceId);
+    const { data: wsData } = await authorizeWorkspace(authReq, workspaceId);
     const db = getDb();
     const collectionName = type === 'ar' ? 'invoices' : 'bills';
     const snap = await db.collection(collectionName)
@@ -201,7 +202,8 @@ reportRouter.get("/aging", async (req, res) => {
     // the same rule as the aging screens (src/lib/aging.ts): what is still owed, base currency, by due date
     const side = type === 'ar' ? 'customer' : 'vendor';
     const keyOf = { current: 'current', d1_30: '1-30', d31_60: '31-60', d61_90: '61-90', d90plus: '90+' } as const;
-    const todayIso = getLocalDateISO();
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const todayIso = getDateInTimezoneISO(new Date(), wsTimezone);
     items.forEach((item) => {
       const outstanding = outstandingBaseCents(item, side);
       if (outstanding <= 0) return;
@@ -422,8 +424,8 @@ reportRouter.get("/cash-flow", async (req, res) => {
 
 function calculateMonthDateRange(monthStr: string): { startDate: string; endDate: string } {
   const [yearStr, monthNumStr] = monthStr.split('-');
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthNumStr, 10);
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthNumStr, 10);
   if (!year || !month || month < 1 || month > 12) {
     return { startDate: `${monthStr}-01`, endDate: `${monthStr}-31` };
   }
@@ -443,12 +445,13 @@ reportRouter.get("/budget-vs-actual", async (req, res) => {
   const { workspaceId, month } = result.data;
 
   try {
-    await authorizeWorkspace(authReq, workspaceId);
+    const { data: wsData } = await authorizeWorkspace(authReq, workspaceId);
     const db = getDb();
 
     let txQuery: Query = db.collection("transactions").where("workspaceId", "==", workspaceId);
     
-    const targetMonth = month ? String(month) : getLocalDateISO(new Date()).substring(0, 7);
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const targetMonth = month ? String(month) : getDateInTimezoneISO(new Date(), wsTimezone).substring(0, 7);
     const { startDate: mStart, endDate: mEnd } = calculateMonthDateRange(targetMonth);
     txQuery = txQuery.where("date", ">=", mStart).where("date", "<=", mEnd);
 

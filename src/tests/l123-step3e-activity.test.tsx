@@ -26,6 +26,10 @@
  *     3 entries, net impact −(−1,000 + 450) = 550, 1 unbalanced (loaded: nothing)
  *   CashFlowPredictor trend, February (the oldest loaded month): 1,300 (loaded −900)
  *   BudgetLeft, Rent with a quarterly budget of 2,000 from Y-01: spent 1,450, left 550 (loaded: spent 1,000, left 1,000)
+ *   BudgetLeft while editing a document, which is left out on both sides (server months and loaded ones):
+ *     E6 (loaded, rent 400): spent 1,450 − 400 = 1,050
+ *     E2 (January, not loaded, rent 400): spent 50 + 400 + 600 = 1,050, left 950. Leaving it out only of the loaded
+ *     entries (the bug) kept it in the server's January: 1,450, left 550, so the unchanged 400 "would exceed" 550 − …
  */
 import { stubFetch } from './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
@@ -41,7 +45,8 @@ import { BudgetLeft } from '../components/common/BudgetLeft';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency, workspaceYearMonth } from '../lib/utils';
 import { resolveAccountRole } from '../lib/accountUtils';
-import { activityByMonth, countActivity, mergedActivity, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
+import { reversalDate } from '../services/ledgerPost/postingCore';
+import { activityByMonth, addPendingReversals, countActivity, mergedActivity, PENDING_REVERSAL, sumActivity, type ActivityByMonth } from '../lib/periodActivity';
 import { availableBudget } from '../lib/availableBudget';
 import { openingCutoff } from '../lib/serverBalances';
 import type { SavedBudget } from '../lib/budgetActual';
@@ -134,7 +139,75 @@ describe('L-123 step 3e: activity per month (no database)', () => {
     assert.equal(availableBudget(base)!.leftCents, 1000);
     assert.equal(availableBudget({ ...base, activity })!.spentCents, 1450);
     assert.equal(availableBudget({ ...base, activity })!.leftCents, 550);
-    assert.equal(availableBudget({ ...base, activity, excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400) is the document being edited');
+    // the activity useServerActivity gives while a document is edited: that document left out on both sides
+    const without = (id: string) => {
+      const others = (list: Transaction[]) => list.filter(t => t.id !== id);
+      const months = activityByMonth(others(entries(ws)), from, to);
+      return mergedActivity(others(loaded), { workspaceId: ws, from, to, months }, from, to, openingCutoff(others(loaded)), ws);
+    };
+    assert.equal(availableBudget({ ...base, activity: without(`${ws}_e6`), excludeDocumentId: `${ws}_e6` })!.spentCents, 1050, 'E6 (rent 400, loaded) is being edited');
+    const e2 = availableBudget({ ...base, activity: without(`${ws}_e2`), excludeDocumentId: `${ws}_e2`, addingCents: 400 })!;
+    assert.deepEqual([e2.spentCents, e2.leftCents, e2.wouldExceed], [1050, 950, false], 'E2 (January, not loaded) is being edited: counted once, as its new amount');
+  });
+
+  test('BudgetLeft leaves out only the posting the save replaces: a reversal stays', () => {
+    // bill B posted P1 on Y-1-12-20 (rent 400); an edit on a locked day reversed it with R1 on Y-02-05 and posted
+    // P2 on Y-02-05 (rent 400). Editing B again replaces P2 only: R1 (−400 in this quarter) stays in the books, so
+    // the quarter's spent is −400 (natural sign), not 0 as when every entry tagged B was left out.
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id, workspaceId: ws, uid: 'owner-1', date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: 'B', ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    }) as unknown as Transaction;
+    const book = [tx('P1', `${Number(Y) - 1}-12-20`, 400, {}), tx('R1', `${Y}-02-05`, -400, { isReversal: true, reversesTxId: 'P1' }), tx('P2', `${Y}-02-05`, 400, {})];
+    const left = availableBudget({ budgets: [budget], accounts, transactions: book, accountId: `${ws}_rent`, date: `${Y}-02-20`, excludeDocumentId: 'B' })!;
+    assert.deepEqual([left.spentCents, left.leftCents], [-400, 2400]);
+  });
+
+  test('#444: a posting on a locked day stays in its period; the save reverses it on today', () => {
+    // bill L: P1 on Y-01-15 (rent 400), the books locked through Y-01-31. Editing L to Y-02-10 and saving on
+    // Y-04-05 keeps P1 in January, posts the new amount in February and reverses P1 on Y-04-05.
+    //   Q1 preview (editing, 400 being added): spent 400 (P1, still in the books) → left 2,000 − 400 = 1,600;
+    //     with the new 400 the quarter reaches 800, not over. The old exclusion gave spent 0, left 2,000.
+    //   Q2 preview: P1's pending reversal (−400) is dated Y-04-05 → spent −400, left 2,400.
+    //   An open period (no lock): P1 is replaced on its own day → Q1 spent 0, as before.
+    const p1 = { id: 'P1', workspaceId: ws, uid: 'owner-1', date: `${Y}-01-15`, description: 'P1', totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: 'L' }, lines: [{ accountId: `${ws}_rent`, amountCents: 400 }, { accountId: `${ws}_cash`, amountCents: -400 }] } as unknown as Transaction;
+    const lock = { lockDate: `${Y}-01-31`, lockException: null, today: `${Y}-04-05` };
+    const base = { budgets: [budget], accounts, transactions: [p1], accountId: `${ws}_rent`, excludeDocumentId: 'L' };
+    const q1 = availableBudget({ ...base, date: `${Y}-02-10`, addingCents: 400, lock })!;
+    assert.deepEqual([q1.spentCents, q1.leftCents, q1.wouldExceed], [400, 1600, false]);
+    const q2 = availableBudget({ ...base, date: `${Y}-04-20`, lock })!;
+    assert.deepEqual([q2.spentCents, q2.leftCents], [-400, 2400]);
+    const open = availableBudget({ ...base, date: `${Y}-02-10`, lock: { ...lock, lockDate: null } })!;
+    assert.equal(open.spentCents, 0, 'an open posting is replaced on its own day, as before');
+    const excepted = availableBudget({ ...base, date: `${Y}-02-10`, lock: { ...lock, lockException: { fromDate: `${Y}-01-01`, toDate: `${Y}-01-31` } } as never })!;
+    assert.equal(excepted.spentCents, 0, 'a lock exception reopens January: P1 is replaced in place');
+  });
+
+  test('#444 (CodeRabbit on #447): the server save dates a reversal as the preview does, lock exception included', () => {
+    // lock to Y-01-31; the exception reopens Y-01-01…Y-01-31. A January original is open: reversed on its own day.
+    const ctx = { lockDate: `${Y}-01-31`, lockException: { fromDate: `${Y}-01-01`, toDate: `${Y}-01-31` } };
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, ctx), `${Y}-01-15`);
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, { lockDate: ctx.lockDate }), `${Y}-04-05`, 'without the exception: today');
+    assert.equal(reversalDate(`${Y}-01-15`, `${Y}-04-05`, { lockDate: ctx.lockDate, lockException: { fromDate: `${Y}-02-01`, toDate: `${Y}-02-28` } }), `${Y}-04-05`, 'an exception elsewhere: today');
+  });
+
+  test('#444 (Codex on #447): the server\'s reversal of a posting older than the loaded entries is kept', () => {
+    // loaded entries start Y-02-15 (cut-off month February); the server reverses a locked January posting on Y-04-05.
+    // mergedActivity keeps the browser's own April, so the −400 comes only from the server's pendingReversal.
+    const cutoff = openingCutoff(loaded);
+    const reversal = (net: number) => ({ [`${Y}-04`]: { entries: 1, unbalanced: 0, accounts: { [`${ws}_rent`]: { net, debits: 0, credits: -net } } } });
+    const server = { workspaceId: ws, from, to, months: truth(ws), pendingReversal: { [`${ws}_p1${PENDING_REVERSAL}`]: reversal(-400) } };
+    const merged = mergedActivity(loaded, server, from, to, cutoff, ws);
+    assert.equal(merged[`${Y}-04`], undefined, 'without the fix the April reversal is lost');
+    const fixed = addPendingReversals(merged, server.pendingReversal, new Set(loaded.map(t => t.id)), cutoff.slice(0, 7));
+    assert.equal(sumActivity(fixed, `${Y}-04`, `${Y}-04`, id => id === `${ws}_rent`, a => a.net), -400);
+    assert.equal(sumActivity(fixed, `${Y}-03`, `${Y}-03`, id => id === `${ws}_rent`, a => a.net), 600, 'other months unchanged');
+    assert.deepEqual(addPendingReversals(merged, server.pendingReversal, new Set(), `${Y}-04`), merged, 'a month the server supplied already holds it');
+    // CodeRabbit on #447: two locked postings, the browser holding (and reversing) only P2 — P1's reversal still counts
+    const two = { [`${ws}_p1${PENDING_REVERSAL}`]: reversal(-400), [`${ws}_p2${PENDING_REVERSAL}`]: reversal(-100) };
+    const held = addPendingReversals(merged, two, new Set([`${ws}_p2${PENDING_REVERSAL}`]), cutoff.slice(0, 7));
+    assert.equal(sumActivity(held, `${Y}-04`, `${Y}-04`, id => id === `${ws}_rent`, a => a.net), -400, 'P2\'s own reversal is the browser\'s; P1\'s comes from the server');
   });
 
   test('screens: TaxManager and BudgetLeft ask the server only when capped, and show its figures', async () => {
@@ -247,5 +320,66 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     assert.equal((await get({ workspaceId: ws, from: to, to: from })).status, 400);
     assert.equal((await get({ workspaceId: ws, from: '2010-01-01', to })).status, 400, 'more than three years');
     assert.equal((await get({ workspaceId: 'ws_missing_l123e', from, to })).status, 404);
+  });
+
+  test('excludeDocumentId leaves the edited document out of the server\'s months', async () => {
+    const res = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+    assert.equal(res.status, 200);
+    const jan = res.body.months[`${Y}-01`];
+    assert.deepEqual([jan.entries, jan.accounts[`${ws}_rent`].net, jan.accounts[`${ws}_cash`].net], [2, 50, 1100], 'E2 (rent 400 / cash −400) is not counted');
+    assert.deepEqual(res.body.months[`${Y}-02`], truth(ws)[`${Y}-02`], 'other months as before');
+    assert.equal((await get({ workspaceId: ws, from, to, excludeDocumentId: 'x'.repeat(201) })).status, 400);
+  });
+
+  test('#444: with the books locked, the server keeps the edited posting in its month and reverses it today', async () => {
+    // E2 (Y-01-20, rent 400 / cash −400) is being edited; the books are locked through Y-01-31.
+    // January keeps E2 (rent 450, as every entry); today's month gets its pending reversal (rent −400).
+    await db.collection('workspaces').doc(ws).update({ lockDate: `${Y}-01-31` });
+    try {
+      const res = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 450, 'E2 stays in its locked month');
+      const month = new Date().toISOString().slice(0, 7);
+      const before = truth(ws)[month]?.accounts[`${ws}_rent`]?.net ?? 0;
+      assert.equal(res.body.months[month].accounts[`${ws}_rent`].net, before - 400, 'its reversal lands in the month a save posts on');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ lockDate: null });
+    }
+  });
+
+  test('#444 (Codex on #447): a bookkeeper\'s soft close counts; the reversal is returned on its own too', async () => {
+    // softLockDate Y-01-31 binds a bookkeeper (not the owner): for them E2 stays in January and is reversed today
+    await db.collection('workspaces').doc(ws).update({ softLockDate: `${Y}-01-31`, members: [OWNER, 'keeper-1'], roles: { 'keeper-1': 'bookkeeper' } });
+    try {
+      const keeper = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` }, 'keeper-1');
+      assert.equal(keeper.status, 200);
+      assert.equal(keeper.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 450, 'the soft close keeps E2 in January for a bookkeeper');
+      const byPosting = (keeper.body as unknown as { pendingReversal?: Record<string, ActivityByMonth> }).pendingReversal!;
+      assert.deepEqual(Object.keys(byPosting), [`${ws}_e2${PENDING_REVERSAL}`], 'one reversal, under its own id');
+      const pending = byPosting[`${ws}_e2${PENDING_REVERSAL}`];
+      const months = Object.keys(pending);
+      assert.equal(months.length, 1);
+      assert.equal(pending[months[0]].accounts[`${ws}_rent`].net, -400, 'the reversal, on its own, for the months the browser supplies');
+      const owner = await get({ workspaceId: ws, from, to, excludeDocumentId: `${ws}_e2` });
+      assert.equal(owner.body.months[`${Y}-01`].accounts[`${ws}_rent`].net, 50, 'the owner may post past a soft close: E2 is replaced in place');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ softLockDate: null, roles: {} });
+    }
+  });
+
+  test('excludeDocumentId reads the document\'s reversals at any date, not only inside the range', async () => {
+    // bill B: P1 on Y-1-03-10 (rent 400), reversed by R1 and reposted as P2 on Y-06-01. Over year Y-1 a save of B
+    // replaces only P2, so P1 still counts: rent 400. Judged from the range alone (R1 is outside it) P1 looked active.
+    const prev = String(Number(Y) - 1);
+    const tx = (id: string, date: string, cents: number, metadata: Record<string, unknown>) => ({
+      id: `${ws}_${id}`, workspaceId: ws, uid: OWNER, date, description: id, totalAmountCents: 400, currency: 'USD', status: 'completed', type: 'journal',
+      metadata: { billId: `${ws}_B`, ...metadata }, lines: [{ accountId: `${ws}_rent`, amountCents: cents }, { accountId: `${ws}_cash`, amountCents: -cents }],
+    });
+    const book = [tx('P1', `${prev}-03-10`, 400, {}), tx('R1', `${Y}-06-01`, -400, { isReversal: true, reversesTxId: `${ws}_P1` }), tx('P2', `${Y}-06-01`, 400, {})];
+    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(book)]);
+    const res = await get({ workspaceId: ws, from: `${prev}-01-01`, to: `${prev}-12-31`, excludeDocumentId: `${ws}_B` });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.months[`${prev}-03`]?.accounts[`${ws}_rent`]?.net, 400);
+    await db.pool.query(`delete from public.transactions where id = any($1)`, [book.map(t => t.id)]);
   });
 });

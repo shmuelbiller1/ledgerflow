@@ -78,7 +78,7 @@ describe('Customer quotes, proposals and recurring estimates screen (A-49 / A-17
     assert.equal(useLedgerStore.getState().estimates, original);
   });
 
-  test('lists open quotes with the /e/<signToken> link, separates optional proposal items, and computes recurring drafts due', async () => {
+  test('lists open quotes with the /e/<signToken> link, separates optional proposal items, and starts a recurring schedule at its next date', async () => {
     render(<CustomerQuotesReportView />);
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Assessment date'), { target: { value: '2026-10-15' } });
@@ -96,9 +96,10 @@ describe('Customer quotes, proposals and recurring estimates screen (A-49 / A-17
     assert.match(proposalPre.textContent || '', /Total: 1000\.00 USD/);
     assert.match(proposalPre.textContent || '', /Optional items would add 500\.00 USD \(1500\.00 USD with them\)/);
 
-    // Recurring schedule from 2026-08-01 through 2026-10-15 monthly has 2 drafts due (Sept 1 and Oct 1)
-    assert.match(document.body.textContent || '', /2026-09-01/);
-    assert.match(document.body.textContent || '', /Draft quotes due now:\s*2/);
+    // A schedule set up on 2026-10-15 for an estimate of 2026-08-01 starts at its next date, 2026-11-01:
+    // no draft for the months already gone by (CC-04)
+    assert.match(document.body.textContent || '', /2026-11-01/);
+    assert.match(document.body.textContent || '', /Draft quotes due now:\s*0/);
   });
 
   test('customer portal page renders open quotes with their /e/<signToken> accept link', async () => {
@@ -112,7 +113,8 @@ describe('Customer quotes, proposals and recurring estimates screen (A-49 / A-17
           currency: 'USD',
           owedCents: 0,
           invoices: [],
-          estimates: [openEst],
+          // the portal uses the real date, so this quote must never expire (the fixture's 2026-11-01 did)
+          estimates: [{ ...openEst, expiryDate: '2999-12-31' }],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       )) as typeof fetch;

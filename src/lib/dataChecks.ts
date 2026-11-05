@@ -15,7 +15,7 @@ import { labelRoleFindings } from './labelRoles';
 import { stockHistoryProblem, type StockMove } from './stockMoves';
 import { STOCK_INVARIANT_CHECKS, type StockClosing } from './stockInvariants';
 import { contactsMissingFilingDetails, itemsMissingPricing } from './dataQualityChecks';
-import { formatCurrency } from './utils';
+import { formatCurrency } from './moneyFormat';
 import { openingDebitCents, resolveAccountRole } from './accountUtils';
 import type { RecordType } from './recordLinks';
 
@@ -300,7 +300,7 @@ export const DATA_CHECKS: DataCheck[] = [
       const byAccount = new Map<string, BankStatementLine[]>();
       for (const line of waiting) byAccount.set(line.accountId || '', [...(byAccount.get(line.accountId || '') || []), line]);
       return [...byAccount.entries()].map(([accountId, lines]) => {
-        const oldest = lines.reduce((a, b) => (a.date <= b.date ? a : b));
+        const oldest = lines.reduce((a, b) => (a.date <= b.date ? a : b), lines[0]);
         const name = accounts.find(a => a.id === accountId)?.name || 'a bank account';
         return {
           id: `stale-bank-${accountId || 'none'}`, checkId: 'stale-unreconciled', severity: 'low' as const,
