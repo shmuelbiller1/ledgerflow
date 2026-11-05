@@ -2,6 +2,7 @@ import React,
  { useMemo, useState } from 'react';
 import { ShieldAlert, Fingerprint, Zap, AlertTriangle, CheckCircle2, Loader2, FileText } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { AnomalyDetector } from '../../lib/algorithms';
 import { formatDecimal, cn, getLocalDateISO } from '../../lib/utils';
 import { isPostable } from '../../lib/txFilters';
@@ -13,6 +14,7 @@ const BENFORD_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: boolean }) {
   const transactions = useLedgerStore(s => s.transactions);
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const [isRunning, setIsRunning] = useState(false);
   const { setSafeTimeout } = useTimeout();
 
@@ -48,7 +50,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
         logContent += `               Timestamp: ${new Date().toISOString()}\n`;
         logContent += separator + "\n";
         
-        logContent += `Total Transaction Scans: ${transactions.length}\n`;
+        logContent += `Total Transaction Scans: ${transactions.length}${capped ? ' (loaded entries only; not every entry is loaded in this browser)' : ''}\n`;
         logContent += `Benford Pattern Match Distance: ${(forensicData.score * 100).toFixed(1)}%\n`;
         logContent += `Divergence Risk Classification: ${riskLevel}\n\n`;
         
@@ -103,6 +105,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
       "bg-[var(--surface)] relative overflow-hidden group",
       isEmbedded ? "p-0" : "p-12 border border-[var(--line)] rounded-[32px]"
     )}>
+      <LoadedEntriesOnlyNote testId="forensic-auditor-loaded-only" what="these scans" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(249,115,22,0.03),transparent_70%)] pointer-events-none" />
       
       <div className="relative z-10">
