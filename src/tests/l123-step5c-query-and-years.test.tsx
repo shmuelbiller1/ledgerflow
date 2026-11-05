@@ -18,7 +18,7 @@ import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useServerEntryQuery } from '../hooks/useServerEntryQuery';
 import { useServerEntryYears } from '../hooks/useServerEntryYears';
-import { entryMatches, type EntryQuery } from '../lib/entryQuery';
+import { entryMatches, typedAmountCents, type EntryQuery } from '../lib/entryQuery';
 import type { Transaction } from '../types';
 
 const FILTER: EntryQuery = { startDate: from, endDate: to, minAmountCents: 500 };
@@ -66,7 +66,7 @@ describe('L-123 step 5c: query and years (no database)', () => {
     useLedgerStore.setState({ accounts: chart(ws), transactions: loaded, truncatedCollections: { transactions: true } } as never);
     const asked: string[] = [];
     globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', entries: [], total: 0 }); }) as typeof fetch;
-    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 19.99 * 100 }} />);
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 19.99 * 100 } /* a caller passing the float product */} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=1999')), asked.join('\n')), { timeout: 5000 });
   });
 
@@ -76,14 +76,14 @@ describe('L-123 step 5c: query and years (no database)', () => {
     useLedgerStore.setState({ accounts: chart(ws), transactions: loaded, truncatedCollections: { transactions: true } } as never);
     const asked: string[] = [];
     globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', entries: [], total: 0 }); }) as typeof fetch;
-    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 19.994 * 100, maxAmountCents: 19.996 * 100 }} />);
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: typedAmountCents('19.994'), maxAmountCents: typedAmountCents('19.996') }} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=2000&max=1999')), asked.join('\n')), { timeout: 5000 });
     cleanup();
-    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 1.1 * 100 }} />);
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: typedAmountCents('1.1') }} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=110') && !u.includes('&min=1100')), asked.join('\n')), { timeout: 5000 });
     cleanup();
-    // large amounts carry more noise: 67,108,864.01 × 100 is 6710886401.000001, still that cent
-    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 67108864.01 * 100 }} />);
+    // the typed text is converted exactly: 67,108,864.01 is 6,710,886,401 cents (× 100 would give 6710886401.000001)
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: typedAmountCents('67108864.01') }} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=6710886401')), asked.join('\n')), { timeout: 5000 });
   });
 
@@ -118,6 +118,17 @@ describe('L-123 step 5c: query and years (no database)', () => {
     // and the success that follows does not ask again
     await new Promise(r => setTimeout(r, 100));
     assert.equal(calls, 2);
+  });
+
+  test('typed amounts convert to cents from the text: no float noise, part cents kept (CodeRabbit on #516)', () => {
+    assert.equal(typedAmountCents('19.99'), 1999);
+    assert.equal(typedAmountCents('1.1'), 110);
+    assert.equal(typedAmountCents('0.29'), 29);
+    assert.equal(typedAmountCents('67108864.01'), 6710886401);
+    assert.equal(typedAmountCents('5000000000.004'), 500000000000.4);
+    assert.equal(typedAmountCents('.5'), 50);
+    assert.equal(typedAmountCents('abc'), undefined);
+    assert.equal(typedAmountCents(''), undefined);
   });
 
   test('query text ignores Hebrew vowel marks (CodeRabbit on #516)', () => {

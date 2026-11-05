@@ -17,16 +17,12 @@ const parseMatches = (body: Record<string, unknown>): Matches | null =>
  */
 export function useServerEntryQuery(input: EntryQuery): { results: Transaction[]; total: number; source: RangeReportSource } {
   useLedgerCollections('transactions');
-  // amounts typed as 19.99 arrive as 1998.9999…: whole cents, for the server and the loaded matches alike (Codex on
-  // #516). The float noise goes first, then a part cent never widens the range: a minimum rounds up, a maximum down
-  // (19.994 → at least 2000 cents), CodeRabbit on #516
-  // the noise grows with the amount (67,108,864.01 × 100 is 6710886401.000001), so a value within a tolerance that
-  // scales with it is that whole cent (CodeRabbit on #516)
-  const cents = (v: number | undefined, toward: (n: number) => number) => {
-    if (v === undefined || !Number.isFinite(v)) return undefined;
-    const near = Math.round(v);
-    return Math.abs(v - near) <= Math.max(1e-6, Math.abs(v) * 1e-12) ? near : toward(v);
-  };
+  // whole cents for the server and the loaded matches alike: a part cent never widens the range, so a minimum rounds
+  // up and a maximum down (19.994 → at least 2000 cents). QueryView converts the typed text exactly
+  // (typedAmountCents), so no float noise reaches here; a caller passing a float product still gets an integer
+  // (Codex and CodeRabbit on #516)
+  const cents = (v: number | undefined, toward: (n: number) => number) =>
+    (v === undefined || !Number.isFinite(v) ? undefined : Number.isInteger(v) ? v : toward(v));
   const filter = useMemo<EntryQuery>(() => ({ ...input, minAmountCents: cents(input.minAmountCents, Math.ceil), maxAmountCents: cents(input.maxAmountCents, Math.floor) }),
     [input]);
   const transactions = useLedgerStore(s => s.transactions);

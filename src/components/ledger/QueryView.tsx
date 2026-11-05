@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Transaction } from '../../types';
 import { Labelled } from '../ui/Labelled';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { typedAmountCents } from '../../lib/entryQuery';
 
 // Credit note for Fava (MIT License) inspiration:
 // Inspired by Fava (beancount/fava - MIT License) ad-hoc ledger query engine architecture.
@@ -211,7 +212,7 @@ export default function QueryView() {
               <input
                 type="number"
                 value={queryFilter.minAmountCents !== undefined ? queryFilter.minAmountCents / 100 : ''}
-                onChange={e => setQueryFilter({ ...queryFilter, minAmountCents: e.target.value ? Number(e.target.value) * 100 : undefined })}
+                onChange={e => setQueryFilter({ ...queryFilter, minAmountCents: e.target.value ? typedAmountCents(e.target.value) : undefined })}
                 placeholder="0.00"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />

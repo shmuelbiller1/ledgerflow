@@ -35,3 +35,19 @@ export function entryMatches(tx: Transaction, q: EntryQuery): boolean {
 
 /** The most matches the server sends back; `total` still counts them all. */
 export const ENTRY_QUERY_LIMIT = 1000;
+
+/**
+ * A typed amount ("19.99", "5000000000.004") in cents, from the text itself rather than by multiplying a float by 100,
+ * so no float noise reaches the bound: whole cents come back as integers, and any part cent stays as a fraction
+ * (19.994 → 1999.4) for the caller to round toward its bound. Undefined when the text is not a plain amount.
+ */
+export function typedAmountCents(text: string): number | undefined {
+  const m = /^\s*(-?)(\d*)(?:\.(\d*))?\s*$/.exec(text);
+  if (!m || (!m[2] && !m[3])) return undefined;
+  const frac = m[3] || '';
+  const whole = Number(m[2] || '0') * 100 + Number((frac + '00').slice(0, 2));
+  const rest = frac.length > 2 ? Number(`0.${frac.slice(2)}`) : 0;
+  const cents = whole + rest;
+  if (!Number.isFinite(cents)) return undefined;
+  return m[1] ? -cents : cents;
+}
