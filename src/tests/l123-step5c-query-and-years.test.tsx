@@ -81,6 +81,10 @@ describe('L-123 step 5c: query and years (no database)', () => {
     cleanup();
     render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 1.1 * 100 }} />);
     await waitFor(() => assert.ok(asked.some(u => u.includes('&min=110') && !u.includes('&min=1100')), asked.join('\n')), { timeout: 5000 });
+    cleanup();
+    // large amounts carry more noise: 67,108,864.01 × 100 is 6710886401.000001, still that cent
+    render(<QueryProbe filter={{ startDate: from, endDate: to, minAmountCents: 67108864.01 * 100 }} />);
+    await waitFor(() => assert.ok(asked.some(u => u.includes('&min=6710886401')), asked.join('\n')), { timeout: 5000 });
   });
 
   test('years: asked only when capped; the server\'s years are given', async () => {
