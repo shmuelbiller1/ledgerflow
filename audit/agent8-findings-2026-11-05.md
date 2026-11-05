@@ -1,0 +1,29 @@
+# Ledgerflow agent 8 — bounded audit and recovery report, 2026-11-05
+
+## Scope and baseline
+
+This is **not a complete audit or launch certification**. Working checkout/application pin: `df62d10b974bb08d6bab5fa74c3c09930752dd93` (fork main); owner main fetched at `28b90c2e4aa3abcbaeea58208c514820711b24f3` (4 November merge #512). There are 2,716 commits reachable from owner main but not the checkout and 530 changed paths; prior results do not automatically transfer to the newer revision. No app code changed. No production access or private records used. Prior audit: owner [#434](https://github.com/shmuelbiller1/ledgerflow/pull/434), merged. Read `audit/function-audit/SCORECARD.md`, `audit/FINAL_ACCURATE_LIST_2026-10-27.md`, and on owner main `audit/FINAL_ACCURATE_LIST_2026-10-28.md` for historical evidence and explicit limits, not a current overall verdict.
+
+## Actionable findings and outstanding items
+
+1. **Verified engine defect; existing issue, not a new discovery:** [#161](https://github.com/shmuelbiller1/ledgerflow/issues/161) remains open. At checkout pin, `npx tsx audit/function-audit/probes/af012-rule-chain-order.mjs` produced applied `A,C` for order A,B,C, but `A` for B,A,C and C,B,A. The same `src/lib/rules/rules.ts` Git blob `0cde94c4ff9ecec1a23f13428c7791a8ee34a9dc` exists at owner pin. This synthetic direct engine test does not demonstrate an incorrect live tax result. Recheck graph validation and shipped packs on the owner pin, then the rules owner should define precedence or reject unsupported graphs and test permutations/cycles. Checkout pack probe: 18 packs, 584 rules, 67 overrides, zero chains and dangling targets; several pack files changed on owner main, so those counts are **not current-main evidence**.
+2. **Historical dependency alert, not asserted current:** at checkout `npm audit --audit-level=high --json` reported 2 low, 15 moderate, 1 high: `follow-redirects` 1.16.1, [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p). Owner-main lockfile has 1.16.2, outside the advisory's listed 1.16.0–1.16.1 range. No current-main npm audit or application exploitability assessment was performed; re-run with Node 24 and assess all current advisories.
+3. **Review in progress:** owner [PR #513](https://github.com/shmuelbiller1/ledgerflow/pull/513) remains open for scoped chunked invoice/bill reads. Do not duplicate it; review and execute its tests at its head. No independent verification of its fix here.
+4. **Deployment gates require direct verification:** owner-main `docs/FOR_YOU.md` lists secret rotation, DB certificate, live sign-up, deployment protection and email/Stripe configuration. That document is dated and is not proof of present configuration. Confirm with the owner using authorized tooling without disclosing secrets. Reconcile all applied migrations and test-environment banner with the actual tester deployment before deciding readiness.
+5. **Audit coverage incomplete:** prior audit coverage, workflow and database evidence are revision-specific. Re-pin on latest owner main, use the canonical atlas and scorecard, inspect changed code and run real isolated Postgres concurrency/RLS, complete unit suite, browser journeys and output comparisons. Do not infer whole-system correctness from lint or the sample probe. Specifically re-check open issues #342, #274, #160, #146, #143, #141, #131, #130, #96 and umbrella #150 against current code, tests and deployment; their open state alone is not proof each defect remains.
+
+## Coordination / previous work
+
+Root `AGENTS.md`, `CURRENT_WORK.md`, `docs/COORDINATION.md` and `docs/INDEPENDENT_AUDIT_AGENT.md` assign AI #8 the G/onboarding spare queue and a review-only independent-audit mission. Posting, tax maths, money and server fixes belong to the designated lanes; Shmuel decides acceptance. Existing fork [#4](https://github.com/Chaim-Richard/ledgerflow/pull/4) contains G-9; [#10](https://github.com/Chaim-Richard/ledgerflow/pull/10) contains older audit work. Owner #424 and #425 are closed; #434 merged. [#151](https://github.com/shmuelbiller1/ledgerflow/issues/151) closed 29 October: historical documents calling it open are stale, but closure alone is not verification of its fix. GitHub reports issues disabled in the fork; owner issues were listed. Do not close or merge anything without owner direction.
+
+## Tests run here
+
+- `npm ci --ignore-scripts`: exit 0; Node 22.22.3, whereas project requests 24.x; npm audit counts above.
+- `npm run lint:types`: exit 0 at checkout pin.
+- Two AF-012 probes: results above, at checkout pin only; direct synthetic function exercise, not database or browser.
+- `gh pr checks 10` showed passing CI jobs for that older PR/head, not this branch or owner pin. A paused/red Vercel preview is not by itself a code failure.
+- Not run: full unit suite, ESLint, build, RLS/DB tests, browser tests, or current-owner-main tests. No live production verification. Do not reuse historical pass counts as this session's results.
+
+## Recovery
+
+Branch `arena/51f250b7-ledgerflow`; initial committed checkpoint `0ed492f0`; original pin and owner pin above. Fetch the branch and owner main, check `git log` for the final report commit, and re-read `AGENTS.md` and current owner coordination before resuming. Do not switch an Arena session to a different branch without its own instructions. Backup folder: https://drive.google.com/drive/folders/1VG4z3otVCVhN2Vmr8jnssok8bIF2J-RK. Initial backup: https://drive.google.com/file/d/1dPcCy_7XsM41Y789DaVhQdwbB82VGN5j/view; intermediate: https://drive.google.com/file/d/1DjFC5FhPPqlmM2oFDdx4M9oUa3bUpNOp/view. Final backup link and final commit should be recorded by the sending agent after upload. Start next work from the then-current owner main as allowed by the session's branch rules; preserve both prior code and audit history.
