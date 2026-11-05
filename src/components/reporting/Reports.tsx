@@ -84,7 +84,7 @@ const Reports = React.memo(() => {
   // N-12: a report that knows the figure's filter gets it explained from the server
   const [drillDownExplain, setDrillDownExplain] = useState<ExplainRequest | undefined>(undefined);
   const [linkNotice, setLinkNotice] = useState('');
-  const serverYears = useServerEntryYears();
+  const { years: serverYears, failed: serverYearsFailed } = useServerEntryYears();
   const availableYears = useMemo(() => {
     if ((!transactions || transactions.length === 0) && serverYears.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
     const yearsSet = new Set<number>(linked.year ? [linked.year] : []);
@@ -350,6 +350,7 @@ const Reports = React.memo(() => {
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
+            {serverYearsFailed && <span role="status" data-testid="report-years-incomplete" className="text-[10px] text-[var(--muted)]">Older years may be missing: the server could not be asked.</span>}
 
             {/* Dynamic Month/Quarter Selector */}
             {timeframe === 'month' && (

@@ -30,7 +30,8 @@ function QueryProbe({ filter }: { filter: EntryQuery }) {
   return <p data-testid="probe">{`${source}|${total}|${names(results)}`}</p>;
 }
 function YearsProbe() {
-  return <p data-testid="years">{useServerEntryYears().join(',')}</p>;
+  const { years, failed } = useServerEntryYears();
+  return <p data-testid="years">{`${years.join(',')}${failed ? ' failed' : ''}`}</p>;
 }
 
 describe('L-123 step 5c: query and years (no database)', () => {
@@ -80,6 +81,23 @@ describe('L-123 step 5c: query and years (no database)', () => {
     useLedgerStore.setState({ truncatedCollections: { transactions: true } });
     render(<YearsProbe />);
     await waitFor(() => assert.equal(screen.getByTestId('years').textContent, `${Y},2021`), { timeout: 5000 });
+  });
+
+  test('years: a failed answer says so and is asked again when the loaded entries change (CodeRabbit on #516)', async () => {
+    setComponentWorkspace('owner');
+    useLedgerStore.setState({ transactions: loadedOf(entries(ws)), truncatedCollections: { transactions: true } } as never);
+    let ok = false;
+    globalThis.fetch = (async () => (ok ? Response.json({ status: 'success', years: [Y, 2021] }) : new Response('{}', { status: 500 }))) as typeof fetch;
+    render(<YearsProbe />);
+    await waitFor(() => assert.equal(screen.getByTestId('years').textContent, ' failed'), { timeout: 5000 });
+    ok = true;
+    useLedgerStore.setState({ transactions: entries(ws) });
+    await waitFor(() => assert.equal(screen.getByTestId('years').textContent, `${Y},2021`), { timeout: 5000 });
+  });
+
+  test('query text ignores Hebrew vowel marks (CodeRabbit on #516)', () => {
+    const tx = { ...entries(ws)[0], description: 'שָׁלוֹם' } as Transaction;
+    assert.ok(entryMatches(tx, { searchTerm: 'שלום' }));
   });
 });
 

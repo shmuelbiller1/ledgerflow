@@ -1,5 +1,6 @@
 import type { Transaction } from '../types';
 import { getAbsoluteTotal, isPostable, isTransactionInDateRange } from './txFilters';
+import { normalizeSearchText } from './textNormalization';
 
 /** The Query screen's filter (the fields of a saved view it uses); browser and server share it. */
 export interface EntryQuery {
@@ -23,9 +24,10 @@ export function entryMatches(tx: Transaction, q: EntryQuery): boolean {
   if (q.minAmountCents !== undefined && total < q.minAmountCents) return false;
   if (q.maxAmountCents !== undefined && total > q.maxAmountCents) return false;
   if (q.searchTerm) {
-    const term = q.searchTerm.toLowerCase();
-    const hit = (tx.description || '').toLowerCase().includes(term) || (tx.payee || '').toLowerCase().includes(term)
-      || (tx.lines || []).some(l => (l.accountName || '').toLowerCase().includes(term) || (l.description || '').toLowerCase().includes(term));
+    // Hebrew marks and direction controls aside, as everywhere else text is searched (CodeRabbit on #516)
+    const term = normalizeSearchText(q.searchTerm);
+    const has = (text: string | undefined) => normalizeSearchText(text).includes(term);
+    const hit = has(tx.description) || has(tx.payee) || (tx.lines || []).some(l => has(l.accountName) || has(l.description));
     if (!hit) return false;
   }
   return true;
