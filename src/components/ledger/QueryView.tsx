@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { Transaction } from '../../types';
 import { Labelled } from '../ui/Labelled';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
-import { typedAmountCents } from '../../lib/entryQuery';
+import { ENTRY_QUERY_TEXT_MAX, typedAmountCents } from '../../lib/entryQuery';
 
 // Credit note for Fava (MIT License) inspiration:
 // Inspired by Fava (beancount/fava - MIT License) ad-hoc ledger query engine architecture.
@@ -178,11 +178,15 @@ export default function QueryView() {
               <input
                 type="text"
                 value={queryFilter.searchTerm || ''}
-                onChange={e => setQueryFilter({ ...queryFilter, searchTerm: e.target.value })}
+                maxLength={ENTRY_QUERY_TEXT_MAX}
+                aria-describedby="query-text-limit"
+                onChange={e => setQueryFilter({ ...queryFilter, searchTerm: e.target.value.slice(0, ENTRY_QUERY_TEXT_MAX) })}
                 placeholder="Search payee, memo, tx #..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </Labelled>
+            {/* the server takes at most this much search text (CodeRabbit on #516) */}
+            <p id="query-text-limit" className="mt-1 text-[11px] text-slate-600">Up to {ENTRY_QUERY_TEXT_MAX} characters.</p>
           </div>
 
           <div>

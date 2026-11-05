@@ -34,6 +34,9 @@ export function entryMatches(tx: Transaction, q: EntryQuery): boolean {
 }
 
 /** The most matches the server sends back; `total` still counts them all. */
+/** the longest search text the entry query takes (the route refuses longer; QueryView stops the field there) */
+export const ENTRY_QUERY_TEXT_MAX = 200;
+
 export const ENTRY_QUERY_LIMIT = 1000;
 
 /**

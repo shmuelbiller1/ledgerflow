@@ -5,6 +5,7 @@ import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, entryQueryOver, entryYearsOf, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { ENTRY_QUERY_TEXT_MAX } from '../../lib/entryQuery';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
@@ -373,8 +374,8 @@ balanceRouter.get('/entry-query', async (req, res) => {
   const cents = (k: string) => (text(k) === '' ? undefined : Number(text(k)));
   const min = cents('min'), max = cents('max');
   const accountIds = text('accounts') ? text('accounts').split(',').filter(Boolean) : [];
-  const ok = [min, max].every(v => v === undefined || Number.isSafeInteger(v)) && text('q').length <= 200 && accountIds.length <= 200;
-  const range = rangeQuery(req, res, ok, ', q (at most 200 characters), min and max (whole cents), accounts (at most 200 ids)');
+  const ok = [min, max].every(v => v === undefined || Number.isSafeInteger(v)) && text('q').length <= ENTRY_QUERY_TEXT_MAX && accountIds.length <= 200;
+  const range = rangeQuery(req, res, ok, `, q (at most ${ENTRY_QUERY_TEXT_MAX} characters), min and max (whole cents), accounts (at most 200 ids)`);
   if (!range) return;
   const db = getDb();
   if (!(await allowMember(db, range.workspaceId, req, res))) return;
