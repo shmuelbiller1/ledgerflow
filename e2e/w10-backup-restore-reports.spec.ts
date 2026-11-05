@@ -271,7 +271,8 @@ for (const width of [390, 1280]) {
     });
     // the client reads the file, fails the checksum and clears the input; nothing is posted
     await expect.poll(() => damagedInput.evaluate((input: HTMLInputElement) => input.value), { timeout: 5000 }).toBe('');
-    await page.waitForTimeout(500);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 500 });
     expect(restoreUploads, 'a damaged backup must never reach the server').toHaveLength(uploadsBefore);
 
     // ---------------------------------------------------------------- 7. accessibility of the restored screen

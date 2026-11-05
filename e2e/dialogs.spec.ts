@@ -43,7 +43,8 @@ test.describe('Dialogs', () => {
       await d.show(page);
       const dialog = page.getByRole('dialog', { name: d.title });
       await expect(dialog).toBeVisible();
-      await page.waitForTimeout(600); // entrance animation
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 600 }); // entrance animation
       expect(await dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
 
       // D-51: the tested dialogs keep keyboard focus in the real tab order and expose the shared

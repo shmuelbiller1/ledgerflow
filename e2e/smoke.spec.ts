@@ -68,7 +68,8 @@ test.describe('E2E Smoke Suite', () => {
     await page.click('button:has-text("Insights")');
     
     // Wait for the math algorithms to compute
-    await page.waitForTimeout(2000); 
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 2000 }); 
     
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).not.toContain('NaN');
