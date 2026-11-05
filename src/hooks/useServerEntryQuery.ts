@@ -17,9 +17,12 @@ const parseMatches = (body: Record<string, unknown>): Matches | null =>
  */
 export function useServerEntryQuery(input: EntryQuery): { results: Transaction[]; total: number; source: RangeReportSource } {
   useLedgerCollections('transactions');
-  // amounts typed as 19.99 arrive as 1998.9999…: whole cents, for the server and the loaded matches alike (Codex on #516)
-  const cents = (v: number | undefined) => (v === undefined || !Number.isFinite(v) ? undefined : Math.round(v));
-  const filter = useMemo<EntryQuery>(() => ({ ...input, minAmountCents: cents(input.minAmountCents), maxAmountCents: cents(input.maxAmountCents) }),
+  // amounts typed as 19.99 arrive as 1998.9999…: whole cents, for the server and the loaded matches alike (Codex on
+  // #516). The float noise goes first, then a part cent never widens the range: a minimum rounds up, a maximum down
+  // (19.994 → at least 2000 cents), CodeRabbit on #516
+  const cents = (v: number | undefined, toward: (n: number) => number) =>
+    (v === undefined || !Number.isFinite(v) ? undefined : toward(Math.round(v * 1e6) / 1e6));
+  const filter = useMemo<EntryQuery>(() => ({ ...input, minAmountCents: cents(input.minAmountCents, Math.ceil), maxAmountCents: cents(input.maxAmountCents, Math.floor) }),
     [input]);
   const transactions = useLedgerStore(s => s.transactions);
   const loaded = useMemo(() => {
