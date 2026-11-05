@@ -88,8 +88,9 @@ const Reports = React.memo(() => {
   const availableYears = useMemo(() => {
     if ((!transactions || transactions.length === 0) && serverYears.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
     const yearsSet = new Set<number>(linked.year ? [linked.year] : []);
-    for (const tx of transactions || []) {
-      const d = tx.date;
+    const list = transactions || [];
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i].date;
       if (d && d.length >= 4) {
         yearsSet.add(Number.parseInt(d.slice(0, 4), 10));
       }
