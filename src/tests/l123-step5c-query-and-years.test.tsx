@@ -134,6 +134,9 @@ describe('L-123 step 5c: query and years (no database)', () => {
     assert.equal(typedAmountCents('5000000000.0000001'), 500000000000.5);
     assert.equal(Math.ceil(typedAmountCents('5000000000.0000001')!), 500000000001);
     assert.equal(typedAmountCents('19.990'), 1999);
+    // at and above 2^52 cents a half cent is no longer exact in a float: refused, not rounded wrong
+    assert.equal(typedAmountCents('45035996273704.9600001'), undefined);
+    assert.equal(Math.ceil(typedAmountCents('45035996273704.9500001')!), 2 ** 52);
     assert.equal(typedAmountCents('.5'), 50);
     assert.equal(typedAmountCents('abc'), undefined);
     assert.equal(typedAmountCents(''), undefined);

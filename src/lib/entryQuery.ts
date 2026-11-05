@@ -52,7 +52,9 @@ export function typedAmountCents(text: string): number | undefined {
   // a part cent is kept as a half cent, whatever its size: added to a large whole, a tiny fraction would vanish in
   // the float, and only its presence matters to the caller rounding toward its bound (CodeRabbit on #516)
   const rest = /[1-9]/.test(frac.slice(2)) ? 0.5 : 0;
+  // below 2^52 cents (about $45 trillion) a half cent is exact in a float; a larger amount is refused rather than
+  // risk losing the part cent (CodeRabbit on #516)
+  if (!(whole < 2 ** 52)) return undefined;
   const cents = whole + rest;
-  if (!Number.isFinite(cents)) return undefined;
   return m[1] ? -cents : cents;
 }
