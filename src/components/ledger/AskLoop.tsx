@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { MessageSquare, CheckCircle2, Building2, User, Tag } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -93,6 +94,7 @@ export default function AskLoop() {
         <p className="text-[var(--muted)] text-sm mt-1">
           Review and clarify uncategorized or pending transactions in your General Ledger.
         </p>
+        <LoadedEntriesOnlyNote testId="askloop-loaded-only" what="these questions" />
       </div>
 
       <div className="space-y-4 tabular-nums">

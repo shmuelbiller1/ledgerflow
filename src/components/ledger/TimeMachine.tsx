@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { useScenarioStore } from '../../lib/scenarioStore';
 import { GitMerge, GitPullRequest, GitBranch, RotateCcw, Clock, ArrowRight, Trash2, CheckCircle2, Plus, FileText, Activity } from 'lucide-react';
 import { parseLocalDate, formatCurrency, cn, getLocalDateISO, safeConfirm, formatDate } from '../../lib/utils';
@@ -73,6 +74,7 @@ export default function TimeMachine() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      <LoadedEntriesOnlyNote testId="timemachine-loaded-only" what="the posting history" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-[var(--text)] tracking-tight flex items-center gap-3">

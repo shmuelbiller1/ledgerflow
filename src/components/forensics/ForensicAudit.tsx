@@ -16,6 +16,7 @@ import { cn } from '../../lib/utils';
 import { civilDayOfMonth, civilMonthYear } from '../../lib/calendarDate';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 
@@ -131,6 +132,7 @@ const ForensicAudit = React.memo(() => {
 
   return (
     <div className="space-y-12 pb-24">
+      <LoadedEntriesOnlyNote testId="forensic-audit-loaded-only" what="these findings" />
       {/* Header */}
       <div className="flex items-end justify-between">
         <div className="space-y-2">
