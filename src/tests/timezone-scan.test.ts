@@ -51,11 +51,18 @@ describe('F-14 time zone scan', () => {
   });
 
   test('the helpers used instead are the workspace ones', () => {
-    const utils = fs.readFileSync('src/lib/utils.ts', 'utf8');
-    assert.match(utils, /export function getLocalDateISO/, 'getLocalDateISO exists');
-    assert.match(utils, /export function workspaceYearMonth/, 'workspaceYearMonth exists');
+    // The helpers are defined in calendarDate.ts and re-exported from utils.ts, so the definition is
+    // asserted where it lives and the re-export is asserted separately: a caller importing either
+    // module gets the same timezone-aware function.
+    const calendarDate = fs.readFileSync('src/lib/calendarDate.ts', 'utf8');
+    assert.match(calendarDate, /export function getLocalDateISO/, 'getLocalDateISO is defined');
+    assert.match(calendarDate, /export function workspaceYearMonth/, 'workspaceYearMonth is defined');
     // and the helper itself respects an explicit time zone
-    assert.match(utils, /Intl\.DateTimeFormat\([^)]*timeZone/s, 'getLocalDateISO formats in a time zone');
+    assert.match(calendarDate, /Intl\.DateTimeFormat\([^)]*timeZone/s, 'getDateInTimezoneISO formats in a time zone');
+
+    const utils = fs.readFileSync('src/lib/utils.ts', 'utf8');
+    assert.match(utils, /\bgetLocalDateISO\b/, 'utils.ts still re-exports getLocalDateISO');
+    assert.match(utils, /\bworkspaceYearMonth\b/, 'utils.ts still re-exports workspaceYearMonth');
   });
 
   test('the scan actually sees the screens (guards against an empty run)', () => {
