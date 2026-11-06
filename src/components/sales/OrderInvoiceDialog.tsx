@@ -151,7 +151,9 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
               </tbody>
             </table>
           )}
-          {problem && <p role="alert" className="text-xs text-rose-600">{problem}</p>}
+          {/* WCAG AA: rose-600 on the dialog's panel is 4.22:1; rose-700 reaches 6.3:1 and keeps
+              the error readable in light and dark themes. */}
+          {problem && <p role="alert" className="text-xs font-semibold text-rose-700 dark:text-rose-300">{problem}</p>}
           <p className="text-xs text-[var(--muted)]">It is saved as a draft: review it in Sales, then send it.</p>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={close} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>
