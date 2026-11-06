@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const screens = [
-  { tab: 'dashboard', heading: 'Real-Time Financial Ledger', action: 'Add Entry' },
+  { tab: 'dashboard', heading: 'Dashboard', action: 'Add Entry' },
   { tab: 'transactions', heading: 'Journal Entries', action: 'Create new entry' },
   { tab: 'sales', heading: 'Invoicing & Customer Accounts', action: 'Add Invoice' },
   { tab: 'purchases', heading: 'Purchases & AP', action: 'Record Bill' },

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Fixed civil date, seeded guest records, real UI and real fonts. Nothing financial is masked.
 test.use({ locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' });
 const screens = [
-  ['dashboard', '/#dashboard', 'Real-Time Financial Ledger'],
+  ['dashboard', '/#dashboard', 'Dashboard'],
   ['transactions', '/#transactions', 'Journal Entries'],
   ['sales', '/#sales', 'Invoicing & Customer Accounts'],
   ['purchases', '/#purchases', 'Purchases & AP'],

@@ -616,12 +616,26 @@ never invent an account or a rate, posting goes through the server.
 - [x] **D-76 Quality ratchet: lower ESLint warnings from 212 to 180** — AI #4 reconciliation, 24 Oct: current enforced cap is 105; full ESLint passes with 0 errors/105 warnings. Target already exceeded; no cap increase or duplicate cleanup.
 
 **UI design batch (owner, 18 Oct) — follow `docs/UI_GUIDE.md`; before/after screenshots in each PR; do D-45 and D-46 first.**
+
+- [~] **D-78 Reports tab bar on phones: horizontally scrolling, whole readable labels, no overlap; active tab scrolled into view**
+- [~] **D-77 Reports header: replace the tall "Financial Intelligence Hub" hero with a compact title row (title, period, Print/Export) ≤120px**
+- [x] **D-79 Dark mode: report filter row (period dates, Basis, Label, comparison) readable — use CSS variables, contrast ≥4.5:1**
+- [~] **D-80 Dark mode: highlighted ledger rows (Retained earnings on the balance sheet) readable**
+- [ ] **D-81 Sentence case for buttons and headings across reports and settings (no all-caps buttons)**
+- [ ] **D-82 Remove invented jargon from visible labels ("Worlds", "Financial Intelligence Hub", "Precision Core"…) — list in the PR, plain replacements**
+- [ ] **D-83 Profit and loss screen: one primary action, filters grouped on one row (desktop) / stacked (phone)**
+- [ ] **D-84 Balance sheet: same layout as P&L (D-83); account names truncate with tooltip, numbers never cut**
+- [x] **D-85 Dashboard: first screen shows cash, owed to you, you owe, profit this month, tasks (P2-31); everything else below** *(AI #4, 21 Oct: compact heading, the four cards first, setup checklist moved below — `arena/3f7e3a1d-ledgerflow`, W2/W5 screens; visual references pending review)*
 - [ ] **D-86 Invoice form: labels above fields, errors under the field, Save in the same place; phone layout checked**
 - [ ] **D-87 Bill form: same as D-86**
 - [ ] **D-88 Banking screen: empty, loading and error states with one action each (EmptyState/LoadingState)**
 - [ ] **D-89 Lists (transactions, invoices, bills, contacts): money right-aligned with tabular figures; sticky header**
 - [ ] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button**
 - [x] **D-92 Sidebar: clearer names and grouping; the "Worlds" balances box renamed and explained or removed**
+- [x] **D-90 Settings: group the tabs into five sections with a search box (P2-30)** *(AI #4, 21 Oct: `src/lib/settingsSections.ts` + `Settings.tsx`; every registered screen stays reachable and a new one without a section fails `settings-navigation.test.tsx`)*
+- [~] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button** *(AI #4, 21 Oct: the guard test is in — `icon-button-labels.test.ts` fails on any new icon-only button without a name, with an exact-count list for the 7 inside AI #1's reserved `Sales.tsx`/`EstimatesView.tsx`. Left: the `title` tooltip on the ~90 existing buttons that already have a name (`BillModal`, `InvoiceModal`, `PurchaseOrdersView`, `TaxManager` are AI #1's) — next batch, one sweep.)*
+- [x] **D-92 Sidebar: clearer names and grouping; the "Worlds" balances box renamed and explained or removed** *(AI #4, 21 Oct: "Projects" or "Balances by account type", explained, one real action, fake row buttons removed)*
+- [x] **D-93 Test harness: rendering ProfitAndLossView/TrialBalanceView with `currentWorkspaceId` set hangs the node test runner (even with `--test-force-exit`); find what keeps running (live query / interval / render loop), fix it, then add the BUG-02 screen test: success for one period, failure for the next → no old figures, no server badge**
 
 - [x] **D-95 Settings tab bar on phones: labels overlap ("Pre Data Sup Help Doc Pricing API" at 390px). Same fix as D-78 for the report tabs: whole readable labels, horizontal scroll, active tab revealed.**
 - [x] **D-96 Settings → Billing & Plan in dark mode: the plan panel stays white (hard-coded light colours). Use the theme variables (UI_GUIDE dark-mode rules); refresh the settings references.**
