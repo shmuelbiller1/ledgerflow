@@ -12,7 +12,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       localStorage.setItem('ledgerflow-cookie-consent', 'accepted'); localStorage.setItem('lf_theme', selectedTheme);
     }, theme);
     await page.goto('/#dashboard');
-    await expect(page.getByRole('heading', { name: 'Real-Time Financial Ledger', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     if (width < 1024) await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click();
     const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
     for (const [section, labels] of [

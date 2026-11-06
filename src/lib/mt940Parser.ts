@@ -1,4 +1,5 @@
 import { parseAmountToCents } from './utils';
+import { bankStatementDate } from './bankStatementDate';
 export interface ParsedBankLine {
   date: string;
   amountCents: number;
@@ -22,10 +23,14 @@ export function parseMT940Statement(rawContent: string): ParsedBankLine[] {
     if (trimmed.startsWith(':61:')) {
       const data = trimmed.substring(4);
       const dateRaw = data.substring(0, 6); // YYMMDD
-      const year = '20' + dateRaw.substring(0, 2);
-      const month = dateRaw.substring(2, 4);
-      const day = dateRaw.substring(4, 6);
-      const currentDate = `${year}-${month}-${day}`;
+      const year = 2000 + Number(dateRaw.substring(0, 2));
+      const month = Number(dateRaw.substring(2, 4));
+      const day = Number(dateRaw.substring(4, 6));
+      // F-37 fuzzing found `:61:` lines with non-calendar dates (e.g. "991332" → 2099-13-32).
+      // A statement line is only usable when its date is a real calendar day; refuse the file
+      // with a plain-word reason instead of importing an impossible date.
+      const currentDate = /^\d{6}$/.test(dateRaw) ? bankStatementDate(year, month, day) : null;
+      if (!currentDate) throw new Error(`MT940: the statement line date "${dateRaw}" is not a real calendar date (expected YYMMDD).`);
 
       // Indicator in :61: comes after date (6 or 10 digits YYMMDD or YYMMDDMMDD)
       const afterDate = data.substring(6);
@@ -37,6 +42,7 @@ export function parseMT940Statement(rawContent: string): ParsedBankLine[] {
       const amountCents = amountMatch
         ? parseAmountToCents(amountMatch[1].replace(',', '.'))
         : 0;
+      if (!Number.isSafeInteger(amountCents)) throw new Error(`MT940: the amount on the line dated ${currentDate} is outside the supported whole-cent range.`);
 
       const signedAmountCents = indicator === 'debit' ? -amountCents : amountCents;
 

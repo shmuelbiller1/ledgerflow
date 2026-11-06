@@ -39,7 +39,8 @@ for (const width of [1280, 390]) {
 
       for (const r of reports) {
         await chooseReport(r.name);
-        await page.waitForTimeout(700);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 700 });
         // Each report's h2 present
         await expect(page.getByRole('heading', { name: r.heading }).first()).toBeVisible({ timeout: 5000 });
         // Ensure no horizontal overflow

@@ -60,7 +60,8 @@ async function openGuest(page: Page, url: string) {
   await expect(page.locator('h1:visible')).toHaveCount(1, { timeout: 15_000 });
   await expect.poll(() => main.evaluate(element => element.innerText.trim().length)).toBeGreaterThan(20);
   // Let lazy data/report effects settle so a later render error cannot escape the assertion.
-  await page.waitForTimeout(600);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 600 });
 }
 
 function watchCodeErrors(page: Page): string[] {
