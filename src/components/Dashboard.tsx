@@ -233,6 +233,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Saved Views & Default Lenses Bar */}
+      <SavedViewsBar />
+
       </DashboardWidgets>
       <details className="border border-[var(--line)] rounded-xl p-4"><summary className="min-h-11 flex items-center cursor-pointer font-semibold">Live tax and spending planning</summary><p className="text-sm text-[var(--muted)] mb-3">This planner uses current cash and future assumptions independently of the dashboard reporting dates.</p><TaxReserveWidget /></details>
     </div>

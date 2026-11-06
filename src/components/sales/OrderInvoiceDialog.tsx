@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
-import { formatCurrency, parseAmountToCents, readAmountCents, safeConfirm } from '../../lib/utils';
+import { formatCurrency, readAmountCents, safeConfirm } from '../../lib/utils';
 import { type OrderPart, type OrderProgress, hasItemLines, orderLineProgress, orderPartInvoice, partCents, partLabel, partProblem } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
 import type { Milestone } from '../../lib/milestones';

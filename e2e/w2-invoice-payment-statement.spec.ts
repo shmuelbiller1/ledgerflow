@@ -303,11 +303,11 @@ async function expectFitsAndPassesAxe(page: Page, selector: string, label: strin
  * Test 1: Sales screen shows invoice INV-001 with correct figures
  * Invoice: $1,180.00, Payment: $600.00, Balance due: $580.00
  */
-test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 paid, balance $580.00', async ({ page }, testInfo) => {
+test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 paid, balance $580.00', async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width: 390, height: 844 });
   
-  const { errors, requests } = await mountSales(page);
+  const { errors } = await mountSales(page);
   
   // The Sales screen loads
   await expect(page.getByRole('heading', { name: 'Sales', exact: true })).toBeVisible();
@@ -336,7 +336,7 @@ test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 
  * Test 2: Customer statement shows the invoice and payment with correct balance
  * This verifies the complete W2 workflow: invoice \u2192 payment \u2192 statement
  */
-test('W2 browser: Customer statement shows INV-001 $1,180.00, payment -$600.00, balance $580.00', async ({ page }, testInfo) => {
+test('W2 browser: Customer statement shows INV-001 $1,180.00, payment -$600.00, balance $580.00', async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width: 390, height: 844 });
   
@@ -372,7 +372,7 @@ test('W2 browser: Customer statement shows INV-001 $1,180.00, payment -$600.00, 
  * Test 3: Desktop version of the W2 workflow
  * Same assertions but on desktop viewport
  */
-test('W2 browser: desktop Sales screen with invoice and payment figures', async ({ page }, testInfo) => {
+test('W2 browser: desktop Sales screen with invoice and payment figures', async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width: 1200, height: 800 });
   

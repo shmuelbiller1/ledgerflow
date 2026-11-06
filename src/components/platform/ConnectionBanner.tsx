@@ -8,14 +8,16 @@ export const ConnectionBanner: React.FC = () => {
   const [showReconnected, setShowReconnected] = useState(false);
   const wasOfflineRef = useRef(false);
 
+  // Going offline clears any confirmation during render, not in an effect: a synchronous setState
+  // in an effect body cascades renders for a value that is already derivable from `isOnline`.
+  if (!isOnline && showReconnected) setShowReconnected(false);
+
   useEffect(() => {
     if (!isOnline) {
       wasOfflineRef.current = true;
-      setShowReconnected(false);
     } else if (wasOfflineRef.current) {
-      // Transitioned from offline to online: confirm once, in the same render as the reconnection,
-      // then let the confirmation lapse. (Deferring the confirmation by a tick hid it whenever the
-      // store change came from outside an act() scope, so the banner said nothing at all.)
+      // Transitioned from offline to online: confirm straight away (deferring it by a tick hid the
+      // confirmation whenever the store change came from outside an act() scope), then let it lapse.
       wasOfflineRef.current = false;
       setShowReconnected(true);
       const timer = setTimeout(() => {
