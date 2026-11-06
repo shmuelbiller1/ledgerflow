@@ -245,7 +245,10 @@ test('F-43 W4 browser: imported bank lines match ledger entries, one reconciled 
   }, { workspaceId: WORKSPACE });
 
   // Both lists are on screen; the engine suggests the Acme pair.
-  await expect(page.getByRole('button', { name: /Streams \(2\)/ })).toBeVisible();
+  // The screen names the list and its count in plain words ("Bank statement lines" + "2 to review");
+  // "Streams" is the jargon e2e/plain-language.spec.ts forbids.
+  await expect(page.getByText('Bank statement lines')).toBeVisible();
+  await expect(page.getByText(/\b2 to review\b/)).toBeVisible();
   await expect(page.getByText('ACME CORP DEP 4411').first()).toBeVisible();
   await expect(page.getByText('LANDLORD LTD OCT').first()).toBeVisible();
   await expect(page.getByText('Payment from Acme Corp').first()).toBeVisible();
@@ -255,7 +258,8 @@ test('F-43 W4 browser: imported bank lines match ledger entries, one reconciled 
   // Match by hand: bank line then ledger entry, then assert the pair.
   await page.getByText('ACME CORP DEP 4411').first().click();
   await page.getByText('Payment from Acme Corp').first().click();
-  const matchBtn = page.getByRole('button', { name: 'Assert Match Verification' });
+  // D-97 replaced the jargon: the button says what it does.
+  const matchBtn = page.getByRole('button', { name: 'Confirm match' });
   await expect(matchBtn).toBeVisible();
   await matchBtn.click();
   await expect.poll(() => apiCalls.length).toBeGreaterThan(0);
@@ -331,7 +335,7 @@ test('F-44 W6 browser: order 1,100 totals, 25% then rest, delivery charged once,
   await expect(page.getByRole('heading', { name: 'Invoice order EST-1' })).toBeVisible();
   await expect(page.getByText(/order of \$1,100\.00 · invoiced \$0\.00/)).toBeVisible();
   await page.getByLabel('A percentage of the order').check();
-  await page.getByLabel('Percentage of the order').fill('25');
+  await page.getByRole('textbox', { name: 'Percentage of the order' }).fill('25');
   await expect(page.getByText('Goods (25% of order EST-1)')).toBeVisible();
   await expect(page.getByText('$250.00')).toBeVisible();
   await expect(page.getByText('Delivery (25% of order EST-1)')).toBeVisible();
@@ -387,7 +391,7 @@ test('F-44 W6 browser: order 1,100 totals, 25% then rest, delivery charged once,
     w.render(w.progress1);
   });
   await page.getByLabel('An amount').check();
-  await page.getByLabel('Amount to invoice (USD)').fill('900');
+  await page.getByRole('textbox', { name: 'Amount to invoice (USD)' }).fill('900');
   await expect(page.locator('div[role="dialog"]').getByRole('alert')).toHaveText('That is more than is left to invoice');
   await expect(page.getByRole('button', { name: 'Create $0.00 invoice' })).toBeDisabled();
 
