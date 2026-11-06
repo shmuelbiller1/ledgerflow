@@ -6,6 +6,7 @@ import { applyUnappliedPayment, committedPaymentReplay, createPaymentAtomic, cre
 import { voidPayment } from '../services/paymentVoidService';
 import { extractCanonicalOperationId } from '../utils/idempotency';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { isIsoDate } from '../../lib/warehouseRecordUtils';
 import { getWorkspaceUserRole, AuthenticatedRequest, requireWorkspaceRole } from './workspaceRoutes';
 import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../services/creditService';
 import { createDeposit, DepositError } from '../services/depositService';
@@ -24,7 +25,8 @@ const paymentAllocationSchema = z.object({
 const paymentInputSchema = z.object({
   workspaceId: z.string().min(1),
   amountCents: z.number().int().positive(),
-  paymentDate: z.string().optional(),
+  // audit F5: a real calendar date (2026-02-30 and 'not-a-date' are refused before anything is written)
+  paymentDate: z.string().refine(isIsoDate, 'paymentDate must be a real date (YYYY-MM-DD)').optional(),
   cashAccountId: z.string().min(1),
   paymentMethod: z.string().optional(),
   /** CC-09: one of the workspace's payment types; the server takes its method and name from the workspace */
@@ -95,9 +97,10 @@ export async function handleCreatePayment(req: express.Request, res: express.Res
     // Existing clients without an operation ID remain compatible; callers with a stable ID
     // receive replay-safe posting, including when the server committed but HTTP response was lost.
     const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
+    const authorization = { platformAdmin: authReq.user.admin === true };
     const result = operationId
-      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined)
-      : { ...(await createPaymentAtomic(db, paymentInput)), replayed: false };
+      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined, authorization)
+      : { ...(await createPaymentAtomic(db, paymentInput, authorization)), replayed: false };
     // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
     // them when replaying an already-committed payment operation.
     const remittance = result.replayed ? undefined : await afterPaymentRecorded(db, { ...result.payment, id: result.paymentId }, authReq.user.uid, { remittance: sendRemittance });
@@ -127,7 +130,7 @@ const creditApplySchema = z.object({
   creditId: z.string().min(1),
   documentId: z.string().min(1),
   amountCents: z.number().int().positive(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
 });
 const creditRefundSchema = z.object({
   workspaceId: z.string().min(1),
@@ -135,7 +138,7 @@ const creditRefundSchema = z.object({
   creditId: z.string().min(1),
   amountCents: z.number().int().positive(),
   cashAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
   memo: z.string().max(500).optional(),
 });
 
@@ -200,7 +203,7 @@ paymentRouter.post('/credits/auto-apply', ledgerWriters, async (req, res) => {
 const depositSchema = z.object({
   workspaceId: z.string().min(1),
   bankAccountId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
   paymentIds: z.array(z.string().min(1)).min(1).max(500),
   memo: z.string().max(500).optional(),
 });
@@ -228,7 +231,7 @@ paymentRouter.post('/deposits', ledgerWriters, async (req, res) => {
 const applySchema = z.object({
   workspaceId: z.string().min(1),
   allocations: z.array(paymentAllocationSchema).min(1).max(100),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
 }).strict();
 
 /** BE-12, K-18: apply a payment's unapplied part (a deposit or prepayment) to invoices or bills. */
@@ -258,7 +261,7 @@ paymentRouter.post('/:paymentId/apply', async (req, res) => {
 
 const voidSchema = z.object({
   workspaceId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
   reason: z.string().max(300).optional(),
 }).strict();
 
