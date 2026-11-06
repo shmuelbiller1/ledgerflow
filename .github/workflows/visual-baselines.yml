@@ -31,8 +31,13 @@ jobs:
           # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
           SCREENS: ${{ inputs.screens }}
         run: npx playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0
-      - name: Check the entire reference set
-        run: npx playwright test e2e/visual-regression.spec.ts --retries=0
+      # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
+      # named a subset (the other screens legitimately still differ), which blocked the push of a
+      # correct candidate set; the reviewer still merges only after looking at the images.
+      - name: Check the captured reference set
+        env:
+          SCREENS: ${{ inputs.screens }}
+        run: npx playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
