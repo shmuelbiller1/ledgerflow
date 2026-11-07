@@ -192,10 +192,10 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
     // the template as stored now (a contact merge may have changed it since the job read the schedule)
     const current = (ruleSnap.data()?.estimateTemplate || {}) as Partial<Estimate> & DocumentData;
-    if (!current.customerId) throw new Error('The schedule has no customer');
-    if (!Array.isArray(current.lines) || current.lines.length === 0) throw new Error('The estimate has no lines');
     const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
+    if (!current.customerId) throw new Error('The schedule has no customer');
+    if (!Array.isArray(current.lines) || current.lines.length === 0) throw new Error('The estimate has no lines');
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
     // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
     // (read inside this serializable transaction, so a schedule saved meanwhile is seen or the write retries)
