@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { addPasskey, listPasskeys, MAX_PASSKEY_NAME, passkeysSupported, removePasskey, type PasskeyInfo } from '../../../lib/db/auth';
+import { addPasskey, listPasskeys, MAX_PASSKEY_NAME, passkeyName, passkeysSupported, removePasskey, renamePasskey, type PasskeyInfo } from '../../../lib/db/auth';
+import InlineEdit from '../../ui/InlineEdit';
 import { safeConfirm } from '../../../lib/utils';
 import AsyncButton from '../../ui/AsyncButton';
 
@@ -33,7 +34,7 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
     const version = ++generation.current;
     try {
       const list = await listPasskeys();
-      if (current(version)) { setPasskeys(list); setError(''); }
+      if (current(version)) setPasskeys(list);
     } catch (e) {
       if (current(version)) setError(message(e, 'Could not load your passkeys.'));
     }
@@ -51,13 +52,15 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
   const add = async () => {
     setError(''); setNotice('');
     try {
-      await addPasskey(name);
+      const { named } = await addPasskey(name);
       setName('');
-      setNotice('Passkey added. You can now sign in with it.');
-      await load();
+      if (named) setNotice('Passkey added. You can now sign in with it.');
+      else setError('Passkey added and it works, but its name was not saved. Rename it in the list.');
     } catch (e) {
       setError(message(e, 'The passkey was not added.'));
+      return;
     }
+    await load();
   };
 
   const remove = async (passkey: PasskeyInfo) => {
@@ -87,7 +90,11 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
       {notice && <p role="status" className="text-sm text-[var(--pos)]">{notice}</p>}
       {available && supported && passkeys !== null && <>
         <ul className="space-y-3">{passkeys.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-3">
-          <span className="min-w-0 break-words text-sm">{p.name} — added {p.createdAt.slice(0, 10)}{p.lastUsedAt ? `, last used ${p.lastUsedAt.slice(0, 10)}` : ''}</span>
+          <span className="min-w-0 break-words text-sm flex flex-wrap items-center gap-1">
+            <InlineEdit value={p.name} label="Passkey name" validate={v => (passkeyName(String(v), '') ? null : 'Give the passkey a name')}
+              onSave={async next => { await renamePasskey(p.id, String(next)); setNotice(`Renamed to ${passkeyName(String(next))}.`); await load(); }} />
+            <span>— added {p.createdAt.slice(0, 10)}{p.lastUsedAt ? `, last used ${p.lastUsedAt.slice(0, 10)}` : ''}</span>
+          </span>
           <AsyncButton type="button" variant="secondary" className={buttonClass} onClick={() => remove(p)}>Remove {p.name}</AsyncButton>
         </li>)}</ul>
         <div className="flex flex-wrap items-end gap-3">

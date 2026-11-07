@@ -57,13 +57,14 @@ test('lists passkeys, adds one with the chosen name and removes one after confir
   items = [{ id: 'pk-1', friendly_name: 'My phone', created_at: '2026-11-01T09:00:00Z', last_used_at: '2026-11-05T09:00:00Z' }];
   render(<PasskeySettings />);
   await waitFor(() => assert.ok(screen.getByText('1 passkey can sign in to this account.')));
-  assert.ok(screen.getByText('My phone — added 2026-11-01, last used 2026-11-05'));
+  assert.ok(screen.getByText('— added 2026-11-01, last used 2026-11-05'));
+  assert.ok(screen.getByRole('button', { name: 'Edit Passkey name: My phone' }));
 
   fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Work laptop' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add a passkey' })); });
   await waitFor(() => assert.ok(screen.getByText('2 passkeys can sign in to this account.')));
   assert.deepEqual(calls, ['register', 'rename pk-new Work laptop']);
-  assert.ok(screen.getByText(/Work laptop — added 2026-11-07/));
+  assert.ok(screen.getByRole('button', { name: 'Edit Passkey name: Work laptop' }));
 
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove My phone' })); });
   await waitFor(() => assert.ok(screen.getByText('1 passkey can sign in to this account.')));
@@ -81,6 +82,28 @@ test('removing is not done without confirmation; a refused add shows the error a
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add a passkey' })); });
   await waitFor(() => assert.ok(screen.getByRole('alert').textContent?.includes('cancelled')));
   assert.ok(!calls.some(c => c.startsWith('rename')));
+});
+
+test('a passkey whose name fails to save is still listed, and can be renamed in place', async () => {
+  mock.method(auth.passkey, 'update', async ({ passkeyId, friendlyName }: { passkeyId: string; friendlyName: string }) => {
+    calls.push(`rename ${passkeyId} ${friendlyName}`);
+    if (friendlyName === 'Work laptop') return { data: null, error: new Error('Rename refused') };
+    items = items.map(i => i.id === passkeyId ? { ...i, friendly_name: friendlyName } : i);
+    return { data: items.find(i => i.id === passkeyId), error: null };
+  });
+  render(<PasskeySettings />);
+  await waitFor(() => assert.ok(screen.getByText('No passkeys yet.')));
+  fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Work laptop' } });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add a passkey' })); });
+  await waitFor(() => assert.ok(screen.getByText('1 passkey can sign in to this account.')));
+  assert.match(screen.getByRole('alert').textContent || '', /name was not saved/);
+
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Edit Passkey name: Passkey' })); });
+  const box = screen.getByRole('textbox', { name: 'Passkey name' });
+  fireEvent.change(box, { target: { value: 'Home desktop' } });
+  await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Edit Passkey name: Home desktop' })));
+  assert.ok(calls.includes('rename pk-new Home desktop'));
 });
 
 test('a browser without passkeys says so and offers nothing', async () => {

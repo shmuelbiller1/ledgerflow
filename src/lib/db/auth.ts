@@ -431,14 +431,24 @@ export async function listPasskeys(): Promise<PasskeyInfo[]> {
   return (data || []).map(p => ({ id: p.id, name: passkeyName(p.friendly_name), createdAt: p.created_at, ...(p.last_used_at ? { lastUsedAt: p.last_used_at } : {}) }));
 }
 
-export async function addPasskey(name?: string): Promise<void> {
+/**
+ * Adds a passkey and, when a name is given, saves it. The passkey works as soon as it is registered, so a
+ * failed rename is reported in the result (named: false), never thrown: the caller still lists the new passkey.
+ */
+export async function addPasskey(name?: string): Promise<{ id: string; named: boolean }> {
   const { data, error } = await getSupabase().auth.registerPasskey();
   if (error || !data) fail(error, 'passkey-register-failed');
   const clean = passkeyName(name, '');
-  if (clean && clean !== data.friendly_name) {
-    const renamed = await getSupabase().auth.passkey.update({ passkeyId: data.id, friendlyName: clean });
-    if (renamed.error) fail(renamed.error, 'passkey-rename-failed');
-  }
+  if (!clean || clean === data.friendly_name) return { id: data.id, named: true };
+  const renamed = await getSupabase().auth.passkey.update({ passkeyId: data.id, friendlyName: clean });
+  return { id: data.id, named: !renamed.error };
+}
+
+export async function renamePasskey(id: string, name: string): Promise<void> {
+  const clean = passkeyName(name, '');
+  if (!clean) throw new AuthError('auth/passkey-name-empty', 'Give the passkey a name.');
+  const { error } = await getSupabase().auth.passkey.update({ passkeyId: id, friendlyName: clean });
+  if (error) fail(error, 'passkey-rename-failed');
 }
 
 export async function removePasskey(id: string): Promise<void> {
