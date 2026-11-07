@@ -553,7 +553,13 @@ const shortcutMap = useMemo(() => {
   }
 
   if (!user && !isGuest) {
-    return <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignup={handleEmailSignup} onPasswordReset={handlePasswordReset} onGuest={handleGuest} onPasskeyLogin={handlePasskeyLogin} language={language} />;
+    // the sign-in screen shows its own messages (failed sign-in, reset email sent, passkey not turned on)
+    return (
+      <>
+        <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignup={handleEmailSignup} onPasswordReset={handlePasswordReset} onGuest={handleGuest} onPasskeyLogin={handlePasskeyLogin} language={language} />
+        <Toaster theme="light" position="top-right" expand={false} richColors closeButton />
+      </>
+    );
   }
 
   return (
