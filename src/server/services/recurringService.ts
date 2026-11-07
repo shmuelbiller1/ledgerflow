@@ -189,6 +189,9 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   let number = '';
   await db.runTransaction(async (tx) => {
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
+    // the template as stored now (a contact merge may have changed it since the job read the schedule)
+    const current = (ruleSnap.data()?.estimateTemplate || t) as Partial<Estimate> & DocumentData;
+    if (!current.customerId) throw new RecurringSkip('The schedule has no customer');
     const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
@@ -203,14 +206,14 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     }
     // the number is taken in the same transaction, so a skipped draft leaves no gap
     number = await allocateInTransaction(db, tx, rule.workspaceId, 'estimate');
-    const draft = nextEstimateDraft(t, { id: estimateRef.id, number, date });
+    const draft = nextEstimateDraft(current, { id: estimateRef.id, number, date });
     const { validityDays: _validity, ...fields } = draft as Estimate & { validityDays?: number };
     // the copy's own fields; empty ones (no signing link, no conversion) are left out
     const estimate: DocumentData = Object.fromEntries(Object.entries({
       ...fields,
       workspaceId: rule.workspaceId,
       uid: rule.uid,
-      currency: (t.currency as string | undefined) || workspace.currency || 'USD',
+      currency: (current.currency as string | undefined) || workspace.currency || 'USD',
       recurrenceOccurrenceKey: key,
       metadata: { recurringTemplateId: rule.id, generatedAt: new Date().toISOString() },
       createdAt: new Date().toISOString(),
