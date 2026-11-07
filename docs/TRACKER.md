@@ -1629,7 +1629,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
 - [x] CC-11 Client-group settings — Settings has customer groups with default payment terms (kept by the server, one change at a time); a customer joins a group on its page and new invoices take the group's terms when it has none (`src/lib/customerGroups.ts`, `customerGroupService`, `CustomerGroupsSettings`; migration `20261102030000_customer_groups`)
 - [ ] CC-12 Passkeys
-- [ ] CC-13 User-defined scheduler
+- [x] CC-13 User-defined scheduler — covered by the schedules users already set: recurring invoices/bills/entries/estimates (`recurringService`), scheduled reports (K-28, `scheduledReportService`), payment reminders and monthly statements (BE-01/BE-07, `reminderService`, `statementMonthDue`); ticked 7 Nov
 - [x] CC-14 Tasks + statuses — same item as BG-03: tasks given to a workspace member, optionally about a record, with a due date and open/done status (`src/lib/tasks.ts`, `taskService`, `TasksView`); ticked 7 Nov
 - [ ] CC-15 E-invoicing log
 - [ ] CC-16 System log
