@@ -187,6 +187,7 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   const workspace = (await db.collection('workspaces').doc(rule.workspaceId).get()).data() || {};
   const estimateRef = db.collection('estimates').doc();
   let number = '';
+  let customerName = t.customerName;
   await db.runTransaction(async (tx) => {
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
     // the template as stored now (a contact merge may have changed it since the job read the schedule)
@@ -219,6 +220,7 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
       createdAt: new Date().toISOString(),
     }).filter(([, v]) => v !== undefined));
     tx.set(estimateRef, estimate);
+    customerName = estimate.customerName;
     tx.update(db.collection('recurring').doc(rule.id), {
       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
       lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),
@@ -227,7 +229,7 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   await notify(db, {
     workspaceId: rule.workspaceId, workspace, kind: 'estimate.draft_ready',
     title: `Recurring estimate ${number} is ready`,
-    message: `A draft for ${String(t.customerName || 'the customer')} dated ${date}. Check it and send it.`,
+    message: `A draft for ${String(customerName || 'the customer')} dated ${date}. Check it and send it.`,
     eventKey: `estimate.draft_ready:${key}`, recordId: estimateRef.id,
   });
   return { estimateId: estimateRef.id };
