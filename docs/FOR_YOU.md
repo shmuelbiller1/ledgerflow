@@ -93,6 +93,21 @@ Last updated: 2026-10-07.
     added / sign-in failed; password and Google sign-in work as before.* Someone with an authenticator app
     still gives its code after a passkey.
 
+50. **Shared office connection and the app-wide request limit (7 Nov, decided by default).** Every visitor's IP
+    address gets 1,000 requests per 15 minutes across the whole app (`src/server/middleware/rateLimiters.ts`).
+    People who share one public IP (an office, a school, a family) share that bucket, and a few people with
+    dashboards open can reach it; they then see "Maximum rate limit reached". The fix is to count per signed-in
+    user (verify the sign-in token first, fall back to the IP for visitors), which changes how abuse is
+    limited. *Default: unchanged until you say so, or until a tester reports the message.* Say "count per user"
+    and Claude will build it.
+51. **What is left in the tracker needs you or an outside service (7 Nov).** The open items that remain mostly
+    need a decision, an account or a key: pricing (P-06 usage metering, P-10 referrals), identity providers
+    (P-01 SSO, P-02 SCIM), banks and shops (Y-04..Y-07 bank feeds, Z-23..Z-27), country filings (T-09..T-15),
+    email domains (K-35 inbox address, L-84 custom sender, Y-29 SPF/DKIM), push notifications (S-20, needs
+    keys), and the GitHub branch rule (L-67). The larger engineering items Claude works through next:
+    P-03 IP allowlist (database-side check needed), C-19/L-123 archiving closed years, M-21 standard costing,
+    W-07 assembly. *Default: Claude takes the engineering items in that order.*
+
 ## B. Decisions (Claude uses the default until you say otherwise)
 
 10. **Hebrew data — decided by owner (2 Oct).** Keep menus and options in English. The system and algorithms must handle Hebrew and mixed Hebrew/English names, labels, item descriptions and other record text throughout search/matching, imports/exports and documents. This is data-language support, not a request to translate the interface. Codex is auditing it after C-6…C-11; existing financial rules must stay intact.
