@@ -2,7 +2,7 @@ import TestEnvironmentBanner from './components/support/TestEnvironmentBanner';
 import { useState, useEffect, useMemo, useCallback, useRef, useTransition, lazy, Suspense } from 'react';
 import { usePerformanceTrace } from './hooks/usePerformanceTrace';
 import { auth } from './firebase';
-import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signInWithPasskey, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
+import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signInWithPasskey, passkeysOff, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
 import { Toaster, toast } from 'sonner';
 import { motion } from 'motion/react';
 
@@ -433,7 +433,7 @@ const shortcutMap = useMemo(() => {
       else toast.success('SUCCESSFULLY LOGGED IN');
     } catch (e) {
       console.error('Passkey sign-in failed:', e);
-      toast.error('Passkey sign-in failed or was cancelled.');
+      toast.error(passkeysOff(e) ? 'Passkey sign-in is not turned on yet. Sign in with your password or Google.' : 'Passkey sign-in failed or was cancelled.');
     }
   };
 

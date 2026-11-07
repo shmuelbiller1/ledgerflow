@@ -106,6 +106,19 @@ test('a passkey whose name fails to save is still listed, and can be renamed in 
   assert.ok(calls.includes('rename pk-new Home desktop'));
 });
 
+test('a failed list load can be retried; passkeys not turned on are named as such', async () => {
+  let fail = true;
+  mock.method(auth.passkey, 'list', async () => (fail ? { data: null, error: Object.assign(new Error('Network down'), { code: 'request_timeout' }) } : { data: items, error: null }));
+  render(<PasskeySettings />);
+  await waitFor(() => assert.ok(screen.getByText('Your passkeys could not be loaded.')));
+  fail = false;
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try again' })); });
+  await waitFor(() => assert.ok(screen.getByText('No passkeys yet.')));
+  mock.method(auth, 'registerPasskey', async () => ({ data: null, error: Object.assign(new Error('Passkeys are disabled'), { code: 'passkey_disabled' }) }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add a passkey' })); });
+  await waitFor(() => assert.equal(screen.getByRole('alert').textContent, 'Passkeys are not turned on for this site yet.'));
+});
+
 test('a browser without passkeys says so and offers nothing', async () => {
   supportPasskeys(false);
   render(<PasskeySettings />);

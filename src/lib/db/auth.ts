@@ -418,6 +418,12 @@ export function passkeyName(name: string | undefined, fallback = 'Passkey'): str
   return clean || fallback;
 }
 
+/** True when the error means passkeys are not switched on for this site yet (Supabase Auth setting). */
+export function passkeysOff(e: unknown): boolean {
+  const code = e instanceof AuthError ? e.code : '';
+  return /passkey.*(disabled|not_enabled)|webauthn.*not_enabled|provider_disabled/i.test(code);
+}
+
 export async function signInWithPasskey(_auth: Auth): Promise<UserCredential> {
   const { data, error } = await getSupabase().auth.signInWithPasskey();
   const session = data?.session;

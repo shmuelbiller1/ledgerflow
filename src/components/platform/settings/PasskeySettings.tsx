@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { addPasskey, listPasskeys, MAX_PASSKEY_NAME, passkeyName, passkeysSupported, removePasskey, renamePasskey, type PasskeyInfo } from '../../../lib/db/auth';
+import { addPasskey, listPasskeys, MAX_PASSKEY_NAME, passkeyName, passkeysOff, passkeysSupported, removePasskey, renamePasskey, type PasskeyInfo } from '../../../lib/db/auth';
 import InlineEdit from '../../ui/InlineEdit';
 import { safeConfirm } from '../../../lib/utils';
 import AsyncButton from '../../ui/AsyncButton';
@@ -17,6 +17,7 @@ export function PasskeySettings() {
 }
 
 function message(e: unknown, fallback: string): string {
+  if (passkeysOff(e)) return 'Passkeys are not turned on for this site yet.';
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
@@ -26,6 +27,7 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const generation = useRef(0);
   const id = useId();
   const current = useCallback((version: number) => generation.current === version && useAuthStore.getState().user?.uid === uid, [uid]);
@@ -34,9 +36,9 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
     const version = ++generation.current;
     try {
       const list = await listPasskeys();
-      if (current(version)) setPasskeys(list);
+      if (current(version)) { setPasskeys(list); setLoadFailed(false); }
     } catch (e) {
-      if (current(version)) setError(message(e, 'Could not load your passkeys.'));
+      if (current(version)) { setLoadFailed(true); setError(message(e, 'Could not load your passkeys.')); }
     }
   }, [current]);
 
@@ -44,7 +46,7 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
     const version = ++generation.current;
     if (available && supported) {
       void listPasskeys().then(list => { if (current(version)) setPasskeys(list); })
-        .catch(e => { if (current(version)) setError(message(e, 'Could not load your passkeys.')); });
+        .catch(e => { if (current(version)) { setLoadFailed(true); setError(message(e, 'Could not load your passkeys.')); } });
     }
     return () => { generation.current = version + 1; };
   }, [available, supported, current]);
@@ -77,7 +79,7 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
 
   const status = !available ? 'Sign in to manage your passkeys.'
     : !supported ? 'This browser cannot use passkeys.'
-    : passkeys === null ? 'Loading your passkeys…'
+    : passkeys === null ? (loadFailed ? 'Your passkeys could not be loaded.' : 'Loading your passkeys…')
     : passkeys.length ? `${passkeys.length} passkey${passkeys.length === 1 ? '' : 's'} can sign in to this account.`
     : 'No passkeys yet.';
   const buttonClass = 'min-h-11 max-w-full';
@@ -88,6 +90,7 @@ function PasskeyPanel({ available, uid }: { available: boolean; uid?: string }) 
       <p role="status" className="text-sm text-[var(--text)]">{status}</p>
       {error && <p role="alert" className="text-sm text-rose-400 break-words">{error}</p>}
       {notice && <p role="status" className="text-sm text-[var(--pos)]">{notice}</p>}
+      {available && supported && passkeys === null && loadFailed && <AsyncButton type="button" variant="secondary" className={buttonClass} onClick={() => { setError(''); return load(); }}>Try again</AsyncButton>}
       {available && supported && passkeys !== null && <>
         <ul className="space-y-3">{passkeys.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-3">
           <span className="min-w-0 break-words text-sm flex flex-wrap items-center gap-1">
