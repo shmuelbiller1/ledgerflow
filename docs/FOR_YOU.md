@@ -114,8 +114,9 @@ Last updated: 2026-10-07.
     visitor typed into that header. If it does not, anyone could claim to be on the office address. The safe
     header would be `cf-connecting-ip` (set by Cloudflare), if Supabase passes it to the database. Checking it
     needs one query on the live project, which Claude does not run (the Supabase tool is only for migrations).
-    To unblock: in Supabase → SQL editor, run `select current_setting('request.headers', true);` from the app
-    (or ask Claude to add a tiny diagnostic function in a migration). *Default: P-03 waits; Claude moves on to
+    To unblock: say "check the IP header" and Claude adds a small owner-only diagnostic function (a migration)
+    that reports which address headers arrive through the app (the SQL editor bypasses the gateway, so it
+    cannot show them). *Default: P-03 waits; Claude moves on to
     C-19/L-123.*
 
 ## B. Decisions (Claude uses the default until you say otherwise)
