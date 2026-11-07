@@ -394,3 +394,54 @@ export function multiFactor(user: User) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Passkeys (CC-12): sign in with the device's fingerprint, face or PIN instead of a password.
+// Supabase Auth runs the WebAuthn ceremony; a passkey is added from Security settings while signed in.
+// A user with an authenticator app still gives its code after a passkey sign-in (pendingFactorId reads
+// the session's level the same way), so a passkey never skips the second step.
+// ---------------------------------------------------------------------------
+
+export interface PasskeyInfo { id: string; name: string; createdAt: string; lastUsedAt?: string }
+
+export const MAX_PASSKEY_NAME = 60;
+
+/** Whether this browser can use passkeys at all (WebAuthn available on a secure page). */
+export function passkeysSupported(): boolean {
+  return typeof window !== 'undefined' && window.isSecureContext === true
+    && typeof window.PublicKeyCredential === 'function' && typeof navigator !== 'undefined' && Boolean(navigator.credentials);
+}
+
+/** A passkey's name as shown and saved: trimmed, at most MAX_PASSKEY_NAME characters, never empty. */
+export function passkeyName(name: string | undefined, fallback = 'Passkey'): string {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_PASSKEY_NAME);
+  return clean || fallback;
+}
+
+export async function signInWithPasskey(_auth: Auth): Promise<UserCredential> {
+  const { data, error } = await getSupabase().auth.signInWithPasskey();
+  const session = data?.session;
+  if (error || !session?.user) fail(error, 'passkey-sign-in-failed');
+  return { user: toUser(session.user), secondFactorRequired: pendingFactorId(session) !== null };
+}
+
+export async function listPasskeys(): Promise<PasskeyInfo[]> {
+  const { data, error } = await getSupabase().auth.passkey.list();
+  if (error) fail(error, 'passkey-list-failed');
+  return (data || []).map(p => ({ id: p.id, name: passkeyName(p.friendly_name), createdAt: p.created_at, ...(p.last_used_at ? { lastUsedAt: p.last_used_at } : {}) }));
+}
+
+export async function addPasskey(name?: string): Promise<void> {
+  const { data, error } = await getSupabase().auth.registerPasskey();
+  if (error || !data) fail(error, 'passkey-register-failed');
+  const clean = passkeyName(name, '');
+  if (clean && clean !== data.friendly_name) {
+    const renamed = await getSupabase().auth.passkey.update({ passkeyId: data.id, friendlyName: clean });
+    if (renamed.error) fail(renamed.error, 'passkey-rename-failed');
+  }
+}
+
+export async function removePasskey(id: string): Promise<void> {
+  const { error } = await getSupabase().auth.passkey.delete({ passkeyId: id });
+  if (error) fail(error, 'passkey-delete-failed');
+}
