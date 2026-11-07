@@ -85,6 +85,14 @@ Last updated: 2026-10-07.
     Authentication → Providers → Email → *Minimum password length* **10**, and, if your plan has it,
     turn on *Prevent use of leaked passwords*. *Default meanwhile: the app's own check.*
 
+49. **Turn on passkeys in Supabase (2 minutes, 7 Nov).** The app now has "Sign in with a passkey" on the
+    sign-in screen and a Passkeys section in Settings → Security (CC-12). Supabase has to allow them:
+    Supabase → project *ledgerflow* → Authentication → the passkeys / WebAuthn setting (under Sign In / Providers; the exact menu name may differ) → enable,
+    with the site's domain as the relying party (the live address, e.g. `ledgerflow.vercel.app`) and the
+    live address as an allowed origin. *Until then: the buttons show, and using one says the passkey was not
+    added / sign-in failed; password and Google sign-in work as before.* Someone with an authenticator app
+    still gives its code after a passkey.
+
 ## B. Decisions (Claude uses the default until you say otherwise)
 
 10. **Hebrew data — decided by owner (2 Oct).** Keep menus and options in English. The system and algorithms must handle Hebrew and mixed Hebrew/English names, labels, item descriptions and other record text throughout search/matching, imports/exports and documents. This is data-language support, not a request to translate the interface. Codex is auditing it after C-6…C-11; existing financial rules must stay intact.
