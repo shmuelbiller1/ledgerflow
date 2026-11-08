@@ -15,7 +15,8 @@ import type { DimensionDefinition, DimensionNode } from '../../types';
 
 /**
  * Attaches a native DOM keydown listener directly on an inline input so Enter and Escape are
- * handled before bubbling to `useDialog`'s native dialog listener or enclosing `<form>` handlers.
+ * handled before bubbling to `useDialog`'s native dialog listener or enclosing `<form>` handlers,
+ * while ignoring IME composition confirmation keystrokes (`isComposing` / `keyCode === 229`).
  */
 function useIsolatedInlineInputKeys(
   active: boolean,
@@ -36,10 +37,12 @@ function useIsolatedInlineInputKeys(
     if (!active || !el) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
+        if (e.isComposing || e.keyCode === 229) return;
         e.preventDefault();
         e.stopPropagation();
         enterRef.current();
       } else if (e.key === 'Escape') {
+        if (e.isComposing || e.keyCode === 229) return;
         e.preventDefault();
         e.stopPropagation();
         escapeRef.current();
@@ -63,6 +66,10 @@ interface DimensionValueActionsInnerProps {
   adapter?: DimensionNodeActionAdapter;
 }
 
+/**
+ * Renders inline actions below a dimension value input: saves newly typed values as `DimensionNode`s
+ * or renames an already-matched node globally while preserving form draft edits made during async saves.
+ */
 function DimensionValueActionsInner({
   dimensionId,
   dimensionName,
@@ -83,6 +90,13 @@ function DimensionValueActionsInner({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const onSelectNodeRef = useRef(onSelectNode);
+  const onRenamedRef = useRef(onRenamed);
+
+  useEffect(() => {
+    onSelectNodeRef.current = onSelectNode;
+    onRenamedRef.current = onRenamed;
+  });
 
   const trimmed = (value || '').trim();
   const matched = canWrite && trimmed && trimmed !== 'Unassigned'
@@ -91,6 +105,7 @@ function DimensionValueActionsInner({
   const activeMatch = matched && matched.status !== 'archived' ? matched : undefined;
   const isEditing = Boolean(activeMatch && editingNodeId === activeMatch.id);
 
+  /** Closes the inline rename input and restores focus to the Rename trigger button. */
   const cancelRename = () => {
     setEditingNodeId(null);
     setDraftName('');
@@ -98,6 +113,7 @@ function DimensionValueActionsInner({
     queueMicrotask(() => triggerRef.current?.focus());
   };
 
+  /** Persists a global rename for the matched DimensionNode and notifies the latest form callback. */
   const commitRename = async (node: DimensionNode) => {
     const next = draftName.trim();
     if (!next) {
@@ -125,7 +141,7 @@ function DimensionValueActionsInner({
     }
     setEditingNodeId(null);
     setDraftName('');
-    onRenamed?.(res.value);
+    onRenamedRef.current?.(res.value);
     queueMicrotask(() => triggerRef.current?.focus());
     return true;
   };
@@ -142,6 +158,7 @@ function DimensionValueActionsInner({
 
   const lineSuffix = lineNumber !== undefined ? ` on line ${lineNumber}` : '';
 
+  /** Saves the currently typed free-text value as a Workspace DimensionNode and selects its ID on the latest draft. */
   const createLabel = async () => {
     const scope = identityScope(
       () => useAuthStore.getState().user?.uid,
@@ -158,10 +175,11 @@ function DimensionValueActionsInner({
       setError(res.error);
       return false;
     }
-    onSelectNode(res.value);
+    onSelectNodeRef.current(res.value);
     return true;
   };
 
+  /** Opens the inline rename editor seeded with the matched node's current description. */
   const startRename = (node: DimensionNode) => {
     setEditingNodeId(node.id);
     setDraftName(node.description);
@@ -267,6 +285,9 @@ function DimensionValueActionsInner({
   );
 }
 
+/**
+ * Workspace-scoped wrapper for inline dimension label creation and global renaming.
+ */
 export function DimensionValueActions(props: DimensionValueActionsInnerProps) {
   const uid = useAuthStore(s => s.user?.uid);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -279,6 +300,9 @@ interface InlineAddDimensionAxisInnerProps {
   adapter?: DimensionNodeActionAdapter;
 }
 
+/**
+ * Renders an inline "+ New dimension" control for workspace owners and accountants (`accountant+`).
+ */
 function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: InlineAddDimensionAxisInnerProps) {
   const inputId = useId();
   const role = useCurrentRole();
@@ -289,7 +313,13 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const onAddedRef = useRef(onAdded);
 
+  useEffect(() => {
+    onAddedRef.current = onAdded;
+  });
+
+  /** Closes the new-dimension input and returns focus to the trigger button. */
   const close = () => {
     setOpen(false);
     setName('');
@@ -297,6 +327,7 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
     queueMicrotask(() => triggerRef.current?.focus());
   };
 
+  /** Persists a new dimension category on the active workspace and notifies the caller. */
   const submitAxis = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -320,7 +351,7 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
     }
     setOpen(false);
     setName('');
-    onAdded?.(res.value);
+    onAddedRef.current?.(res.value);
     queueMicrotask(() => triggerRef.current?.focus());
     return true;
   };
@@ -397,6 +428,9 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
   );
 }
 
+/**
+ * Workspace-scoped wrapper for adding a new workspace dimension axis inline.
+ */
 export function InlineAddDimensionAxis(props: InlineAddDimensionAxisInnerProps) {
   const uid = useAuthStore(s => s.user?.uid);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);

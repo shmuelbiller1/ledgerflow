@@ -5,16 +5,21 @@
  * (Z-12, Settings → Dimensions → Required labels) and says which one is missing. The values offered
  * are the workspace's own (Settings → Dimensions); new labels can also be saved or renamed inline.
  */
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel } from '../../lib/dimensionUtils';
 import { requiredLabelWarnings } from '../../lib/requiredLabels';
 import { DimensionValueActions, InlineAddDimensionAxis } from './DimensionValueActions';
 
-export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
+/**
+ * Renders expandable dimension inputs and inline label creation/rename actions for a single document line.
+ */
+export function LineLabels({ value, onChange, onPatch, accountId, date, lineNumber }: {
   value?: Record<string, string>;
   onChange: (next: Record<string, string>) => void;
+  /** Optional single-axis updater that merges onto the latest line state without overwriting concurrent edits. */
+  onPatch?: (dimensionId: string, text: string) => void;
   accountId?: string;
   /** the document's date: a required-label rule applies from its own date on */
   date?: string;
@@ -26,6 +31,16 @@ export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
   const accounts = useLedgerStore(s => s.accounts || []);
   const axes = dimensions.filter(d => d.id !== 'category');
   const labels = value || {};
+  const labelsRef = useRef(labels);
+  const onChangeRef = useRef(onChange);
+  const onPatchRef = useRef(onPatch);
+
+  useEffect(() => {
+    labelsRef.current = labels;
+    onChangeRef.current = onChange;
+    onPatchRef.current = onPatch;
+  });
+
   const warnings = requiredLabelWarnings([{ accountId: accountId || '', dimensions: labels }], date || '9999-12-31', dimensions, accounts)
     .map(w => w.replace(/ \(line 1\)$/, ''));
   const [open, setOpen] = useState(false);
@@ -33,11 +48,16 @@ export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
   const set = Object.entries(labels).filter(([, v]) => v);
   if (axes.length === 0) return null;
 
+  /** Updates a single dimension value against the freshest line state. */
   const change = (dimensionId: string, text: string) => {
-    const next = { ...labels };
+    if (onPatchRef.current) {
+      onPatchRef.current(dimensionId, text);
+      return;
+    }
+    const next = { ...labelsRef.current };
     const key = dimensionId.toLowerCase();
     if (text.trim()) next[key] = text; else delete next[key];
-    onChange(next);
+    onChangeRef.current(next);
   };
 
   return (
@@ -52,9 +72,10 @@ export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
         <div id={`${id}-labels`} className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             {axes.map(axis => {
+              const axisKey = axis.id.toLowerCase();
               const listId = `${id}-${axis.id}`;
               const known = nodes.filter(n => n.dimensionId === axis.id && n.status !== 'archived');
-              const currentValue = labels[axis.id.toLowerCase()] || '';
+              const currentValue = labels[axisKey] || '';
               return (
                 <div key={axis.id}>
                   <label htmlFor={`${listId}-input`} className="block text-[var(--muted)]">{axis.name}<span className="sr-only"> for line {lineNumber}</span></label>
@@ -67,7 +88,7 @@ export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
                     value={currentValue}
                     lineNumber={lineNumber}
                     onSelectNode={node => change(axis.id, node.id)}
-                    onRenamed={node => { if (currentValue) change(axis.id, node.id); }}
+                    onRenamed={node => { if (labelsRef.current[axisKey]) change(axis.id, node.id); }}
                   />
                 </div>
               );

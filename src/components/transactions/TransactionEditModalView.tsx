@@ -442,8 +442,11 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                               value={displayVal}
                               disabled={isLocked}
                               onChange={(e) => {
-                                const updatedLine = setLineDimension(line, dim.id, e.target.value, dimensionNodes);
-                                handleLineChange(idx, updatedLine);
+                                handleLineChange(
+                                  idx,
+                                  current => setLineDimension(current, dim.id, e.target.value, dimensionNodes),
+                                  lineKeys[idx],
+                                );
                               }}
                               placeholder={`Type or select ${dim.name.toLowerCase()}`}
                               className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-2.5 py-1.5 text-xs text-[var(--text)] outline-none focus:border-zinc-400"
@@ -458,10 +461,18 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                               lineNumber={idx + 1}
                               disabled={isLocked}
                               onSelectNode={node => {
-                                handleLineChange(idx, setLineDimension(line, dim.id, node.id, useLedgerStore.getState().dimensionNodes));
+                                handleLineChange(
+                                  idx,
+                                  current => setLineDimension(current, dim.id, node.id, useLedgerStore.getState().dimensionNodes),
+                                  lineKeys[idx],
+                                );
                               }}
                               onRenamed={node => {
-                                handleLineChange(idx, setLineDimension(line, dim.id, node.id, useLedgerStore.getState().dimensionNodes));
+                                handleLineChange(
+                                  idx,
+                                  current => setLineDimension(current, dim.id, node.id, useLedgerStore.getState().dimensionNodes),
+                                  lineKeys[idx],
+                                );
                               }}
                             />
                           </div>

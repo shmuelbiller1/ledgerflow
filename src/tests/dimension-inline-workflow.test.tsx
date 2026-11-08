@@ -26,10 +26,12 @@ import {
 } from '../lib/dimensionNodeActions';
 import { LineLabels } from '../components/common/LineLabels';
 import BillModal, { type BillDraft } from '../components/purchases/BillModal';
+import Purchases from '../components/purchases/Purchases';
 import JournalEntryModal from '../components/ledger/JournalEntryModal';
 import SplitEditor from '../components/transactions/SplitEditor';
 import TransactionEditModal from '../components/transactions/TransactionEditModal';
 import DimensionsSettings from '../components/platform/settings/DimensionsSettings';
+import { toast } from 'sonner';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { makeChartAccount, makeTransaction, makeVendor } from './fixtures';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -204,10 +206,16 @@ describe('Inline label creation, renaming, and new dimensions across transaction
 
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      const method = (init?.method || 'GET').toUpperCase();
+      const parsed = init?.body ? JSON.parse(String(init.body)) : {};
+      const body = (Array.isArray(parsed) ? parsed[0] : parsed) as Record<string, unknown>;
       if (url.includes('/rpc/')) {
         rpcCalls.push({ url, body });
         return new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (method === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
+        rpcCalls.push({ url, body });
+        return new Response(JSON.stringify([body]), { status: 201, headers: { 'Content-Type': 'application/json' } });
       }
       if (url.includes('/dimensionNodes?') && url.includes('P5')) {
         const current = useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P5');
@@ -271,7 +279,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
       assert.equal(useLedgerStore.getState().dimensionNodes.some(n => n.id === 'P6' && n.description === 'Maui House'), true);
     });
     assert.equal((screen.getByLabelText('Property for line 1') as HTMLInputElement).value, 'P6');
-    assert.ok(rpcCalls.some(c => c.url.includes('lf_set') && c.body.p_table === 'dimensionNodes'));
+    const inlineInsert = rpcCalls.find(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url));
+    assert.ok(inlineInsert, 'expected create-only insert on dimensionNodes');
+    assert.equal((inlineInsert.body.data as { id?: string; description?: string })?.id, 'P6');
+    assert.equal((inlineInsert.body.data as { description?: string })?.description, 'Maui House');
 
     // Rename P5 ("5 Ocean Ave" -> "5 Ocean Blvd") using Enter; parent dialog stays open and unsaved
     fireEvent.change(propInput, { target: { value: 'P5' } });
@@ -467,30 +478,66 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     assert.equal(screen.queryByRole('button', { name: /Rename Property label/ }), null);
   });
 
-  test('DimensionsSettings persists new nodes, archive toggles, and new axes immediately without waiting for bottom save', async () => {
+  test('DimensionsSettings persists new nodes, archive toggles, aliases on existing nodes, IME guards, and new axes immediately', async () => {
     render(<DimensionsSettings />);
 
-    // Add a new Property node via Enter -> persists immediately to dimensionNodes
+    // IME composition Enter must not commit partial text
     const descInput = screen.getByLabelText('Display Description for new Property value');
+    fireEvent.change(descInput, { target: { value: 'Harbor' } });
+    await act(async () => {
+      fireEvent.keyDown(descInput, { key: 'Enter', isComposing: true, keyCode: 229 });
+    });
+    assert.equal(rpcCalls.length, 0, 'IME composition Enter must not submit node creation');
+
+    // Add a new Property node via ordinary Enter -> persists immediately with verified payload
     fireEvent.change(descInput, { target: { value: 'Harbor Suite' } });
     await act(async () => {
       fireEvent.keyDown(descInput, { key: 'Enter' });
     });
     await waitFor(() => {
-      assert.ok(rpcCalls.some(c => c.url.includes('lf_set') && c.body.p_table === 'dimensionNodes'));
+      assert.ok(rpcCalls.some(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url)));
     });
+    const createdNodeWrite = rpcCalls.find(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url))!;
+    assert.equal((createdNodeWrite.body.data as { id?: string; description?: string; status?: string }).id, 'P6');
+    assert.equal((createdNodeWrite.body.data as { description?: string }).description, 'Harbor Suite');
+    assert.equal((createdNodeWrite.body.data as { status?: string }).status, 'active');
     assert.equal(useLedgerStore.getState().dimensionNodes.some(n => n.id === 'P6' && n.description === 'Harbor Suite'), true);
 
-    // Archive P5 -> persists immediately via lf_update
+    // Entering an already-existing label WITH new aliases merges those aliases instead of dropping them
+    fireEvent.change(descInput, { target: { value: 'Harbor Suite' } });
+    fireEvent.change(screen.getByLabelText('Aliases for new Property value'), { target: { value: 'Harbor Penthouse' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Add Node to Property/ }));
+    });
+    await waitFor(() => {
+      assert.ok(
+        rpcCalls.some(
+          c =>
+            c.url.includes('lf_update') &&
+            c.body.p_table === 'dimensionNodes' &&
+            Array.isArray((c.body.p_set as { aliases?: string[] })?.aliases),
+        ),
+      );
+    });
+    assert.deepEqual(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P6')?.aliases, ['Harbor Penthouse']);
+
+    // Archive P5 -> persists immediately via lf_update with status: 'archived'
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Archive Property 5 Ocean Ave/ }));
     });
     await waitFor(() => {
-      assert.ok(rpcCalls.some(c => c.url.includes('lf_update') && c.body.p_table === 'dimensionNodes'));
+      assert.ok(
+        rpcCalls.some(
+          c =>
+            c.url.includes('lf_update') &&
+            c.body.p_table === 'dimensionNodes' &&
+            (c.body.p_set as { status?: string })?.status === 'archived',
+        ),
+      );
     });
     assert.equal(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P5')?.status, 'archived');
 
-    // Add a new Dimension Axis -> persists immediately to workspaces
+    // Add a new Dimension Axis -> persists immediately to workspaces with 'store' in p_set.dimensions
     fireEvent.click(screen.getByRole('button', { name: /Add Dimension Axis/ }));
     fireEvent.change(screen.getByLabelText('Display Name'), { target: { value: 'Store' } });
     await act(async () => {
@@ -499,48 +546,105 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     await waitFor(() => {
       assert.ok(rpcCalls.some(c => c.url.includes('lf_update') && c.body.p_table === 'workspaces'));
     });
+    const wsUpdate = rpcCalls.find(c => c.url.includes('lf_update') && c.body.p_table === 'workspaces')!;
+    const savedAxes = (wsUpdate.body.p_set as { dimensions?: DimensionDefinition[] }).dimensions || [];
+    assert.equal(savedAxes.some(d => d.id === 'store' && d.name === 'Store'), true);
     assert.equal(useAuthStore.getState().getCurrentWorkspace()?.dimensions?.some(d => d.id === 'store'), true);
   });
 
-  test('Saving an Invoice, Bill, Transaction, or Journal Entry auto-registers newly typed dimension labels via findOrCreateDimensionNode', async () => {
+  test('Saving multi-line documents registers new labels sequentially, preserves slash suffixes, retries ID conflicts, and keeps real Project references', async () => {
+    const remoteOccupied = new Map<string, DimensionNode>([
+      ['property:P7', { id: 'P7', dimensionId: 'property', description: 'Harbor Loft', status: 'active' }],
+    ]);
     const h = createMemoryAdapter({
       nodes: [
         { id: 'P5', dimensionId: 'property', description: '5 Ocean Ave', status: 'active' },
-        { id: 'PRJ1', dimensionId: 'project', description: 'Website Launch', status: 'active' },
+        { id: 'AB1', dimensionId: 'project', description: 'A/B Testing', status: 'active' },
       ],
     });
+    // Simulate a stale local cache where P7 already exists on the server for a different label
+    h.adapter.createOnlyNode = async (workspaceId, node) => {
+      const key = `${node.dimensionId}:${node.id}`;
+      if (remoteOccupied.has(key)) return 'conflict';
+      remoteOccupied.set(key, node);
+      await h.adapter.writeNode(workspaceId, node);
+      return 'created';
+    };
+    h.adapter.readNode = async (workspaceId, dimensionId, nodeId) => {
+      const remote = remoteOccupied.get(`${dimensionId}:${nodeId}`);
+      if (remote) return { ...remote, workspaceId };
+      const local = h.adapter.getNodes().find(n => n.id === nodeId && n.dimensionId === dimensionId);
+      return local ? { ...local, workspaceId } : undefined;
+    };
+
     assert.equal(normalizeDimensionsMap(undefined, h.adapter.getNodes()), undefined);
-    assert.deepEqual(normalizeDimensionsMap({ property: '5 Ocean Ave' }, h.adapter.getNodes()), { property: 'P5' });
+    assert.deepEqual(normalizeDimensionsMap({ property: '5 Ocean Ave/Unit B' }, h.adapter.getNodes()), { property: 'P5/Unit B' });
 
+    // Multi-line invoice with two distinct new labels on the same axis allocates P1 and P2 without overwriting Roof
     const savedInvoice = await ensureInvoiceDimensionNodes(
-      { items: [{ dimensions: { property: 'Sunset Bungalow', project: 'Website Launch' } }] },
+      {
+        items: [
+          { dimensions: { property: 'Sunset Bungalow', project: 'Roof' } },
+          { dimensions: { property: 'Cliffside Villa', project: 'Pool' } },
+        ],
+      },
       h.adapter,
     );
-    assert.deepEqual(savedInvoice.items?.[0].dimensions, { property: 'P6', project: 'PRJ1' });
-    assert.equal(h.adapter.getNodes().some(n => n.id === 'P6' && n.description === 'Sunset Bungalow'), true);
+    // Sunset Bungalow gets P6; Cliffside Villa hits P7 conflict ('Harbor Loft'), preserves P7, and allocates P8!
+    assert.deepEqual(savedInvoice.items?.[0].dimensions, { property: 'P6', project: 'P1' });
+    assert.deepEqual(savedInvoice.items?.[1].dimensions, { property: 'P8', project: 'P2' });
+    assert.equal(h.adapter.getNodes().find(n => n.dimensionId === 'project' && n.id === 'P1')?.description, 'Roof');
+    assert.equal(h.adapter.getNodes().find(n => n.dimensionId === 'project' && n.id === 'P2')?.description, 'Pool');
+    assert.equal(h.adapter.getNodes().find(n => n.dimensionId === 'property' && n.id === 'P7')?.description, 'Harbor Loft');
 
+    // Hierarchical paths preserve suffix text & empty segments, and whole-string slash labels stay intact
     const savedBill = await ensureBillDimensionNodes(
-      { splits: [{ dimensions: { property: 'Sunset Bungalow / Guest House' } }] },
+      {
+        splits: [
+          { dimensions: { property: 'Sunset Bungalow/Guest House', project: 'A/B Testing' } },
+          { dimensions: { property: 'P6//Unit 2' } },
+        ],
+      },
       h.adapter,
     );
-    assert.deepEqual(savedBill.splits?.[0].dimensions, { property: 'P6/P7' });
+    assert.deepEqual(savedBill.splits?.[0].dimensions, { property: 'P6/Guest House', project: 'AB1' });
+    assert.deepEqual(savedBill.splits?.[1].dimensions, { property: 'P6//Unit 2' });
 
     const savedTx = await ensureTransactionDimensionNodes(
       {
         lines: [
           {
             dimensions: { project: 'Q4 Audit' },
-            splitAllocations: [{ dimensions: { property: 'Mountain Cabin' }, weight: 1 }],
+            splitAllocations: [
+              { dimensions: { property: 'Mountain Cabin' }, weight: 0.5 },
+              { dimensions: { property: 'Lake Cottage' }, weight: 0.5 },
+            ],
           },
         ],
       },
       h.adapter,
     );
-    assert.deepEqual(savedTx.lines?.[0].dimensions, { project: 'P1' });
-    assert.deepEqual(savedTx.lines?.[0].splitAllocations?.[0].dimensions, { property: 'P8' });
+    assert.deepEqual(savedTx.lines?.[0].dimensions, { project: 'P3' });
+    assert.deepEqual(savedTx.lines?.[0].splitAllocations?.[0].dimensions, { property: 'P9' });
+    assert.deepEqual(savedTx.lines?.[0].splitAllocations?.[1].dimensions, { property: 'P10' });
 
-    // JournalEntryModal commit without clicking the inline "+ Save" button still auto-registers the label
+    // JournalEntryModal commit preserves real Project ID in line.project while canonicalizing line.dimensions.project
     const wsId = useAuthStore.getState().currentWorkspaceId!;
+    useLedgerStore.setState({
+      projects: [
+        {
+          id: 'proj_web',
+          uid: 'test-user',
+          workspaceId: wsId,
+          name: 'Website Redesign',
+          type: 'general',
+          status: 'active',
+          budgetCents: 50000,
+          createdAt: '2026-01-01',
+          dimensions: [],
+        },
+      ],
+    });
     render(
       <JournalEntryModal
         isOpen
@@ -555,6 +659,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'util' } });
     fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '90' } });
     fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: 'Tokyo Loft' } });
+    fireEvent.change(screen.getByLabelText('Project for line 1'), { target: { value: 'Website Redesign' } });
     fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: 'bank' } });
     fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: '90' } });
 
@@ -565,9 +670,99 @@ describe('Inline label creation, renaming, and new dimensions across transaction
       assert.ok(rpcCalls.some(c => c.url === '/api/v1/transactions'));
     });
     const tokyoNode = useLedgerStore.getState().dimensionNodes.find(n => n.description === 'Tokyo Loft');
-    assert.ok(tokyoNode, 'Tokyo Loft should be auto-registered in dimensionNodes on journal save');
+    const webNode = useLedgerStore.getState().dimensionNodes.find(n => n.description === 'Website Redesign');
+    assert.ok(tokyoNode);
+    assert.ok(webNode);
     const txPost = rpcCalls.find(c => c.url === '/api/v1/transactions')!;
-    const postedLines = (txPost.body.transaction as { lines: Array<{ dimensions?: Record<string, string> }> }).lines;
+    const postedLines = (txPost.body.transaction as { lines: Array<{ project?: string; dimensions?: Record<string, string> }> }).lines;
     assert.equal(postedLines[0].dimensions?.property, tokyoNode.id);
+    assert.equal(postedLines[0].dimensions?.project, webNode.id);
+    assert.equal(postedLines[0].project, 'proj_web', 'real Project ID must be preserved on line.project');
+  });
+
+  test('Editing a bill draft while an inline label save is pending preserves intervening edits, and failed auto-registration shows a toast error', async () => {
+    let releaseInsert!: () => void;
+    const insertGate = new Promise<void>(resolve => {
+      releaseInsert = resolve;
+    });
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if ((init?.method || 'GET').toUpperCase() === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
+        await insertGate;
+      }
+      return prevFetch(input, init);
+    }) as typeof fetch;
+
+    const savedBills: BillDraft[] = [];
+    const view = render(
+      <BillModal
+        isOpen
+        onClose={() => {}}
+        onSave={b => savedBills.push(b)}
+        vendors={[makeVendor({ id: 'v1', name: 'City Power' })]}
+        accounts={accounts}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'v1' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Concurrent draft edit' } });
+    fireEvent.change(screen.getByLabelText('Expense Account'), { target: { value: 'util' } });
+    fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Labels for line 1' }));
+    fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: 'Pending Villa' } });
+
+    // Start the inline label save while amount is 100
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /Save “Pending Villa” as Property label/ }));
+    });
+    // Change amount to 200 while the save is still in flight
+    fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '200' } });
+
+    // Resolve the pending insert and verify amount stays 200 and Property becomes P6
+    await act(async () => {
+      releaseInsert();
+      await insertGate;
+    });
+    await waitFor(() => {
+      assert.equal((screen.getByLabelText('Property for line 1') as HTMLInputElement).value, 'P6');
+    });
+    assert.equal((screen.getByLabelText(/^Amount \(/) as HTMLInputElement).value, '200');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save & Close'));
+    });
+    await waitFor(() => assert.equal(savedBills.length, 1));
+    assert.equal(savedBills[0].splits?.[0].amountCents, 20000);
+    assert.equal(savedBills[0].splits?.[0].dimensions?.property, 'P6');
+    view.unmount();
+
+    // Now verify Purchases surfaces toast.error and keeps the modal open when auto-registration fails (>200 chars)
+    globalThis.fetch = prevFetch;
+    useLedgerStore.setState({ vendors: [makeVendor({ id: 'v1', name: 'City Power' })] });
+    const toastErrors: string[] = [];
+    const origError = toast.error;
+    toast.error = ((msg: unknown) => {
+      toastErrors.push(String(msg));
+      return '';
+    }) as typeof toast.error;
+    try {
+      render(<Purchases />);
+      fireEvent.click(await screen.findByText('Record Bill'));
+      fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'v1' } });
+      fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Overlong label bill' } });
+      fireEvent.change(screen.getByLabelText('Expense Account'), { target: { value: 'util' } });
+      fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '75' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Labels for line 1' }));
+      fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: 'X'.repeat(205) } });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Save & Close'));
+      });
+      assert.ok(toastErrors.some(m => /200 characters/i.test(m)), 'expected user-facing toast error on failed label registration');
+      assert.ok(screen.getByText('Save & Close'), 'bill modal stays open with draft preserved');
+    } finally {
+      toast.error = origError;
+    }
   });
 });

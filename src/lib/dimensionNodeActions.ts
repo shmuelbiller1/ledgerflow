@@ -9,6 +9,7 @@ import {
 } from './dimensionUtils';
 import type { DimensionDefinition, DimensionNode } from '../types';
 
+/** Normalizes text for case-insensitive Unicode comparisons. */
 const norm = (value: string) => value.normalize('NFC').toLowerCase().trim();
 
 /**
@@ -39,7 +40,8 @@ export function matchDimensionNode(
 
 /**
  * Resolves a user-entered value to a registered stable node ID when it matches a known node
- * (including hierarchical paths like "5 Ocean Ave/Unit B" -> "P5/Unit B"), keeping unknown text intact.
+ * (including hierarchical paths like "5 Ocean Ave/Unit B" -> "P5/Unit B"), keeping unknown text
+ * and slash suffixes intact.
  */
 export function normalizeDimensionInputToNodeId(
   nodes: readonly DimensionNode[] | undefined,
@@ -55,7 +57,7 @@ export function normalizeDimensionInputToNodeId(
   if (trimmed.includes('/')) {
     const [head, ...tail] = trimmed.split('/');
     const headNode = matchDimensionNode(nodes, dimensionId, head);
-    if (headNode) return [headNode.id, ...tail.map(part => part.trim())].join('/');
+    if (headNode) return [headNode.id, ...tail].join('/');
   }
 
   return trimmed;
@@ -107,12 +109,18 @@ export interface DimensionNodeActionAdapter {
   getWorkspaceDimensions(): DimensionDefinition[];
   setWorkspaceDimensions(workspaceId: string, dimensions: DimensionDefinition[]): void;
   writeNode(workspaceId: string, node: DimensionNode): Promise<void>;
+  /**
+   * Inserts a new node only when no row with its primary key exists yet, returning `'conflict'`
+   * instead of overwriting an existing label when another client or stale cache already took the ID.
+   */
+  createOnlyNode?(workspaceId: string, node: DimensionNode): Promise<'created' | 'conflict'>;
   readNode(workspaceId: string, dimensionId: string, nodeId: string): Promise<Record<string, unknown> | undefined>;
   updateNode(workspaceId: string, dimensionId: string, nodeId: string, fields: Record<string, unknown>): Promise<void>;
   readWorkspace(workspaceId: string): Promise<{ dimensions?: DimensionDefinition[] } | undefined>;
   updateWorkspace(workspaceId: string, dimensions: DimensionDefinition[]): Promise<void>;
 }
 
+/** Builds the deterministic `dimensionNodes` primary key for a workspace, axis, and node ID. */
 const nodeDocId = (workspaceId: string, dimensionId: string, nodeId: string) =>
   `${workspaceId}_${dimensionId}_${nodeId}`;
 
@@ -145,6 +153,19 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       workspaceId,
     });
   },
+  createOnlyNode: async (workspaceId, node) => {
+    if (!db) return 'created';
+    const rowId = nodeDocId(workspaceId, node.dimensionId, node.id);
+    const { error } = await db.client().from('dimensionNodes').insert({
+      id: rowId,
+      data: { ...node, workspaceId },
+    });
+    if (!error) return 'created';
+    if (error.code === '23505' || /duplicate key|already exists/i.test(error.message || '')) {
+      return 'conflict';
+    }
+    throw new Error(`${error.message || 'Database error'} (dimensionNodes/${rowId})`);
+  },
   readNode: async (workspaceId, dimensionId, nodeId) => {
     if (!db) return undefined;
     const snap = await getDoc(doc(db, 'dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId)));
@@ -165,6 +186,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
   },
 };
 
+/** Verifies the signed-in user and active workspace have not changed while an async write was in flight. */
 function assertSameSession(adapter: DimensionNodeActionAdapter, initial: DimensionActionSession) {
   const current = adapter.session();
   if (!current || current.uid !== initial.uid || current.workspaceId !== initial.workspaceId) {
@@ -173,9 +195,65 @@ function assertSameSession(adapter: DimensionNodeActionAdapter, initial: Dimensi
   return current;
 }
 
+/** Merges newly discovered remote nodes and a freshly created node into the adapter's node list without overwriting unrelated nodes. */
+function mergeNodesIntoStore(
+  adapter: DimensionNodeActionAdapter,
+  discovered: readonly DimensionNode[],
+  created?: DimensionNode,
+): void {
+  const merged = [...adapter.getNodes()];
+  const upsertLocal = (item: DimensionNode) => {
+    const idx = merged.findIndex(
+      n => norm(n.id) === norm(item.id) && norm(n.dimensionId) === norm(item.dimensionId),
+    );
+    if (idx === -1) merged.push(item);
+    else merged[idx] = item;
+  };
+  for (const remote of discovered) upsertLocal(remote);
+  if (created) upsertLocal(created);
+  adapter.setNodes(merged);
+}
+
+/** Converts a raw remote document into a typed DimensionNode when valid. */
+function toRemoteDimensionNode(
+  raw: Record<string, unknown> | undefined,
+  fallbackDimensionId: string,
+  fallbackId: string,
+): DimensionNode | undefined {
+  if (!raw || typeof raw.description !== 'string') return undefined;
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : fallbackId,
+    dimensionId: typeof raw.dimensionId === 'string' && raw.dimensionId ? raw.dimensionId : fallbackDimensionId,
+    description: raw.description,
+    ...(Array.isArray(raw.aliases) ? { aliases: raw.aliases.filter((a): a is string => typeof a === 'string') } : {}),
+    status: raw.status === 'archived' ? 'archived' : 'active',
+    ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
+  };
+}
+
+/** Attempts a create-only write, falling back to a read-before-write check for custom test adapters. */
+async function tryCreateNode(
+  adapter: DimensionNodeActionAdapter,
+  workspaceId: string,
+  node: DimensionNode,
+): Promise<'created' | 'conflict'> {
+  if (adapter.createOnlyNode) {
+    return adapter.createOnlyNode(workspaceId, node);
+  }
+  const existing = await adapter.readNode(workspaceId, node.dimensionId, node.id);
+  if (existing) return 'conflict';
+  await adapter.writeNode(workspaceId, node);
+  return 'created';
+}
+
+const MAX_ID_COLLISION_RETRIES = 16;
+
 /**
  * Registers a new DimensionNode (or unarchives a matching archived node) immediately
  * from inside a transaction form or Settings, returning the persisted node.
+ *
+ * Uses create-only inserts with conflict-safe ID retry so stale caches or concurrent writers
+ * never overwrite an existing label.
  */
 export async function registerDimensionNodeInline(
   dimensionId: string,
@@ -192,54 +270,72 @@ export async function registerDimensionNodeInline(
   const session = adapter.session();
   if (!session?.canWriteNodes) throw new Error('Your workspace role cannot create dimension labels.');
 
-  const currentNodes = adapter.getNodes();
-  const existing = matchDimensionNode(currentNodes, dimId, description);
+  const workingNodes = [...adapter.getNodes()];
+  const discoveredRemote: DimensionNode[] = [];
+  const existing = matchDimensionNode(workingNodes, dimId, description);
   const cleanAliases = initialAliases.map(a => a.trim()).filter(Boolean);
 
   if (existing) {
     if (existing.status === 'archived') {
-      const reactivated: DimensionNode = { ...existing, status: 'active' };
+      const mergedAliases = cleanAliases.length > 0
+        ? Array.from(new Set([...(existing.aliases || []), ...cleanAliases]))
+        : existing.aliases;
+      const reactivated: DimensionNode = {
+        ...existing,
+        ...(mergedAliases ? { aliases: mergedAliases } : {}),
+        status: 'active',
+      };
       await adapter.updateNode(session.workspaceId, existing.dimensionId, existing.id, {
         status: 'active',
+        ...(mergedAliases ? { aliases: mergedAliases } : {}),
         updatedAt: new Date().toISOString(),
       });
       assertSameSession(adapter, session);
-      adapter.setNodes(
-        adapter.getNodes().map(n =>
-          n.id === existing.id && norm(n.dimensionId) === norm(existing.dimensionId) ? reactivated : n,
-        ),
-      );
+      mergeNodesIntoStore(adapter, [], reactivated);
       return reactivated;
     }
     return existing;
   }
 
-  const nextId = suggestNextDimensionNodeId(dimId, currentNodes);
-  const newNode: DimensionNode = {
-    id: nextId,
-    dimensionId: dimId,
-    description,
-    ...(cleanAliases.length > 0 ? { aliases: cleanAliases } : {}),
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  };
+  for (let attemptIdx = 0; attemptIdx <= MAX_ID_COLLISION_RETRIES; attemptIdx++) {
+    const candidateId =
+      attemptIdx < MAX_ID_COLLISION_RETRIES
+        ? suggestNextDimensionNodeId(dimId, workingNodes)
+        : `${(dimId.replace(/[^a-z0-9]/gi, '').slice(0, 4) || 'N').toUpperCase()}-${crypto.randomUUID().slice(0, 8)}`;
 
-  await adapter.writeNode(session.workspaceId, newNode);
-  assertSameSession(adapter, session);
+    const newNode: DimensionNode = {
+      id: candidateId,
+      dimensionId: dimId,
+      description,
+      ...(cleanAliases.length > 0 ? { aliases: cleanAliases } : {}),
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    };
 
-  const latestNodes = adapter.getNodes();
-  const alreadyPresent = latestNodes.some(
-    n => n.id === newNode.id && norm(n.dimensionId) === norm(newNode.dimensionId),
-  );
-  adapter.setNodes(
-    alreadyPresent
-      ? latestNodes.map(n =>
-          n.id === newNode.id && norm(n.dimensionId) === norm(newNode.dimensionId) ? newNode : n,
-        )
-      : [...latestNodes, newNode],
-  );
+    const outcome = await tryCreateNode(adapter, session.workspaceId, newNode);
+    assertSameSession(adapter, session);
 
-  return newNode;
+    if (outcome === 'created') {
+      mergeNodesIntoStore(adapter, discoveredRemote, newNode);
+      return newNode;
+    }
+
+    const remoteRaw = await adapter.readNode(session.workspaceId, dimId, candidateId);
+    assertSameSession(adapter, session);
+    const remoteNode = toRemoteDimensionNode(remoteRaw, dimId, candidateId);
+    if (remoteNode) {
+      discoveredRemote.push(remoteNode);
+      workingNodes.push(remoteNode);
+      if (remoteNode.status !== 'archived' && norm(remoteNode.description) === norm(description)) {
+        mergeNodesIntoStore(adapter, discoveredRemote);
+        return remoteNode;
+      }
+    } else {
+      workingNodes.push({ id: candidateId, dimensionId: dimId, description: `__reserved_${candidateId}__`, status: 'active' });
+    }
+  }
+
+  throw new Error('Could not allocate a unique label ID. Please try saving again.');
 }
 
 /**
@@ -258,56 +354,68 @@ export async function renameDimensionNodeInline(
   if (description.length > 200) throw new Error('Label name must be 200 characters or fewer.');
 
   const session = adapter.session();
-  if (!session?.canWriteNodes) throw new Error('Your workspace role cannot edit dimension labels.');
+  if (!session?.canWriteNodes) throw new Error('Your workspace role cannot rename dimension labels.');
 
-  const stored = await adapter.readNode(session.workspaceId, dimensionId, nodeId);
-  const checked = assertSameSession(adapter, session);
-  if (!checked.canWriteNodes) throw new Error('Your workspace role cannot edit dimension labels.');
-
-  if (stored) {
-    if (stored.workspaceId && stored.workspaceId !== session.workspaceId) {
-      throw new Error('This label belongs to another workspace.');
-    }
-    const actualDesc = String(stored.description ?? '');
-    if (actualDesc !== previousDescription) {
-      throw new Error('Someone changed this label. Reopen the line to load its current name.');
-    }
+  const currentNodes = adapter.getNodes();
+  const duplicate = currentNodes.find(
+    n =>
+      norm(n.dimensionId) === norm(dimensionId) &&
+      n.id !== nodeId &&
+      n.status !== 'archived' &&
+      norm(n.description) === norm(description),
+  );
+  if (duplicate) {
+    throw new Error(`Another label ("${duplicate.id}") already uses "${description}".`);
   }
 
-  const baseAliases = stored && Array.isArray(stored.aliases)
-    ? stored.aliases.filter((a): a is string => typeof a === 'string')
-    : (adapter.getNodes().find(n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId))?.aliases || []);
-  const oldTrimmed = previousDescription.trim();
-  const aliases = oldTrimmed && norm(oldTrimmed) !== norm(description) && !baseAliases.some(a => norm(a) === norm(oldTrimmed))
-    ? [...baseAliases, oldTrimmed]
-    : baseAliases;
+  const remote = await adapter.readNode(session.workspaceId, dimensionId, nodeId);
+  const checked = assertSameSession(adapter, session);
+  if (!checked.canWriteNodes) throw new Error('Your workspace role cannot rename dimension labels.');
+
+  if (
+    remote &&
+    typeof remote.description === 'string' &&
+    remote.description.trim() !== previousDescription.trim()
+  ) {
+    throw new Error('This label was changed in another tab or by another team member. Refresh and try again.');
+  }
+
+  const baseNodes = currentNodes.some(
+    n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId),
+  )
+    ? currentNodes
+    : [
+        ...currentNodes,
+        {
+          id: nodeId,
+          dimensionId,
+          description: previousDescription.trim(),
+          aliases: Array.isArray(remote?.aliases) ? (remote.aliases as string[]) : [],
+          status: 'active' as const,
+        },
+      ];
+
+  if (norm(previousDescription) === norm(description) && previousDescription.trim() === description) {
+    const unchanged = baseNodes.find(n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId))!;
+    return unchanged;
+  }
+
+  const updatedList = updateDimensionNodeDescription(baseNodes, nodeId, dimensionId, description);
+  const updatedNode = updatedList.find(n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId));
+  if (!updatedNode) throw new Error('Label could not be found.');
 
   await adapter.updateNode(session.workspaceId, dimensionId, nodeId, {
-    description,
-    aliases,
+    description: updatedNode.description,
+    aliases: updatedNode.aliases || [],
     updatedAt: new Date().toISOString(),
   });
   assertSameSession(adapter, session);
-
-  const updatedList = updateDimensionNodeDescription(adapter.getNodes(), nodeId, dimensionId, description);
-  const syncedList = updatedList.map(n =>
-    n.id === nodeId && norm(n.dimensionId) === norm(dimensionId) ? { ...n, description, aliases } : n,
-  );
-  adapter.setNodes(syncedList);
-
-  return (
-    syncedList.find(n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId)) || {
-      id: nodeId,
-      dimensionId,
-      description,
-      aliases,
-      status: 'active',
-    }
-  );
+  adapter.setNodes(updatedList);
+  return updatedNode;
 }
 
 /**
- * Updates a node's active/archived status immediately and syncs the store.
+ * Archives or reactivates a DimensionNode immediately and syncs the store.
  */
 export async function setDimensionNodeStatusInline(
   dimensionId: string,
@@ -316,7 +424,7 @@ export async function setDimensionNodeStatusInline(
   adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter,
 ): Promise<void> {
   const session = adapter.session();
-  if (!session?.canWriteNodes) throw new Error('Your workspace role cannot change dimension labels.');
+  if (!session?.canWriteNodes) throw new Error('Your workspace role cannot update dimension labels.');
 
   await adapter.updateNode(session.workspaceId, dimensionId, nodeId, {
     status,
@@ -428,8 +536,8 @@ export function normalizeDimensionsMap(
 
 /**
  * Ensures every non-empty, non-`category` label in a `dimensions` map is backed by a `DimensionNode`
- * in the workspace (creating new nodes via `findOrCreateDimensionNode` when the user has `bookkeeper+`
- * permissions) and rewrites the map to store canonical `node.id` values.
+ * in the workspace (creating new root nodes when the user has `bookkeeper+` permissions) and rewrites
+ * the map to store canonical `node.id` values while preserving hierarchical slash suffixes intact.
  *
  * Makes zero network calls when `rawDimensions` is empty or all values already match existing nodes.
  */
@@ -458,20 +566,30 @@ export async function ensureDimensionNodesInMap(
       continue;
     }
 
-    const segments = trimmed.split('/').map(s => s.trim()).filter(Boolean);
-    const resolvedSegments: string[] = [];
-    for (const seg of segments) {
-      const existing = matchDimensionNode(adapter.getNodes(), axisId, seg);
-      if (existing && existing.status !== 'archived') {
-        resolvedSegments.push(existing.id);
-      } else if (session?.canWriteNodes) {
-        const created = await registerDimensionNodeInline(axisId, seg, [], adapter);
-        resolvedSegments.push(created.id);
-      } else {
-        resolvedSegments.push(seg);
+    const resolveSingle = async (token: string): Promise<string> => {
+      const cleanToken = token.trim();
+      if (!cleanToken || cleanToken === 'Unassigned') return token;
+      const existing = matchDimensionNode(adapter.getNodes(), axisId, cleanToken);
+      if (existing && existing.status !== 'archived') return existing.id;
+      if (session?.canWriteNodes) {
+        const created = await registerDimensionNodeInline(axisId, cleanToken, [], adapter);
+        return created.id;
       }
+      return cleanToken;
+    };
+
+    let joined: string;
+    const wholeMatch = matchDimensionNode(adapter.getNodes(), axisId, trimmed);
+    if (wholeMatch && wholeMatch.status !== 'archived') {
+      joined = wholeMatch.id;
+    } else if (trimmed.includes('/')) {
+      const [head, ...tail] = trimmed.split('/');
+      const resolvedHead = head.trim() ? await resolveSingle(head) : head;
+      joined = [resolvedHead, ...tail].join('/');
+    } else {
+      joined = await resolveSingle(trimmed);
     }
-    const joined = resolvedSegments.join('/');
+
     next[axisId] = joined;
     if (joined !== rawValue) changed = true;
   }
@@ -480,25 +598,28 @@ export async function ensureDimensionNodesInMap(
 }
 
 /**
- * Ensures header and line-level dimension labels on an invoice draft are registered as `DimensionNode`s.
+ * Ensures header and line-level dimension labels on an invoice draft are registered sequentially
+ * so multi-line saves never allocate colliding node IDs.
  */
 export async function ensureInvoiceDimensionNodes<
   T extends { dimensions?: Record<string, string>; items?: Array<{ dimensions?: Record<string, string> }> },
 >(invoice: T, adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter): Promise<T> {
   const dimensions = await ensureDimensionNodesInMap(invoice.dimensions, adapter);
   let itemsChanged = false;
-  const items = invoice.items
-    ? await Promise.all(
-        invoice.items.map(async item => {
-          const nextDims = await ensureDimensionNodesInMap(item.dimensions, adapter);
-          if (nextDims !== item.dimensions) {
-            itemsChanged = true;
-            return { ...item, dimensions: nextDims };
-          }
-          return item;
-        }),
-      )
-    : invoice.items;
+  let items = invoice.items;
+  if (invoice.items) {
+    const out: typeof invoice.items = [];
+    for (const item of invoice.items) {
+      const nextDims = await ensureDimensionNodesInMap(item.dimensions, adapter);
+      if (nextDims !== item.dimensions) {
+        itemsChanged = true;
+        out.push({ ...item, dimensions: nextDims });
+      } else {
+        out.push(item);
+      }
+    }
+    items = out;
+  }
   if (dimensions === invoice.dimensions && !itemsChanged) return invoice;
   return {
     ...invoice,
@@ -508,25 +629,28 @@ export async function ensureInvoiceDimensionNodes<
 }
 
 /**
- * Ensures header and split-level dimension labels on a bill draft are registered as `DimensionNode`s.
+ * Ensures header and split-level dimension labels on a bill draft are registered sequentially
+ * so multi-line saves never allocate colliding node IDs.
  */
 export async function ensureBillDimensionNodes<
   T extends { dimensions?: Record<string, string>; splits?: Array<{ dimensions?: Record<string, string> }> },
 >(bill: T, adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter): Promise<T> {
   const dimensions = await ensureDimensionNodesInMap(bill.dimensions, adapter);
   let splitsChanged = false;
-  const splits = bill.splits
-    ? await Promise.all(
-        bill.splits.map(async split => {
-          const nextDims = await ensureDimensionNodesInMap(split.dimensions, adapter);
-          if (nextDims !== split.dimensions) {
-            splitsChanged = true;
-            return { ...split, dimensions: nextDims };
-          }
-          return split;
-        }),
-      )
-    : bill.splits;
+  let splits = bill.splits;
+  if (bill.splits) {
+    const out: typeof bill.splits = [];
+    for (const split of bill.splits) {
+      const nextDims = await ensureDimensionNodesInMap(split.dimensions, adapter);
+      if (nextDims !== split.dimensions) {
+        splitsChanged = true;
+        out.push({ ...split, dimensions: nextDims });
+      } else {
+        out.push(split);
+      }
+    }
+    splits = out;
+  }
   if (dimensions === bill.dimensions && !splitsChanged) return bill;
   return {
     ...bill,
@@ -536,7 +660,8 @@ export async function ensureBillDimensionNodes<
 }
 
 /**
- * Ensures header, line-level, and split-allocation dimension labels on transaction updates are registered.
+ * Ensures header, line-level, and split-allocation dimension labels on transaction updates are
+ * registered sequentially so multi-line and multi-allocation saves never collide.
  */
 export async function ensureTransactionDimensionNodes<
   L extends { dimensions?: Record<string, string>; splitAllocations?: Array<{ dimensions: Record<string, string>; weight: number }> },
@@ -544,35 +669,39 @@ export async function ensureTransactionDimensionNodes<
 >(tx: T, adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter): Promise<T> {
   const dimensions = await ensureDimensionNodesInMap(tx.dimensions, adapter);
   let linesChanged = false;
-  const lines = tx.lines
-    ? await Promise.all(
-        tx.lines.map(async line => {
-          const nextDims = await ensureDimensionNodesInMap(line.dimensions, adapter);
-          let allocsChanged = false;
-          const nextAllocs = line.splitAllocations
-            ? await Promise.all(
-                line.splitAllocations.map(async alloc => {
-                  const ad = (await ensureDimensionNodesInMap(alloc.dimensions, adapter)) || alloc.dimensions;
-                  if (ad !== alloc.dimensions) {
-                    allocsChanged = true;
-                    return { ...alloc, dimensions: ad };
-                  }
-                  return alloc;
-                }),
-              )
-            : line.splitAllocations;
-          if (nextDims !== line.dimensions || allocsChanged) {
-            linesChanged = true;
-            return {
-              ...line,
-              ...(nextDims !== line.dimensions ? { dimensions: nextDims } : {}),
-              ...(allocsChanged ? { splitAllocations: nextAllocs } : {}),
-            };
+  let lines = tx.lines;
+  if (tx.lines) {
+    const outLines: L[] = [];
+    for (const line of tx.lines) {
+      const nextDims = await ensureDimensionNodesInMap(line.dimensions, adapter);
+      let allocsChanged = false;
+      let nextAllocs = line.splitAllocations;
+      if (line.splitAllocations) {
+        const outAllocs: NonNullable<L['splitAllocations']> = [];
+        for (const alloc of line.splitAllocations) {
+          const ad = (await ensureDimensionNodesInMap(alloc.dimensions, adapter)) || alloc.dimensions;
+          if (ad !== alloc.dimensions) {
+            allocsChanged = true;
+            outAllocs.push({ ...alloc, dimensions: ad });
+          } else {
+            outAllocs.push(alloc);
           }
-          return line;
-        }),
-      )
-    : tx.lines;
+        }
+        nextAllocs = outAllocs;
+      }
+      if (nextDims !== line.dimensions || allocsChanged) {
+        linesChanged = true;
+        outLines.push({
+          ...line,
+          ...(nextDims !== line.dimensions ? { dimensions: nextDims } : {}),
+          ...(allocsChanged ? { splitAllocations: nextAllocs } : {}),
+        });
+      } else {
+        outLines.push(line);
+      }
+    }
+    lines = outLines;
+  }
   if (dimensions === tx.dimensions && !linesChanged) return tx;
   return {
     ...tx,

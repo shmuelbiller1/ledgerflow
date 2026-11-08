@@ -127,7 +127,13 @@ export default function Purchases() {
   const handleAddBill = async (input: BillDraft) => {
     // files picked for a new bill (K-07) are kept with it once it has an id
     const { recurringInterval, attachmentFiles, ...rawData } = input;
-    const data = await ensureBillDimensionNodes(rawData);
+    let data: typeof rawData;
+    try {
+      data = await ensureBillDimensionNodes(rawData);
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.');
+      throw err;
+    }
     if (data.id) {
       const { id, ...updates } = data;
       await updateEntity('bills', id, updates, 'Bill updated');

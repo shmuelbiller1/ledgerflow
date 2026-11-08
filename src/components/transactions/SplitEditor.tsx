@@ -1,6 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
-import React, { useState, useRef, useId } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import { Transaction, TransactionLine, ChartAccount, Project } from '../../types';
 import { Plus, Trash2, Save, X, AlertCircle, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -75,18 +75,32 @@ export default function SplitEditor({
     setLineKeys(keys => keys.filter((_, i) => i !== index));
   };
 
-  const updateLine = (index: number, updates: Partial<TransactionLine>) => {
-    const nextLines = [...lines];
-    nextLines[index] = { ...nextLines[index], ...updates };
-    
-    // Auto-calculate amount if quantity and unitPrice are updated
-    if (updates.quantity !== undefined || updates.unitPriceCents !== undefined) {
-      const q = updates.quantity ?? nextLines[index].quantity ?? 1;
-      const p = updates.unitPriceCents ?? nextLines[index].unitPriceCents ?? 0;
-      nextLines[index].amountCents = Math.round(q * p);
-    }
-    
-    setLines(nextLines);
+  const lineKeysRef = useRef(lineKeys);
+  useEffect(() => {
+    lineKeysRef.current = lineKeys;
+  }, [lineKeys]);
+
+  const updateLine = (
+    index: number,
+    updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
+    lineKey?: string,
+  ) => {
+    setLines(prev => {
+      const keyIdx = lineKey ? lineKeysRef.current.indexOf(lineKey) : -1;
+      const targetIdx = keyIdx >= 0 ? keyIdx : index;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const current = prev[targetIdx];
+      const patch = typeof updates === 'function' ? updates(current) : updates;
+      const merged = { ...current, ...patch };
+      if (patch.quantity !== undefined || patch.unitPriceCents !== undefined) {
+        const q = patch.quantity ?? merged.quantity ?? 1;
+        const p = patch.unitPriceCents ?? merged.unitPriceCents ?? 0;
+        merged.amountCents = Math.round(q * p);
+      }
+      const next = [...prev];
+      next[targetIdx] = merged;
+      return next;
+    });
   };
 
   const [expandedLineKey, setExpandedLineKey] = useState<string | null>(null);
@@ -245,7 +259,7 @@ export default function SplitEditor({
                                 list={listId}
                                 aria-label={`${axis.name} for split line ${idx + 1}`}
                                 value={displayVal}
-                                onChange={e => updateLine(idx, setLineDimension(line, axis.id, e.target.value, dimensionNodes))}
+                                onChange={e => updateLine(idx, current => setLineDimension(current, axis.id, e.target.value, dimensionNodes), lineKeys[idx])}
                                 placeholder={`Type or select ${axis.name.toLowerCase()}`}
                                 className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-xs font-bold text-[var(--text)] focus:text-indigo-600 outline-none"
                               />
@@ -257,8 +271,8 @@ export default function SplitEditor({
                                 dimensionName={axis.name}
                                 value={displayVal}
                                 lineNumber={idx + 1}
-                                onSelectNode={node => updateLine(idx, setLineDimension(line, axis.id, node.id, useLedgerStore.getState().dimensionNodes))}
-                                onRenamed={node => updateLine(idx, setLineDimension(line, axis.id, node.id, useLedgerStore.getState().dimensionNodes))}
+                                onSelectNode={node => updateLine(idx, current => setLineDimension(current, axis.id, node.id, useLedgerStore.getState().dimensionNodes), lineKeys[idx])}
+                                onRenamed={node => updateLine(idx, current => setLineDimension(current, axis.id, node.id, useLedgerStore.getState().dimensionNodes), lineKeys[idx])}
                               />
                             </div>
                           </div>

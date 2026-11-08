@@ -68,7 +68,7 @@ function isJournalLine(line: DocumentEditorLine): line is JournalEditorLine {
 interface DocumentLineEditorProps<T extends DocumentEditorLine> {
   side: 'invoice' | 'bill' | 'journal';
   lines: T[];
-  onChange: (lines: T[]) => void;
+  onChange: React.Dispatch<React.SetStateAction<T[]>>;
   createLine: () => T;
   accounts: ChartAccount[];
   currency: string;
@@ -126,15 +126,21 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
 }: DocumentLineEditorProps<T>) {
   const invoice = side === 'invoice';
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes || []);
-  const updateAt = (index: number, update: (line: T) => T) => {
-    onChange(lines.map((line, i) => i === index ? update(line) : line));
+  const updateAt = (index: number, update: (line: T) => T, lineId?: string) => {
+    onChange(prev => {
+      const idIdx = lineId ? prev.findIndex(item => item.id === lineId) : -1;
+      const targetIdx = idIdx >= 0 ? idIdx : index;
+      return prev.map((line, i) => (i === targetIdx ? update(line) : line));
+    });
   };
   const moveLine = (index: number, offset: -1 | 1) => {
-    const destination = index + offset;
-    if (destination < 0 || destination >= lines.length) return;
-    const next = [...lines];
-    [next[index], next[destination]] = [next[destination], next[index]];
-    onChange(next);
+    onChange(prev => {
+      const destination = index + offset;
+      if (destination < 0 || destination >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
   };
   const money = (cents: number) => formatCurrency(cents, currency);
 
@@ -160,7 +166,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
             <InlineAddDimensionAxis onAdded={() => onShowDimensionsChange?.(true)} />
             <button
               type="button"
-              onClick={() => onChange([...lines, createLine()])}
+              onClick={() => onChange(prev => [...prev, createLine()])}
               className="min-h-11 px-2 flex items-center gap-2 text-xs font-bold text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
               aria-label="Add Line"
             >
@@ -224,15 +230,33 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         : ((line as unknown as Record<string, string>)[dimKey] || '');
                       const listId = `je-dim-list-${dim.id}-${idx}`;
                       const knownNodes = dimensionNodes.filter(n => n.dimensionId === dim.id && n.status !== 'archived');
-                      const setJournalDim = (val: string) =>
-                        updateAt(idx, current => ({
-                          ...current,
-                          ...(dimKey === 'class' ? { class: val } : dimKey === 'location' ? { location: val } : dimKey === 'project' ? { project: val } : {}),
-                          dimensions: {
-                            ...(current.dimensions || {}),
-                            [dimKey]: val,
+                      const setJournalDim = (val: string, preserveRealProject = false) =>
+                        updateAt(
+                          idx,
+                          current => {
+                            const existingProjectRef = (current as { project?: string }).project?.trim();
+                            const matchedProject = preserveRealProject && dimKey === 'project' && existingProjectRef
+                              ? (useLedgerStore.getState().projects || []).find(
+                                  p => p.id === existingProjectRef || p.name.trim().toLowerCase() === existingProjectRef.toLowerCase(),
+                                )
+                              : undefined;
+                            return {
+                              ...current,
+                              ...(dimKey === 'class'
+                                ? { class: val }
+                                : dimKey === 'location'
+                                  ? { location: val }
+                                  : dimKey === 'project'
+                                    ? { project: matchedProject ? matchedProject.id : val }
+                                    : {}),
+                              dimensions: {
+                                ...(current.dimensions || {}),
+                                [dimKey]: val,
+                              },
+                            } as T;
                           },
-                        }) as T);
+                          line.id,
+                        );
                       return (
                         <td key={dim.id} className="p-2.5 align-top">
                           <div className="relative">
@@ -255,8 +279,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                               dimensionName={dim.name}
                               value={dimValue}
                               lineNumber={idx + 1}
-                              onSelectNode={node => setJournalDim(node.id)}
-                              onRenamed={node => { if (dimValue) setJournalDim(node.id); }}
+                              onSelectNode={node => setJournalDim(node.id, true)}
+                              onRenamed={node => { if (dimValue) setJournalDim(node.id, true); }}
                             />
                           </div>
                         </td>
@@ -313,8 +337,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         type="button"
                         aria-label={`Remove line ${idx + 1}`}
                         onClick={() => {
-                          if (lines.length <= 2) return;
-                          onChange(lines.filter((_, i) => i !== idx));
+                          onChange(prev => (prev.length <= 2 ? prev : prev.filter((_, i) => i !== idx)));
                         }}
                         className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 text-[var(--muted)] hover:text-rose-600 transition-colors cursor-pointer"
                       >
@@ -347,7 +370,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
         <button
           type="button"
           aria-label={invoice ? undefined : 'Add Split Expense'}
-          onClick={() => onChange([...lines, createLine()])}
+          onClick={() => onChange(prev => [...prev, createLine()])}
           className={`flex items-center gap-2 min-h-11 px-4 py-2 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-xl text-[10px] font-medium uppercase tracking-wider transition-all ${invoice ? 'hover:bg-zinc-200' : 'hover:bg-[var(--elevated)]'}`}
         >
           <Plus size={14} />
@@ -538,7 +561,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                 type="button"
                 aria-label={invoice ? `Remove line ${idx + 1}` : `Remove split line ${idx + 1}`}
                 title={invoice ? `Remove line ${idx + 1}` : `Remove split line ${idx + 1}`}
-                onClick={() => onChange(lines.filter((_, i) => i !== idx))}
+                onClick={() => onChange(prev => prev.filter((_, i) => i !== idx))}
                 className="min-h-11 min-w-11 flex items-center justify-center p-2 text-[var(--muted)] hover:text-rose-500 transition-colors"
               >
                 <Trash2 size={18} />
@@ -604,7 +627,20 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                 lineNumber={idx + 1}
                 accountId={line.accountId}
                 date={date}
-                onChange={dimensions => updateAt(idx, current => ({ ...current, dimensions }) as T)}
+                onChange={dimensions => updateAt(idx, current => ({ ...current, dimensions }) as T, line.id)}
+                onPatch={(dimId, text) =>
+                  updateAt(
+                    idx,
+                    current => {
+                      const nextDims = { ...(current.dimensions || {}) };
+                      const key = dimId.toLowerCase();
+                      if (text.trim()) nextDims[key] = text;
+                      else delete nextDims[key];
+                      return { ...current, dimensions: nextDims } as T;
+                    },
+                    line.id,
+                  )
+                }
               />
             </div>
 

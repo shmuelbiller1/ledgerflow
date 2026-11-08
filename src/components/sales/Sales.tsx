@@ -88,8 +88,7 @@ export default function Sales() {
     // files picked for a new invoice (K-07) are kept with it once it has an id
     const { receiptPayment, attachmentFiles, ...rest } = input;
     let data = rest;
-    // A customer typed in the invoice that isn't on the list yet is added first, so the invoice
-    // belongs to a real customer (statements, balances, emails)
+    // A customer typed in the invoice that isn't on the list yet is added first
     if (typeof data.customerId === 'string' && data.customerId.startsWith('new-')) {
       const name = String(data.customerName || '').trim();
       if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); return; }
@@ -97,7 +96,8 @@ export default function Sales() {
       if (!created) return;
       data = { ...data, customerId: created.id };
     }
-    data = await ensureInvoiceDimensionNodes(data);
+    try { data = await ensureInvoiceDimensionNodes(data); }
+    catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;
     if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
       res = await addEntity('invoices', data); 

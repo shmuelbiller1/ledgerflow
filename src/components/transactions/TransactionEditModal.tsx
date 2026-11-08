@@ -119,10 +119,26 @@ function useTransactionEditModalModel({
     setLineKeys(keys => keys.filter((_, i) => i !== index));
   };
 
-  const handleLineChange = (index: number, updates: Partial<TransactionLine>) => {
-    const nextLines = [...lines];
-    nextLines[index] = { ...nextLines[index], ...updates };
-    setLines(nextLines);
+  const lineKeysRef = useRef(lineKeys);
+  useEffect(() => {
+    lineKeysRef.current = lineKeys;
+  }, [lineKeys]);
+
+  const handleLineChange = (
+    index: number,
+    updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
+    lineKey?: string,
+  ) => {
+    setLines(prev => {
+      const keyIdx = lineKey ? lineKeysRef.current.indexOf(lineKey) : -1;
+      const targetIdx = keyIdx >= 0 ? keyIdx : index;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const current = prev[targetIdx];
+      const patch = typeof updates === 'function' ? updates(current) : updates;
+      const next = [...prev];
+      next[targetIdx] = { ...current, ...patch };
+      return next;
+    });
   };
 
   const handleSave = async () => {

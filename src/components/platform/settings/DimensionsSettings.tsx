@@ -1,6 +1,7 @@
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
 import {
   addDimensionAxisInline,
+  matchDimensionNode,
   registerDimensionNodeInline,
   setDimensionNodeAliasesInline,
   setDimensionNodeStatusInline,
@@ -113,10 +114,15 @@ function DimensionsSettingsContent() {
     }));
   };
 
+  /** Returns true when an Enter keystroke is part of an active IME composition session. */
+  const isImeEnter = (e: React.KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
+
+  /** Registers a new label node immediately, or merges newly entered aliases when the label already exists. */
   const handleAddNode = async (dimId: string): Promise<boolean> => {
     if (!canWrite) return false;
     const input = newNodeInputs[dimId];
-    if (!input || !input.description.trim()) {
+    const trimmedDesc = input?.description.trim() || '';
+    if (!trimmedDesc) {
       toast.error('Please enter a description for the new label node');
       return false;
     }
@@ -128,8 +134,31 @@ function DimensionsSettingsContent() {
       () => useAuthStore.getState().user?.uid,
       () => useAuthStore.getState().currentWorkspaceId,
     );
+    const priorMatch = matchDimensionNode(useLedgerStore.getState().dimensionNodes || [], dimId, trimmedDesc);
+
+    if (priorMatch && priorMatch.status !== 'archived') {
+      const existingAliases = priorMatch.aliases || [];
+      const existingLower = new Set([priorMatch.description.toLowerCase(), ...existingAliases.map(a => a.toLowerCase())]);
+      const freshAliases = aliasesArray.filter(a => !existingLower.has(a.toLowerCase()));
+      if (freshAliases.length > 0) {
+        const mergedAliases = [...existingAliases, ...freshAliases];
+        const aliasRes = await attempt(() => setDimensionNodeAliasesInline(dimId, priorMatch.id, mergedAliases));
+        if (!scope.isCurrent()) return false;
+        if (!aliasRes.ok) {
+          toast.error(aliasRes.error);
+          return false;
+        }
+        setDimensionNodes(useLedgerStore.getState().dimensionNodes);
+        setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
+        toast.success(`Added aliases to existing label ${priorMatch.id} ("${priorMatch.description}")`);
+        return true;
+      }
+      toast.info(`Label "${priorMatch.description}" (${priorMatch.id}) already exists.`);
+      return true;
+    }
+
     const res = await attempt(() =>
-      registerDimensionNodeInline(dimId, input.description.trim(), aliasesArray),
+      registerDimensionNodeInline(dimId, trimmedDesc, aliasesArray),
     );
     if (!scope.isCurrent()) return false;
     if (!res.ok) {
@@ -139,10 +168,15 @@ function DimensionsSettingsContent() {
 
     setDimensionNodes(useLedgerStore.getState().dimensionNodes);
     setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
-    toast.success(`Saved label node ${res.value.id} ("${res.value.description}")`);
+    toast.success(
+      priorMatch?.status === 'archived'
+        ? `Restored archived label ${res.value.id} ("${res.value.description}")`
+        : `Saved label node ${res.value.id} ("${res.value.description}")`,
+    );
     return true;
   };
 
+  /** Persists updated comma-separated aliases for an existing DimensionNode immediately. */
   const handleUpdateNodeAliases = async (nodeId: string, dimId: string, aliasesStr: string): Promise<boolean> => {
     if (!canWrite) return false;
     const aliasesArray = aliasesStr.split(',').map(a => a.trim()).filter(Boolean);
@@ -165,6 +199,7 @@ function DimensionsSettingsContent() {
     return true;
   };
 
+  /** Toggles a DimensionNode between active and archived immediately in the database and store. */
   const handleToggleArchiveNode = async (nodeId: string, dimId: string): Promise<boolean> => {
     if (!canWrite) return false;
     const target = dimensionNodes.find(n => n.id === nodeId && n.dimensionId === dimId);
@@ -198,6 +233,7 @@ function DimensionsSettingsContent() {
     }));
   };
 
+  /** Creates and persists a new workspace dimension axis immediately for owners and accountants. */
   const handleAddAxis = async (): Promise<boolean> => {
     if (!canAdmin) return false;
     if (!newAxisName.trim()) {
@@ -516,7 +552,7 @@ function DimensionsSettingsContent() {
                     value={newAxisName}
                     onChange={e => setNewAxisName(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && !isImeEnter(e)) {
                         e.preventDefault();
                         void handleAddAxis();
                       }
@@ -661,7 +697,7 @@ function DimensionsSettingsContent() {
                       value={nodeInput.description}
                       onChange={e => handleNodeInputChange(dim.id, 'description', e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !isImeEnter(e)) {
                           e.preventDefault();
                           void handleAddNode(dim.id);
                         }
@@ -677,7 +713,7 @@ function DimensionsSettingsContent() {
                       value={nodeInput.aliases}
                       onChange={e => handleNodeInputChange(dim.id, 'aliases', e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !isImeEnter(e)) {
                           e.preventDefault();
                           void handleAddNode(dim.id);
                         }

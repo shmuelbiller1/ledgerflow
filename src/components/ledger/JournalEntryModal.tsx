@@ -249,12 +249,19 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
         return;
       }
 
+      const workspaceProjects = useLedgerStore.getState().projects || [];
       const mappedLines = [];
       for (const l of filteredLines) {
         const debitCents = l.debit || 0;
         const creditCents = l.credit || 0;
         const baseCents = Math.round((debitCents > 0 ? debitCents : -creditCents) * appliedRate);
         const rawDims = l.dimensions || {};
+        const rawProjectInput = (rawDims.project || l.project || '').trim();
+        const matchedProject = rawProjectInput
+          ? workspaceProjects.find(
+              p => p.id === rawProjectInput || p.name.trim().toLowerCase() === rawProjectInput.toLowerCase(),
+            )
+          : undefined;
         const seedDims: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawDims)) {
           if (v && v.trim()) seedDims[k] = v.trim();
@@ -273,7 +280,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           amountCents: baseCents,
           class: dims.class || undefined,
           location: dims.location || undefined,
-          project: dims.project || undefined,
+          project: matchedProject ? matchedProject.id : (dims.project || undefined),
           dimensions: Object.keys(dims).length > 0 ? dims : undefined
         });
       }
