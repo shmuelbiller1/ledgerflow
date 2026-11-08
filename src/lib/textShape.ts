@@ -26,3 +26,48 @@ export function trimChar(text: string, char: string): string {
   while (start < text.length && text[start] === char) start++;
   return trimEndChar(text.slice(start), char);
 }
+
+/** `text` without any run of the characters in `chars` at its end. Same as text.replace(/[chars]+$/, ''). */
+export function trimEndChars(text: string, chars: string): string {
+  let end = text.length;
+  while (end > 0 && chars.includes(text[end - 1])) end--;
+  return text.slice(0, end);
+}
+
+/** `text` without its trailing ASCII digits when there are at least `min` of them. Same as
+ * text.replace(/\d{min,}$/, ''). */
+export function trimEndDigits(text: string, min: number): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] >= '0' && text[end - 1] <= '9') end--;
+  return text.length - end >= min ? text.slice(0, end) : text;
+}
+
+/** A run of digits with a comma between each group of three from the right: '1234567' → '1,234,567'. Same as
+ * digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',') for a string of digits. */
+export function groupThousands(digits: string): string {
+  let out = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) out += ',';
+    out += digits[i];
+  }
+  return out;
+}
+
+/** True for a plain decimal: an optional '-', then digits with an optional point and more digits, or a point and
+ * digits ('12', '12.', '12.5', '.5', '-3'). Same as /^-?(\d+\.?\d*|\.\d+)$/. */
+export function isPlainDecimal(text: string): boolean {
+  const body = text.startsWith('-') ? text.slice(1) : text;
+  const point = body.indexOf('.');
+  const whole = point === -1 ? body : body.slice(0, point);
+  const fraction = point === -1 ? '' : body.slice(point + 1);
+  const digits = (s: string) => [...s].every(c => c >= '0' && c <= '9');
+  if (!digits(whole) || !digits(fraction)) return false;
+  return whole.length > 0 || fraction.length > 0;
+}
+
+/** Each line of `text` without the spaces and tabs at its end. Same as text.replace(/[ \t]+\n/g, '\n') on every line
+ * but the last, which keeps its trailing spaces as before. */
+export function trimSpacesBeforeNewlines(text: string): string {
+  const lines = text.split('\n');
+  return lines.map((line, i) => (i < lines.length - 1 ? trimEndChars(line, ' \t') : line)).join('\n');
+}

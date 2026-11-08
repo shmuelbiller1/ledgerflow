@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isEmailShape, trimChar, trimEndChar } from '../lib/textShape';
+import { groupThousands, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,4 +37,31 @@ test('trimEndChar and trimChar match the old patterns on every short string', ()
   assert.equal(trimEndChar('https://app.example//', '/'), 'https://app.example');
   assert.equal(trimChar('__a_b__', '_'), 'a_b');
   assert.equal(trimChar('---', '-'), '');
+});
+
+test('groupThousands, trimEndChars and trimEndDigits match the old patterns', () => {
+  for (let n = 0; n <= 1234567; n += 997) {
+    const d = String(n);
+    assert.equal(groupThousands(d), d.replace(/\B(?=(\d{3})+(?!\d))/g, ','), d);
+  }
+  assert.equal(groupThousands('1234567'), '1,234,567');
+  assert.equal(groupThousands('100'), '100');
+  assert.equal(groupThousands(''), '');
+  for (const s of strings(['a', '1', '!', '.'], 6)) {
+    assert.equal(trimEndChars(s, '!.?'), s.replace(/[!.?]+$/, ''), JSON.stringify(s));
+    assert.equal(trimEndDigits(s, 2), s.replace(/\d{2,}$/, ''), JSON.stringify(s));
+  }
+});
+
+test('isPlainDecimal matches /^-?(\\d+\\.?\\d*|\\.\\d+)$/ on every short string', () => {
+  const OLD = /^-?(\d+\.?\d*|\.\d+)$/;
+  for (const s of strings(['1', '.', '-', 'x'], 6)) assert.equal(isPlainDecimal(s), OLD.test(s), JSON.stringify(s));
+  for (const ok of ['12', '12.', '12.5', '.5', '-3', '-.5']) assert.equal(isPlainDecimal(ok), true, ok);
+  for (const no of ['', '-', '.', '-.', '1.2.3', '--1', '1-']) assert.equal(isPlainDecimal(no), false, no);
+});
+
+test('trimSpacesBeforeNewlines matches /[ \\t]+\\n/g on every short string', () => {
+  for (const s of strings([' ', '\t', '\n', 'a'], 6)) {
+    assert.equal(trimSpacesBeforeNewlines(s), s.replace(/[ \t]+\n/g, '\n'), JSON.stringify(s));
+  }
 });
