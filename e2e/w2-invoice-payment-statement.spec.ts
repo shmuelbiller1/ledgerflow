@@ -135,11 +135,12 @@ test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 
 
   const errors = await mountScreen(page, salesOptions([]));
 
-  await expect(page.getByText('INV-001')).toBeVisible();
-  await expect(page.getByText(/1,180\.00/)).toBeVisible();
-  await expect(page.getByText(/600\.00/)).toBeVisible();
+  const table = page.getByRole('table').first();
+  await expect(table.getByRole('cell', { name: 'INV-001', exact: true })).toBeVisible();
+  await expect(table).toContainText('$1,180.00');
+  await expect(table).toContainText('$600.00');
   // 1,180.00 − 600.00 of paid value = 580.00 still owed by the customer.
-  await expect(page.getByText(/580\.00/)).toBeVisible();
+  await expect(table).toContainText('$580.00');
   await expectFitsAndPassesAxe(page, 'body', 'Sales screen');
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
@@ -154,9 +155,12 @@ test('W2 browser: Customer statement shows INV-001 $1,180.00, payment -$600.00, 
   await expect(page.getByRole('heading', { name: 'Account Statement', exact: true })).toBeVisible();
   await page.getByLabel('Customer').selectOption('Test Customer');
 
-  await expect(page.getByText('INV-001')).toBeVisible();
-  await expect(page.getByText(/600/)).toBeVisible();
-  await expect(page.getByText(/580/)).toBeVisible();
+  // The statement's own table carries the invoice, the payment and the ending balance once each;
+  // the summary card above repeats 580.00, so the row is asserted inside the table.
+  const statementTable = page.getByRole('table').first();
+  await expect(statementTable).toContainText('INV-001');
+  await expect(statementTable).toContainText('$600.00');
+  await expect(statementTable).toContainText('$580.00');
   await expectFitsAndPassesAxe(page, 'body', 'Statement view');
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
@@ -168,10 +172,11 @@ test('W2 browser: desktop Sales screen with invoice and payment figures', async 
 
   const errors = await mountScreen(page, salesOptions([]));
 
-  await expect(page.getByText('INV-001')).toBeVisible();
-  await expect(page.getByText(/1,180\.00/)).toBeVisible();
-  await expect(page.getByText(/600\.00/)).toBeVisible();
-  await expect(page.getByText(/580\.00/)).toBeVisible();
+  const table = page.getByRole('table').first();
+  await expect(table.getByRole('cell', { name: 'INV-001', exact: true })).toBeVisible();
+  await expect(table).toContainText('$1,180.00');
+  await expect(table).toContainText('$600.00');
+  await expect(table).toContainText('$580.00');
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
 });
@@ -206,8 +211,8 @@ test('W2 browser: computeStatement produces correct figures for invoice-payment 
   // 118000 billed − 60000 paid.
   expect(result.endingBalanceCents).toBe(58000);
   expect(result.entries).toHaveLength(2);
-  expect(result.entries).toContainEqual({ type: 'invoice', amountCents: 118000 });
-  expect(result.entries).toContainEqual({ type: 'payment', amountCents: -60000 });
+  expect(result.entries).toContainEqual({ type: 'Invoice', amountCents: 118000 });
+  expect(result.entries).toContainEqual({ type: 'Payment', amountCents: -60000 });
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
 });

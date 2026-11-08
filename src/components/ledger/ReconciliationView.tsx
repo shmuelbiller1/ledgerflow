@@ -377,7 +377,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                              {/* Internal Ledger Match Info */}
                              <div className="flex-1 min-w-0">
-                               <span className="text-[8px] font-black uppercase text-indigo-400 font-mono tracking-wider">Matched ledger entry</span>
+                               <span className="text-[8px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
                                <h4 className="font-bold text-sm text-slate-700 truncate">{linkedTx?.description || 'Linked entry no longer found'}</h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedTx.totalAmountCents) : 'N/A'}</p>
                              </div>
