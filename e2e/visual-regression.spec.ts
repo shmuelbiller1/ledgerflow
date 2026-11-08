@@ -54,12 +54,22 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
           const cell = await descriptions.last().boundingBox(), frame = await main.boundingBox();
           return !!cell && !!frame && cell.y >= frame.y && cell.y + cell.height <= frame.y + frame.height;
         }).toBe(true);
-      } else for (let attempt = 0; attempt < 3; attempt++) {
-        const overflow = await main.evaluate(element => element.scrollHeight - element.clientHeight);
-        if (overflow <= 1) break;
-        const height = page.viewportSize()!.height + overflow;
-        expect(height).toBeLessThan(16_000);
-        await page.setViewportSize({ width, height });
+      } else {
+        // Content that arrives after the first measure (Settings loads a section a moment later) made
+        // this loop stop one step early on some runs, so the shot was 305px shorter than the baseline.
+        // Wait for the page to stop fetching, then re-measure until two consecutive reads agree.
+        await page.waitForLoadState('networkidle');
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const overflow = await main.evaluate(element => element.scrollHeight - element.clientHeight);
+          if (overflow <= 1 && attempt > 0) break;
+          if (overflow <= 1) {
+            await page.waitForTimeout(250);
+            continue;
+          }
+          const height = page.viewportSize()!.height + overflow;
+          expect(height).toBeLessThan(16_000);
+          await page.setViewportSize({ width, height });
+        }
       }
       if (screen !== 'transactions') await expect.poll(() => main.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
       await page.mouse.move(0, 0);
