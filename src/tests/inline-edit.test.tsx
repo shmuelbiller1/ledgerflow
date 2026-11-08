@@ -197,3 +197,21 @@ describe('Inline editor accessible names', () => {
     assert.ok(screen.getByText('B-08', { exact: true }));
   });
 });
+
+describe('Edit in place: an empty number field', () => {
+  afterEach(() => cleanup());
+  const open = async (label: string) => act(async () => { fireEvent.click(screen.getByRole('button', { name: new RegExp(`^Edit ${label}`) })); });
+
+  test('left blank it stays empty; a typed 0 is saved', async () => {
+    const saved: Array<string | number> = [];
+    render(<InlineEdit kind="money" value={undefined} label="Credit limit" placeholder="Add limit" onSave={v => { saved.push(v); }} />);
+    await open('Credit limit');
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox', { name: 'Credit limit' }), { key: 'Enter' }); });
+    assert.deepEqual(saved, [], 'a blank box on an empty field saves nothing (no 0 credit limit)');
+    await open('Credit limit');
+    const box = screen.getByRole('textbox', { name: 'Credit limit' });
+    fireEvent.change(box, { target: { value: '0' } });
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    assert.deepEqual(saved, [0], 'a typed 0 is a real value');
+  });
+});
