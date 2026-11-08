@@ -17,10 +17,16 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 const requested = path.resolve(REPO_ROOT, process.argv[2] || process.env.PLAYWRIGHT_JSON_OUTPUT_NAME || 'playwright-report.json');
 const reportPath = requested.startsWith(REPO_ROOT + path.sep) && requested.endsWith('.json') ? requested : null;
 if (!reportPath || !fs.existsSync(reportPath)) {
-  console.log('\n_No Playwright JSON report was written, so the failure reasons are not available._');
+  say('\n_No Playwright JSON report was written, so the failure reasons are not available._');
   console.log('::error title=visual baselines::Playwright wrote no JSON report, so the capture failed before any test ran');
   process.exit(0);
 }
+
+// `--summary <file>` appends the Markdown there and keeps stdout for workflow commands; without it
+// everything goes to stdout, so a bare `node scripts/playwright-failures.mjs report.json` still works.
+const summaryFlag = process.argv.indexOf('--summary');
+const summaryFile = summaryFlag === -1 ? null : process.argv[summaryFlag + 1];
+const say = line => (summaryFile ? fs.appendFileSync(summaryFile, line + '\n') : console.log(line));
 
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 const failures = [];
@@ -44,15 +50,15 @@ const walk = (suite, trail) => {
 for (const suite of report.suites ?? []) walk(suite, []);
 
 if (failures.length === 0) {
-  console.log('\n_All captured screens passed._');
+  say('\n_All captured screens passed._');
 } else {
-  console.log(`\n### ${failures.length} test(s) did not pass\n`);
-  console.log('| Test | Status | Reason |');
-  console.log('|---|---|---|');
+  say(`\n### ${failures.length} test(s) did not pass\n`);
+  say('| Test | Status | Reason |');
+  say('|---|---|---|');
   // Escape the Markdown table delimiter last, so it also covers any backslash already in the text.
   const cell = value => value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
   for (const failure of failures) {
-    console.log(`| ${cell(failure.title)} | ${cell(failure.status)} | ${cell(failure.reason)} |`);
+    say(`| ${cell(failure.title)} | ${cell(failure.status)} | ${cell(failure.reason)} |`);
     // Also a workflow command, so the reason reaches the run's annotations, which are readable
     // through the API even when the raw job log is not.
     const oneLine = failure.reason.replace(/[\r\n]+/g, ' ').replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');

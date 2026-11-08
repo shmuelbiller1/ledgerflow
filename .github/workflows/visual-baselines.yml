@@ -40,7 +40,7 @@ jobs:
           status=$?
           # The JSON reporter writes next to test-results/, not to the working directory.
           report=$(find . -maxdepth 3 -name 'playwright-report.json' -newermt '-20 minutes' | head -1)
-          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" --summary "$GITHUB_STEP_SUMMARY"
           exit $status
       # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
       # named a subset (the other screens legitimately still differ), which blocked the push of a
