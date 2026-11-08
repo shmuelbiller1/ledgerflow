@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { trimEndChar } from '../../lib/textShape';
 
 // On Vercel the production address is known (VERCEL_PROJECT_PRODUCTION_URL, set by Vercel itself,
 // never by a request), so it can stand in for APP_URL until a custom domain is configured.
@@ -15,10 +16,10 @@ if (process.env.NODE_ENV === 'production' && !process.env.APP_URL && !process.en
  */
 export function getTrustedAppUrl(req?: Request): string {
   if (process.env.APP_URL) {
-    return process.env.APP_URL.replace(/\/+$/, '');
+    return trimEndChar(process.env.APP_URL, '/');
   }
   if (process.env.VITE_APP_URL) {
-    return process.env.VITE_APP_URL.replace(/\/+$/, '');
+    return trimEndChar(process.env.VITE_APP_URL, '/');
   }
   if (vercelProductionUrl) {
     return vercelProductionUrl;

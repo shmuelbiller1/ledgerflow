@@ -17,6 +17,7 @@ import { loadStatement, StatementScopeError } from './statementService';
 import { isArchivedParty } from '../../lib/contacts';
 import { againstPreference, sendsByEmail } from '../../lib/delivery';
 import { approvalDecision, approvalStatus, holdsSending, isApproverRole } from '../../lib/invoiceApproval';
+import { isEmailShape, trimEndChar } from '../../lib/textShape';
 
 /**
  * Emailing an invoice or a payment reminder to the customer (S-01, BE-01, BL-03, BL-05, K-08).
@@ -43,7 +44,6 @@ export class EmailSendError extends Error {
 
 const WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];
 const NOT_ISSUED = new Set(['draft', 'void', 'cancelled', 'rejected']);
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function isSuppressed(db: Firestore, address: string): Promise<boolean> {
   const snap = await db.collection('emailEvents')
@@ -87,7 +87,7 @@ export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
 
   const customer = invoice.customerId ? (await db.collection('customers').doc(String(invoice.customerId)).get()).data() : undefined;
   const to = String(input.to || customer?.email || '').trim().toLowerCase();
-  if (!EMAIL.test(to)) throw new EmailSendError(400, 'The customer has no valid email address');
+  if (!isEmailShape(to)) throw new EmailSendError(400, 'The customer has no valid email address');
   if (await isSuppressed(db, to)) throw new EmailSendError(409, `${to} bounced or reported an earlier email as spam; update the customer's email address`);
   if (!isMailConfigured()) throw new EmailSendError(503, 'Email sending is not set up yet (add an email provider key in the settings)');
 
@@ -117,7 +117,7 @@ export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
     amount_due: formatCurrency(calculateAmountDue(invoice), currency),
     due_date: due,
     days_overdue: due && /^\d{4}-\d{2}-\d{2}$/.test(due) ? String(Math.max(0, dayNumber(today) - dayNumber(due))) : '0',
-    link: `${input.baseUrl.replace(/\/+$/, '')}/i/${token}`,
+    link: `${trimEndChar(input.baseUrl, '/')}/i/${token}`,
   };
   const template = resolveTemplate(input.template, workspace.emailTemplates as EmailTemplates | undefined);
   const message = renderEmail({ subject: input.subject?.trim() || template.subject, body: input.body?.trim() || template.body }, values);
@@ -201,7 +201,7 @@ async function sendReceipt(db: Firestore, workspace: DocumentData, workspaceId: 
   if (!invoice || invoice.workspaceId !== workspaceId) return 'no invoice';
   const customer = invoice.customerId ? (await db.collection('customers').doc(String(invoice.customerId)).get()).data() : undefined;
   const to = String(customer?.email || '').trim().toLowerCase();
-  if (!EMAIL.test(to)) return 'no email';
+  if (!isEmailShape(to)) return 'no email';
   if (await isSuppressed(db, to)) return 'suppressed';
   if (!isMailConfigured()) return 'mail not set up';
   const currency = String(invoice.currency || workspace.currency || 'USD');
@@ -262,7 +262,7 @@ export async function emailStatements(db: Firestore, input: { workspaceId: strin
     const to = String(statement.contact.email || '').trim().toLowerCase();
     const currency = String(statement.contact.currency || workspace.currency || 'USD');
     if (statement.endingBalanceCents <= 0) { result.skipped.push({ id, name, reason: 'nothing is open' }); continue; }
-    if (!EMAIL.test(to)) { result.skipped.push({ id, name, reason: 'no email address' }); continue; }
+    if (!isEmailShape(to)) { result.skipped.push({ id, name, reason: 'no email address' }); continue; }
     if (await isSuppressed(db, to)) { result.skipped.push({ id, name, reason: `${to} bounced or reported spam` }); continue; }
     const balance = formatCurrency(statement.endingBalanceCents, currency);
     const message = renderEmail(template, { company: String(workspace.name || ''), customer: name, amount: balance, amount_due: balance, number: statement.pdf.number });
@@ -293,7 +293,7 @@ export async function emailRemittance(db: Firestore, payment: DocumentData): Pro
   const vendor = (await db.collection('vendors').doc(String(payment.contactId)).get()).data();
   if (!vendor || vendor.workspaceId !== payment.workspaceId) return 'no vendor';
   const to = String(vendor.email || '').trim().toLowerCase();
-  if (!EMAIL.test(to)) return 'no email';
+  if (!isEmailShape(to)) return 'no email';
   if (await isSuppressed(db, to)) return 'suppressed';
   if (!isMailConfigured()) return 'mail not set up';
   const allocations = (Array.isArray(payment.allocations) ? payment.allocations : []) as Array<{ documentId: string; documentType: string; amountCents: number }>;

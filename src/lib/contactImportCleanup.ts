@@ -8,6 +8,7 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/min';
 import type { CountryCode } from 'libphonenumber-js';
 import type { ImportKind, ImportRow } from './recordImport';
 import { getIsoCountry } from './isoCountryReference';
+import { isEmailShape } from './textShape';
 
 export interface ContactImportCleanupWarning {
   readonly row: number;
@@ -34,7 +35,6 @@ export interface ContactImportCleanupOptions {
   acceptPhoneSuggestions?: boolean;
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_TEXT = /^\+?[0-9\s().-]+(?:\s*(?:ext(?:ension)?\.?|x|#)\s*\d+)?$/i;
 const PHONE_EXTENSION = /(?:\bext(?:ension)?\.?|x|#)\s*\d+\s*$/i;
 const E164 = /^\+[1-9]\d{1,14}$/;
@@ -62,7 +62,7 @@ export function cleanupContactImportRows(
     const email = String(row.email ?? '');
     if (email.trim()) {
       const candidate = email.trim().toLowerCase();
-      if (EMAIL_PATTERN.test(email.trim()) && email.trim().length <= 200) {
+      if (isEmailShape(email.trim()) && email.trim().length <= 200) {
         if (candidate !== email) {
           if (options.acceptEmailSuggestions) {
             next.email = candidate;

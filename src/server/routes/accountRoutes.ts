@@ -18,6 +18,7 @@ import { createGroup, deleteGroup, keepRates, listGroups, setLineMerges, shareGr
 import { authAdmin } from '../auth/supabaseAuth';
 import { practiceRows } from '../services/practiceService';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { isEmailShape } from '../../lib/textShape';
 
 export const accountRouter = express.Router();
 
@@ -157,7 +158,7 @@ accountRouter.get('/practice', async (req, res) => {
 accountRouter.post('/groups/:id/share', async (req, res) => {
   const user = (req as unknown as AuthenticatedRequest).user;
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) return res.status(400).json({ status: 'error', message: 'Enter the email they sign in with' });
+  if (!isEmailShape(email) || email.length > 254) return res.status(400).json({ status: 'error', message: 'Enter the email they sign in with' });
   try {
     let withUid = '';
     try { withUid = (await authAdmin.getUserByEmail(email)).uid; } catch { /* answered below */ }

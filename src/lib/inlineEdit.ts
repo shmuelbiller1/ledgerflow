@@ -2,6 +2,7 @@
  * Edit in place (I-22) and help while typing (I-23): pure helpers for InlineEdit.
  */
 import { TruthEngine } from '../modules/integrity/TruthEngine';
+import { isEmailShape } from './textShape';
 
 export type InlineKind = 'text' | 'email' | 'tel' | 'number' | 'money' | 'date' | 'textarea' | 'select';
 
@@ -18,7 +19,7 @@ export function parseInlineValue(kind: InlineKind, raw: string): string | number
     const n = Number(text.replace(/,/g, ''));
     return Number.isFinite(n) ? n : null;
   }
-  if (kind === 'email' && text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return null;
+  if (kind === 'email' && text && !isEmailShape(text)) return null;
   if (kind === 'date' && text && !/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
   return text;
 }

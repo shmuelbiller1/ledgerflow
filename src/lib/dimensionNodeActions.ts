@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
 import type { DimensionDefinition, DimensionNode, Project, TransactionLine } from '../types';
+import { trimChar } from './textShape';
 
 /** Normalizes text for case-insensitive Unicode comparisons. */
 const norm = (value: string) => value.normalize('NFC').toLowerCase().trim();
@@ -58,7 +59,7 @@ export function deriveDimensionAxisId(
     if (existingIds.has(cleaned)) throw new Error(`Dimension axis "${cleaned}" already exists.`);
     return cleaned;
   }
-  const slug = displayName.normalize('NFKD').toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').replace(/^_+/, '').replace(/_+$/, '');
+  const slug = trimChar(displayName.normalize('NFKD').toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''), '_');
   const base = slug || 'dim';
   if (slug && !existingIds.has(base)) return base;
 

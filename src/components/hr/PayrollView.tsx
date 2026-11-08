@@ -34,6 +34,7 @@ import { UsW2Review } from './UsW2Review';
 import PayrollImportDialog from './PayrollImportDialog';
 import { HourlyPayCell } from './HourlyPayCell';
 import { asPaidFor, hoursToPay, isHourly, type PayableTime } from '../../lib/hourlyPay';
+import { isEmailShape } from '../../lib/textShape';
 
 const PayrollViewContent: React.FC = () => {
   const employees = useLedgerStore(s => (s.employees || []) as Employee[]);
@@ -160,7 +161,7 @@ const PayrollViewContent: React.FC = () => {
 
     const salaryCents = Math.round(Number.parseFloat(empSalary) * 100);
     if (!Number.isSafeInteger(salaryCents) || salaryCents < 0) { setEmployeeError('Enter a valid annual salary.'); return; }
-    if (empEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empEmail)) { setEmployeeError('Enter a valid email address.'); return; }
+    if (empEmail && !isEmailShape(empEmail)) { setEmployeeError('Enter a valid email address.'); return; }
     const identity = employeeDraftIdentity.current ??= { id: `emp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString() };
     const newEmp: Employee = {
       id: identity.id,

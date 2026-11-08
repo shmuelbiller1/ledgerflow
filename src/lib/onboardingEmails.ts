@@ -1,3 +1,4 @@
+import { trimEndChar } from './textShape';
 export type OnboardingEmailDay = 1 | 3 | 7;
 
 export interface OnboardingEmailContext {
@@ -50,7 +51,7 @@ function cleanText(input: string, fallback: string): string {
 export function buildOnboardingEmails(context: OnboardingEmailContext): RenderedOnboardingEmail[] {
   const owner = cleanText(context.ownerName, 'Owner');
   const books = cleanText(context.workspaceName, 'Your workspace');
-  const base = context.appOrigin.replace(/\/+$/, '') || 'https://app.ledgerflow.example';
+  const base = trimEndChar(context.appOrigin, '/') || 'https://app.ledgerflow.example';
 
   return [
     {
