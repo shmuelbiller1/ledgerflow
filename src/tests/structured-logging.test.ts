@@ -83,7 +83,7 @@ describe('structured JSON logging (D-21)', () => {
 
     it('gives each request an id, logs its route, workspace and status, never the query or personal data', async () => {
       await start();
-      const res = await fetch(`${base}/api/v1/workspaces/ws_log1/things/t9?token=abc&email=x@y.z`);
+      const res = await fetch(`${base}/api/v1/workspaces/ws_log1/things/t9?token=qwzk-token&email=x@y.z`);
       assert.equal(res.status, 200);
       const id = res.headers.get('x-request-id');
       assert.match(id || '', /^[0-9a-f-]{36}$/);
@@ -101,7 +101,8 @@ describe('structured JSON logging (D-21)', () => {
       assert.equal(access.status, 200);
       assert.equal(access.method, 'GET');
       assert.equal(typeof access.ms, 'number');
-      assert.doesNotMatch(JSON.stringify(lines), /abc|x@y\.z|secret@example\.com/);
+      // the token is not hex, so it can never show up inside a random request id by chance
+      assert.doesNotMatch(JSON.stringify(lines), /qwzk-token|x@y\.z|secret@example\.com/);
     });
 
     it('keeps a caller\'s plain request id, replaces an unsafe one, and does not log non-API requests', async () => {

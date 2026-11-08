@@ -1,8 +1,9 @@
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useSavedViewsStore, SavedViewFilter } from '../../stores/useSavedViewsStore';
-import { isPostable, isTransactionInDateRange, getAbsoluteTotal } from '../../lib/txFilters';
+import { getAbsoluteTotal } from '../../lib/txFilters';
+import { useServerEntryQuery } from '../../hooks/useServerEntryQuery';
+import { RangeReportSourceNote } from '../reporting/RangeReportSourceNote';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { ColumnDef } from '@tanstack/react-table';
@@ -11,12 +12,12 @@ import { toast } from 'sonner';
 import { Transaction } from '../../types';
 import { Labelled } from '../ui/Labelled';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { ENTRY_QUERY_TEXT_MAX, typedAmountCents } from '../../lib/entryQuery';
 
 // Credit note for Fava (MIT License) inspiration:
 // Inspired by Fava (beancount/fava - MIT License) ad-hoc ledger query engine architecture.
 
 export default function QueryView() {
-  const transactions = useLedgerStore(s => s.transactions);
   const { addSavedView } = useSavedViewsStore();
 
   const [queryFilter, setQueryFilter] = useState<SavedViewFilter>({
@@ -29,55 +30,16 @@ export default function QueryView() {
     status: 'all'
   });
 
+  // the minimum as typed: an amount the query cannot hold exactly is refused visibly, and the last good minimum
+  // stays in force rather than the query running without one (CodeRabbit on #516)
+  const [minText, setMinText] = useState('');
+  const minRefused = minText.trim() !== '' && typedAmountCents(minText) === undefined;
   const [savedQueryName, setSavedQueryName] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setShowSaveModal(false), showSaveModal);
 
-  // Execute query against transactions using txFilters primitives
-  const queryResults = useMemo(() => {
-    return transactions.filter(tx => {
-      if (!isPostable(tx)) return false;
-
-      // Date range filter
-      if (queryFilter.startDate || queryFilter.endDate) {
-        if (!isTransactionInDateRange(tx, queryFilter.startDate, queryFilter.endDate)) {
-          return false;
-        }
-      }
-
-      // Account filter
-      if (queryFilter.accountIds && queryFilter.accountIds.length > 0) {
-        const txAccountIds = (tx.lines || []).map(l => l.accountId);
-        if (!queryFilter.accountIds.some(id => txAccountIds.includes(id))) {
-          return false;
-        }
-      }
-
-      // Amount Range
-      const totalCents = getAbsoluteTotal(tx);
-      if (queryFilter.minAmountCents !== undefined && totalCents < queryFilter.minAmountCents) {
-        return false;
-      }
-      if (queryFilter.maxAmountCents !== undefined && totalCents > queryFilter.maxAmountCents) {
-        return false;
-      }
-
-      // Text search
-      if (queryFilter.searchTerm) {
-        const term = queryFilter.searchTerm.toLowerCase();
-        const matchesDesc = (tx.description || '').toLowerCase().includes(term);
-        const matchesPayee = (tx.payee || '').toLowerCase().includes(term);
-        const matchesLines = (tx.lines || []).some(l => 
-          (l.accountName || '').toLowerCase().includes(term) || (l.description || '').toLowerCase().includes(term)
-        );
-        if (!matchesDesc && !matchesPayee && !matchesLines) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [transactions, queryFilter]);
+  // L-123 step 5c: the server's matches when the loaded entries are capped (src/lib/entryQuery.ts is the filter)
+  const { results: queryResults, source, total } = useServerEntryQuery(queryFilter);
 
   // Define TanStack columns
   const columns = useMemo<ColumnDef<Transaction, unknown>[]>(() => [
@@ -165,6 +127,8 @@ export default function QueryView() {
 
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
+      <RangeReportSourceNote source={source} testId="query-source" what="these matches" />
+      {total > queryResults.length && <p className="text-xs text-neutral-600" data-testid="query-limited">Showing the first {queryResults.length} of {total} matching entries. Narrow the dates or the search to see the rest.</p>}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
@@ -205,7 +169,7 @@ export default function QueryView() {
             <span>Query Filters & Criteria</span>
           </h2>
           <button
-            onClick={() => setQueryFilter({ searchTerm: '', startDate: '', endDate: '', minAmountCents: undefined, maxAmountCents: undefined, accountIds: [], status: 'all' })}
+            onClick={() => { setMinText(''); setQueryFilter({ searchTerm: '', startDate: '', endDate: '', minAmountCents: undefined, maxAmountCents: undefined, accountIds: [], status: 'all' }); }}
             className="text-xs text-[var(--muted)] hover:text-slate-600 font-medium"
           >
             Reset All
@@ -218,11 +182,15 @@ export default function QueryView() {
               <input
                 type="text"
                 value={queryFilter.searchTerm || ''}
-                onChange={e => setQueryFilter({ ...queryFilter, searchTerm: e.target.value })}
+                maxLength={ENTRY_QUERY_TEXT_MAX}
+                aria-describedby="query-text-limit"
+                onChange={e => setQueryFilter({ ...queryFilter, searchTerm: e.target.value.slice(0, ENTRY_QUERY_TEXT_MAX) })}
                 placeholder="Search payee, memo, tx #..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </Labelled>
+            {/* the server takes at most this much search text (CodeRabbit on #516) */}
+            <p id="query-text-limit" className="mt-1 text-[11px] text-slate-600">Up to {ENTRY_QUERY_TEXT_MAX} characters.</p>
           </div>
 
           <div>
@@ -251,12 +219,27 @@ export default function QueryView() {
             <Labelled labelClassName="block text-xs font-semibold text-slate-700 mb-1" label="Min Amount ($)">
               <input
                 type="number"
-                value={queryFilter.minAmountCents !== undefined ? queryFilter.minAmountCents / 100 : ''}
-                onChange={e => setQueryFilter({ ...queryFilter, minAmountCents: e.target.value ? Number(e.target.value) * 100 : undefined })}
+                value={minText}
+                aria-invalid={minRefused}
+                aria-describedby={minRefused ? 'query-min-refused' : undefined}
+                onChange={e => {
+                  const text = e.target.value;
+                  setMinText(text);
+                  if (text.trim() === '') { setQueryFilter({ ...queryFilter, minAmountCents: undefined }); return; }
+                  const cents = typedAmountCents(text);
+                  if (cents !== undefined) setQueryFilter({ ...queryFilter, minAmountCents: cents });
+                }}
                 placeholder="0.00"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </Labelled>
+            {minRefused && (
+              <p id="query-min-refused" role="alert" data-testid="query-min-refused" className="mt-1 text-[11px] text-rose-700">
+                {queryFilter.minAmountCents === undefined
+                  ? 'This amount cannot be used as a minimum; no minimum applies until a valid amount is entered.'
+                  : 'This amount cannot be used as a minimum; the last valid minimum still applies.'}
+              </p>
+            )}
           </div>
         </div>
       </div>

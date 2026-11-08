@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, ShieldCheck, Mail, UserPlus } from 'lucide-react';
+import { LogIn, ShieldCheck, Mail, UserPlus, KeyRound } from 'lucide-react';
+import { passkeysSupported } from '../../lib/db/auth';
 import { useBillingStore } from '../../modules/billing/BillingService';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
@@ -16,11 +17,13 @@ interface AuthScreenProps {
   onEmailSignup: (email: string, pass: string) => Promise<void>;
   onPasswordReset: (email: string) => Promise<void>;
   onGuest: () => void;
+  /** CC-12: sign in with a passkey; the button shows only where the browser supports passkeys */
+  onPasskeyLogin?: () => Promise<void>;
   language: string;
 }
 
 /** Sign-in, registration, guest entry, and password-reset screen with lazy legal policy modal. */
-export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, language: _language }: AuthScreenProps) {
+export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, onPasskeyLogin, language: _language }: AuthScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -220,6 +223,18 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                   <LogIn size={18} className="text-[#0047AB]" aria-hidden="true" />
                   Continue with Google
                 </AsyncButton>
+
+                {onPasskeyLogin && !isRegistering && passkeysSupported() && (
+                  <AsyncButton
+                    onClick={onPasskeyLogin}
+                    type="button"
+                    loadingText="Waiting for your passkey..."
+                    className="h-12 bg-white border border-[#E5E5E5] hover:border-[#0047AB] text-[#0A0A0A] rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0047AB] focus-visible:ring-offset-2"
+                  >
+                    <KeyRound size={18} className="text-[#0047AB]" aria-hidden="true" />
+                    Sign in with a passkey
+                  </AsyncButton>
+                )}
 
                 <button 
                   onClick={onGuest}

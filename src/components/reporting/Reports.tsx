@@ -1,3 +1,4 @@
+import { useServerEntryYears } from '../../hooks/useServerEntryYears';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ReportSkeleton from './ReportSkeleton';
 import { usePerformanceTrace } from '../../hooks/usePerformanceTrace';
@@ -83,17 +84,21 @@ const Reports = React.memo(() => {
   // N-12: a report that knows the figure's filter gets it explained from the server
   const [drillDownExplain, setDrillDownExplain] = useState<ExplainRequest | undefined>(undefined);
   const [linkNotice, setLinkNotice] = useState('');
+  const { years: serverYears, failed: serverYearsFailed } = useServerEntryYears();
   const availableYears = useMemo(() => {
-    if (!transactions || transactions.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
+    if ((!transactions || transactions.length === 0) && serverYears.length === 0) return [...new Set([workspaceYearMonth().year, ...(linked.year ? [linked.year] : [])])].sort((a, b) => b - a);
     const yearsSet = new Set<number>(linked.year ? [linked.year] : []);
-    for (let i = 0; i < transactions.length; i++) {
-      const d = transactions[i].date;
+    const list = transactions || [];
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i].date;
       if (d && d.length >= 4) {
         yearsSet.add(Number.parseInt(d.slice(0, 4), 10));
       }
     }
+    // L-123 step 5c: with capped entries the server names the years before the oldest loaded day too
+    serverYears.forEach(y => yearsSet.add(y));
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [transactions, linked.year]);
+  }, [transactions, linked.year, serverYears]);
 
   const [selectedYear, setSelectedYear] = useState<number>(() => {
     if (linked.year) return linked.year;
@@ -184,11 +189,13 @@ const Reports = React.memo(() => {
           if (y > maxYear) maxYear = y;
         }
       }
+      // a year only the server names (before the oldest loaded day) stays chosen (Codex on #516)
+      serverYears.forEach(y => yearsSet.add(y));
       if (maxYear > 0 && !yearsSet.has(selectedYear) && !linked.year) {
         setSelectedYear(maxYear);
       }
     }
-  }, [transactions, selectedYear, linked.year]);
+  }, [transactions, selectedYear, linked.year, serverYears]);
 
   useEffect(() => {
     if (transactions && transactions.length > 0) {
@@ -343,6 +350,7 @@ const Reports = React.memo(() => {
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
+            {serverYearsFailed && <span role="status" data-testid="report-years-incomplete" className="text-[10px] text-[var(--muted)]">Older years may be missing: the server could not be asked.</span>}
 
             {/* Dynamic Month/Quarter Selector */}
             {timeframe === 'month' && (

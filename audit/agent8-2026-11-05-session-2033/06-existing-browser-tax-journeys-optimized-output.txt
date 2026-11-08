@@ -1,0 +1,11 @@
+
+> ledgerflow@0.1.0 test:e2e
+> playwright test --config=.cache/playwright-agent8.config.ts e2e/tax-journeys-browser.spec.ts
+
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium-audit] › e2e/tax-journeys-browser.spec.ts:129:1 › W7 browser: the Israeli month journey shows the registration, allocation numbers, VAT report and PCN874 draft (2.9s)
+  ✓  2 [chromium-audit] › e2e/tax-journeys-browser.spec.ts:170:1 › W8 browser: the US quarter journey shows the state return, due date, use tax and 1099 preview (1.1s)
+
+  2 passed (6.8s)

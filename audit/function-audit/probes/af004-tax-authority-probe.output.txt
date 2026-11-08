@@ -1,0 +1,8 @@
+DEFECT AF-004-P1 place merge across countries: expected place of an Israeli entity to carry no US state; observed {"country":"IL","state":"TX"} (from ["world:il","books"])
+DEFECT AF-004-P2 Israeli sale leaks into Texas return: expected 0 documents in the Texas permit return; observed documentCount=1, grossSalesCents=10000
+DEFECT AF-004-P3 TX sale with US place but no state is silently omitted: expected the sale to be reported or flagged; observed documentCount=0, taxCollectedCents=0
+DEFECT AF-004-P4 non-US buyer: state return vs quarter journey disagree: usSalesTaxReturn documentCount=0 for this Canadian buyer; real usQuarterJourney certificate step counts 1 zero-tax sale(s) to a US customer (seller state fallback)
+DEFECT AF-004-P7 US branch sale lands in the Israeli VAT return: expected 0 documents in the IL VAT return for a US-labelled sale; observed documentCount=1, taxableSalesCents=10000
+OK     AF-004-P5 control: conflicting legalForm reported as conflict: conflicts=1, chosen=llc (first dimension in order)
+DEFECT AF-004-P6 duplicate verified/declared set value stays unverified: verified=false although a verified copy of the same value exists (conservative: a false negative, not an unsafe pass)
+DEFECT AF-004-P8 US return ignores first-line entity label: Israeli-branch invoice (label on items[0]) counted in the Texas return: documentCount=1

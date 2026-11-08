@@ -1,0 +1,62 @@
+
+> ledgerflow@0.1.0 test:e2e
+> playwright test --config=.cache/playwright-agent8.config.ts e2e/tax-journeys-browser.spec.ts
+
+[WebServer] [Jobs] start-up pass of recurring failed: FirestoreError: 14 UNAVAILABLE: No database configured. Set DATABASE_URL (or POSTGRES_URL) to the Supabase Postgres connection string.
+[WebServer]     at poolConfigFromEnv (/home/user/ledgerflow/src/server/db/pg/poolConfig.ts:57:11)
+[WebServer]     at Firestore.get pool (/home/user/ledgerflow/src/server/db/pgFirestore.ts:492:39)
+[WebServer]     at Firestore.runnerForTables (/home/user/ledgerflow/src/server/db/pgFirestore.ts:634:27)
+[WebServer]     at Firestore.hasTable (/home/user/ledgerflow/src/server/db/pgFirestore.ts:639:36)
+[WebServer]     at Firestore.runQuery (/home/user/ledgerflow/src/server/db/pgFirestore.ts:682:22)
+[WebServer]     at Query.get (/home/user/ledgerflow/src/server/db/pgFirestore.ts:176:60)
+[WebServer]     at processRecurring (/home/user/ledgerflow/src/server/services/recurringService.ts:276:79)
+[WebServer]     at processAllRecurring (/home/user/ledgerflow/src/server/services/recurringService.ts:321:10)
+[WebServer]     at Object.runAtBoot (/home/user/ledgerflow/src/server/jobs/standaloneScheduler.ts:56:31)
+[WebServer]     at startStandaloneScheduler (/home/user/ledgerflow/src/server/jobs/standaloneScheduler.ts:96:10) {
+[WebServer]   code: 14,
+[WebServer]   details: 'No database configured. Set DATABASE_URL (or POSTGRES_URL) to the Supabase Postgres connection string.'
+[WebServer] }
+
+Running 2 tests using 1 worker
+
+[WebServer] The file does not exist at "/home/user/ledgerflow/node_modules/.vite/deps/react-dom_client.js" which is in the optimize deps directory. The dependency might be incompatible with the dep optimizer. Try adding it to `optimizeDeps.exclude`.
+  ✘  1 [chromium-audit] › e2e/tax-journeys-browser.spec.ts:129:1 › W7 browser: the Israeli month journey shows the registration, allocation numbers, VAT report and PCN874 draft (1.2s)
+[WebServer] The file does not exist at "/home/user/ledgerflow/node_modules/.vite/deps/react-dom_client.js" which is in the optimize deps directory. The dependency might be incompatible with the dep optimizer. Try adding it to `optimizeDeps.exclude`.
+  ✘  2 [chromium-audit] › e2e/tax-journeys-browser.spec.ts:170:1 › W8 browser: the US quarter journey shows the state return, due date, use tax and 1099 preview (441ms)
+
+
+  1) [chromium-audit] › e2e/tax-journeys-browser.spec.ts:129:1 › W7 browser: the Israeli month journey shows the registration, allocation numbers, VAT report and PCN874 draft 
+
+    Error: page.evaluate: TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js
+
+      42 |
+      43 | async function mountIsrael(page: Page) {
+    > 44 |   await page.evaluate(async ({ workspaceId, user }) => {
+         |              ^
+      45 |     const refresh = await import('/@react-refresh');
+      46 |     refresh.default.injectIntoGlobalHook(window);
+      47 |     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
+        at mountIsrael (/home/user/ledgerflow/e2e/tax-journeys-browser.spec.ts:44:14)
+        at /home/user/ledgerflow/e2e/tax-journeys-browser.spec.ts:133:9
+
+    Error Context: ../.cache/ledgerflow-agent8-browser/test-results/tax-journeys-browser-W7-br-5b455-VAT-report-and-PCN874-draft-chromium-audit/error-context.md
+
+  2) [chromium-audit] › e2e/tax-journeys-browser.spec.ts:170:1 › W8 browser: the US quarter journey shows the state return, due date, use tax and 1099 preview 
+
+    Error: page.evaluate: TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:3000/node_modules/.vite/deps/react-dom_client.js
+
+      83 |
+      84 | async function mountUs(page: Page) {
+    > 85 |   await page.evaluate(async ({ workspaceId, user }) => {
+         |              ^
+      86 |     const refresh = await import('/@react-refresh');
+      87 |     refresh.default.injectIntoGlobalHook(window);
+      88 |     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
+        at mountUs (/home/user/ledgerflow/e2e/tax-journeys-browser.spec.ts:85:14)
+        at /home/user/ledgerflow/e2e/tax-journeys-browser.spec.ts:174:9
+
+    Error Context: ../.cache/ledgerflow-agent8-browser/test-results/tax-journeys-browser-W8-br-f0a24-te-use-tax-and-1099-preview-chromium-audit/error-context.md
+
+  2 failed
+    [chromium-audit] › e2e/tax-journeys-browser.spec.ts:129:1 › W7 browser: the Israeli month journey shows the registration, allocation numbers, VAT report and PCN874 draft 
+    [chromium-audit] › e2e/tax-journeys-browser.spec.ts:170:1 › W8 browser: the US quarter journey shows the state return, due date, use tax and 1099 preview 

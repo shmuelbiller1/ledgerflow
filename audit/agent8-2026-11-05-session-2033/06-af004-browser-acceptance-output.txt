@@ -1,0 +1,40 @@
+
+> ledgerflow@0.1.0 test:e2e
+> playwright test --config=audit/agent8-2026-11-05-session-2033/af004-playwright.config.ts
+
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium-audit] › audit/agent8-2026-11-05-session-2033/af004-browser-journey.spec.ts:58:1 › browser control: a saved Texas sale appears while the buyer remains in Texas (1.4s)
+  ✘  2 [chromium-audit] › audit/agent8-2026-11-05-session-2033/af004-browser-journey.spec.ts:65:1 › browser contract: the saved Texas sale remains after the buyer moves to Oklahoma (437ms)
+
+
+  1) [chromium-audit] › audit/agent8-2026-11-05-session-2033/af004-browser-journey.spec.ts:65:1 › browser contract: the saved Texas sale remains after the buyer moves to Oklahoma 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Array [
+    -   "1",
+    -   "$100.00",
+    -   "$8.25",
+    +   "0",
+    +   "$0.00",
+    +   "$0.00",
+      ]
+
+      66 |   const cells = await mountQuarter(page, 'OK');
+      67 |   const displayed = await Promise.all([cells.nth(0).textContent(), cells.nth(1).textContent(), cells.nth(4).textContent()]);
+    > 68 |   expect(displayed).toEqual(['1', '$100.00', '$8.25']);
+         |                     ^
+      69 | });
+      70 |
+        at /home/user/ledgerflow/audit/agent8-2026-11-05-session-2033/af004-browser-journey.spec.ts:68:21
+
+    Error Context: test-results/af004-browser-journey-brow-0f8ec-the-buyer-moves-to-Oklahoma-chromium-audit/error-context.md
+
+  1 failed
+    [chromium-audit] › audit/agent8-2026-11-05-session-2033/af004-browser-journey.spec.ts:65:1 › browser contract: the saved Texas sale remains after the buyer moves to Oklahoma 
+  1 passed (4.5s)

@@ -187,10 +187,15 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   const workspace = (await db.collection('workspaces').doc(rule.workspaceId).get()).data() || {};
   const estimateRef = db.collection('estimates').doc();
   let number = '';
+  let customerName = t.customerName;
   await db.runTransaction(async (tx) => {
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
+    // the template as stored now (a contact merge may have changed it since the job read the schedule)
+    const current = (ruleSnap.data()?.estimateTemplate || {}) as Partial<Estimate> & DocumentData;
     const again = await tx.get(db.collection('estimates').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
+    if (!current.customerId) throw new Error('The schedule has no customer');
+    if (!Array.isArray(current.lines) || current.lines.length === 0) throw new Error('The estimate has no lines');
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
     // one schedule per estimate: if the same estimate was set to repeat twice, only the first one runs
     // (read inside this serializable transaction, so a schedule saved meanwhile is seen or the write retries)
@@ -203,19 +208,20 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
     }
     // the number is taken in the same transaction, so a skipped draft leaves no gap
     number = await allocateInTransaction(db, tx, rule.workspaceId, 'estimate');
-    const draft = nextEstimateDraft(t, { id: estimateRef.id, number, date });
+    const draft = nextEstimateDraft(current, { id: estimateRef.id, number, date });
     const { validityDays: _validity, ...fields } = draft as Estimate & { validityDays?: number };
     // the copy's own fields; empty ones (no signing link, no conversion) are left out
     const estimate: DocumentData = Object.fromEntries(Object.entries({
       ...fields,
       workspaceId: rule.workspaceId,
       uid: rule.uid,
-      currency: (t.currency as string | undefined) || workspace.currency || 'USD',
+      currency: (current.currency as string | undefined) || workspace.currency || 'USD',
       recurrenceOccurrenceKey: key,
       metadata: { recurringTemplateId: rule.id, generatedAt: new Date().toISOString() },
       createdAt: new Date().toISOString(),
     }).filter(([, v]) => v !== undefined));
     tx.set(estimateRef, estimate);
+    customerName = estimate.customerName;
     tx.update(db.collection('recurring').doc(rule.id), {
       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
       lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),
@@ -224,7 +230,7 @@ async function generateEstimate(db: Firestore, rule: RecurringTransaction & { es
   await notify(db, {
     workspaceId: rule.workspaceId, workspace, kind: 'estimate.draft_ready',
     title: `Recurring estimate ${number} is ready`,
-    message: `A draft for ${String(t.customerName || 'the customer')} dated ${date}. Check it and send it.`,
+    message: `A draft for ${String(customerName || 'the customer')} dated ${date}. Check it and send it.`,
     eventKey: `estimate.draft_ready:${key}`, recordId: estimateRef.id,
   });
   return { estimateId: estimateRef.id };
