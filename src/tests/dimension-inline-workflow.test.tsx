@@ -12,6 +12,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
   addDimensionAxisInline,
+  buildTransactionLineDimensionPatch,
   deriveDimensionAxisId,
   ensureBillDimensionNodes,
   ensureInvoiceDimensionNodes,
@@ -122,6 +123,28 @@ describe('Pure dimension helpers & scoped adapter actions', () => {
     assert.equal(normalizeDimensionInputToNodeId(nodes, 'property', '5 Ocean Ave'), 'P5');
     assert.equal(normalizeDimensionInputToNodeId(nodes, 'property', 'Ocean House/Unit B'), 'P5/Unit B');
     assert.equal(normalizeDimensionInputToNodeId(nodes, 'property', 'Maui Villa'), 'Maui Villa');
+  });
+
+  test('project label edits drop stale links and preserve same-node renames for legacy values', () => {
+    const nodes: DimensionNode[] = [
+      { id: 'P1', dimensionId: 'project', description: 'Renamed Alpha', aliases: ['Alpha'], status: 'active' },
+      { id: 'P2', dimensionId: 'project', description: 'Internal label', status: 'active' },
+    ];
+    const projects = [{ id: 'proj_alpha', name: 'Alpha' }, { id: 'proj_beta', name: 'Beta' }];
+    const line: TransactionLine = { accountId: 'util', amountCents: 8000, project: 'proj_alpha', dimensions: { project: 'P1' } };
+    for (const value of ['Unmatched label', 'P2']) {
+      const patch = buildTransactionLineDimensionPatch(line, 'project', value, nodes, projects);
+      assert.notEqual(patch.project, 'proj_alpha');
+      assert.equal(patch.project, value === 'P2' ? 'Internal label' : value);
+      assert.equal(patch.dimensions?.project, value);
+    }
+    for (const dimensions of [{ project: 'P1' }, { project: 'Alpha' }, undefined]) {
+      const patch = buildTransactionLineDimensionPatch({ ...line, dimensions }, 'project', 'Renamed Alpha', nodes, projects);
+      assert.equal(patch.project, 'proj_alpha');
+      assert.equal(patch.dimensions?.project, 'P1');
+    }
+    assert.equal(buildTransactionLineDimensionPatch(line, 'project', 'Beta', nodes, projects).project, 'proj_beta');
+    assert.notEqual(buildTransactionLineDimensionPatch(line, 'project', '', nodes, projects).project, 'proj_alpha');
   });
 
   test('derives clean unique axis IDs for English and Hebrew display names', () => {
@@ -522,6 +545,31 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     );
     assert.equal(screen.queryByRole('button', { name: 'New dimension' }), null);
     assert.equal(screen.queryByRole('button', { name: /Rename Property label/ }), null);
+  });
+
+  test('TransactionEditModal only inherits the header project for lines without project labels', async () => {
+    useLedgerStore.setState({ projects: [{ id: 'proj_alpha', name: 'Alpha' }] as ReturnType<typeof useLedgerStore.getState>['projects'] });
+    const tx = makeTransaction({
+      project: 'Alpha',
+      lines: [
+        { accountId: 'util', amountCents: 100, project: 'Custom label' },
+        { accountId: 'util', amountCents: 100, project: 'Custom label', dimensions: { project: 'Other label' } },
+        { accountId: 'util', amountCents: 100, dimensions: { project: 'Other label' } },
+        { accountId: 'bank', amountCents: -300 },
+      ],
+    });
+    let savedLines: TransactionLine[] | undefined;
+    render(<TransactionEditModal isOpen transaction={tx} accounts={accounts} onClose={() => {}}
+      onUpdate={(_id, updates) => { savedLines = updates.lines; }} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+    });
+    await waitFor(() => assert.ok(savedLines));
+    assert.ok(savedLines);
+    assert.equal(savedLines[0].project, 'Custom label');
+    assert.equal(savedLines[1].project, 'Custom label');
+    assert.notEqual(savedLines[2].project, 'proj_alpha');
+    assert.equal(savedLines[3].project, 'proj_alpha');
   });
 
   test('DimensionsSettings persists new nodes, archive toggles, aliases on existing nodes, IME guards, and new axes immediately', async () => {

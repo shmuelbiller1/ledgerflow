@@ -182,7 +182,7 @@ function useTransactionEditModalModel({
       const rawLineProject = l.project || project.trim() || undefined;
       const matchedLineProjectId =
         rawLineProject || normalizedDims?.project
-          ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, project.trim()], workspaceProjects, currentNodes)
+          ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, !l.project && !normalizedDims?.project ? project.trim() : undefined], workspaceProjects, currentNodes)
           : undefined;
       return {
         ...l,

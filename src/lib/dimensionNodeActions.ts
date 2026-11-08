@@ -586,8 +586,15 @@ export function buildTransactionLineDimensionPatch(
     if (!value.trim() || value === 'Unassigned') {
       patch.project = updated.project;
     } else {
+      const previousValue = line.dimensions?.project
+        || projects?.find(project => project.id === line.project)?.name
+        || line.project;
+      const previousNode = matchDimensionNode(nodes, 'project', previousValue);
+      const nextNode = matchDimensionNode(nodes, 'project', value);
+      // A rename keeps node identity even when legacy values store descriptions or aliases.
+      const sameNode = previousNode !== undefined && previousNode.id === nextNode?.id;
       const matchedProjectId = resolveWorkspaceProjectId(
-        [value, updated.project, updated.dimensions?.project, line.project],
+        [value, updated.project, updated.dimensions?.project, sameNode ? line.project : undefined],
         projects,
         nodes,
       );
