@@ -367,6 +367,12 @@ jobs:
           name: playwright-combined-report
           path: playwright-report/
           retention-days: 7
+      # A shard that is cancelled at its 30-minute limit leaves no failing test behind, so the only
+      # question a reader has is "which file was it stuck in". The blob report survives the
+      # cancellation and names the suites the shard never finished.
+      - name: Say which suites a cancelled shard never reached
+        if: always()
+        run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
         if: always()
         env:
