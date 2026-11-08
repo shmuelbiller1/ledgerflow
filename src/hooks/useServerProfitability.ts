@@ -24,16 +24,25 @@ function useInvoiceReportInputs(from: string | undefined) {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const projects = useLedgerStore(s => s.projects);
+  const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
   // A capped entry list can leave out cost of goods sold posted before the range (it is read at any date), and a list
   // that failed to load is as incomplete as a capped one: either way the report is asked of the server.
-  const truncatedInput = useLedgerStore(s => Boolean(['invoices', 'inventory', 'chartAccounts', 'customers', 'projects', 'transactions'].some(k => s.truncatedCollections?.[k])));
+  const truncatedInput = useLedgerStore(s => Boolean(['invoices', 'inventory', 'chartAccounts', 'customers', 'projects', 'transactions', 'dimensionNodes'].some(k => s.truncatedCollections?.[k])));
   const failedInput = useDataNeedsStore(s => Boolean((['invoices', 'inventory', 'accounts', 'customers', 'projects', 'transactions'] as const).some(k => s.failed[k])));
   const listsCapped = truncatedInput || failedInput;
   const input = useMemo(() => {
     const own = <T extends { workspaceId?: string }>(rows: T[] | undefined) => (rows || []).filter(r => !workspaceId || !r.workspaceId || r.workspaceId === workspaceId);
-    return { customers: own(customers), invoices: own(invoices), items: own(items), transactions: own(transactions), accounts: own(accounts), projects: own(projects) };
-  }, [workspaceId, customers, invoices, items, transactions, accounts, projects]);
-  const extraKey = useMemo(() => JSON.stringify([rangeRevision(input.transactions, ''), input.invoices.filter(i => !from || (i.date || '') >= from), input.items, input.accounts, input.customers, input.projects]),
+    return {
+      customers: own(customers),
+      invoices: own(invoices),
+      items: own(items),
+      transactions: own(transactions),
+      accounts: own(accounts),
+      projects: own(projects),
+      dimensionNodes: own(dimensionNodes as Array<(typeof dimensionNodes)[number] & { workspaceId?: string }>),
+    };
+  }, [workspaceId, customers, invoices, items, transactions, accounts, projects, dimensionNodes]);
+  const extraKey = useMemo(() => JSON.stringify([rangeRevision(input.transactions, ''), input.invoices.filter(i => !from || (i.date || '') >= from), input.items, input.accounts, input.customers, input.projects, input.dimensionNodes]),
     [input, from]);
   return { input: input as Omit<ProfitabilityInput, 'startDate' | 'endDate'>, listsCapped, extraKey };
 }

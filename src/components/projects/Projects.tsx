@@ -9,6 +9,7 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -29,12 +30,26 @@ function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
   });
 }
 
+/** Checks whether a ledger transaction line belongs to the given workspace Project by ID, name, or resolved DimensionNode label. */
 const isProjectLine = (l: import("../../types").TransactionLine, p: Project) => {
     if (!l || !p) return false;
-    return l.project === p.id ||
-           l.project === p.name ||
-           l.dimensions?.project === p.id ||
-           l.dimensions?.project === p.name;
+    if (
+      l.project === p.id ||
+      l.project === p.name ||
+      l.dimensions?.project === p.id ||
+      l.dimensions?.project === p.name
+    ) {
+      return true;
+    }
+    const nodes = useLedgerStore.getState().dimensionNodes || [];
+    if (nodes.length === 0) return false;
+    const pName = p.name.trim().toLowerCase();
+    for (const candidate of [l.dimensions?.project, l.project]) {
+      if (!candidate) continue;
+      const resolved = resolveDimensionLabel(nodes, 'project', candidate).trim().toLowerCase();
+      if (resolved === pName || resolved === p.id.toLowerCase()) return true;
+    }
+    return false;
   };
 
 const isProjectTx = (t: Transaction, p: Project) => {

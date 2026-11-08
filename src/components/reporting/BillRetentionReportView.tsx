@@ -23,6 +23,7 @@ const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border
 export default function BillRetentionReportView() {
   const bills = useLedgerStore(s => s.bills);
   const projects = useLedgerStore(s => s.projects);
+  const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
   const { loading } = useLedgerCollections('bills', 'projects');
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const canWrite = useCurrentRole() !== 'viewer';
@@ -41,8 +42,8 @@ export default function BillRetentionReportView() {
   );
 
   const report = useMemo(
-    () => computeBillRetentionReport(bills || [], asOfDate, workspaceCurrency),
-    [bills, asOfDate, workspaceCurrency],
+    () => computeBillRetentionReport(bills || [], asOfDate, workspaceCurrency, dimensionNodes, projects),
+    [bills, asOfDate, workspaceCurrency, dimensionNodes, projects],
   );
 
   const handleSaveRetention = async (e: React.FormEvent) => {

@@ -33,6 +33,7 @@ import type { ReceiptPayment } from './InvoiceModal';
 import InvoiceEmailDialog from './InvoiceEmailDialog';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
+import { ensureInvoiceDimensionNodes } from '../../lib/dimensionNodeActions';
 import ReceivePaymentModal from './ReceivePaymentModal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -53,7 +54,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
-
+/** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
   const user = useAuthStore(s => s.user);
   const invoices = useLedgerStore(s => s.invoices);
@@ -82,13 +83,12 @@ export default function Sales() {
     }
     return map;
   }, [customers, invoices, payments, creditNotes]);
+  /** Ensures invoice dimension labels exist in the workspace, then creates or updates the invoice, receipt payment, and attachments. */
   const onAddInvoice = async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
-    // a sale receipt (K-03) carries where its money went; that is a payment, not part of the invoice
-    // files picked for a new invoice (K-07) are kept with it once it has an id
+    // files picked for a new invoice (K-07) and receipt cash account (K-03) are handled after save
     const { receiptPayment, attachmentFiles, ...rest } = input;
     let data = rest;
-    // A customer typed in the invoice that isn't on the list yet is added first, so the invoice
-    // belongs to a real customer (statements, balances, emails)
+    // A customer typed in the invoice that isn't on the list yet is added first
     if (typeof data.customerId === 'string' && data.customerId.startsWith('new-')) {
       const name = String(data.customerName || '').trim();
       if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); return; }
@@ -96,11 +96,10 @@ export default function Sales() {
       if (!created) return;
       data = { ...data, customerId: created.id };
     }
+    try { data = await ensureInvoiceDimensionNodes(data); }
+    catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;
-    if (data.id) { 
-      const { id, ...updates } = data; 
-      res = await updateEntity('invoices', id, updates); 
-    } else {
+    if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
       res = await addEntity('invoices', data); 
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;
