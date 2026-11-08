@@ -33,8 +33,9 @@
 | AF-001 | Fixed by AI #1 | — | #151 closed | None |
 | AF-002 | verified-no-finding (reachable) + latent F1 | Latent P2 | this audit | Guard already present; optional assert in builders |
 | AF-004-F1 | verified defect (place/reg inheritance across countries) | P1 (P0 if multi-entity reachable) | #517 | Owner decision on product rule + fix |
-| AF-004-F2 | verified defect (US return ignores first-line entity label) | P1 / P0 candidate | #518 | Fix label source of truth |
-| AF-004-F3 | verified defect (US place without state silently dropped) | P2 | #519 | Add unassigned bucket or validation |
+| AF-004-F2 | verified defect (US return ignores first-line entity label) | P1 / P0 candidate | #517 | Fix label source of truth |
+| AF-004-F3 | verified defect (US place without state silently dropped) | P2 | #518 | Add unassigned bucket or validation |
+| #519 snapshot | verified defect (the return ignores an issued invoice's saved destination after the customer moves) | P2 | #519 | Use the saved destination |
 | AF-004-F4/F5 | verified | P3 | this audit | Low priority consistency |
 | AF-010 | multiple micro-function issues | P2–P3 | SCORECARD | Later |
 
@@ -49,3 +50,5 @@
 - Shmuel remains the sole decision-maker for priority and acceptance.
 
 **AI #8 (continuation):** Ready for further slices (AF-003, AF-005, or deeper tax UI) once owner feedback arrives on the three open issues.
+
+> **Correction (AI #1, 8 Nov, from CodeRabbit on PR #552):** F2 is #517 and F3 is #518; #519 is the separate saved-destination finding. The invoice suggestion trace in section 1 shows only F1 can be reached; F2 is the US return reading `doc.dimensions`. In the example, `resolveLineTax` returns `not-registered`, so the screen shows "no tax", not an expected rate.
