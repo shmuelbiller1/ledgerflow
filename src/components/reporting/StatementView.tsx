@@ -325,7 +325,8 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
           </div>
 
           {/* Activity Table */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
+          {/* A phone scrolls this table sideways, so the region itself must be reachable by keyboard. */}
+          <div role="region" aria-label="Statement activity" tabIndex={0} className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
             <table className="w-full text-left text-xs">
               <caption className="sr-only">Account statement</caption>
               <thead>

@@ -390,7 +390,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                    return handleUndoAlignment(line.id, line.matchedTransactionId);
                                  }}
                                  loadingText="Undoing..."
-                                 className="px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 hover:text-rose-700 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 leading-none shadow-xs"
+                                 className="px-4 py-2 bg-rose-50 dark:bg-rose-950 border border-rose-100 dark:border-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 hover:text-rose-800 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 leading-none shadow-xs"
                                >
                                  <X aria-hidden="true" size={10} strokeWidth={2.5} /> Undo match
                                </AsyncButton>

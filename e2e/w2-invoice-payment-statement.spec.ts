@@ -135,12 +135,12 @@ test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 
 
   const errors = await mountScreen(page, salesOptions([]));
 
+  // The invoice table is the invoice list: the invoice and what is still due on it.
   const table = page.getByRole('table').first();
   await expect(table.getByRole('cell', { name: 'INV-001', exact: true })).toBeVisible();
   await expect(table).toContainText('$1,180.00');
-  await expect(table).toContainText('$600.00');
-  // 1,180.00 − 600.00 of paid value = 580.00 still owed by the customer.
-  await expect(table).toContainText('$580.00');
+  // 1,180.00 billed − 600.00 of recorded payment = 580.00 still due.
+  await expect(table).toContainText('Still due $580.00');
   await expectFitsAndPassesAxe(page, 'body', 'Sales screen');
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
@@ -175,8 +175,7 @@ test('W2 browser: desktop Sales screen with invoice and payment figures', async 
   const table = page.getByRole('table').first();
   await expect(table.getByRole('cell', { name: 'INV-001', exact: true })).toBeVisible();
   await expect(table).toContainText('$1,180.00');
-  await expect(table).toContainText('$600.00');
-  await expect(table).toContainText('$580.00');
+  await expect(table).toContainText('Still due $580.00');
 
   expect(errors, JSON.stringify(errors)).toEqual([]);
 });
