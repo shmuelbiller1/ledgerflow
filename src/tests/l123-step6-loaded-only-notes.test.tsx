@@ -1,6 +1,6 @@
 /**
  * L-123 step 6: screens that review only the entries loaded in this browser (Accountant Ask, Time Machine, the
- * forensic audit and the forensic auditor) say so when the loaded entries are capped, and say nothing when every
+ * forensic audit, the forensic auditor and the category Why? popover) say so when the loaded entries are capped, and say nothing when every
  * entry is loaded. The auditor's downloaded log says the same next to its scan count.
  */
 import './helpers/dom';
@@ -10,6 +10,8 @@ import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { LoadedEntriesOnlyNote } from '../components/common/LoadedEntriesOnlyNote';
 import AskLoop from '../components/ledger/AskLoop';
+import CategoryWhyPopover from '../components/common/CategoryWhyPopover';
+import { fireEvent } from '@testing-library/react';
 import { useLedgerStore } from '../stores/useLedgerStore';
 
 const setCapped = (capped: boolean) =>
@@ -32,5 +34,17 @@ describe('L-123 step 6: loaded-entries-only notes', () => {
     setCapped(true);
     render(<AskLoop />);
     assert.ok(screen.getByTestId('askloop-loaded-only'));
+  });
+
+  test('the category Why? popover says it learns only from the loaded entries when capped, and not otherwise', () => {
+    setCapped(false);
+    render(<CategoryWhyPopover description="Coffee shop" />);
+    fireEvent.click(screen.getByText('Why?'));
+    assert.equal(screen.queryByTestId('category-why-loaded-only'), null);
+    cleanup();
+    setCapped(true);
+    render(<CategoryWhyPopover description="Coffee shop" />);
+    fireEvent.click(screen.getByText('Why?'));
+    assert.match(screen.getByTestId('category-why-loaded-only').textContent ?? '', /cover only the loaded entries/);
   });
 });
