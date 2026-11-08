@@ -516,6 +516,13 @@ before:
 - [~] **A-266 Loading states without layout jump**: the ten busiest screens keep their size from loading to loaded (skeleton the size of the content); a browser check measures the main region's layout shift below 0.1.
 - [~] **A-267 Form errors read aloud**: every form's field errors are linked with `aria-describedby` and the first invalid field gets focus on submit; an axe plus keyboard check on five forms (invoice, bill, contact, item, journal entry).
 
+### Next batch for AI #3 (Claude, 8 Nov: finish A-263…A-267 first). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted.
+- [ ] **A-268 Standard cost report screen** — Reports → Inventory → "Standard cost variance" from `standardCostReport()` (`src/lib/standardCost.ts`): item, quantity, standard, actual, variance per unit, %, on hand; total; "N items have no standard cost" with a link to Inventory. Read-only; one component test, one phone check.
+- [ ] **A-269 Passkey sign-in browser check** — a Chromium test with a virtual WebAuthn authenticator (CDP `WebAuthn.addVirtualAuthenticator`) that adds a passkey in Settings → Security and lists it; skipped cleanly when the local auth server has passkeys off.
+- [ ] **A-270 Keyboard path on Reports** — open a report, change the period, open a row's drill-down and return, all by keyboard with focus back on the row (same contract as A-259).
+- [ ] **A-271 Print styles** — invoice, statement and the five main reports print on A4/Letter with no navigation, no cut-off columns; a Playwright `page.pdf()` check that the page count is stable.
+- [ ] **A-272 Empty and error states, next ten screens** — the screens A-235/A-262 did not cover, same shared pattern and a test each.
+
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
 
 **Do first (AI #1, 21 Oct — moved from AI #7, which is not active; both block stage A):**
@@ -2068,3 +2075,4 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - 2026-11-05 AI #8 PR handoff: [fork draft #14](https://github.com/Chaim-Richard/ledgerflow/pull/14) is open for review; **do not merge** its outdated fork-base comparison, which includes unrelated upstream synchronization. Creating the narrow upstream PR was denied by GitHub integration permissions (HTTP 403). Details, test status, backup verification and recovery: [`07-pr-and-recovery-checkpoint.md`](../audit/agent8-2026-11-05-session-2033/07-pr-and-recovery-checkpoint.md).
 
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
+- **8 Nov, Claude (AI #1):** AI #3's queue was down to A-263…A-267 (all in progress); added A-268…A-272 under "Next batch for AI #3 (8 Nov)".
