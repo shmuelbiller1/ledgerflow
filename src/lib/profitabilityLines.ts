@@ -6,7 +6,7 @@
 import { customerGrossProfit } from './customerGrossProfit';
 import { computeProjectProfitability, type ProjectProfitabilityInput } from './projectProfitability';
 import { computeSalesByItem } from '../server/reports/itemReports';
-import type { ChartAccount, Customer, InventoryItem, Invoice, Transaction } from '../types';
+import type { ChartAccount, Customer, DimensionNode, InventoryItem, Invoice, Transaction } from '../types';
 
 export type ProfitabilityBy = 'customer' | 'item' | 'project';
 export const PROFITABILITY_BY: readonly ProfitabilityBy[] = ['customer', 'item', 'project'];
@@ -30,12 +30,13 @@ export interface ProfitabilityInput {
   transactions: Transaction[];
   accounts: ChartAccount[];
   projects: NonNullable<ProjectProfitabilityInput['projects']>;
+  dimensionNodes?: DimensionNode[];
   startDate?: string;
   endDate?: string;
 }
 
 export function profitabilityLines(by: ProfitabilityBy, input: ProfitabilityInput): ProfitabilityLine[] {
-  const { customers, invoices, items, transactions, accounts, projects, startDate, endDate } = input;
+  const { customers, invoices, items, transactions, accounts, projects, dimensionNodes, startDate, endDate } = input;
   const range = { startDate, endDate };
   if (by === 'customer') {
     return customerGrossProfit({ customers, invoices, items, transactions, accounts, ...range })
@@ -45,7 +46,7 @@ export function profitabilityLines(by: ProfitabilityBy, input: ProfitabilityInpu
     return computeSalesByItem({ invoices, items, transactions, accounts, ...range }).rows
       .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
   }
-  return computeProjectProfitability({ invoices, transactions, accounts, items, projects, ...range }).map(r => ({
+  return computeProjectProfitability({ invoices, transactions, accounts, items, projects, dimensionNodes, ...range }).map(r => ({
     label: r.project, revenueCents: r.revenueCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct,
     estimate: r.costIsEstimate, budgetCents: r.budgetCents, budgetRemainingCents: r.budgetRemainingCents, budgetUsedPct: r.budgetUsedPct,
   }));

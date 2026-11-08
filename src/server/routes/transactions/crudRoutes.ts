@@ -21,6 +21,18 @@ import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from '.
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
 
+/**
+ * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
+ * still a member, and every date the save touches is open for them (hard close, or the soft close for their role).
+ */
+function assertStillOpen(ws: DocumentData | undefined, user: { uid: string; admin?: boolean }, dates: Array<string | null | undefined>): void {
+  if (!ws || (ws.uid !== user.uid && !ws.members?.includes(user.uid) && !user.admin)) throw new HttpError('Not a member', 403);
+  for (const date of dates) {
+    const lock = date ? postingLock(date, ws, user.uid) : null;
+    if (lock) throw new HttpError(lockMessage(date, lock), 400);
+  }
+}
+
 /** Read, create, edit and delete one entry. Part of /api/v1/transactions (F-06), registered in the original order. */
 export function registerTransactionCrudRoutes(transactionRouter: express.Router): void {
   transactionRouter.get('/', async (req, res) => {
@@ -139,6 +151,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
     return executeCommand(req, res, workspaceId, 'TRANSACTION_CREATE', async (_ctx, t) => {
       // the budget control as the workspace has it at commit (warn by default, 409 when it blocks)
       const wsNow = (await t.get(db.collection('workspaces').doc(validatedTx.workspaceId))).data();
+      // audit F3 (5 Nov): membership and the closed period as the workspace has them now, inside the save; the
+      // entry was prepared against an earlier read, and the month may have been closed in between
+      assertStillOpen(wsNow, user, [validatedTx.date]);
       try { budgetWarnings = enforceBudgetControl(wsNow, planned); } catch (err) {
         if (err instanceof BudgetBlocked) throw new HttpError(err.message, 409);
         throw err;
@@ -321,7 +336,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
           throw new Error('Cannot modify certified, cleared, or voided transactions');
         }
-        if (doc.data()?.date) assertPostingOpen(doc.data()?.date, wsData, user.uid);
+        // audit F3: the old and the new date against the workspace as it is now, inside the save
+        assertStillOpen((await t.get(db.collection('workspaces').doc(transaction.workspaceId))).data(), user, [doc.data()?.date, validatedTx.date]);
 
         const txToSave = { ...validatedTx };
         delete (txToSave as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
@@ -395,7 +411,21 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
       }
 
-      await txRef.delete();
+      // audit F3: the entry and the workspace read again inside the delete, so a period closed (or the entry
+      // certified, cleared or changed) since the checks above is not deleted after all
+      const refused = await db.runTransaction(async (t) => {
+        const now = await t.get(txRef);
+        if (!now.exists) return 'gone';
+        const nowData = now.data();
+        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true) && !user.admin) return 'locked';
+        const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
+        try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
+        t.delete(txRef);
+        return '';
+      });
+      if (refused === 'gone') return res.status(404).json({ error: 'Transaction not found' });
+      if (refused === 'locked') return res.status(403).json({ error: 'Forbidden: Transaction status is audited, cleared, or locked. Destructive actions are restricted to administrators.' });
+      if (refused) return res.status(refused === 'Not a member' ? 403 : 400).json({ error: refused });
 
       await writeServerAuditLog({
         workspaceId: transactionWsId,

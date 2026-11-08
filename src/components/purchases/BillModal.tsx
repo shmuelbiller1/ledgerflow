@@ -23,6 +23,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type BillEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
+import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 
 /** What the dialog saves: the bill, and for a new one whether it repeats (BE-08; never stored on the bill). */
 export type BillDraft = Partial<Bill> & { recurringInterval?: 'weekly' | 'monthly' | 'quarterly' | 'yearly'; attachmentFiles?: File[] };
@@ -47,6 +48,7 @@ const copyLine = (s: NonNullable<Bill['splits']>[number], keepOrder = true) => (
   ...(keepOrder && s.orderLine !== undefined ? { orderLine: s.orderLine, ...(s.orderQuantity !== undefined ? { orderQuantity: s.orderQuantity } : {}) } : {}),
 });
 
+/** Modal form for creating or editing a vendor bill and its line-level accounts, stock items, and dimension labels. */
 export default function BillModal({ isOpen, onClose, onSave, vendors = [], accounts = [], initialBill }: BillModalProps) {
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
@@ -223,6 +225,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     }
   };
 
+  /** Validates bill fields, stock quantities, and approval thresholds, normalizes line labels, and submits to `onSave`. */
   const handleAction = async (e: React.FormEvent, actionStatus: Bill['status']) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -281,7 +284,10 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         taxTreatment: taxCode?.treatment,
         taxBreakdown: totals.components,
         selfAssessedTaxCents: totals.selfAssessedCents || undefined,
-        splits,
+        splits: splits.map(split => {
+          const normalized = normalizeDimensionsMap(split.dimensions, useLedgerStore.getState().dimensionNodes || []);
+          return normalized !== split.dimensions ? { ...split, dimensions: normalized } : split;
+        }),
         metadata: {
           ...(bill.metadata || {}),
           memo,

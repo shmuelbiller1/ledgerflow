@@ -447,15 +447,30 @@ export async function profitabilityOver(db: Firestore, workspaceId: string, by: 
   const sales = await invoiceSalesInputs(db, workspaceId, from, to);
   const ofWorkspace = async <T>(name: string) => (await db.collection(name).where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as T);
   let transactions = sales.transactions;
+  let dimensionNodes: DimensionNode[] = [];
   if (by === 'project') {
     const seen = new Set(transactions.map(t => t.id));
-    const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+    const [{ entries }, nodesSnap] = await Promise.all([
+      accountsAndEntriesFrom(db, workspaceId, from, to),
+      db.collection('dimensionNodes').where('workspaceId', '==', workspaceId).get(),
+    ]);
     transactions = [...transactions, ...entries.filter(t => !seen.has(t.id))];
+    if (!nodesSnap.empty) {
+      dimensionNodes = nodesSnap.docs.map(d => {
+        const raw = d.data() as Partial<DimensionNode>;
+        return { ...raw, id: typeof raw.id === 'string' && raw.id ? raw.id : d.id } as DimensionNode;
+      });
+    } else {
+      const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
+      const legacy = (wsSnap.data() as { dimensionNodes?: DimensionNode[] } | undefined)?.dimensionNodes;
+      if (Array.isArray(legacy)) dimensionNodes = legacy;
+    }
   }
   const lines = profitabilityLines(by, {
     ...sales, transactions,
     customers: by === 'customer' ? await ofWorkspace<Customer>('customers') : [],
     projects: by === 'project' ? await ofWorkspace<ProfitabilityInput['projects'][number]>('projects') : [],
+    dimensionNodes,
     startDate: from, endDate: to,
   });
   return { lines, invoicesRead: sales.invoices.length };

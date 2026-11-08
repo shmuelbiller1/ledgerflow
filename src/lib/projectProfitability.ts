@@ -16,10 +16,10 @@
  * nothing has been billed or spent yet in the period, while unbudgeted projects and `Unassigned`
  * never have a budget invented (`null`). Whole cents; read-only; posts nothing.
  */
-import type { ChartAccount, Invoice, Transaction } from '../types';
+import type { ChartAccount, DimensionNode, Invoice, Transaction } from '../types';
 import { isPostable, isTransactionInDateRange, lineAmount } from './txFilters';
 import { resolveAccountRole } from './accountUtils';
-import { getLineDimension } from './dimensionUtils';
+import { getLineDimension, resolveDimensionLabel } from './dimensionUtils';
 import { INVOICE_IS_ISSUED } from '../server/reports/computeReports';
 import { postedCogsByInvoiceLine } from '../server/reports/itemReports';
 import { toBaseCents } from '../server/reports/partyReports';
@@ -60,6 +60,7 @@ export interface ProjectProfitabilityInput {
   accounts: ChartAccount[];
   items?: Array<{ id: string; unitCostCents: number }>;
   projects?: ProjectBudgetInput[];
+  dimensionNodes?: DimensionNode[];
   startDate?: string;
   endDate?: string;
 }
@@ -75,28 +76,55 @@ function inRange(date: string | undefined, start?: string, end?: string): boolea
 const pct = (denom: number, num: number): number | null => (denom === 0 ? null : Math.round((num / denom) * 10000) / 100);
 
 export function computeProjectProfitability(input: ProjectProfitabilityInput): ProjectProfitabilityRow[] {
-  const { invoices, transactions, accounts, items = [], projects, startDate, endDate } = input;
+  const { invoices, transactions, accounts, items = [], projects, dimensionNodes, startDate, endDate } = input;
   const itemCost = new Map(items.map(i => [i.id, i.unitCostCents]));
   const posted = postedCogsByInvoiceLine(transactions, accounts);
   type Accum = { project: string; revenueCents: number; invoiceCostCents: number; expenseCents: number; costIsEstimate: boolean };
   const rows = new Map<string, Accum>();
 
-  const budgetByKey = new Map<string, { displayName: string; budgetCents: number }>();
+  const projectNameById = new Map<string, string>();
   if (projects) {
     for (const p of projects) {
       const displayName = String(p.name || '').trim();
-      if (!displayName || displayName.toLowerCase() === UNASSIGNED_PROJECT.toLowerCase() || p.status === 'archived') continue;
+      if (p.id && displayName && p.status !== 'archived') {
+        projectNameById.set(p.id.trim().toLowerCase(), displayName);
+      }
+    }
+  }
+
+  const resolveProjectName = (raw: string | undefined): string => {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed || trimmed === UNASSIGNED_PROJECT) return UNASSIGNED_PROJECT;
+    const fromId = projectNameById.get(trimmed.toLowerCase()) || trimmed;
+    const resolved = dimensionNodes && dimensionNodes.length > 0
+      ? resolveDimensionLabel(dimensionNodes, 'project', fromId)
+      : fromId;
+    return resolved.trim() || UNASSIGNED_PROJECT;
+  };
+
+  const budgetByKey = new Map<string, { displayName: string; budgetCents: number }>();
+  if (projects) {
+    for (const p of projects) {
+      const rawDisplayName = String(p.name || '').trim();
+      if (!rawDisplayName || rawDisplayName.toLowerCase() === UNASSIGNED_PROJECT.toLowerCase() || p.status === 'archived') continue;
+      const displayName = resolveProjectName(rawDisplayName);
+      if (displayName === UNASSIGNED_PROJECT) continue;
       const b = Math.round(Number(p.budgetCents) || 0);
       if (b > 0) {
-        budgetByKey.set(displayName.toLowerCase(), { displayName, budgetCents: b });
-        rows.set(displayName, { project: displayName, revenueCents: 0, invoiceCostCents: 0, expenseCents: 0, costIsEstimate: false });
+        const entry = { displayName, budgetCents: (budgetByKey.get(displayName.toLowerCase())?.budgetCents || 0) + b };
+        budgetByKey.set(displayName.toLowerCase(), entry);
+        budgetByKey.set(rawDisplayName.toLowerCase(), entry);
+        if (!rows.has(displayName)) {
+          rows.set(displayName, { project: displayName, revenueCents: 0, invoiceCostCents: 0, expenseCents: 0, costIsEstimate: false });
+        }
       }
     }
   }
 
   const rowFor = (rawProject: string) => {
-    const matched = budgetByKey.get(rawProject.toLowerCase());
-    const project = matched ? matched.displayName : rawProject;
+    const resolved = resolveProjectName(rawProject);
+    const matched = budgetByKey.get(resolved.toLowerCase());
+    const project = matched ? matched.displayName : resolved;
     let r = rows.get(project);
     if (!r) {
       r = { project, revenueCents: 0, invoiceCostCents: 0, expenseCents: 0, costIsEstimate: false };

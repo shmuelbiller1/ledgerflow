@@ -33,6 +33,7 @@ import VendorDetailView from './VendorDetailView';
 import ReceivePaymentModal from '../sales/ReceivePaymentModal';
 import { toast } from 'sonner';
 import { attachFiles, attachSummary } from '../../services/attachmentActions';
+import { ensureBillDimensionNodes } from '../../lib/dimensionNodeActions';
 import OpeningDocumentsDialog from '../common/OpeningDocumentsDialog';
 import { deleteWithUndo } from '../../lib/undoableDelete';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -49,6 +50,7 @@ import { inBackground } from '../../lib/inBackground';
 const NO_VENDORS: Vendor[] = [];
 const NO_BILLS: Bill[] = [];
 
+/** Accounts payable workspace screen for vendor bills, recurring schedules, and vendor management. */
 export default function Purchases() {
   const vendors = useLedgerStore(s => s.vendors) ?? NO_VENDORS;
   const bills = useLedgerStore(s => s.bills) ?? NO_BILLS;
@@ -123,9 +125,17 @@ export default function Purchases() {
     setIsVendorModalOpen(false);
   };
 
+  /** Ensures bill dimension labels exist in the workspace, then creates or updates the bill and its attachments. */
   const handleAddBill = async (input: BillDraft) => {
     // files picked for a new bill (K-07) are kept with it once it has an id
-    const { recurringInterval, attachmentFiles, ...data } = input;
+    const { recurringInterval, attachmentFiles, ...rawData } = input;
+    let data: typeof rawData;
+    try {
+      data = await ensureBillDimensionNodes(rawData);
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.');
+      throw err;
+    }
     if (data.id) {
       const { id, ...updates } = data;
       await updateEntity('bills', id, updates, 'Bill updated');

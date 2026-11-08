@@ -6,14 +6,19 @@ import { toast } from 'sonner';
 import { auth } from '../../firebase';
 import { formatDecimal, getLocalDateISO, parseAmountToCents, cn } from '../../lib/utils';
 import CategoryWhyPopover from '../common/CategoryWhyPopover';
-import { getLineDimension, setLineDimension, extractUniqueDimensionPaths } from '../../lib/dimensionUtils';
+import { DimensionValueActions, InlineAddDimensionAxis } from '../common/DimensionValueActions';
+import { getLineDimension, extractUniqueDimensionPaths } from '../../lib/dimensionUtils';
+import { buildTransactionLineDimensionPatch } from '../../lib/dimensionNodeActions';
+import { useLedgerStore } from '../../stores/useLedgerStore';
 import TagInput from './TagInput';
 import AsyncButton from '../ui/AsyncButton';
 import EntryLinks from './EntryLinks';
 import EntryQuestions from './EntryQuestions';
 import type { TransactionEditModalModel } from './TransactionEditModal';
 
+/** Presentation modal for editing or reversing a multi-line ledger transaction and its dimension labels. */
 export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
+  const workspaceProjects = useLedgerStore(s => s.projects || []);
   return (
     <AnimatePresence>
       <div {...dialogProps} className="fixed inset-0 z-[210] flex items-center justify-center p-4">
@@ -318,7 +323,8 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                 </div>
 
                 {!isLocked && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <InlineAddDimensionAxis disabled={isLocked} />
                     <button
                       type="button"
                       onClick={() => {
@@ -422,11 +428,16 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                     {/* Bottom Row: Additional Dimensions */}
                     {activeDimensions.filter(d => d.id !== 'category').map(dim => {
                       const dimVal = getLineDimension(line, transaction, dim.id, dimensionNodes);
-                      const displayVal = dimVal === 'Unassigned' ? '' : dimVal;
+                      const resolvedDimVal =
+                        dim.id === 'project' && dimVal !== 'Unassigned'
+                          ? workspaceProjects.find(p => p.id === dimVal)?.name || dimVal
+                          : dimVal;
+                      const displayVal = resolvedDimVal === 'Unassigned' ? '' : resolvedDimVal;
                       const pathOptions = Array.from(new Set([
                         ...(dimensionNodes || [])
                           .filter(n => n.dimensionId === dim.id && n.status !== 'archived')
                           .map(n => n.description),
+                        ...(dim.id === 'project' ? workspaceProjects.map(p => p.name) : []),
                         ...extractUniqueDimensionPaths(transactions, dim.id)
                       ]));
                       return (
@@ -439,8 +450,18 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                               value={displayVal}
                               disabled={isLocked}
                               onChange={(e) => {
-                                const updatedLine = setLineDimension(line, dim.id, e.target.value, dimensionNodes);
-                                handleLineChange(idx, updatedLine);
+                                handleLineChange(
+                                  idx,
+                                  current =>
+                                    buildTransactionLineDimensionPatch(
+                                      current,
+                                      dim.id,
+                                      e.target.value,
+                                      dimensionNodes,
+                                      workspaceProjects,
+                                    ),
+                                  lineKeys[idx],
+                                );
                               }}
                               placeholder={`Type or select ${dim.name.toLowerCase()}`}
                               className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-2.5 py-1.5 text-xs text-[var(--text)] outline-none focus:border-zinc-400"
@@ -448,6 +469,41 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                             <datalist id={`${formId}-dim-list-${idx}-${dim.id}`}>
                               {pathOptions.map(p => <option key={p} value={p}>{p}</option>)}
                             </datalist>
+                            <DimensionValueActions
+                              dimensionId={dim.id}
+                              dimensionName={dim.name}
+                              value={displayVal}
+                              lineNumber={idx + 1}
+                              disabled={isLocked}
+                              onSelectNode={node => {
+                                handleLineChange(
+                                  idx,
+                                  current =>
+                                    buildTransactionLineDimensionPatch(
+                                      current,
+                                      dim.id,
+                                      node.id,
+                                      useLedgerStore.getState().dimensionNodes,
+                                      useLedgerStore.getState().projects,
+                                    ),
+                                  lineKeys[idx],
+                                );
+                              }}
+                              onRenamed={node => {
+                                handleLineChange(
+                                  idx,
+                                  current =>
+                                    buildTransactionLineDimensionPatch(
+                                      current,
+                                      dim.id,
+                                      node.id,
+                                      useLedgerStore.getState().dimensionNodes,
+                                      useLedgerStore.getState().projects,
+                                    ),
+                                  lineKeys[idx],
+                                );
+                              }}
+                            />
                           </div>
                         </div>
                       );

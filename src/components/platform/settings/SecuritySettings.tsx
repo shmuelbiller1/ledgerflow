@@ -14,6 +14,7 @@ import RetentionSettingsPanel from './RetentionSettingsPanel';
 import { retentionFor } from '../../../lib/retentionPolicy';
 import AsyncButton from '../../ui/AsyncButton';
 import RecoveryCodesPanel from './RecoveryCodesPanel';
+import PasskeySettings from './PasskeySettings';
 import RequireTwoStepPanel from './RequireTwoStepPanel';
 import TwoPersonRulePanel from './TwoPersonRulePanel';
 import AccessReviewPanel from './AccessReviewPanel';
@@ -240,6 +241,7 @@ export default function SecuritySettings() {
 
           <div className="pt-6 mt-4 border-t border-[var(--line)] space-y-6">
             <TwoStepLoginSettings />
+            <PasskeySettings />
 
             <div className="p-6 bg-[var(--ink)] border border-[var(--line)] rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="space-y-1">

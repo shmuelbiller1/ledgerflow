@@ -7,7 +7,8 @@
  * count only goes down as writers move here.
  */
 import { DoubleEntryValidator } from '../../kernel/validation/DoubleEntryValidator';
-import type { Transaction } from '../../types';
+import type { Transaction, TransactionLine } from '../../types';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 
 export class LedgerDoorError extends Error {
   status = 400;
@@ -16,10 +17,24 @@ export class LedgerDoorError extends Error {
 /** Throws a LedgerDoorError when a full entry could not be a valid ledger entry. */
 export function checkLedgerEntry(entry: Record<string, unknown>): void {
   if (typeof entry.workspaceId !== 'string' || !entry.workspaceId) throw new LedgerDoorError('A ledger entry needs its workspace');
-  const lines = entry.lines as Array<{ amountCents?: unknown }> | undefined;
-  if (!Array.isArray(lines) || lines.length === 0) return; // header-only records (drafts, voids) carry no lines
+  const lines = entry.lines as Array<{ amountCents?: unknown; baseAmountCents?: unknown }> | undefined;
+  if (!Array.isArray(lines) || lines.length === 0) {
+    // header-only records (drafts, voids) carry no lines; an entry that counts in the books must have them
+    // (audit F6, 5 Nov: a completed entry with a total and no lines was restored)
+    if (isPostable(entry as unknown as Transaction)) throw new LedgerDoorError('A posted ledger entry needs its lines');
+    return;
+  }
   for (const l of lines) {
     if (!Number.isInteger(l.amountCents)) throw new LedgerDoorError('Ledger amounts are whole cents');
+    if (l.baseAmountCents !== undefined && l.baseAmountCents !== null && !Number.isSafeInteger(l.baseAmountCents)) {
+      throw new LedgerDoorError('Home-currency amounts are whole cents');
+    }
+  }
+  // audit F7: reports read the home-currency amounts (lineAmount prefers a stored baseAmountCents), so an entry that
+  // carries them must balance in them too, not only in the document currency (BUG-07 writes them so it does)
+  if (lines.some(l => Number.isInteger(l.baseAmountCents))) {
+    const home = lines.reduce((sum, l) => sum + lineAmount(l as TransactionLine, entry as unknown as Transaction), 0);
+    if (home !== 0) throw new LedgerDoorError(`The entry does not balance in the home currency (${home} cents over)`);
   }
   DoubleEntryValidator.validateJournalEntry(entry as unknown as Transaction);
   const debits = lines.reduce((sum, l) => sum + Math.max(0, Number(l.amountCents)), 0);

@@ -7,9 +7,12 @@ import { getLocalDateISO } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
+import { normalizeDimensionsMap, resolveWorkspaceProjectId } from '../../lib/dimensionNodeActions';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { isLockedDate } from '../../lib/periodLock';
 import { TransactionEditModalView } from './TransactionEditModalView';
+
+/** Assigns deterministic React keys to repeated transaction lines even when lines lack explicit IDs. */
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -31,6 +34,7 @@ interface TransactionEditModalProps {
   onReverseAndCorrect?: (id: string, reversalDate: string, reason: string, replacement?: Partial<Transaction>) => Promise<unknown>;
 }
 
+/** Builds form state, stable line keys, and save handlers for editing or reversing a ledger transaction. */
 function useTransactionEditModalModel({
   isOpen,
   transaction,
@@ -98,15 +102,22 @@ function useTransactionEditModalModel({
   // Let's compute if the line items sum up correctly
   const sumLines = lines.reduce((sum, l) => sum + l.amountCents, 0);
 
+  const lineKeysRef = useRef(lineKeys);
+  useEffect(() => {
+    lineKeysRef.current = lineKeys;
+  }, [lineKeys]);
+
   const handleAddLine = () => {
     const defaultAcc = accounts.find(a => a.type === 'expense') || accounts[0];
-    setLines([...lines, { 
+    const key = `added-${nextLineKey.current++}`;
+    const nextKeys = [...lineKeysRef.current, key];
+    lineKeysRef.current = nextKeys;
+    setLines(prev => [...prev, { 
       accountId: defaultAcc?.id || '', 
       accountName: defaultAcc?.name || '', 
       amountCents: 0 
     }]);
-    const key = `added-${nextLineKey.current++}`;
-    setLineKeys(keys => [...keys, key]);
+    setLineKeys(nextKeys);
   };
 
   const handleRemoveLine = (index: number) => {
@@ -114,16 +125,34 @@ function useTransactionEditModalModel({
       toast.error('At least one double-entry split ledger line is required for absolute integrity.');
       return;
     }
-    setLines(lines.filter((_, i) => i !== index));
-    setLineKeys(keys => keys.filter((_, i) => i !== index));
+    const nextKeys = lineKeysRef.current.filter((_, i) => i !== index);
+    lineKeysRef.current = nextKeys;
+    setLines(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+    setLineKeys(nextKeys);
   };
 
-  const handleLineChange = (index: number, updates: Partial<TransactionLine>) => {
-    const nextLines = [...lines];
-    nextLines[index] = { ...nextLines[index], ...updates };
-    setLines(nextLines);
+  /** Updates a single transaction line functionally using its stable row key (ignoring completions for deleted rows). */
+  const handleLineChange = (
+    index: number,
+    updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
+    lineKey?: string,
+  ) => {
+    setLines(prev => {
+      let targetIdx = index;
+      if (lineKey !== undefined) {
+        targetIdx = lineKeysRef.current.indexOf(lineKey);
+        if (targetIdx < 0) return prev;
+      }
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const current = prev[targetIdx];
+      const patch = typeof updates === 'function' ? updates(current) : updates;
+      const next = [...prev];
+      next[targetIdx] = { ...current, ...patch };
+      return next;
+    });
   };
 
+  /** Validates double-entry balance, normalizes dimension nodes, preserves workspace project IDs, and commits changes. */
   const handleSave = async () => {
     if (isLocked) {
       toast.error('Period is sealed. Changes are prohibited to protect general ledger integrity.');
@@ -152,12 +181,21 @@ function useTransactionEditModalModel({
     // In double-entry ledger bookkeeping, the gross transaction size is the total debit value (or absolute credit size)
     const calculatedTotal = Math.abs(TruthEngine.deriveSignedTotal(lines, accounts));
 
+    const currentNodes = useLedgerStore.getState().dimensionNodes || [];
+    const workspaceProjects = useLedgerStore.getState().projects || [];
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
+      const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
+      const rawLineProject = l.project || project.trim() || undefined;
+      const matchedLineProjectId =
+        rawLineProject || normalizedDims?.project
+          ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, !l.project && !normalizedDims?.project ? project.trim() : undefined], workspaceProjects, currentNodes)
+          : undefined;
       return {
         ...l,
         accountName: acc ? acc.name : l.accountName,
-        project: l.project || project.trim() || undefined
+        project: matchedLineProjectId ?? rawLineProject,
+        ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
       };
     });
 
