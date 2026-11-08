@@ -18,6 +18,7 @@ const requested = path.resolve(REPO_ROOT, process.argv[2] || process.env.PLAYWRI
 const reportPath = requested.startsWith(REPO_ROOT + path.sep) && requested.endsWith('.json') ? requested : null;
 if (!reportPath || !fs.existsSync(reportPath)) {
   console.log('\n_No Playwright JSON report was written, so the failure reasons are not available._');
+  console.log('::error title=visual baselines::Playwright wrote no JSON report, so the capture failed before any test ran');
   process.exit(0);
 }
 
@@ -52,5 +53,9 @@ if (failures.length === 0) {
   const cell = value => value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
   for (const failure of failures) {
     console.log(`| ${cell(failure.title)} | ${cell(failure.status)} | ${cell(failure.reason)} |`);
+    // Also a workflow command, so the reason reaches the run's annotations, which are readable
+    // through the API even when the raw job log is not.
+    const oneLine = failure.reason.replace(/[\r\n]+/g, ' ').replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    console.log(`::error file=e2e/visual-regression.spec.ts,title=${cell(failure.title)}::${oneLine}`);
   }
 }
