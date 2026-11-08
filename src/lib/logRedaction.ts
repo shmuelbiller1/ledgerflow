@@ -12,7 +12,9 @@
  */
 
 const CARD = /\b(?:\d[ -]?){12,18}\d\b/g;
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Each domain label is matched as a unit ([label](.[label])*), so the engine cannot re-split one long
+// run of letters and dots in exponentially many ways on text that is not an address.
+const EMAIL = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}/g;
 const BEARER = /\b(bearer\s+)[A-Za-z0-9._~+/=-]+/gi;
 const API_KEY = /\b(api[_-]?key["']?\s*[:=]\s*["']?)[A-Za-z0-9._-]+/gi;
 const PASSWORD = /\b(password|passwd|pwd)["']?\s*[:=]\s*["']?[^\s"',;]+/gi;

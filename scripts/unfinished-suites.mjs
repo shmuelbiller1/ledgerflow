@@ -13,18 +13,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const directory = process.argv[2] ?? 'playwright-reports/blob-report';
-if (!fs.existsSync(directory)) {
+// A directory from the command line may point anywhere; only a folder inside the checkout is read,
+// so a crafted path cannot make this walk an unrelated part of the filesystem.
+const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+const requested = path.resolve(REPO_ROOT, process.argv[2] ?? 'playwright-reports/blob-report');
+const directory = requested.startsWith(REPO_ROOT + path.sep) ? requested : null;
+if (!directory || !fs.existsSync(directory)) {
   console.log('::warning::No blob report was downloaded, so the unfinished suites are unknown.');
   process.exit(0);
 }
 
+const SPEC_FILE = /^[A-Za-z0-9_./-]*\.spec\.[cm]?[jt]sx?$/;
 const files = fs.readdirSync(directory).filter(name => name.endsWith('.zip'));
 const started = new Set();
 for (const file of files) {
   const buffer = fs.readFileSync(path.join(directory, file));
   // The report is a zip; file names are stored as plain text in its local headers.
-  for (const match of buffer.toString('latin1').matchAll(/([A-Za-z0-9_./-]+\.spec\.[cm]?[jt]sx?)/g)) started.add(match[1]);
+  // One pass, no nesting: take the run of path characters, then keep it only if it ends in a spec
+  // extension. A pattern with optional parts inside a repeat made the scan quadratic on big blobs.
+  for (const match of buffer.toString('latin1').matchAll(/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*/g)) {
+    // A path starts a word, so trim any dots that belonged to the zip header around it.
+    const candidate = match[0].replace(/^\.+/, '');
+    if (SPEC_FILE.test(candidate)) started.add(candidate);
+  }
 }
 
 if (started.size === 0) {
@@ -32,5 +43,5 @@ if (started.size === 0) {
   process.exit(0);
 }
 
-for (const spec of [...started].sort()) console.log(`::error title=Suites in the cancelled shard::${spec}`);
+for (const spec of [...started].sort((a, b) => a.localeCompare(b, 'en'))) console.log(`::error title=Suites in the cancelled shard::${spec}`);
 console.log(`The shard's report names ${started.size} spec file(s); one of them hung or never started.`);

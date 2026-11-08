@@ -34,7 +34,9 @@ const MARKER = /\[user-facing\]|user-facing:/i;
 export function parseSubject(subject: string): { type: string; area: string; text: string } {
   // the explicit marker is for readers of the log, not for the note
   const cleaned = subject.replace(/\[user-facing\]\s*/i, '').replace(/user-facing:\s*/i, '').trim();
-  const match = cleaned.match(/^\s*([a-zA-Z][a-zA-Z0-9]*)(?:\(([^)]+)\))?!?:\s*(.+)$/);
+  // The remainder must start with a non-space character and end with one, so the engine has one way to
+  // split the line instead of trying every trailing length.
+  const match = cleaned.match(/^\s*([a-zA-Z][a-zA-Z0-9]*)(?:\(([^)]+)\))?!?:[ \t]*(\S(?:[^\n]*\S)?)$/);
   if (!match) return { type: '', area: 'general', text: cleaned };
   return { type: match[1].toLowerCase(), area: (match[2] || 'general').trim(), text: match[3].trim() };
 }
