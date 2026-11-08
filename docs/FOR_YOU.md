@@ -129,6 +129,11 @@ Last updated: 2026-10-07.
     standard and send every difference to a "purchase price variance" account when goods arrive — a change to
     how purchases and sales are booked, so only with your say-so. *Default: compare only.* Say "post at
     standard" if you run a manufacturing or wholesale business that budgets by standard cost.
+55. **Kits: built when sold, or built ahead into stock? (8 Nov, decided by default).** Today a kit (an item made
+    of parts) keeps no stock of its own: selling one uses its parts, and Work orders / Kit Assembly plan builds.
+    Some businesses build kits ahead and keep them on the shelf as finished goods (parts out, kit in, at the
+    parts' cost). That is a new stock posting, so only with your say-so. *Default: built when sold.* Say
+    "build kits into stock" if you need it.
 
 ## B. Decisions (Claude uses the default until you say otherwise)
 

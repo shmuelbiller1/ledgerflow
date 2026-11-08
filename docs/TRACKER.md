@@ -1420,7 +1420,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION W — INVENTORY DEPTH
 
-- [ ] W-07 Assembly / kitting
+- [x] W-07 Assembly / kitting — covered by kits built from parts: bundles (BF-03, `itemBundles`), Kit Assembly plan (A-116, `kitAssembly`) and work orders with pick lists (A-169, `WorkOrdersView`); a kit sold uses its parts' stock. Building kits ahead into their own stock (a finished-goods item) is not done, by design — FOR_YOU #55; ticked 8 Nov
 - [~] W-08 Backorder + drop-ship — **backorders done 10 Oct**: Reports → Backorders: sales orders' item lines still to deliver, oldest order first, against stock on hand (what each takes from stock and what it is short), and each short item in all with what is on order from vendors and what is still to buy; read-only (`src/lib/backorders.ts`, `BackordersReportView.tsx`; tests `backorders.test.tsx`). **Open:** drop-ship (a sales order line bought from a vendor and sent straight to the customer)
 
 # SECTION X — FIXED ASSET LIFECYCLE
