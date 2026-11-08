@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { mountScreen } from './helpers/browserMount';
 
 /**
  * F-41 … F-45 — Browser journey tests for RELEASE_GATE W2, W3, W4, W6, W9.
@@ -74,36 +75,13 @@ async function expectAxeClean(page: Page, selector: string, label: string) {
   expect(serious, `${label}: ${JSON.stringify(serious.map(v => ({ id: v.id, nodes: v.nodes.length })))}`).toEqual([]);
 }
 
-/**
- * Mount the statement screen with a ledger store seeded from `seed`, identically for the customer
- * (W2) and vendor (W3) journeys. The seed is plain data, so each test keeps its worked figures in
- * view instead of hiding them inside a render script.
- */
-async function mountStatementWith(page: Page, seed: { collections: Record<string, unknown>; loaded: Record<string, boolean> }) {
-  await page.route('**/api/**', route => route.fulfill({ json: {} }));
-  await page.evaluate(async ({ workspaceId, seed }) => {
-    const [{ default: React }, { default: { createRoot } }, { useLedgerStore }, { useDataNeedsStore }, { default: StatementView }] = await Promise.all([
-      import('/node_modules/.vite/deps/react.js'),
-      import('/node_modules/.vite/deps/react-dom_client.js'),
-      import('/src/stores/useLedgerStore.ts'),
-      import('/src/stores/useDataNeedsStore.ts'),
-      import('/src/components/reporting/StatementView.tsx'),
-    ]);
-    useLedgerStore.setState({ ...seed.collections, truncatedCollections: {}, baseCurrency: 'USD' } as never);
-    useDataNeedsStore.setState({ loaded: seed.loaded, loadedWorkspaceId: workspaceId, failed: {} } as never);
-    (createRoot(document.getElementById('root')!)).render(React.createElement(StatementView, { startDate: '2026-05-01', endDate: '2026-05-31' }));
-  }, { workspaceId: WORKSPACE, seed });
-}
-
 // ---------------------------------------------------------------------------
 // W2 — Invoice → posting → payment → customer statement
 // ---------------------------------------------------------------------------
 test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $400 outstanding', async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width: 390, height: 844 });
-  const { errors } = await baseFixture(page);
-
-  await mountStatementWith(page, {
+  const errors = await mountScreen(page, {
     // Worked figures (USD, whole cents):
     //  Invoice INV-1001  $1,000.00 = 100000 cents, sent 2026-05-05
     //  Payment p1  $600.00 = 60000 cents, received 2026-05-20, allocated to INV-1001
@@ -115,9 +93,16 @@ test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $4
       vendors: [], bills: [], creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
     },
     loaded: { customers: true, invoices: true, payments: true, bills: true, creditNotes: true, vendors: true, vendorCredits: true },
+    fixture: 'journey-fixture',
+    heading: 'Account Statement',
+    title: 'Journey',
+    user: USER,
+    screen: '/src/components/reporting/StatementView.tsx',
+    // The statement screen's period for these two journeys: May 2026.
+    props: { startDate: '2026-05-01', endDate: '2026-05-31' },
+    workspace: { id: WORKSPACE, name: 'Sample Shop', currency: 'USD', dimensions: [{ id: 'world', name: 'World', isWorld: true }] },
   });
 
-  await expect(page.getByRole('heading', { name: 'Account Statement' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'STATEMENT OF ACCOUNT' })).toBeVisible();
   await expect(page.getByText('Period: 2026-05-01 to 2026-05-31')).toBeVisible();
   // Opening 0.00, Total Period Billed 1,000.00, Ending Outstanding 400.00
@@ -142,9 +127,7 @@ test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $4
 test('F-42 W3 browser: bill $250, fully paid, vendor statement shows $0 outstanding', async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width: 390, height: 844 });
-  const { errors } = await baseFixture(page);
-
-  await mountStatementWith(page, {
+  const errors = await mountScreen(page, {
     // Worked figures:
     //  Bill B-77 $250.00 = 25000 cents, approved 2026-05-10
     //  Payment $250.00 made 2026-05-22, allocated to B-77
@@ -156,9 +139,16 @@ test('F-42 W3 browser: bill $250, fully paid, vendor statement shows $0 outstand
       customers: [], invoices: [], creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
     },
     loaded: { customers: true, vendors: true, bills: true, payments: true, vendorCredits: true, invoices: true, creditNotes: true },
+    fixture: 'journey-fixture',
+    heading: 'Account Statement',
+    title: 'Journey',
+    user: USER,
+    screen: '/src/components/reporting/StatementView.tsx',
+    // The statement screen's period for these two journeys: May 2026.
+    props: { startDate: '2026-05-01', endDate: '2026-05-31' },
+    workspace: { id: WORKSPACE, name: 'Sample Shop', currency: 'USD', dimensions: [{ id: 'world', name: 'World', isWorld: true }] },
   });
 
-  await expect(page.getByRole('heading', { name: 'Account Statement' })).toBeVisible();
   // Switch to vendor statement, the screen a vendor balance is checked on.
   await page.getByRole('button', { name: 'Vendor Statement' }).click();
   await expect(page.getByRole('heading', { name: 'STATEMENT OF ACCOUNT' })).toBeVisible();
