@@ -64,6 +64,7 @@ import { computeExpenseByCategory, computeIncomeBySource, computeMonthlyAverages
 import { computeSalesByItem, type SalesByItemReport } from '../reports/itemReports';
 import { computeTransactionsByReference, type TransactionsByReference } from '../reports/referenceReport';
 import { computeGeneralLedger } from '../reports/computeReports';
+import { entryMatches, ENTRY_QUERY_LIMIT, type EntryQuery } from '../../lib/entryQuery';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -651,4 +652,22 @@ export async function generalLedgerOver(db: Firestore, workspaceId: string, from
   const before = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   const opening = await balancesAsOf(db, workspaceId, before);
   return { ledger: computeGeneralLedger(accounts, entries as Transaction[], from, to, undefined, opening.accounts), entriesRead: entries.length + opening.entriesRead };
+}
+
+/**
+ * L-123 step 5c: the posted entries of `from`…`to` that match the Query screen's filter (entryMatches), newest first,
+ * at most ENTRY_QUERY_LIMIT of them; `total` counts every match.
+ */
+export async function entryQueryOver(db: Firestore, workspaceId: string, from: string, to: string, query: Omit<EntryQuery, 'startDate' | 'endDate'>): Promise<{ entries: Transaction[]; total: number; entriesRead: number }> {
+  const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to, true);
+  const q: EntryQuery = { ...query, startDate: from, endDate: to };
+  const hits = (entries as Transaction[]).filter(e => entryMatches(e, q)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (a.id || '').localeCompare(b.id || ''));
+  return { entries: hits.slice(0, ENTRY_QUERY_LIMIT), total: hits.length, entriesRead: entries.length };
+}
+
+/** L-123 step 5c: every year (YYYY) that has an entry in the workspace, newest first, read in one query. */
+export async function entryYearsOf(db: Firestore, workspaceId: string): Promise<number[]> {
+  const { rows } = await db.pool.query<{ y: string }>(
+    `select distinct substr(data->>'date', 1, 4) as y from public.transactions where workspace_id = $1 and data->>'date' ~ '^[0-9]{4}-'`, [workspaceId]);
+  return rows.map(r => Number(r.y)).filter(y => Number.isInteger(y)).sort((a, b) => b - a);
 }

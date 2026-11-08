@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
@@ -240,7 +241,11 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
     const ACCRUAL_KINDS = [
       { type: 'invoice-accrual', key: 'invoiceId' }, { type: 'bill-accrual', key: 'billId' },
       { type: 'invoice-payment', key: 'invoiceId' }, { type: 'bill-payment', key: 'billId' },
+      // audit F2 (5 Nov): one live issuance per customer or vendor credit too, so two saves built from the same old
+      // state cannot both count the credit
+      { type: 'credit-note-issuance', key: 'creditNoteId' }, { type: 'vendor-credit-issuance', key: 'vendorCreditId' },
     ] as const;
+    const DOCUMENT_WORD: Record<string, string> = { invoiceId: 'invoice', billId: 'bill', creditNoteId: 'credit note', vendorCreditId: 'vendor credit' };
     const accruals = validatedTransactions.flatMap(tx => ACCRUAL_KINDS
       .filter(k => tx.metadata?.type === k.type && typeof (tx.metadata as Record<string, unknown> | undefined)?.[k.key] === 'string')
       .map(k => ({ tx, kind: k })));
@@ -256,10 +261,48 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
         .filter(x => x.metadata?.isReversal).map(x => String(x.metadata?.reversesTxId || x.metadata?.reversedTransactionId || '')));
       const live = docs.filter(x => x.metadata?.type === kind.type && !x.metadata?.isReversal && isPostable(x) && !reversed.has(x.id));
       if (live.length === 1 && same(live[0], incoming)) replayedIds.push(live[0].id);
-      else if (live.length > 0) stale = kind.key === 'billId' ? 'bill' : 'invoice';
+      else if (live.length > 0) stale = DOCUMENT_WORD[kind.key];
+    }
+    const creditSchema = entityMutation?.collection === 'creditNotes' ? CreditNoteSchema
+      : entityMutation?.collection === 'vendorCredits' ? VendorCreditSchema : undefined;
+    if (creditSchema && entityMutation.action !== 'delete') {
+      const sent = { ...(entityMutation.data || {}), workspaceId: wsId };
+      const parsed = (entityMutation.action === 'update' ? creditSchema.partial() : creditSchema).parse(sent);
+      const fields = entityMutation.action === 'update'
+        ? Object.entries(parsed).filter(([key]) => key in sent) : Object.entries(parsed);
+      // Identical ledger lines alone do not make a changed document an identical retry.
+      if (replayedIds.length > 0 && fields.some(([key, value]) => !isDeepStrictEqual(existingEntity?.[key], value))) {
+        stale = 'credit';
+      }
+      const status = parsed.status ?? existingEntity?.status;
+      if (status === 'draft' || status === 'void') {
+        const key = entityMutation.collection === 'creditNotes' ? 'creditNoteId' : 'vendorCreditId';
+        const posted = await t.get(db.collection('transactions').where('workspaceId', '==', wsId).where(`metadata.${key}`, '==', entityMutation.docId));
+        const docs = posted.docs.map(d => ({ id: d.id, ...d.data() }) as Transaction);
+        const reversed = new Set([...docs, ...validatedTransactions].filter(isPostable)
+          .filter(tx => tx.metadata?.isReversal)
+          .map(tx => tx.metadata?.reversesTxId || tx.metadata?.reversedTransactionId));
+        if (docs.some(tx => isPostable(tx) && !tx.metadata?.isReversal && !reversed.has(tx.id))) stale = 'credit';
+      }
     }
     // some entries already live and the rest new: an old tab adding to a posted document
-    if (!stale && replayedIds.length > 0 && replayedIds.length < accruals.length) stale = accruals[0].kind.key === 'billId' ? 'bill' : 'invoice';
+    if (!stale && replayedIds.length > 0 && replayedIds.length < accruals.length) stale = DOCUMENT_WORD[accruals[0].kind.key];
+    // audit F2: a reversal of a posting that is already reversed (two stale voids, or two saves back to draft) would
+    // take the document off the books twice; read here, inside the save
+    if (!stale) {
+      const targets = new Set<string>();
+      for (const incoming of validatedTransactions) {
+        const target = incoming.metadata?.isReversal ? String(incoming.metadata?.reversesTxId || incoming.metadata?.reversedTransactionId || '') : '';
+        if (!target) continue;
+        if (targets.has(target)) { stale = 'record'; break; }
+        targets.add(target);
+        for (const field of ['reversesTxId', 'reversedTransactionId']) {
+          const earlier = await t.get(db.collection('transactions').where('workspaceId', '==', wsId).where(`metadata.${field}`, '==', target));
+          if (earlier.docs.some(d => isPostable({ id: d.id, ...d.data() } as Transaction))) { stale = 'record'; break; }
+        }
+        if (stale) break;
+      }
+    }
     if (stale) throw new LedgerPostingError(409, `This ${stale} was changed or posted elsewhere (another tab or an earlier save). Reload it and save again.`);
     if (replayedIds.length > 0) {
       body = { status: 'ok', count: 0, replayed: true, transactionIds: replayedIds };

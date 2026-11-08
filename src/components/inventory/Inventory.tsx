@@ -47,6 +47,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { defaultOffsetAccount, inventoryAccountsOf } from '../../lib/inventoryAccounts';
 import { adjustStockRequest, countStockRequest } from '../../services/stockRequests';
 import InlineEdit from '../ui/InlineEdit';
+import { formatVariancePct, standardCostReport, validStandardCost } from '../../lib/standardCost';
 import InlineAdd from '../ui/InlineAdd';
 import { EmptyState } from '../ui/EmptyState';
 import CogsDialog from './CogsDialog';
@@ -254,7 +255,7 @@ export default function Inventory() {
   };
 
   /** Edit in place (I-22): one field of an item. */
-  const saveItemField = async (item: InventoryItem, field: 'name' | 'sku' | 'category' | 'unitPriceCents' | 'unitCostCents', value: string | number) => {
+  const saveItemField = async (item: InventoryItem, field: 'name' | 'sku' | 'category' | 'unitPriceCents' | 'unitCostCents' | 'standardCostCents', value: string | number) => {
     await updateDoc(doc(db, 'inventory', item.id), { [field]: value, updatedAt: new Date().toISOString() });
     toast.success('Saved');
   };
@@ -560,6 +561,20 @@ export default function Inventory() {
                     <div className="flex flex-col">
                       <InlineEdit kind="money" value={item.unitCostCents} display={formatCurrency(item.unitCostCents)} label={`Unit cost of ${item.name}`} canEdit={canChangeStock && !(item.quantityAtHand > 0)}
                         onSave={v => saveItemField(item, 'unitCostCents', v)} className="text-sm font-bold text-zinc-500 font-mono tabular-nums" />
+                      {item.itemType !== 'service' && !item.bundleParts?.length && (
+                        <span className="flex flex-wrap items-center gap-1 text-[10px] text-zinc-500">
+                          <span>Standard</span>
+                          <InlineEdit kind="money" value={item.standardCostCents} display={item.standardCostCents === undefined ? undefined : formatCurrency(item.standardCostCents)}
+                            placeholder="Set standard" label={`Standard cost of ${item.name}`} canEdit={canChangeStock}
+                            validate={v => (validStandardCost(v) === null ? 'A standard cost is zero or more' : null)}
+                            onSave={v => saveItemField(item, 'standardCostCents', v)} className="font-mono tabular-nums" />
+                          {validStandardCost(item.standardCostCents) !== null && (() => {
+                            const row = standardCostReport([item]).rows[0];
+                            return row ? <span className={cn('tabular-nums', row.varianceUnitCents > 0 ? 'text-rose-600' : row.varianceUnitCents < 0 ? 'text-emerald-700' : '')}
+                              title="Actual cost against the standard: above it costs more than planned">{formatVariancePct(row.variancePct)}</span> : null;
+                          })()}
+                        </span>
+                      )}
                       {item.quantityAtHand > 0 && canRevalue && <button type="button" onClick={() => setRevalueItem(item)} className="min-h-11 self-start text-[10px] font-semibold text-emerald-700 hover:underline">Revalue {item.name}</button>}
                       {item.unitsPerPackage && item.unitsPerPackage > 1 && (
                         <span className="text-[10px] font-black text-emerald-600 tracking-widest mt-0.5 uppercase tabular-nums">

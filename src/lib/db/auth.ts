@@ -394,3 +394,70 @@ export function multiFactor(user: User) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Passkeys (CC-12): sign in with the device's fingerprint, face or PIN instead of a password.
+// Supabase Auth runs the WebAuthn ceremony; a passkey is added from Security settings while signed in.
+// A user with an authenticator app still gives its code after a passkey sign-in (pendingFactorId reads
+// the session's level the same way), so a passkey never skips the second step.
+// ---------------------------------------------------------------------------
+
+export interface PasskeyInfo { id: string; name: string; createdAt: string; lastUsedAt?: string }
+
+export const MAX_PASSKEY_NAME = 60;
+
+/** Whether this browser can use passkeys at all (WebAuthn available on a secure page). */
+export function passkeysSupported(): boolean {
+  return typeof window !== 'undefined' && window.isSecureContext === true
+    && typeof window.PublicKeyCredential === 'function' && typeof navigator !== 'undefined' && Boolean(navigator.credentials);
+}
+
+/** A passkey's name as shown and saved: trimmed, at most MAX_PASSKEY_NAME characters, never empty. */
+export function passkeyName(name: string | undefined, fallback = 'Passkey'): string {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_PASSKEY_NAME);
+  return clean || fallback;
+}
+
+/** True when the error means passkeys are not switched on for this site yet (Supabase Auth setting). */
+export function passkeysOff(e: unknown): boolean {
+  const code = e instanceof AuthError ? e.code : '';
+  return /passkey.*(disabled|not_enabled)|webauthn.*not_enabled|provider_disabled/i.test(code);
+}
+
+export async function signInWithPasskey(_auth: Auth): Promise<UserCredential> {
+  const { data, error } = await getSupabase().auth.signInWithPasskey();
+  const session = data?.session;
+  if (error || !session?.user) fail(error, 'passkey-sign-in-failed');
+  return { user: toUser(session.user), secondFactorRequired: pendingFactorId(session) !== null };
+}
+
+export async function listPasskeys(): Promise<PasskeyInfo[]> {
+  const { data, error } = await getSupabase().auth.passkey.list();
+  if (error) fail(error, 'passkey-list-failed');
+  return (data || []).map(p => ({ id: p.id, name: passkeyName(p.friendly_name), createdAt: p.created_at, ...(p.last_used_at ? { lastUsedAt: p.last_used_at } : {}) }));
+}
+
+/**
+ * Adds a passkey and, when a name is given, saves it. The passkey works as soon as it is registered, so a
+ * failed rename is reported in the result (named: false), never thrown: the caller still lists the new passkey.
+ */
+export async function addPasskey(name?: string): Promise<{ id: string; named: boolean }> {
+  const { data, error } = await getSupabase().auth.registerPasskey();
+  if (error || !data) fail(error, 'passkey-register-failed');
+  const clean = passkeyName(name, '');
+  if (!clean || clean === data.friendly_name) return { id: data.id, named: true };
+  const renamed = await getSupabase().auth.passkey.update({ passkeyId: data.id, friendlyName: clean });
+  return { id: data.id, named: !renamed.error };
+}
+
+export async function renamePasskey(id: string, name: string): Promise<void> {
+  const clean = passkeyName(name, '');
+  if (!clean) throw new AuthError('auth/passkey-name-empty', 'Give the passkey a name.');
+  const { error } = await getSupabase().auth.passkey.update({ passkeyId: id, friendlyName: clean });
+  if (error) fail(error, 'passkey-rename-failed');
+}
+
+export async function removePasskey(id: string): Promise<void> {
+  const { error } = await getSupabase().auth.passkey.delete({ passkeyId: id });
+  if (error) fail(error, 'passkey-delete-failed');
+}

@@ -81,10 +81,14 @@ export async function postCreditNoteLedger(
     });
   }
 
-  if (creditNoteData.status === 'void') {
+  // A draft has no financial effect: saving one posts nothing, and taking an issued credit back to draft reverses
+  // its posting like a void does (audit F1, 5 Nov). Only issuing it (open) posts it.
+  if (creditNoteData.status === 'void' || creditNoteData.status === 'draft') {
     // A credit already applied to invoices/bills or refunded can't be voided (that would undo money that moved)
     if (typeof creditNoteData.remainingCents === 'number' && creditNoteData.remainingCents < (creditNoteData.amountCents || 0)) {
-      throw new Error('This credit has been applied or refunded and can no longer be voided.');
+      throw new Error(creditNoteData.status === 'void'
+        ? 'This credit has been applied or refunded and can no longer be voided.'
+        : 'This credit has been applied or refunded and can no longer go back to draft.');
     }
     if (txsToPost.length > 0 || entityMutation) {
       await postTxsServerApi(txsToPost, workspaceId, entityMutation, context);
@@ -224,10 +228,14 @@ export async function postVendorCreditLedger(
     });
   }
 
-  if (vendorCreditData.status === 'void') {
+  // A draft has no financial effect: saving one posts nothing, and taking an issued credit back to draft reverses
+  // its posting like a void does (audit F1, 5 Nov). Only issuing it (open) posts it.
+  if (vendorCreditData.status === 'void' || vendorCreditData.status === 'draft') {
     // A credit already applied to invoices/bills or refunded can't be voided (that would undo money that moved)
     if (typeof vendorCreditData.remainingCents === 'number' && vendorCreditData.remainingCents < (vendorCreditData.amountCents || 0)) {
-      throw new Error('This credit has been applied or refunded and can no longer be voided.');
+      throw new Error(vendorCreditData.status === 'void'
+        ? 'This credit has been applied or refunded and can no longer be voided.'
+        : 'This credit has been applied or refunded and can no longer go back to draft.');
     }
     if (txsToPost.length > 0 || entityMutation) {
       await postTxsServerApi(txsToPost, workspaceId, entityMutation, context);
