@@ -90,15 +90,18 @@ function DimensionValueActionsInner({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const latestValueRef = useRef(value);
   const onSelectNodeRef = useRef(onSelectNode);
   const onRenamedRef = useRef(onRenamed);
 
   useEffect(() => {
+    latestValueRef.current = value;
     onSelectNodeRef.current = onSelectNode;
     onRenamedRef.current = onRenamed;
   });
 
   const trimmed = (value || '').trim();
+  const normVal = (v: string) => v.normalize('NFC').toLowerCase().trim();
   const matched = canWrite && trimmed && trimmed !== 'Unassigned'
     ? matchDimensionNode(nodes, dimensionId, trimmed)
     : undefined;
@@ -113,7 +116,7 @@ function DimensionValueActionsInner({
     queueMicrotask(() => triggerRef.current?.focus());
   };
 
-  /** Persists a global rename for the matched DimensionNode and notifies the latest form callback. */
+  /** Persists a global rename for the matched DimensionNode and notifies the latest form callback if still selected. */
   const commitRename = async (node: DimensionNode) => {
     const next = draftName.trim();
     if (!next) {
@@ -124,6 +127,7 @@ function DimensionValueActionsInner({
       cancelRename();
       return true;
     }
+    const initiatingTrimmed = trimmed;
     const scope = identityScope(
       () => useAuthStore.getState().user?.uid,
       () => useAuthStore.getState().currentWorkspaceId,
@@ -141,8 +145,13 @@ function DimensionValueActionsInner({
     }
     setEditingNodeId(null);
     setDraftName('');
-    onRenamedRef.current?.(res.value);
-    queueMicrotask(() => triggerRef.current?.focus());
+    const currentTrimmed = (latestValueRef.current || '').trim();
+    const latestNodes = (adapter ? adapter.getNodes() : useLedgerStore.getState().dimensionNodes) || [];
+    const currentMatch = matchDimensionNode(latestNodes, dimensionId, currentTrimmed);
+    if (currentMatch?.id === node.id || normVal(currentTrimmed) === normVal(initiatingTrimmed)) {
+      onRenamedRef.current?.(res.value);
+      queueMicrotask(() => triggerRef.current?.focus());
+    }
     return true;
   };
 
@@ -158,16 +167,17 @@ function DimensionValueActionsInner({
 
   const lineSuffix = lineNumber !== undefined ? ` on line ${lineNumber}` : '';
 
-  /** Saves the currently typed free-text value as a Workspace DimensionNode and selects its ID on the latest draft. */
+  /** Saves the currently typed free-text value as a Workspace DimensionNode and selects its ID if the field was not changed. */
   const createLabel = async () => {
+    const submittedTrimmed = trimmed;
     const scope = identityScope(
       () => useAuthStore.getState().user?.uid,
       () => useAuthStore.getState().currentWorkspaceId,
     );
     setBusy(true);
     setError('');
-    const res = await runOnce(`dim-create:${scope.workspaceId}:${dimensionId}:${trimmed}`, () =>
-      attempt(() => registerDimensionNodeInline(dimensionId, trimmed, [], adapter)),
+    const res = await runOnce(`dim-create:${scope.workspaceId}:${dimensionId}:${submittedTrimmed}`, () =>
+      attempt(() => registerDimensionNodeInline(dimensionId, submittedTrimmed, [], adapter)),
     );
     if (!scope.isCurrent()) return false;
     setBusy(false);
@@ -175,7 +185,10 @@ function DimensionValueActionsInner({
       setError(res.error);
       return false;
     }
-    onSelectNodeRef.current(res.value);
+    const currentTrimmed = (latestValueRef.current || '').trim();
+    if (normVal(currentTrimmed) === normVal(submittedTrimmed) || normVal(currentTrimmed) === normVal(res.value.id)) {
+      onSelectNodeRef.current(res.value);
+    }
     return true;
   };
 

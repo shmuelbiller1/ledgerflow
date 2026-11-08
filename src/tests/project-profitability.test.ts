@@ -9,7 +9,8 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeProjectProfitability } from '../lib/projectProfitability';
-import type { ChartAccount, Invoice, Transaction } from '../types';
+import { profitabilityLines } from '../lib/profitabilityLines';
+import type { ChartAccount, DimensionNode, Invoice, Transaction } from '../types';
 import { makeChartAccount, makeInvoice, makeTransaction } from './fixtures';
 
 const accounts: ChartAccount[] = [
@@ -92,5 +93,44 @@ describe('profitability by project', () => {
     const only = computeProjectProfitability({ invoices: [], transactions: [makeTransaction({ id: 'e', date: '2026-03-01', lines: [{ accountId: 'exp', amountCents: 500, dimensions: { project: 'Gamma' } }, { accountId: 'ap', amountCents: -500 }] })], accounts });
     assert.equal(only[0].marginPct, null);
     assert.equal(only[0].marginCents, -500);
+  });
+
+  test('resolves canonical project dimension node IDs alongside free-text names and preserves budget overrun math', () => {
+    const dimensionNodes: DimensionNode[] = [
+      { id: 'P1', dimensionId: 'project', description: 'Alpha', aliases: ['Legacy Alpha'], status: 'active' },
+    ];
+    const mixedInvoices: Invoice[] = [
+      makeInvoice({
+        id: 'inv-raw', status: 'sent', date: '2026-03-10',
+        items: [{ id: 'l-raw', itemId: 'widget', description: 'W1', quantity: 1, rateCents: 10000, amountCents: 10000, accountId: 'rev', unitCostCents: 6000, dimensions: { project: 'Alpha' } }],
+      }),
+      makeInvoice({
+        id: 'inv-node', status: 'sent', date: '2026-03-12',
+        items: [{ id: 'l-node', itemId: 'widget', description: 'W2', quantity: 1, rateCents: 10000, amountCents: 10000, accountId: 'rev', unitCostCents: 6000, dimensions: { project: 'P1' } }],
+      }),
+    ];
+    const lines = profitabilityLines('project', {
+      customers: [],
+      invoices: mixedInvoices,
+      items: [{ id: 'widget', name: 'Widget', sku: 'W', quantityOnHand: 0, unitCostCents: 6000, unitPriceCents: 10000 } as never],
+      transactions: [
+        makeTransaction({
+          id: 'tx-proj-id', date: '2026-03-15',
+          lines: [{ accountId: 'exp', amountCents: 500, project: 'proj_alpha' }, { accountId: 'ap', amountCents: -500 }],
+        }),
+      ],
+      accounts,
+      projects: [{ id: 'proj_alpha', name: 'Alpha', budgetCents: 10000, status: 'active' }],
+      dimensionNodes,
+      startDate: '2026-03-01',
+      endDate: '2026-03-31',
+    });
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].label, 'Alpha');
+    assert.equal(lines[0].revenueCents, 20000);
+    assert.equal(lines[0].costCents, 12500);
+    assert.equal(lines[0].budgetCents, 10000);
+    assert.equal(lines[0].budgetRemainingCents, -2500);
+    assert.equal(lines[0].budgetUsedPct, 125);
   });
 });

@@ -219,6 +219,7 @@ async function tryCreateNode(
 }
 
 const MAX_ID_COLLISION_RETRIES = 16;
+const axisWriteQueues = new Map<string, Promise<unknown>>();
 
 /**
  * Registers a new DimensionNode (or unarchives a matching archived node) immediately
@@ -232,6 +233,7 @@ export async function registerDimensionNodeInline(
   rawDescription: string,
   initialAliases: string[] = [],
   adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter,
+  options?: { preserveArchived?: boolean },
 ): Promise<DimensionNode> {
   const description = rawDescription.trim();
   if (!description) throw new Error('Enter a label name.');
@@ -248,7 +250,7 @@ export async function registerDimensionNodeInline(
   const cleanAliases = initialAliases.map(a => a.trim()).filter(Boolean);
 
   if (existing) {
-    if (existing.status === 'archived') {
+    if (existing.status === 'archived' && !options?.preserveArchived) {
       const mergedAliases = cleanAliases.length > 0
         ? Array.from(new Set([...(existing.aliases || []), ...cleanAliases]))
         : existing.aliases;
@@ -298,7 +300,9 @@ export async function registerDimensionNodeInline(
     if (remoteNode) {
       discoveredRemote.push(remoteNode);
       workingNodes.push(remoteNode);
-      if (remoteNode.status !== 'archived' && norm(remoteNode.description) === norm(description)) {
+      const matchesDescOrAlias = norm(remoteNode.description) === norm(description)
+        || Boolean(remoteNode.aliases?.some(a => norm(a) === norm(description)));
+      if (matchesDescOrAlias && (options?.preserveArchived || remoteNode.status !== 'archived')) {
         mergeNodesIntoStore(adapter, discoveredRemote);
         return remoteNode;
       }
@@ -475,33 +479,37 @@ export async function addDimensionAxisInline(
     throw new Error('Only workspace owners and accountants can add new dimension categories.');
   }
 
-  const remoteWs = await adapter.readWorkspace(session.workspaceId);
-  const checked = assertSameSession(adapter, session);
-  if (!checked.canManageAxes) {
-    throw new Error('Only workspace owners and accountants can add new dimension categories.');
+  const prevTask = axisWriteQueues.get(session.workspaceId) ?? Promise.resolve();
+  const task = prevTask.catch(() => undefined).then(async () => {
+    const remoteWs = await adapter.readWorkspace(session.workspaceId);
+    const checked = assertSameSession(adapter, session);
+    if (!checked.canManageAxes) {
+      throw new Error('Only workspace owners and accountants can add new dimension categories.');
+    }
+
+    const localDims = adapter.getWorkspaceDimensions();
+    const remoteDims = remoteWs?.dimensions && Array.isArray(remoteWs.dimensions) ? remoteWs.dimensions : [];
+    const baseDimensions = remoteDims.length >= localDims.length && remoteDims.length > 0 ? remoteDims : localDims;
+
+    if (baseDimensions.some(d => norm(d.name) === norm(name))) {
+      throw new Error(`A dimension named "${name}" already exists.`);
+    }
+
+    const id = deriveDimensionAxisId(name, baseDimensions, explicitKey);
+    const newAxis: DimensionDefinition = { id, name, sortOrder: baseDimensions.length };
+    const nextDimensions = [...baseDimensions, newAxis];
+
+    await adapter.updateWorkspace(session.workspaceId, nextDimensions);
+    assertSameSession(adapter, session);
+    adapter.setWorkspaceDimensions(session.workspaceId, nextDimensions);
+    return newAxis;
+  });
+  axisWriteQueues.set(session.workspaceId, task);
+  try {
+    return await task;
+  } finally {
+    if (axisWriteQueues.get(session.workspaceId) === task) axisWriteQueues.delete(session.workspaceId);
   }
-
-  const baseDimensions = remoteWs?.dimensions && Array.isArray(remoteWs.dimensions) && remoteWs.dimensions.length > 0
-    ? remoteWs.dimensions
-    : adapter.getWorkspaceDimensions();
-
-  if (baseDimensions.some(d => norm(d.name) === norm(name))) {
-    throw new Error(`A dimension named "${name}" already exists.`);
-  }
-
-  const id = deriveDimensionAxisId(name, baseDimensions, explicitKey);
-  const newAxis: DimensionDefinition = {
-    id,
-    name,
-    sortOrder: baseDimensions.length,
-  };
-  const nextDimensions = [...baseDimensions, newAxis];
-
-  await adapter.updateWorkspace(session.workspaceId, nextDimensions);
-  assertSameSession(adapter, session);
-  adapter.setWorkspaceDimensions(session.workspaceId, nextDimensions);
-
-  return newAxis;
 }
 
 /**
@@ -641,9 +649,21 @@ export async function ensureDimensionNodesInMap(
       const cleanToken = token.trim();
       if (!cleanToken || cleanToken === 'Unassigned') return token;
       const existing = matchDimensionNode(adapter.getNodes(), axisId, cleanToken);
-      if (existing && existing.status !== 'archived') return existing.id;
+      if (existing) return existing.id;
+      if (session) {
+        const candidates = cleanToken.toUpperCase() === cleanToken ? [cleanToken] : [cleanToken, cleanToken.toUpperCase()];
+        for (const candidateId of candidates) {
+          const remoteRaw = await adapter.readNode(session.workspaceId, axisId, candidateId);
+          assertSameSession(adapter, session);
+          const remoteNode = toRemoteDimensionNode(remoteRaw, axisId, candidateId);
+          if (remoteNode) {
+            mergeNodesIntoStore(adapter, [remoteNode]);
+            return remoteNode.id;
+          }
+        }
+      }
       if (session?.canWriteNodes) {
-        const created = await registerDimensionNodeInline(axisId, cleanToken, [], adapter);
+        const created = await registerDimensionNodeInline(axisId, cleanToken, [], adapter, { preserveArchived: true });
         return created.id;
       }
       return cleanToken;
@@ -651,7 +671,7 @@ export async function ensureDimensionNodesInMap(
 
     let joined: string;
     const wholeMatch = matchDimensionNode(adapter.getNodes(), axisId, trimmed);
-    if (wholeMatch && wholeMatch.status !== 'archived') {
+    if (wholeMatch) {
       joined = wholeMatch.id;
     } else if (trimmed.includes('/')) {
       const [head, ...tail] = trimmed.split('/');

@@ -102,18 +102,16 @@ function DimensionsSettingsContent() {
   const [newAxisId, setNewAxisId] = useState('');
   const [newAxisName, setNewAxisName] = useState('');
   const [showAddAxis, setShowAddAxis] = useState(false);
+  const [isAddingAxis, setIsAddingAxis] = useState(false);
+  const addingAxisRef = useRef(false);
 
   // Form state for adding node per axis
   const [newNodeInputs, setNewNodeInputs] = useState<Record<string, { description: string; aliases: string }>>({});
+  const [addingNodeAxis, setAddingNodeAxis] = useState<string | null>(null);
+  const addingNodeRef = useRef<Set<string>>(new Set());
 
   const handleNodeInputChange = (dimId: string, field: 'description' | 'aliases', value: string) => {
-    setNewNodeInputs(prev => ({
-      ...prev,
-      [dimId]: {
-        ...(prev[dimId] || { description: '', aliases: '' }),
-        [field]: value
-      }
-    }));
+    setNewNodeInputs(prev => ({ ...prev, [dimId]: { ...(prev[dimId] || { description: '', aliases: '' }), [field]: value } }));
   };
 
   /** Returns true when an Enter keystroke is part of an active IME composition session. */
@@ -121,7 +119,7 @@ function DimensionsSettingsContent() {
 
   /** Registers a new label node immediately, or merges newly entered aliases when the label already exists. */
   const handleAddNode = async (dimId: string): Promise<boolean> => {
-    if (!canWrite) return false;
+    if (!canWrite || addingNodeRef.current.has(dimId)) return false;
     const input = newNodeInputs[dimId];
     const trimmedDesc = input?.description.trim() || '';
     if (!trimmedDesc) {
@@ -129,61 +127,60 @@ function DimensionsSettingsContent() {
       return false;
     }
 
-    const aliasesArray = input.aliases
-      ? input.aliases.split(',').map(a => a.trim()).filter(Boolean)
-      : [];
-    const scope = identityScope(
-      () => useAuthStore.getState().user?.uid,
-      () => useAuthStore.getState().currentWorkspaceId,
-    );
-    const priorMatch = matchDimensionNode(useLedgerStore.getState().dimensionNodes || [], dimId, trimmedDesc);
-
-    if (priorMatch && priorMatch.status !== 'archived') {
-      const existingAliases = priorMatch.aliases || [];
-      const aliasKey = (value: string) => normalizeSearchText(value).trim();
-      const existingKeys = new Set([priorMatch.description, ...existingAliases].map(aliasKey));
-      const freshAliases: string[] = [];
+    const aliasesArray = input.aliases ? input.aliases.split(',').map(a => a.trim()).filter(Boolean) : [];
+    const aliasKey = (value: string) => normalizeSearchText(value).trim();
+    const computeFreshAliases = (node: DimensionNode) => {
+      const existingKeys = new Set([node.description, ...(node.aliases || [])].map(aliasKey));
+      const fresh: string[] = [];
       for (const candidate of aliasesArray) {
         const key = aliasKey(candidate);
-        if (key && !existingKeys.has(key)) {
-          existingKeys.add(key);
-          freshAliases.push(candidate);
-        }
+        if (key && !existingKeys.has(key)) { existingKeys.add(key); fresh.push(candidate); }
       }
-      if (freshAliases.length > 0) {
-        const mergedAliases = [...existingAliases, ...freshAliases];
-        const aliasRes = await attempt(() => setDimensionNodeAliasesInline(dimId, priorMatch.id, mergedAliases));
-        if (!scope.isCurrent()) return false;
-        if (!aliasRes.ok) {
-          toast.error(aliasRes.error);
-          return false;
+      return fresh;
+    };
+
+    const scope = identityScope(() => useAuthStore.getState().user?.uid, () => useAuthStore.getState().currentWorkspaceId);
+    addingNodeRef.current.add(dimId);
+    setAddingNodeAxis(dimId);
+    try {
+      const priorMatch = matchDimensionNode(useLedgerStore.getState().dimensionNodes || [], dimId, trimmedDesc);
+      if (priorMatch && priorMatch.status !== 'archived') {
+        const freshAliases = computeFreshAliases(priorMatch);
+        if (freshAliases.length > 0) {
+          const aliasRes = await attempt(() => setDimensionNodeAliasesInline(dimId, priorMatch.id, [...(priorMatch.aliases || []), ...freshAliases]));
+          if (!scope.isCurrent()) return false;
+          if (!aliasRes.ok) { toast.error(aliasRes.error); return false; }
+          setDimensionNodes(useLedgerStore.getState().dimensionNodes);
+          setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
+          toast.success(`Added aliases to existing label ${priorMatch.id} ("${priorMatch.description}")`);
+          return true;
         }
-        setDimensionNodes(useLedgerStore.getState().dimensionNodes);
-        setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
-        toast.success(`Added aliases to existing label ${priorMatch.id} ("${priorMatch.description}")`);
+        toast.info(`Label "${priorMatch.description}" (${priorMatch.id}) already exists.`);
         return true;
       }
-      toast.info(`Label "${priorMatch.description}" (${priorMatch.id}) already exists.`);
+
+      const res = await attempt(() => registerDimensionNodeInline(dimId, trimmedDesc, aliasesArray));
+      if (!scope.isCurrent()) return false;
+      if (!res.ok) { toast.error(res.error); return false; }
+
+      const missingRemoteAliases = computeFreshAliases(res.value);
+      if (missingRemoteAliases.length > 0) {
+        const aliasRes = await attempt(() => setDimensionNodeAliasesInline(dimId, res.value.id, [...(res.value.aliases || []), ...missingRemoteAliases]));
+        if (!scope.isCurrent()) return false;
+        if (!aliasRes.ok) { toast.error(aliasRes.error); return false; }
+      }
+      setDimensionNodes(useLedgerStore.getState().dimensionNodes);
+      setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
+      toast.success(
+        priorMatch?.status === 'archived'
+          ? `Restored archived label ${res.value.id} ("${res.value.description}")`
+          : `Saved label node ${res.value.id} ("${res.value.description}")`,
+      );
       return true;
+    } finally {
+      addingNodeRef.current.delete(dimId);
+      if (scope.isCurrent()) setAddingNodeAxis(curr => (curr === dimId ? null : curr));
     }
-
-    const res = await attempt(() =>
-      registerDimensionNodeInline(dimId, trimmedDesc, aliasesArray),
-    );
-    if (!scope.isCurrent()) return false;
-    if (!res.ok) {
-      toast.error(res.error);
-      return false;
-    }
-
-    setDimensionNodes(useLedgerStore.getState().dimensionNodes);
-    setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
-    toast.success(
-      priorMatch?.status === 'archived'
-        ? `Restored archived label ${res.value.id} ("${res.value.description}")`
-        : `Saved label node ${res.value.id} ("${res.value.description}")`,
-    );
-    return true;
   };
 
   /** Persists updated comma-separated aliases for an existing DimensionNode immediately. */
@@ -245,31 +242,34 @@ function DimensionsSettingsContent() {
 
   /** Creates and persists a new workspace dimension axis immediately for owners and accountants. */
   const handleAddAxis = async (): Promise<boolean> => {
-    if (!canAdmin) return false;
-    if (!newAxisName.trim()) {
+    if (!canAdmin || addingAxisRef.current) return false;
+    const submittedName = newAxisName.trim();
+    const submittedKey = newAxisId.trim() || undefined;
+    if (!submittedName) {
       toast.error('Display name is required');
       return false;
     }
-    const scope = identityScope(
-      () => useAuthStore.getState().user?.uid,
-      () => useAuthStore.getState().currentWorkspaceId,
-    );
-    const res = await attempt(() =>
-      addDimensionAxisInline(newAxisName.trim(), newAxisId.trim() || undefined),
-    );
-    if (!scope.isCurrent()) return false;
-    if (!res.ok) {
-      toast.error(res.error);
-      return false;
+    const scope = identityScope(() => useAuthStore.getState().user?.uid, () => useAuthStore.getState().currentWorkspaceId);
+    addingAxisRef.current = true;
+    setIsAddingAxis(true);
+    try {
+      const res = await attempt(() => addDimensionAxisInline(submittedName, submittedKey));
+      if (!scope.isCurrent()) return false;
+      if (!res.ok) {
+        toast.error(res.error);
+        return false;
+      }
+      const updatedDims = useAuthStore.getState().getCurrentWorkspace()?.dimensions;
+      setDimensions(updatedDims || [...dimensions, res.value]);
+      setNewAxisId('');
+      setNewAxisName('');
+      setShowAddAxis(false);
+      toast.success(`Saved dimension axis "${res.value.name}" (${res.value.id})`);
+      return true;
+    } finally {
+      addingAxisRef.current = false;
+      if (scope.isCurrent()) setIsAddingAxis(false);
     }
-
-    const updatedDims = useAuthStore.getState().getCurrentWorkspace()?.dimensions;
-    setDimensions(updatedDims || [...dimensions, res.value]);
-    setNewAxisId('');
-    setNewAxisName('');
-    setShowAddAxis(false);
-    toast.success(`Saved dimension axis "${res.value.name}" (${res.value.id})`);
-    return true;
   };
 
   const handleSaveChanges = async () => {
@@ -548,10 +548,11 @@ function DimensionsSettingsContent() {
                 <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Axis Key / ID (Optional — auto-generated if blank)">
                   <input
                     type="text"
+                    disabled={isAddingAxis}
                     value={newAxisId}
                     onChange={e => setNewAxisId(e.target.value)}
                     placeholder="e.g. cost_center or property"
-                    className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 font-mono disabled:opacity-50"
                   />
                 </Labelled>
               </div>
@@ -559,6 +560,7 @@ function DimensionsSettingsContent() {
                 <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Display Name">
                   <input
                     type="text"
+                    disabled={isAddingAxis}
                     value={newAxisName}
                     onChange={e => setNewAxisName(e.target.value)}
                     onKeyDown={e => {
@@ -568,7 +570,7 @@ function DimensionsSettingsContent() {
                       }
                     }}
                     placeholder="e.g. Cost Center or Property"
-                    className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
+                    className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 disabled:opacity-50"
                   />
                 </Labelled>
               </div>
@@ -576,15 +578,17 @@ function DimensionsSettingsContent() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isAddingAxis}
                 onClick={() => setShowAddAxis(false)}
-                className="px-4 py-2 text-xs font-bold text-[var(--muted)] hover:text-slate-200"
+                className="px-4 py-2 text-xs font-bold text-[var(--muted)] hover:text-slate-200 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isAddingAxis}
                 onClick={() => { void handleAddAxis(); }}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl disabled:opacity-50"
               >
                 Create Axis
               </button>
@@ -704,6 +708,7 @@ function DimensionsSettingsContent() {
                     <input aria-label={`Display Description for new ${dim.name} value`}
                       type="text"
                       dir="auto"
+                      disabled={addingNodeAxis === dim.id}
                       value={nodeInput.description}
                       onChange={e => handleNodeInputChange(dim.id, 'description', e.target.value)}
                       onKeyDown={e => {
@@ -713,13 +718,14 @@ function DimensionsSettingsContent() {
                         }
                       }}
                       placeholder="Display Description (e.g. Food & Beverage)"
-                      className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
+                      className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 disabled:opacity-50"
                     />
                   </div>
                   <div className="sm:col-span-3">
                     <input aria-label={`Aliases for new ${dim.name} value`}
                       type="text"
                       dir="auto"
+                      disabled={addingNodeAxis === dim.id}
                       value={nodeInput.aliases}
                       onChange={e => handleNodeInputChange(dim.id, 'aliases', e.target.value)}
                       onKeyDown={e => {
@@ -729,14 +735,15 @@ function DimensionsSettingsContent() {
                         }
                       }}
                       placeholder="Aliases (comma-separated)"
-                      className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
+                      className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 disabled:opacity-50"
                     />
                   </div>
                   <div className="sm:col-span-2">
                     <button
                       type="button"
+                      disabled={addingNodeAxis === dim.id}
                       onClick={() => { void handleAddNode(dim.id); }}
-                      className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
+                      className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <Plus aria-hidden="true" size={14} /> Add Node<span className="sr-only"> to {dim.name}</span>
                     </button>
