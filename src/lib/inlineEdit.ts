@@ -31,8 +31,14 @@ export function inlineEditText(kind: InlineKind, value: unknown): string {
 }
 
 /** True when saving would change nothing. */
-export function sameInlineValue(kind: InlineKind, before: unknown, after: string | number): boolean {
-  if (kind === 'money' || kind === 'number') return Number(before ?? 0) === after;
+export function sameInlineValue(kind: InlineKind, before: unknown, after: string | number, raw?: string): boolean {
+  if (kind === 'money' || kind === 'number') {
+    const unset = before === undefined || before === null || before === '';
+    // an empty field left blank stays empty (a missing credit limit is not saved as 0) ...
+    if (unset) return raw !== undefined && raw.trim() === '';
+    // ... while a typed 0 on an empty field is a real value (a standard cost of 0)
+    return Number(before) === after;
+  }
   return String(before ?? '').trim() === after;
 }
 

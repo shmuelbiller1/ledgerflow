@@ -60,7 +60,7 @@ export default function InlineEdit({
     if (!save) { done.current = true; setEditing(false); return; }
     const parsed = parseInlineValue(kind, draft);
     if (parsed === null) { setError(kind === 'email' ? 'Enter an email address' : kind === 'date' ? 'Enter a date' : 'Enter a number'); return; }
-    if (sameInlineValue(kind, value, parsed)) { done.current = true; setEditing(false); return; }
+    if (sameInlineValue(kind, value, parsed, draft)) { done.current = true; setEditing(false); return; }
     const refused = validate?.(parsed);
     if (refused) { setError(refused); return; }
     done.current = true;

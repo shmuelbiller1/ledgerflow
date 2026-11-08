@@ -123,6 +123,12 @@ Last updated: 2026-10-07.
     add-on items. Most of the value now sits behind items 49–52 above and the decisions in section B.
     *Default: Claude builds M-21 next. The 5-hourly restart keeps running; if you prefer to save usage until
     you answer, pause the "LedgerFlow: keep working" scheduled task.*
+54. **Standard costing: post at standard or only compare? (8 Nov, decided by default).** Items can now carry a
+    standard cost, and the Inventory list shows each item's actual average cost against it (+/− %). The books
+    still value stock at the moving average, exactly as before. Full standard costing would carry stock at the
+    standard and send every difference to a "purchase price variance" account when goods arrive — a change to
+    how purchases and sales are booked, so only with your say-so. *Default: compare only.* Say "post at
+    standard" if you run a manufacturing or wholesale business that budgets by standard cost.
 
 ## B. Decisions (Claude uses the default until you say otherwise)
 
