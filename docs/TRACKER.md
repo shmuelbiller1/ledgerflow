@@ -1340,7 +1340,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 - [ ] M-13 Commodities
 - [ ] M-15 Warehouses (deferred)
-- [ ] M-21 Standard costing
+- [~] M-21 Standard costing — step 1 (8 Nov): an item can carry a standard cost (Inventory list, edit in place) and shows how far its actual average cost is from it (`src/lib/standardCost.ts`, `standard-cost.test.ts`); nothing posts differently. Posting at standard with a variance account waits for the owner (FOR_YOU #54)
 
 # SECTION N — REPORT FEATURE MATRIX
 
