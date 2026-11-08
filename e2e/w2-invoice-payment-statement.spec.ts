@@ -47,17 +47,23 @@ const PAYMENTS = [
     workspaceId: WORKSPACE,
     uid: USER.uid,
     amountCents: 60000,
-    paymentDate: '2026-10-15',
-    customerId: 'cust-001',
-    entityName: 'Test Customer',
-    cashAccountId: 'bank-1000',
+    date: '2026-10-15',
+    direction: 'received',
+    status: 'posted',
+    contactId: 'cust-001',
+    contactName: 'Test Customer',
+    method: 'bank_transfer',
+    reference: 'PMT-001',
+    depositAccountId: 'bank-1000',
+    unappliedCents: 0,
     allocations: [{ documentId: 'inv-001', documentType: 'invoice', amountCents: 60000 }],
   },
 ];
 
 const salesOptions = (requests: MountOptions['requests']): MountOptions & { fixture: string; heading: string; user: FixtureUser } => ({
   fixture: 'w2-sales-fixture',
-  heading: 'Sales',
+  // The screen's own title; "Sales" alone is not a heading on it.
+  heading: 'Invoicing & Customer Accounts',
   title: 'W2 Sales',
   user: USER,
   screen: '/src/components/sales/Sales.tsx',
@@ -86,7 +92,7 @@ const salesOptions = (requests: MountOptions['requests']): MountOptions & { fixt
       return { id: 'inv-001', number: 'INV-001', status: 'sent', amountCents: 118000, amountPaidCents: 0, date: '2026-10-10', dueDate: '2026-10-20', currency: 'USD' };
     }
     if (method === 'POST' && url.includes('/payments')) {
-      return { data: { id: 'pay-001', amountCents: 60000, paymentDate: '2026-10-15', transactionId: 'txn-001' } };
+      return { data: { id: 'pay-001', amountCents: 60000, date: '2026-10-15', transactionId: 'txn-001' } };
     }
     return {};
   },
@@ -129,7 +135,6 @@ test('W2 browser: Sales screen shows invoice INV-001 with $1,180.00 and $600.00 
 
   const errors = await mountScreen(page, salesOptions([]));
 
-  await expect(page.getByRole('heading', { name: 'Sales', exact: true })).toBeVisible();
   await expect(page.getByText('INV-001')).toBeVisible();
   await expect(page.getByText(/1,180\.00/)).toBeVisible();
   await expect(page.getByText(/600\.00/)).toBeVisible();
@@ -163,7 +168,6 @@ test('W2 browser: desktop Sales screen with invoice and payment figures', async 
 
   const errors = await mountScreen(page, salesOptions([]));
 
-  await expect(page.getByRole('heading', { name: 'Sales', exact: true })).toBeVisible();
   await expect(page.getByText('INV-001')).toBeVisible();
   await expect(page.getByText(/1,180\.00/)).toBeVisible();
   await expect(page.getByText(/600\.00/)).toBeVisible();

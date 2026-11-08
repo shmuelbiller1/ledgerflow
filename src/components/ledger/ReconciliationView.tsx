@@ -324,7 +324,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 <span className="text-xs font-black text-[var(--text)] uppercase tracking-wider">Matched history</span>
                 <p className="text-[10px] text-[var(--muted)] uppercase tracking-widest font-semibold mt-0.5">Bank lines matched to ledger entries and cleared</p>
               </div>
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-900 rounded-xl px-3 py-1">
                  <Lock aria-hidden="true" size={12} />
                  <span>Cleared items are locked</span>
               </div>

@@ -9,14 +9,19 @@
  * Usage: node scripts/playwright-failures.mjs [report.json]
  */
 import fs from 'node:fs';
+import path from 'node:path';
 
-const path = process.argv[2] || process.env.PLAYWRIGHT_JSON_OUTPUT_NAME || 'playwright-report.json';
-if (!fs.existsSync(path)) {
+// An argument from the command line may point anywhere; only a JSON report inside the repository is
+// read, so a crafted path cannot make this print an unrelated file into a public CI summary.
+const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+const requested = path.resolve(REPO_ROOT, process.argv[2] || process.env.PLAYWRIGHT_JSON_OUTPUT_NAME || 'playwright-report.json');
+const reportPath = requested.startsWith(REPO_ROOT + path.sep) && requested.endsWith('.json') ? requested : null;
+if (!reportPath || !fs.existsSync(reportPath)) {
   console.log('\n_No Playwright JSON report was written, so the failure reasons are not available._');
   process.exit(0);
 }
 
-const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 const failures = [];
 const walk = (suite, trail) => {
   for (const spec of suite.specs ?? []) {
@@ -43,7 +48,9 @@ if (failures.length === 0) {
   console.log(`\n### ${failures.length} test(s) did not pass\n`);
   console.log('| Test | Status | Reason |');
   console.log('|---|---|---|');
+  // Escape the Markdown table delimiter last, so it also covers any backslash already in the text.
+  const cell = value => value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
   for (const failure of failures) {
-    console.log(`| ${failure.title} | ${failure.status} | ${failure.reason.replace(/\|/g, '\\|')} |`);
+    console.log(`| ${cell(failure.title)} | ${cell(failure.status)} | ${cell(failure.reason)} |`);
   }
 }
