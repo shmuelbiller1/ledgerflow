@@ -1,3 +1,4 @@
+import { trimEndChars } from './textShape';
 /**
  * Password rules (Y-31), checked before a password is set (sign-up, a new password after a reset
  * link): at least 10 characters, not one of the passwords people use most, not the name part of
@@ -18,7 +19,7 @@ export function passwordProblem(password: string, email = ''): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters`;
   if (password.length > 128) return 'Use at most 128 characters';
   const lower = password.toLowerCase();
-  if (COMMON.has(lower) || COMMON.has(lower.replace(/[!.?]+$/, ''))) return 'That password is one of the most used; choose another';
+  if (COMMON.has(lower) || COMMON.has(trimEndChars(lower, '!.?'))) return 'That password is one of the most used; choose another';
   if (/^(.)\1+$/.test(password)) return 'Do not repeat one character';
   const name = email.split('@')[0]?.toLowerCase() || '';
   if (name.length >= 4 && lower.includes(name)) return 'Do not use your email name in the password';
