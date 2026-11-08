@@ -337,7 +337,7 @@ export default function Sales() {
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
           <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-rose-500 dark:text-[#ff495a] font-semibold mb-3 relative z-10">Critical Overdue</p>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">Critical Overdue</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-rose-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.overdue)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <AlertCircle size={12} />
