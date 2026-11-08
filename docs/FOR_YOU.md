@@ -116,8 +116,13 @@ Last updated: 2026-10-07.
     needs one query on the live project, which Claude does not run (the Supabase tool is only for migrations).
     To unblock: say "check the IP header" and Claude adds a small owner-only diagnostic function (a migration)
     that reports which address headers arrive through the app (the SQL editor bypasses the gateway, so it
-    cannot show them). *Default: P-03 waits; Claude moves on to
-    C-19/L-123.*
+    cannot show them). *Default: P-03 waits.*
+53. **Little engineering is left that does not need you (8 Nov).** C-19/L-123 (archiving closed years) is
+    AI #9's work in progress (steps 1–6 merged; C-19 is in its queue), so Claude leaves it there. What remains
+    in Claude's own lane is M-21 standard costing and W-07 assembly, which the roadmap marks as later or
+    add-on items. Most of the value now sits behind items 49–52 above and the decisions in section B.
+    *Default: Claude builds M-21 next. The 5-hourly restart keeps running; if you prefer to save usage until
+    you answer, pause the "LedgerFlow: keep working" scheduled task.*
 
 ## B. Decisions (Claude uses the default until you say otherwise)
 
