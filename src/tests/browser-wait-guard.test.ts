@@ -42,6 +42,14 @@ describe('browser animation waits', () => {
     assert.match(helper, /\.catch\(\(\) => undefined\)/, 'settleAnimations never throws on a slow screen');
   });
 
+  test('a spec that calls settleAnimations imports it', () => {
+    const missing = SPECS.filter(file => {
+      const source = fs.readFileSync(file, 'utf8');
+      return /settleAnimations\(/.test(source) && !/import\s*\{[^}]*settleAnimations/.test(source);
+    });
+    assert.deepEqual(missing, [], 'these specs call settleAnimations without importing it');
+  });
+
   test('the specs use the helper rather than their own copy of the wait', () => {
     const handwritten = SPECS.filter(file => /getAnimations\(\)\.length === 0/.test(fs.readFileSync(file, 'utf8')));
     assert.deepEqual(handwritten, [], 'these specs should call settleAnimations from e2e/support/a11yGate');

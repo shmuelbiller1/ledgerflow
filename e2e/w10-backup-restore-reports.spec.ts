@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
 import { mountJourney, remountJourney, setLedgerField, settleStyles } from './support/journeyFixture';
-import { expectNoNewAccessibilityIssues } from './support/a11yGate';
+import { expectNoNewAccessibilityIssues, settleAnimations } from './support/a11yGate';
 
 /**
  * D-98 · W10 (RELEASE_GATE): backup → change records → restore → the P&L, balance sheet and trial
