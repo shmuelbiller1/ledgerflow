@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { itemsExceedTotal } from '../../lib/documentItemsCheck';
 import type { Firestore } from '../db/firestore';
 import type { RequestUser } from '../auth/requestUser';
 import { postInvoiceLedger } from '../../services/ledgerPost/invoicePosting';
@@ -86,6 +87,11 @@ export async function postDocument(db: Firestore, user: RequestUser, input: Docu
     for (const date of dates) assertPostingOpen(date, workspace as never, user.uid);
   } catch (err) {
     throw new BulkRefusal(409, { error: err instanceof Error ? err.message : String(err) });
+  }
+  // audit F8: a sent invoice or bill whose total is less than its items allow is refused, not posted at that total
+  if (action !== 'delete' && (collection === 'invoices' || collection === 'bills') && !['draft', 'void'].includes(String(document.status))) {
+    const contradiction = itemsExceedTotal(document);
+    if (contradiction) throw new BulkRefusal(400, { error: contradiction });
   }
   const mutation = mutationOf(action === 'delete' ? undefined : input.data);
   let cogsPendingReason: string | undefined;
