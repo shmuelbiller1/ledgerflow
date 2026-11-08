@@ -25,7 +25,11 @@ const value = (name: string) => {
 const since = value('--since') || `${Number(value('--weeks') || 1) * 7} days ago`;
 const write = flag('--write');
 
-const output = execFileSync('git', ['log', `--since=${since}`, '--date=short', '--pretty=format:%h%x1f%cd%x1f%s'], {
+// Ask git where it lives and run that executable directly, so a writable directory earlier on PATH
+// cannot stand in for it.
+const gitBinary = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+if (!gitBinary) throw new Error('git is not on PATH');
+const output = execFileSync(gitBinary, ['log', `--since=${since}`, '--date=short', '--pretty=format:%h%x1f%cd%x1f%s'], {
   encoding: 'utf8',
   maxBuffer: 32 * 1024 * 1024,
 });

@@ -74,16 +74,14 @@ async function expectAxeClean(page: Page, selector: string, label: string) {
   expect(serious, `${label}: ${JSON.stringify(serious.map(v => ({ id: v.id, nodes: v.nodes.length })))}`).toEqual([]);
 }
 
-// ---------------------------------------------------------------------------
-// W2 — Invoice → posting → payment → customer statement
-// ---------------------------------------------------------------------------
-test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $400 outstanding', async ({ page }) => {
-  test.setTimeout(90000);
-  await page.setViewportSize({ width: 390, height: 844 });
-  const { errors } = await baseFixture(page);
+/**
+ * Mount the statement screen with a ledger store seeded from `seed`, identically for the customer
+ * (W2) and vendor (W3) journeys. The seed is plain data, so each test keeps its worked figures in
+ * view instead of hiding them inside a render script.
+ */
+async function mountStatementWith(page: Page, seed: { collections: Record<string, unknown>; loaded: Record<string, boolean> }) {
   await page.route('**/api/**', route => route.fulfill({ json: {} }));
-
-  await page.evaluate(async ({ workspaceId }) => {
+  await page.evaluate(async ({ workspaceId, seed }) => {
     const [{ default: React }, { default: { createRoot } }, { useLedgerStore }, { useDataNeedsStore }, { default: StatementView }] = await Promise.all([
       import('/node_modules/.vite/deps/react.js'),
       import('/node_modules/.vite/deps/react-dom_client.js'),
@@ -91,28 +89,33 @@ test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $4
       import('/src/stores/useDataNeedsStore.ts'),
       import('/src/components/reporting/StatementView.tsx'),
     ]);
+    useLedgerStore.setState({ ...seed.collections, truncatedCollections: {}, baseCurrency: 'USD' } as never);
+    useDataNeedsStore.setState({ loaded: seed.loaded, loadedWorkspaceId: workspaceId, failed: {} } as never);
+    (createRoot(document.getElementById('root')!)).render(React.createElement(StatementView, { startDate: '2026-05-01', endDate: '2026-05-31' }));
+  }, { workspaceId: WORKSPACE, seed });
+}
+
+// ---------------------------------------------------------------------------
+// W2 — Invoice → posting → payment → customer statement
+// ---------------------------------------------------------------------------
+test('F-41 W2 browser: invoice $1,000, payment $600, customer statement shows $400 outstanding', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { errors } = await baseFixture(page);
+
+  await mountStatementWith(page, {
     // Worked figures (USD, whole cents):
     //  Invoice INV-1001  $1,000.00 = 100000 cents, sent 2026-05-05
     //  Payment p1  $600.00 = 60000 cents, received 2026-05-20, allocated to INV-1001
-    //  Statement 2026-05-01 .. 2026-05-31:
-    //    opening 0, billed 100000, paid 60000, outstanding 40000
-    const customers = [{ id: 'c1', workspaceId, name: 'Acme Corp', email: 'ap@acme.test' }];
-    const invoices = [{
-      id: 'inv1', workspaceId, customerId: 'c1', customerName: 'Acme Corp',
-      number: 'INV-1001', date: '2026-05-05', dueDate: '2026-06-04', status: 'sent',
-      amountCents: 100000, amountPaidCents: 60000, currency: 'USD',
-    }];
-    const payments = [{
-      id: 'p1', workspaceId, contactId: 'c1', date: '2026-05-20', amountCents: 60000,
-      direction: 'received', status: 'posted', reference: 'PMT-001',
-    }];
-    useLedgerStore.setState({
-      customers, vendors: [], invoices, bills: [], payments, creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
-      truncatedCollections: {}, baseCurrency: 'USD',
-    } as never);
-    useDataNeedsStore.setState({ loaded: { customers: true, invoices: true, payments: true, bills: true, creditNotes: true, vendors: true, vendorCredits: true }, loadedWorkspaceId: workspaceId, failed: {} } as never);
-    (createRoot(document.getElementById('root')!)).render(React.createElement(StatementView, { startDate: '2026-05-01', endDate: '2026-05-31' }));
-  }, { workspaceId: WORKSPACE });
+    //  Statement 2026-05-01 .. 2026-05-31: opening 0, billed 100000, paid 60000, outstanding 40000
+    collections: {
+      customers: [{ id: 'c1', workspaceId: WORKSPACE, name: 'Acme Corp', email: 'ap@acme.test' }],
+      invoices: [{ id: 'inv1', workspaceId: WORKSPACE, customerId: 'c1', customerName: 'Acme Corp', number: 'INV-1001', date: '2026-05-05', dueDate: '2026-06-04', status: 'sent', amountCents: 100000, amountPaidCents: 60000, currency: 'USD' }],
+      payments: [{ id: 'p1', workspaceId: WORKSPACE, contactId: 'c1', date: '2026-05-20', amountCents: 60000, direction: 'received', status: 'posted', reference: 'PMT-001' }],
+      vendors: [], bills: [], creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
+    },
+    loaded: { customers: true, invoices: true, payments: true, bills: true, creditNotes: true, vendors: true, vendorCredits: true },
+  });
 
   await expect(page.getByRole('heading', { name: 'Account Statement' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'STATEMENT OF ACCOUNT' })).toBeVisible();
@@ -140,37 +143,20 @@ test('F-42 W3 browser: bill $250, fully paid, vendor statement shows $0 outstand
   test.setTimeout(90000);
   await page.setViewportSize({ width: 390, height: 844 });
   const { errors } = await baseFixture(page);
-  await page.route('**/api/**', route => route.fulfill({ json: {} }));
 
-  await page.evaluate(async ({ workspaceId }) => {
-    const [{ default: React }, { default: { createRoot } }, { useLedgerStore }, { useDataNeedsStore }, { default: StatementView }] = await Promise.all([
-      import('/node_modules/.vite/deps/react.js'),
-      import('/node_modules/.vite/deps/react-dom_client.js'),
-      import('/src/stores/useLedgerStore.ts'),
-      import('/src/stores/useDataNeedsStore.ts'),
-      import('/src/components/reporting/StatementView.tsx'),
-    ]);
+  await mountStatementWith(page, {
     // Worked figures:
     //  Bill B-77 $250.00 = 25000 cents, approved 2026-05-10
     //  Payment $250.00 made 2026-05-22, allocated to B-77
     //  Vendor statement 2026-05-01 .. 2026-05-31: billed 25000, paid 25000, outstanding 0
-    const vendors = [{ id: 'v1', workspaceId, name: 'Office Depot', email: 'ap@officedepot.test' }];
-    const bills = [{
-      id: 'bill1', workspaceId, vendorId: 'v1', vendorName: 'Office Depot',
-      number: 'B-77', date: '2026-05-10', dueDate: '2026-06-09', status: 'paid',
-      amountCents: 25000, amountPaidCents: 25000, currency: 'USD',
-    }];
-    const payments = [{
-      id: 'pay-b1', workspaceId, contactId: 'v1', date: '2026-05-22', amountCents: 25000,
-      direction: 'made', status: 'posted', reference: 'PAY-B1',
-    }];
-    useLedgerStore.setState({
-      customers: [], vendors, invoices: [], bills, payments, creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
-      truncatedCollections: {}, baseCurrency: 'USD',
-    } as never);
-    useDataNeedsStore.setState({ loaded: { customers: true, vendors: true, bills: true, payments: true, vendorCredits: true, invoices: true, creditNotes: true }, loadedWorkspaceId: workspaceId, failed: {} } as never);
-    (createRoot(document.getElementById('root')!)).render(React.createElement(StatementView, { startDate: '2026-05-01', endDate: '2026-05-31' }));
-  }, { workspaceId: WORKSPACE });
+    collections: {
+      vendors: [{ id: 'v1', workspaceId: WORKSPACE, name: 'Office Depot', email: 'ap@officedepot.test' }],
+      bills: [{ id: 'bill1', workspaceId: WORKSPACE, vendorId: 'v1', vendorName: 'Office Depot', number: 'B-77', date: '2026-05-10', dueDate: '2026-06-09', status: 'paid', amountCents: 25000, amountPaidCents: 25000, currency: 'USD' }],
+      payments: [{ id: 'pay-b1', workspaceId: WORKSPACE, contactId: 'v1', date: '2026-05-22', amountCents: 25000, direction: 'made', status: 'posted', reference: 'PAY-B1' }],
+      customers: [], invoices: [], creditNotes: [], vendorCredits: [], transactions: [], bankLines: [],
+    },
+    loaded: { customers: true, vendors: true, bills: true, payments: true, vendorCredits: true, invoices: true, creditNotes: true },
+  });
 
   await expect(page.getByRole('heading', { name: 'Account Statement' })).toBeVisible();
   // Switch to vendor statement, the screen a vendor balance is checked on.

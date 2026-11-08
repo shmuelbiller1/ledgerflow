@@ -19,17 +19,8 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { filesIn } from './helpers/repoScan';
 
-function filesIn(dir: string): string[] {
-  const out: string[] = [];
-  if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...filesIn(full));
-    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) out.push(full);
-  }
-  return out;
-}
 
 /**
  * Is this import statement type-only? A type-only import names a type that the compiler erases, so it

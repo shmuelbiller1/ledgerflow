@@ -35,7 +35,10 @@ if (explicit.length > 0) {
     const file = path.join(dir, `run-${run}.json`);
     console.log(`Run ${run} of ${count} → ${file}`);
     try {
-      execFileSync('npx', ['playwright', 'test', '--reporter=json'], {
+      // Run the installed Playwright binary from node_modules: `npx` may fetch and run a different
+      // package version, which is both an unexpected download and a different reporter.
+      const playwrightBin = path.join(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'playwright.cmd' : 'playwright');
+      execFileSync(playwrightBin, ['test', '--reporter=json'], {
         stdio: ['ignore', 'ignore', 'inherit'],
         env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: file },
         maxBuffer: 64 * 1024 * 1024,

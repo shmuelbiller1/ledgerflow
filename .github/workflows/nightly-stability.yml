@@ -26,10 +26,11 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # --ignore-scripts: a dependency cannot run install hooks in CI.
+      - run: npm ci --ignore-scripts
+      - run: node_modules/.bin/playwright install --with-deps chromium
       - name: Compare three browser runs
-        run: npx tsx scripts/flaky-tests.ts --runs 3 || true
+        run: node_modules/.bin/tsx scripts/flaky-tests.ts --runs 3 || true
         continue-on-error: true
       - name: Keep the report
         if: always()
