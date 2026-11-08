@@ -29,8 +29,10 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       }
     }
     await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-    await expect(nav.getByRole('heading', { name: 'Account totals', exact: true })).toHaveCount(1);
-    await expect(nav.getByText('Sum of absolute account balances', { exact: true })).toHaveCount(1);
+    // D-92 named the box after what it shows and explained the figure; the old "Account totals"
+    // heading and its unexplained "sum of absolute balances" line are gone.
+    await expect(nav.getByRole('heading', { name: 'Balances by account type', exact: true })).toHaveCount(1);
+    await expect(nav.getByText('The total of every account in each type, as recorded in your books. The balance sheet shows the detail.', { exact: true })).toHaveCount(1);
     await expect(nav.getByText('Worlds', { exact: true })).toHaveCount(0);
     const scan = await new AxeBuilder({ page }).include('[aria-label="Main navigation"]').analyze();
     expect(scan.violations.filter(v => ['serious', 'critical'].includes(v.impact || ''))).toEqual([]);

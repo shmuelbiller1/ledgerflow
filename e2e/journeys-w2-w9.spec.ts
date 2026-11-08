@@ -247,8 +247,13 @@ test('F-43 W4 browser: imported bank lines match ledger entries, one reconciled 
     ],
   });
 
-  await expect(page.getByRole('button', { name: 'Auto Align All' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Matched History \(1\)/ })).toBeVisible();
+  // The screen's own words: the bulk action is "Auto-match all", and the matched count is the
+  // "Matched (n)" tab, which the reviewer opens instead of a "Matched History" panel.
+  await expect(page.getByRole('button', { name: 'Auto-match all' })).toBeVisible();
+  const matchedTab = page.getByRole('button', { name: /^Matched \(1\)$/ });
+  await expect(matchedTab).toBeVisible();
+  await matchedTab.click();
+  await expect(page.getByText('Matched history', { exact: true })).toBeVisible();
   await expectAxeClean(page, 'body', 'W4 reconciliation');
 
   // Phone pass: the same screen keeps the page at the viewport width.
