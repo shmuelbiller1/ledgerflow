@@ -32,7 +32,8 @@ export function inlineEditText(kind: InlineKind, value: unknown): string {
 
 /** True when saving would change nothing. */
 export function sameInlineValue(kind: InlineKind, before: unknown, after: string | number): boolean {
-  if (kind === 'money' || kind === 'number') return Number(before ?? 0) === after;
+  // a field with no value yet (an optional standard cost) is never "the same" as a typed 0
+  if (kind === 'money' || kind === 'number') return before !== undefined && before !== null && before !== '' && Number(before) === after;
   return String(before ?? '').trim() === after;
 }
 

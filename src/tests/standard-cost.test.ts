@@ -40,3 +40,12 @@ test('only whole, non-negative cents are a standard cost', () => {
   assert.equal(formatVariancePct(0), '0.0 %');
   assert.equal(formatVariancePct(null), '—');
 });
+
+test('an unset field is not "the same" as a typed 0, so a zero standard cost is saved', async () => {
+  const { sameInlineValue } = await import('../lib/inlineEdit');
+  assert.equal(sameInlineValue('money', undefined, 0), false);
+  assert.equal(sameInlineValue('money', null, 0), false);
+  assert.equal(sameInlineValue('money', 0, 0), true);
+  assert.equal(sameInlineValue('money', 1200, 1200), true);
+  assert.equal(sameInlineValue('number', undefined, 0), false);
+});
