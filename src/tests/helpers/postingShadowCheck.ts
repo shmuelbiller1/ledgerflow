@@ -5,6 +5,7 @@ import { postCreditNoteLedger, postVendorCreditLedger } from '../../services/led
 import { agreedPostingDay, loadPostingContext } from '../../server/services/postingContextLoader';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from '../../services/ledgerPost/postingCore';
 import type { Transaction } from '../../types';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * L-94 step 1 (shadow), kept for the tests after L94-STEP2B: the browser no longer sends document entries, so the
@@ -46,7 +47,7 @@ export function postingFingerprint(txs: Array<Pick<Transaction, 'date' | 'lines'
   return txs.flatMap(tx => (tx.lines || []).map(line => {
     const labels = Object.entries((line as { dimensions?: Record<string, string> }).dimensions || {}).filter(([, v]) => v).sort(([a], [b]) => a.localeCompare(b));
     return `${String(tx.date || '').slice(0, 10)}|${line.accountId}|${line.amountCents}|${JSON.stringify(labels)}`;
-  })).sort();
+  })).sort(byCodeUnit);
 }
 
 export async function shadowCheckDocumentPosting(db: Firestore, input: ShadowCheckInput): Promise<ShadowCheckResult> {

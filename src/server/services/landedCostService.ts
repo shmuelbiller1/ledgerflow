@@ -42,6 +42,7 @@ import { movingAverageCents } from './cogsStockService';
 import { ledgerWrite } from './ledgerDoor';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { writeServerAuditLog } from './auditLogService';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 export const LANDED_COST_TYPE = 'landed-cost';
 export const LANDED_COST_UNDO_TYPE = 'landed-cost-undo';
@@ -416,7 +417,7 @@ export async function undoLandedCost(db: Firestore, input: { workspaceId: string
       own.push(...mine);
       // EG-6 review: against the posting's own mark (the item's last move when it posted), so a landed cost that put
       // everything to COGS (and so wrote no move) can still be undone
-      const mark = text(meta.seqMark) || mine.map(m => String(m.seq || '')).sort().pop() || '';
+      const mark = text(meta.seqMark) || mine.map(m => String(m.seq || '')).sort(byCodeUnit).pop() || '';
       const later = moves.filter(m => m.transactionId !== entryId && String(m.seq || '') > mark);
       const name = String(mine[0]?.itemName || itemId);
       if (later.length) throw new LandedCostError(409, `${name} has moved since the landed cost was posted (${String(later[0].kind)} on ${String(later[0].date).slice(0, 10)}): it can no longer be undone as a whole; post a correcting landed cost instead`);

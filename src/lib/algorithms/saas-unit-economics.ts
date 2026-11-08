@@ -1,5 +1,6 @@
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { byCodeUnit } from '../codeUnitOrder';
 
 export const SAAS_UNIT_ECONOMICS_ALGO: AlgorithmDefinition = {
   id: 'planning_6',
@@ -56,7 +57,7 @@ export const SAAS_UNIT_ECONOMICS_ALGO: AlgorithmDefinition = {
        if (hasRelevantLine) sourceTransactionIds.add(tx.id);
     });
 
-    const activeMonths = Array.from(new Set([...Object.keys(monthlyRevenue), ...Object.keys(monthlyMarketing)])).sort();
+    const activeMonths = Array.from(new Set([...Object.keys(monthlyRevenue), ...Object.keys(monthlyMarketing)])).sort(byCodeUnit);
     const recentMonths = activeMonths.slice(-3);
     const monthsCount = recentMonths.length || 1;
 

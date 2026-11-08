@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { formatDate } from '../../lib/utils';
 import { practiceWork, type PracticeRow } from '../../lib/practice';
 import type { PinnedPage } from '../../lib/pinnedPages';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const monthName = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
@@ -33,7 +34,7 @@ export default function PracticeView() {
     })().then(r => { if (live) { setRows(r); setError(''); } }).catch(err => { if (live) { setRows([]); setError(err instanceof Error ? err.message : String(err)); } });
     return () => { live = false; };
   }, []);
-  const groups = useMemo(() => [...new Set((rows || []).flatMap(r => r.groups))].sort(), [rows]);
+  const groups = useMemo(() => [...new Set((rows || []).flatMap(r => r.groups))].sort(byCodeUnit), [rows]);
   const shown = (rows || []).filter(r => (!group || r.groups.includes(group)) && (!find.trim() || r.name.toLocaleLowerCase().includes(find.trim().toLocaleLowerCase())));
   const open = (r: PracticeRow, page: PinnedPage) => { setCurrentWorkspaceId(r.workspaceId); goToPage(page); };
   const count = (r: PracticeRow, n: number, label: string, page: PinnedPage) => (n > 0

@@ -29,6 +29,7 @@ import { useSavedViewsStore } from '../../stores/useSavedViewsStore';
 import { useAutoRules } from '../../hooks/useAutoRules';
 import { useRecordFocus } from '../../hooks/useRecordFocus';
 import { VirtualRowProps } from './TransactionGridShared';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 function useTransactionGridModel() {
   const formId = useId();
   const transactions = useLedgerStore(s => s.transactions);
@@ -202,9 +203,9 @@ function useTransactionGridModel() {
     }
 
     return {
-      category: Array.from(categoriesSet).sort(),
-      project: Array.from(projectsSet).sort(),
-      status: Array.from(statusesSet).sort()
+      category: Array.from(categoriesSet).sort(byCodeUnit),
+      project: Array.from(projectsSet).sort(byCodeUnit),
+      status: Array.from(statusesSet).sort(byCodeUnit)
     };
   }, [safeTransactions, accounts]);
 

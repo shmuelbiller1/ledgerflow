@@ -26,6 +26,7 @@ import { addDaysYMD } from './fiscalCalendar';
 import { monthEnd } from './periodLock';
 import { calculateAmountDue } from './documentMath';
 import { isOpenBill, isOpenInvoice } from './txFilters';
+import { byCodeUnit } from './codeUnitOrder';
 
 /** A receivable (a customer's invoice) or a payable (a vendor's bill). */
 export type RevaluationSide = 'customer' | 'vendor';
@@ -241,8 +242,8 @@ export function planFxRevaluation(
 
   const debitTotalCents = lines.reduce((sum, l) => sum + Math.max(0, l.amountCents), 0);
   return {
-    lines, details, skipped, unpriced: [...unpriced].sort(), netGainCents, debitTotalCents,
-    currencies: [...currencies].sort(), documentCount: details.length,
+    lines, details, skipped, unpriced: [...unpriced].sort(byCodeUnit), netGainCents, debitTotalCents,
+    currencies: [...currencies].sort(byCodeUnit), documentCount: details.length,
   };
 }
 

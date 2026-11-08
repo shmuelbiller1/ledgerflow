@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { byCodeUnit } from '../lib/codeUnitOrder';
 
 export class SecurityService {
   private static deterministicStringify(obj: unknown): string {
@@ -8,7 +9,7 @@ export class SecurityService {
     if (Array.isArray(obj)) {
       return '[' + obj.map(this.deterministicStringify.bind(this)).join(',') + ']';
     }
-    const keys = Object.keys(obj).sort();
+    const keys = Object.keys(obj).sort(byCodeUnit);
     return '{' + keys.map(k => JSON.stringify(k) + ':' + this.deterministicStringify((obj as Record<string, unknown>)[k])).join(',') + '}';
   }
 

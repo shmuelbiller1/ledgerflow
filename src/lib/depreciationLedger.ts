@@ -8,6 +8,7 @@
 import type { FixedAsset, Transaction } from '../types';
 import { isPostable } from './txFilters';
 import { reversedTransactionIds } from './postingCheck';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface DepreciationLedgerRow {
   assetId: string;
@@ -71,7 +72,7 @@ export function depreciationLedger(assets: FixedAsset[], transactions: Transacti
       const costCents = asset.purchasePriceCents || 0;
       return {
         assetId: asset.id, name: asset.name, costCents, openingCents, periodCents, closingCents, bookValueCents: costCents - closingCents,
-        months: [...new Set(within.map(r => r.month))].sort(),
+        months: [...new Set(within.map(r => r.month))].sort(byCodeUnit),
         ...(asset.disposedOn && asset.disposedOn <= to ? { disposedOn: asset.disposedOn } : {}),
         ...(asset.partialDisposals?.length ? { partlyDisposed: true } : {}),
       };

@@ -5,6 +5,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { CLOSE_ROLES } from '../../lib/periodLock';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * The month-end currency revaluation (R-07), shown in the currency tool.
@@ -109,7 +110,7 @@ export function FxRevaluationPanel() {
       const data = normalizePlan(response);
       setPlan(data);
       if (historical) {
-        setRateCurrencies(previous => [...new Set([...previous, ...data.currencies, ...data.unpriced])].sort());
+        setRateCurrencies(previous => [...new Set([...previous, ...data.currencies, ...data.unpriced])].sort(byCodeUnit));
       } else {
         setRateCurrencies([]);
         setManualRates({});
