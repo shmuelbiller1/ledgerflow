@@ -6,7 +6,9 @@ import { toast } from 'sonner';
 import { auth } from '../../firebase';
 import { formatDecimal, getLocalDateISO, parseAmountToCents, cn } from '../../lib/utils';
 import CategoryWhyPopover from '../common/CategoryWhyPopover';
+import { DimensionValueActions, InlineAddDimensionAxis } from '../common/DimensionValueActions';
 import { getLineDimension, setLineDimension, extractUniqueDimensionPaths } from '../../lib/dimensionUtils';
+import { useLedgerStore } from '../../stores/useLedgerStore';
 import TagInput from './TagInput';
 import AsyncButton from '../ui/AsyncButton';
 import EntryLinks from './EntryLinks';
@@ -318,7 +320,8 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                 </div>
 
                 {!isLocked && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <InlineAddDimensionAxis disabled={isLocked} />
                     <button
                       type="button"
                       onClick={() => {
@@ -448,6 +451,19 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                             <datalist id={`${formId}-dim-list-${idx}-${dim.id}`}>
                               {pathOptions.map(p => <option key={p} value={p}>{p}</option>)}
                             </datalist>
+                            <DimensionValueActions
+                              dimensionId={dim.id}
+                              dimensionName={dim.name}
+                              value={displayVal}
+                              lineNumber={idx + 1}
+                              disabled={isLocked}
+                              onSelectNode={node => {
+                                handleLineChange(idx, setLineDimension(line, dim.id, node.id, useLedgerStore.getState().dimensionNodes));
+                              }}
+                              onRenamed={node => {
+                                handleLineChange(idx, setLineDimension(line, dim.id, node.id, useLedgerStore.getState().dimensionNodes));
+                              }}
+                            />
                           </div>
                         </div>
                       );

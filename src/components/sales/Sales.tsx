@@ -33,6 +33,7 @@ import type { ReceiptPayment } from './InvoiceModal';
 import InvoiceEmailDialog from './InvoiceEmailDialog';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
+import { ensureInvoiceDimensionNodes } from '../../lib/dimensionNodeActions';
 import ReceivePaymentModal from './ReceivePaymentModal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -96,11 +97,9 @@ export default function Sales() {
       if (!created) return;
       data = { ...data, customerId: created.id };
     }
+    data = await ensureInvoiceDimensionNodes(data);
     let res;
-    if (data.id) { 
-      const { id, ...updates } = data; 
-      res = await updateEntity('invoices', id, updates); 
-    } else {
+    if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
       res = await addEntity('invoices', data); 
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;

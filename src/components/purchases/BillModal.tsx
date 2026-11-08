@@ -23,6 +23,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type BillEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
+import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 
 /** What the dialog saves: the bill, and for a new one whether it repeats (BE-08; never stored on the bill). */
 export type BillDraft = Partial<Bill> & { recurringInterval?: 'weekly' | 'monthly' | 'quarterly' | 'yearly'; attachmentFiles?: File[] };
@@ -281,7 +282,10 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         taxTreatment: taxCode?.treatment,
         taxBreakdown: totals.components,
         selfAssessedTaxCents: totals.selfAssessedCents || undefined,
-        splits,
+        splits: splits.map(split => {
+          const normalized = normalizeDimensionsMap(split.dimensions, useLedgerStore.getState().dimensionNodes || []);
+          return normalized !== split.dimensions ? { ...split, dimensions: normalized } : split;
+        }),
         metadata: {
           ...(bill.metadata || {}),
           memo,

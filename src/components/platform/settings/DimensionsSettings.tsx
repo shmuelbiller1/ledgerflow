@@ -1,9 +1,16 @@
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
+import {
+  addDimensionAxisInline,
+  registerDimensionNodeInline,
+  setDimensionNodeAliasesInline,
+  setDimensionNodeStatusInline,
+} from '../../../lib/dimensionNodeActions';
+import { attempt, identityScope } from '../../../lib/serverAction';
 import { RecordInlineField } from '../../ui/RecordInlineField';
 import { WorkspaceDimensionName } from './WorkspaceDimensionName';
 import { RequiredLabelRules } from './RequiredLabelRules';
 import { LabelRoles } from './LabelRoles';
-import { useCurrentRole } from '../../../hooks/useCurrentRole';
+import { hasRoleAtLeast, useCurrentRole } from '../../../hooks/useCurrentRole';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -61,7 +68,9 @@ function EditableNodeAliases({
 }
 
 function DimensionsSettingsContent() {
-  const canWrite = useCurrentRole() !== 'viewer';
+  const role = useCurrentRole();
+  const canWrite = hasRoleAtLeast(role, 'bookkeeper');
+  const canAdmin = hasRoleAtLeast(role, 'accountant');
   const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const setWorkspaces = useAuthStore(s => s.setWorkspaces);
@@ -104,50 +113,80 @@ function DimensionsSettingsContent() {
     }));
   };
 
-  const handleAddNode = (dimId: string) => {
+  const handleAddNode = async (dimId: string): Promise<boolean> => {
+    if (!canWrite) return false;
     const input = newNodeInputs[dimId];
     if (!input || !input.description.trim()) {
       toast.error('Please enter a description for the new label node');
-      return;
+      return false;
     }
 
-    const nextId = suggestNextDimensionNodeId(dimId, dimensionNodes);
     const aliasesArray = input.aliases
       ? input.aliases.split(',').map(a => a.trim()).filter(Boolean)
       : [];
+    const scope = identityScope(
+      () => useAuthStore.getState().user?.uid,
+      () => useAuthStore.getState().currentWorkspaceId,
+    );
+    const res = await attempt(() =>
+      registerDimensionNodeInline(dimId, input.description.trim(), aliasesArray),
+    );
+    if (!scope.isCurrent()) return false;
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
+    }
 
-    const newNode: DimensionNode = {
-      id: nextId,
-      dimensionId: dimId,
-      description: input.description.trim(),
-      aliases: aliasesArray,
-      status: 'active',
-      createdAt: new Date().toISOString()
-    };
-
-    setDimensionNodes(prev => [...prev, newNode]);
+    setDimensionNodes(useLedgerStore.getState().dimensionNodes);
     setNewNodeInputs(prev => ({ ...prev, [dimId]: { description: '', aliases: '' } }));
-    toast.success(`Created label node ${nextId} ("${newNode.description}")`);
+    toast.success(`Saved label node ${res.value.id} ("${res.value.description}")`);
+    return true;
   };
 
-  const handleUpdateNodeAliases = (nodeId: string, dimId: string, aliasesStr: string) => {
+  const handleUpdateNodeAliases = async (nodeId: string, dimId: string, aliasesStr: string): Promise<boolean> => {
+    if (!canWrite) return false;
     const aliasesArray = aliasesStr.split(',').map(a => a.trim()).filter(Boolean);
+    const scope = identityScope(
+      () => useAuthStore.getState().user?.uid,
+      () => useAuthStore.getState().currentWorkspaceId,
+    );
+    const res = await attempt(() => setDimensionNodeAliasesInline(dimId, nodeId, aliasesArray));
+    if (!scope.isCurrent()) return false;
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
+    }
     setDimensionNodes(prev => prev.map(n => {
       if (n.id === nodeId && n.dimensionId === dimId) {
         return { ...n, aliases: aliasesArray };
       }
       return n;
     }));
+    return true;
   };
 
-  const handleToggleArchiveNode = (nodeId: string, dimId: string) => {
+  const handleToggleArchiveNode = async (nodeId: string, dimId: string): Promise<boolean> => {
+    if (!canWrite) return false;
+    const target = dimensionNodes.find(n => n.id === nodeId && n.dimensionId === dimId);
+    const nextStatus = target?.status === 'archived' ? 'active' : 'archived';
+    const scope = identityScope(
+      () => useAuthStore.getState().user?.uid,
+      () => useAuthStore.getState().currentWorkspaceId,
+    );
+    const res = await attempt(() => setDimensionNodeStatusInline(dimId, nodeId, nextStatus));
+    if (!scope.isCurrent()) return false;
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
+    }
     setDimensionNodes(prev => prev.map(n => {
       if (n.id === nodeId && n.dimensionId === dimId) {
-        const nextStatus = n.status === 'archived' ? 'active' : 'archived';
         return { ...n, status: nextStatus };
       }
       return n;
     }));
+    toast.success(nextStatus === 'archived' ? `Archived label ${nodeId}` : `Restored label ${nodeId}`);
+    return true;
   };
 
   const handleUpdateAxisName = (axisId: string, newName: string) => {
@@ -159,29 +198,32 @@ function DimensionsSettingsContent() {
     }));
   };
 
-  const handleAddAxis = () => {
-    if (!newAxisId.trim() || !newAxisName.trim()) {
-      toast.error('Axis key and display name are required');
-      return;
+  const handleAddAxis = async (): Promise<boolean> => {
+    if (!canAdmin) return false;
+    if (!newAxisName.trim()) {
+      toast.error('Display name is required');
+      return false;
+    }
+    const scope = identityScope(
+      () => useAuthStore.getState().user?.uid,
+      () => useAuthStore.getState().currentWorkspaceId,
+    );
+    const res = await attempt(() =>
+      addDimensionAxisInline(newAxisName.trim(), newAxisId.trim() || undefined),
+    );
+    if (!scope.isCurrent()) return false;
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
     }
 
-    const cleanId = newAxisId.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    if (dimensions.some(d => d.id === cleanId)) {
-      toast.error(`Dimension axis with ID "${cleanId}" already exists`);
-      return;
-    }
-
-    const newDim: DimensionDefinition = {
-      id: cleanId,
-      name: newAxisName.trim(),
-      sortOrder: dimensions.length
-    };
-
-    setDimensions(prev => [...prev, newDim]);
+    const updatedDims = useAuthStore.getState().getCurrentWorkspace()?.dimensions;
+    setDimensions(updatedDims || [...dimensions, res.value]);
     setNewAxisId('');
     setNewAxisName('');
     setShowAddAxis(false);
-    toast.success(`Added dimension axis "${newDim.name}" (${newDim.id})`);
+    toast.success(`Saved dimension axis "${res.value.name}" (${res.value.id})`);
+    return true;
   };
 
   const handleSaveChanges = async () => {
@@ -401,6 +443,7 @@ function DimensionsSettingsContent() {
       </div>
 
       {/* Migration Card */}
+      {canWrite && (
       <div className="p-6 bg-gradient-to-r from-indigo-950/20 via-purple-950/10 to-transparent border border-indigo-500/20 rounded-[28px] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-1 max-w-xl">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-bold uppercase tracking-widest">
@@ -434,31 +477,34 @@ function DimensionsSettingsContent() {
           </AsyncButton>
         </div>
       </div>
+      )}
 
       {/* Dimension Axes & Nodes */}
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-[var(--text)]">Configured Dimensions ({dimensions.length})</h2>
-          <button
-            type="button"
-            onClick={() => setShowAddAxis(!showAddAxis)}
-            className="px-4 py-2 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500/50 text-[var(--text)] text-xs font-bold rounded-xl transition-all flex items-center gap-2"
-          >
-            <Plus aria-hidden="true" size={14} /> Add Dimension Axis
-          </button>
+          {canAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowAddAxis(!showAddAxis)}
+              className="px-4 py-2 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500/50 text-[var(--text)] text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+            >
+              <Plus aria-hidden="true" size={14} /> Add Dimension Axis
+            </button>
+          )}
         </div>
 
-        {showAddAxis && (
+        {canAdmin && showAddAxis && (
           <div className="p-6 bg-[var(--surface)] border border-indigo-500/30 rounded-2xl space-y-4 animate-fadeIn">
             <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">Add New Dimension Axis</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Axis Key / ID (Immutable)">
+                <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Axis Key / ID (Optional — auto-generated if blank)">
                   <input
                     type="text"
                     value={newAxisId}
                     onChange={e => setNewAxisId(e.target.value)}
-                    placeholder="e.g. cost_center or region"
+                    placeholder="e.g. cost_center or property"
                     className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500 font-mono"
                   />
                 </Labelled>
@@ -469,7 +515,13 @@ function DimensionsSettingsContent() {
                     type="text"
                     value={newAxisName}
                     onChange={e => setNewAxisName(e.target.value)}
-                    placeholder="e.g. Cost Center or Region"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleAddAxis();
+                      }
+                    }}
+                    placeholder="e.g. Cost Center or Property"
                     className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
                   />
                 </Labelled>
@@ -485,7 +537,7 @@ function DimensionsSettingsContent() {
               </button>
               <button
                 type="button"
-                onClick={handleAddAxis}
+                onClick={() => { void handleAddAxis(); }}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl"
               >
                 Create Axis
@@ -549,7 +601,7 @@ function DimensionsSettingsContent() {
                             <RecordInlineField collection="dimensionNodes" record={node} documentId={`${currentWorkspaceId}_${dim.id}_${node.id}`} field="description" label={`Label ${dim.id} ${node.id}`} canEdit={canWrite} />
                           </td>
                           <td className="py-2.5 px-3">
-                            {canWrite ? <EditableNodeAliases initialValue={(node.aliases || []).join(', ')} onCommit={newVal => handleUpdateNodeAliases(node.id, dim.id, newVal)} /> : <span>{(node.aliases || []).join(', ')}</span>}
+                            {canWrite ? <EditableNodeAliases initialValue={(node.aliases || []).join(', ')} onCommit={newVal => { void handleUpdateNodeAliases(node.id, dim.id, newVal); }} /> : <span>{(node.aliases || []).join(', ')}</span>}
                           </td>
                           <td className="py-2.5 px-3">
                             {node.status === 'archived' ? (
@@ -563,17 +615,22 @@ function DimensionsSettingsContent() {
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleArchiveNode(node.id, dim.id)}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                                node.status === 'archived'
-                                  ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                                  : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                              }`}
-                            >
-                              {node.status === 'archived' ? 'Unarchive' : 'Archive'}
-                            </button>
+                            {canWrite ? (
+                              <button
+                                type="button"
+                                onClick={() => { void handleToggleArchiveNode(node.id, dim.id); }}
+                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                                  node.status === 'archived'
+                                    ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                }`}
+                              >
+                                {node.status === 'archived' ? 'Unarchive' : 'Archive'}
+                                <span className="sr-only"> {dim.name} {node.description}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[var(--muted)]">—</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -582,11 +639,12 @@ function DimensionsSettingsContent() {
                 </div>
               ) : (
                 <div className="py-6 text-center border border-dashed border-[var(--line)] rounded-2xl text-xs text-[var(--muted)]">
-                  No registered label nodes for <span className="font-bold text-[var(--muted)]">{dim.name}</span> yet. Add one below.
+                  No registered label nodes for <span className="font-bold text-[var(--muted)]">{dim.name}</span> yet.{canWrite ? ' Add one below.' : ''}
                 </div>
               )}
 
               {/* Add New Node Row */}
+              {canWrite && (
               <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
                   <span>Register New Label Node</span>
@@ -597,19 +655,33 @@ function DimensionsSettingsContent() {
                     {nextSuggestedId}
                   </div>
                   <div className="sm:col-span-5">
-                    <input aria-label="Display Description for new dimension value"
+                    <input aria-label={`Display Description for new ${dim.name} value`}
                       type="text"
+                      dir="auto"
                       value={nodeInput.description}
                       onChange={e => handleNodeInputChange(dim.id, 'description', e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleAddNode(dim.id);
+                        }
+                      }}
                       placeholder="Display Description (e.g. Food & Beverage)"
                       className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <input aria-label="Aliases for new dimension value"
+                    <input aria-label={`Aliases for new ${dim.name} value`}
                       type="text"
+                      dir="auto"
                       value={nodeInput.aliases}
                       onChange={e => handleNodeInputChange(dim.id, 'aliases', e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleAddNode(dim.id);
+                        }
+                      }}
                       placeholder="Aliases (comma-separated)"
                       className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--text)] outline-none focus:border-indigo-500"
                     />
@@ -617,14 +689,15 @@ function DimensionsSettingsContent() {
                   <div className="sm:col-span-2">
                     <button
                       type="button"
-                      onClick={() => handleAddNode(dim.id)}
+                      onClick={() => { void handleAddNode(dim.id); }}
                       className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
                     >
-                      <Plus aria-hidden="true" size={14} /> Add Node
+                      <Plus aria-hidden="true" size={14} /> Add Node<span className="sr-only"> to {dim.name}</span>
                     </button>
                   </div>
                 </div>
               </div>
+              )}
             </div>
           );
         })}
@@ -635,6 +708,7 @@ function DimensionsSettingsContent() {
       <LabelRoles dimensions={dimensions} onSaved={saved => setDimensions(prev => prev.map(d => ({ ...d, role: saved.find(x => x.id === d.id)?.role })))} />
 
       {/* Save Button Bar */}
+      {canWrite && (
       <div className="flex justify-end pt-6 border-t border-[var(--line)]">
         <AsyncButton
           type="button"
@@ -645,6 +719,7 @@ function DimensionsSettingsContent() {
           <Check aria-hidden="true" size={16} /> Save Dimension Registry
         </AsyncButton>
       </div>
+      )}
     </div>
   );
 }

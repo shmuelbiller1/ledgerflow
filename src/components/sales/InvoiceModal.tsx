@@ -26,6 +26,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type InvoiceEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
+import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -231,7 +232,10 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         taxTreatment: taxCode?.treatment,
         taxBreakdown: totals.components,
         taxRate: taxCode ? Math.round(effectiveRate(taxCode.components) * 100000) / 1000 : 0,
-        items,
+        items: items.map(item => {
+          const normalized = normalizeDimensionsMap(item.dimensions, useLedgerStore.getState().dimensionNodes || []);
+          return normalized !== item.dimensions ? { ...item, dimensions: normalized } : item;
+        }),
         metadata: {
           ...(invoice.metadata || {}),
           ...(receipt ? { saleReceipt: true } : {}),

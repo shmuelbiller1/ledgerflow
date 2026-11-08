@@ -7,6 +7,7 @@ import { getLocalDateISO } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
+import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { isLockedDate } from '../../lib/periodLock';
 import { TransactionEditModalView } from './TransactionEditModalView';
@@ -152,12 +153,15 @@ function useTransactionEditModalModel({
     // In double-entry ledger bookkeeping, the gross transaction size is the total debit value (or absolute credit size)
     const calculatedTotal = Math.abs(TruthEngine.deriveSignedTotal(lines, accounts));
 
+    const currentNodes = useLedgerStore.getState().dimensionNodes || [];
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
+      const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
       return {
         ...l,
         accountName: acc ? acc.name : l.accountName,
-        project: l.project || project.trim() || undefined
+        project: l.project || project.trim() || undefined,
+        ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
       };
     });
 

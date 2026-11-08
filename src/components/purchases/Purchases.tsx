@@ -33,6 +33,7 @@ import VendorDetailView from './VendorDetailView';
 import ReceivePaymentModal from '../sales/ReceivePaymentModal';
 import { toast } from 'sonner';
 import { attachFiles, attachSummary } from '../../services/attachmentActions';
+import { ensureBillDimensionNodes } from '../../lib/dimensionNodeActions';
 import OpeningDocumentsDialog from '../common/OpeningDocumentsDialog';
 import { deleteWithUndo } from '../../lib/undoableDelete';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -125,7 +126,8 @@ export default function Purchases() {
 
   const handleAddBill = async (input: BillDraft) => {
     // files picked for a new bill (K-07) are kept with it once it has an id
-    const { recurringInterval, attachmentFiles, ...data } = input;
+    const { recurringInterval, attachmentFiles, ...rawData } = input;
+    const data = await ensureBillDimensionNodes(rawData);
     if (data.id) {
       const { id, ...updates } = data;
       await updateEntity('bills', id, updates, 'Bill updated');

@@ -3,14 +3,14 @@
  * line, posted with that line's revenue or expense so reports by label include it. Folded away by
  * default ("Labels", with what is set); it opens by itself when the line's account needs a label
  * (Z-12, Settings → Dimensions → Required labels) and says which one is missing. The values offered
- * are the workspace's own (Settings → Dimensions); any other text is kept as typed, as in the
- * journal form.
+ * are the workspace's own (Settings → Dimensions); new labels can also be saved or renamed inline.
  */
 import React, { useId, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel } from '../../lib/dimensionUtils';
 import { requiredLabelWarnings } from '../../lib/requiredLabels';
+import { DimensionValueActions, InlineAddDimensionAxis } from './DimensionValueActions';
 
 export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
   value?: Record<string, string>;
@@ -49,19 +49,31 @@ export function LineLabels({ value, onChange, accountId, date, lineNumber }: {
       </button>
       {warnings.length > 0 && <p role="status" className="text-amber-700 dark:text-amber-400">{warnings.join('; ')}</p>}
       {shown && (
-        <div id={`${id}-labels`} className="grid grid-cols-2 gap-2">
-          {axes.map(axis => {
-            const listId = `${id}-${axis.id}`;
-            const known = nodes.filter(n => n.dimensionId === axis.id && n.status !== 'archived');
-            return (
-              <div key={axis.id}>
-                <label htmlFor={`${listId}-input`} className="block text-[var(--muted)]">{axis.name}<span className="sr-only"> for line {lineNumber}</span></label>
-                <input id={`${listId}-input`} list={listId} value={labels[axis.id.toLowerCase()] || ''} onChange={e => change(axis.id, e.target.value)}
-                  className="mt-0.5 w-full px-2 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)]" />
-                <datalist id={listId}>{known.map(n => <option key={n.id} value={n.id}>{n.description}</option>)}</datalist>
-              </div>
-            );
-          })}
+        <div id={`${id}-labels`} className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {axes.map(axis => {
+              const listId = `${id}-${axis.id}`;
+              const known = nodes.filter(n => n.dimensionId === axis.id && n.status !== 'archived');
+              const currentValue = labels[axis.id.toLowerCase()] || '';
+              return (
+                <div key={axis.id}>
+                  <label htmlFor={`${listId}-input`} className="block text-[var(--muted)]">{axis.name}<span className="sr-only"> for line {lineNumber}</span></label>
+                  <input id={`${listId}-input`} list={listId} value={currentValue} onChange={e => change(axis.id, e.target.value)}
+                    className="mt-0.5 w-full px-2 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)]" />
+                  <datalist id={listId}>{known.map(n => <option key={n.id} value={n.id}>{n.description}</option>)}</datalist>
+                  <DimensionValueActions
+                    dimensionId={axis.id}
+                    dimensionName={axis.name}
+                    value={currentValue}
+                    lineNumber={lineNumber}
+                    onSelectNode={node => change(axis.id, node.id)}
+                    onRenamed={node => { if (currentValue) change(axis.id, node.id); }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <InlineAddDimensionAxis />
         </div>
       )}
     </div>

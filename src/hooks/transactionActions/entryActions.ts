@@ -14,6 +14,7 @@ import type { ActionContext, TransactionUpdates, TransactionConflictError } from
 import { UNDO_WINDOW_MS, errorMessage, isConflictError } from './shared';
 import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
+import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
 /**
@@ -449,9 +450,19 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     setTransactions(nextTransactions);
     setIsSyncing(true);
 
-    
-    const token = await user?.getIdToken();
     try {
+      const prevUpdates = updates;
+      updates = await ensureTransactionDimensionNodes(updates);
+      if (!scope.isCurrent()) return false;
+      if (updates !== prevUpdates) {
+        const latest = [...useLedgerStore.getState().transactions];
+        const idx = latest.findIndex(t => t.id === id);
+        if (idx !== -1) {
+          latest[idx] = { ...latest[idx], ...updates } as Transaction;
+          setTransactions(latest);
+        }
+      }
+      const token = await user?.getIdToken();
       const expectedUpdatedAt = tx.updatedAt;
       const payload = {
         ...tx,

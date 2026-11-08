@@ -12,8 +12,10 @@ import {
 import { cn, formatCurrency } from '../../lib/utils';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useLedgerStore } from '../../stores/useLedgerStore';
 import type { ChartAccount, DimensionDefinition, EntityMetadata, InventoryItem } from '../../types';
 import { BudgetLeft } from './BudgetLeft';
+import { DimensionValueActions, InlineAddDimensionAxis } from './DimensionValueActions';
 import { LineLabels } from './LineLabels';
 
 interface LineBase {
@@ -123,6 +125,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
   activeDimensions = [],
 }: DocumentLineEditorProps<T>) {
   const invoice = side === 'invoice';
+  const dimensionNodes = useLedgerStore(s => s.dimensionNodes || []);
   const updateAt = (index: number, update: (line: T) => T) => {
     onChange(lines.map((line, i) => i === index ? update(line) : line));
   };
@@ -141,9 +144,9 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
     const totalCredit = lines.reduce((sum, l) => sum + (isJournalLine(l) ? l.credit || 0 : 0), 0);
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-widest">Entry Lines</h3>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label htmlFor="je-show-dim" className="flex items-center gap-2 cursor-pointer">
               <input
                 id="je-show-dim"
@@ -154,6 +157,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
               />
               <span className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest">Show Dimensions</span>
             </label>
+            <InlineAddDimensionAxis onAdded={() => onShowDimensionsChange?.(true)} />
             <button
               type="button"
               onClick={() => onChange([...lines, createLine()])}
@@ -218,23 +222,41 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                       const dimValue = line.dimensions && dimKey in line.dimensions
                         ? line.dimensions[dimKey]
                         : ((line as unknown as Record<string, string>)[dimKey] || '');
+                      const listId = `je-dim-list-${dim.id}-${idx}`;
+                      const knownNodes = dimensionNodes.filter(n => n.dimensionId === dim.id && n.status !== 'archived');
+                      const setJournalDim = (val: string) =>
+                        updateAt(idx, current => ({
+                          ...current,
+                          ...(dimKey === 'class' ? { class: val } : dimKey === 'location' ? { location: val } : dimKey === 'project' ? { project: val } : {}),
+                          dimensions: {
+                            ...(current.dimensions || {}),
+                            [dimKey]: val,
+                          },
+                        }) as T);
                       return (
-                        <td key={dim.id} className="p-2.5">
+                        <td key={dim.id} className="p-2.5 align-top">
                           <div className="relative">
                             <input
                               id={`je-dim-${dim.id}-${idx}`}
+                              list={listId}
                               aria-label={`${dim.name} for line ${idx + 1}`}
                               value={dimValue}
-                              onChange={e => updateAt(idx, current => ({
-                                ...current,
-                                ...(dimKey === 'class' ? { class: e.target.value } : dimKey === 'location' ? { location: e.target.value } : dimKey === 'project' ? { project: e.target.value } : {}),
-                                dimensions: {
-                                  ...(current.dimensions || {}),
-                                  [dimKey]: e.target.value,
-                                },
-                              }) as T)}
+                              onChange={e => setJournalDim(e.target.value)}
                               placeholder={`Select ${dim.name}...`}
                               className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] font-bold min-w-[120px] text-[var(--text)]"
+                            />
+                            <datalist id={listId}>
+                              {knownNodes.map(n => (
+                                <option key={n.id} value={n.id}>{n.description}</option>
+                              ))}
+                            </datalist>
+                            <DimensionValueActions
+                              dimensionId={dim.id}
+                              dimensionName={dim.name}
+                              value={dimValue}
+                              lineNumber={idx + 1}
+                              onSelectNode={node => setJournalDim(node.id)}
+                              onRenamed={node => { if (dimValue) setJournalDim(node.id); }}
                             />
                           </div>
                         </td>
