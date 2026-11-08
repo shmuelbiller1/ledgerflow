@@ -276,6 +276,15 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
       }
       const status = parsed.status ?? existingEntity?.status;
       if (status === 'draft' || status === 'void') {
+        // audit F1 (Codex on #521): the credit as stored now, inside the save. An application or refund committed after
+        // this save was built leaves less unused than the plan assumed; reversing the issuance then would undo money
+        // that already moved, so the save is refused rather than half-applied.
+        const storedRemaining = existingEntity?.remainingCents;
+        const storedAmount = existingEntity?.amountCents;
+        if (validatedTransactions.some(tx => tx.metadata?.isReversal)
+          && typeof storedRemaining === 'number' && typeof storedAmount === 'number' && storedRemaining < storedAmount) {
+          throw new LedgerPostingError(409, `This credit has been applied or refunded and can no longer ${status === 'void' ? 'be voided' : 'go back to draft'}.`);
+        }
         const key = entityMutation.collection === 'creditNotes' ? 'creditNoteId' : 'vendorCreditId';
         const posted = await t.get(db.collection('transactions').where('workspaceId', '==', wsId).where(`metadata.${key}`, '==', entityMutation.docId));
         const docs = posted.docs.map(d => ({ id: d.id, ...d.data() }) as Transaction);
