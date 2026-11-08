@@ -10,21 +10,7 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import {
-  addDimensionAxisInline,
-  buildTransactionLineDimensionPatch,
-  deriveDimensionAxisId,
-  ensureBillDimensionNodes,
-  ensureInvoiceDimensionNodes,
-  ensureTransactionDimensionNodes,
-  matchDimensionNode,
-  normalizeDimensionsMap,
-  normalizeDimensionInputToNodeId,
-  registerDimensionNodeInline,
-  renameDimensionNodeInline,
-  type DimensionActionSession,
-  type DimensionNodeActionAdapter,
-} from '../lib/dimensionNodeActions';
+import { addDimensionAxisInline, buildTransactionLineDimensionPatch, deriveDimensionAxisId, ensureBillDimensionNodes, ensureInvoiceDimensionNodes, ensureTransactionDimensionNodes, matchDimensionNode, normalizeDimensionsMap, normalizeDimensionInputToNodeId, registerDimensionNodeInline, renameDimensionNodeInline, type DimensionActionSession, type DimensionNodeActionAdapter } from '../lib/dimensionNodeActions';
 import { LineLabels } from '../components/common/LineLabels';
 import BillModal, { type BillDraft } from '../components/purchases/BillModal';
 import Purchases from '../components/purchases/Purchases';
@@ -72,36 +58,24 @@ function createMemoryAdapter(initial?: {
   const adapter: DimensionNodeActionAdapter = {
     session: () => currentSession,
     getNodes: () => nodes,
-    setNodes: next => {
-      nodes = [...next];
-    },
+    setNodes: next => { nodes = [...next]; },
     getWorkspaceDimensions: () => dimensions,
-    setWorkspaceDimensions: (_wsId, next) => {
-      dimensions = [...next];
-    },
-    writeNode: async (workspaceId, node) => {
-      writtenNodes.push({ workspaceId, node });
-    },
+    setWorkspaceDimensions: (_wsId, next) => { dimensions = [...next]; },
+    writeNode: async (workspaceId, node) => { writtenNodes.push({ workspaceId, node }); },
     readNode: async (workspaceId, dimensionId, nodeId) => {
       const found = nodes.find(n => n.id === nodeId && n.dimensionId === dimensionId);
       return found ? { ...found, workspaceId } : undefined;
     },
-    updateNode: async (workspaceId, dimensionId, nodeId, fields) => {
-      updatedNodes.push({ workspaceId, dimensionId, nodeId, fields });
-    },
+    updateNode: async (workspaceId, dimensionId, nodeId, fields) => { updatedNodes.push({ workspaceId, dimensionId, nodeId, fields }); },
     readWorkspace: async () => ({ dimensions }),
-    updateWorkspace: async (workspaceId, next) => {
-      updatedWorkspaces.push({ workspaceId, dimensions: next });
-    },
+    updateWorkspace: async (workspaceId, next) => { updatedWorkspaces.push({ workspaceId, dimensions: next }); },
   };
 
   return {
     adapter,
     getNodes: () => nodes,
     getDimensions: () => dimensions,
-    setSession: (next: DimensionActionSession | null) => {
-      currentSession = next;
-    },
+    setSession: (next: DimensionActionSession | null) => { currentSession = next; },
     writtenNodes,
     updatedNodes,
     updatedWorkspaces,
@@ -172,11 +146,15 @@ describe('Pure dimension helpers & scoped adapter actions', () => {
     assert.deepEqual(created.aliases, ['Beach']);
     assert.equal(mem.writtenNodes.length, 1);
 
-    // Renaming preserves previous description in aliases AND keeps concurrently registered nodes in cache
+    // Renaming preserves remote authoritative aliases, previous description, AND concurrently registered nodes in cache
     let releaseRenameUpdate!: () => void;
     const renameGate = new Promise<void>(resolve => { releaseRenameUpdate = resolve; });
     const gatedRenameAdapter: DimensionNodeActionAdapter = {
       ...mem.adapter,
+      readNode: async (wsId, dimId, nodeId) => {
+        const raw = await mem.adapter.readNode(wsId, dimId, nodeId);
+        return nodeId === 'P2' ? { ...(raw || {}), aliases: ['Historic', 'Beach'] } : raw;
+      },
       updateNode: async (wsId, dimId, nodeId, fields) => {
         if (nodeId === 'P2') await renameGate;
         return mem.adapter.updateNode(wsId, dimId, nodeId, fields);
@@ -188,7 +166,7 @@ describe('Pure dimension helpers & scoped adapter actions', () => {
     releaseRenameUpdate();
     const renamed = await pendingRename;
     assert.equal(renamed.description, 'Maui Villa');
-    assert.deepEqual(renamed.aliases, ['Beach', 'Maui House']);
+    assert.deepEqual(renamed.aliases, ['Historic', 'Beach', 'Maui House']);
     assert.equal(mem.getNodes().some(n => n.id === 'P3' && n.description === 'Oahu Cottage'), true);
 
     // Concurrent conflict is refused
@@ -727,29 +705,9 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     // JournalEntryModal commit preserves real Project ID in line.project while canonicalizing line.dimensions.project
     const wsId = useAuthStore.getState().currentWorkspaceId!;
     useLedgerStore.setState({
-      projects: [
-        {
-          id: 'proj_web',
-          uid: 'test-user',
-          workspaceId: wsId,
-          name: 'Website Redesign',
-          type: 'general',
-          status: 'active',
-          budgetCents: 50000,
-          createdAt: '2026-01-01',
-          dimensions: [],
-        },
-      ],
+      projects: [{ id: 'proj_web', uid: 'test-user', workspaceId: wsId, name: 'Website Redesign', type: 'general', status: 'active', budgetCents: 50000, createdAt: '2026-01-01', dimensions: [] }],
     });
-    render(
-      <JournalEntryModal
-        isOpen
-        onClose={() => {}}
-        user={{ uid: 'test-user' } as never}
-        accounts={accounts}
-        workspaceId={wsId}
-      />,
-    );
+    render(<JournalEntryModal isOpen onClose={() => {}} user={{ uid: 'test-user' } as never} accounts={accounts} workspaceId={wsId} />);
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Auto-label journal' } });
     fireEvent.click(screen.getByLabelText('Show Dimensions'));
     fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'util' } });
@@ -832,6 +790,59 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     assert.equal(savedBills[0].splits?.[0].amountCents, 20000);
     assert.equal(savedBills[0].splits?.[0].dimensions?.property, 'P6');
     view.unmount();
+
+    // Deleting a line while its inline label save is pending must NOT overwrite the surviving line
+    let releaseDeleteGate!: () => void;
+    const deleteGate = new Promise<void>(resolve => {
+      releaseDeleteGate = resolve;
+    });
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if ((init?.method || 'GET').toUpperCase() === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
+        await deleteGate;
+      }
+      return prevFetch(input, init);
+    }) as typeof fetch;
+
+    const deletedLineBills: BillDraft[] = [];
+    const view2 = render(
+      <BillModal
+        isOpen
+        onClose={() => {}}
+        onSave={b => deletedLineBills.push(b)}
+        vendors={[makeVendor({ id: 'v1', name: 'City Power' })]}
+        accounts={accounts}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'v1' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Deleted row draft' } });
+    fireEvent.change(screen.getByLabelText('Expense Account'), { target: { value: 'util' } });
+    fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Labels for line 1' }));
+    fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: 'Alpha Delete' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Split Expense' }));
+    fireEvent.change(screen.getAllByLabelText('Description')[1], { target: { value: 'Second split' } });
+    fireEvent.change(screen.getAllByLabelText('Expense Account')[1], { target: { value: 'rent' } });
+    fireEvent.change(screen.getAllByLabelText(/^Amount \(/)[1], { target: { value: '150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Labels for line 2' }));
+    fireEvent.change(screen.getByLabelText('Property for line 2'), { target: { value: 'Beta Keep' } });
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /Save “Alpha Delete” as Property label/ }));
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove split line 1' }));
+
+    await act(async () => {
+      releaseDeleteGate();
+      await deleteGate;
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save & Close'));
+    });
+    await waitFor(() => assert.equal(deletedLineBills.length, 1));
+    assert.equal(deletedLineBills[0].splits?.[0].dimensions?.property, 'Beta Keep');
+    view2.unmount();
 
     // Now verify Purchases surfaces toast.error and keeps the modal open when auto-registration fails (>200 chars)
     globalThis.fetch = prevFetch;

@@ -69,32 +69,39 @@ export default function SplitEditor({
   const diff = transaction.totalAmountCents - totalCents;
   const isBalanced = diff === 0;
 
-  const addLine = () => {
-    setLines([...lines, { accountId: '', accountName: '', amountCents: diff > 0 ? diff : 0 }]);
-    const key = `added-${nextLineKey.current++}`;
-    setLineKeys(keys => [...keys, key]);
-  };
-
-  const removeLine = (index: number) => {
-    if (lines.length <= 1) return;
-    setLines(lines.filter((_, i) => i !== index));
-    setLineKeys(keys => keys.filter((_, i) => i !== index));
-  };
-
   const lineKeysRef = useRef(lineKeys);
   useEffect(() => {
     lineKeysRef.current = lineKeys;
   }, [lineKeys]);
 
-  /** Applies a functional or partial update to a split line, recalculating amount only when quantity or unit price changes. */
+  const addLine = () => {
+    const key = `added-${nextLineKey.current++}`;
+    const nextKeys = [...lineKeysRef.current, key];
+    lineKeysRef.current = nextKeys;
+    setLines(prev => [...prev, { accountId: '', accountName: '', amountCents: diff > 0 ? diff : 0 }]);
+    setLineKeys(nextKeys);
+  };
+
+  const removeLine = (index: number) => {
+    if (lines.length <= 1) return;
+    const nextKeys = lineKeysRef.current.filter((_, i) => i !== index);
+    lineKeysRef.current = nextKeys;
+    setLines(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+    setLineKeys(nextKeys);
+  };
+
+  /** Applies a functional or partial update to a split line, ignoring completions for deleted rows and recalculating amount only when quantity or unit price changes. */
   const updateLine = (
     index: number,
     updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
     lineKey?: string,
   ) => {
     setLines(prev => {
-      const keyIdx = lineKey ? lineKeysRef.current.indexOf(lineKey) : -1;
-      const targetIdx = keyIdx >= 0 ? keyIdx : index;
+      let targetIdx = index;
+      if (lineKey !== undefined) {
+        targetIdx = lineKeysRef.current.indexOf(lineKey);
+        if (targetIdx < 0) return prev;
+      }
       if (targetIdx < 0 || targetIdx >= prev.length) return prev;
       const current = prev[targetIdx];
       const patch = typeof updates === 'function' ? updates(current) : updates;

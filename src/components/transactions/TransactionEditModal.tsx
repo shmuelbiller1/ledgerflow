@@ -102,15 +102,22 @@ function useTransactionEditModalModel({
   // Let's compute if the line items sum up correctly
   const sumLines = lines.reduce((sum, l) => sum + l.amountCents, 0);
 
+  const lineKeysRef = useRef(lineKeys);
+  useEffect(() => {
+    lineKeysRef.current = lineKeys;
+  }, [lineKeys]);
+
   const handleAddLine = () => {
     const defaultAcc = accounts.find(a => a.type === 'expense') || accounts[0];
-    setLines([...lines, { 
+    const key = `added-${nextLineKey.current++}`;
+    const nextKeys = [...lineKeysRef.current, key];
+    lineKeysRef.current = nextKeys;
+    setLines(prev => [...prev, { 
       accountId: defaultAcc?.id || '', 
       accountName: defaultAcc?.name || '', 
       amountCents: 0 
     }]);
-    const key = `added-${nextLineKey.current++}`;
-    setLineKeys(keys => [...keys, key]);
+    setLineKeys(nextKeys);
   };
 
   const handleRemoveLine = (index: number) => {
@@ -118,24 +125,24 @@ function useTransactionEditModalModel({
       toast.error('At least one double-entry split ledger line is required for absolute integrity.');
       return;
     }
-    setLines(lines.filter((_, i) => i !== index));
-    setLineKeys(keys => keys.filter((_, i) => i !== index));
+    const nextKeys = lineKeysRef.current.filter((_, i) => i !== index);
+    lineKeysRef.current = nextKeys;
+    setLines(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+    setLineKeys(nextKeys);
   };
 
-  const lineKeysRef = useRef(lineKeys);
-  useEffect(() => {
-    lineKeysRef.current = lineKeys;
-  }, [lineKeys]);
-
-  /** Updates a single transaction line functionally using its stable row key so async callbacks keep intervening edits. */
+  /** Updates a single transaction line functionally using its stable row key (ignoring completions for deleted rows). */
   const handleLineChange = (
     index: number,
     updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
     lineKey?: string,
   ) => {
     setLines(prev => {
-      const keyIdx = lineKey ? lineKeysRef.current.indexOf(lineKey) : -1;
-      const targetIdx = keyIdx >= 0 ? keyIdx : index;
+      let targetIdx = index;
+      if (lineKey !== undefined) {
+        targetIdx = lineKeysRef.current.indexOf(lineKey);
+        if (targetIdx < 0) return prev;
+      }
       if (targetIdx < 0 || targetIdx >= prev.length) return prev;
       const current = prev[targetIdx];
       const patch = typeof updates === 'function' ? updates(current) : updates;

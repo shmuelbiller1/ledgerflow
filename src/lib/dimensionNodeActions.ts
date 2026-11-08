@@ -2,23 +2,14 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { doc, getDoc, setDoc, updateDoc } from './db/firestore';
 import { db } from '../firebase';
-import {
-  DEFAULT_WORKSPACE_DIMENSIONS,
-  resolveDimensionLabel,
-  setLineDimension,
-  suggestNextDimensionNodeId,
-  updateDimensionNodeDescription,
-} from './dimensionUtils';
+import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
 import type { DimensionDefinition, DimensionNode, Project, TransactionLine } from '../types';
 
 /** Normalizes text for case-insensitive Unicode comparisons. */
 const norm = (value: string) => value.normalize('NFC').toLowerCase().trim();
 
-/**
- * Matches a typed or stored dimension value against registered DimensionNodes
- * by exact node ID, exact description, or alias (preserving Hebrew/mixed-script Unicode).
- */
+/** Matches a typed or stored dimension value against registered DimensionNodes by ID, description, or alias. */
 export function matchDimensionNode(
   nodes: readonly DimensionNode[] | undefined,
   dimensionId: string,
@@ -29,23 +20,14 @@ export function matchDimensionNode(
   if (!trimmed || trimmed === 'Unassigned') return undefined;
   const targetDim = norm(dimensionId);
   const targetVal = norm(trimmed);
-
   const exactId = nodes.find(n => norm(n.dimensionId) === targetDim && norm(n.id) === targetVal);
   if (exactId) return exactId;
-
   const exactDesc = nodes.find(n => norm(n.dimensionId) === targetDim && norm(n.description) === targetVal);
   if (exactDesc) return exactDesc;
-
-  return nodes.find(
-    n => norm(n.dimensionId) === targetDim && n.aliases?.some(alias => norm(alias) === targetVal),
-  );
+  return nodes.find(n => norm(n.dimensionId) === targetDim && n.aliases?.some(alias => norm(alias) === targetVal));
 }
 
-/**
- * Resolves a user-entered value to a registered stable node ID when it matches a known node
- * (including hierarchical paths like "5 Ocean Ave/Unit B" -> "P5/Unit B"), keeping unknown text
- * and slash suffixes intact.
- */
+/** Resolves a user-entered value to a registered stable node ID while keeping hierarchical slash suffixes intact. */
 export function normalizeDimensionInputToNodeId(
   nodes: readonly DimensionNode[] | undefined,
   dimensionId: string,
@@ -53,22 +35,17 @@ export function normalizeDimensionInputToNodeId(
 ): string {
   const trimmed = rawValue.trim();
   if (!trimmed || trimmed === 'Unassigned' || !nodes || nodes.length === 0) return trimmed;
-
   const matched = matchDimensionNode(nodes, dimensionId, trimmed);
   if (matched) return matched.id;
-
   if (trimmed.includes('/')) {
     const [head, ...tail] = trimmed.split('/');
     const headNode = matchDimensionNode(nodes, dimensionId, head);
     if (headNode) return [headNode.id, ...tail].join('/');
   }
-
   return trimmed;
 }
 
-/**
- * Derives a clean, unique immutable axis ID from a display name (supporting non-ASCII / Hebrew names).
- */
+/** Derives a clean, unique immutable axis ID from a display name (supporting non-ASCII / Hebrew names). */
 export function deriveDimensionAxisId(
   displayName: string,
   existingDimensions: readonly DimensionDefinition[],
@@ -81,15 +58,7 @@ export function deriveDimensionAxisId(
     if (existingIds.has(cleaned)) throw new Error(`Dimension axis "${cleaned}" already exists.`);
     return cleaned;
   }
-
-  const slug = displayName
-    .normalize('NFKD')
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_-]/g, '')
-    .replace(/^_+|_+$/g, '');
-
+  const slug = displayName.normalize('NFKD').toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').replace(/^_+/, '').replace(/_+$/, '');
   const base = slug || 'dim';
   if (slug && !existingIds.has(base)) return base;
 
@@ -395,19 +364,28 @@ export async function renameDimensionNodeInline(
     throw new Error(`Another label ("${concurrentDuplicate.id}") already uses "${description}".`);
   }
 
-  const baseNodes = latestNodes.some(
-    n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId),
-  )
-    ? latestNodes
+  const remoteAliases = Array.isArray(remote?.aliases)
+    ? remote.aliases.filter((a): a is string => typeof a === 'string' && a.trim() !== '')
+    : [];
+  const mergeNodeAliases = (local?: readonly string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const alias of [...remoteAliases, ...(local || [])]) {
+      const k = norm(alias);
+      if (k && !seen.has(k)) { seen.add(k); out.push(alias); }
+    }
+    return out;
+  };
+  const hasCached = latestNodes.some(n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId));
+  const baseNodes = hasCached
+    ? latestNodes.map(n =>
+        n.id === nodeId && norm(n.dimensionId) === norm(dimensionId)
+          ? { ...n, aliases: mergeNodeAliases(n.aliases) }
+          : n,
+      )
     : [
         ...latestNodes,
-        {
-          id: nodeId,
-          dimensionId,
-          description: previousDescription.trim(),
-          aliases: Array.isArray(remote?.aliases) ? (remote.aliases as string[]) : [],
-          status: 'active' as const,
-        },
+        { id: nodeId, dimensionId, description: previousDescription.trim(), aliases: mergeNodeAliases(), status: 'active' as const },
       ];
 
   if (norm(previousDescription) === norm(description) && previousDescription.trim() === description) {
@@ -721,10 +699,7 @@ export async function ensureInvoiceDimensionNodes<
   };
 }
 
-/**
- * Ensures header and split-level dimension labels on a bill draft are registered sequentially
- * so multi-line saves never allocate colliding node IDs.
- */
+/** Ensures header and split-level dimension labels on a bill draft are registered sequentially. */
 export async function ensureBillDimensionNodes<
   T extends { dimensions?: Record<string, string>; splits?: Array<{ dimensions?: Record<string, string> }> },
 >(bill: T, adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter): Promise<T> {
@@ -735,27 +710,16 @@ export async function ensureBillDimensionNodes<
     const out: typeof bill.splits = [];
     for (const split of bill.splits) {
       const nextDims = await ensureDimensionNodesInMap(split.dimensions, adapter);
-      if (nextDims !== split.dimensions) {
-        splitsChanged = true;
-        out.push({ ...split, dimensions: nextDims });
-      } else {
-        out.push(split);
-      }
+      if (nextDims !== split.dimensions) { splitsChanged = true; out.push({ ...split, dimensions: nextDims }); }
+      else out.push(split);
     }
     splits = out;
   }
   if (dimensions === bill.dimensions && !splitsChanged) return bill;
-  return {
-    ...bill,
-    ...(dimensions !== bill.dimensions ? { dimensions } : {}),
-    ...(splitsChanged ? { splits } : {}),
-  };
+  return { ...bill, ...(dimensions !== bill.dimensions ? { dimensions } : {}), ...(splitsChanged ? { splits } : {}) };
 }
 
-/**
- * Ensures header, line-level, and split-allocation dimension labels on transaction updates are
- * registered sequentially so multi-line and multi-allocation saves never collide.
- */
+/** Ensures header, line-level, and split-allocation dimension labels on transaction updates are registered sequentially. */
 export async function ensureTransactionDimensionNodes<
   L extends { dimensions?: Record<string, string>; splitAllocations?: Array<{ dimensions: Record<string, string>; weight: number }> },
   T extends { dimensions?: Record<string, string>; lines?: L[] },
@@ -773,32 +737,18 @@ export async function ensureTransactionDimensionNodes<
         const outAllocs: NonNullable<L['splitAllocations']> = [];
         for (const alloc of line.splitAllocations) {
           const ad = (await ensureDimensionNodesInMap(alloc.dimensions, adapter)) || alloc.dimensions;
-          if (ad !== alloc.dimensions) {
-            allocsChanged = true;
-            outAllocs.push({ ...alloc, dimensions: ad });
-          } else {
-            outAllocs.push(alloc);
-          }
+          if (ad !== alloc.dimensions) { allocsChanged = true; outAllocs.push({ ...alloc, dimensions: ad }); }
+          else outAllocs.push(alloc);
         }
         nextAllocs = outAllocs;
       }
       if (nextDims !== line.dimensions || allocsChanged) {
         linesChanged = true;
-        outLines.push({
-          ...line,
-          ...(nextDims !== line.dimensions ? { dimensions: nextDims } : {}),
-          ...(allocsChanged ? { splitAllocations: nextAllocs } : {}),
-        });
-      } else {
-        outLines.push(line);
-      }
+        outLines.push({ ...line, ...(nextDims !== line.dimensions ? { dimensions: nextDims } : {}), ...(allocsChanged ? { splitAllocations: nextAllocs } : {}) });
+      } else outLines.push(line);
     }
     lines = outLines;
   }
   if (dimensions === tx.dimensions && !linesChanged) return tx;
-  return {
-    ...tx,
-    ...(dimensions !== tx.dimensions ? { dimensions } : {}),
-    ...(linesChanged ? { lines } : {}),
-  };
+  return { ...tx, ...(dimensions !== tx.dimensions ? { dimensions } : {}), ...(linesChanged ? { lines } : {}) };
 }
