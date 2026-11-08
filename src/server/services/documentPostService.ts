@@ -89,8 +89,9 @@ export async function postDocument(db: Firestore, user: RequestUser, input: Docu
     throw new BulkRefusal(409, { error: err instanceof Error ? err.message : String(err) });
   }
   // audit F8: a sent invoice or bill whose total is less than its items allow is refused, not posted at that total
-  if (action !== 'delete' && (collection === 'invoices' || collection === 'bills') && !['draft', 'void'].includes(String(document.status))) {
-    const contradiction = itemsExceedTotal(document);
+  // (draft, rejected, void and cancelled only reverse, as the posting services treat them; a bill's lines are its splits)
+  if (action !== 'delete' && (collection === 'invoices' || collection === 'bills') && !['draft', 'rejected', 'void', 'cancelled'].includes(String(document.status))) {
+    const contradiction = itemsExceedTotal(collection === 'bills' ? { ...document, items: document.splits } : document);
     if (contradiction) throw new BulkRefusal(400, { error: contradiction });
   }
   const mutation = mutationOf(action === 'delete' ? undefined : input.data);

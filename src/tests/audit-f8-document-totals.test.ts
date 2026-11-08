@@ -62,6 +62,23 @@ describe('audit F8: the posting path', { skip: !process.env.LF_TEST_DATABASE_URL
     });
   });
 
+  test('a pending bill with a $0.01 total and a $100 split is refused; nothing posts', async () => {
+    await isolated(async (db, ws) => {
+      const bill = { collection: 'bills' as const, docId: `${ws}_bill`, workspaceId: ws, action: 'create' as const,
+        data: { workspaceId: ws, vendorId: 'vendor', date: '2026-11-01', dueDate: '2026-11-30', amountCents: 1, status: 'pending', splits: [{ accountId: `${ws}_sales`, amountCents: 10000 }] } };
+      await assert.rejects(postDocument(db, { uid: 'owner' } as never, bill), (err: { status?: number; body?: { error?: string } }) =>
+        err.status === 400 && /less than its items allow/.test(String(err.body?.error)));
+      assert.equal(await posted(db, ws), 0);
+    });
+  });
+
+  test('the same invoice as cancelled is saved: cancelling only reverses', async () => {
+    await isolated(async (db, ws) => {
+      await postDocument(db, { uid: 'owner' } as never, invoice(ws, 'cancelled'));
+      assert.equal(await posted(db, ws), 0);
+    });
+  });
+
   test('the same as a draft is saved: a draft is not posted', async () => {
     await isolated(async (db, ws) => {
       await postDocument(db, { uid: 'owner' } as never, invoice(ws, 'draft'));
