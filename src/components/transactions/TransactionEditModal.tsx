@@ -7,10 +7,12 @@ import { getLocalDateISO } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
-import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
+import { normalizeDimensionsMap, resolveWorkspaceProjectId } from '../../lib/dimensionNodeActions';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { isLockedDate } from '../../lib/periodLock';
 import { TransactionEditModalView } from './TransactionEditModalView';
+
+/** Assigns deterministic React keys to repeated transaction lines even when lines lack explicit IDs. */
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -32,6 +34,7 @@ interface TransactionEditModalProps {
   onReverseAndCorrect?: (id: string, reversalDate: string, reason: string, replacement?: Partial<Transaction>) => Promise<unknown>;
 }
 
+/** Builds form state, stable line keys, and save handlers for editing or reversing a ledger transaction. */
 function useTransactionEditModalModel({
   isOpen,
   transaction,
@@ -124,6 +127,7 @@ function useTransactionEditModalModel({
     lineKeysRef.current = lineKeys;
   }, [lineKeys]);
 
+  /** Updates a single transaction line functionally using its stable row key so async callbacks keep intervening edits. */
   const handleLineChange = (
     index: number,
     updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
@@ -141,6 +145,7 @@ function useTransactionEditModalModel({
     });
   };
 
+  /** Validates double-entry balance, normalizes dimension nodes, preserves workspace project IDs, and commits changes. */
   const handleSave = async () => {
     if (isLocked) {
       toast.error('Period is sealed. Changes are prohibited to protect general ledger integrity.');
@@ -170,13 +175,19 @@ function useTransactionEditModalModel({
     const calculatedTotal = Math.abs(TruthEngine.deriveSignedTotal(lines, accounts));
 
     const currentNodes = useLedgerStore.getState().dimensionNodes || [];
+    const workspaceProjects = useLedgerStore.getState().projects || [];
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
       const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
+      const rawLineProject = l.project || project.trim() || undefined;
+      const matchedLineProjectId =
+        rawLineProject || normalizedDims?.project
+          ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, project.trim()], workspaceProjects, currentNodes)
+          : undefined;
       return {
         ...l,
         accountName: acc ? acc.name : l.accountName,
-        project: l.project || project.trim() || undefined,
+        project: matchedLineProjectId ?? rawLineProject,
         ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
       };
     });

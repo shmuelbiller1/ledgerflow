@@ -30,6 +30,7 @@ function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
   });
 }
 
+/** Checks whether a ledger transaction line belongs to the given workspace Project by ID, name, or resolved DimensionNode label. */
 const isProjectLine = (l: import("../../types").TransactionLine, p: Project) => {
     if (!l || !p) return false;
     if (

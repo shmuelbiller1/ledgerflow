@@ -56,6 +56,7 @@ function createInvoiceFormState(initialInvoice?: Partial<Invoice>): Partial<Invo
   };
 }
 
+/** Modal form for creating or editing a customer invoice or sales receipt and its line-level dimension labels. */
 export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], accounts = [], initialInvoice, receipt = false }: InvoiceModalProps) {
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
@@ -196,6 +197,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const currencyChoices = useMemo(() => documentCurrencies(workspaceCurrency, currency, [...pastInvoices, ...safeCustomers]), [workspaceCurrency, currency, pastInvoices, safeCustomers]);
   const money = (cents: number) => formatCurrency(cents, currency);
 
+  /** Validates invoice fields, deposits, and receipt cash accounts, normalizes line labels, and submits to `onSave`. */
   const handleAction = async (e: React.FormEvent | null, actionStatus: Invoice['status'], creditLimitOverride?: { reason: string }) => {
     e?.preventDefault();
     if (isSubmitting) return;

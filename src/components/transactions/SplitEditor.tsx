@@ -5,13 +5,18 @@ import { Transaction, TransactionLine, ChartAccount, Project } from '../../types
 import { Plus, Trash2, Save, X, AlertCircle, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
 import { resolveAccountName, cn, parseAmountToCents } from '../../lib/utils';
-import { DEFAULT_WORKSPACE_DIMENSIONS, getLineDimension, setLineDimension } from '../../lib/dimensionUtils';
+import { DEFAULT_WORKSPACE_DIMENSIONS, getLineDimension } from '../../lib/dimensionUtils';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { DimensionValueActions, InlineAddDimensionAxis } from '../common/DimensionValueActions';
-import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
+import {
+  buildTransactionLineDimensionPatch,
+  normalizeDimensionsMap,
+  resolveWorkspaceProjectId,
+} from '../../lib/dimensionNodeActions';
 import { Labelled } from '../ui/Labelled';
 
+/** Assigns deterministic React keys to repeated split lines even when lines lack explicit IDs. */
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -30,6 +35,7 @@ interface SplitEditorProps {
   onClose: () => void;
 }
 
+/** Modal editor for splitting a transaction across multiple accounts and dimension labels. */
 export default function SplitEditor({
   transaction,
   accounts,
@@ -80,6 +86,7 @@ export default function SplitEditor({
     lineKeysRef.current = lineKeys;
   }, [lineKeys]);
 
+  /** Applies a functional or partial update to a split line, recalculating amount only when quantity or unit price changes. */
   const updateLine = (
     index: number,
     updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
@@ -92,7 +99,9 @@ export default function SplitEditor({
       const current = prev[targetIdx];
       const patch = typeof updates === 'function' ? updates(current) : updates;
       const merged = { ...current, ...patch };
-      if (patch.quantity !== undefined || patch.unitPriceCents !== undefined) {
+      const qtyEdited = patch.quantity !== undefined && patch.quantity !== current.quantity;
+      const priceEdited = patch.unitPriceCents !== undefined && patch.unitPriceCents !== current.unitPriceCents;
+      if (qtyEdited || priceEdited) {
         const q = patch.quantity ?? merged.quantity ?? 1;
         const p = patch.unitPriceCents ?? merged.unitPriceCents ?? 0;
         merged.amountCents = Math.round(q * p);
@@ -238,7 +247,11 @@ export default function SplitEditor({
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {configuredAxes.map(axis => {
                         const rawVal = getLineDimension(line, transaction, axis.id, dimensionNodes);
-                        const displayVal = rawVal === 'Unassigned' ? '' : rawVal;
+                        const resolvedVal =
+                          axis.id === 'project' && rawVal !== 'Unassigned'
+                            ? projects.find(p => p.id === rawVal)?.name || rawVal
+                            : rawVal;
+                        const displayVal = resolvedVal === 'Unassigned' ? '' : resolvedVal;
                         const options = Array.from(new Set([
                           ...dimensionNodes
                             .filter(n => n.dimensionId === axis.id && n.status !== 'archived')
@@ -259,7 +272,20 @@ export default function SplitEditor({
                                 list={listId}
                                 aria-label={`${axis.name} for split line ${idx + 1}`}
                                 value={displayVal}
-                                onChange={e => updateLine(idx, current => setLineDimension(current, axis.id, e.target.value, dimensionNodes), lineKeys[idx])}
+                                onChange={e =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        e.target.value,
+                                        dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
                                 placeholder={`Type or select ${axis.name.toLowerCase()}`}
                                 className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-xs font-bold text-[var(--text)] focus:text-indigo-600 outline-none"
                               />
@@ -271,8 +297,34 @@ export default function SplitEditor({
                                 dimensionName={axis.name}
                                 value={displayVal}
                                 lineNumber={idx + 1}
-                                onSelectNode={node => updateLine(idx, current => setLineDimension(current, axis.id, node.id, useLedgerStore.getState().dimensionNodes), lineKeys[idx])}
-                                onRenamed={node => updateLine(idx, current => setLineDimension(current, axis.id, node.id, useLedgerStore.getState().dimensionNodes), lineKeys[idx])}
+                                onSelectNode={node =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        node.id,
+                                        useLedgerStore.getState().dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
+                                onRenamed={node =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        node.id,
+                                        useLedgerStore.getState().dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
                               />
                             </div>
                           </div>
@@ -342,7 +394,17 @@ export default function SplitEditor({
                 const currentNodes = useLedgerStore.getState().dimensionNodes || [];
                 onSave(lines.map(l => {
                   const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
-                  return normalizedDims !== l.dimensions ? { ...l, dimensions: normalizedDims } : l;
+                  const resolvedProj =
+                    l.project || normalizedDims?.project
+                      ? resolveWorkspaceProjectId([l.project, normalizedDims?.project], projects, currentNodes)
+                      : undefined;
+                  const nextProject = resolvedProj ?? l.project;
+                  if (normalizedDims === l.dimensions && nextProject === l.project) return l;
+                  return {
+                    ...l,
+                    ...(nextProject !== l.project ? { project: nextProject } : {}),
+                    ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
+                  };
                 }));
               }}
               disabled={!isBalanced || lines.some(l => !l.accountId)}

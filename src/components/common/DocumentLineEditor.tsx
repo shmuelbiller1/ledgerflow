@@ -126,6 +126,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
 }: DocumentLineEditorProps<T>) {
   const invoice = side === 'invoice';
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes || []);
+  /** Updates a single line functionally by stable `line.id` (or fallback index) so concurrent async updates preserve edits. */
   const updateAt = (index: number, update: (line: T) => T, lineId?: string) => {
     onChange(prev => {
       const idIdx = lineId ? prev.findIndex(item => item.id === lineId) : -1;
@@ -133,6 +134,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
       return prev.map((line, i) => (i === targetIdx ? update(line) : line));
     });
   };
+  /** Reorders an invoice or bill line up or down by one position. */
   const moveLine = (index: number, offset: -1 | 1) => {
     onChange(prev => {
       const destination = index + offset;

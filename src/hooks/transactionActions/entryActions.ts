@@ -23,6 +23,7 @@ import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions'
  */
 const firstSentAt = new Map<string, string>();
 
+/** Creates single-entry and batch mutation handlers for adding, updating, voiding, reversing, and duplicating transactions. */
 export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, rules: RuleActions) {
   const { user, currentWorkspaceId, setTransactions, accounts, setIsSyncing, recordAudit, isPeriodLocked } = ctx;
   const { recordRulePattern, balanceTransactionLines } = posting;
@@ -408,6 +409,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     toast.success('Transaction duplicated');
   };
 
+  /** Optimistically applies transaction edits, registers any new dimension labels, and persists with workspace-scoped rollback on failure. */
   const handleUpdateTransaction = async (id: string, updates: Partial<Transaction>): Promise<boolean> => {
     if (!user || !currentWorkspaceId) return false;
     // #107: a reply for this workspace never changes another workspace's list

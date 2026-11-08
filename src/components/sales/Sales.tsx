@@ -54,7 +54,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
-
+/** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
   const user = useAuthStore(s => s.user);
   const invoices = useLedgerStore(s => s.invoices);
@@ -83,9 +83,9 @@ export default function Sales() {
     }
     return map;
   }, [customers, invoices, payments, creditNotes]);
+  /** Ensures invoice dimension labels exist in the workspace, then creates or updates the invoice, receipt payment, and attachments. */
   const onAddInvoice = async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
-    // a sale receipt (K-03) carries where its money went; that is a payment, not part of the invoice
-    // files picked for a new invoice (K-07) are kept with it once it has an id
+    // files picked for a new invoice (K-07) and receipt cash account (K-03) are handled after save
     const { receiptPayment, attachmentFiles, ...rest } = input;
     let data = rest;
     // A customer typed in the invoice that isn't on the list yet is added first

@@ -25,7 +25,11 @@ import { documentCurrencies } from '../../lib/exchangeRates';
 import { firstOfNextMonth, reversalDateProblem, withReversal } from '../../lib/autoReversal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
-import { ensureDimensionNodesInMap, normalizeDimensionInputToNodeId } from '../../lib/dimensionNodeActions';
+import {
+  ensureDimensionNodesInMap,
+  normalizeDimensionInputToNodeId,
+  resolveWorkspaceProjectId,
+} from '../../lib/dimensionNodeActions';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isLockedDate } from '../../lib/periodLock';
 import { describeError } from '../../lib/errorRemedies';
@@ -219,6 +223,8 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     toEditorLine({ class: '', location: '', project: '', dimensions: {} }, `added-${nextLineKey.current++}`);
 
   const { formRef, showFieldError } = useNativeFormErrors(isOpen);
+
+  /** Validates double-entry balance, registers line dimension labels sequentially, preserves workspace project IDs, and posts the journal entry. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) {
@@ -256,12 +262,6 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
         const creditCents = l.credit || 0;
         const baseCents = Math.round((debitCents > 0 ? debitCents : -creditCents) * appliedRate);
         const rawDims = l.dimensions || {};
-        const rawProjectInput = (rawDims.project || l.project || '').trim();
-        const matchedProject = rawProjectInput
-          ? workspaceProjects.find(
-              p => p.id === rawProjectInput || p.name.trim().toLowerCase() === rawProjectInput.toLowerCase(),
-            )
-          : undefined;
         const seedDims: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawDims)) {
           if (v && v.trim()) seedDims[k] = v.trim();
@@ -273,6 +273,11 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           seedDims.world = normalizeDimensionInputToNodeId(dimensionNodes, 'world', (l as typeof l & { world: string }).world);
         }
         const dims = (await ensureDimensionNodesInMap(seedDims)) || seedDims;
+        const matchedProjectId = resolveWorkspaceProjectId(
+          [l.project, rawDims.project, dims.project],
+          workspaceProjects,
+          useLedgerStore.getState().dimensionNodes,
+        );
 
         mappedLines.push({
           accountId: l.accountId,
@@ -280,7 +285,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           amountCents: baseCents,
           class: dims.class || undefined,
           location: dims.location || undefined,
-          project: matchedProject ? matchedProject.id : (dims.project || undefined),
+          project: matchedProjectId ?? (dims.project || undefined),
           dimensions: Object.keys(dims).length > 0 ? dims : undefined
         });
       }

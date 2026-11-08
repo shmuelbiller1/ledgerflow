@@ -1,4 +1,5 @@
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
+import { normalizeSearchText } from '../../../lib/textNormalization';
 import {
   addDimensionAxisInline,
   matchDimensionNode,
@@ -68,6 +69,7 @@ function EditableNodeAliases({
   );
 }
 
+/** Settings view for managing workspace dimension axes, label nodes, aliases, and required-account rules. */
 function DimensionsSettingsContent() {
   const role = useCurrentRole();
   const canWrite = hasRoleAtLeast(role, 'bookkeeper');
@@ -138,8 +140,16 @@ function DimensionsSettingsContent() {
 
     if (priorMatch && priorMatch.status !== 'archived') {
       const existingAliases = priorMatch.aliases || [];
-      const existingLower = new Set([priorMatch.description.toLowerCase(), ...existingAliases.map(a => a.toLowerCase())]);
-      const freshAliases = aliasesArray.filter(a => !existingLower.has(a.toLowerCase()));
+      const aliasKey = (value: string) => normalizeSearchText(value).trim();
+      const existingKeys = new Set([priorMatch.description, ...existingAliases].map(aliasKey));
+      const freshAliases: string[] = [];
+      for (const candidate of aliasesArray) {
+        const key = aliasKey(candidate);
+        if (key && !existingKeys.has(key)) {
+          existingKeys.add(key);
+          freshAliases.push(candidate);
+        }
+      }
       if (freshAliases.length > 0) {
         const mergedAliases = [...existingAliases, ...freshAliases];
         const aliasRes = await attempt(() => setDimensionNodeAliasesInline(dimId, priorMatch.id, mergedAliases));

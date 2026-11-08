@@ -149,10 +149,24 @@ describe('Pure dimension helpers & scoped adapter actions', () => {
     assert.deepEqual(created.aliases, ['Beach']);
     assert.equal(mem.writtenNodes.length, 1);
 
-    // Renaming preserves previous description in aliases
-    const renamed = await renameDimensionNodeInline('property', 'P2', 'Maui House', 'Maui Villa', mem.adapter);
+    // Renaming preserves previous description in aliases AND keeps concurrently registered nodes in cache
+    let releaseRenameUpdate!: () => void;
+    const renameGate = new Promise<void>(resolve => { releaseRenameUpdate = resolve; });
+    const gatedRenameAdapter: DimensionNodeActionAdapter = {
+      ...mem.adapter,
+      updateNode: async (wsId, dimId, nodeId, fields) => {
+        if (nodeId === 'P2') await renameGate;
+        return mem.adapter.updateNode(wsId, dimId, nodeId, fields);
+      },
+    };
+    const pendingRename = renameDimensionNodeInline('property', 'P2', 'Maui House', 'Maui Villa', gatedRenameAdapter);
+    const concurrentCreated = await registerDimensionNodeInline('property', 'Oahu Cottage', [], mem.adapter);
+    assert.equal(concurrentCreated.id, 'P3');
+    releaseRenameUpdate();
+    const renamed = await pendingRename;
     assert.equal(renamed.description, 'Maui Villa');
     assert.deepEqual(renamed.aliases, ['Beach', 'Maui House']);
+    assert.equal(mem.getNodes().some(n => n.id === 'P3' && n.description === 'Oahu Cottage'), true);
 
     // Concurrent conflict is refused
     await assert.rejects(
@@ -163,7 +177,7 @@ describe('Pure dimension helpers & scoped adapter actions', () => {
     // Bookkeeper can write nodes, but cannot add workspace axes
     mem.setSession({ uid: 'u2', workspaceId: 'ws1', canWriteNodes: true, canManageAxes: false });
     const bkNode = await registerDimensionNodeInline('property', 'Haifa Flat', [], mem.adapter);
-    assert.equal(bkNode.id, 'P3');
+    assert.equal(bkNode.id, 'P4');
     await assert.rejects(addDimensionAxisInline('Vehicle', undefined, mem.adapter), /owners and accountants/);
 
     // Owner/accountant can add a new axis, preserving existing axes
@@ -347,6 +361,21 @@ describe('Inline label creation, renaming, and new dimensions across transaction
 
   test('JournalEntryModal offers datalist suggestions, creates new labels inline, and normalizes descriptions to node IDs on commit', async () => {
     const wsId = useAuthStore.getState().currentWorkspaceId!;
+    useLedgerStore.setState({
+      projects: [
+        {
+          id: 'proj_solar',
+          uid: 'test-user',
+          workspaceId: wsId,
+          name: 'Solar Roof',
+          type: 'general',
+          status: 'active',
+          budgetCents: 25000,
+          createdAt: '2026-01-01',
+          dimensions: [],
+        },
+      ],
+    });
     render(
       <JournalEntryModal
         isOpen
@@ -368,7 +397,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '100' } });
     fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: '5 Ocean Ave' } });
 
-    // Line 2: type a brand-new project label and save it inline without submitting the journal form
+    // Line 2: type a workspace Project name and save it inline as a label -> keeps real Project ID on commit
     fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: 'bank' } });
     fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: '100' } });
     fireEvent.change(screen.getByLabelText('Project for line 2'), { target: { value: 'Solar Roof' } });
@@ -389,21 +418,35 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     const txPost = rpcCalls.find(c => c.url === '/api/v1/transactions')!.body.transaction as { lines: TransactionLine[] };
     assert.deepEqual(txPost.lines[0].dimensions, { property: 'P5' });
     assert.deepEqual(txPost.lines[1].dimensions, { project: 'P1' });
+    assert.equal(txPost.lines[1].project, 'proj_solar', 'inline-saved Project label must retain real Project ID on commit');
   });
 
-  test('SplitEditor displays custom workspace dimensions and saves new labels inline', async () => {
+  test('SplitEditor displays custom workspace dimensions, preserves manual split amounts, and keeps real Project IDs', async () => {
     const tx = makeTransaction({
       id: 'tx-split',
       description: 'Shared utility bill',
       totalAmountCents: 10000,
       lines: [
-        { accountId: 'util', accountName: 'Utilities', amountCents: 6000 },
-        { accountId: 'rent', accountName: 'Rent', amountCents: 4000 },
+        { accountId: 'util', accountName: 'Utilities', amountCents: 9000, quantity: 2, unitPriceCents: 5000 },
+        { accountId: 'rent', accountName: 'Rent', amountCents: 1000 },
       ],
     });
+    const splitProjects = [
+      {
+        id: 'proj_alpha',
+        uid: 'test-user',
+        workspaceId: 'ws-1',
+        name: 'Alpha Tower',
+        type: 'general' as const,
+        status: 'active' as const,
+        budgetCents: 100000,
+        createdAt: '2026-01-01',
+        dimensions: [],
+      },
+    ];
     let savedLines: TransactionLine[] = [];
     const { container } = render(
-      <SplitEditor transaction={tx} accounts={accounts} projects={[]} onSave={l => { savedLines = l; }} onClose={() => {}} />,
+      <SplitEditor transaction={tx} accounts={accounts} projects={splitProjects} onSave={l => { savedLines = l; }} onClose={() => {}} />,
     );
 
     const expandButtons = container.querySelectorAll<HTMLButtonElement>('button:has(svg.lucide-layers)');
@@ -411,6 +454,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
 
     const propInput = screen.getByLabelText('Property for split line 1');
     fireEvent.change(propInput, { target: { value: 'Penthouse' } });
+    fireEvent.change(screen.getByLabelText('Project for split line 1'), { target: { value: 'Alpha Tower' } });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Save “Penthouse” as Property label/ }));
     });
@@ -419,7 +463,9 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Commit Atomic Split' }));
-    assert.deepEqual(savedLines[0].dimensions, { property: 'P6' });
+    assert.equal(savedLines[0].amountCents, 9000, 'changing labels must not recalculate manual amount override');
+    assert.equal(savedLines[0].project, 'proj_alpha', 'selecting a workspace project preserves its real Project.id');
+    assert.equal(savedLines[0].dimensions?.property, 'P6');
   });
 
   test('TransactionEditModal saves new inline labels on open entries and hides write actions when locked', async () => {
@@ -503,9 +549,11 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     assert.equal((createdNodeWrite.body.data as { status?: string }).status, 'active');
     assert.equal(useLedgerStore.getState().dimensionNodes.some(n => n.id === 'P6' && n.description === 'Harbor Suite'), true);
 
-    // Entering an already-existing label WITH new aliases merges those aliases instead of dropping them
+    // Entering an already-existing label WITH new aliases merges those aliases (deduplicating NFD/Hebrew variants)
     fireEvent.change(descInput, { target: { value: 'Harbor Suite' } });
-    fireEvent.change(screen.getByLabelText('Aliases for new Property value'), { target: { value: 'Harbor Penthouse' } });
+    fireEvent.change(screen.getByLabelText('Aliases for new Property value'), {
+      target: { value: 'Café, Cafe\u0301, תל אביב, תֵּל אָבִיב' },
+    });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Add Node to Property/ }));
     });
@@ -519,7 +567,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
         ),
       );
     });
-    assert.deepEqual(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P6')?.aliases, ['Harbor Penthouse']);
+    assert.deepEqual(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P6')?.aliases, ['Café', 'תל אביב']);
 
     // Archive P5 -> persists immediately via lf_update with status: 'archived'
     await act(async () => {

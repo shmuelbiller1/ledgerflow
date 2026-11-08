@@ -48,6 +48,7 @@ const copyLine = (s: NonNullable<Bill['splits']>[number], keepOrder = true) => (
   ...(keepOrder && s.orderLine !== undefined ? { orderLine: s.orderLine, ...(s.orderQuantity !== undefined ? { orderQuantity: s.orderQuantity } : {}) } : {}),
 });
 
+/** Modal form for creating or editing a vendor bill and its line-level accounts, stock items, and dimension labels. */
 export default function BillModal({ isOpen, onClose, onSave, vendors = [], accounts = [], initialBill }: BillModalProps) {
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
@@ -224,6 +225,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     }
   };
 
+  /** Validates bill fields, stock quantities, and approval thresholds, normalizes line labels, and submits to `onSave`. */
   const handleAction = async (e: React.FormEvent, actionStatus: Bill['status']) => {
     e.preventDefault();
     if (isSubmitting) return;

@@ -4,10 +4,13 @@ import { doc, getDoc, setDoc, updateDoc } from './db/firestore';
 import { db } from '../firebase';
 import {
   DEFAULT_WORKSPACE_DIMENSIONS,
+  resolveDimensionLabel,
+  setLineDimension,
   suggestNextDimensionNodeId,
   updateDimensionNodeDescription,
 } from './dimensionUtils';
-import type { DimensionDefinition, DimensionNode } from '../types';
+import { normalizeSearchText } from './textNormalization';
+import type { DimensionDefinition, DimensionNode, Project, TransactionLine } from '../types';
 
 /** Normalizes text for case-insensitive Unicode comparisons. */
 const norm = (value: string) => value.normalize('NFC').toLowerCase().trim();
@@ -380,12 +383,24 @@ export async function renameDimensionNodeInline(
     throw new Error('This label was changed in another tab or by another team member. Refresh and try again.');
   }
 
-  const baseNodes = currentNodes.some(
+  const latestNodes = adapter.getNodes();
+  const concurrentDuplicate = latestNodes.find(
+    n =>
+      norm(n.dimensionId) === norm(dimensionId) &&
+      n.id !== nodeId &&
+      n.status !== 'archived' &&
+      norm(n.description) === norm(description),
+  );
+  if (concurrentDuplicate) {
+    throw new Error(`Another label ("${concurrentDuplicate.id}") already uses "${description}".`);
+  }
+
+  const baseNodes = latestNodes.some(
     n => n.id === nodeId && norm(n.dimensionId) === norm(dimensionId),
   )
-    ? currentNodes
+    ? latestNodes
     : [
-        ...currentNodes,
+        ...latestNodes,
         {
           id: nodeId,
           dimensionId,
@@ -410,7 +425,7 @@ export async function renameDimensionNodeInline(
     updatedAt: new Date().toISOString(),
   });
   assertSameSession(adapter, session);
-  adapter.setNodes(updatedList);
+  mergeNodesIntoStore(adapter, [], updatedNode);
   return updatedNode;
 }
 
@@ -509,6 +524,77 @@ export async function addDimensionAxisInline(
   adapter.setWorkspaceDimensions(session.workspaceId, nextDimensions);
 
   return newAxis;
+}
+
+/**
+ * Resolves one or more project input candidates (project ID, project name, or `DimensionNode` ID)
+ * back to a real workspace `Project.id` when a matching project exists, preserving legacy
+ * `line.project === project.id` linkage for the Projects and ProjectPipeline screens.
+ */
+export function resolveWorkspaceProjectId(
+  candidates: readonly (string | undefined)[],
+  projects: readonly Pick<Project, 'id' | 'name'>[] | undefined,
+  nodes?: readonly DimensionNode[],
+): string | undefined {
+  if (!projects || projects.length === 0) return undefined;
+  for (const raw of candidates) {
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    if (!trimmed || trimmed === 'Unassigned') continue;
+    const byId = projects.find(p => p.id === trimmed);
+    if (byId) return byId.id;
+    const key = normalizeSearchText(trimmed).trim();
+    if (key) {
+      const byName = projects.find(p => normalizeSearchText(p.name).trim() === key);
+      if (byName) return byName.id;
+    }
+    if (nodes && nodes.length > 0) {
+      const label = resolveDimensionLabel([...nodes], 'project', trimmed);
+      const labelKey = normalizeSearchText(label).trim();
+      if (label && label !== trimmed) {
+        const byNodeLabel = projects.find(
+          p => p.id === label || (labelKey !== '' && normalizeSearchText(p.name).trim() === labelKey),
+        );
+        if (byNodeLabel) return byNodeLabel.id;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Builds a minimal `Partial<TransactionLine>` patch for a single dimension edit without copying
+ * unrelated line fields (such as `quantity` or `unitPriceCents`), while keeping `line.project`
+ * bound to a real workspace `Project.id` whenever a workspace project matches.
+ */
+export function buildTransactionLineDimensionPatch(
+  line: TransactionLine,
+  dimensionId: string,
+  value: string,
+  nodes?: DimensionNode[],
+  projects?: readonly Pick<Project, 'id' | 'name'>[],
+): Partial<TransactionLine> {
+  const normDim = norm(dimensionId);
+  const updated = setLineDimension(line, dimensionId, value, nodes);
+  const patch: Partial<TransactionLine> = {
+    dimensions: updated.dimensions,
+  };
+  if (normDim === 'class') patch.class = updated.class;
+  else if (normDim === 'location') patch.location = updated.location;
+  else if (normDim === 'department') patch.department = updated.department;
+  else if (normDim === 'category') patch.category = updated.category;
+  else if (normDim === 'project') {
+    if (!value.trim() || value === 'Unassigned') {
+      patch.project = updated.project;
+    } else {
+      const matchedProjectId = resolveWorkspaceProjectId(
+        [value, updated.project, updated.dimensions?.project, line.project],
+        projects,
+        nodes,
+      );
+      patch.project = matchedProjectId ?? updated.project;
+    }
+  }
+  return patch;
 }
 
 /**
