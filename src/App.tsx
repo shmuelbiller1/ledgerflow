@@ -2,7 +2,7 @@ import TestEnvironmentBanner from './components/support/TestEnvironmentBanner';
 import { useState, useEffect, useMemo, useCallback, useRef, useTransition, lazy, Suspense } from 'react';
 import { usePerformanceTrace } from './hooks/usePerformanceTrace';
 import { auth } from './firebase';
-import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
+import { onAuthStateChanged, onSecondFactorRequired, onPasswordRecovery, setNewPassword, verifySecondFactor, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signInWithPasskey, passkeysOff, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from './lib/db/auth';
 import { Toaster, toast } from 'sonner';
 import { motion } from 'motion/react';
 
@@ -421,6 +421,22 @@ const shortcutMap = useMemo(() => {
     }
   };
 
+  // CC-12: a passkey instead of a password; someone with an authenticator app still gives its code
+  const handlePasskeyLogin = async () => {
+    localStorage.removeItem('ledgerflow_use_sandbox_mode');
+    localStorage.removeItem('ledgerflow_identity_email');
+    localStorage.removeItem('ledgerflow_identity_name');
+    try {
+      const cred = await signInWithPasskey(auth);
+      setIsGuest(false);
+      if (cred.secondFactorRequired) toast.info('Passkey accepted. Enter the code from your authenticator app.');
+      else toast.success('SUCCESSFULLY LOGGED IN');
+    } catch (e) {
+      console.error('Passkey sign-in failed:', e);
+      toast.error(passkeysOff(e) ? 'Passkey sign-in is not turned on yet. Sign in with your password or Google.' : 'Passkey sign-in failed or was cancelled.');
+    }
+  };
+
   const handleEmailLogin = async (email: string, pass: string) => {
     localStorage.removeItem('ledgerflow_use_sandbox_mode');
     localStorage.removeItem('ledgerflow_identity_email');
@@ -537,7 +553,13 @@ const shortcutMap = useMemo(() => {
   }
 
   if (!user && !isGuest) {
-    return <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignup={handleEmailSignup} onPasswordReset={handlePasswordReset} onGuest={handleGuest} language={language} />;
+    // the sign-in screen shows its own messages (failed sign-in, reset email sent, passkey not turned on)
+    return (
+      <>
+        <AuthScreen onLogin={handleLogin} onEmailLogin={handleEmailLogin} onEmailSignup={handleEmailSignup} onPasswordReset={handlePasswordReset} onGuest={handleGuest} onPasskeyLogin={handlePasskeyLogin} language={language} />
+        <Toaster theme="light" position="top-right" expand={false} richColors closeButton />
+      </>
+    );
   }
 
   return (

@@ -50,6 +50,8 @@ export interface InventoryItem {
   description?: string;
   unitPriceCents: number;
   unitCostCents: number;
+  /** M-21: what one unit is expected to cost (a reference; stock is still valued at unitCostCents) */
+  standardCostCents?: number;
   quantityAtHand: number;
   reorderPoint: number;
   /** A-115: minimum/maximum stock per Location label value, keyed by dimension node id (whole units, max at least min). Feeds the reorder suggestions' by-location mode; the global reorder point is unchanged. */

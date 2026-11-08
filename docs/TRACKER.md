@@ -1340,7 +1340,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 - [ ] M-13 Commodities
 - [ ] M-15 Warehouses (deferred)
-- [ ] M-21 Standard costing
+- [~] M-21 Standard costing — step 1 (8 Nov): an item can carry a standard cost (Inventory list, edit in place) and shows how far its actual average cost is from it (`src/lib/standardCost.ts`, `standard-cost.test.ts`); nothing posts differently. Posting at standard with a variance account waits for the owner (FOR_YOU #54)
 
 # SECTION N — REPORT FEATURE MATRIX
 
@@ -1420,7 +1420,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION W — INVENTORY DEPTH
 
-- [ ] W-07 Assembly / kitting
+- [x] W-07 Assembly / kitting — covered by kits built from parts: bundles (BF-03, `itemBundles`), Kit Assembly plan (A-116, `kitAssembly`) and work orders with pick lists (A-169, `WorkOrdersView`); a kit sold uses its parts' stock. Building kits ahead into their own stock (a finished-goods item) is not done, by design — FOR_YOU #55; ticked 8 Nov
 - [~] W-08 Backorder + drop-ship — **backorders done 10 Oct**: Reports → Backorders: sales orders' item lines still to deliver, oldest order first, against stock on hand (what each takes from stock and what it is short), and each short item in all with what is on order from vendors and what is still to buy; read-only (`src/lib/backorders.ts`, `BackordersReportView.tsx`; tests `backorders.test.tsx`). **Open:** drop-ship (a sales order line bought from a vendor and sent straight to the customer)
 
 # SECTION X — FIXED ASSET LIFECYCLE
@@ -1628,9 +1628,9 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card; changed only through the server, one change at a time); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
 - [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
 - [x] CC-11 Client-group settings — Settings has customer groups with default payment terms (kept by the server, one change at a time); a customer joins a group on its page and new invoices take the group's terms when it has none (`src/lib/customerGroups.ts`, `customerGroupService`, `CustomerGroupsSettings`; migration `20261102030000_customer_groups`)
-- [ ] CC-12 Passkeys
-- [ ] CC-13 User-defined scheduler
-- [ ] CC-14 Tasks + statuses
+- [x] CC-12 Passkeys — "Sign in with a passkey" on the sign-in screen and a Passkeys section in Settings → Security (add with a name, list, remove) through Supabase Auth's WebAuthn; an authenticator-app user still gives the code (`src/lib/db/auth.ts`, `PasskeySettings`, `passkeys.test.tsx`); needs passkeys enabled in Supabase (FOR_YOU #49); ticked 7 Nov
+- [x] CC-13 User-defined scheduler — covered by the schedules users already set: recurring invoices/bills/entries/estimates (`recurringService`), scheduled reports (K-28, `scheduledReportService`), payment reminders and monthly statements (BE-01/BE-07, `reminderService`, `statementMonthDue`); ticked 7 Nov
+- [x] CC-14 Tasks + statuses — same item as BG-03: tasks given to a workspace member, optionally about a record, with a due date and open/done status (`src/lib/tasks.ts`, `taskService`, `TasksView`); ticked 7 Nov
 - [ ] CC-15 E-invoicing log
 - [ ] CC-16 System log
 - [ ] CD-01 Scheduled transactions

@@ -85,6 +85,56 @@ Last updated: 2026-10-07.
     Authentication → Providers → Email → *Minimum password length* **10**, and, if your plan has it,
     turn on *Prevent use of leaked passwords*. *Default meanwhile: the app's own check.*
 
+49. **Turn on passkeys in Supabase (2 minutes, 7 Nov).** The app now has "Sign in with a passkey" on the
+    sign-in screen and a Passkeys section in Settings → Security (CC-12). Supabase has to allow them:
+    Supabase → project *ledgerflow* → Authentication → the passkeys / WebAuthn setting (under Sign In / Providers; the exact menu name may differ) → enable,
+    with the site's domain as the relying party (the live address, e.g. `ledgerflow.vercel.app`) and the
+    live address as an allowed origin. *Until then: the buttons show, and using one says the passkey was not
+    added / sign-in failed; password and Google sign-in work as before.* Someone with an authenticator app
+    still gives its code after a passkey.
+
+50. **Shared office connection and the app-wide request limit (7 Nov, decided by default).** Every visitor's IP
+    address gets 1,000 requests per 15 minutes across the whole app (`src/server/middleware/rateLimiters.ts`).
+    People who share one public IP (an office, a school, a family) share that bucket, and a few people with
+    dashboards open can reach it; they then see "Maximum rate limit reached". The fix is to count per signed-in
+    user (verify the sign-in token first, fall back to the IP for visitors), which changes how abuse is
+    limited. *Default: unchanged until you say so, or until a tester reports the message.* Say "count per user"
+    and Claude will build it.
+51. **What is left in the tracker needs you or an outside service (7 Nov).** The open items that remain mostly
+    need a decision, an account or a key: pricing (P-06 usage metering, P-10 referrals), identity providers
+    (P-01 SSO, P-02 SCIM), banks and shops (Y-04..Y-07 bank feeds, Z-23..Z-27), country filings (T-09..T-15),
+    email domains (K-35 inbox address, L-84 custom sender, Y-29 SPF/DKIM), push notifications (S-20, needs
+    keys), and the GitHub branch rule (L-67). The larger engineering items Claude works through next:
+    P-03 IP allowlist (database-side check needed), C-19/L-123 archiving closed years, M-21 standard costing,
+    W-07 assembly. *Default: Claude takes the engineering items in that order.*
+52. **IP allowlist (P-03) is on hold until one fact is checked (7 Nov).** The browser reads the books straight
+    from Supabase, so an allowlist must be checked inside the database (one place covers every table: the
+    `lf_ws_role` function), not only on the server. Supabase's docs say to read the client address from the
+    first entry of `X-Forwarded-For`, and they do not say whether Supabase's own gateway removes a value the
+    visitor typed into that header. If it does not, anyone could claim to be on the office address. The safe
+    header would be `cf-connecting-ip` (set by Cloudflare), if Supabase passes it to the database. Checking it
+    needs one query on the live project, which Claude does not run (the Supabase tool is only for migrations).
+    To unblock: say "check the IP header" and Claude adds a small owner-only diagnostic function (a migration)
+    that reports which address headers arrive through the app (the SQL editor bypasses the gateway, so it
+    cannot show them). *Default: P-03 waits.*
+53. **Little engineering is left that does not need you (8 Nov).** C-19/L-123 (archiving closed years) is
+    AI #9's work in progress (steps 1–6 merged; C-19 is in its queue), so Claude leaves it there. What remains
+    in Claude's own lane is M-21 standard costing and W-07 assembly, which the roadmap marks as later or
+    add-on items. Most of the value now sits behind items 49–52 above and the decisions in section B.
+    *Default: Claude builds M-21 next. The 5-hourly restart keeps running; if you prefer to save usage until
+    you answer, pause the "LedgerFlow: keep working" scheduled task.*
+54. **Standard costing: post at standard or only compare? (8 Nov, decided by default).** Items can now carry a
+    standard cost, and the Inventory list shows each item's actual average cost against it (+/− %). The books
+    still value stock at the moving average, exactly as before. Full standard costing would carry stock at the
+    standard and send every difference to a "purchase price variance" account when goods arrive — a change to
+    how purchases and sales are booked, so only with your say-so. *Default: compare only.* Say "post at
+    standard" if you run a manufacturing or wholesale business that budgets by standard cost.
+55. **Kits: built when sold, or built ahead into stock? (8 Nov, decided by default).** Today a kit (an item made
+    of parts) keeps no stock of its own: selling one uses its parts, and Work orders / Kit Assembly plan builds.
+    Some businesses build kits ahead and keep them on the shelf as finished goods (parts out, kit in, at the
+    parts' cost). That is a new stock posting, so only with your say-so. *Default: built when sold.* Say
+    "build kits into stock" if you need it.
+
 ## B. Decisions (Claude uses the default until you say otherwise)
 
 10. **Hebrew data — decided by owner (2 Oct).** Keep menus and options in English. The system and algorithms must handle Hebrew and mixed Hebrew/English names, labels, item descriptions and other record text throughout search/matching, imports/exports and documents. This is data-language support, not a request to translate the interface. Codex is auditing it after C-6…C-11; existing financial rules must stay intact.
