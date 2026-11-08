@@ -1,3 +1,4 @@
+import { byCodeUnit } from './codeUnitOrder';
 /**
  * A-184: missing numbers inside a document series (invoices, bills, credit notes…).
  *
@@ -98,7 +99,7 @@ export function documentNumberGaps(documents: readonly NumberedDocument[]): Docu
     }
     const duplicates = [...byNumber.entries()]
       .filter(([, ids]) => ids.length > 1)
-      .map(([number, ids]) => ({ number, ids: [...ids].sort() }))
+      .map(([number, ids]) => ({ number, ids: [...ids].sort(byCodeUnit) }))
       .sort((a, b) => a.number.localeCompare(b.number));
     duplicateTotal += duplicates.length;
     missingTotal += missingCount;

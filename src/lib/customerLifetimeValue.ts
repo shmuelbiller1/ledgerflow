@@ -27,6 +27,7 @@ import { toBaseCents } from '../server/reports/partyReports';
 import { isOpeningBalanceDocument } from './partyOpeningBalance';
 import { validCustomReportPeriod } from './reportCustomPeriod';
 import { monthIndex, monthOf } from './subscriptionPlans';
+import { byCodeUnit } from './codeUnitOrder';
 
 export const DEFAULT_LIFESPAN_YEARS = 3;
 
@@ -93,7 +94,7 @@ export function customerLifetimeValue(input: CustomerLifetimeValueInput): Custom
   };
   const issued = input.invoices.filter(invoice => INVOICE_IS_ISSUED.has(invoice.status) && inWindow(invoice.date) && !isOpeningBalanceDocument(invoice));
 
-  const ids = [...new Set(issued.map(invoice => invoice.customerId || '').filter(Boolean))].sort();
+  const ids = [...new Set(issued.map(invoice => invoice.customerId || '').filter(Boolean))].sort(byCodeUnit);
   const rows: CustomerLifetimeValueRow[] = [];
 
   for (const customerId of ids) {
@@ -114,7 +115,7 @@ export function customerLifetimeValue(input: CustomerLifetimeValueInput): Custom
       .reduce((sum, note) => sum + toBaseCents(note.amountCents || 0, note.exchangeRate), 0);
     const netRevenueCents = salesCents - creditCents;
     const grossProfitCents = netRevenueCents - costCents;
-    const dates = own.map(invoice => (invoice.date || '').slice(0, 10)).filter(Boolean).sort();
+    const dates = own.map(invoice => (invoice.date || '').slice(0, 10)).filter(Boolean).sort(byCodeUnit);
     const firstOrder = dates[0] ?? null;
     const lastOrder = dates.at(-1) ?? null;
     const months = new Set(dates.map(monthOf));

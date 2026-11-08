@@ -1,6 +1,7 @@
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { isPostable, lineAmount } from '../txFilters';
 import { calendarDateISO, parseLocalDate } from '../utils';
+import { byCodeUnit } from '../codeUnitOrder';
 
 export const EXPENSE_VELOCITY_ALGO: AlgorithmDefinition = {
   id: 'ops_velocity',
@@ -71,7 +72,7 @@ export const EXPENSE_VELOCITY_ALGO: AlgorithmDefinition = {
     });
     
     // Sort dates
-    const rawDates = Object.keys(dailyExpenses).sort();
+    const rawDates = Object.keys(dailyExpenses).sort(byCodeUnit);
     if (rawDates.length < 2) {
        return {
           metrics: [

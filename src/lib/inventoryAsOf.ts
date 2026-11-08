@@ -16,6 +16,7 @@
  * Otherwise the item is "unknown" with the reason, and is never shown as an exact zero. Pure.
  */
 import type { ItemDetails } from './stockMoves';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface InventoryAsOfRow {
   itemId: string;
@@ -55,7 +56,7 @@ export function inventoryAsOf(input: {
   // the first day any move was written: an item created after it would have a move for any stock it ever had.
   // #256 review: the day written, not the move's own date — a backdated move does not move the start earlier; with
   // no write day kept, nothing is proven by it
-  const historyStart = input.toToday.flatMap(d => d.moves.map(m => m.writtenOn || '')).filter(Boolean).sort()[0];
+  const historyStart = input.toToday.flatMap(d => d.moves.map(m => m.writtenOn || '')).filter(Boolean).sort(byCodeUnit)[0];
 
   const rows = ids.map((itemId): InventoryAsOfRow => {
     const item = items.get(itemId);

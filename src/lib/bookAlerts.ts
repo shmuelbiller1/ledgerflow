@@ -12,6 +12,7 @@ import { balancesAsOf } from './closingSnapshot';
 import { isCashAccount } from './txFilters';
 import { monthEnd } from './periodLock';
 import { budgetMonthAmount, computeBudgetActual, type SavedBudget } from './budgetActual';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface AlertSettings {
   /** Tell when the cash falls below this (home currency, cents); null or missing: off. */
@@ -58,7 +59,7 @@ export function closeReminderMonth(
   const day = ws.alerts?.closeReminderDay === null ? null : (ws.alerts?.closeReminderDay ?? DEFAULT_CLOSE_REMINDER_DAY);
   if (day === null || Number(today.slice(8, 10)) < day) return null;
   const month = previousMonth(today);
-  const closedThrough = [ws.lockDate || '', ws.softLockDate || ''].sort().pop() || '';
+  const closedThrough = [ws.lockDate || '', ws.softLockDate || ''].sort(byCodeUnit).pop() || '';
   if (closedThrough >= monthEnd(month)) return null;
   if (ws.alertsSent?.closeReminder === month) return null;
   return month;

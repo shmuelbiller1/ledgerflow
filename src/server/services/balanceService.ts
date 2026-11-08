@@ -65,6 +65,7 @@ import { computeSalesByItem, type SalesByItemReport } from '../reports/itemRepor
 import { computeTransactionsByReference, type TransactionsByReference } from '../reports/referenceReport';
 import { computeGeneralLedger } from '../reports/computeReports';
 import { entryMatches, ENTRY_QUERY_LIMIT, type EntryQuery } from '../../lib/entryQuery';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -190,7 +191,7 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
 }
 
 function checksumOf(entries: Entry[]): string {
-  const keys = entries.filter(isPostable).map(e => `${e.id}@${e._updated || ''}`).sort();
+  const keys = entries.filter(isPostable).map(e => `${e.id}@${e._updated || ''}`).sort(byCodeUnit);
   return crypto.createHash('sha256').update(keys.join('\n')).digest('hex');
 }
 
@@ -330,7 +331,7 @@ async function closedYearEnds(db: Firestore, workspaceId: string): Promise<strin
     const details = (d.data().details || {}) as { closingDate?: unknown; lockPeriod?: unknown };
     if (details.lockPeriod === true && typeof details.closingDate === 'string' && DATE.test(details.closingDate) && details.closingDate <= lockDate) ends.add(details.closingDate);
   }
-  return [...ends].sort();
+  return [...ends].sort(byCodeUnit);
 }
 
 /**
@@ -343,7 +344,7 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
   const have = new Map(existing.map(s => [s.asOf, s]));
   const wanted = new Set([...await closedYearEnds(db, workspaceId), ...existing.filter(s => s.stale === true).map(s => s.asOf)]);
   const built: string[] = [];
-  for (const asOf of [...wanted].sort()) {
+  for (const asOf of [...wanted].sort(byCodeUnit)) {
     const current = have.get(asOf);
     if (current && current.stale !== true) continue;
     await buildSnapshot(db, workspaceId, asOf, builtBy);

@@ -11,6 +11,7 @@
  */
 import { toCsv } from './csvExport';
 import { recordExportTable } from './workspaceExports';
+import { byCodeUnit } from './codeUnitOrder';
 
 type JsonObject = Record<string, unknown>;
 const textEncoder = new TextEncoder();
@@ -137,11 +138,11 @@ export async function buildWorkspaceArchive(payload: unknown, workspaceId: strin
 
   const checksum = String(meta.checksum);
 
-  const keys = Object.keys(meta.counts as JsonObject).sort();
+  const keys = Object.keys(meta.counts as JsonObject).sort(byCodeUnit);
   if (!keys.length || !keys.includes('transactions') || !keys.includes('accounts')) {
     throw new Error('The backup is missing required ledger collections.');
   }
-  const topArrays = Object.keys(backup).filter(key => Array.isArray(backup[key])).sort();
+  const topArrays = Object.keys(backup).filter(key => Array.isArray(backup[key])).sort(byCodeUnit);
   if (JSON.stringify(topArrays) !== JSON.stringify(keys)) {
     throw new Error('Backup collection inventory is incomplete or differs from its counts.');
   }

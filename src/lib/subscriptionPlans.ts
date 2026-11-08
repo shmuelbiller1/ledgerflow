@@ -23,6 +23,7 @@
  */
 import type { Customer, RecurringTransaction } from '../types';
 import { getLocalDateISO } from './calendarDate';
+import { byCodeUnit } from './codeUnitOrder';
 
 export type PlanStatus = 'active' | 'paused' | 'completed';
 
@@ -133,7 +134,7 @@ function planStatus(plan: SubscriptionPlansInput['plans'][number]): PlanStatus {
 
 /** The window is the caller's, or the twelve months that end with `to`. */
 function windowFor(input: SubscriptionPlansInput): { from: string; to: string } | null {
-  const to = input.to && MONTH.test(input.to) ? input.to : monthOf(input.plans.map(plan => plan.nextOccurrence).sort().at(-1)) || monthOf(getLocalDateISO());
+  const to = input.to && MONTH.test(input.to) ? input.to : monthOf(input.plans.map(plan => plan.nextOccurrence).sort(byCodeUnit).at(-1)) || monthOf(getLocalDateISO());
   if (!MONTH.test(to)) return null;
   const from = input.from && MONTH.test(input.from) ? input.from : addMonths(to, -11);
   if (monthIndex(from) > monthIndex(to)) return null;
@@ -204,7 +205,7 @@ export function subscriptionPlans(input: SubscriptionPlansInput): SubscriptionPl
   }
 
   const byCurrency: SubscriptionCurrencyTotal[] = [];
-  for (const currency of [...new Set(rows.map(row => row.currency))].sort()) {
+  for (const currency of [...new Set(rows.map(row => row.currency))].sort(byCodeUnit)) {
     const own = rows.filter(row => row.currency === currency);
     const active = own.filter(row => row.status === 'active');
     byCurrency.push({
@@ -221,7 +222,7 @@ export function subscriptionPlans(input: SubscriptionPlansInput): SubscriptionPl
   }
 
   const byCustomer: SubscriptionCustomerRow[] = [];
-  for (const key of [...new Set(rows.map(row => `${row.customerId}\u0000${row.currency}`))].sort()) {
+  for (const key of [...new Set(rows.map(row => `${row.customerId}\u0000${row.currency}`))].sort(byCodeUnit)) {
     const [customerId, currency] = key.split('\u0000');
     const own = rows.filter(row => row.customerId === customerId && row.currency === currency);
     byCustomer.push({

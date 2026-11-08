@@ -20,6 +20,7 @@ import type { ChartAccount, Transaction } from '../types';
 import { computeBalanceSheet } from '../server/reports/computeReports';
 import { isPostable, transactionDate } from './txFilters';
 import { getLocalDateISO } from './utils';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface BalanceBreakEntry {
   transactionId: string;
@@ -59,7 +60,7 @@ export function probeDates(transactions: Transaction[], endDate: string): string
     if (date && date <= endDate) dates.add(date);
   }
   dates.add(endDate);
-  return [...dates].sort();
+  return [...dates].sort(byCodeUnit);
 }
 
 /** How far the balance sheet is off on a date, from the report code's own two totals. */

@@ -12,6 +12,7 @@
  * Nothing here changes a figure.
  */
 import { LEDGER_COLLECTIONS, type LedgerKey } from './ledgerCollections';
+import { byCodeUnit } from './codeUnitOrder';
 
 export type ReportCompleteness = 'complete' | 'partial' | { cappedAt: number; collection: LedgerKey };
 
@@ -101,6 +102,6 @@ export function combineProvenance(all: readonly ReportProvenance[]): ReportProve
   if (all.length === 0) return null;
   const browser = all.find(p => p.source === 'browser' && p.completeness !== 'complete') || all.find(p => p.source === 'browser');
   if (browser) return browser;
-  const cached = all.map(p => p.cachedAt).filter((x): x is string => Boolean(x)).sort();
+  const cached = all.map(p => p.cachedAt).filter((x): x is string => Boolean(x)).sort(byCodeUnit);
   return serverProvenance(cached.length ? Date.parse(cached[0]) : undefined);
 }

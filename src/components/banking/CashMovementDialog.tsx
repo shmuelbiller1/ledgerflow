@@ -16,6 +16,7 @@ import {
 import { BudgetLeft } from '../common/BudgetLeft';
 import { Labelled } from '../ui/Labelled';
 import { ArrowDownToLine, ArrowUpFromLine, X } from 'lucide-react';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 interface CashMovementDialogProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
   const suggestions = useMemo(() => descriptionSuggestions(transactions), [transactions]);
   // names the workspace already holds, for who paid / who was paid; the entry keeps the name in its
   // description rather than a link, so a renamed contact does not leave this entry pointing at nothing
-  const names = useMemo(() => [...new Set([...customers, ...vendors].map(p => (p.name || '').trim()).filter(Boolean))].sort().slice(0, 200), [customers, vendors]);
+  const names = useMemo(() => [...new Set([...customers, ...vendors].map(p => (p.name || '').trim()).filter(Boolean))].sort(byCodeUnit).slice(0, 200), [customers, vendors]);
   const amountCents = useMemo(() => (amount.trim() ? TruthEngine.parseAmountToCents(amount) : 0), [amount]);
   const cashAccount = accounts.find(a => a.id === cashAccountId);
   const counterAccount = accounts.find(a => a.id === counterAccountId);

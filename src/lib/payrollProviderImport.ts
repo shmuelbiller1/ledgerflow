@@ -17,6 +17,7 @@
  * Posting, the open-period check and refusing the same file twice are on the server (payrollImportService.ts).
  */
 import { parseCsv } from './csv';
+import { byCodeUnit } from './codeUnitOrder';
 
 export type PayrollProvider = 'adp' | 'gusto' | 'paychex';
 
@@ -226,7 +227,7 @@ export function payrollEntries(rows: PayrollRow[], accounts: PayrollAccounts, la
   }
   if (problems.length) return { payDates: [], problems: [...new Set(problems)] };
 
-  const dates = [...new Set(rows.map(r => r.payDate))].sort();
+  const dates = [...new Set(rows.map(r => r.payDate))].sort(byCodeUnit);
   const payDates = dates.map(payDate => {
     const these = rows.filter(r => r.payDate === payDate);
     const totals = payrollTotals(these);

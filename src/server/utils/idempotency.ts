@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { getDb } from '../db/firestore';
 import type { Transaction as FirestoreTransaction } from '../db/firestore';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 export interface IdempotencyRecord {
   id: string;
@@ -20,7 +21,7 @@ export interface IdempotencyRecord {
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().filter(k => (value as Record<string, unknown>)[k] !== undefined)
+    return `{${Object.keys(value as Record<string, unknown>).sort(byCodeUnit).filter(k => (value as Record<string, unknown>)[k] !== undefined)
       .map(k => `${JSON.stringify(k)}:${stableJson((value as Record<string, unknown>)[k])}`).join(',')}}`;
   }
   return JSON.stringify(value ?? null);

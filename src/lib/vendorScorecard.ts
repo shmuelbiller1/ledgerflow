@@ -14,6 +14,7 @@
  * Nothing here posts, edits a document or changes how a bill or credit is calculated.
  */
 import type { Bill, PurchaseOrder, VendorCredit, Vendor } from '../types';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface VendorPriceChange {
   itemId: string;
@@ -114,7 +115,7 @@ export function vendorScorecard(input: VendorScorecardInput): VendorScorecardRow
     let late = 0;
     for (const po of orders) {
       const expected = dayOf(po.expectedDeliveryDate);
-      const receipts = (po.receipts || []).map(r => dayOf(r.receivedDate)).filter(Boolean).sort();
+      const receipts = (po.receipts || []).map(r => dayOf(r.receivedDate)).filter(Boolean).sort(byCodeUnit);
       if (!expected || !receipts.length) continue;
       const firstReceipt = receipts[0];
       if (!inWindow(firstReceipt, input.from, input.to) && !inWindow(expected, input.from, input.to)) continue;

@@ -6,6 +6,7 @@ import { format, addMonths } from "date-fns";
 import { predictHoltWinters } from "../lib/algorithms";
 import { parseLocalDate } from '../lib/utils';
 import { isPostable, calculateTransactionImpact, lineAmount, isExpenseAccount, isInflow, isOutflow } from '../lib/txFilters';
+import { byCodeUnit } from '../lib/codeUnitOrder';
 
 export interface Insight {
   type: string;
@@ -372,7 +373,7 @@ export class StrategicEngine {
       });
     });
 
-    const dates = Object.keys(dailySpend).sort();
+    const dates = Object.keys(dailySpend).sort(byCodeUnit);
     const categories = Array.from(categoriesSet);
     const results: { a: string; b: string; score: number; lag: number }[] = [];
 
@@ -437,7 +438,7 @@ export class StrategicEngine {
       }
     });
 
-    const months = Array.from(new Set([...Object.keys(monthlyInflow), ...Object.keys(monthlyOutflow)])).sort();
+    const months = Array.from(new Set([...Object.keys(monthlyInflow), ...Object.keys(monthlyOutflow)])).sort(byCodeUnit);
     const inflowValues = months.map(m => monthlyInflow[m] || 0);
     const outflowValues = months.map(m => monthlyOutflow[m] || 0);
 

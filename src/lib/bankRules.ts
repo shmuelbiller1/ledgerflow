@@ -1,5 +1,6 @@
 import type { AutoRule, ChartAccount, Transaction } from '../types';
 import { disabledRuleGroups, evaluateRuleCondition, ruleGroupName } from './rulesEngine';
+import { byCodeUnit } from './codeUnitOrder';
 
 /**
  * EG-9: the bank-feed rules, as one pure function used by the server (every imported or synced bank
@@ -103,7 +104,7 @@ export function suggestFromRules(rules: AutoRule[], line: BankRuleLine, context:
 
 /** Two suggestions say the same thing (re-running the rules then changes nothing and counts no hit). */
 export function sameSuggestion(a: BankRuleSuggestion | null | undefined, b: BankRuleSuggestion | null | undefined): boolean {
-  const key = (s: BankRuleSuggestion | null | undefined) => s ? JSON.stringify([s.accountId ?? null, s.contactId ?? null, s.tags, Object.entries(s.dimensions).sort(), s.ruleIds]) : 'null';
+  const key = (s: BankRuleSuggestion | null | undefined) => s ? JSON.stringify([s.accountId ?? null, s.contactId ?? null, s.tags, Object.entries(s.dimensions).sort(([a], [b]) => byCodeUnit(a, b)), s.ruleIds]) : 'null';
   return key(a) === key(b);
 }
 

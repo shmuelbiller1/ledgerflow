@@ -1,5 +1,6 @@
 import { Transaction } from '../../types';
 import { AlgorithmDefinition } from './types';
+import { byCodeUnit } from '../codeUnitOrder';
 
 // A Fenwick Tree (Binary Indexed Tree) for O(log n) prefix sums
 // Allows instant "Balance as of Date" queries even with out-of-order amendments
@@ -47,7 +48,7 @@ export function buildTimeTravelLedger(transactions: readonly Transaction[], targ
     // 1. Map dates to 1-based indices (compress the timeline)
     const dates = new Set<string>();
     sortedTxs.forEach(t => dates.add(t.date));
-    const sortedDates = Array.from(dates).sort();
+    const sortedDates = Array.from(dates).sort(byCodeUnit);
     
     const dateToIndex = new Map<string, number>();
     sortedDates.forEach((d, i) => dateToIndex.set(d, i + 1));

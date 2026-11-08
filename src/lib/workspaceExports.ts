@@ -1,3 +1,4 @@
+import { byCodeUnit } from './codeUnitOrder';
 /** E-17: guarded human-review worksheet for recorded Israeli withholding; not filing-ready. */
 export { form856ReviewExport, FORM_856_REVIEW_HEADERS } from './tax/form856ReviewExport';
 
@@ -153,7 +154,7 @@ export function trialBalanceExportTable(transactions:Transaction[],accounts:Char
 }
 /** Display columns remain spreadsheet-safe; Record JSON preserves types, whitespace and nested fields exactly. */
 export function recordExportTable(records:object[]):ExportTable{
- const keys=[...new Set(records.flatMap(record=>Object.keys(record)))].sort();
+ const keys=[...new Set(records.flatMap(record=>Object.keys(record)))].sort(byCodeUnit);
  return {headers:[...keys,'Record JSON'],rows:records.map(record=>{
   const data=record as Record<string,unknown>;
   return [...keys.map(key=>{const value=data[key];return value===undefined?null:typeof value==='object'?JSON.stringify(value):String(value);}),JSON.stringify(record)];

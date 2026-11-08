@@ -1,4 +1,5 @@
 import { TransactionLine, Transaction, DimensionDefinition, SplitAllocation, DimensionNode } from '../types';
+import { byCodeUnit } from './codeUnitOrder';
 
 export const DEFAULT_WORKSPACE_DIMENSIONS: DimensionDefinition[] = [
   { id: 'category', name: 'Category', systemDefault: true, sortOrder: 0 },
@@ -410,7 +411,7 @@ export function extractUniqueDimensionPaths(
     });
   });
 
-  return Array.from(pathSet).sort();
+  return Array.from(pathSet).sort(byCodeUnit);
 }
 
 /**
