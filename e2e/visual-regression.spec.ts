@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForFiniteAnimations } from './support/a11yGate';
 
 // Fixed civil date, seeded guest records, real UI and real fonts. Nothing financial is masked.
 test.use({ locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' });
@@ -62,6 +63,12 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
       }
       if (screen !== 'transactions') await expect.poll(() => main.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
       await page.mouse.move(0, 0);
+      // Cards that animate in on mount (the sales aging tiles, the dashboard widgets) are still moving
+      // when the shot is taken: `animations: 'disabled'` only settles CSS animations and transitions, so
+      // the capture and its verification re-run disagreed by a few hundred pixels on one screen. Wait
+      // for the page's own finite animations to finish first, with motion reduced as the rest of the
+      // suite does.
+      await waitForFiniteAnimations(page);
       // A tight absolute pixel allowance catches small regressions even on tall screens.
       await expect(page).toHaveScreenshot(`${screen}-${width}-${theme}.png`, {
         fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css',
