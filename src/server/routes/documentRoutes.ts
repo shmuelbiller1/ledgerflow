@@ -13,6 +13,7 @@ import { getTrustedAppUrl } from '../utils/urlHelper';
 import { zipStore } from '../utils/zip';
 import { z } from 'zod';
 import { documentPostRouter } from './documentPostRoutes';
+import { trimEndChar } from '../../lib/textShape';
 
 export const documentRouter = express.Router();
 // L-94 step 2: POST /:type/:id/post saves an invoice or bill and builds its entries on the server
@@ -70,7 +71,7 @@ async function loadDocumentForPdf(db: Firestore, type: DocType, id: string, work
   let paymentUrl: string | undefined;
   // a sent invoice has a payment page: its QR code goes on the PDF (Y-15)
   if (type === 'invoice' && typeof data.paymentToken === 'string' && data.paymentToken) {
-    try { paymentUrl = `${getTrustedAppUrl(req).replace(/\/+$/, '')}/i/${data.paymentToken}`; } catch { paymentUrl = undefined; }
+    try { paymentUrl = `${trimEndChar(getTrustedAppUrl(req), '/')}/i/${data.paymentToken}`; } catch { paymentUrl = undefined; }
   }
   return { docData: type === 'purchaseOrder' ? purchaseOrderForPdf(data) : data as PdfDocument, paymentUrl };
 }

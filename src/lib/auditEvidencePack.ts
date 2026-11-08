@@ -15,6 +15,7 @@ import {
   ACCESS_ROLE_LABELS, ACCESS_REVIEW_HEADERS, accessReviewCsvRows, localDay, twoStepLimitNote, TWO_STEP_LABELS,
   type AccessReviewRow, type AuditDetails,
 } from './accessReview';
+import { trimChar } from './textShape';
 
 export interface EvidenceEntry {
   action?: string;
@@ -292,8 +293,8 @@ export function buildAuditEvidencePack(input: AuditEvidenceInput): EvidenceFile[
 
 /** `ledgerflow-audit-evidence-2026-10-01-to-2026-10-31.zip`, with anything unsafe in the name removed. */
 export function evidencePackFileName(workspace: Pick<EvidenceWorkspace, 'name' | 'id'>, period: EvidencePeriod): string {
-  const clean = (value: string | undefined) => (value || '')
-    .normalize('NFKD').replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  const clean = (value: string | undefined) => trimChar((value || '')
+    .normalize('NFKD').replace(/[^\p{L}\p{N}_-]+/gu, '-'), '-').slice(0, 60);
   const base = clean(workspace.name) || clean(workspace.id) || 'workspace';
   return `${base}-audit-evidence-${period.from}-to-${period.to}.zip`;
 }

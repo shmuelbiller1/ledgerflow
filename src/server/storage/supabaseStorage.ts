@@ -7,6 +7,7 @@
  */
 import { StorageClient } from '@supabase/storage-js';
 import { supabaseUrl } from '../auth/supabaseAuth';
+import { trimEndChar } from '../../lib/textShape';
 
 /** Error thrown when server-side Supabase Storage credentials are missing. */
 export class StorageNotConfiguredError extends Error {
@@ -65,7 +66,7 @@ export function storageBucket(): string {
 /** Lists every stored object path under the given folder prefix in 1,000-item pages. */
 async function listFiles(client: StorageClient, bucket: string, prefix: string): Promise<string[]> {
   const files: string[] = [];
-  const folders = [prefix.replace(/\/+$/, '')];
+  const folders = [trimEndChar(prefix, '/')];
   while (folders.length > 0) {
     const folder = folders.pop() as string;
     for (let offset = 0; ; offset += 1000) {

@@ -55,7 +55,9 @@ export class LedgerFlowClient {
 
   constructor(private readonly options: ClientOptions) {
     if (!options.apiKey || !options.apiKey.includes('.')) throw new Error('Pass the whole API key: "<keyId>.<secret>"');
-    this.base = (options.baseUrl || '').replace(/\/+$/, '');
+    let base = options.baseUrl || '';
+    while (base.endsWith('/')) base = base.slice(0, -1); // no regex: linear on any input (Sonar S8786)
+    this.base = base;
     this.fetchImpl = options.fetch || globalThis.fetch.bind(globalThis);
     this.maxRetries = options.maxRetries ?? 3;
     this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
