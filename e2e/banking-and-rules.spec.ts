@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { settleAnimations } from './support/a11yGate';
 
 test.describe('Banking, Feeds, Rules Engine & Reconciliation Suite', () => {
 
@@ -27,7 +28,7 @@ test.describe('Banking, Feeds, Rules Engine & Reconciliation Suite', () => {
     const bankingNav = page.locator('button:has-text("Banking")').first();
     if (await bankingNav.isVisible()) {
       await bankingNav.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 600 });
+      await settleAnimations(page, 600);
       await expect(page.locator('body')).toBeVisible();
     }
   });
@@ -41,7 +42,7 @@ test.describe('Banking, Feeds, Rules Engine & Reconciliation Suite', () => {
     const rulesTab = page.locator('button:has-text("Bank Rules"), button:has-text("Rules")').first();
     if (await rulesTab.isVisible()) {
       await rulesTab.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 600 });
+      await settleAnimations(page, 600);
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();
       expect(bodyText).not.toContain('Something went wrong');
@@ -57,7 +58,7 @@ test.describe('Banking, Feeds, Rules Engine & Reconciliation Suite', () => {
     const coaTab = page.locator('button:has-text("Chart of Accounts"), button:has-text("Accounts")').first();
     if (await coaTab.isVisible()) {
       await coaTab.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 800 });
+      await settleAnimations(page, 800);
       await expect(page.locator('body')).toBeVisible();
 
       // Check account codes and types

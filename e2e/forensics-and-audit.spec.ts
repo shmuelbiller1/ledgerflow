@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { settleAnimations } from './support/a11yGate';
 
 test.describe('Forensics, Cryptographic Hash Chain & Audit Trail Suite', () => {
 
@@ -27,7 +28,7 @@ test.describe('Forensics, Cryptographic Hash Chain & Audit Trail Suite', () => {
     const forensicsNav = page.locator('button:has-text("Forensics"), button:has-text("Audit")').first();
     if (await forensicsNav.isVisible()) {
       await forensicsNav.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 800 });
+      await settleAnimations(page, 800);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();
@@ -44,7 +45,7 @@ test.describe('Forensics, Cryptographic Hash Chain & Audit Trail Suite', () => {
     const healthTab = page.locator('button:has-text("Data Health"), button:has-text("Integrity")').first();
     if (await healthTab.isVisible()) {
       await healthTab.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 800 });
+      await settleAnimations(page, 800);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();

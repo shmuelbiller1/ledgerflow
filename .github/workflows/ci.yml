@@ -267,10 +267,7 @@ jobs:
   e2e_shards:
     name: Browser shard ${{ matrix.shard }}/5
     runs-on: ubuntu-latest
-    # Shard 1 runs 122 tests one worker at a time, including the slowest report screens; on main it
-    # takes 9-17 minutes and with this branch's added journeys it crossed 30 and was cancelled with
-    # no failing test to show for it. 45 minutes leaves room for the run rather than hiding it.
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

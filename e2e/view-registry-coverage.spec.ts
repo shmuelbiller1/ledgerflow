@@ -207,7 +207,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.locator('button:has-text("Reports")').first().click();
       await chooseReport(page, report.label);
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 500 });
+      await settleAnimations(page, 500);
 
       const bodyText = await page.locator('body').innerText();
       expect(bodyText).not.toContain('Something went wrong');
@@ -258,7 +258,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
       const button = page.locator(`button:has-text("${tab.label}")`).first();
       await expect(button).toBeVisible({ timeout: 10000 });
       await button.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 500 });
+      await settleAnimations(page, 500);
 
       const bodyText = await page.locator('body').innerText();
       expect(bodyText).not.toContain('Something went wrong');
@@ -284,7 +284,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     const intelBtn = page.locator('button:has-text("Intelligence"), button:has-text("Insights"), button:has-text("Analytics")').first();
     if (await intelBtn.isVisible()) {
       await intelBtn.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 1000 });
+      await settleAnimations(page, 1000);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();
@@ -297,7 +297,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     const taxBtn = page.locator('button:has-text("Taxes"), button:has-text("Tax Center"), button:has-text("Tax Liability")').first();
     if (await taxBtn.isVisible()) {
       await taxBtn.click();
-      await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 800 });
+      await settleAnimations(page, 800);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();

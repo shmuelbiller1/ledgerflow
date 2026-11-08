@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { settleAnimations } from './support/a11yGate';
 
 test.describe('E2E Smoke Suite', () => {
 
@@ -69,7 +70,7 @@ test.describe('E2E Smoke Suite', () => {
     
     // Wait for the math algorithms to compute
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 2000 }); 
+    await settleAnimations(page, 2000); 
     
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).not.toContain('NaN');
