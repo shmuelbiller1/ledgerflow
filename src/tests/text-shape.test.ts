@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupThousands, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines } from '../lib/textShape';
+import { groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,4 +64,22 @@ test('trimSpacesBeforeNewlines matches /[ \\t]+\\n/g on every short string', () 
   for (const s of strings([' ', '\t', '\n', 'a'], 6)) {
     assert.equal(trimSpacesBeforeNewlines(s), s.replace(/[ \t]+\n/g, '\n'), JSON.stringify(s));
   }
+});
+
+test('splitTrailingDigits, headBeforeFiveDigits and splitTrimmedLines match the old patterns on every short string', () => {
+  const OLD_TRAIL = /^(.*?)(\d+)$/;
+  const OLD_CITY = /^(.*?)\s+(\d{5})$/u;
+  for (const s of strings(['a', '1', ' ', '\n'], 7)) {
+    const old = s.match(OLD_TRAIL);
+    assert.deepEqual(splitTrailingDigits(s), old ? { head: old[1], digits: old[2] } : null, JSON.stringify(s));
+    assert.equal(splitTrimmedLines(s).join('|'), s.split(/\s*\n\s*/).filter(Boolean).join('|'), JSON.stringify(s));
+  }
+  for (const s of strings(['a', '1', ' ', '\n'], 6)) {
+    const t = `${s}12345`;
+    assert.equal(headBeforeFiveDigits(t), t.match(OLD_CITY)?.[1] ?? null, JSON.stringify(t));
+    assert.equal(headBeforeFiveDigits(s), s.match(OLD_CITY)?.[1] ?? null, JSON.stringify(s));
+  }
+  assert.equal(headBeforeFiveDigits('Tel Aviv 61000'), 'Tel Aviv');
+  assert.equal(headBeforeFiveDigits('Tel Aviv 610000'), null);
+  assert.deepEqual(splitTrailingDigits('INV-0042'), { head: 'INV-', digits: '0042' });
 });
