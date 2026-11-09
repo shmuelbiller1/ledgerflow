@@ -8,19 +8,19 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 
 - **Preserve:** the 17 focusable regions are scroll regions except the keyboard grid, whose focus is intentional for its key handler. Removing `tabIndex` would break keyboard access. The 11 `| 0` findings implement 32-bit hash/PRNG wraparound, not merely truncation; `Math.trunc` is not equivalent. The migration already uses `IS NULL` and quoted camel-case PostgreSQL table names require quotes. The two test files register tests through `describeSaveFailures`; the test helper default object is newly created per call. The PostgreSQL passwords are credentials for ephemeral CI test services, not deployed secrets.
 
-- **Further review / lead-owned:** `moneyFormat.ts` and the mailer have potentially expensive regexes; changing the former risks money-input semantics and the latter is in the server lane. The payment operation-key fallback and SDK key fallback deserve a compatibility and collision review because they identify non-repeatable writes; do not mechanically replace them without testing supported browsers and Node 18. The server MD5 is used for a cache key, not authentication, but cache-collision risk and migration belong with the server owner. The 10 MB, one-file limit is a bounded authenticated upload, but suitability under concurrency needs an operational assessment. Remaining PDF-test, PATH, archived-script and diagnostic-ID findings need context-specific review; no claim is made that they are all defects.
+- **Further review / lead-owned:** `moneyFormat.ts` and the mailer have potentially expensive regexes; changing the former risks money-input semantics and the latter is in the server lane. The payment operation-key fallback and SDK key fallback deserve a compatibility and collision review because they identify non-repeatable writes; do not mechanically replace them without testing supported browsers and Node 18. The server MD5 is used for a cache key, not authentication, but cache-collision risk and migration belong with the server owner. The 10 MB, one-file limit is a bounded authenticated upload, but suitability under concurrency needs an operational assessment. The remaining PATH and parsing findings need context-specific review; the diagnostic-ID mitigation and server fallback limitations are detailed below.
 
 `IntentResolver.resolveEntry` already refuses lines longer than 500 characters, limiting individual regex inputs; this is mitigation, not a proof of linear runtime. Several other ID fallbacks use `crypto.randomUUID` when available; their legacy fallbacks remain to be assessed separately. The archived maintenance utilities are not CI paths (the llama probe has a CI regression test); the historical llama probe no longer installs packages or uses npx, and requires a preinstalled local package.
 
 ## Follow-up queue and review boundaries (9 November)
 
-All 103 report keys are listed exactly once: 24 fixed, 16 hardened, 38 preserved/reviewed, 12 lead review and 13 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
+All 103 report keys are listed exactly once: 31 fixed, 16 hardened, 38 preserved/reviewed, 12 lead review and 6 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
 
 1. **Financial/server owner — 12 lead-review entries:** investigate the money-input and mailer regexes with adversarial and behavior-preserving tests; review payment/SDK, petty cash, loans, journal, telemetry and database ID fallbacks in their runtime and write/idempotency contexts; assess the cache-key collision and upload concurrency risks. The owner boundary and earlier handoff in `docs/COORDINATION.md` remain in force.
 2. **Parsing — 4 further-review entries:** four intent-entry regexes have a 500-character *per-line* limit, but that does not prove linear runtime or bound the number of lines; preserve the fallback and financial parsing semantics if changed. The PDF test helper now scans content operators without retrying long malformed arrays; tests compare the previous grammar on 5,000 mixed streams and exercise a 200,000-character malformed input.
 
    **Diagnostic IDs — hardened, not fully resolved:** client references now use Web Crypto. If unavailable, telemetry is still sent with no client ID and adopts the server response when present; local diagnostics remain available even when no ID is returned. The server's existing non-cryptographic fallback remains a separate lead-owned finding and can still collide, so end-to-end collision resistance is not claimed.
-3. **Executable lookup — 9 further-review entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git` and `tar`; six archived fixers invoke `find`, `grep`, or `npx eslint` via a shell. These commands rely on a trusted PATH and, for the archived fixers, a trusted checkout; do not run them in an untrusted environment. The arguments are not evidence that an untrusted user can inject shell commands; removing PATH dependence requires a portable executable policy, not a hard-coded OS-specific path.
+3. **Executable lookup — 2 further-review entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git`. Both rely on a trusted PATH. Do not run them in an untrusted environment; removing PATH dependence requires a portable executable policy, not a hard-coded OS-specific path. The atlas no longer invokes `tar`: it materializes committed regular blobs directly for dependency resolution, inventories but does not follow symlinks or gitlinks, and no longer omits tracked `export-ignore` files. Six archived fixers no longer invoke shell commands found on PATH; they still modify files and must only be run in a trusted disposable checkout. The ESLint fixer invokes the checkout-local executable through the running Node binary, never downloads it, and still continues on lint failure.
 
 The archived llama probe's two original installation findings are fixed here: it does not install packages, use npx, or write a temporary source file. It only inspects an already installed `llamaindex`, and still relies on a trusted `node` in PATH. Its output depends on the installed package version.
 
@@ -63,7 +63,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB-2efMaWPlOl83e` | `javascript:S4036` | `scripts/code-atlas.mjs:22` | Further review |
 | `AaGKrB-2efMaWPlOl83f` | `javascript:S8786` | `scripts/code-atlas.mjs:77` | Fixed |
 | `AaGKrB-2efMaWPlOl83g` | `javascript:S8786` | `scripts/code-atlas.mjs:92` | Fixed |
-| `AaGKrB-2efMaWPlOl83j` | `javascript:S4036` | `scripts/code-atlas.mjs:271` | Further review |
+| `AaGKrB-2efMaWPlOl83j` | `javascript:S4036` | `scripts/code-atlas.mjs:271` | Fixed |
 | `AaGKrBx1efMaWPlOl8zt` | `typescript:S6845` | `src/components/reporting/CustomerTaxCertificatesView.tsx:61` | Preserve / reviewed |
 | `AaGKrB_BefMaWPlOl831` | `githubactions:S7631` | `.github/workflows/eslint-warning-ratchet.yml:29` | Hardened |
 | `AaGKrB_BefMaWPlOl832` | `githubactions:S6505` | `.github/workflows/eslint-warning-ratchet.yml:38` | Hardened |
@@ -122,12 +122,12 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrBwRefMaWPlOl8y_` | `typescript:S2245` | `src/lib/errorTracker.ts:115` | Hardened |
 | `AaGKrB2PefMaWPlOl81o` | `typescript:S2245` | `src/components/support/SupportView.tsx:118` | Fixed |
 | `AaGKrB-_efMaWPlOl83n` | `githubactions:S6505` | `.github/workflows/ci.yml:64` | Hardened |
-| `AaGKrB9uefMaWPlOl83R` | `javascript:S4036` | `archive/fix_eslint.cjs:4` | Further review |
-| `AaGKrB9xefMaWPlOl83T` | `javascript:S4036` | `archive/fix_aria.cjs:4` | Further review |
-| `AaGKrB9zefMaWPlOl83U` | `javascript:S4036` | `archive/fix_aria2.cjs:4` | Further review |
-| `AaGKrB9zefMaWPlOl83V` | `javascript:S4036` | `archive/fix_div_onclick.cjs:4` | Further review |
-| `AaGKrB9wefMaWPlOl83S` | `javascript:S4036` | `archive/fix_form_buttons.cjs:4` | Further review |
-| `AaGKrB90efMaWPlOl83W` | `javascript:S4036` | `archive/fix_imports2.cjs:4` | Further review |
+| `AaGKrB9uefMaWPlOl83R` | `javascript:S4036` | `archive/fix_eslint.cjs:4` | Fixed |
+| `AaGKrB9xefMaWPlOl83T` | `javascript:S4036` | `archive/fix_aria.cjs:4` | Fixed |
+| `AaGKrB9zefMaWPlOl83U` | `javascript:S4036` | `archive/fix_aria2.cjs:4` | Fixed |
+| `AaGKrB9zefMaWPlOl83V` | `javascript:S4036` | `archive/fix_div_onclick.cjs:4` | Fixed |
+| `AaGKrB9wefMaWPlOl83S` | `javascript:S4036` | `archive/fix_form_buttons.cjs:4` | Fixed |
+| `AaGKrB90efMaWPlOl83W` | `javascript:S4036` | `archive/fix_imports2.cjs:4` | Fixed |
 | `AaGKrB9qefMaWPlOl83P` | `shell:S6505` | `archive/test-llama-wait.sh:1` | Fixed |
 | `AaGKrB9qefMaWPlOl83Q` | `shell:S6505` | `archive/test-llama-wait.sh:7` | Fixed |
 | `AaGKrBqFefMaWPlOl8wN` | `typescript:S8786` | `src/lib/algorithms/nl-parser.ts:30` | Fixed |
