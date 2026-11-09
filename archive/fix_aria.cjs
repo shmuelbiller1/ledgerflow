@@ -1,7 +1,7 @@
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { regularFiles } = require('./file-discovery.cjs');
 
-const files = execSync('find src -type f -name "*.tsx"').toString().split('\n').filter(Boolean);
+const files = regularFiles('src').filter(file => file.endsWith('.tsx'));
 
 for (const file of files) {
   let content = fs.readFileSync(file, 'utf8');

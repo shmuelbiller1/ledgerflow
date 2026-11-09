@@ -1,7 +1,14 @@
 const fs = require('fs');
-const execSync = require('child_process').execSync;
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
-execSync('npx eslint src/ --fix || true');
+// Never let npx download and run a package. Require the checkout's local ESLint.
+const eslint = path.resolve('node_modules/eslint/bin/eslint.js');
+if (!fs.existsSync(eslint)) throw new Error('Install the locked dependencies before running this historical fixer');
+const lint = spawnSync(process.execPath, [eslint, 'src/', '--fix'], { stdio: 'inherit' });
+if (lint.error) throw lint.error;
+// The original fixer continued after a nonzero lint exit.
+
 
 function replaceFile(path, search, repl) {
   let c = fs.readFileSync(path, 'utf8');

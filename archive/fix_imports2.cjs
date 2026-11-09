@@ -1,7 +1,10 @@
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { regularFiles } = require('./file-discovery.cjs');
 
-const files = execSync('grep -rl "formatDecimal(" src/').toString().split('\n').filter(Boolean);
+const files = regularFiles('src').filter(file => {
+  const content = fs.readFileSync(file);
+  return !content.includes(0) && content.includes('formatDecimal(');
+});
 
 for (const file of files) {
   let content = fs.readFileSync(file, 'utf8');

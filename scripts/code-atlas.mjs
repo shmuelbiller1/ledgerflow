@@ -283,24 +283,33 @@ export function generate(root, rev, output = path.join(root, DEFAULT_INDEX), fre
   const extractorHash = digest(fs.readFileSync(SELF));
   let reused = 0;
   try {
-    execFileSync('tar', ['-xf', '-', '-C', snapshot], { input: git(root, ['archive', '--format=tar', pinned]), maxBuffer: MAX_BUFFER });
-    const modules = path.join(root, 'node_modules');
-    if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(snapshot, 'node_modules'), 'dir');
     const previous = new Map(old.files.map(f => [f.path, f]));
     const files = tree.map(t => {
       const prior = previous.get(t.path);
       const buffer = t.objectType === 'blob' ? git(root, ['cat-file', 'blob', t.blobSha]) : Buffer.alloc(0);
+      // Materialize regular Git blobs directly, without executing tar or following
+      // repository symlinks. The snapshot is used only for module resolution.
+      if (t.objectType === 'blob' && (t.mode === '100644' || t.mode === '100755')) {
+        const destination = path.resolve(snapshot, t.path);
+        if (!destination.startsWith(snapshot + path.sep)) throw new Error(`Unsafe snapshot path: ${t.path}`);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.writeFileSync(destination, buffer);
+      }
       let mechanical;
       if (!fresh && old.meta?.extractorHash === extractorHash && prior?.blobSha === t.blobSha) { mechanical = prior.mechanical; reused++; }
       else mechanical = extract(t.path, buffer);
       return { record: 'file', schema: SCHEMA, ...t, sourceRevision: pinned, mechanical, manual: prior?.manual || null };
     });
+    const modules = path.join(root, 'node_modules');
+    if (fs.existsSync(modules) && !fs.existsSync(path.join(snapshot, 'node_modules'))) {
+      fs.symlinkSync(modules, path.join(snapshot, 'node_modules'), 'dir');
+    }
     resolveModules(files, snapshot, compilerOptions(snapshot));
     const byPath = new Map(files.map(f => [f.path, f]));
     for (const f of files) f.manual = staleReview(f.manual, byPath);
     const workflows = old.workflows.map(w => ({ ...w, review: staleReview(w.review, byPath) }));
     const retired = [...(old.meta?.retiredAnnotations || []), ...old.files.filter(f => f.manual && !byPath.has(f.path)).map(f => ({ path: f.path, manual: f.manual, removedFromRevision: pinned }))];
-    const meta = { record: 'meta', schema: SCHEMA, sourceRevision: pinned, sourceTree: txt(root, ['rev-parse', `${pinned}^{tree}`]), sourceCommitDate: txt(root, ['show', '-s', '--format=%cI', pinned]), extractorHash, typescriptVersion: ts.version, moduleResolution: 'TypeScript resolveModuleName using snapshot tsconfig and locally installed lockfile dependencies; assets/globs separately labeled', inventoryCount: files.length, exclusions: ['Untracked/ignored working files and Git internals are not in the committed tree. No tracked paths excluded.', 'Binary assets: metadata only, no visual/decompilation review.', 'Gitlinks: inventory only, submodule contents not traversed.'], generatedArtifacts: [...ARTIFACTS], artifactSemantics: 'These files have entries for their blobs IN THE PINNED INPUT COMMIT, not the later generated output. A Git blob cannot contain its own output hash. Compare source changes separately from expected generated-artifact drift.', retiredAnnotations: retired };
+    const meta = { record: 'meta', schema: SCHEMA, sourceRevision: pinned, sourceTree: txt(root, ['rev-parse', `${pinned}^{tree}`]), sourceCommitDate: txt(root, ['show', '-s', '--format=%cI', pinned]), extractorHash, typescriptVersion: ts.version, moduleResolution: 'TypeScript resolveModuleName using snapshot tsconfig and locally installed lockfile dependencies; assets/globs separately labeled', inventoryCount: files.length, exclusions: ['Untracked/ignored working files and Git internals are not in the committed tree. No tracked paths excluded.', 'Binary assets: metadata only, no visual/decompilation review.', 'Gitlinks and symlinks: inventory only; submodules and symlink targets are not materialized for resolution.'], generatedArtifacts: [...ARTIFACTS], artifactSemantics: 'These files have entries for their blobs IN THE PINNED INPUT COMMIT, not the later generated output. A Git blob cannot contain its own output hash. Compare source changes separately from expected generated-artifact drift.', retiredAnnotations: retired };
     writeIndex(output, meta, files, workflows);
     return { ...statistics(readIndex(output)), mechanicalEntriesReused: reused, relationshipsReResolved: files.length };
   } finally { fs.rmSync(snapshot, { recursive: true, force: true }); }

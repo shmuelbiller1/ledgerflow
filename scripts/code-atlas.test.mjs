@@ -258,3 +258,34 @@ test('heading scanner matches the prior single-line grammar for short strings', 
     level = level.flatMap(text => ['#', ' ', '\t', 'a'].map(char => text + char));
   }
 });
+
+test('snapshot resolves committed files even when git archive would export-ignore them', () => fixture(({ root, output, write, commit }) => {
+  write('.gitattributes', 'src/money.ts export-ignore\n');
+  const rev = commit();
+  generate(root, rev, output);
+  const index = readIndex(output);
+  const edge = index.files.find(f => f.path === 'src/main.ts').dependencies.find(e => e.specifier === './money');
+  assert.equal(edge.target, 'src/money.ts');
+}));
+
+test('snapshot does not follow tracked symlinks or invoke tar from PATH', () => fixture(({ root, output, write, commit }) => {
+  write('src/link-user.ts', 'import { amount } from "./linked"; amount(1);');
+  fs.symlinkSync('money.ts', path.join(root, 'src/linked.ts'));
+  const rev = commit();
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-tar-path-'));
+  const marker = path.join(fakeBin, 'ran');
+  const oldPath = process.env.PATH;
+  try {
+    fs.writeFileSync(path.join(fakeBin, 'tar'), `#!/bin/sh\ntouch '${marker}'\nexit 99\n`, { mode: 0o755 });
+    process.env.PATH = `${fakeBin}${path.delimiter}${oldPath}`;
+    generate(root, rev, output);
+    const index = readIndex(output);
+    assert.equal(fs.existsSync(marker), false);
+    assert.equal(index.files.find(f => f.path === 'src/linked.ts').mode, '120000');
+    assert.ok(index.files.find(f => f.path === 'src/link-user.ts').unknownRelationships.some(e => e.specifier === './linked'));
+    assert.match(index.meta.exclusions.join(' '), /symlinks/);
+  } finally {
+    if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
+}));
