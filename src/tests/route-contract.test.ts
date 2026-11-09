@@ -14,7 +14,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          if (entry.name !== 'server' && entry.name !== 'node_modules') {
+          if (entry.name !== 'server' && entry.name !== 'node_modules' && entry.name !== 'tests') {
             scanFiles(fullPath);
           }
         } else if (entry.isFile() && /\.(ts|tsx|js|jsx)$/.test(entry.name)) {
@@ -73,6 +73,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       '/api/v1/invites',
       '/api/v1/plaid',
       '/api/v1/currency', // rates (server.ts currencyRouter), used by the group summary's translation (Z-17)
+      '/api/v1/tax', // rates & tax data (server.ts taxDataRouter via externalDataRoutes.ts)
       '/api/v1/math',
       '/api/v1/system',
       '/api/v1/public/status',

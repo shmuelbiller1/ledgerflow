@@ -14,7 +14,6 @@ import CustomerCreditLimitReportView from '../components/reporting/CustomerCredi
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { getSupabase } from '../lib/db/client';
 
 const customers = [
   { id: 'c1', name: 'Acme Ltd', metadata: { creditLimitCents: 100_000 }, workspaceId: 'w1' },
@@ -32,7 +31,7 @@ describe('Customer credit limits screen', () => {
     useDataNeedsStore.setState({ failed: {} as never });
     useLedgerStore.setState({ customers: customers as never, invoices: invoices as never, truncatedCollections: {} as never });
   });
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('the customer past the limit is first and a customer without one is never over', () => {
     render(<CustomerCreditLimitReportView />);

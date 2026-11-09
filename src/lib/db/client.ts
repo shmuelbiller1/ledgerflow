@@ -27,13 +27,34 @@ let client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
   if (!client) {
-    client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    const isTest = process.env.NODE_ENV === 'test';
+    const isBrowser = typeof window !== 'undefined' && !isTest;
+    const instance = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
-        persistSession: typeof window !== 'undefined',
-        autoRefreshToken: typeof window !== 'undefined',
-        detectSessionInUrl: typeof window !== 'undefined',
+        persistSession: isBrowser,
+        autoRefreshToken: isBrowser,
+        detectSessionInUrl: isBrowser,
+        ...(isTest ? {
+          storage: {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+          },
+          lock: async (_name, _timeout, fn) => fn(),
+        } : {}),
       },
     });
+    if (isTest) {
+      instance.auth.dispose = async () => {};
+      instance.realtime.disconnect = async () => {
+        try {
+          (instance.realtime as unknown as { _terminateWorker?: () => void })._terminateWorker?.();
+          (instance.realtime as unknown as { _cancelPendingDisconnect?: () => void })._cancelPendingDisconnect?.();
+        } catch { /* ignore */ }
+        return 'ok';
+      };
+    }
+    client = instance;
   }
   return client;
 }

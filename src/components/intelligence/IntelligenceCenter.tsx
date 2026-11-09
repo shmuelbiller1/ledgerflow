@@ -174,7 +174,7 @@ export default function AnalyticalCenter() {
               />
               <Search aria-hidden="true" size={12} className="absolute left-2.5 top-2.5 text-[var(--muted)]" />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1.5 text-[var(--muted)] hover:text-[var(--text)] font-mono text-[11px] px-1">
+                <button type="button" onClick={() => setSearchTerm('')} aria-label="Clear search" className="absolute right-2 top-1.5 text-[var(--muted)] hover:text-[var(--text)] font-mono text-[11px] px-1">
                   ×
                 </button>
               )}

@@ -10,10 +10,9 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { StockClosingPanel } from '../components/reporting/StockClosingPanel';
 import { stubFetchWithBodies } from './helpers/dom';
-import { getSupabase } from '../lib/db/client';
 
 const realFetch = globalThis.fetch;
-afterEach(async () => { cleanup(); globalThis.fetch = realFetch; getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+afterEach(() => { cleanup(); globalThis.fetch = realFetch; });
 
 test('EG-7 panel: the closing of 2026-03-31 (15 widgets, 225.00, difference 0) and the three checks', async () => {
   const calls = stubFetchWithBodies(200, {

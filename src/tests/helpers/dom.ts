@@ -7,6 +7,28 @@
  * there is no document — while `render` goes on working, which makes it look like something else.
  */
 import 'global-jsdom/register';
+import { GoTrueClient } from '@supabase/auth-js';
+import { RealtimeClient } from '@supabase/realtime-js';
+
+GoTrueClient.prototype.dispose = async function() {};
+RealtimeClient.prototype.disconnect = async function() {
+  try {
+    (this as unknown as { _terminateWorker?: () => void })._terminateWorker?.();
+  } catch { /* ignore */ }
+  return 'ok';
+};
+
+// Node.js BroadcastChannel creates MessagePort handles that keep the event loop alive in test runner.
+if (typeof globalThis.BroadcastChannel === 'function') {
+  const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+  class UnrefBroadcastChannel extends OriginalBroadcastChannel {
+    constructor(name: string) {
+      super(name);
+      (this as unknown as { unref?: () => void }).unref?.();
+    }
+  }
+  (globalThis as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel = UnrefBroadcastChannel as unknown as typeof BroadcastChannel;
+}
 
 // jsdom has no layout; motion and some widgets ask for these
 if (!window.matchMedia) {
@@ -17,6 +39,15 @@ if (!window.matchMedia) {
 }
 if (!('ResizeObserver' in window)) {
   (window as unknown as { ResizeObserver: unknown }).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+}
+// Prevent JSDOM from throwing "Not implemented: navigation" on anchor download clicks
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.tagName === 'A' || target?.closest?.('a')) {
+      e.preventDefault();
+    }
+  }, true);
 }
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
