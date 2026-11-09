@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { byCodeUnit } from '../lib/codeUnitOrder';
+import { maskEmails } from '../lib/textShape';
 
 export class SecurityService {
   private static deterministicStringify(obj: unknown): string {
@@ -53,13 +54,13 @@ export class SecurityService {
    */
   static scrubPII(text: string): string {
     if (!text) return "";
-    return text
+    const beforeEmails = text
       // Secret API keys (LedgerFlow, Stripe, Google AI/Gemini)
       .replace(/\b(lf_live_[a-zA-Z0-9_-]+|lf_test_[a-zA-Z0-9_-]+|sk_live_[a-zA-Z0-9_-]+|sk_test_[a-zA-Z0-9_-]+|AIza[a-zA-Z0-9_-]{30,45})\b/g, "[SECRET_KEY_REDACTED]")
       // Credit card numbers (formatted or contiguous 13-16 digits)
-      .replace(/\b(?:\d{4}[ -]?){3}\d{1,4}\b|\b\d{13,16}\b/g, "[CREDIT_CARD_REDACTED]")
-      // Emails
-      .replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, "[EMAIL_REDACTED]")
+      .replace(/\b(?:\d{4}[ -]?){3}\d{1,4}\b|\b\d{13,16}\b/g, "[CREDIT_CARD_REDACTED]");
+    // Emails, in one pass (Sonar S8786)
+    return maskEmails(beforeEmails, "[EMAIL_REDACTED]")
       // Formatted SSNs (e.g. 123-45-6789) or explicitly labeled SSN
       .replace(/\b\d{3}-\d{2}-\d{4}\b|\b(?:ssn|social security)[\s#:]*(\d{9})\b/gi, "[SSN_REDACTED]")
       // Formatted phone numbers (e.g. (123) 456-7890, +1 123-456-7890, 123.456.7890)

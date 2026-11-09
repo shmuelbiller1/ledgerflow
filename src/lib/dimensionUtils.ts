@@ -536,7 +536,8 @@ export function extractMultiDimensionalLabels(
   if (!text) return { dimensions, tags: Array.from(tagSet), deepPaths };
 
   // 1. Match bracketed dimensions: [Key:Value] or [Key:Value/SubValue]
-  const bracketRegex = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]\s*([^\]]+)\]/gu;
+  // the value's leading spaces are trimmed below, so no \s* before it (Sonar S8786)
+  const bracketRegex = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]([^\]]+)\]/gu;
   let bMatch;
   while ((bMatch = bracketRegex.exec(text)) !== null) {
     const dimKey = bMatch[1].normalize('NFC').toLowerCase().trim();

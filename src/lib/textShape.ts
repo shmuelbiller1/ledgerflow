@@ -219,3 +219,31 @@ export function headBeforeUsCountry(line: string): string | null {
   }
   return null;
 }
+
+const EMAIL_LOCAL = (c: string | undefined) => c !== undefined && /[a-zA-Z0-9_.+-]/.test(c);
+const EMAIL_LABEL = (c: string | undefined) => c !== undefined && /[a-zA-Z0-9-]/.test(c);
+
+/** `text` with every email address replaced by `mask`, scanning once. Same as
+ * text.replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, mask). */
+export function maskEmails(text: string, mask: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (!EMAIL_LOCAL(text[i])) { out += text[i]; i++; continue; }
+    let at = i;
+    while (EMAIL_LOCAL(text[at])) at++;
+    let ok = false;
+    let end = at;
+    if (text[at] === '@') {
+      let d = at + 1;
+      while (EMAIL_LABEL(text[d])) d++;
+      if (d > at + 1 && text[d] === '.') {
+        let e = d + 1;
+        while (EMAIL_LABEL(text[e]) || text[e] === '.') e++;
+        if (e > d + 1) { ok = true; end = e; }
+      }
+    }
+    if (ok) { out += mask; i = end; } else { out += text.slice(i, at); i = at; }
+  }
+  return out;
+}
