@@ -10,7 +10,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { israelVatReturn, type IlVatDocument, type IlVatReturn } from '../../lib/tax/ilVatReturn';
 import { withEquipment } from '../../lib/tax/ilVatEquipment';
 import { ilVatRegistrations } from '../../lib/israelMonthJourney';
-import { IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows } from '../../lib/tax/ilVatReportCsv';
+import { IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';

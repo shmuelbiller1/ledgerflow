@@ -1,4 +1,4 @@
-import type { IlVatReturn } from './ilVatReturn';
+import type { IlVatReturn } from './tax/ilVatReturn';
 
 export const IL_VAT_REPORT_CSV_HEADERS = [
   'Code',

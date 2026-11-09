@@ -9,7 +9,7 @@ import IsraelVatReportView, {
 import {
   IL_VAT_REPORT_CSV_HEADERS,
   ilVatReportCsvRows,
-} from '../lib/tax/ilVatReportCsv';
+} from '../lib/ilVatReportCsv';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { makeChartAccount } from './fixtures';
