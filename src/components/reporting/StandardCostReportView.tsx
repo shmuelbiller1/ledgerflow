@@ -12,7 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { downloadCsv } from '../../lib/csvExport';
+import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { formatCurrency } from '../../lib/utils';
 import { formatVariancePct, standardCostReport } from '../../lib/standardCost';
 import type { InventoryItem } from '../../types';
@@ -71,11 +71,11 @@ export default function StandardCostReportView() {
                     r.itemName,
                     item?.sku || '',
                     r.quantity,
-                    formatCurrency(r.standardCostCents, currency),
-                    formatCurrency(r.actualUnitCostCents, currency),
-                    formatCurrency(r.varianceUnitCents, currency),
+                    csvMoney(r.standardCostCents),
+                    csvMoney(r.actualUnitCostCents),
+                    csvMoney(r.varianceUnitCents),
                     formatVariancePct(r.variancePct),
-                    formatCurrency(r.varianceValueCents, currency),
+                    csvMoney(r.varianceValueCents),
                   ];
                 }),
               )
