@@ -9,6 +9,7 @@
  */
 import { bankStatementDate } from './bankStatementDate';
 import type { ParsedBankLine } from './mt940Parser';
+import { firstAmtElement } from './textShape';
 
 const SIZE_LIMIT = 5_000_000;
 const MAX_ENTRIES = 50_000;
@@ -117,13 +118,13 @@ export function parseCamt053Import(xmlSource: string, expectedCurrency: string):
 
     // Read the entry-level amount only, never a nested TxDtls amount.
     const envelope = entry.split(/<NtryDtls(?:\s[^<>]*)?>/i)[0];
-    const money = /<Amt\b([^<>]*)>\s*([^<]+)<\/Amt\s*>/i.exec(envelope);
+    const money = firstAmtElement(envelope);
     if (!money) fail('Entry ' + item + ' has no entry-level amount.');
-    const currency = /\bCcy\s*=\s*["']([A-Z]{3})["']/i.exec(money[1])?.[1];
+    const currency = /\bCcy\s*=\s*["']([A-Z]{3})["']/i.exec(money.attributes)?.[1];
     if (!currency) fail('Entry ' + item + ' has no currency.');
     if (currency !== expectedCurrency.toUpperCase())
       fail('Entry ' + item + ' currency ' + currency + ' differs from workspace currency.');
-    const cents = amount(decode(money[2].trim()), item);
+    const cents = amount(decode(money.value.trim()), item);
     const indicator = field(entry, 'CdtDbtInd');
     if (indicator !== 'CRDT' && indicator !== 'DBIT')
       fail('Entry ' + item + ' needs a CRDT or DBIT direction.');
