@@ -66,6 +66,33 @@ describe('aging screens', () => {
     useLedgerStore.setState({ truncatedCollections: {} });
   });
 
+  test('A-270: a row is reachable from the keyboard, opens its detail with Enter, and gets focus back when the drawer closes', async () => {
+    render(<ARAgingReportView />);
+    // the row itself is in the tab order and carries its own name
+    const row = screen.getByRole('row', { name: 'Open the customer aging detail for Acme' });
+    assert.equal(row.getAttribute('tabindex'), '0');
+    row.focus();
+    assert.equal(document.activeElement, row);
+    // Enter on the row opens the drawer, which takes focus
+    fireEvent.keyDown(row, { key: 'Enter' });
+    const dialog = screen.getByRole('dialog', { name: /Acme/ });
+    assert.ok(dialog.contains(document.activeElement) || document.activeElement === dialog, 'focus moved into the drawer');
+    // a drawer on the row is not reopened when Space is pressed on its own arrow's parent
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    assert.equal(screen.queryByRole('dialog', { name: /Acme/ }), null);
+    // the row that opened it has focus back (the drawer never unmounts the row)
+    await new Promise(resolve => setTimeout(resolve, 40));
+    assert.equal(document.activeElement, row, 'focus returned to the row that opened the drawer');
+    // and the arrow control returns focus to itself
+    const arrow = screen.getByRole('button', { name: 'Open Bob' });
+    arrow.focus();
+    fireEvent.click(arrow);
+    assert.ok(screen.getByRole('dialog', { name: /Bob/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Aging Schedule' }));
+    await new Promise(resolve => setTimeout(resolve, 40));
+    assert.equal(document.activeElement, arrow, 'focus returned to the arrow that opened the drawer');
+  });
+
   test('A/P: bills the same way', () => {
     render(<APAgingReportView />);
     const [power] = bodyRows(/Payables aging/);
