@@ -12,7 +12,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { downloadCsv } from '../../lib/csvExport';
+import { paymentMethodCsvAmount as csvAmount } from '../../lib/paymentMethodCsvAmount';
 import { formatCurrency } from '../../lib/utils';
 import { formatVariancePct, standardCostReport } from '../../lib/standardCost';
 import type { InventoryItem } from '../../types';
@@ -61,6 +62,8 @@ export default function StandardCostReportView() {
           <button
             type="button"
             data-print-hide
+            disabled={loading || partial}
+            title={loading || partial ? 'Wait until every item is loaded; a partial list is not exported.' : undefined}
             onClick={() =>
               downloadCsv(
                 'standard-cost-variance',
@@ -71,11 +74,11 @@ export default function StandardCostReportView() {
                     r.itemName,
                     item?.sku || '',
                     r.quantity,
-                    csvMoney(r.standardCostCents),
-                    csvMoney(r.actualUnitCostCents),
-                    csvMoney(r.varianceUnitCents),
+                    csvAmount(r.standardCostCents, currency),
+                    csvAmount(r.actualUnitCostCents, currency),
+                    csvAmount(r.varianceUnitCents, currency),
                     formatVariancePct(r.variancePct),
-                    csvMoney(r.varianceValueCents),
+                    csvAmount(r.varianceValueCents, currency),
                   ];
                 }),
               )

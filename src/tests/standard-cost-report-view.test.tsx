@@ -160,4 +160,28 @@ describe('Standard cost variance report screen', () => {
     assert.ok(notice);
     assert.match(notice.textContent || '', /1 item has no standard cost/);
   });
+
+  test('CSV amounts use the workspace currency decimals (JPY has none)', async () => {
+    useAuthStore.setState({ workspaces: [{ id: 'w1', name: 'Test Business', currency: 'JPY' }] as never });
+    const parts: string[] = [];
+    const g = globalThis as unknown as { Blob: typeof Blob; URL: typeof URL };
+    const RealBlob = g.Blob;
+    g.Blob = class extends RealBlob { constructor(p: BlobPart[], o?: BlobPropertyBag) { super(p, o); parts.push(String(p[0])); } } as typeof Blob;
+    const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
+    URL.createObjectURL = () => 'blob:x'; URL.revokeObjectURL = () => {};
+    try {
+      render(<StandardCostReportView />);
+      fireEvent.click(await screen.findByRole('button', { name: /Download CSV/i }));
+      const widget = parts.join('').split('\r\n').find(l => l.includes('Standard Widget')) || '';
+      assert.match(widget, /"1000","1200","200"/, widget);
+      assert.ok(!widget.includes('10.00'), widget);
+    } finally { g.Blob = RealBlob; URL.createObjectURL = create; URL.revokeObjectURL = revoke; }
+  });
+
+  test('a partial inventory list cannot be downloaded as if it were complete', async () => {
+    useLedgerStore.setState({ truncatedCollections: { inventory: true } as never });
+    render(<StandardCostReportView />);
+    const button = await screen.findByRole('button', { name: /Download CSV/i });
+    assert.equal((button as HTMLButtonElement).disabled, true);
+  });
 });
