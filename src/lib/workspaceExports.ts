@@ -80,7 +80,7 @@ export { IL_VAT_SPECIAL_AREAS, ilVatAreaRow, isIlZeroArea, ilVatRateTable } from
  */
 export { suggestTaxCode, unusualTaxCode } from './tax/taxSuggestions';
 /**
- * PLAN IL-3: Israel's VAT report figures per registration. Reachable here until AI #2's C-40 screen uses them.
+ * PLAN IL-3: Israel's VAT report figures per registration (consumed by AI #2's C-40 IsraelVatReportView).
  */
 export { israelVatReturn } from './tax/ilVatReturn';
 /**
