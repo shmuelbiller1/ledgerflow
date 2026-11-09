@@ -148,14 +148,14 @@ for (const width of [390, 1280]) {
       // The server allows only POLICY.members; the screen must allow exactly those and explain
       // the refusal to everybody else.
       const guard = page.locator('[title="Only the workspace owner can invite new members"]');
-      const editInvite = page.getByRole('button', { name: 'Edit Invite team member email' });
+      const editInvite = page.getByRole('textbox', { name: 'Invite team member email' });
 
       if (canManageMembers) {
         await expect(guard).toHaveCount(0);
         await expect(editInvite).toBeEnabled();
         // and it really works: the invite field opens for typing
-        await editInvite.click();
-        await expect(page.getByRole('textbox', { name: 'Invite team member email' })).toBeVisible();
+        await editInvite.fill('person@example.test');
+        await expect(page.getByRole('button', { name: 'Send invite' })).toBeEnabled();
       } else {
         // the guarded control is inert: not clickable, not focusable, not pressable with a key
         await expect(guard, `the invite form is guarded for ${role}`).toHaveCount(1);
