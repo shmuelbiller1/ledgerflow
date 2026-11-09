@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 
 function strings(alphabet: string[], maxLength: number): string[] {
   let level = [''];
@@ -20,7 +21,7 @@ const pairs: Array<[string, RegExp, RegExp, string[], number]> = [
 describe('S8786 batch h: rewritten patterns replace exactly what the old ones did', () => {
   for (const [name, oldRe, newRe, alphabet, max] of pairs) {
     it(name, () => {
-      for (const s of strings(alphabet, max)) expect(s.replace(newRe, '|'), JSON.stringify(s)).toBe(s.replace(oldRe, '|'));
+      for (const s of strings(alphabet, max)) assert.equal(s.replace(newRe, '|'), s.replace(oldRe, '|'), JSON.stringify(s));
     });
   }
 });
