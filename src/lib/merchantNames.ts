@@ -55,6 +55,21 @@ function titleCase(word: string, i: number): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
+/** Where s.replace(/\s{2,}.*$/, …) would match: the first run of 2+ whitespace characters after
+ * which no line break remains, or -1. One pass instead of a rescan from every space (Sonar S8786). */
+export function wideGapStart(s: string): number {
+  let lastBreak = -1;
+  for (let i = 0; i < s.length; i++) if (/[\n\r\u2028\u2029]/.test(s[i])) lastBreak = i;
+  for (let a = 0; a < s.length; a++) {
+    if (!/\s/.test(s[a])) continue;
+    let b = a;
+    while (b < s.length && /\s/.test(s[b])) b++;
+    if (b - a >= 2 && b > lastBreak) return a;
+    a = b;
+  }
+  return -1;
+}
+
 /** A readable name for a bank line's text, or the text itself when nothing better can be said. */
 export function cleanMerchantName(raw: string): string {
   const text = String(raw || '').trim();
@@ -67,7 +82,8 @@ export function cleanMerchantName(raw: string): string {
   let s = text;
   for (let before = ''; before !== s;) { before = s; s = s.replace(PREFIX, ''); } // "POS PURCHASE …"
 
-  s = s.replace(/\s{2,}.*$/, m => (/\b[A-Z]{2}\s*$/.test(m) ? '' : m)); // "NAME      CITY ST" → "NAME"
+  const gap = wideGapStart(s); // "NAME      CITY ST" → "NAME"
+  if (gap !== -1 && /\b[A-Z]{2}\s*$/.test(s.slice(gap))) s = s.slice(0, gap);
   for (const n of NOISE) s = s.replace(n, ' ');
   s = s.replace(/[*_|]+/g, ' ').replace(/\s+/g, ' ').trim();
   // "JOES COFFEE SEATTLE WA": drop a trailing two-letter state (and the city before it only when the name has 3+ words)

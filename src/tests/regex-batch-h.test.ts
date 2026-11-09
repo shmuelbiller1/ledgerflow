@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { wideGapStart } from '../lib/merchantNames';
 
 function strings(alphabet: string[], maxLength: number): string[] {
   let level = [''];
@@ -24,4 +25,13 @@ describe('S8786 batch h: rewritten patterns replace exactly what the old ones di
       for (const s of strings(alphabet, max)) assert.equal(s.replace(newRe, '|'), s.replace(oldRe, '|'), JSON.stringify(s));
     });
   }
+});
+
+describe('wideGapStart', () => {
+  it('finds where /\\s{2,}.*$/ matches', () => {
+    for (const s of strings([' ', 'a', '\n', '\t', '\u00a0'], 7)) {
+      const m = /\s{2,}.*$/.exec(s);
+      assert.equal(wideGapStart(s), m ? m.index : -1, JSON.stringify(s));
+    }
+  });
 });
