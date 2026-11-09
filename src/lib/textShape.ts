@@ -133,16 +133,8 @@ export function splitLeadingCode(text: string): { code: string; rest: string } |
   if (!(text[0] >= '0' && text[0] <= '9')) return null;
   let j = 1;
   while (j < text.length && word(text[j])) j++;
-  let k = j;
-  while (k < text.length && /\s/.test(text[k])) k++;
-  if (k === j) return null;
-  let p = k;
-  if (k === text.length) {
-    // only whitespace follows: the whitespace gives back its last character as the rest, unless that is a line break
-    if (k - j < 2 || LINE_BREAK.test(text[k - 1])) return null;
-    p = k - 1;
-  } else if (LINE_BREAK.test(text.slice(k))) return null;
-  return { code: text.slice(0, j), rest: text.slice(p) };
+  const rest = restAfterWhitespace(text, j);
+  return rest === null ? null : { code: text.slice(0, j), rest };
 }
 
 /** A typed amount: optional surrounding whitespace, an optional '-', digits, and an optional '.' with digits.
@@ -156,4 +148,74 @@ export function splitTypedAmount(text: string): { sign: string; whole: string; f
   const fraction = point === -1 ? undefined : body.slice(point + 1);
   const digits = (s: string) => [...s].every(c => c >= '0' && c <= '9');
   return digits(whole) && (fraction === undefined || digits(fraction)) ? { sign, whole, fraction } : null;
+}
+
+
+/** What /\s+(.+)$/ captures when matched at index `from` of `text` (whitespace, then the rest on that line), or null.
+ * When only whitespace follows, the whitespace gives back its last character as the rest, unless that is a line
+ * break. */
+export function restAfterWhitespace(text: string, from: number): string | null {
+  let k = from;
+  while (k < text.length && /\s/.test(text[k])) k++;
+  if (k === from) return null;
+  if (k === text.length) {
+    if (k - from < 2 || LINE_BREAK.test(text[k - 1])) return null;
+    return text.slice(k - 1);
+  }
+  const rest = text.slice(k);
+  return LINE_BREAK.test(rest) ? null : rest;
+}
+
+/** "show maui repairs" → "maui repairs": the rest after one of `words` (any case) and whitespace. Same as
+ * text.match(/^(?:word1|word2…)\s+(.+)$/i)?.[1], for words none of which begins another. */
+export function restAfterCommandWord(text: string, words: readonly string[]): string | null {
+  const lower = text.toLowerCase();
+  const word = words.find(w => lower.startsWith(w));
+  return word === undefined ? null : restAfterWhitespace(text, word.length);
+}
+
+/** The first number, with up to two decimals: "spent $12.345" → "12.34". Same as
+ * text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/)?.[1]. */
+export function firstAmountText(text: string): string | undefined {
+  const digit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
+  let i = 0;
+  while (i < text.length && !digit(text[i])) i++;
+  if (i === text.length) return undefined;
+  let j = i;
+  while (digit(text[j])) j++;
+  if (text[j] === '.' && digit(text[j + 1])) j += digit(text[j + 2]) ? 3 : 2;
+  return text.slice(i, j);
+}
+
+/** The count before a word: "2 kids" → "2". Same as text.match(/(\d+)\s*(word1|word2…)/)?.[1] (case-sensitive). */
+export function countBeforeWord(text: string, words: readonly string[]): string | undefined {
+  const digit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
+  for (let i = 0; i < text.length; i++) {
+    if (!digit(text[i]) || digit(text[i - 1])) continue;
+    let j = i;
+    while (digit(text[j])) j++;
+    let k = j;
+    while (k < text.length && /\s/.test(text[k])) k++;
+    if (words.some(w => text.startsWith(w, k))) return text.slice(i, j);
+  }
+  return undefined;
+}
+
+const US_COUNTRY = ['UNITED STATES OF AMERICA', 'UNITED STATES', 'U.S.A.', 'U.S.A', 'USA', 'US'];
+
+/** A last address line without a trailing United States: "Austin, TX 78701, USA" → "Austin, TX 78701". Same as
+ * line.match(/^(.*?)(?:,\s*|\s+)(US|USA|U\.S\.A\.?|UNITED STATES(?: OF AMERICA)?)$/i)?.[1], or null. */
+export function headBeforeUsCountry(line: string): string | null {
+  const asciiUpper = (t: string) => t.replace(/[a-z]/g, c => c.toUpperCase());
+  for (const country of US_COUNTRY) {
+    if (line.length < country.length || asciiUpper(line.slice(line.length - country.length)) !== country) continue;
+    let end = line.length - country.length;
+    const wsEnd = end;
+    while (end > 0 && /\s/.test(line[end - 1])) end--;
+    if (end > 0 && line[end - 1] === ',') end--;
+    else if (end === wsEnd) continue;
+    const head = line.slice(0, end);
+    if (!LINE_BREAK.test(head)) return head;
+  }
+  return null;
 }

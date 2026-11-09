@@ -7,6 +7,7 @@ import { Transaction, Project, ChartAccount, AnalyticalMetrics } from "../types"
 import { IntentResolver } from "../lib/intentResolver";
 import { getIdToken } from "../firebase";
 import { useAuthStore } from "../stores/useAuthStore";
+import { countBeforeWord } from '../lib/textShape';
 
 export interface StrategicDirectives {
   directives: string[];
@@ -194,9 +195,9 @@ class AIService {
       }
 
       let dependentsCount = 0;
-      const match = text.match(/(\d+)\s*(kids|child|children|dependents)/);
-      if (match) {
-        dependentsCount = Number.parseInt(match[1], 10);
+      const count = countBeforeWord(text, ['kids', 'child', 'children', 'dependents']);
+      if (count !== undefined) {
+        dependentsCount = Number.parseInt(count, 10);
       } else if (text.includes('child') || text.includes('kid')) {
         dependentsCount = 1;
         if (text.includes('kids') || text.includes('children')) dependentsCount = 2;

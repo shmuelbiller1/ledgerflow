@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
+import { countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -107,4 +107,33 @@ test('a scheduled-report recipient that is not a string is refused, not thrown o
   const base = { report, frequency: 'monthly' } as never as Record<string, unknown>;
   assert.equal(scheduleProblem({ ...base, recipients: ['a@b.co'] } as never), null);
   assert.equal(scheduleProblem({ ...base, recipients: [123 as unknown as string] } as never), '"123" is not an email address');
+});
+
+test('restAfterCommandWord, firstAmountText, countBeforeWord and headBeforeUsCountry match the old patterns', () => {
+  const OLD_QUERY = /^(?:show|find|query|report)\s+(.+)$/i;
+  const OLD_AMOUNT = /\$?\s*(\d+(?:\.\d{1,2})?)/;
+  const OLD_COUNT = /(\d+)\s*(kids|child|children|dependents)/;
+  const OLD_US = /^(.*?)(?:,\s*|\s+)(US|USA|U\.S\.A\.?|UNITED STATES(?: OF AMERICA)?)$/i;
+  for (const s of strings(['a', ' ', '\n', 'x'], 5)) {
+    for (const head of ['show', 'Find', 'QUERY', 'report', 'shows']) {
+      const t = head + s;
+      assert.equal(restAfterCommandWord(t, ['show', 'find', 'query', 'report']), t.match(OLD_QUERY)?.[1] ?? null, JSON.stringify(t));
+    }
+  }
+  for (const s of strings(['1', '.', '$', ' ', 'a'], 6)) assert.equal(firstAmountText(s), s.match(OLD_AMOUNT)?.[1], JSON.stringify(s));
+  for (const s of strings(['1', ' ', 'k', 'x'], 5)) {
+    for (const word of ['kids', 'child', 'children', 'dependents', 'Kids']) {
+      const t = s + word;
+      assert.equal(countBeforeWord(t, ['kids', 'child', 'children', 'dependents']), t.match(OLD_COUNT)?.[1], JSON.stringify(t));
+    }
+  }
+  for (const s of strings(['a', ' ', ',', '\n'], 5)) {
+    for (const country of ['US', 'usa', 'U.S.A.', 'U.S.A', 'United States', 'UNITED STATES OF AMERICA', 'XUS']) {
+      const t = s + country;
+      assert.equal(headBeforeUsCountry(t), t.match(OLD_US)?.[1] ?? null, JSON.stringify(t));
+    }
+  }
+  assert.equal(headBeforeUsCountry('Austin, TX 78701, USA'), 'Austin, TX 78701');
+  assert.equal(firstAmountText('spent $12.345 on fuel'), '12.34');
+  assert.equal(countBeforeWord('we have 3 children', ['kids', 'child', 'children', 'dependents']), '3');
 });
