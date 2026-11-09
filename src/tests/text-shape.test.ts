@@ -102,7 +102,9 @@ test('firstTwoPlaceAmount, splitLeadingCode and splitTypedAmount match the old p
 });
 
 test('a scheduled-report recipient that is not a string is refused, not thrown on', async () => {
-  const { scheduleProblem } = await import('../lib/scheduledReports');
-  const problem = scheduleProblem({ recipients: [123 as unknown as string] } as never);
-  assert.equal(typeof problem, 'string');
+  const { scheduleProblem, SCHEDULED_REPORTS } = await import('../lib/scheduledReports');
+  const report = Object.keys(SCHEDULED_REPORTS)[0];
+  const base = { report, frequency: 'monthly' } as never as Record<string, unknown>;
+  assert.equal(scheduleProblem({ ...base, recipients: ['a@b.co'] } as never), null);
+  assert.equal(scheduleProblem({ ...base, recipients: [123 as unknown as string] } as never), '"123" is not an email address');
 });
