@@ -31,7 +31,7 @@ test.describe('Transaction list', () => {
     await openAllTransactions(page);
     await expect(page.locator('[data-testid="tx-amount"]')).toHaveCount(2);
     expect((await page.getByTestId('tx-header').boundingBox())!.height).toBeLessThan(70);
-    await expect(page.getByText('Consensus Balanced')).toBeVisible();
+    await expect(page.getByText('Balanced', { exact: true })).toBeVisible();
   });
 
   test('the search is in the address and a shared link opens it (I-17)', async ({ page }) => {

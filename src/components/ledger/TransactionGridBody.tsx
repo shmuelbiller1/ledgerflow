@@ -32,7 +32,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
    if (focusedIndex < 0) return;
    listRef.current?.scrollToItem(focusedIndex, 'smart');
  }, [focusedIndex, editingId, viewMode]);
- return (<div className="flex-1 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
+ return (<div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
         {viewMode === 'grid' ? (
           <TransactionGridKeyboardRegion
             className="min-w-0"
@@ -444,18 +444,18 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                 </div>
               )}
             </TransactionColumnGrid>
-            <div className="px-4 md:px-8 py-4 lg:py-0 bg-[#090A0C] border-t border-white/5 flex flex-col md:flex-row md:items-center justify-between text-white/40 overflow-hidden relative gap-4">
+            <div className="px-4 py-1 bg-[#090A0C] border-t border-white/5 flex flex-col md:flex-row md:items-center min-h-0 justify-between text-white/40 overflow-hidden relative gap-4">
               <div className="absolute inset-0 technical-grid opacity-[0.03] pointer-events-none" />
-              <div className="flex flex-wrap items-center gap-4 lg:gap-10 relative z-10 w-full overflow-x-auto no-scrollbar pb-2 md:pb-0">
-                 <div className="flex flex-col whitespace-nowrap">
-                   <p className="text-[9px] font-medium uppercase tracking-wider truncate mb-1 text-white/70">Dataset Depth</p>
-                   <p className="text-lg font-black italic text-white/80">{transactionsWithBalance.length} Nodes</p>
+              <div className="flex flex-wrap items-center gap-4 lg:gap-6 relative z-10 w-full overflow-x-auto no-scrollbar ">
+                 <div className="flex items-baseline gap-2 whitespace-nowrap">
+                   <p className="text-[9px] font-medium uppercase tracking-wider truncate text-white/70">Entries</p>
+                   <p className="text-sm font-bold text-white/80">{transactionsWithBalance.length}</p>
                  </div>
-                 <div className="hidden sm:block w-px h-10 bg-[var(--surface)]/10" />
-                 <div className="flex flex-col whitespace-nowrap">
-                   <p className="text-[9px] font-medium uppercase tracking-wider truncate mb-1 text-white/70">Equilibrium</p>
+                 <div className="hidden sm:block w-px h-4 bg-[var(--surface)]/10" />
+                 <div className="flex items-baseline gap-2 whitespace-nowrap">
+                   <p className="text-[9px] font-medium uppercase tracking-wider truncate text-white/70">Out of balance</p>
                    <p className={cn(
-                     "text-xl font-black font-mono tracking-tighter",
+                     "text-sm font-bold font-mono tracking-tighter",
                      totalBalancedSum === 0
                        ? "text-emerald-400"
                        : "text-rose-400"
@@ -465,17 +465,17 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                  </div>
                  {selectedIds.size > 0 && (
                    <>
-                     <div className="hidden sm:block w-px h-10 bg-[var(--surface)]/10" />
-                     <div className="flex items-center gap-4 lg:gap-10">
-                        <div className="flex flex-col text-emerald-400 whitespace-nowrap">
-                          <p className="text-[9px] font-medium uppercase tracking-wider truncate mb-1 text-white/70">Sum ({selectedIds.size})</p>
-                          <p className="text-xl font-black font-mono tracking-tighter tabular-nums">
+                     <div className="hidden sm:block w-px h-4 bg-[var(--surface)]/10" />
+                     <div className="flex items-center gap-4 lg:gap-6">
+                        <div className="flex items-baseline gap-2 text-emerald-400 whitespace-nowrap">
+                          <p className="text-[9px] font-medium uppercase tracking-wider truncate text-white/70">Sum ({selectedIds.size})</p>
+                          <p className="text-sm font-bold font-mono tracking-tighter tabular-nums">
                             {formatCurrency(selectedMetricsResult.sum)}
                           </p>
                         </div>
-                        <div className="flex flex-col text-white/60 whitespace-nowrap">
-                          <p className="text-[9px] font-medium uppercase tracking-wider truncate mb-1 text-white/70">Mean Vector</p>
-                          <p className="text-xl font-black font-mono tracking-tighter uppercase tabular-nums">
+                        <div className="flex items-baseline gap-2 text-white/60 whitespace-nowrap">
+                          <p className="text-[9px] font-medium uppercase tracking-wider truncate text-white/70">Average</p>
+                          <p className="text-sm font-bold font-mono tracking-tighter uppercase tabular-nums">
                             {formatCurrency(selectedMetricsResult.mean)}
                           </p>
                         </div>
@@ -507,14 +507,14 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                     )} />
                     <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80">
                       {totalBalancedSum === 0
-                        ? "Consensus Balanced"
-                        : "Ledger Imbalance Detected"}
+                        ? "Balanced"
+                        : "Not balanced"}
                     </span>
                  </div>
               </div>
             </div>
-            {/* a floor for the list: without it the sections above could leave it 0 px high (no rows) */}
-            <div className="flex-1 min-h-[60vh]">
+            {/* the list takes the rest of the window and scrolls itself; a small floor keeps a few rows on short screens */}
+            <div className="flex-1 min-h-[16rem]">
               <AutoSizer>
                 {({ height, width }: { height: number; width: number }) => (
                   <List
