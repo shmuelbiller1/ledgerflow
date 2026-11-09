@@ -10,6 +10,9 @@ export function useRefreshTick(everyMs = 5 * 60_000): number {
   useEffect(() => {
     const bump = () => { if (document.visibilityState === 'visible') setTick(t => t + 1); };
     const timer = setInterval(bump, everyMs);
+    if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof (timer as { unref?: () => void }).unref === 'function') {
+      (timer as { unref: () => void }).unref();
+    }
     document.addEventListener('visibilitychange', bump);
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', bump); };
   }, [everyMs]);

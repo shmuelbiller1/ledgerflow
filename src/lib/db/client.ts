@@ -25,13 +25,15 @@ export const SUPABASE_PUBLISHABLE_KEY = unconfiguredLocalDev
 
 let client: SupabaseClient | null = null;
 
+const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+
 export function getSupabase(): SupabaseClient {
   if (!client) {
     client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
-        persistSession: typeof window !== 'undefined',
-        autoRefreshToken: typeof window !== 'undefined',
-        detectSessionInUrl: typeof window !== 'undefined',
+        persistSession: !isTest && typeof window !== 'undefined',
+        autoRefreshToken: !isTest && typeof window !== 'undefined',
+        detectSessionInUrl: !isTest && typeof window !== 'undefined',
       },
     });
   }
