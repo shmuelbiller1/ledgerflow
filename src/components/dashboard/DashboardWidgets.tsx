@@ -184,7 +184,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     return <><p>{widgetData.current.balanced && !widgetData.current.orphanCount ? 'Balanced' : 'Review needed'}</p><p className="text-sm">Statement balance at {period.endDate}. {widgetData.current.orphanCount} orphaned account lines.</p><a href={reportLink('trial-balance')} className="min-h-11 inline-flex items-center underline">Open trial balance</a></>;
   };
   return <section aria-label="Dashboard widgets" className="space-y-4">
-    <div className="flex flex-wrap gap-3 items-center"><label className="flex items-center gap-2 text-sm text-[var(--muted)]">Period<select aria-label="Dashboard date range" value={range} onChange={event => setRange(event.target.value as DashboardRange)} className="min-h-11 md:min-h-9 text-sm text-[var(--text)] border border-[var(--line)] bg-[var(--surface)] rounded-lg px-3"><option value="month">This month</option><option value="quarter">This fiscal quarter</option><option value="year">This fiscal year</option><option value="custom">Custom range</option></select></label>
+    <div className="flex flex-wrap gap-3 items-center"><label className="flex items-center gap-2 text-sm text-[var(--muted)]">Period<select aria-label="Period (dashboard date range)" value={range} onChange={event => setRange(event.target.value as DashboardRange)} className="min-h-11 text-sm text-[var(--text)] border border-[var(--line)] bg-[var(--surface)] rounded-lg px-3"><option value="month">This month</option><option value="quarter">This fiscal quarter</option><option value="year">This fiscal year</option><option value="custom">Custom range</option></select></label>
       {range === 'custom' && <><label>From<input aria-label="Dashboard from" type="date" value={custom.startDate} onChange={event => setCustom({ ...custom, startDate: event.target.value })} className="block min-h-11 bg-[var(--panel)] border rounded px-2" /></label><label>To<input aria-label="Dashboard to" type="date" value={custom.endDate} onChange={event => setCustom({ ...custom, endDate: event.target.value })} className="block min-h-11 bg-[var(--panel)] border rounded px-2" /></label></>}
       {valid && <span className="text-sm text-[var(--muted)]">{shortDate(period.startDate)} – {shortDate(period.endDate)}</span>}
     </div>
@@ -208,7 +208,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-[var(--muted)]" data-testid="dashboard-balances-source">{isGuest ? 'Demo data' : opening ? `Balances through ${opening.asOf} as summed by the server, plus the loaded entries` : 'Loaded data'} · Cash at end date; profit for selected period{opening && periodBeforeOpening(period.startDate, opening) ? ` (from the loaded entries: the period starts on or before ${opening.asOf}, so it may omit older entries; open the P&L report for the server's figures)` : ''}.</span>
-        <a href="#tasks" className="min-h-11 md:min-h-0 inline-flex items-center text-sm font-semibold underline underline-offset-2 shrink-0">Open tasks</a>
+        <a href="#tasks" className="min-h-11 inline-flex items-center text-sm font-semibold underline underline-offset-2 shrink-0">Open tasks</a>
       </div>
       <p className="text-xs text-[var(--muted)]">Current unpaid amounts; later documents excluded. Past payments are not reconstructed.</p>
     </section>

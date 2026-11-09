@@ -48,7 +48,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     });
     await expect(overview.getByText('Unavailable', { exact: true })).toHaveCount(4);
     await expect(page.getByRole('alert').filter({ hasText: 'Incomplete data:' })).toContainText('invoices');
-    const range = page.getByLabel('Dashboard date range');
+    const range = page.getByLabel(/dashboard date range/i);
     await range.selectOption('custom');
     await page.getByLabel('Dashboard from').fill('2026-10-01');
     await expect(overview.getByText('Choose dates', { exact: true })).toHaveCount(4);

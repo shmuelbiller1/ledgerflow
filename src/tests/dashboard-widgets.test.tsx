@@ -23,7 +23,7 @@ test('dashboard layout persists by user/workspace, resets, and hides misleading 
   view.unmount(); render(<DashboardWidgets />);
   assert.equal(screen.queryByRole('article', { name: 'Revenue' }), null);
   assert.equal(screen.getAllByRole('article')[1].getAttribute('aria-label'), 'You owe');
-  fireEvent.change(screen.getByLabelText('Dashboard date range'), { target: { value: 'custom' } });
+  fireEvent.change(screen.getByLabelText(/dashboard date range/i), { target: { value: 'custom' } });
   fireEvent.change(screen.getByLabelText('Dashboard from'), { target: { value: '2024-03-02' } }); fireEvent.change(screen.getByLabelText('Dashboard to'), { target: { value: '2024-03-01' } });
   assert.match(screen.getAllByRole('alert')[0].textContent || '', /valid dates/); assert.equal(screen.queryAllByRole('article').length, 0);
   await act(async () => { useAuthStore.setState({ currentWorkspaceId: 'other', workspaces: [{ ...workspace, id: 'other' }] }); });
