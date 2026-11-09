@@ -33,6 +33,11 @@ type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
 
 /** Subscribes to workspace metadata, user profile, and on-demand ledger collections for the active session. */
+/** Owner, an assigned role, or an extra owner: the same test as the database's lf_ws_role. */
+export function isWorkspaceMember(w: Partial<Workspace> & { roles?: Record<string, unknown>; admins?: Record<string, unknown> }, uid: string): boolean {
+  return w.uid === uid || typeof w.roles?.[uid] === 'string' || w.admins?.[uid] === true;
+}
+
 export function useLedgerData() {
   const user = useAuthStore(s => s.user);
   const userUid = user?.uid;
@@ -67,9 +72,12 @@ export function useLedgerData() {
   // 1. Workspaces
   useEffect(() => {
     if (!userUid) return;
-    const q = query(collection(db, 'workspaces'), where('uid', '==', userUid));
+    // Books the user owns AND books they were invited into (roles / admins). The database's row rules
+    // already limit what can be read; the old `uid == me` filter dropped every invited book, so opening one
+    // bounced the user back to their own book on the next update (the screen emptied and redrew).
+    const q = query(collection(db, 'workspaces'));
     return onSnapshot(q, async (snapshot) => {
-      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace));
+      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace)).filter(w => isWorkspaceMember(w, userUid));
       setWorkspaces(fetched);
 
       if (fetched.length === 0) {
