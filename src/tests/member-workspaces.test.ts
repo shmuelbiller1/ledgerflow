@@ -13,6 +13,6 @@ test('a book is in my list when I own it, have a role in it, or am an extra owne
 test('a book I am not in stays out, even if the database lets a platform admin read it', () => {
   assert.equal(isWorkspaceMember({ uid: 'other' }, 'me'), false);
   assert.equal(isWorkspaceMember({ uid: 'other', roles: { someone: 'viewer' } }, 'me'), false);
-  assert.equal(isWorkspaceMember({ uid: 'other', roles: { me: null as unknown as string } }, 'me'), false);
+  assert.equal(isWorkspaceMember({ uid: 'other', roles: { me: null } as never }, 'me'), false);
   assert.equal(isWorkspaceMember({ uid: 'other', admins: { me: false } }, 'me'), false);
 });
