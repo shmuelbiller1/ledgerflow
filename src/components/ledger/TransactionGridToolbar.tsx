@@ -1,3 +1,4 @@
+import { useDialog } from '../../hooks/useDialog';
 
 
 import { useState } from 'react';
@@ -18,7 +19,9 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
  const { columnLayout, setColumnWidth, moveColumn, resetColumnLayout, formId, onAction, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, selectedIds, setSelectedIds, toggleSelectAll, accounts, activeView, transactionsWithBalance, stats, totalBalancedSum, activeFilterColumn, setActiveFilterColumn, hiddenColumns, toggleColumnVisibility, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep } = model;
 
  const [moreOpen, setMoreOpen] = useState(false);
- const btn = "h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)] shrink-0 cursor-pointer";
+ // the More menu gets the shared overlay lifecycle: focus moves in, Tab stays inside, Escape closes, focus returns
+ const { dialogProps: { ref: moreRef } } = useDialog<HTMLDivElement>(() => setMoreOpen(false), moreOpen);
+ const btn = "min-h-11 md:min-h-0 md:h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)] shrink-0 cursor-pointer";
  const menuItem = "w-full text-left px-3 py-2 text-sm rounded-md hover:bg-[var(--ink)] flex items-center justify-between gap-3";
  const exportCsv = () => {
    downloadCsv(`ledgerflow_transactions_${getLocalDateISO()}.csv`,
@@ -49,7 +52,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
             <Layers aria-hidden="true" size={14} /> <span className="hidden 2xl:inline">Columns</span>
           </button>
           {activeFilterColumn === 'visibility' && (
-            <div className="absolute top-10 right-0 z-[150] w-[min(26rem,90vw)] max-h-[70vh] overflow-y-auto bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-lg p-3">
+            <div className="fixed inset-x-4 top-24 md:absolute md:inset-x-auto md:top-full md:mt-1 md:right-0 z-[150] md:w-[26rem] max-h-[70vh] overflow-y-auto bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-lg p-3">
               <p className="text-xs font-semibold text-[var(--muted)] mb-2">Visible columns</p>
               <div className="space-y-1">
                 {OPTIONAL_COLUMNS.map(([col, label]) => (
@@ -68,8 +71,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
             <MoreHorizontal aria-hidden="true" size={14} /> More
           </button>
           {moreOpen && (
-            <div role="menu" tabIndex={-1} aria-label="More actions" className="absolute top-10 right-0 z-[150] w-60 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-lg p-1.5"
-              onKeyDown={e => { if (e.key === 'Escape') setMoreOpen(false); }}>
+            <div ref={moreRef} role="menu" tabIndex={-1} aria-label="More actions" className="absolute top-full mt-1 right-0 z-[150] w-60 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-lg p-1.5">
               <button type="button" role="menuitem" className={menuItem} onClick={() => { setMoreOpen(false); exportCsv(); }}>Export CSV</button>
               <button type="button" role="menuitem" className={menuItem} onClick={() => { setMoreOpen(false); handleExportCSV(); }}>Export with all columns</button>
               <button type="button" role="menuitem" className={menuItem} onClick={() => { setMoreOpen(false); handleBulkSweep(); }}>Suggest categories</button>
@@ -83,7 +85,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
           )}
         </div>
         <button type="button" onClick={onNewEntry} aria-label="Create new entry"
-          className="h-9 px-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-xs font-bold hover:opacity-90 shrink-0 cursor-pointer">
+          className="min-h-11 md:min-h-0 md:h-9 px-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-xs font-bold hover:opacity-90 shrink-0 cursor-pointer">
           <Plus aria-hidden="true" size={14} className="stroke-[3px]" /> New Entry
         </button>
       </div>

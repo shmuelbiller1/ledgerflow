@@ -252,7 +252,7 @@ const TransactionRow = React.memo(({
                 const name = resolveAccountName(accounts, shown.accountId, shown.accountName);
                 return (
                   <div className="flex items-center gap-1 w-full min-w-0" title={others.length ? `${name} · ${others.join(', ')}` : name}>
-                    <span dir="auto" className="line-clamp-2 break-words leading-tight min-w-0 flex-1 text-xs font-medium text-[var(--text)]">
+                    <span dir="auto" className="line-clamp-2 break-words leading-tight min-w-0 flex-1 text-xs font-medium text-[var(--text)] group-hover/active:text-white">
                       {shown === categoryLine ? (
                         <InlineEdit kind="select" value={shown.accountId} label={`Category of ${displayTx.description || 'this entry'}`}
                           options={choices.some(c => c.value === shown.accountId) ? choices : [{ value: shown.accountId, label: name }, ...choices]}

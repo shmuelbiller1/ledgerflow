@@ -71,7 +71,7 @@ export default function SavedViewsBar({ currentSearchTerm, className, compact = 
 
   return (
     <div className={cn(compact ? "w-full" : "w-full bg-[var(--surface-card)] border border-[var(--line)] rounded-xl p-3 shadow-xs transition-all", className)}>
-      <div className={cn("flex items-center justify-between gap-2", compact ? "flex-nowrap" : "flex-wrap")}>
+      <div className={cn("flex items-center justify-between gap-2", compact ? "flex-wrap md:flex-nowrap" : "flex-wrap")}>
         
         {/* Left: View Chips */}
         <div className="flex items-center gap-1.5 py-0.5 min-w-0 flex-1 flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible">
