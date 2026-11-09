@@ -173,8 +173,8 @@ export default function SavedViewsBar({ currentSearchTerm, className }: SavedVie
               <button
                 type="button"
                 onClick={() => setIsSavePromptOpen(false)}
-                aria-label="Cancel save prompt"
                 className="px-1.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+                aria-label="Cancel"
               >
                 ✕
               </button>
