@@ -124,8 +124,8 @@ export default function Dashboard() {
         </button>
       </header>
 
-      <details className="border border-[var(--line)] rounded-xl p-4">
-        <summary className="min-h-11 flex items-center cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide</summary>
+      <details className="group border border-[var(--line)] rounded-xl px-4 bg-[var(--surface)] open:pb-4">
+        <summary className="min-h-11 flex items-center gap-2 cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide<span className="ml-auto text-xs font-normal text-[var(--muted)] group-open:hidden">Show</span><span className="ml-auto text-xs font-normal text-[var(--muted)] hidden group-open:inline">Hide</span></summary>
         <FirstHourGuide />
       </details>
 
