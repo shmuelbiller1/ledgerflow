@@ -81,12 +81,12 @@ function FeedbackForm({ workspaceId, uid }: { workspaceId: string | null; uid?: 
       <form aria-busy={busy} onSubmit={event => void submit(event)} className="bg-[var(--surface)] p-6 rounded-xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto space-y-4">
         <h2 id={titleId} className="text-xl font-bold">Send feedback</h2>
         <p className="text-sm">Screen: {origin} · App version: {FEEDBACK_APP_VERSION}</p>
+        <label htmlFor={inputId} className="block">{kind === 'missing' ? 'What tool or feature do you need, and what would you use it for?' : kind === 'question' ? 'Your question' : 'What happened?'}</label>
+        <textarea id={inputId} required maxLength={5000} rows={6} className="w-full border rounded p-3" value={body} onChange={event => setBody(event.target.value)} readOnly={busy || Boolean(savedTicket)} />
         <fieldset className="space-y-1" disabled={busy || Boolean(savedTicket)}>
           <legend>What is this about?</legend>
           {FEEDBACK_KINDS.map(k => <label key={k.value} className="flex items-center gap-2 min-h-11"><input type="radio" name={`${inputId}-kind`} value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} />{k.label}</label>)}
         </fieldset>
-        <label htmlFor={inputId} className="block">{kind === 'missing' ? 'What tool or feature do you need, and what would you use it for?' : kind === 'question' ? 'Your question' : 'What happened?'}</label>
-        <textarea id={inputId} required maxLength={5000} rows={6} className="w-full border rounded p-3" value={body} onChange={event => setBody(event.target.value)} readOnly={busy || Boolean(savedTicket)} />
         <div className="space-y-2">
           <label htmlFor={`${inputId}-screenshot`} className="block">Add a screenshot (optional)</label>
           <input ref={fileInput} id={`${inputId}-screenshot`} type="file" accept="image/png,image/jpeg,image/webp" aria-describedby={`${inputId}-file-help`}
