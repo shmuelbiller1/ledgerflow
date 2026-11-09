@@ -50,28 +50,28 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
       {/* Workspace Header Dashboard */}
       <div className="bg-[var(--surface)] p-6 md:p-8 border-b border-[var(--line)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 relative overflow-hidden">
 
-        <div className="relative z-10 flex items-center gap-4">
+        <div className="relative z-10 flex items-center gap-4 min-w-0">
           <div className="w-12 h-12 bg-[var(--brass-soft)] border border-[var(--brass-line)] rounded-xl flex items-center justify-center text-[var(--brass)] shrink-0">
              <ArrowLeftRight aria-hidden="true" size={22} />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-[var(--text)] tracking-tight uppercase leading-none">Smart Matching & Bank Reconciliation</h1>
-            <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mt-1.5 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-[var(--pos)] animate-ping" />
-              Live • Reconciled: {reconciledPercent}%
+            <h1 className="text-xl md:text-2xl font-bold text-[var(--text)] tracking-tight leading-tight">Smart Matching & Bank Reconciliation</h1>
+            <p className="text-sm text-[var(--muted)] mt-1 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-[var(--pos)]" />
+              {reconciledPercent}% of bank lines matched
             </p>
           </div>
         </div>
 
         {/* Dynamic Controls Shell */}
-        <div className="relative z-10 flex flex-wrap items-center gap-3">
+        <div className="relative z-10 flex flex-wrap lg:flex-nowrap items-center gap-3 shrink-0">
 
            {/* Segment Selector View */}
-           <div className="flex bg-[var(--ink)] p-1 border border-[var(--line)] rounded-xl mr-2">
+           <div className="flex bg-[var(--ink)] p-1 border border-[var(--line)] rounded-xl">
              <button
                onClick={() => { setViewMode('pending'); setSelectedBankId(null); setSelectedLedgerId(null); }}
                className={cn(
-                 "px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
+                 "px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
                  viewMode === 'pending' ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--text)]"
                )}
              >
@@ -81,7 +81,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
              <button
                onClick={() => { setViewMode('history'); setSelectedBankId(null); setSelectedLedgerId(null); }}
                className={cn(
-                 "px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
+                 "px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
                  viewMode === 'history' ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--text)]"
                )}
              >
@@ -93,7 +93,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
            {viewMode === 'pending' && Array.from(optimizedMatches.values()).length > 0 && (
              <button
                 onClick={() => setShowAutoConfirm(true)}
-                className="flex items-center gap-2 px-4 h-10 bg-[var(--brass-soft)] text-[var(--brass)] font-bold rounded-xl text-[10px] uppercase tracking-wider hover:opacity-90 transition-all border border-[var(--brass-line)] cursor-pointer shadow-sm"
+                className="flex items-center gap-2 px-4 h-10 bg-[var(--brass-soft)] text-[var(--brass)] font-bold rounded-xl text-xs hover:opacity-90 transition-all border border-[var(--brass-line)] cursor-pointer shadow-sm"
              >
                 <Zap aria-hidden="true" size={14} className="fill-[var(--brass)]" />
                 Review {Array.from(optimizedMatches.values()).length} suggested matches
@@ -104,14 +104,14 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
              <button
                onClick={handleAutoReconcile}
                disabled={isAutoReconciling}
-               className="flex items-center gap-2 px-5 h-10 bg-[var(--brass)] text-[var(--ink)] font-bold rounded-xl text-[10px] uppercase tracking-wider hover:opacity-90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+               className="flex items-center gap-2 px-5 h-10 bg-[var(--brass)] text-[var(--ink)] font-semibold rounded-xl text-xs hover:opacity-90 transition-all shadow-md disabled:opacity-50 cursor-pointer"
               aria-label="Auto-match all">
                {isAutoReconciling ? <Loader2 aria-hidden="true" size={14} className="animate-spin" /> : <Sparkles aria-hidden="true" size={14} />}
                Auto-match all
              </button>
            )}
 
-           <button aria-label="Reload reconciliation" onClick={() => window.location.reload()} className="w-11 h-11 flex items-center justify-center bg-[var(--surface)]/5 border border-white/10 rounded-xl text-white/40 hover:text-white hover:bg-[var(--surface)]/10 transition-all cursor-pointer">
+           <button aria-label="Reload reconciliation" onClick={() => window.location.reload()} className="w-11 h-11 flex items-center justify-center bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--line-strong)] transition-all cursor-pointer">
              <RefreshCw aria-hidden="true" size={18} className={cn(isProcessing && "animate-spin text-emerald-400")} />
            </button>
         </div>
@@ -127,12 +127,12 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
               : "Review completed matches. Click a row to see the linked entries or undo a wrong match."}
           </span>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto shrink-0">
           {cashAccounts.length > 0 && (
             <select aria-label="Reconciliation account"
               value={selectedAccountId}
               onChange={e => setSelectedAccountId(e.target.value)}
-              className="h-9 px-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:border-[var(--brass)] transition-all cursor-pointer"
+              className="h-9 w-full sm:w-auto px-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:border-[var(--brass)] transition-all cursor-pointer"
             >
               <option value="all">All Cash Accounts ({cashAccounts.length})</option>
               {cashAccounts.map(acc => (
@@ -142,11 +142,11 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
               ))}
             </select>
           )}
-          <div className="relative w-full md:w-64">
+          <div className="relative w-full md:w-72">
             <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
             <input aria-label="Search reconciliation amounts or descriptions"
               type="text"
-              placeholder="Quick search amounts or labels..."
+              placeholder="Search amount or description"
               className="w-full h-9 pl-9 pr-4 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:border-[var(--brass)] transition-all"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -196,12 +196,12 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       )}
 
                       <button type="button" aria-pressed={isSelected} className="text-left flex flex-col gap-1 overflow-hidden pl-1">
-                        <span className={cn("text-[8px] font-bold uppercase tracking-wider font-mono", isSelected ? "text-[var(--brass)]" : "text-[var(--muted)]")}>
+                        <span className={cn("text-[10px] font-bold uppercase tracking-wider font-mono", isSelected ? "text-[var(--brass)]" : "text-[var(--muted)]")}>
                           {formatDate(btx.date)}
                         </span>
                         <BankLineName text={btx.description} className="text-sm font-bold tracking-tight max-w-[220px] md:max-w-xs" />
                         {matchedLedgerId && !isSelected && (
-                          <div className="flex items-center gap-1.5 mt-2 text-[8px] font-bold uppercase tracking-wider text-[var(--pos)] bg-[var(--pos)]/10 px-2 py-1 rounded border border-[var(--pos)]/20 w-fit">
+                          <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold uppercase tracking-wider text-[var(--pos)] bg-[var(--pos)]/10 px-2 py-1 rounded border border-[var(--pos)]/20 w-fit">
                             <Zap aria-hidden="true" size={9} fill="currentColor" />
                             Match found
                           </div>
@@ -242,8 +242,8 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 {filteredBankFeed.length === 0 && (
                   <div className="h-full py-20 flex flex-col items-center justify-center p-10 text-center opacity-70">
                      <ShieldCheck aria-hidden="true" size={40} className="text-[var(--pos)] mb-3" />
-                     <h2 className="font-bold text-sm text-[var(--text)] uppercase tracking-tight">Nothing to review</h2>
-                     <p className="text-[10px] font-bold text-[var(--muted)] dark:text-[#8bc19e] uppercase tracking-wider mt-1">{searchQuery ? 'No bank lines match this search; clear it to see the others' : 'Import a statement from Bank Connections, or review the matched history'}</p>
+                     <h2 className="font-bold text-sm text-[var(--text)]">Nothing to review</h2>
+                     <p className="text-xs text-[var(--muted)] dark:text-[#8bc19e] mt-1">{searchQuery ? 'No bank lines match this search; clear it to see the others' : 'Import a statement from Bank Connections, or review the matched history'}</p>
                      {!searchQuery && <button type="button" onClick={() => useUIStore.getState().setActiveTab('banking')} className="mt-4 min-h-11 rounded-xl border border-[var(--line)] px-4 py-2 text-xs font-bold text-[var(--text)]">Open Bank Connections</button>}
                   </div>
                 )}
@@ -281,7 +281,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                       <div className="text-left flex flex-col gap-1 overflow-hidden pl-1">
                         <div className="flex items-center gap-2">
-                          <span className={cn("text-[8px] font-semibold uppercase tracking-wider font-mono", isSelected ? "text-emerald-200" : "text-[var(--muted)]")}>
+                          <span className={cn("text-[10px] font-semibold uppercase tracking-wider font-mono", isSelected ? "text-emerald-200" : "text-[var(--muted)]")}>
                             {civilMonthDay(ltx.date)} • {resolveAccountName(accounts, ltx.lines?.[0]?.accountId, ltx.lines?.[0]?.accountName)}
                           </span>
                           {isPossibleMatch && !isSelected && <Zap aria-hidden="true" size={10} className="text-emerald-500 animate-pulse" />}
@@ -308,8 +308,8 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 {filteredLedgerEntries.length === 0 && (
                   <div className="h-full py-20 flex flex-col items-center justify-center p-10 text-center opacity-70">
                      <ShieldCheck aria-hidden="true" size={40} className="text-indigo-500 mb-3" />
-                     <h2 className="font-extrabold text-sm text-[var(--text)] uppercase tracking-tight">No ledger entries to match</h2>
-                     <p className="text-[10px] font-medium text-[var(--muted)] dark:text-[#8bc19e] uppercase tracking-widest mt-1">{searchQuery ? 'Clear the search to see uncleared entries' : 'All posted entries are cleared; add a new entry from Overview when there is more work'}</p>
+                     <h2 className="font-extrabold text-sm text-[var(--text)]">No ledger entries to match</h2>
+                     <p className="text-xs text-[var(--muted)] dark:text-[#8bc19e] mt-1">{searchQuery ? 'Clear the search to see uncleared entries' : 'All posted entries are cleared; add a new entry from Overview when there is more work'}</p>
                   </div>
                 )}
              </div>
@@ -322,7 +322,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
             <div className="px-5 py-4 border-b border-[var(--line)] bg-[var(--ink)]/50 flex items-center justify-between">
               <div>
                 <span className="text-xs font-black text-[var(--text)] uppercase tracking-wider">Matched history</span>
-                <p className="text-[10px] text-[var(--muted)] uppercase tracking-widest font-semibold mt-0.5">Bank lines matched to ledger entries and cleared</p>
+                <p className="text-xs text-[var(--muted)] mt-0.5">Bank lines matched to ledger entries and cleared</p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-900 rounded-xl px-3 py-1">
                  <Lock aria-hidden="true" size={12} />
@@ -334,8 +334,8 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                {filteredBankFeed.length === 0 ? (
                  <div className="py-24 text-center text-[var(--muted)] flex flex-col items-center justify-center space-y-3">
                    <History aria-hidden="true" size={36} className="text-slate-300" />
-                   <h3 className="font-extrabold text-[11px] uppercase tracking-widest">No matched items yet</h3>
-                   <p className="text-[10px] font-medium uppercase tracking-tight text-[var(--muted)] max-w-xs leading-normal">
+                   <h3 className="font-extrabold text-sm">No matched items yet</h3>
+                   <p className="text-xs text-[var(--muted)] max-w-xs leading-normal">
                      Use the To review tab to match bank lines with ledger entries.
                    </p>
                  </div>
@@ -354,10 +354,10 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                              {/* Statement Info */}
                              <button type="button" aria-expanded={isSelected} className="w-full text-left flex-1 min-w-0">
                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                 <span className="text-[8px] font-black uppercase text-[var(--muted)] font-mono tracking-wider">{line.date}</span>
-                                 <span className="px-2 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[7px] font-black uppercase tracking-wider">Cleared</span>
+                                 <span className="text-[10px] font-black uppercase text-[var(--muted)] font-mono tracking-wider">{line.date}</span>
+                                 <span className="px-2 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-black uppercase tracking-wider">Cleared</span>
                                  {line.bankChange && (
-                                   <span role="status" className="px-2 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[7px] font-black uppercase tracking-wider">
+                                   <span role="status" className="px-2 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-black uppercase tracking-wider">
                                      {line.bankChange === 'removed' ? 'Bank withdrew this line: review' : 'Bank changed this line: review'}
                                    </span>
                                  )}
@@ -377,7 +377,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                              {/* Internal Ledger Match Info */}
                              <div className="flex-1 min-w-0">
-                               <span className="text-[8px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
+                               <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
                                <h4 className="font-bold text-sm text-slate-700 truncate">{linkedTx?.description || 'Linked entry no longer found'}</h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedTx.totalAmountCents) : 'N/A'}</p>
                              </div>
@@ -424,7 +424,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 {/* Node A */}
                 <div className="md:col-span-2 flex flex-col bg-[var(--ink)]/50 p-4 rounded-xl border border-[var(--line)] relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-2 opacity-10"><Layers aria-hidden="true" size={36} /></div>
-                  <span className="text-[8px] font-bold text-[var(--pos)] uppercase tracking-wider font-mono">Bank statement</span>
+                  <span className="text-[10px] font-bold text-[var(--pos)] uppercase tracking-wider font-mono">Bank statement</span>
                   <BankLineName text={selectedBankLine.description} className="text-md font-bold mt-1 tracking-tight" />
                   <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                     <span className="text-[10px] font-mono text-[var(--muted)]">{selectedBankLine.date}</span>
@@ -434,7 +434,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                 {/* Heuristic Probability Weight Indicator */}
                 <div className="text-center flex flex-col items-center justify-center p-2">
-                  <span className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider">Match confidence</span>
+                  <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Match confidence</span>
                   {viewMode === 'pending' ? (
                      <>
                        <div className="text-2xl md:text-3xl font-mono font-bold tracking-tight text-[var(--pos)] animate-pulse mt-1">
@@ -442,7 +442,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                        </div>
 
                        {/* Likeness descriptor */}
-                       <div className="text-[7px] font-bold uppercase tracking-wider text-[var(--muted)] mt-2">
+                       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mt-2">
                          {checkSimilarity.overall >= 90 ? 'Strong match' : checkSimilarity.overall >= 75 ? 'Good match' : 'Check manually'}
                        </div>
 
@@ -456,7 +456,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                         <div className="w-10 h-10 bg-[var(--pos)]/10 border border-[var(--pos)]/20 rounded-full flex items-center justify-center text-[var(--pos)] mt-2">
                           <Lock aria-hidden="true" size={16} />
                         </div>
-                        <span className="text-[7px] text-[var(--pos)] font-bold uppercase mt-2">Cleared</span>
+                        <span className="text-[10px] text-[var(--pos)] font-bold uppercase mt-2">Cleared</span>
                      </>
                   )}
                 </div>
@@ -464,7 +464,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 {/* Node B */}
                 <div className="md:col-span-2 flex flex-col bg-[var(--ink)]/50 p-4 rounded-xl border border-[var(--line)] relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-2 opacity-10"><Maximize2 aria-hidden="true" size={36} /></div>
-                  <span className="text-[8px] font-bold text-[var(--brass)] uppercase tracking-wider font-mono">Ledger entry</span>
+                  <span className="text-[10px] font-bold text-[var(--brass)] uppercase tracking-wider font-mono">Ledger entry</span>
                   <span className="text-md font-bold truncate mt-1 tracking-tight">{selectedLedgerTx?.description || 'No ledger entry selected'}</span>
                   <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                     <span className="text-[10px] font-mono text-[var(--muted)]">{selectedLedgerTx?.date || 'N/A'}</span>
@@ -485,7 +485,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       {/* Date Offset Indicators */}
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                        <span className="text-[10px] text-slate-350 font-bold uppercase tracking-tight">
+                        <span className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-tight">
                           Date difference: <strong className={cn(checkSimilarity.dateDiff > 3 ? "text-amber-300" : "text-emerald-400")}>{checkSimilarity.dateDiff} days</strong>
                         </span>
                       </div>
@@ -493,7 +493,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       {/* Text likeness */}
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                        <span className="text-[10px] text-slate-350 font-bold uppercase tracking-tight">
+                        <span className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-tight">
                           Description similarity: <strong className="text-indigo-300">{checkSimilarity.textScore}%</strong>
                         </span>
                       </div>
@@ -501,7 +501,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       {/* Financial deviation delta */}
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                        <span className="text-[10px] text-slate-350 font-bold uppercase tracking-tight">
+                        <span className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-tight">
                           Amount difference: <strong className={cn(checkSimilarity.amountDiff !== 0 ? "text-amber-400" : "text-emerald-400", "tabular-nums")}>
                             {checkSimilarity.amountDiff === 0 ? "Amounts match" : `${formatCurrency(Math.abs(checkSimilarity.amountDiff))} difference`}
                           </strong>
@@ -511,7 +511,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                    {/* Alerts / Warnings inside discrepancy state */}
                    {checkSimilarity.amountDiff !== 0 && (
-                     <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 leading-none">
+                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 leading-none">
                        <AlertCircle aria-hidden="true" size={10} />
                        <span>Difference may be a bank fee or currency conversion</span>
                      </div>
@@ -660,7 +660,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                               <div className="flex-1 grid grid-cols-1 md:grid-cols-11 gap-4 items-center overflow-hidden">
                                 {/* Bank Item info */}
                                 <div className="md:col-span-5 overflow-hidden">
-                                   <span className="text-[8px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Bank statement line</span>
+                                   <span className="text-[10px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Bank statement line</span>
                                    <div className="font-bold text-[var(--text)] text-sm"><BankLineName text={btx.description} /></div>
                                    <p className="text-[10px] font-semibold text-[var(--muted)] font-mono mt-0.5">{btx.date} • {formatCurrency(btx.amountCents, btx.currency)}</p>
                                 </div>
@@ -672,7 +672,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                                 {/* Mapped registry internal record item info */}
                                 <div className="md:col-span-5 overflow-hidden text-right">
-                                   <span className="text-[8px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Ledger entry</span>
+                                   <span className="text-[10px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Ledger entry</span>
                                    <p className="font-bold text-[var(--text)] truncate text-sm">{matchedLtx.description}</p>
                                    <p className="text-[10px] font-semibold text-[var(--muted)] font-mono mt-0.5">{matchedLtx.date} • {formatCurrency(matchedLtx.totalAmountCents)}</p>
                                    {Math.abs(btx.amountCents) !== Math.abs(matchedLtx.totalAmountCents) && (
