@@ -205,9 +205,9 @@ const TransactionRow = React.memo(({
               <div className="text-left w-full min-w-0 font-sans tracking-tight flex items-center gap-1.5">
                 <InlineEdit value={displayTx.description} label={`Description of ${displayTx.description || 'this entry'}`}
                   canEdit={!isLocked && !!onUpdate && tx.status !== 'void'} suggestions={descriptions}
-                  display={<HighlightMatch text={displayTx.description} match={searchTerm} />}
+                  display={<span className="line-clamp-2 break-words">{<HighlightMatch text={displayTx.description} match={searchTerm} />}</span>}
                   validate={v => (String(v).trim() ? null : 'Enter a description')}
-                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="line-clamp-2 break-words leading-tight min-w-0" />
+                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="leading-tight min-w-0" />
                 {displayTx.fileUrls && displayTx.fileUrls.length > 0 && (
                   <span 
                     data-testid="attachment-badge"
@@ -256,8 +256,8 @@ const TransactionRow = React.memo(({
                       {shown === categoryLine ? (
                         <InlineEdit kind="select" value={shown.accountId} label={`Category of ${displayTx.description || 'this entry'}`}
                           options={choices.some(c => c.value === shown.accountId) ? choices : [{ value: shown.accountId, label: name }, ...choices]}
-                          display={<HighlightMatch text={name} match={searchTerm} />}
-                          onSave={setCategory} className="line-clamp-2 break-words leading-tight" />
+                          display={<span className="line-clamp-2 break-words">{<HighlightMatch text={name} match={searchTerm} />}</span>}
+                          onSave={setCategory} className="leading-tight min-w-0" />
                       ) : <HighlightMatch text={name} match={searchTerm} />}
                     </span>
                     {lines.length > 2 && <span className="shrink-0 text-[10px] text-[var(--muted)]">+{lines.length - 2}</span>}

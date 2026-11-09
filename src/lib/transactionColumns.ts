@@ -19,7 +19,7 @@ export type Track = readonly [id: string, width: string];
 export function gridTracks(layout: { mobile: boolean; tablet: boolean; compact: boolean }, hidden: ReadonlySet<string>): Track[] {
   const { mobile, tablet, compact } = layout;
   const tracks: Track[] = mobile
-    ? [['select', '40px'], ['date', '92px'], ['description', 'minmax(120px,1fr)'], ['amount', '104px']]
+    ? [['select', '48px'], ['date', '92px'], ['description', 'minmax(112px,1fr)'], ['amount', '104px']]
     : tablet
     ? [['select', '40px'], ['date', '100px'], ['description', '1fr'], ['category', '180px'], ['amount', '120px'], ['status', '100px']]
     : [
