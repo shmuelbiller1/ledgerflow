@@ -14,15 +14,21 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 
 ## Follow-up queue and review boundaries (9 November)
 
-All 103 report keys are listed exactly once: 31 fixed, 16 hardened, 38 preserved/reviewed, 12 lead review and 6 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
+All 103 report keys are listed exactly once: 31 fixed, 19 hardened, 39 preserved/reviewed, 11 lead review and 3 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
 
-1. **Financial/server owner — 12 lead-review entries:** investigate the money-input and mailer regexes with adversarial and behavior-preserving tests; review payment/SDK, petty cash, loans, journal, telemetry and database ID fallbacks in their runtime and write/idempotency contexts; assess the cache-key collision and upload concurrency risks. The owner boundary and earlier handoff in `docs/COORDINATION.md` remain in force.
-2. **Parsing — 4 further-review entries:** four intent-entry regexes have a 500-character *per-line* limit, but that does not prove linear runtime or bound the number of lines; preserve the fallback and financial parsing semantics if changed. The PDF test helper now scans content operators without retrying long malformed arrays; tests compare the previous grammar on 5,000 mixed streams and exercise a 200,000-character malformed input.
+1. **Financial/server owner — 11 lead-review entries:** investigate the money-input and mailer regexes with adversarial and behavior-preserving tests; review payment/SDK, petty cash, loans, journal and telemetry ID fallbacks in their runtime and write/idempotency contexts; assess the cache-key collision and upload concurrency risks. The owner boundary and earlier handoff in `docs/COORDINATION.md` remain in force.
+2. **Parsing — 3 hardened entries and 1 further-review entry:** prechecks now skip three impossible entry-pattern matches without changing the patterns or their match order. They preserve the malformed comma exception and the whole-input fallback. The 500-character *per-line* limit and these prechecks mitigate common cases, but do not prove linear runtime, bound the number of lines, or address the split-item pattern; preserve fallback and financial parsing semantics if changed. The PDF test helper now scans content operators without retrying long malformed arrays; tests compare the previous grammar on 5,000 mixed streams and exercise a 200,000-character malformed input.
 
    **Diagnostic IDs — hardened, not fully resolved:** client references now use Web Crypto. If unavailable, telemetry is still sent with no client ID and adopts the server response when present; local diagnostics remain available even when no ID is returned. The server's existing non-cryptographic fallback remains a separate lead-owned finding and can still collide, so end-to-end collision resistance is not claimed.
 3. **Executable lookup — 2 further-review entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git`. Both rely on a trusted PATH. Do not run them in an untrusted environment; removing PATH dependence requires a portable executable policy, not a hard-coded OS-specific path. The atlas no longer invokes `tar`: it materializes committed regular blobs directly for dependency resolution, inventories but does not follow symlinks or gitlinks, and no longer omits tracked `export-ignore` files. Six archived fixers no longer invoke shell commands found on PATH; they still modify files and must only be run in a trusted disposable checkout. The ESLint fixer invokes the checkout-local executable through the running Node binary, never downloads it, and still continues on lint failure.
 
 The archived llama probe's two original installation findings are fixed here: it does not install packages, use npx, or write a temporary source file. It only inspects an already installed `llamaindex`, and still relies on a trusted `node` in PATH. Its output depends on the installed package version.
+
+## Updated 56-issue report and urgent handoff
+
+The attached `issues-2.json` contains 56 keys, all present in the original 103-key inventory below. At this revision its dispositions are **39 preserved/reviewed, 11 lead review, 3 hardened and 3 further review**. This is source triage, not a claim that Sonar has closed those issues. The preserved database `Math.random` finding is retry-delay jitter in `pgFirestore.ts`, not an ID or security token; it is not used to determine financial values or authorization.
+
+Two newly reproduced priorities are documented in [`sonar-remaining-handoff-2026-11-09.md`](sonar-remaining-handoff-2026-11-09.md): malformed money inputs can block validation for seconds, and mocked lost-response retries of loan disbursement and petty-cash spending generate new operation IDs. The financial/server owner must decide and implement a retry-safe posting design; this branch does not alter posting or money math.
 
 ## Inventory
 
@@ -89,10 +95,10 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB0iefMaWPlOl81A` | `typescript:S2245` | `src/components/finance/LoansView.tsx:92` | Lead review |
 | `AaGKrB-_efMaWPlOl83y` | `yaml:S2068` | `.github/workflows/ci.yml:109` | Preserve / reviewed |
 | `AaGKrB-_efMaWPlOl83o` | `githubactions:S6505` | `.github/workflows/ci.yml:133` | Hardened |
-| `AaGKrBvCefMaWPlOl8ya` | `typescript:S8786` | `src/lib/intentResolver.ts:229` | Further review |
-| `AaGKrBvCefMaWPlOl8yb` | `typescript:S8786` | `src/lib/intentResolver.ts:230` | Further review |
+| `AaGKrBvCefMaWPlOl8ya` | `typescript:S8786` | `src/lib/intentResolver.ts:229` | Hardened |
+| `AaGKrBvCefMaWPlOl8yb` | `typescript:S8786` | `src/lib/intentResolver.ts:230` | Hardened |
 | `AaGKrB29efMaWPlOl810` | `typescript:S8786` | `src/tests/helpers/pdfText.ts:15` | Fixed |
-| `AaGKrBvCefMaWPlOl8yY` | `typescript:S8786` | `src/lib/intentResolver.ts:188` | Further review |
+| `AaGKrBvCefMaWPlOl8yY` | `typescript:S8786` | `src/lib/intentResolver.ts:188` | Hardened |
 | `AaGKrBvCefMaWPlOl8yZ` | `typescript:S8786` | `src/lib/intentResolver.ts:198` | Further review |
 | `AaGKrB6LefMaWPlOl82E` | `typescript:S2245` | `src/server/routes/telemetryRoutes.ts:22` | Lead review |
 | `AaGKrBqkefMaWPlOl8wu` | `typescript:S7767` | `src/lib/algorithmInternals/optimization.ts:130` | Preserve / reviewed |
@@ -109,7 +115,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB7QefMaWPlOl82g` | `typescript:S8786` | `src/server/services/mailer.ts:54` | Lead review |
 | `AaGKrB-_efMaWPlOl83x` | `yaml:S2068` | `.github/workflows/ci.yml:33` | Preserve / reviewed |
 | `AaGKrB-_efMaWPlOl830` | `yaml:S2068` | `.github/workflows/ci.yml:280` | Preserve / reviewed |
-| `AaGKrB7_efMaWPlOl82w` | `typescript:S2245` | `src/server/db/pgFirestore.ts:561` | Lead review |
+| `AaGKrB7_efMaWPlOl82w` | `typescript:S2245` | `src/server/db/pgFirestore.ts:561` | Preserve / reviewed |
 | `AaGKrB-6efMaWPlOl83l` | `typescript:S8786` | `scripts/quality-metrics.ts:87` | Fixed |
 | `AaGKrBy8efMaWPlOl8z-` | `typescript:S2245` | `src/components/ledger/JournalEntryModal.tsx:316` | Lead review |
 | `AaGKrB2PefMaWPlOl81p` | `typescript:S2245` | `src/components/support/SupportView.tsx:166` | Fixed |
