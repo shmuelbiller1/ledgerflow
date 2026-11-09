@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maskEmails, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
+import { maskEmails, firstAmtElement, isPhoneText, trailingNumberStart, trailingStateStart, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -149,4 +149,29 @@ test('maskEmails and the two rewritten patterns match the old ones', () => {
   const NEW_DIM = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]([^\]]+)\]/gu;
   const pairs = (re: RegExp, s: string) => [...s.matchAll(re)].map(m => `${m.index}|${m[1]}|${m[2].trim()}`);
   for (const s of strings(['[', ']', 'a', ':', ' '], 7)) assert.deepEqual(pairs(NEW_DIM, s), pairs(OLD_DIM, s), JSON.stringify(s));
+});
+
+test('trailingNumberStart, trailingStateStart, isPhoneText and firstAmtElement match the old patterns', () => {
+  const OLD_NUM = /\s+\d[\d\s-]*$/;
+  const OLD_STATE = /\s+[A-Z]{2}$/;
+  const OLD_PHONE = /^\+?[0-9\s().-]+(?:\s*(?:ext(?:ension)?\.?|x|#)\s*\d+)?$/i;
+  const OLD_AMT = /<Amt\b([^<>]*)>\s*([^<]+)<\/Amt\s*>/i;
+  for (const s of strings(['a', '1', ' ', '-'], 7)) assert.equal(trailingNumberStart(s), s.search(OLD_NUM), JSON.stringify(s));
+  for (const s of strings(['a', 'W', ' ', 'A'], 6)) assert.equal(trailingStateStart(s), s.search(OLD_STATE), JSON.stringify(s));
+  for (const s of strings(['1', ' ', 'x', '+', '#', '.', 'e'], 5)) assert.equal(isPhoneText(s), OLD_PHONE.test(s), JSON.stringify(s));
+  for (const tail of ['', ' ext 12', ' Ext. 4', 'extension 9', ' x', 'ext12a']) {
+    const t = `+1 (555) 010-2000${tail}`;
+    assert.equal(isPhoneText(t), OLD_PHONE.test(t), t);
+  }
+  for (const s of strings(['<Amt>', '</Amt>', ' ', '5', '<', 'x'], 4)) {
+    const old = OLD_AMT.exec(s);
+    assert.deepEqual(firstAmtElement(s), old ? { attributes: old[1], value: old[2] } : null, JSON.stringify(s));
+  }
+  const xml = '<Ntry><AMT Ccy="EUR"> 12.50 </amt ><Amt>1</Amt></Ntry>';
+  assert.deepEqual(firstAmtElement(xml), { attributes: ' Ccy="EUR"', value: '12.50 ' });
+  assert.equal(firstAmtElement('<Amtx>1</Amt>'), null);
+  // a character whose lower case is longer ('İ' → 'i̇') before the amount must not shift the tag positions
+  const turkish = '<NtryRef>İ-123</NtryRef><Amt Ccy="EUR">5.00</Amt>';
+  const old = OLD_AMT.exec(turkish);
+  assert.deepEqual(firstAmtElement(turkish), { attributes: old![1], value: old![2] });
 });

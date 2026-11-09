@@ -247,3 +247,84 @@ export function maskEmails(text: string, mask: string): string {
   }
   return out;
 }
+
+const isWs = (c: string | undefined) => c !== undefined && /\s/.test(c);
+const isAsciiDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
+
+/** Where a trailing " 123 45-6" begins: whitespace, a digit, then only digits, whitespace and '-' to the end; or -1.
+ * text.slice(0, i) is the same as text.replace(/\s+\d[\d\s-]*$/, ''). */
+export function trailingNumberStart(text: string): number {
+  let tail = text.length;
+  while (tail > 0 && (isAsciiDigit(text[tail - 1]) || isWs(text[tail - 1]) || text[tail - 1] === '-')) tail--;
+  for (let p = tail; p < text.length; p++) {
+    if (!isWs(text[p])) continue;
+    let q = p;
+    while (isWs(text[q])) q++;
+    if (isAsciiDigit(text[q])) return p;
+    p = q;
+  }
+  return -1;
+}
+
+/** Where a trailing " WA" begins: whitespace, then exactly two capital letters A–Z at the end; or -1.
+ * Same as /\s+[A-Z]{2}$/ (index of the match, which text.replace removes). */
+export function trailingStateStart(text: string): number {
+  const n = text.length;
+  const cap = (c: string | undefined) => c !== undefined && c >= 'A' && c <= 'Z';
+  if (n < 3 || !cap(text[n - 1]) || !cap(text[n - 2]) || !isWs(text[n - 3])) return -1;
+  let p = n - 3;
+  while (p > 0 && isWs(text[p - 1])) p--;
+  return p;
+}
+
+const PHONE_BODY = (c: string) => isAsciiDigit(c) || isWs(c) || c === '(' || c === ')' || c === '.' || c === '-';
+const EXTENSION_WORDS = ['extension.', 'extension', 'ext.', 'ext', 'x', '#'];
+
+/** A phone number as typed: an optional '+', then digits, spaces, ( ) . -, and an optional extension
+ * ("ext. 12", "x12", "#12"). Same as /^\+?[0-9\s().-]+(?:\s*(?:ext(?:ension)?\.?|x|#)\s*\d+)?$/i. */
+export function isPhoneText(text: string): boolean {
+  const s = text.startsWith('+') ? text.slice(1) : text;
+  let f = 0;
+  while (f < s.length && PHONE_BODY(s[f])) f++;
+  if (f === 0) return false;
+  if (f === s.length) return true;
+  const lower = s.slice(f).replace(/[A-Z]/g, c => c.toLowerCase());
+  return EXTENSION_WORDS.some(word => {
+    if (!lower.startsWith(word)) return false;
+    let k = word.length;
+    while (isWs(lower[k])) k++;
+    if (!isAsciiDigit(lower[k])) return false;
+    while (isAsciiDigit(lower[k])) k++;
+    return k === lower.length;
+  });
+}
+
+/** The first <Amt …>value</Amt> in `xml` (any case): its attribute text and value, or null. Same as
+ * /<Amt\b([^<>]*)>\s*([^<]+)<\/Amt\s*>/i.exec(xml) → [, attributes, value]. */
+export function firstAmtElement(xml: string): { attributes: string; value: string } | null {
+  // ASCII-only lowering keeps every offset equal to the source's ('İ'.toLowerCase() is two characters)
+  const lower = xml.replace(/[A-Z]/g, c => c.toLowerCase());
+  const wordChar = (c: string | undefined) => c !== undefined && /\w/.test(c);
+  for (let i = lower.indexOf('<amt'); i !== -1; i = lower.indexOf('<amt', i + 1)) {
+    let j = i + 4;
+    if (wordChar(xml[j])) continue;
+    while (j < xml.length && xml[j] !== '<' && xml[j] !== '>') j++;
+    if (xml[j] !== '>') continue;
+    const attributes = xml.slice(i + 4, j);
+    let k = j + 1;
+    while (isWs(xml[k])) k++;
+    let end = k;
+    while (end < xml.length && xml[end] !== '<') end++;
+    let start = k;
+    if (end === k) {
+      if (k === j + 1) continue; // nothing between > and <
+      start = k - 1; // whitespace gives back one character to the value
+    }
+    if (!lower.startsWith('</amt', end)) continue;
+    let m = end + 5;
+    while (isWs(xml[m])) m++;
+    if (xml[m] !== '>') continue;
+    return { attributes, value: xml.slice(start, end) };
+  }
+  return null;
+}

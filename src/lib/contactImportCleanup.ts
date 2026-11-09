@@ -9,6 +9,7 @@ import type { CountryCode } from 'libphonenumber-js';
 import type { ImportKind, ImportRow } from './recordImport';
 import { getIsoCountry } from './isoCountryReference';
 import { isEmailShape } from './textShape';
+import { isPhoneText } from './textShape';
 
 export interface ContactImportCleanupWarning {
   readonly row: number;
@@ -35,7 +36,6 @@ export interface ContactImportCleanupOptions {
   acceptPhoneSuggestions?: boolean;
 }
 
-const PHONE_TEXT = /^\+?[0-9\s().-]+(?:\s*(?:ext(?:ension)?\.?|x|#)\s*\d+)?$/i;
 const PHONE_EXTENSION = /(?:\bext(?:ension)?\.?|x|#)\s*\d+\s*$/i;
 const E164 = /^\+[1-9]\d{1,14}$/;
 
@@ -89,7 +89,7 @@ export function cleanupContactImportRows(
     const phone = String(row.phone ?? '');
     const trimmedPhone = phone.trim();
     if (trimmedPhone) {
-      if (!PHONE_TEXT.test(trimmedPhone)) {
+      if (!isPhoneText(trimmedPhone)) {
         warnings.push({ row: index + 2, field: 'Phone', original: phone, message: 'Could not parse this as one phone number; it will be kept as entered.' });
       } else if (PHONE_EXTENSION.test(trimmedPhone)) {
         warnings.push({ row: index + 2, field: 'Phone', original: phone, message: 'An extension is present; it will be kept as entered to avoid dropping it.' });
