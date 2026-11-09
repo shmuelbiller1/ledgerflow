@@ -111,3 +111,39 @@ which would have failed 34 report tests). Shard 1: **9m18s, passing.** The shard
 | Layout | dashboard's fifth first-screen action 2.23px below the fold at 390x850 | phone header 8px tighter |
 | Visual baselines | capture and its verification disagreed (cards caught mid fade-in); Settings measured before it finished loading | wait for finite animations, settle on a stable height, then recapture |
 | CI feedback | a failed capture said only "exit code 1" (log and artifact unreachable) | JSON report replayed into the step summary and the run's annotations |
+
+---
+
+## Second wave — the Chaim-Richard fork PRs (2026-11-09)
+
+After #539 merged, eleven more PRs from `Chaim-Richard/ledgerflow` were open. Every one was checked against main with `gh pr view <n> --json files` plus a merge-base-scoped diff, because those branches sit 1.6k–2.8k commits behind and a plain `git diff main <branch>` reports thousands of phantom deletions.
+
+### Disposition
+
+| PR | Verdict | Where it went |
+|---|---|---|
+| #564 A-268 Standard Cost Variance | **merged to main on its own** | `00b37fc9`…`3af16abb`, including the later CSV-currency fixes; a duplicate merge of the same content on this branch was dropped |
+| #562 audit delta | **merged to main on its own** | `009ba035` |
+| #560 security audit | **merged** | `audit/ai6/security-audit-2026-11-05.md` via #577 (`0dab66eb`) |
+| #558 independent audit | **merged** | `audit/INDEPENDENT_AUDIT_REPORT_2026.md` via #577 |
+| #559 AF-011/AF-012 | **merged** | AF-011/AF-012 docs kept from main (main's wording is the more accurate one — the branch claims "no money figure is changed"; the tax figures shown before filing are exactly what changes); probes and SCORECARD taken from the branch |
+| #557 audit findings | **merged** | `audit/agent8-2026-11-08/03-accurate-findings-list-2026-11-08.md` via #577 |
+| #556 final list | **merged** | `audit/FINAL_ACCURATE_LIST_2026-11-08.md` + agent7 checkpoint via #577 |
+| #533 S-22 narrowing | **merged** | the 2-line correction to `docs/verification/ai6-s22-rate-limit-audit-2026-10-28.md` and both copies of the COORDINATION entry |
+| #561 S-37–S-40 | **closed, nothing to take** | all 533 lines it adds to COORDINATION.md are already on main; its only other change deletes an AF-001 evidence doc main still cites |
+| #525 G-9 country samples | **closed, superseded** | main has `countryDemoWorkspace` plus `canUseDemoSandbox` / `buildResetDemoWorkspace` and a picker wired into `HelpGuideView` |
+| #526 S-01…S-05 security | **closed, not merged** | redefines the shared rate limiter that main's `1a47f4e3` already superseded with an atomic fail-closed version; its CSP test conflicts add/add with main's newer one; `user-rate-limiters.test.ts` mixes `jest.fn()` into `node:test` |
+
+### Doc conflicts, resolved the same way as the first wave
+
+- `docs/BUG_PATTERNS.md` is **generated**. It was regenerated with `scripts/bug-patterns.ts`, never hand-merged; regenerating reproduces the committed file byte for byte. `silent-catch` drops 53 → 51 and the baseline test passes because the ratchet only forbids rises.
+- `docs/LINE_COUNT.md` is written daily by `scripts/line-count.sh`. The branches carried older-valued rows for 2026-11-06…08 against main's newer ones, so main's file was left alone in every merge.
+- `docs/COORDINATION.md`: only genuinely new lines were taken (the S-22 correction, the A-268 entry). The three large rewrites (#561, #533, #564) were not.
+
+### One thing the lead should know
+
+`docs/COORDINATION.md` on main carries the 2026-10-28 AI #6 S-22 entry **twice** — one copy arrived with #561's merge (`7b5538af`), the other with #428 (`5ca5c89b`). #533's narrowed wording is applied to both, so no claim is wrong, but the duplicate is still there and pruning it is the lead's call.
+
+### Verification
+
+`tsc --noEmit` clean; `eslint . --max-warnings 42` 0 errors / exactly 42 warnings; unit suite 1,069 / 1,184 / 1,145 / 1,092 across four shards with no failure except the known `A-206` report-timing flake, which fails identically on pristine main; `bug-patterns` 11/11 plus the browser-wait and registry guards. PR #577: **23/23 checks pass**, merged as `0dab66eb`.
