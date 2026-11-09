@@ -14,7 +14,8 @@ function regularFiles(root) {
       else if (entry.isFile()) files.push(file);
     }
   }
-  return files.sort();
+  // Match the previous default UTF-16 code-unit ordering, without locale dependence.
+  return files.sort((a, b) => (a < b ? -1 : Number(a > b)));
 }
 
 module.exports = { regularFiles };

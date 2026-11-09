@@ -289,3 +289,23 @@ test('snapshot does not follow tracked symlinks or invoke tar from PATH', () => 
     fs.rmSync(fakeBin, { recursive: true, force: true });
   }
 }));
+
+test('an explicitly pinned git directory bypasses an untrusted PATH', { skip: process.platform === 'win32' }, () => fixture(({ root, rev, output }) => {
+  const realGit = fs.realpathSync(execFileSync('which', ['git'], { encoding: 'utf8' }).trim());
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-fake-git-'));
+  const marker = path.join(fakeBin, 'ran');
+  const originalPath = process.env.PATH;
+  const originalOverride = process.env.CODE_ATLAS_GIT_DIR;
+  try {
+    fs.writeFileSync(path.join(fakeBin, 'git'), `#!/bin/sh\necho fake > '${marker}'\nexit 99\n`, { mode: 0o755 });
+    process.env.PATH = fakeBin;
+    process.env.CODE_ATLAS_GIT_DIR = path.dirname(realGit);
+    generate(root, rev, output);
+    assert.equal(fs.existsSync(marker), false);
+    assert.equal(readIndex(output).meta.sourceRevision, rev);
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH; else process.env.PATH = originalPath;
+    if (originalOverride === undefined) delete process.env.CODE_ATLAS_GIT_DIR; else process.env.CODE_ATLAS_GIT_DIR = originalOverride;
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
+}));

@@ -10,6 +10,7 @@ import { isBuiltin } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { executableEnv } from './executable-env.mjs';
 
 export const SCHEMA = 1;
 const SELF = fileURLToPath(import.meta.url);
@@ -19,7 +20,7 @@ const CODE = /\.(?:[cm]?[jt]sx?|sql|sh|css|html)$/;
 const JS = /\.(?:[cm]?[jt]sx?)$/;
 const TEST = /(?:(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 const MAX_BUFFER = 128 * 1024 * 1024;
-const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER });
+const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER, env: executableEnv('CODE_ATLAS_GIT_DIR') });
 const txt = (root, args) => git(root, args).toString('utf8').trim();
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 const unique = xs => [...new Set(xs)];
