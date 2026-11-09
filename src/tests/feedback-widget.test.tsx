@@ -135,3 +135,10 @@ test('switching workspace during ticket creation prevents a screenshot from bein
  await act(async () => complete(new Response('null', { headers: { 'Content-Type': 'application/json' } })));
  assert.equal(attachments, 0); assert.ok(screen.queryByRole('dialog') === null);
 });
+
+test('feedback type: a missing tool is labelled as such on the ticket and the message', () => {
+  const records = feedbackRecords({ id: 'k', uid: 'u', workspaceId: 'w', screen: 'inventory', body: 'Need a barcode scanner', date: '2026-11-09T12:00:00Z', kind: 'missing' });
+  assert.equal(records.ticket.subject, 'Missing tool: inventory');
+  assert.match(records.message.body, /^Type: Missing tool\nScreen: inventory/);
+  assert.equal(feedbackRecords({ id: 'b', uid: 'u', workspaceId: 'w', screen: 'pnl', body: 'Wrong total', date: '', kind: 'problem' }).ticket.subject, 'Bug: pnl');
+});
