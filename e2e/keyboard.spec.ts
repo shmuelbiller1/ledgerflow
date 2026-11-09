@@ -45,7 +45,7 @@ test.describe('Keyboard', () => {
       await page.keyboard.press('Enter');
     };
     await press('Money In');
-    await press('Invoices & AP');
+    await press('Invoices');
     await page.getByRole('button', { name: /Add Invoice/ }).first().focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible();
@@ -366,8 +366,8 @@ test.describe('Keyboard', () => {
 
     // 1. Navigate to Sales → Customers & Clients and create a customer via keyboard
     await pressButton('Money In');
-    await pressButton('Invoices & AP');
-    await pressButton('Customers & Clients');
+    await pressButton('Invoices');
+    await pressButton('Customers');
     const newCustomerInput = page.getByLabel('New customer name');
     await newCustomerInput.focus();
     await expect(newCustomerInput).toBeFocused();
@@ -376,7 +376,7 @@ test.describe('Keyboard', () => {
     await expect(page.locator('#main-content')).toContainText('H3 Keyboard Customer');
 
     // 2. Switch to Invoices & AP and issue an invoice for that customer via keyboard
-    await pressButton('Invoices & AP');
+    await pressButton('Invoices');
     await pressButton(/Add Invoice/);
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible();
     await page.getByLabel('Customer', { exact: true }).focus();

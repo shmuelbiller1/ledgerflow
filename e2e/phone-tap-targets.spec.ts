@@ -87,7 +87,7 @@ test('a customer row at 390 px: Enter Invoice, Archive and Delete measure 44 px 
     },
     mounts: [{ module: '/src/components/sales/Sales.tsx' }],
   });
-  await page.getByRole('button', { name: 'Customers & Clients', exact: true }).click();
+  await page.getByRole('button', { name: 'Customers', exact: true }).click();
   await expect(page.getByText('Acme Corp', { exact: true }).first()).toBeVisible();
   await expectScrollBoxFits(page, 'sales-customers');
   await expect44px(page.locator('button[title="Enter Invoice"]'), 'Enter Invoice');

@@ -58,7 +58,7 @@ test.describe('E2E Smoke Suite', () => {
 
   test('4. Send Invoice: Invoice dialog opens', async ({ page }) => {
     await page.click('button:has-text("Money In")');
-    await page.click('button:has-text("Invoices & AP")');
+    await page.click('button:has-text("Invoices")');
     await expect(page.locator('button:has-text("Add Invoice")').first()).toBeVisible();
     await page.click('button:has-text("Add Invoice")');
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible({ timeout: 8000 });

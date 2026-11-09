@@ -41,7 +41,7 @@ test.describe('End-to-End Accounting Lifecycle & Workflows', () => {
   test('Invoice entry point opens and seeded ledger entries balance individually', async ({ page }) => {
     // An E2E check must fail if the screen, dialog, or state under test is unavailable.
     await page.locator('button:has-text("Money In")').first().click();
-    await page.locator('button:has-text("Invoices & AP")').first().click();
+    await page.locator('button:has-text("Invoices")').first().click();
     const addInvoice = page.locator('button:has-text("Add Invoice")').first();
     await expect(addInvoice).toBeVisible();
     await addInvoice.click();

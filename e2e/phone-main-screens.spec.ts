@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const screens = [
   { tab: 'dashboard', heading: 'Dashboard', action: 'Add Entry' },
   { tab: 'transactions', heading: 'Journal Entries', action: 'Create new entry' },
-  { tab: 'sales', heading: 'Invoicing & Customer Accounts', action: 'Add Invoice' },
+  { tab: 'sales', heading: 'Sales', action: 'Add Invoice' },
   { tab: 'purchases', heading: 'Purchases & AP', action: 'Record Bill' },
   { tab: 'reports', heading: 'Reports', action: 'Generate' },
   { tab: 'settings', heading: 'Settings', action: 'Backup & Export' },
@@ -108,7 +108,7 @@ const innerScreens = [
     name: 'sales → customers',
     tab: 'sales',
     async open(page: Page) {
-      await page.getByRole('button', { name: 'Customers & Clients', exact: true }).click();
+      await page.getByRole('button', { name: 'Customers', exact: true }).click();
       await expect(page.locator('[data-list-columns="sales-customers"]')).toBeVisible();
     },
   },
