@@ -10,6 +10,8 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 
 interface AuditTrailProps {
   auditLogs?: (Omit<import("../../types").AuditLog, 'uid'> & { uid?: string; targetId?: string })[];
@@ -118,6 +120,7 @@ const AuditTrail = React.memo(({ auditLogs: passedLogs }: AuditTrailProps) => {
 
   const storeLogs = useLedgerStore(state => state.auditLogs || []);
   const { loading } = useLedgerCollections('auditLogs');
+  const dataHealth = useScreenDataHealth(['auditLogs']);
   const auditLogs = passedLogs || storeLogs;
   const [searchTerm, setSearchTerm] = React.useState('');
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
@@ -160,6 +163,7 @@ const AuditTrail = React.memo(({ auditLogs: passedLogs }: AuditTrailProps) => {
 
   return (
     <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-500">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="the audit trail" />
       <div className="flex items-center justify-between shrink-0">
         <div>
           <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest truncate mb-4">

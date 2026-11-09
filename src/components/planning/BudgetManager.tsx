@@ -31,6 +31,8 @@ import { Labelled } from '../ui/Labelled';
 import BudgetControlSetting from './BudgetControlSetting';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 
 
 
@@ -45,6 +47,7 @@ export default function BudgetManager() {
   const transactions = useLedgerStore((s) => s.transactions);
   const accounts = useLedgerStore((s) => s.accounts);
   const { loading } = useLedgerCollections('budgets');
+  const dataHealth = useScreenDataHealth(['budgets']);
   // A signed-in viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
   // A guest owns their local sandbox, so guests keep the write affordances exactly as before
   // (useCurrentRole resolves a guest to 'viewer' — there is no workspace row to read a role from).
@@ -163,6 +166,7 @@ export default function BudgetManager() {
 
   return (
     <div className="space-y-12">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Rule Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div>
