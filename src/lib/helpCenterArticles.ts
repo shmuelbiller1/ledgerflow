@@ -219,6 +219,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'mileage-rates',
     'israel-self-employment-ni',
     'israel-advance-tax',
+    'israel-vat-report',
     'banking-validation',
     'us-nexus-watch',
     'tax-code-suggestions',
