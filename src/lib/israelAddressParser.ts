@@ -12,7 +12,7 @@ export interface IsraeliAddressSuggestion {
   readonly warnings: readonly string[];
 }
 
-const POSTAL_LABEL = /(?:\b(?:postal(?:\s+code)?|zip(?:\s+code)?)\b|מיקוד)\s*[:#-]?\s*(\d{5}|\d{7})(?!\d)/giu;
+const POSTAL_LABEL = /(?:\b(?:postal(?:\s+code)?|zip(?:\s+code)?)\b|מיקוד)\s*(?:[:#-]\s*)?(\d{5}|\d{7})(?!\d)/giu;
 const BARE_SEVEN_DIGIT_POSTAL = /(?:^|[^\d])(\d{7})(?!\d)/g;
 const ENGLISH_STREET_MARKER = /\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|highway|hwy\.?)\b/iu;
 const HEBREW_STREET_MARKER = /(?:רחוב|רח׳|רח'|דרך|כביש|שדרות|שדר׳|שד׳|שד'|סמטה|כיכר)/u;
