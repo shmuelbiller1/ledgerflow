@@ -34,10 +34,10 @@ const PREFIX = /^(sq|tst|sp|pp|paypal|pos|pmt|ach|dd|card|debit|credit|purchase|
 
 const NOISE = [
   /\b(x{2,}|\*{2,})\d{2,4}\b/gi,          // XXXX1234 card numbers
-  /\bcard\s*(ending|no\.?)?\s*\d{4}\b/gi,
+  /\bcard\s*(?:(?:ending|no\.?)\s*)?\d{4}\b/gi,
   /\b\d{1,2}[/.-]\d{1,2}([/.-]\d{2,4})?\b/g, // dates
   /#\s*\d+/g,                              // store numbers
-  /\b[A-Z0-9]*\d[A-Z0-9]*\b/g,             // codes with digits (2K4L91TQ0, 4421, 800-123)
+  /\b(?=[A-Z0-9]*\d)[A-Z0-9]+\b/g,            // codes with digits (2K4L91TQ0, 4421, 800-123)
   /\b(us|usa|ca|gb|uk|il)\b$/i,            // trailing country
 ];
 
