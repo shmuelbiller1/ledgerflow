@@ -29,7 +29,6 @@ import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, readdirSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { executableEnv } from './executable-env.mjs';
 
 export const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src/tests/fixtures/receipts');
 
@@ -469,7 +468,7 @@ function render(spec, fonts, dir = OUT_DIR) {
   }
   const file = path.join(dir, `${spec.id}.png`);
   args.push('-depth', '8', `PNG8:${file}`);
-  const res = spawnSync('convert', args, { encoding: 'utf8', env: executableEnv('RECEIPT_FIXTURE_CONVERT_DIR') });
+  const res = spawnSync('convert', args, { encoding: 'utf8' });
   if (res.status !== 0) throw new Error(`convert failed for ${spec.id}: ${res.stderr || res.error}`);
   const bytes = readFileSync(file);
   return {

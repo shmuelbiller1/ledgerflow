@@ -14,13 +14,13 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 
 ## Follow-up queue and review boundaries (9 November)
 
-All 103 report keys are listed exactly once: 31 fixed, 18 hardened, 38 preserved/reviewed, 12 lead review and 4 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
+All 103 report keys are listed exactly once: 31 fixed, 16 hardened, 38 preserved/reviewed, 12 lead review and 6 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
 
 1. **Financial/server owner — 12 lead-review entries:** investigate the money-input and mailer regexes with adversarial and behavior-preserving tests; review payment/SDK, petty cash, loans, journal, telemetry and database ID fallbacks in their runtime and write/idempotency contexts; assess the cache-key collision and upload concurrency risks. The owner boundary and earlier handoff in `docs/COORDINATION.md` remain in force.
 2. **Parsing — 4 further-review entries:** four intent-entry regexes have a 500-character *per-line* limit, but that does not prove linear runtime or bound the number of lines; preserve the fallback and financial parsing semantics if changed. The PDF test helper now scans content operators without retrying long malformed arrays; tests compare the previous grammar on 5,000 mixed streams and exercise a 200,000-character malformed input.
 
    **Diagnostic IDs — hardened, not fully resolved:** client references now use Web Crypto. If unavailable, telemetry is still sent with no client ID and adopts the server response when present; local diagnostics remain available even when no ID is returned. The server's existing non-cryptographic fallback remains a separate lead-owned finding and can still collide, so end-to-end collision resistance is not claimed.
-3. **Executable lookup — 2 hardened entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git`. Their optional single-absolute-directory overrides (`RECEIPT_FIXTURE_CONVERT_DIR` and `CODE_ATLAS_GIT_DIR`) let an operator bypass the inherited PATH. If unset, the original PATH behavior remains. These overrides do not verify the executable or directory, Git/ImageMagick configuration, or other environment variables: only use a trusted environment; the underlying risks are not fully eliminated. The atlas no longer invokes `tar`: it materializes committed regular blobs directly for dependency resolution, inventories but does not follow symlinks or gitlinks, and no longer omits tracked `export-ignore` files. Six archived fixers no longer invoke shell commands found on PATH; they still modify files and must only be run in a trusted disposable checkout. The ESLint fixer invokes the checkout-local executable through the running Node binary, never downloads it, and still continues on lint failure.
+3. **Executable lookup — 2 further-review entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git`. Both rely on a trusted PATH. Do not run them in an untrusted environment; removing PATH dependence requires a portable executable policy, not a hard-coded OS-specific path. The atlas no longer invokes `tar`: it materializes committed regular blobs directly for dependency resolution, inventories but does not follow symlinks or gitlinks, and no longer omits tracked `export-ignore` files. Six archived fixers no longer invoke shell commands found on PATH; they still modify files and must only be run in a trusted disposable checkout. The ESLint fixer invokes the checkout-local executable through the running Node binary, never downloads it, and still continues on lint failure.
 
 The archived llama probe's two original installation findings are fixed here: it does not install packages, use npx, or write a temporary source file. It only inspects an already installed `llamaindex`, and still relies on a trusted `node` in PATH. Its output depends on the installed package version.
 
@@ -42,7 +42,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB-YefMaWPlOl83a` | `typescript:S8786` | `scripts/receipt-fixture-eval.ts:37` | Fixed |
 | `AaGKrB-YefMaWPlOl83b` | `typescript:S8786` | `scripts/receipt-fixture-eval.ts:38` | Fixed |
 | `AaGKrB-AefMaWPlOl83Y` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:91` | Fixed |
-| `AaGKrB-AefMaWPlOl83Z` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:472` | Hardened |
+| `AaGKrB-AefMaWPlOl83Z` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:472` | Further review |
 | `AaGKrB9JefMaWPlOl83M` | `plsql:NullComparison` | `supabase/migrations/20261023010000_repost_queue.sql:49` | Preserve / reviewed |
 | `AaGKrB9JefMaWPlOl83N` | `plsql:NullComparison` | `supabase/migrations/20261023010000_repost_queue.sql:49` | Preserve / reviewed |
 | `AaGKrB9JefMaWPlOl83O` | `plsql:QuotedIdentifiersCheck` | `supabase/migrations/20261023010000_repost_queue.sql:51` | Preserve / reviewed |
@@ -60,7 +60,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB-_efMaWPlOl83v` | `githubactions:S6505` | `.github/workflows/ci.yml:368` | Hardened |
 | `AaGKrB-_efMaWPlOl83w` | `githubactions:S8543` | `.github/workflows/ci.yml:368` | Hardened |
 | `AaGKrB-2efMaWPlOl83d` | `javascript:S5850` | `scripts/code-atlas.mjs:20` | Fixed |
-| `AaGKrB-2efMaWPlOl83e` | `javascript:S4036` | `scripts/code-atlas.mjs:22` | Hardened |
+| `AaGKrB-2efMaWPlOl83e` | `javascript:S4036` | `scripts/code-atlas.mjs:22` | Further review |
 | `AaGKrB-2efMaWPlOl83f` | `javascript:S8786` | `scripts/code-atlas.mjs:77` | Fixed |
 | `AaGKrB-2efMaWPlOl83g` | `javascript:S8786` | `scripts/code-atlas.mjs:92` | Fixed |
 | `AaGKrB-2efMaWPlOl83j` | `javascript:S4036` | `scripts/code-atlas.mjs:271` | Fixed |

@@ -114,8 +114,6 @@ node scripts/receipt-fixtures.mjs          # rewrites the 20 PNGs + manifest.jso
 node scripts/receipt-fixtures.mjs --check  # re-renders and reports any image whose hash moved
 ```
 
-For a controlled environment, set `RECEIPT_FIXTURE_CONVERT_DIR` to one absolute, trusted directory containing `convert`; this bypasses inherited PATH lookup for ImageMagick. The caller must still trust the executable, its directory, and other environment/configuration variables. If unset, the usual PATH is used.
-
 The generator is the only place a total comes from (items → subtotal → discount/service → tax → total), so an image
 and its expected fields cannot drift apart; the test then re-checks the manifest's own arithmetic and the SHA-256 of
 every file.
