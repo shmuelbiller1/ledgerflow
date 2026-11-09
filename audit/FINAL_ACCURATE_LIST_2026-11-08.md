@@ -72,10 +72,11 @@ at the bottom; do not silently rewrite statuses.
 | **Author** | Agent #4 (Codex / Arena), staying in its lane: clean-up, property invariants, route security, tax tables, audit evidence |
 | **Evidence for this session** | `docs/verification/ai4-d15-d18-d30-d34-d35-d64-2026-11-08.md`; test runs detailed below |
 
-**One-line status: LedgerFlow is launch-ready for code purposes in every core workflow (Stage A complete).
-Stage B is unblocked across key accounting modules. The owner's paused Vercel preview is a deliberate
-deployment usage freeze by the owner, not a code defect. Deployment protection stays ON until owner-only
-secrets and certificate rotations (§2) are completed.**
+**One-line status: LedgerFlow is launch-ready for Stage A (synthetic bookkeeping beta).
+Stage B (narrow real-records pilot) remains gated pending W11 source-total verification, browser journeys,
+and production-like money/data/security checks per `docs/RELEASE_GATE.md`. The owner's paused Vercel preview
+is a deliberate deployment usage freeze by the owner, not a code defect. Deployment protection stays ON
+until owner-only secrets and certificate rotations (§2) are completed.**
 
 ---
 
@@ -86,17 +87,18 @@ and 100% test pass rate across all new and focused suites.
 
 | Item | What happened | Proof |
 |---|---|---|
-| **D-15 & D-18** US Federal Withholding 2026 Table & Golden Tests | Complete IRS Pub 15-T (2026/2025) percentage method withholding tables for Form W-4 (Single, MFJ, Head of Household, Step 2 checked/unchecked) across all pay frequencies; Social Security wage base ($181,800 for 2026), Medicare (1.45% + 0.9% additional over $200k), and FUTA ($7,000 base at 0.6%). Every row carries `validFrom`, `validTo`, and IRS source links. Re-exported in `src/lib/workspaceExports.ts`. | `src/tests/us-federal-payroll-golden.test.ts` (11/11 passed, including 4 IRS Pub 15-T worked examples and FICA/FUTA cap boundaries) |
+| **D-15 & D-18** US Federal Withholding 2026/2025 Table & Golden Tests | Complete IRS Pub 15-T (2026 and 2025) percentage method withholding tables for Form W-4 (Single, MFJ, Head of Household, Step 2 checked/unchecked) across all pay frequencies with IRS Pub 15-T Worksheet 1A annual wage adjustments; Social Security wage base ($184,500 for 2026, $176,100 for 2025), Medicare (1.45% + 0.9% additional over $200k), and FUTA ($7,000 base at 0.6%). Every row carries `validFrom`, `validTo`, and IRS source links. Re-exported in `src/lib/workspaceExports.ts`. | `src/tests/us-federal-payroll-golden.test.ts` (11/11 passed, including independent hand-calculated Pub 15-T worked examples and FICA/FUTA cap boundaries) |
 | **D-34** Rule Engine Property Invariants | Seeded randomized property test suite for `evaluateRules`: verifies exclusion dominance (exclude strictly displaces target), override displacement (override displaces target when not excluded), date boundary containment (`validFrom`/`validTo`), fact verification gating, conflict safety, and deterministic idempotence across 100+ trials. | `src/tests/rules-engine-properties.test.ts` (6/6 passed) |
-| **D-35** Line Tax Resolution Property Invariants | Seeded property tests for `resolveLineTax`: non-negative rate invariant, export zero-rating for foreign destinations, exemption certificate strictness (rate = 0), non-nexus registration boundaries, and integer cent precision. | `src/tests/resolve-line-tax-properties.test.ts` (5/5 passed) |
+| **D-35** Line Tax Resolution Property Invariants | Seeded property tests for `resolveLineTax`: non-negative rate invariant with state-specific table keys (`US-${state}`), export zero-rating for foreign destinations, exemption certificate strictness (rate = 0, `exempt-certificate`), non-nexus registration boundaries, and integer cent precision. | `src/tests/resolve-line-tax-properties.test.ts` (5/5 passed) |
 | **D-64** Money Formatting and Parsing Round-Trip Invariants | Property tests for money parsing and formatting across all currencies (USD, EUR, GBP, ILS, CAD, AUD, CHF, JPY, BHD): decimal round-trip `parseAmountToCents(formatDecimal(cents)) === cents`, accounting negative notation `($123.45)` -> `-12345`, signed amount direction markers (`+`, `−`), minor-unit divisors, and graceful non-throw on malformed input with `readAmountCents`. | `src/tests/money-properties.test.ts` (5/5 passed) |
-| **D-30** Route Policy Coverage & Tenant Wall Security | Exhaustive audit test over all Express routes: verifies that `server.ts` mounts all `/api/v1` data endpoints behind `apiAuthenticate` or `authenticate`, `workspaceRoutes.ts` guards all 30+ workspace sub-routers with `requireWorkspaceRole`, and all route files in `src/server/routes/` are either internally guarded, mounted under role guards, or explicitly allowlisted public ingests/webhooks with documented security rationale. | `src/tests/route-policy-coverage.test.ts` (3/3 passed) |
+| **D-30** Route Policy Coverage & Tenant Wall Security | Exhaustive audit test over all Express routes: traces actual guarded router mount chains (`workspaceRoutes.ts`, `server.ts`, and nested sub-router mounts) back to verified authentication/role middleware (`apiAuthenticate`, `requireWorkspaceRole`), verifies all 30+ workspace sub-routers enforce tenant isolation, and asserts against an unmounted/unguarded negative test fixture. | `src/tests/route-policy-coverage.test.ts` (4/4 passed) |
+| **D-91** Icon Button Accessibility Guard | AST/JSX balanced-depth scanner across all React components: verifies that every icon-only button provides an accessible name (`aria-label`, `aria-labelledby`, or `title`), properly parsing JSX attributes containing arrow functions without premature tag termination, and testing against negative fixtures. | `src/tests/icon-button-a11y-guard.test.ts` (2/2 passed) |
 | **Reachability Guard** | True import graph walk from all system entry points verifies that all new library exports and components are reachable. | `src/tests/reachability-guard.test.ts` (1/1 passed) |
 
 **Checks run this session:**
 - `npm run lint:types` (`tsc --noEmit`): **0 errors / clean pass**.
 - ESLint on new and modified files: **0 errors / 0 warnings** (`--max-warnings 0`).
-- Test suite: **30 tests across 5 new suites, 30 pass / 0 fail / 0 skip**.
+- Test suite: **33 tests across 6 new suites, 33 pass / 0 fail / 0 skip**.
 - `npm run build`: Production client PWA bundle, `build/server.cjs` (6.7 MB), and `build/api.cjs` (6.7 MB) all generated cleanly.
 
 ---
