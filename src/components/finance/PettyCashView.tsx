@@ -74,7 +74,7 @@ function writePreference(workspaceId: string, preference: BoxPreference) {
  * server's own words.
  */
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
-  const id = `tx_petty_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const id = `tx_petty_${crypto.randomUUID()}`;
   const token = await getIdToken();
   const res = await fetch('/api/v1/transactions', {
     method: 'POST',

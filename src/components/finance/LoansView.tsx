@@ -89,7 +89,7 @@ function asDraft(form: LoanForm): LoanDraft {
  * records the payment after this resolves.
  */
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
-  const id = `tx_loan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const id = `tx_loan_${crypto.randomUUID()}`;
   const token = await getIdToken();
   const res = await fetch('/api/v1/transactions', {
     method: 'POST',

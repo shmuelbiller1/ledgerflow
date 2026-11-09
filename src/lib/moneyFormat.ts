@@ -159,6 +159,8 @@ export function isAmountText(val: string, opts: { complete?: boolean; locale?: s
   const text = decimalCommaAsPoint(plainAmountText(val), opts);
   const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
   if (!/\d/.test(inner)) return false;
+  // No real amount is this long; the patterns below would only slow down on such text.
+  if (inner.length > 48) return false;
   if ((inner.match(/[-+]/g) || []).length > 1) return false;
   if (opts.complete) {
     if (text.startsWith('(') !== text.endsWith(')')) return false;

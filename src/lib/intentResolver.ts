@@ -187,6 +187,9 @@ export class IntentResolver {
         // Every entry pattern requires an ASCII digit or comma; comma-only
         // amounts still reach the existing amount parser and its error path.
         if (!/[\d,]/.test(lowerInput)) continue;
+        // A typed entry is one short line. Longer text is not an entry, and capping it keeps the
+        // patterns below (which can backtrack on a long run of letters and digits) fast.
+        if (lowerInput.length > 300) continue;
 
         // 1. Check for Split Patterns: "Walmart $100 ($40 Groceries, $60 Electronics)"
         // A split cannot match without both delimiters. Avoid quadratic retries
