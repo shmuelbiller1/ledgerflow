@@ -286,7 +286,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                           </span>
                           {isPossibleMatch && !isSelected && <Zap aria-hidden="true" size={10} className="text-emerald-500 animate-pulse" />}
                         </div>
-                        <span className={cn("text-sm font-extrabold tracking-tight truncate max-w-[220px] md:max-w-xs", isSelected ? "text-white" : "text-[var(--text)]")}>
+                        <span className={cn("text-sm font-extrabold tracking-tight break-words min-w-0", isSelected ? "text-white" : "text-[var(--text)]")}>
                           {ltx.description}
                         </span>
                       </div>
@@ -378,7 +378,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                              {/* Internal Ledger Match Info */}
                              <div className="flex-1 min-w-0">
                                <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
-                               <h4 className="font-bold text-sm text-slate-700 truncate">{linkedTx?.description || 'Linked entry no longer found'}</h4>
+                               <h4 className="font-bold text-sm text-[var(--text)] break-words">{linkedTx?.description || 'Linked entry no longer found'}</h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedTx.totalAmountCents) : 'N/A'}</p>
                              </div>
 
@@ -465,7 +465,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 <div className="md:col-span-2 flex flex-col bg-[var(--ink)]/50 p-4 rounded-xl border border-[var(--line)] relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-2 opacity-10"><Maximize2 aria-hidden="true" size={36} /></div>
                   <span className="text-[10px] font-bold text-[var(--brass)] uppercase tracking-wider font-mono">Ledger entry</span>
-                  <span className="text-md font-bold truncate mt-1 tracking-tight">{selectedLedgerTx?.description || 'No ledger entry selected'}</span>
+                  <span className="text-md font-bold break-words mt-1 tracking-tight">{selectedLedgerTx?.description || 'No ledger entry selected'}</span>
                   <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                     <span className="text-[10px] font-mono text-[var(--muted)]">{selectedLedgerTx?.date || 'N/A'}</span>
                     <span className="text-sm font-bold font-mono text-[var(--text)] tabular-nums">
@@ -673,7 +673,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                 {/* Mapped registry internal record item info */}
                                 <div className="md:col-span-5 overflow-hidden text-right">
                                    <span className="text-[10px] uppercase tracking-widest font-black text-[var(--muted)] block mb-0.5">Ledger entry</span>
-                                   <p className="font-bold text-[var(--text)] truncate text-sm">{matchedLtx.description}</p>
+                                   <p className="font-bold text-[var(--text)] break-words text-sm">{matchedLtx.description}</p>
                                    <p className="text-[10px] font-semibold text-[var(--muted)] font-mono mt-0.5">{matchedLtx.date} • {formatCurrency(matchedLtx.totalAmountCents)}</p>
                                    {Math.abs(btx.amountCents) !== Math.abs(matchedLtx.totalAmountCents) && (
                                      <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider block mt-1 bg-amber-50/50 inline-block px-1.5 py-0.5 rounded border border-amber-200 tabular-nums">
