@@ -76,8 +76,8 @@ jobs:
       - name: Test ESLint warning ratchet
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
-      - name: Test source and fixture utilities
-        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs
+      - name: Test source and CI utilities
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -159,7 +159,8 @@ jobs:
   # One check for the whole unit suite: every part passed, and the merged coverage meets the thresholds (it only goes up).
   unit_gate:
     name: Accounting & Security Test Suites (coverage gate)
-    if: always()
+    # Run after failures/skips, but do not queue an obsolete gate after workflow cancellation.
+    if: ${{ !cancelled() }}
     needs: unit
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -348,7 +349,8 @@ jobs:
   # Preserve the original required check: skipped/cancelled/failed shards cannot pass it.
   e2e:
     name: Playwright E2E Smoke Suite
-    if: always()
+    # A superseded run must stop rather than queue this report-and-gate job.
+    if: ${{ !cancelled() }}
     needs: e2e_shards
     runs-on: ubuntu-latest
     timeout-minutes: 10
