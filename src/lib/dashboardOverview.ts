@@ -63,7 +63,8 @@ export function dashboardAging(parties: Array<{ id: string; name: string }>, doc
   return { rows, top };
 }
 
-export const DASHBOARD_WIDGETS = ['networth', 'revenue', 'expenses', 'profit', 'cash', 'receivables', 'payables', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
+/** D-85: the first row answers the owner's questions in order — cash, owed to you, you owe, profit. */
+export const DASHBOARD_WIDGETS = ['cash', 'receivables', 'payables', 'profit', 'networth', 'revenue', 'expenses', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 export interface DashboardLayout { order: DashboardWidget[]; hidden: DashboardWidget[] }
 export function dashboardLayout(value?: unknown): DashboardLayout {

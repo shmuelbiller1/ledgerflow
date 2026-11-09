@@ -18,7 +18,7 @@ test('E-5: every displayed widget provides refresh and describes actual cache fr
   const revenue = within(screen.getByRole('article', { name: 'Revenue' }));
   assert.ok(revenue.getByRole('button', { name: 'Refresh Revenue' }));
   assert.ok(revenue.getByText('Live data; update time not tracked'));
-  assert.ok(within(screen.getByRole('article', { name: 'Receivables' })).getByRole('button', { name: 'Refresh Receivables' }));
+  assert.ok(within(screen.getByRole('article', { name: 'Owed to you' })).getByRole('button', { name: 'Refresh Owed to you' }));
 });
 test('E-5: failed financial collection shows an actionable retry, not a misleading zero', () => {
   setComponentWorkspace();
@@ -30,7 +30,7 @@ test('E-5: failed financial collection shows an actionable retry, not a misleadi
   assert.ok(revenue.getByRole('button', { name: 'Refresh Revenue' }));
   assert.match(revenue.getByRole('alert').textContent || '', /Could not load transactions/);
   assert.equal(revenue.queryByText(/\$0\.00/), null);
-  const receivables = within(screen.getByRole('article', { name: 'Receivables' }));
+  const receivables = within(screen.getByRole('article', { name: 'Owed to you' }));
   assert.equal(receivables.queryByRole('alert'), null);
   useDataNeedsStore.getState().retry('transactions');
 });

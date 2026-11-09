@@ -16,7 +16,7 @@ for (const width of [390, 1280])
       await page.goto("/#dashboard");
       await expect(
         page.getByRole("heading", {
-          name: "Real-Time Financial Ledger",
+          name: "Dashboard",
           exact: true,
         }),
       ).toBeVisible();

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
 import { mountJourney, remountJourney, setLedgerField, settleStyles } from './support/journeyFixture';
-import { expectNoNewAccessibilityIssues } from './support/a11yGate';
+import { expectNoNewAccessibilityIssues, settleAnimations } from './support/a11yGate';
 
 /**
  * D-98 · W10 (RELEASE_GATE): backup → change records → restore → the P&L, balance sheet and trial
@@ -271,7 +271,7 @@ for (const width of [390, 1280]) {
     });
     // the client reads the file, fails the checksum and clears the input; nothing is posted
     await expect.poll(() => damagedInput.evaluate((input: HTMLInputElement) => input.value), { timeout: 5000 }).toBe('');
-    await page.waitForTimeout(500);
+    await settleAnimations(page, 500);
     expect(restoreUploads, 'a damaged backup must never reach the server').toHaveLength(uploadsBefore);
 
     // ---------------------------------------------------------------- 7. accessibility of the restored screen

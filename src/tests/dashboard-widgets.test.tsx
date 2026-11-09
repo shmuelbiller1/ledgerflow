@@ -19,10 +19,10 @@ test('dashboard layout persists by user/workspace, resets, and hides misleading 
   assert.match(screen.getByRole('alert').textContent || '', /Incomplete data: transactions/);
   fireEvent.click(screen.getByRole('checkbox', { name: 'Revenue' }));
   assert.equal(screen.queryByRole('article', { name: 'Revenue' }), null);
-  fireEvent.click(screen.getByRole('button', { name: 'Move Cash balance up' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Move You owe up' }));
   view.unmount(); render(<DashboardWidgets />);
   assert.equal(screen.queryByRole('article', { name: 'Revenue' }), null);
-  assert.equal(screen.getAllByRole('article')[2].getAttribute('aria-label'), 'Cash balance');
+  assert.equal(screen.getAllByRole('article')[1].getAttribute('aria-label'), 'You owe');
   fireEvent.change(screen.getByLabelText('Dashboard date range'), { target: { value: 'custom' } });
   fireEvent.change(screen.getByLabelText('Dashboard from'), { target: { value: '2024-03-02' } }); fireEvent.change(screen.getByLabelText('Dashboard to'), { target: { value: '2024-03-01' } });
   assert.match(screen.getAllByRole('alert')[0].textContent || '', /valid dates/); assert.equal(screen.queryAllByRole('article').length, 0);
@@ -64,7 +64,7 @@ test('BC-02: someone who has not arranged their own starts from their role\'s la
   assert.match(String(roleDashboardProblem('viewer', { order: ['nope'], hidden: [] })), /does not exist/);
   assert.equal(startingLayout({ order: ['recent'], hidden: [] }, { viewer: { order: ['cash'], hidden: [] } }, 'viewer').order[0], 'recent', 'their own wins');
   assert.equal(startingLayout(null, { viewer: { order: ['cash'], hidden: [] } }, 'viewer').order[0], 'cash');
-  assert.equal(startingLayout(null, {}, 'viewer').order[0], 'networth');
+  assert.equal(startingLayout(null, {}, 'viewer').order[0], 'cash', 'D-85: cash is the first card');
 
   const viewer = setComponentWorkspace('viewer');
   markComponentCollectionsLoaded('transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors');
@@ -72,7 +72,7 @@ test('BC-02: someone who has not arranged their own starts from their role\'s la
   useAuthStore.setState({ workspaces: [{ ...viewer, roleDashboards: { viewer: { order: ['cash'], hidden: ['revenue'] } } }] });
   localStorage.clear(); globalThis.fetch = (async () => new Response(JSON.stringify({ banks: [] }), { status: 200 })) as typeof fetch;
   render(<DashboardWidgets />);
-  assert.equal(screen.getAllByRole('article')[0].getAttribute('aria-label'), 'Cash balance');
+  assert.equal(screen.getAllByRole('article')[0].getAttribute('aria-label'), 'Cash');
   assert.equal(screen.queryByRole('article', { name: 'Revenue' }), null);
   assert.equal(screen.queryByRole('button', { name: 'Give them this layout' }), null, 'only owners give layouts');
   cleanup();
@@ -92,4 +92,21 @@ test('BC-02: someone who has not arranged their own starts from their role\'s la
   assert.deepEqual((sent[0] as { layout: { hidden: string[] } }).layout.hidden, ['revenue']);
   await waitFor(() => assert.ok(screen.getByText(/accountants who have not arranged their own start from this layout/)));
   assert.ok(useAuthStore.getState().workspaces.find(w => w.id === owner.id)?.roleDashboards?.accountant);
+});
+
+test('D-85: the first row answers cash, what customers owe, what you owe, then profit', async () => {
+  setComponentWorkspace('owner');
+  markComponentCollectionsLoaded('transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors');
+  useLedgerStore.setState({ accounts: [], transactions: [], invoices: [], bills: [], customers: [], vendors: [], truncatedCollections: {} });
+  localStorage.clear();
+  globalThis.fetch = (async () => new Response(JSON.stringify({ banks: [] }), { status: 200 })) as typeof fetch;
+  render(<DashboardWidgets />);
+  assert.deepEqual(
+    screen.getAllByRole('article').slice(0, 4).map(article => article.getAttribute('aria-label')),
+    ['Cash', 'Owed to you', 'You owe', 'Profit'],
+    'plain words, in the order a shop owner asks the questions',
+  );
+  // the money itself is unchanged: the same figure the balance sheet reports
+  const cash = screen.getByRole('article', { name: 'Cash' });
+  assert.ok(cash.textContent?.includes('$0.00') || cash.textContent?.includes('0.00'));
 });
