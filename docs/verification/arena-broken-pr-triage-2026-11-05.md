@@ -74,3 +74,40 @@ together, and only one of them was a code failure:
   current `main` if they are still wanted.
 - The remaining 10 PRs can be closed once this branch lands; their content is either here or already
   on `main` (noted per row above).
+
+## Final state — PR #539 is green and mergeable
+
+All 25 checks pass on `8b191e3f`: SonarCloud quality gate (A security, duplication under 3%),
+CodeQL, lint/typecheck/db rules, production build, unit shards 1-4 and the three timezones, the
+coverage gate, all five browser shards, the E2E smoke gate, and Vercel.
+
+### The browser-shard-1 stall (the real cause, worth remembering)
+
+Four shards finished in 5-7 minutes and shard 1 was cancelled at its limit in five consecutive runs.
+A cancelled job names no failing test, so it read as "the suite is slow". It was one call written
+wrong in **23 places**:
+
+```js
+await page.waitForFunction(() => document.getAnimations().length === 0, { timeout: 200 });
+//                   options are the THIRD parameter: (pageFunction, arg, options)
+```
+
+`{ timeout: 200 }` was passed as the *argument*, so every call used the 30-second default, and on a
+screen that keeps a looping animation the condition never becomes true — 30 seconds per call, per
+test, with retries, all in shard 1. Fix: `settleAnimations(page, ms)` in `e2e/support/a11yGate.ts`
+(reduces motion, bounded wait, never throws), all 23 sites moved to it, and
+`src/tests/browser-wait-guard.test.ts` fails the build if the shape returns, if the helper loses its
+deadline, or if a spec calls the helper without importing it (that third check caught two specs,
+which would have failed 34 report tests). Shard 1: **9m18s, passing.** The shard timeout went back to
+30 minutes; the waits, not the budget, were the problem.
+
+### Other fixes in the final stretch
+
+| Area | What was wrong | Fix |
+|---|---|---|
+| Contrast | reconciliation chip 3.46:1, unmatch action 4.12:1, "Matched ledger entry" 2.92:1, Sales aging labels 2.13:1, critical overdue 3.75:1 | AA pairs (700 in light, 300 in dark) on the real screens |
+| Keyboard | statement table scrolled sideways with no keyboard path | focusable group with a skip link |
+| Stale locators | `Auto Align All`, `Matched History (1)`, `Account totals`, `Workspace Setup Checklist`, `Sales` | the screens' current words |
+| Layout | dashboard's fifth first-screen action 2.23px below the fold at 390x850 | phone header 8px tighter |
+| Visual baselines | capture and its verification disagreed (cards caught mid fade-in); Settings measured before it finished loading | wait for finite animations, settle on a stable height, then recapture |
+| CI feedback | a failed capture said only "exit code 1" (log and artifact unreachable) | JSON report replayed into the step summary and the run's annotations |
