@@ -54,10 +54,10 @@ for (const width of [390, 1280]) for (const dark of [false, true]) {
 
     // Every guide destination renders the real screen, not merely a changed store value.
     for (const [action, heading] of [
-      ['Open customers', 'Invoicing & Customer Accounts'],
-      ['Open invoices', 'Invoicing & Customer Accounts'],
+      ['Open customers', 'Sales'],
+      ['Open invoices', 'Sales'],
       ['Open bills', 'Purchases & AP'],
-      ['Open unpaid invoices', 'Invoicing & Customer Accounts'],
+      ['Open unpaid invoices', 'Sales'],
       ['Open bank import', 'Bank & Institution Connections'],
       ['Open reconciliation', 'Smart Matching & Bank Reconciliation'],
       ['Open profit and loss', 'Reports'],
@@ -68,7 +68,7 @@ for (const width of [390, 1280]) for (const dark of [false, true]) {
       await button.press('Enter');
       await expect(main.getByRole('heading', { name: heading, exact: true })).toBeVisible();
       if (action === 'Open customers') {
-        await main.getByRole('button', { name: 'Customers & Clients', exact: true }).click();
+        await main.getByRole('button', { name: 'Customers', exact: true }).click();
         await main.getByRole('button', { name: 'Add Customer', exact: true }).click();
         await expect(page.getByRole('dialog')).toHaveCount(1);
         await page.keyboard.press('Escape');
@@ -102,7 +102,7 @@ for (const width of [390, 1280]) for (const dark of [false, true]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await testInfo.attach('empty-books', { body: await page.screenshot({ path: testInfo.outputPath(`empty-${width}-${dark ? 'dark' : 'light'}.png`) }), contentType: 'image/png' });
     await main.getByRole('button', { name: 'Open invoices', exact: true }).click();
-    await expect(main.getByRole('heading', { name: 'Invoicing & Customer Accounts', exact: true })).toBeVisible();
+    await expect(main.getByRole('heading', { name: 'Sales', exact: true })).toBeVisible();
     expect(errors, `Browser script diagnostics: ${diagnostics.join(' | ') || 'none'}`).toEqual([]);
   });
 }

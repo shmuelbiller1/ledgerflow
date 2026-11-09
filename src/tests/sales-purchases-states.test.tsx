@@ -32,7 +32,7 @@ test('empty invoices offer a working first-invoice action', () => {
 test('empty customers replace the misleading offline message with a working add-customer action', () => {
   markComponentCollectionsLoaded('creditNotes', 'customers', 'invoices', 'payments');
   render(<Sales />);
-  fireEvent.click(screen.getByRole('button', { name: 'Customers & Clients' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Customers' }));
   assert.ok(screen.getByText('No customers yet'));
   assert.equal(screen.queryByText('Supplier Registry Offline'), null);
   fireEvent.click(screen.getByRole('button', { name: 'Add first customer' }));
