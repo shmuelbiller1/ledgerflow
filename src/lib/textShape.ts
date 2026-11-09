@@ -71,3 +71,43 @@ export function trimSpacesBeforeNewlines(text: string): string {
   const lines = text.split('\n');
   return lines.map((line, i) => (i < lines.length - 1 ? trimEndChars(line, ' \t') : line)).join('\n');
 }
+
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
+/** `text` split at its trailing run of ASCII digits: { head, digits }, or null when it does not end in a digit or the
+ * head holds a line break. Same as text.match(/^(.*?)(\d+)$/) → [, head, digits]. */
+export function splitTrailingDigits(text: string): { head: string; digits: string } | null {
+  let start = text.length;
+  while (start > 0 && text[start - 1] >= '0' && text[start - 1] <= '9') start--;
+  if (start === text.length) return null;
+  const head = text.slice(0, start);
+  return LINE_BREAK.test(head) ? null : { head, digits: text.slice(start) };
+}
+
+/** "City 12345": the text before whitespace and exactly five final digits, or null. Same as
+ * text.match(/^(.*?)\s+(\d{5})$/u)?.[1]. */
+export function headBeforeFiveDigits(text: string): string | null {
+  let start = text.length;
+  while (start > 0 && text[start - 1] >= '0' && text[start - 1] <= '9') start--;
+  if (text.length - start !== 5) return null;
+  const head = text.slice(0, start);
+  if (!/\s$/u.test(head)) return null;
+  let end = head.length;
+  while (end > 0 && /\s/u.test(head[end - 1])) end--;
+  const before = head.slice(0, end);
+  return LINE_BREAK.test(before) ? null : before;
+}
+
+/** Lines of `text` without the whitespace next to each line break, empty lines dropped. Same as
+ * text.split(/\s*\n\s*\/).filter(Boolean). */
+export function splitTrimmedLines(text: string): string[] {
+  const parts = text.split('\n');
+  return parts
+    .map((part, i) => {
+      let s = part;
+      if (i > 0) s = s.trimStart();
+      if (i < parts.length - 1) s = s.trimEnd();
+      return s;
+    })
+    .filter(Boolean);
+}
