@@ -166,6 +166,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     { label: 'Israel Month Journey', componentName: 'IsraelMonthJourneyReportView' },
     { label: 'Israel: Self-Employed National Insurance', componentName: 'IlSelfEmploymentNiReportView' },
     { label: 'Israel: Advance Tax Calendar (Mikdamot)', componentName: 'IsraelAdvanceTaxReportView' },
+    { label: 'Israel VAT Report', componentName: 'IsraelVatReportView' },
     { label: 'Accountant export pack', componentName: 'AccountantExportPackView', id: 'accountant-export-pack' },
     { label: 'Vendor Quotes Compare', componentName: 'VendorQuotesCompareView' },
     { label: 'Customer Item Codes', componentName: 'CustomerItemCodesView' },

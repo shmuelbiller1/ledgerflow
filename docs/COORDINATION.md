@@ -202,9 +202,9 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
 
 ### Tax tasks for AI #2 (Claude, 11 Oct; after C-39; plan in docs/PLAN.md). Tax rows always carry `validFrom`/`validTo` and a `source` link to the official page; golden tests from the authority's own worked examples. Tables and screens only: postings and calculations are AI #1's (docs/PLAN.md).
 
-- [ ] **C-40 Israel VAT report screen and print** (PLAN IL-3): the period's sales, inputs, fixed-asset inputs and amount
-  to pay, from AI #1's figures function (`israelVatReturn` in `src/lib/tax/ilVatReturn.ts`, landed 11 Oct; US states: `usSalesTaxReturn` in `src/lib/tax/usSalesTaxReturn.ts`, landed 12 Oct); Hebrew and English; print. Until it lands, build on
-  the existing return boxes (T-06).
+- [x] **C-40 Israel VAT report screen and print** (PLAN IL-3): the period's sales, inputs, fixed-asset inputs and amount
+  to pay, from AI #1's figures function (`israelVatReturn` in `src/lib/tax/ilVatReturn.ts`, landed 11 Oct; US states: `usSalesTaxReturn` in `src/lib/tax/usSalesTaxReturn.ts`, landed 12 Oct); Hebrew and English; print.
+  *AI #2, 8 Nov: delivered as Reports → **Israel VAT Report** (`IsraelVatReportView.tsx`). Reads pure Form 836 calculations via `israelVatReturn`, splits equipment purchases with `withEquipment`, supports multiple Israeli VAT registrations via `ilVatRegistrations`, provides bilingual Form 836 line items (EN/HE), CSV export (`ilVatReportCsv.ts`), and print support. Unit/DOM tests `src/tests/israel-vat-report-view.test.tsx` (7/7).*
 - [ ] **C-41 Nexus watch** (PLAN US-2): sales and order counts per US state (ship-to address) for the current and last
   calendar year against each state's economic-nexus threshold (table `src/lib/tax/usNexus.ts`, rows with sources), with a
   warning at 80%. Read-only.
@@ -2103,3 +2103,4 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 - **8 Nov, Claude (AI #1):** AI #3's queue was down to A-263…A-267 (all in progress); added A-268…A-272 under "Next batch for AI #3 (8 Nov)".
 - **8 Nov, Claude (AI #1):** owner asked for queues for two more AIs: **AI #10** ("AI #10: tasks", H-1, H-4, H-6…H-9 open) and **AI #11** (new: imports, exports and documents, J-1…J-8). New spare queue **AI #12** (N-1…N-5). Every queue now has at least five open tasks.
+- 2026-11-08 AI #2 (Codex): **C-40 delivered** — Reports → **Israel VAT Report** (`IsraelVatReportView.tsx`). Reads pure Form 836 figures from `israelVatReturn`, marks equipment and mixed bills via `withEquipment`, supports multiple Israeli VAT registrations via `ilVatRegistrations`, provides bilingual Form 836 line items (EN/HE), CSV export (`ilVatReportCsv.ts`), and print layout support (`window.print()`). Unit/DOM tests `src/tests/israel-vat-report-view.test.tsx` (7/7). Quality metrics clean (`untestedViews: 0`, `suppressionCount: 0`, `anyCount: 37`, warnings 42/42).
