@@ -6,6 +6,7 @@
  */
 import { addToDateISO } from './calendarDate';
 import { csvMoney, toCsv } from './csvExport';
+import { isEmailShape } from './textShape';
 
 export const SCHEDULED_REPORTS = {
   'profit-and-loss': 'Profit and loss',
@@ -25,7 +26,6 @@ export interface ScheduledReport {
 
 export const MAX_SCHEDULES = 10;
 export const MAX_RECIPIENTS = 10;
-const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 /** What is wrong with a schedule, or null. */
 export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
@@ -34,7 +34,7 @@ export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
   const recipients = s.recipients || [];
   if (!recipients.length) return 'Add at least one email address';
   if (recipients.length > MAX_RECIPIENTS) return `At most ${MAX_RECIPIENTS} addresses`;
-  const bad = recipients.find(r => !EMAIL.test(r) || r.length > 254);
+  const bad = recipients.find(r => !(isEmailShape(String(r)) && !/[,;<>]/.test(String(r))) || r.length > 254);
   if (bad) return `"${bad}" is not an email address`;
   return null;
 }

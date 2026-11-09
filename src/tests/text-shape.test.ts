@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
+import { firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -82,4 +82,29 @@ test('splitTrailingDigits, headBeforeFiveDigits and splitTrimmedLines match the 
   assert.equal(headBeforeFiveDigits('Tel Aviv 61000'), 'Tel Aviv');
   assert.equal(headBeforeFiveDigits('Tel Aviv 610000'), null);
   assert.deepEqual(splitTrailingDigits('INV-0042'), { head: 'INV-', digits: '0042' });
+});
+
+test('firstTwoPlaceAmount, splitLeadingCode and splitTypedAmount match the old patterns on every short string', () => {
+  const OLD_AMOUNT = /([0-9]+[,.][0-9]{2})/;
+  const OLD_LEAD = /^(\d[\w.-]*)\s+(.+)$/;
+  const OLD_TYPED = /^\s*(-?)(\d*)(?:\.(\d*))?\s*$/;
+  for (const s of strings(['1', ',', '.', 'a'], 7)) assert.equal(firstTwoPlaceAmount(s), s.match(OLD_AMOUNT)?.[1], JSON.stringify(s));
+  for (const s of strings(['1', 'a', ' ', '\n', '-'], 6)) {
+    const old = s.match(OLD_LEAD);
+    assert.deepEqual(splitLeadingCode(s), old ? { code: old[1], rest: old[2] } : null, JSON.stringify(s));
+  }
+  for (const s of strings(['1', '.', '-', ' ', 'x'], 6)) {
+    const old = OLD_TYPED.exec(s);
+    assert.deepEqual(splitTypedAmount(s), old ? { sign: old[1], whole: old[2], fraction: old[3] } : null, JSON.stringify(s));
+  }
+  assert.deepEqual(splitLeadingCode('1200 Accounts Receivable (A/R)'), { code: '1200', rest: 'Accounts Receivable (A/R)' });
+  assert.equal(firstTwoPlaceAmount('C1234,56EUR'), '1234,56');
+});
+
+test('a scheduled-report recipient that is not a string is refused, not thrown on', async () => {
+  const { scheduleProblem, SCHEDULED_REPORTS } = await import('../lib/scheduledReports');
+  const report = Object.keys(SCHEDULED_REPORTS)[0];
+  const base = { report, frequency: 'monthly' } as never as Record<string, unknown>;
+  assert.equal(scheduleProblem({ ...base, recipients: ['a@b.co'] } as never), null);
+  assert.equal(scheduleProblem({ ...base, recipients: [123 as unknown as string] } as never), '"123" is not an email address');
 });

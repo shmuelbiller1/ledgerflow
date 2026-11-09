@@ -111,3 +111,49 @@ export function splitTrimmedLines(text: string): string[] {
     })
     .filter(Boolean);
 }
+
+
+/** The first "123,45" or "123.45" in `text`: a digit run, then ',' or '.', then two digits. Same as
+ * text.match(/([0-9]+[,.][0-9]{2})/)?.[1]. */
+export function firstTwoPlaceAmount(text: string): string | undefined {
+  const digit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
+  for (let i = 0; i < text.length; i++) {
+    if (!digit(text[i]) || digit(text[i - 1])) continue;
+    let j = i;
+    while (digit(text[j])) j++;
+    if ((text[j] === ',' || text[j] === '.') && digit(text[j + 1]) && digit(text[j + 2])) return text.slice(i, j + 3);
+  }
+  return undefined;
+}
+
+/** "1200 Accounts Receivable": a leading code that starts with a digit, then whitespace, then the rest. Same as
+ * text.match(/^(\d[\w.-]*)\s+(.+)$/) → [, code, rest]. */
+export function splitLeadingCode(text: string): { code: string; rest: string } | null {
+  const word = (c: string) => /[\w.-]/.test(c);
+  if (!(text[0] >= '0' && text[0] <= '9')) return null;
+  let j = 1;
+  while (j < text.length && word(text[j])) j++;
+  let k = j;
+  while (k < text.length && /\s/.test(text[k])) k++;
+  if (k === j) return null;
+  let p = k;
+  if (k === text.length) {
+    // only whitespace follows: the whitespace gives back its last character as the rest, unless that is a line break
+    if (k - j < 2 || LINE_BREAK.test(text[k - 1])) return null;
+    p = k - 1;
+  } else if (LINE_BREAK.test(text.slice(k))) return null;
+  return { code: text.slice(0, j), rest: text.slice(p) };
+}
+
+/** A typed amount: optional surrounding whitespace, an optional '-', digits, and an optional '.' with digits.
+ * Same as /^\s*(-?)(\d*)(?:\.(\d*))?\s*$/.exec(text) → [, sign, whole, fraction]. */
+export function splitTypedAmount(text: string): { sign: string; whole: string; fraction: string | undefined } | null {
+  const t = text.trim();
+  const sign = t.startsWith('-') ? '-' : '';
+  const body = t.slice(sign.length);
+  const point = body.indexOf('.');
+  const whole = point === -1 ? body : body.slice(0, point);
+  const fraction = point === -1 ? undefined : body.slice(point + 1);
+  const digits = (s: string) => [...s].every(c => c >= '0' && c <= '9');
+  return digits(whole) && (fraction === undefined || digits(fraction)) ? { sign, whole, fraction } : null;
+}
