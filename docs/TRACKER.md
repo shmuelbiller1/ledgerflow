@@ -1844,7 +1844,7 @@ Method for every item: open the screen in a browser at 1280 and 1440 px (and 390
 - [x] UX-3 Reconcile: normal-case title, "0% of bank lines matched", controls fit at 1280 and 390, names wrap (#589, 9 Nov)
 - [x] UX-4 Reports: the controls above a report (paper size, Generate, saved views, "Choose report" box) into one tidy row — done (#591, 9 Nov)
 - [x] UX-5 Dashboard: the empty "First-hour bookkeeping guide" box, spacing, date range in the header row — done (#594, 9 Nov)
-- [ ] UX-6 Settings: survey and tidy
-- [ ] UX-7 Top of every page: backup reminder and demo banner in one slim line; tab bar spacing
+- [x] UX-6 Settings: survey and tidy — plan cards fixed in #582; 25 sub-pages checked at 1280/390, nothing clipped (9 Nov)
+- [x] UX-7 Top of every page: backup reminder and demo banner in one slim line; tab bar spacing — done (#596, 9 Nov)
 - [ ] UX-8 One shared page-header component used by every main screen
 - [ ] UX-9 Phone (390 px) pass over the same screens
