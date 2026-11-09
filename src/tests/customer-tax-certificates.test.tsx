@@ -8,14 +8,13 @@ import CustomerTaxCertificatesView from '../components/reporting/CustomerTaxCert
 import {useAuthStore} from '../stores/useAuthStore';
 import {useLedgerStore} from '../stores/useLedgerStore';
 import {useRecordDetailsStore} from '../stores/useRecordDetailsStore';
-import {getSupabase} from '../lib/db/client';
 import {setComponentWorkspace,markComponentCollectionsLoaded} from './helpers/componentFixtures';
 import type {Customer} from '../types';
 
 const realFetch=globalThis.fetch;
 const customer=(id:string,expires?:unknown,number:unknown='אישור EX-1'):Customer=>({id,uid:'test-user',workspaceId:'component-workspace',name:`לקוח ${id}`,metadata:{taxExemption:{number,...(expires===undefined?{}:{expires})}}});
 beforeEach(()=>{setComponentWorkspace();markComponentCollectionsLoaded('customers');useLedgerStore.setState({customers:[],truncatedCollections:{}});globalThis.fetch=async()=>new Response(JSON.stringify([]),{headers:{'content-type':'application/json'}});});
-afterEach(async()=>{cleanup();globalThis.fetch=realFetch;useRecordDetailsStore.getState().close();getSupabase().realtime.disconnect();await getSupabase().auth.dispose();});
+afterEach(()=>{cleanup();globalThis.fetch=realFetch;useRecordDetailsStore.getState().close();});
 const response=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
 
 test('the 30-calendar-day window is inclusive across leap February and preserves Hebrew identities',()=>{

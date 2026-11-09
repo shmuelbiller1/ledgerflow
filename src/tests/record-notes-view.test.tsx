@@ -15,7 +15,6 @@ import { recordNotesFromMetadata, RECORD_NOTES_METADATA_KEY } from '../lib/recor
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { getSupabase } from '../lib/db/client';
 
 /** Database writes go through the Supabase `lf_update` RPC; let those succeed and nothing else. */
 function stubDbWrites(): void {
@@ -74,7 +73,7 @@ describe('Record notes screen', () => {
       transactions: [] as never, projects: [] as never, truncatedCollections: {} as never,
     });
   });
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('a two-word search finds the notes with both words, newest first, with their record', () => {
     render(<RecordNotesReportView />);
@@ -149,7 +148,7 @@ describe('Record notes screen', () => {
 });
 
 describe('Notes panel on a record', () => {
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('the author can change their own note, and the panel names the record', async () => {
     stubDbWrites();

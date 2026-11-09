@@ -13,7 +13,6 @@ import { bankProblem, companyProblem, nachaFile, validRouting } from '../lib/nac
 import { DirectDepositDialog } from '../components/hr/DirectDepositDialog';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { getSupabase } from '../lib/db/client';
 import type { Employee, PayRun } from '../types';
 
 const company = { routing: '021000021', companyId: '1123456789', companyName: 'Payroll Co', bankName: 'Big Bank' };
@@ -60,7 +59,7 @@ describe('The file', () => {
 });
 
 describe('On screen', () => {
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('add a person\'s account in the dialog, then download the file', async () => {
     setComponentWorkspace('owner');

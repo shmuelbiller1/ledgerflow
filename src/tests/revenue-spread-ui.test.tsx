@@ -5,6 +5,7 @@
  * "Spread", and on a spread invoice shows its progress with "Undo spread"; re-posting the invoice
  * leaves the spread alone, and un-posting it is refused until the spread is undone.
  */
+import './helpers/dom';
 import { stubFetchWithBodies } from './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,6 @@ import Sales from '../components/sales/Sales';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { makeChartAccount } from './fixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { getSupabase } from '../lib/db/client';
 import type { Invoice } from '../types';
 
 const accounts = [
@@ -67,7 +67,7 @@ describe('The invoice list', () => {
   beforeEach(() => {
     markComponentCollectionsLoaded('invoices', 'customers', 'payments', 'creditNotes');
   });
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('a sent invoice offers Spread; a spread one shows its progress and Undo; a draft offers neither', () => {
     setComponentWorkspace('owner');

@@ -15,7 +15,6 @@ import BillModal from '../components/purchases/BillModal';
 import InventoryItemDialog from '../components/inventory/InventoryItemDialog';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { getSupabase } from '../lib/db/client';
 import { stubFetch } from './helpers/dom';
 import { makeChartAccount, makeCustomer, makeVendor } from './fixtures';
 import type { Invoice, InventoryItem, Workspace } from '../types';
@@ -25,7 +24,7 @@ const setup = { id: 'setup', name: 'Setup', sku: 'SV', unitPriceCents: 12000, un
 const line: InvoiceLineDraft = { id: 'l', description: '', quantity: 2, rateCents: 0, amountCents: 0, accountId: '' };
 
 describe('Service items', () => {
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('a service fills the name and price, unlinked; a stock item links and carries its cost', () => {
     assert.deepEqual(applyInventoryItem({ ...line, itemId: 'chair', unitCostCents: 2000 }, setup), { ...line, itemId: undefined, description: 'Setup', rateCents: 12000, unitCostCents: undefined, amountCents: 24000 });

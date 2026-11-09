@@ -15,7 +15,6 @@ import { stockAging, type StockMove } from '../lib/stockMoves';
 import StockAgingReportView from '../components/reporting/StockAgingReportView';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { stubFetchWithBodies } from './helpers/dom';
-import { getSupabase } from '../lib/db/client';
 
 // the screen test stubs fetch; the database test asks the real server
 const realFetch = globalThis.fetch;
@@ -41,7 +40,7 @@ const moves = [
 ];
 
 describe('Stock aging', () => {
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('by age, first in first out; the last sale; the oldest first', () => {
     const rows = stockAging(moves, '2026-04-30');

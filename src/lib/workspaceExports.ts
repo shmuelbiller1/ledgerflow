@@ -235,3 +235,25 @@ export { USE_TAX_STATES, USE_TAX_CSV_HEADERS, reviewUseTax, reviewUseTaxCsvRows 
 export { US_EXEMPTION_CERTIFICATE_TYPES, SST_MEMBER_STATES, SST_MEMBER_ROW, CERTIFICATE_TYPE_IDS, certificateAcceptance, exemptionCertificateType, certificateTypeName, exemptionCertificateProblems } from './tax/usExemptionCertificates';
 export { ilImportServicesPack, importBillsReview, importBillsCsvRows, vendorCountryOf, IMPORT_BILLS_CSV_HEADERS } from './tax/ilImportServices';
 export { IL_VAT_REPORT_FREQUENCY, IL_BIMONTHLY_TURNOVER_CEILING_CENTS, assignedFrequency, frequencyCheck, ilVatFrequencyPack, ilVatFrequencyProblems } from './tax/ilVatFilingFrequency';
+
+/**
+ * US Federal Payroll (D-15 / D-18): IRS Publication 15-T (2026/2025) withholding tables,
+ * FICA (Social Security & Medicare), and FUTA calculation helpers.
+ */
+export {
+  calculateFederalIncomeTaxWithholding,
+  calculateFicaTax,
+  calculateFutaTax,
+  getFicaRatesOn,
+  getFederalWithholdingTable,
+  US_FEDERAL_WITHHOLDING_ANNUAL,
+  US_FICA_FUTA_HISTORY,
+  PAY_PERIODS_PER_YEAR,
+  type UsPayrollFilingStatus,
+  type UsPayFrequency,
+  type TaxBracket,
+  type FederalWithholdingTableEntry,
+  type FicaRates,
+  type FicaBreakdown,
+  type FutaBreakdown,
+} from './tax/usFederalPayroll';
