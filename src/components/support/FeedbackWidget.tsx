@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDialog } from '../../hooks/useDialog';
-import { sendFeedback, FEEDBACK_APP_VERSION, feedbackReference, feedbackScreenshotProblem } from '../../lib/feedbackTicket';
+import { sendFeedback, FEEDBACK_APP_VERSION, FEEDBACK_KINDS, feedbackReference, feedbackScreenshotProblem, feedbackSubject, type FeedbackKind } from '../../lib/feedbackTicket';
 import { attachFiles, readAsDataUrl } from '../../services/attachmentActions';
 import { MAX_ATTACHMENT_BYTES, formatBytes } from '../../lib/attachments';
 import { toast } from 'sonner';
@@ -20,6 +20,7 @@ function FeedbackForm({ workspaceId, uid }: { workspaceId: string | null; uid?: 
   const [origin, setOrigin] = useState('');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
+  const [kind, setKind] = useState<FeedbackKind>('problem');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [screenshot, setScreenshot] = useState<File | null>(null);
@@ -50,7 +51,7 @@ function FeedbackForm({ workspaceId, uid }: { workspaceId: string | null; uid?: 
   }, [currentScreen, body, screenshot]);
   const current = () => mounted.current && useAuthStore.getState().currentWorkspaceId === workspaceId && useAuthStore.getState().user?.uid === uid;
   const finish = (message: string) => {
-    ticketRef.current = null; setSavedTicket(null); setBody(''); setScreenshot(null); setPreview(null); setOpen(false); toast.success(message);
+    ticketRef.current = null; setSavedTicket(null); setBody(''); setKind('problem'); setScreenshot(null); setPreview(null); setOpen(false); toast.success(message);
   };
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -61,11 +62,11 @@ function FeedbackForm({ workspaceId, uid }: { workspaceId: string | null; uid?: 
     }
     pending.current = true; setBusy(true); setError('');
     try {
-      const ticketId = ticketRef.current || await sendFeedback(workspaceId, uid, origin, body);
+      const ticketId = ticketRef.current || await sendFeedback(workspaceId, uid, origin, body, kind);
       if (!current()) return;
       ticketRef.current = ticketId; setSavedTicket(ticketId);
       if (screenshot) {
-        const result = await attachFiles(workspaceId, uid, { collection: 'supportTickets', id: ticketId, label: `Feedback: ${origin}` }, [screenshot]);
+        const result = await attachFiles(workspaceId, uid, { collection: 'supportTickets', id: ticketId, label: feedbackSubject(origin, kind) }, [screenshot]);
         if (!current()) return;
         if (result.saved.length !== 1 || result.refused.length) throw new Error(result.refused[0]?.reason || 'The screenshot was not attached. Retry or finish without it.');
       }
@@ -80,7 +81,11 @@ function FeedbackForm({ workspaceId, uid }: { workspaceId: string | null; uid?: 
       <form aria-busy={busy} onSubmit={event => void submit(event)} className="bg-[var(--surface)] p-6 rounded-xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto space-y-4">
         <h2 id={titleId} className="text-xl font-bold">Send feedback</h2>
         <p className="text-sm">Screen: {origin} · App version: {FEEDBACK_APP_VERSION}</p>
-        <label htmlFor={inputId} className="block">What happened?</label>
+        <fieldset className="space-y-1" disabled={busy || Boolean(savedTicket)}>
+          <legend>What is this about?</legend>
+          {FEEDBACK_KINDS.map(k => <label key={k.value} className="flex items-center gap-2 min-h-11"><input type="radio" name={`${inputId}-kind`} value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} />{k.label}</label>)}
+        </fieldset>
+        <label htmlFor={inputId} className="block">{kind === 'missing' ? 'What tool or feature do you need, and what would you use it for?' : kind === 'question' ? 'Your question' : 'What happened?'}</label>
         <textarea id={inputId} required maxLength={5000} rows={6} className="w-full border rounded p-3" value={body} onChange={event => setBody(event.target.value)} readOnly={busy || Boolean(savedTicket)} />
         <div className="space-y-2">
           <label htmlFor={`${inputId}-screenshot`} className="block">Add a screenshot (optional)</label>
