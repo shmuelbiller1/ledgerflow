@@ -1,4 +1,5 @@
 import { parseAmountToCents } from './utils';
+import { firstTwoPlaceAmount } from './textShape';
 export interface ParsedBankLine {
   date: string;
   amountCents: number;
@@ -33,9 +34,9 @@ export function parseMT940Statement(rawContent: string): ParsedBankLine[] {
       const indicator = isCredit ? 'credit' : 'debit';
 
       // Extract amount
-      const amountMatch = data.match(/([0-9]+[,.][0-9]{2})/);
+      const amountMatch = firstTwoPlaceAmount(data);
       const amountCents = amountMatch
-        ? parseAmountToCents(amountMatch[1].replace(',', '.'))
+        ? parseAmountToCents(amountMatch.replace(',', '.'))
         : 0;
 
       const signedAmountCents = indicator === 'debit' ? -amountCents : amountCents;

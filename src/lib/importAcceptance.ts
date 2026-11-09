@@ -10,6 +10,7 @@ import { parseCsv } from './csv';
 import { resolveAccountRole } from './accountUtils';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from './accountDefaults';
 import type { ChartAccount } from '../types';
+import { splitLeadingCode } from './textShape';
 
 /** One line of the source trial balance: its balance as a debit (a credit balance is negative). */
 export interface SourceLine { row: number; account: string; code?: string; debitCents: number }
@@ -79,9 +80,9 @@ export function readSourceTrialBalance(csv: string): SourceTrialBalance {
     if (/^total\b/i.test(name)) { fileTotal = { debit, credit }; return; }
     if (!name) { problems.push(`Row ${row}: an amount with no account`); return; }
     // QuickBooks writes "1200 Accounts Receivable (A/R)": a leading number is the account's code
-    const lead = name.match(/^(\d[\w.-]*)\s+(.+)$/);
-    const code = codeCol >= 0 ? (r[codeCol] || '').trim() || undefined : lead?.[1];
-    lines.push({ row, account: codeCol < 0 && lead ? lead[2] : name, ...(code ? { code } : {}), debitCents: debit - credit });
+    const lead = splitLeadingCode(name);
+    const code = codeCol >= 0 ? (r[codeCol] || '').trim() || undefined : lead?.code;
+    lines.push({ row, account: codeCol < 0 && lead ? lead.rest : name, ...(code ? { code } : {}), debitCents: debit - credit });
   });
   const totalDebitCents = lines.reduce((s, l) => s + Math.max(0, l.debitCents), 0);
   const totalCreditCents = lines.reduce((s, l) => s + Math.max(0, -l.debitCents), 0);
