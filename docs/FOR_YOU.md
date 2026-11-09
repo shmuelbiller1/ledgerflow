@@ -393,6 +393,8 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
 48. **Reminder letters for unpaid invoices (13 Oct, decided by default).** AI #3's dunning letters go out 7, 21 and 45 days
    after the due date, each firmer than the last. Say if you want other days.
 
+- **PR #583 (GitHub's automatic security fix, 9 Nov)** — not merged. It turns on the strict browser security policy in local development too; 6 checks fail on it. Default: leave it closed-out of the merge queue; the production policy already exists. Close it if you agree.
+
 ## C. Good to know (no action needed)
 
 - **GitHub Actions minutes (5 Oct, your message):** each automatic GitHub test run cost about 28 of
