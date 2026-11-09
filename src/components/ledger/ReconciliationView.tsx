@@ -324,7 +324,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 <span className="text-xs font-black text-[var(--text)] uppercase tracking-wider">Matched history</span>
                 <p className="text-[10px] text-[var(--muted)] uppercase tracking-widest font-semibold mt-0.5">Bank lines matched to ledger entries and cleared</p>
               </div>
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-900 rounded-xl px-3 py-1">
                  <Lock aria-hidden="true" size={12} />
                  <span>Cleared items are locked</span>
               </div>
@@ -377,7 +377,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                              {/* Internal Ledger Match Info */}
                              <div className="flex-1 min-w-0">
-                               <span className="text-[8px] font-black uppercase text-indigo-400 font-mono tracking-wider">Matched ledger entry</span>
+                               <span className="text-[8px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
                                <h4 className="font-bold text-sm text-slate-700 truncate">{linkedTx?.description || 'Linked entry no longer found'}</h4>
                                <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedTx.totalAmountCents) : 'N/A'}</p>
                              </div>
@@ -390,7 +390,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                                    return handleUndoAlignment(line.id, line.matchedTransactionId);
                                  }}
                                  loadingText="Undoing..."
-                                 className="px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 hover:text-rose-700 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 leading-none shadow-xs"
+                                 className="px-4 py-2 bg-rose-50 dark:bg-rose-950 border border-rose-100 dark:border-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 hover:text-rose-800 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 leading-none shadow-xs"
                                >
                                  <X aria-hidden="true" size={10} strokeWidth={2.5} /> Undo match
                                </AsyncButton>

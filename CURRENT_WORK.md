@@ -1,6 +1,6 @@
 # Current work — read this first (every AI, every session)
 
-Updated 25 Oct 2026 by AI #5 (Arena) — E-53 IIF export + E-44/45/46/47 provider imports; verification evidence: [`docs/verification/ai5-e53-e44-e47-2026-10-25.md`](docs/verification/ai5-e53-e44-e47-2026-10-25.md). This page is the one place for **what to do now**. Status of the
+Updated 28 Oct 2026 by AI #8 — F-48 deterministic axe scans (PR #435); Actions validation and review follow-up recorded in the PR. This page is the one place for **what to do now**. Status of the
 product is in [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) (14 workflows: connected / checked against worked
 figures / browser-tested). Full task wording is in your queue in [`docs/COORDINATION.md`](docs/COORDINATION.md).
 History (finished tasks, old messages) is in [`docs/archive/`](docs/archive/) — read it only when you need it.
@@ -18,6 +18,8 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 | Stage B: W11 QuickBooks/CSV | Import acceptance matched to source (AU-4) | AI #5 / AI #9 |
 | Stage B: W13 stock | Full stock browser journey (W13-GOLD figures verified #281) | AI #4 / AI #9 |
 | Stage B: ERPNext depth | Repost engine (EG-1 #348 design), Payment ledger (EG-2), Period closing voucher (EG-3), Stock snapshots (EG-7) | AI #1 / AI #9 |
+
+**AI #3 update — 8 November:** A-268 standard cost variance report screen implemented on `ai3/a268-standard-cost-report`: Reports → Inventory → Standard Cost Variance (`standard-cost-variance`) with item, quantity, standard, actual, unit variance, %, on hand variance, total variance, and "N items have no standard cost" linking to Inventory. Tests: 4/4 view tests, types/lint (0 errors / 42 warnings)/build clean, phone check in `e2e/phone-report-screens.spec.ts`. Evidence: [`docs/verification/ai3-a268-2026-11-08.md`](docs/verification/ai3-a268-2026-11-08.md).
 
 **AI #3 update — 2 November:** A-263/A-265 implemented on `arena/821df0d8-ledgerflow`, pending CI/lead review. New Chromium checks **9/9**, focused regressions **29/29**, types/lint/build passed. Full local suite timed out after 30 minutes with an A-229 performance failure, so not called green. A-264/A-266/A-267 remain open. [Evidence](docs/verification/ai3-a263-a265-2026-11-02.md).
 
@@ -84,7 +86,7 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 | #4 | #370 is merged (D-47 and F-47/W12). W13 purchase → stock → sale → valuation now has a real-router/Postgres browser journey at both widths/themes, awaiting review. D-42/D-44/D-76 reconciled as already delivered. Next: D-99 fully authenticated four-account/W14 proof, which remains open. | `ai4/w13-full-stock-journey`; [evidence](docs/verification/ai4-w13-full-stock-journey-2026-10-24.md) |
 | #2 Codex | **8 Nov: C-40 Israel VAT Report screen & print delivered.** Reports → **Israel VAT Report** (`IsraelVatReportView.tsx`): Form 836 figures from `israelVatReturn`, equipment input split via `withEquipment`, multiple registration support via `ilVatRegistrations`, bilingual EN/HE labels, CSV export (`ilVatReportCsv.ts`), and print layout support (`window.print()`). Tests 7/7 pass; types/lint/build clean. | **C-40 ready for review** |
 | #6 (fork: Chaim-Richard) | S-01–S-05 merged 21 Oct (#266–#270); next: S-1 onward in its queue. How to send work: COORDINATION "AIs that work from the fork" | — |
-| #8 (fork: Chaim-Richard) | Works now and then: G-9 sample companies (IL + US), then its G-queue. How to send work: COORDINATION "AIs that work from the fork" | — |
+| #8 (fork: Chaim-Richard) | G-9 (IL + US sample companies) and G-1…G-16/G-20…G-23 are already implemented with evidence in `docs/verification/ai8-verification-2026-10-20.md`; queue reconciled in COORDINATION. Current task: F-48 deterministic axe scans, PR #435 (pending CI validation). F-49 Vite dependency pre-bundling exists in `vite.config.ts` but still needs a fresh-browser verification before ticking complete. | [PR #435](https://github.com/shmuelbiller1/ledgerflow/pull/435) |
 
 ## Where things are
 

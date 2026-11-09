@@ -11,6 +11,8 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  /** The telemetry id for this crash, shown to the user so a report can point at it (F-03). */
+  errorRef?: string;
 }
 
 export class ViewErrorBoundary extends Component<Props, State> {
@@ -26,7 +28,9 @@ export class ViewErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`[ViewErrorBoundary] Error captured in ${this.props.viewName || 'view'}:`, error, errorInfo);
     // a crash inside a screen is caught here, so the global error listener never sees it (L-14)
-    reportClientError(error, { severity: 'error', componentStack: errorInfo.componentStack || undefined, metadata: { view: this.props.viewName || 'view' } }).catch(() => {});
+    reportClientError(error, { severity: 'error', componentStack: errorInfo.componentStack || undefined, metadata: { view: this.props.viewName || 'view' } })
+      .then(errorRef => { if (errorRef && this.state.hasError) this.setState({ errorRef }); })
+      .catch(() => {});
   }
 
   private handleRetry = () => {
@@ -51,6 +55,11 @@ export class ViewErrorBoundary extends Component<Props, State> {
             <p className="text-xs text-[var(--muted)] max-w-md mx-auto leading-relaxed">
               An unexpected exception occurred while rendering this module. Your ledger data remains safe and intact.
             </p>
+            {this.state.errorRef && (
+              <p className="text-[11px] text-[var(--muted)]">
+                Error reference: <code className="font-mono text-[var(--text)]">{this.state.errorRef}</code>
+              </p>
+            )}
           </div>
 
           {this.state.error && (

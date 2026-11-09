@@ -2,6 +2,7 @@ import { parseAmountToCents } from '../utils';
 import { unquoteSearchValue } from '../textNormalization';
 import { AlgorithmDefinition } from './types';
 import { addToDateISO, getLocalDateISO } from '../utils';
+import { firstAmountText, restAfterCommandWord } from '../textShape';
 
 export interface ParsedCommandIntent {
   type: 'transaction' | 'project' | 'query' | 'unknown';
@@ -37,12 +38,12 @@ export function parseNaturalLanguageEntry(text: string): ParsedCommandIntent {
   }
 
   // 2. Check for Query/Report intent: "show maui repairs", "report q3 revenue"
-  const queryMatch = trimmed.match(/^(?:show|find|query|report)\s+(.+)$/i);
-  if (queryMatch && queryMatch[1] && !/\$\d+|\bpaid\b|\bearned\b/.test(lower)) {
+  const queryText = restAfterCommandWord(trimmed, ['show', 'find', 'query', 'report']);
+  if (queryText && !/\$\d+|\bpaid\b|\bearned\b/.test(lower)) {
     return {
       type: 'query',
-      queryText: queryMatch[1].trim(),
-      displaySummary: `Query Ledger for: "${queryMatch[1].trim()}"`
+      queryText: queryText.trim(),
+      displaySummary: `Query Ledger for: "${queryText.trim()}"`
     };
   }
 
@@ -63,9 +64,9 @@ export function parseNaturalLanguageEntry(text: string): ParsedCommandIntent {
     }
 
     // Amount extraction
-    const amtMatch = lower.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
-    if (amtMatch) {
-      amountCents = parseAmountToCents(amtMatch[1]);
+    const amtMatch = firstAmountText(lower);
+    if (amtMatch !== undefined) {
+      amountCents = parseAmountToCents(amtMatch);
     }
 
     // Payment method

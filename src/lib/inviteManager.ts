@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { WorkspaceInvite } from '../types';
 
 export function getInviteSecret(): string {
@@ -16,7 +16,7 @@ export function generateInviteToken(
   secretKey = getInviteSecret()
 ): WorkspaceInvite {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const inviteId = `inv_${Math.random().toString(36).substring(2, 11)}`;
+  const inviteId = `inv_${randomBytes(9).toString('hex')}`; // not guessable (Sonar S2245)
   const cleanEmail = email.toLowerCase().trim();
 
   const token = createHmac('sha256', secretKey)

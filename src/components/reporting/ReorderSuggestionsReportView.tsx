@@ -64,10 +64,10 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
   // Unit prices are read from home-currency purchases only: a bill or order in another currency
   // records the vendor but its price needs a rate, and no rate is guessed on this screen.
   const homeDoc = useCallback((doc: { currency?: string }) => !doc.currency || doc.currency === home, [home]);
-  const itemsHere = useMemo(() => ((inventory || []) as InventoryItem[]).filter(inWorkspace), [inventory, inWorkspace]);
-  const billsHere = useMemo(() => (bills || []).filter(inWorkspace).filter(homeDoc), [bills, inWorkspace, homeDoc]);
-  const ordersHere = useMemo(() => (purchaseOrders || []).filter(inWorkspace).filter(homeDoc), [purchaseOrders, inWorkspace, homeDoc]);
-  const vendorsHere = useMemo(() => (vendors || []).filter(inWorkspace), [vendors, inWorkspace]);
+  const itemsHere = useMemo(() => ((inventory || []) as InventoryItem[]).filter(row => inWorkspace(row)), [inventory, inWorkspace]);
+  const billsHere = useMemo(() => (bills || []).filter(row => inWorkspace(row)).filter(doc => homeDoc(doc)), [bills, inWorkspace, homeDoc]);
+  const ordersHere = useMemo(() => (purchaseOrders || []).filter(row => inWorkspace(row)).filter(doc => homeDoc(doc)), [purchaseOrders, inWorkspace, homeDoc]);
+  const vendorsHere = useMemo(() => (vendors || []).filter(row => inWorkspace(row)), [vendors, inWorkspace]);
 
   const groups = useMemo(() => reorderSuggestions({
     items: itemsHere, bills: billsHere, orders: ordersHere, vendors: vendorsHere,

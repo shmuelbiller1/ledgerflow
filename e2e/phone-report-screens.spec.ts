@@ -144,6 +144,12 @@ const reports = [
       await expect44px(page.getByRole('button', { name: /Export CSV/ }), 'A/P aging export');
     },
   },
+  {
+    id: 'standard-cost-variance', label: 'Standard Cost Variance',
+    async ready(page: Page) {
+      await expect(page.getByRole('heading', { name: 'Standard cost variance' })).toBeVisible();
+    },
+  },
 ];
 
 for (const report of reports) {

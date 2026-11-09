@@ -678,3 +678,24 @@ reconnected (or I can add a one-time "register webhook" step for existing connec
 
 ## 2 Nov — API keys can no longer change workspace settings (PR #490)
 CodeRabbit found that an API key with only `read:workspaces` could change workspace settings (payment types, alerts, modules, roles…), because every `/workspaces` request mapped to that read scope. Writes there now need `write:workspaces`, which no key can be issued, so keys can read workspace settings but not change them. **Default used:** keep it locked. If an integration of yours needs to change workspace settings with a key, say so and I'll add `write:workspaces` as an issuable scope.
+## AI #7 (stability) — 19 Oct: branch ready, one outside action
+
+**Done and pushed** on `arena/3125e92e-ledgerflow`: F-41…F-45 browser journeys for RELEASE_GATE
+W2/W3/W4/W6/W9 (with hand-worked figures), F-38 perf budgets, F-39 scorecard, F-40 layer guard,
+and the stability batch F-14, F-16, F-30, F-32…F-37. The new fuzz run found a real defect: an
+MT940 statement line `:61:991332…` was imported as the impossible date **2099-13-32**; it is now
+refused in plain words, with a regression test. Evidence:
+[`docs/verification/ai7-journeys-w2-w9.md`](verification/ai7-journeys-w2-w9.md) and
+[`docs/verification/ai7-stability-batch-2026-10-19.md`](verification/ai7-stability-batch-2026-10-19.md).
+
+**What needs you (or the lead):**
+1. **Open the pull request to the author's repository.** This environment can create PRs only on
+   the fork: [Chaim-Richard/ledgerflow#1](https://github.com/Chaim-Richard/ledgerflow/pull/1).
+   Pushing to `shmuelbiller1/ledgerflow` and creating a cross-repo PR both answer **403** for this
+   token. The branch is pushed; a maintainer can open the PR from the fork with
+   `head=Chaim-Richard:arena/3125e92e-ledgerflow, base=main`.
+2. **One server-side handoff for AI #1:** `src/server/utils/logger.ts` writes whatever fields its
+   callers pass. The browser crash reporter is now redacted (`src/lib/logRedaction.ts`); the server
+   logger is your file and was not edited.
+3. **Optional:** set the `HEALTH_URL` repository variable so the new nightly uptime check runs
+   (it skips cleanly and says so when unset).

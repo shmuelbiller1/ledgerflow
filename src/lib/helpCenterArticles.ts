@@ -166,6 +166,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'expiring-lots',
     'stock-transfers',
     'kit-assembly',
+    'standard-cost-variance',
     'stock-value-by-location-lot',
     'journal-sheet',
     'expense-by-category',

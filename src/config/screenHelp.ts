@@ -138,6 +138,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Every move of stock between locations, newest first, read back from the stock history as the pair the server wrote (moved out, moved in). A half whose pair is not in the loaded history shows on its own with the reason. Moving stock is done from an item's Stock history window; this screen only reports.",
     "kit-assembly":
       "Choose a kit (an item that is a bundle of parts) and how many: what the parts on hand can build and what building that many would take, with any shortfall named. A kit assembled on demand is built from its parts when it is needed and keeps no stock of its own. This screen records nothing: no stock is reserved, issued or posted.",
+    "standard-cost-variance":
+      "Compare each stock item's actual moving average cost against its planned standard cost. The table shows variance per unit, as a percentage, and extended across the stock on hand. A positive variance means actual cost exceeded standard. This screen is read-only and does not post entries or revalue inventory.",
     "stock-value-by-location-lot":
       "What the stock is worth where it sits, and what each received lot cost when it arrived. By location: the stock-moves ledger, valued as Inventory Valuation values it — an item its history does not explain is shown with the reason and is never split across locations. By lot: the goods receipts' lot, expiry and arrival price; how much of a lot is still on hand is not tracked and is never computed here.",
     "by-label":

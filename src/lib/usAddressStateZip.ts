@@ -1,3 +1,4 @@
+import { headBeforeUsCountry } from './textShape';
 /**
  * E-16: Read-only USPS state/ZIP recognition from human-entered address text.
  *
@@ -161,8 +162,8 @@ export function parseUsStateAndZip(input: string | UsTypedAddress | null | undef
   if (lines.length && COUNTRY_US.test(lines[lines.length - 1])) lines.pop();
   if (lines.length) {
     const last = lines.length - 1;
-    const suffix = lines[last].match(/^(.*?)(?:,\s*|\s+)(US|USA|U\.S\.A\.?|UNITED STATES(?: OF AMERICA)?)$/i);
-    if (suffix) lines[last] = suffix[1].trim();
+    const head = headBeforeUsCountry(lines[last]);
+    if (head !== null) lines[last] = head.trim();
   }
 
   const found = lines.map(candidateFromLine).filter((v): v is Candidate => v !== null);

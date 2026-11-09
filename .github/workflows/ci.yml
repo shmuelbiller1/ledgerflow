@@ -318,10 +318,16 @@ jobs:
       - name: Run all browser tests across isolated shards
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/playwright-results-${{ matrix.shard }}.json
+          WATCH_REPORT: test-results/playwright-results-${{ matrix.shard }}.json
         run: |
           set +e
+          # Reported while it happens: a test that runs past eight minutes is named in the
+          # annotations, so a shard killed at its limit still says which file was stuck.
+          WATCH_LIMIT_MINUTES=8 node scripts/watch-hung-tests.mjs &
+          watcher=$!
           npm run test:e2e -- --shard=${{ matrix.shard }}/5 --reporter=list,json,blob
           browser_exit=$?
+          kill "$watcher" 2>/dev/null
           node scripts/playwright-ci-feedback.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME"
           exit "$browser_exit"
 
@@ -367,6 +373,12 @@ jobs:
           name: playwright-combined-report
           path: playwright-report/
           retention-days: 7
+      # A shard that is cancelled at its 30-minute limit leaves no failing test behind, so the only
+      # question a reader has is "which file was it stuck in". The blob report survives the
+      # cancellation and names the suites the shard never finished.
+      - name: Say which suites a cancelled shard never reached
+        if: always()
+        run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
         if: always()
         env:
