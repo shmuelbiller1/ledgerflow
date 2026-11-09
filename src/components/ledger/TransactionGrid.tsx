@@ -7,7 +7,7 @@ import { Transaction, FilterCriteria } from '../../types';
 
 import { toast } from 'sonner';
 
-import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
+import { emptyLabelColumns, gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
 import { gridFieldEditable, gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
@@ -272,7 +272,8 @@ function useTransactionGridModel() {
 
   const rowHeight = isCompactMode ? (isMobileGrid ? 44 : 32) : isProMode ? 44 : 72;
   // one width per cell the rows draw (desktop rows also have a running balance and actions)
-  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout);
+  const emptyColumns = useMemo(() => emptyLabelColumns(transactionsWithBalance), [transactionsWithBalance]);
+  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout, emptyColumns);
 
   const trackLayout = { mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode };
   const naturalColumnOrder = gridTracks(trackLayout, hiddenColumns).map(([id]) => id);

@@ -43,7 +43,7 @@ test.describe('Transaction List Improvements Suite', () => {
 
     // Verify initial inflow text
     const initialInflowText = await inflowElement.textContent();
-    expect(initialInflowText).toContain('Money in:');
+    expect(initialInflowText).toContain('In:');
 
     // Inject a test transaction with attachments (fileUrls) into the Zustand ledger store
     await page.evaluate(() => {

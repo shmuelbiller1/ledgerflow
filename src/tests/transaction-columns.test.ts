@@ -30,7 +30,9 @@ describe('Transaction list columns', () => {
 
   test('the table is never narrower than its columns plus room for the description', () => {
     assert.equal(gridMinWidth('40px 100px 1fr 100px'), 480);
-    assert.equal(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)), 1330);
+    assert.equal(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)), 1106);
+    // fits beside the 240 px sidebar on a 1440 px screen (it was 1330 px and ran off the right edge)
+    assert.ok(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)) <= 1440 - 240 - 48);
   });
 
   test('stored choices: unknown names and broken storage are ignored', () => {
@@ -39,6 +41,19 @@ describe('Transaction list columns', () => {
     assert.deepEqual([...readHiddenColumns('k')], ['project']);
     assert.deepEqual([...readHiddenColumns('bad')], []);
     assert.deepEqual([...readHiddenColumns('missing')], []);
+  });
+});
+
+describe('Empty label columns', () => {
+  test('project, class and location nobody uses are narrow, not gone; a typed width wins', async () => {
+    const { emptyLabelColumns } = await import('../lib/transactionColumns');
+    const empty = emptyLabelColumns([{ lines: [{ project: 'P1' }, {}] }, { lines: [{}] }]);
+    assert.deepEqual([...empty].sort(), ['class', 'location']);
+    const layout = { mobile: false, tablet: false, compact: false };
+    const t = gridTemplate(layout, none, undefined, empty);
+    assert.equal(count(t), 11);
+    assert.equal(t.split(' ').filter(w => w === 'minmax(56px,0.15fr)').length, 2);
+    assert.ok(gridMinWidth(t) < gridMinWidth(gridTemplate(layout, none)));
   });
 });
 

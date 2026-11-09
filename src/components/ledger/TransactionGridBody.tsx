@@ -439,8 +439,8 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                 </div>
               )}
               {!isMobileGrid && !isTabletGrid && (
-                <div className="p-4 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-end">
-                  Actions
+                <div className="px-2 flex items-center justify-end">
+                  <span className="sr-only">Actions</span>
                 </div>
               )}
             </TransactionColumnGrid>

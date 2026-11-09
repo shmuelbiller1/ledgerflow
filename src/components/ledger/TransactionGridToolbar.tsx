@@ -39,8 +39,8 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
           />
         </div>
         <div data-testid="filtered-totals-bar" className="hidden md:flex items-center gap-3 px-2 text-xs text-[var(--muted)] shrink-0">
-          <span data-testid="filtered-inflow" className="whitespace-nowrap">Money in: <span className="font-semibold text-[var(--pos)] tabular-nums">+{formatCurrency(stats.inflowCents)}</span></span>
-          <span data-testid="filtered-outflow" className="whitespace-nowrap">Money out: <span className="font-semibold text-[var(--neg)] tabular-nums">-{formatCurrency(stats.outflowCents)}</span></span>
+          <span data-testid="filtered-inflow" className="whitespace-nowrap" title="Money in">In: <span className="font-semibold text-[var(--pos)] tabular-nums">+{formatCurrency(stats.inflowCents)}</span></span>
+          <span data-testid="filtered-outflow" className="whitespace-nowrap" title="Money out">Out: <span className="font-semibold text-[var(--neg)] tabular-nums">-{formatCurrency(stats.outflowCents)}</span></span>
           <span data-testid="matching-records" className="whitespace-nowrap">Entries: <span className={cn("font-semibold tabular-nums", stats.discrepancies > 0 ? "text-rose-500" : "text-[var(--text)]")}>{stats.count.toLocaleString()}</span></span>
         </div>
         <div className="relative shrink-0">

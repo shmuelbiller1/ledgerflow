@@ -346,14 +346,14 @@ const TransactionRow = React.memo(({
         )}
         <div 
           className={cn(
-            "px-4 text-right font-black font-mono transition-colors text-sm h-full flex flex-col justify-center relative overflow-hidden border-r border-[var(--line)]/50 items-end",
+            "px-3 text-right font-black font-mono transition-colors text-sm h-full flex flex-col justify-center relative overflow-hidden border-r border-[var(--line)]/50 items-end",
             isInflow(tx, accounts)
               ? "text-[var(--pos)] group-hover/active:text-emerald-400"
               : "text-[var(--neg)] group-hover/active:text-rose-400",
             isFocused && focusedField === 'amountCents' && "ring-2 ring-inset ring-indigo-600 bg-indigo-600/5"
           )}
         >
-          <span data-testid="tx-amount" className={cn("relative z-10 tabular-nums tracking-tighter truncate whitespace-nowrap", isPrivacyMode && "blur-[6px] select-none pointer-events-none opacity-20 transition-all")}>
+          <span data-testid="tx-amount" className={cn("relative z-10 tabular-nums tracking-tight whitespace-nowrap", isPrivacyMode && "blur-[6px] select-none pointer-events-none opacity-20 transition-all")}>
             {/* sign as well as colour (E-26): money in +, money out − */}
             <InlineEdit kind="money" value={displayTx.totalAmountCents} label={`Amount of ${displayTx.description || 'this entry'}`} canEdit={canEditAmount}
               display={formatSignedAmount(displayTx.totalAmountCents, isInflow(tx, accounts) ? 'in' : 'out')}
