@@ -15,7 +15,7 @@ for (const theme of ['light', 'dark']) {
       await page.goto('/?report=trial-balance#reports');
       const navigation = page.getByRole('navigation', { name: 'Report pages', exact: true });
       const summary = navigation.locator('summary');
-      await expect(summary).toContainText('Choose report');
+      await expect(summary).toContainText('Report:');
       // Native disclosure is operable with Enter and preserves platform Tab/select handling.
       await summary.focus();
       await page.keyboard.press('Enter');

@@ -21,8 +21,8 @@ export function ReportProvenanceNote({ provenance, onRefresh, busy = false, id }
   return (
     <div id={id} role="note" aria-label="Where these figures come from" data-provenance={words.complete ? 'complete' : 'incomplete'}
       className={words.complete
-        ? 'px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-400 rounded-lg flex items-center justify-between gap-3 text-xs font-semibold'
-        : 'p-3 bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 rounded-xl flex items-center justify-between gap-3 text-xs sm:text-sm font-medium'}>
+        ? 'px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-400 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 text-xs font-semibold'
+        : 'p-3 bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 text-xs sm:text-sm font-medium'}>
       <p className="flex items-center gap-2 min-w-0">
         {words.complete
           ? <CheckCircle2 aria-hidden="true" className="w-3.5 h-3.5 shrink-0" />

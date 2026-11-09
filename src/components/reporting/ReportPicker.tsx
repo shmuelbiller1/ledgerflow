@@ -152,7 +152,7 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
     onSelect(id);
   };
   return <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] p-2">
-    <summary className="min-h-11 flex items-center cursor-pointer focus-visible:outline-2">Choose report: {label(activeTab)}</summary>
+    <summary className="min-h-11 flex items-center gap-1 cursor-pointer text-sm focus-visible:outline-2"><span className="text-[var(--muted)]">Report:</span> <span className="font-semibold">{label(activeTab)}</span><span className="ml-auto text-xs text-[var(--muted)]">Change</span></summary>
     <div className="space-y-3 pt-2">
       <div>
         <label htmlFor="report-picker-search" className="block">Search reports</label>
