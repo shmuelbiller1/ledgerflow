@@ -194,7 +194,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
               )}
               {!isMobileGrid && !isTabletGrid && show('project') && (
                 <div
-                  className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center gap-2 group relative cursor-pointer hover:bg-[var(--surface)]/5 transition-colors"
+                  className="pl-3 pr-1 py-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center gap-2 group relative cursor-pointer hover:bg-[var(--surface)]/5 transition-colors"
                 >
                   <button type="button" onClick={() => handleSort('project')} className="flex flex-1 min-w-0 items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                     Project {sortConfig?.key === 'project' && (sortConfig.direction === 'asc' ? <ArrowUpRight aria-hidden="true" size={10} className="text-indigo-600" /> : <ArrowDownRight aria-hidden="true" size={10} className="text-indigo-600" />)}
@@ -202,7 +202,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                   <button
                     aria-label="Filter by project"
                   onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'project' ? null : 'project'); }}
-                    className={cn("opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", ((filterCriteria?.selectedProjects?.length ?? 0) > 0) && "opacity-100 text-emerald-500")}
+                    className={cn("absolute right-0.5 top-1/2 -translate-y-1/2 bg-slate-900 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", ((filterCriteria?.selectedProjects?.length ?? 0) > 0) && "md:opacity-100 text-emerald-500")}
                   >
                     <Filter aria-hidden="true" size={10} />
                   </button>
@@ -243,7 +243,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
               )}
               {!isMobileGrid && !isTabletGrid && show('class') && (
                 <div
-                  className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-between gap-2 group cursor-pointer hover:bg-[var(--surface)]/5 transition-colors relative"
+                  className="pl-3 pr-1 py-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-between gap-2 group cursor-pointer hover:bg-[var(--surface)]/5 transition-colors relative"
                 >
                   <button type="button" onClick={() => handleSort('class')} className="flex flex-1 min-w-0 items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                     <div className="flex items-center gap-2">Class {sortConfig?.key === 'class' && (sortConfig.direction === 'asc' ? <ArrowUpRight aria-hidden="true" size={10} className="text-indigo-600" /> : <ArrowDownRight aria-hidden="true" size={10} className="text-indigo-600" />)}</div>
@@ -251,7 +251,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                   <button
                     aria-label="Filter by class"
                   onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'class' ? null : 'class'); }}
-                    className={cn("opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", (filterCriteria?.selectedClasses?.length || 0) > 0 && "opacity-100 text-emerald-500")}
+                    className={cn("absolute right-0.5 top-1/2 -translate-y-1/2 bg-slate-900 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", (filterCriteria?.selectedClasses?.length || 0) > 0 && "md:opacity-100 text-emerald-500")}
                   >
                     <Filter aria-hidden="true" size={10} />
                   </button>
@@ -279,7 +279,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
               )}
               {!isMobileGrid && !isTabletGrid && show('location') && (
                 <div
-                  className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-between gap-2 group cursor-pointer hover:bg-[var(--surface)]/5 transition-colors relative"
+                  className="pl-3 pr-1 py-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate flex items-center justify-between gap-2 group cursor-pointer hover:bg-[var(--surface)]/5 transition-colors relative"
                 >
                   <button type="button" onClick={() => handleSort('location')} className="flex flex-1 min-w-0 items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                     <div className="flex items-center gap-2">Location {sortConfig?.key === 'location' && (sortConfig.direction === 'asc' ? <ArrowUpRight aria-hidden="true" size={10} className="text-indigo-600" /> : <ArrowDownRight aria-hidden="true" size={10} className="text-indigo-600" />)}</div>
@@ -287,7 +287,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                   <button
                     aria-label="Filter by location"
                   onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'location' ? null : 'location'); }}
-                    className={cn("opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", (filterCriteria?.selectedLocations?.length || 0) > 0 && "opacity-100 text-emerald-500")}
+                    className={cn("absolute right-0.5 top-1/2 -translate-y-1/2 bg-slate-900 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 p-1 hover:bg-[var(--surface)]/10 rounded transition-all", (filterCriteria?.selectedLocations?.length || 0) > 0 && "md:opacity-100 text-emerald-500")}
                   >
                     <Filter aria-hidden="true" size={10} />
                   </button>

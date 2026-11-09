@@ -45,8 +45,8 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
           {totalBalancedSum === 0 && transactionsWithBalance.length > 0 && <span data-testid="books-balanced" className="whitespace-nowrap font-semibold text-[var(--pos)]">Balanced</span>}
         </div>
         <div className="relative shrink-0">
-          <button type="button" onClick={() => setActiveFilterColumn(activeFilterColumn === 'visibility' ? null : 'visibility')} aria-expanded={activeFilterColumn === 'visibility'} className={btn}>
-            <Layers aria-hidden="true" size={14} /> Columns
+          <button type="button" onClick={() => setActiveFilterColumn(activeFilterColumn === 'visibility' ? null : 'visibility')} aria-expanded={activeFilterColumn === 'visibility'} aria-label="Columns" title="Columns" className={btn}>
+            <Layers aria-hidden="true" size={14} /> <span className="hidden 2xl:inline">Columns</span>
           </button>
           {activeFilterColumn === 'visibility' && (
             <div className="absolute top-10 right-0 z-[150] w-[min(26rem,90vw)] max-h-[70vh] overflow-y-auto bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-lg p-3">
