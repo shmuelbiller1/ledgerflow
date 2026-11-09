@@ -1,7 +1,7 @@
 import type { AutoRule, ChartAccount } from '../types';
 import type { AnalyticalPattern } from './MatchingEngine';
 /** Longest line read as one entry (Sonar S8786: the split and amount patterns are super-linear). */
-const MAX_INTENT_LINE_LENGTH = 500;
+const MAX_INTENT_LINE_LENGTH = 300;
 
 export interface ResolvedEntry { amountCents: number; description: string; dimensions: { category: string; account: string }; lines?: { accountName: string; amountCents: number }[]; date: string; type: 'actual'; isLearned?: boolean }
 import { format, startOfMonth, endOfMonth, startOfYear, subMonths, subDays } from 'date-fns';
@@ -187,9 +187,6 @@ export class IntentResolver {
         // Every entry pattern requires an ASCII digit or comma; comma-only
         // amounts still reach the existing amount parser and its error path.
         if (!/[\d,]/.test(lowerInput)) continue;
-        // A typed entry is one short line. Longer text is not an entry, and capping it keeps the
-        // patterns below (which can backtrack on a long run of letters and digits) fast.
-        if (lowerInput.length > 300) continue;
 
         // 1. Check for Split Patterns: "Walmart $100 ($40 Groceries, $60 Electronics)"
         // A split cannot match without both delimiters. Avoid quadratic retries

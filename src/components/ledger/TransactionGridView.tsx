@@ -46,7 +46,7 @@ export function TransactionGridView(model: TransactionGridModel) {
  return (
     <div
       ref={fillRef}
-      style={fillStyle}
+      style={model.viewMode === 'grid' ? fillStyle : undefined}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}

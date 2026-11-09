@@ -32,7 +32,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
    if (focusedIndex < 0) return;
    listRef.current?.scrollToItem(focusedIndex, 'smart');
  }, [focusedIndex, editingId, viewMode]);
- return (<div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden relative bg-[var(--surface)]" dir="auto">
+ return (<div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto relative bg-[var(--surface)]" dir="auto">
         {viewMode === 'grid' ? (
           <TransactionGridKeyboardRegion
             className="min-w-0"
@@ -444,7 +444,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                 </div>
               )}
             </TransactionColumnGrid>
-            {totalBalancedSum !== 0 && (
+            {(totalBalancedSum !== 0 || selectedIds.size > 0) && (
             <div className="px-4 py-1 bg-[#090A0C] border-t border-white/5 flex flex-col md:flex-row md:items-center min-h-0 justify-between text-white/40 overflow-hidden relative gap-4">
               <div className="absolute inset-0 technical-grid opacity-[0.03] pointer-events-none" />
               <div className="flex flex-wrap items-center gap-4 lg:gap-6 relative z-10 w-full overflow-x-auto no-scrollbar ">
@@ -516,7 +516,7 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
             </div>
             )}
             {/* the list takes the rest of the window and scrolls itself; a small floor keeps a few rows on short screens */}
-            <div className="flex-1 min-h-[16rem]">
+            <div className="flex-1 min-h-[10rem]">
               <AutoSizer>
                 {({ height, width }: { height: number; width: number }) => (
                   <List
