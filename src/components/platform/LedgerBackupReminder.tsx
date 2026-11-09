@@ -53,14 +53,15 @@ export const LedgerBackupReminder: React.FC = () => {
     <div 
       role="status"
       id="ledger-backup-reminder-banner"
-      className="hidden sm:flex bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-300 px-4 py-2.5 items-center justify-between text-xs sm:text-sm font-medium transition-colors"
+      className="hidden sm:flex bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-300 px-4 py-1 min-h-9 items-center justify-between text-xs font-medium transition-colors"
     >
       <div className="flex items-center gap-2.5 overflow-hidden">
         <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden="true" />
-        <span className="truncate">
+        {showDemo && <span data-testid="desktop-demo-notice" className="shrink-0 font-semibold text-purple-800 dark:text-purple-300">Demo data — sign up to save your own ·</span>}
+        <span className="min-w-0">
           {health.status === 'never'
-            ? "You've never exported a backup. Export an immutable snapshot to protect your ledger data."
-            : `Last backup was ${health.daysSinceLastBackup} days ago. We recommend exporting an updated ledger backup every 30 days.`}
+            ? "You've never exported a backup. Export a copy to protect your books."
+            : `Last backup was ${health.daysSinceLastBackup} days ago. Export a fresh copy every 30 days.`}
         </span>
       </div>
 
@@ -68,10 +69,10 @@ export const LedgerBackupReminder: React.FC = () => {
         <button
           onClick={handleGoToBackup}
           id="btn-backup-reminder-export"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/30 rounded text-xs font-semibold transition"
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/30 rounded text-xs font-semibold transition"
         >
           <Download className="w-3.5 h-3.5" />
-          <span>Export Backup</span>
+          <span>Export backup</span>
         </button>
         <button
           onClick={() => setIsDismissed(true)}
@@ -83,7 +84,7 @@ export const LedgerBackupReminder: React.FC = () => {
         </button>
       </div>
     </div>}
-    {showDemo && <div data-testid="desktop-demo-notice" className="hidden sm:block bg-purple-600/10 text-purple-800 dark:text-purple-300 border-b border-purple-500/20 px-4 py-1.5 text-xs text-center font-semibold">
+    {showDemo && !showBackup && <div data-testid="desktop-demo-notice" className="hidden sm:block bg-purple-600/10 text-purple-800 dark:text-purple-300 border-b border-purple-500/20 px-4 py-1.5 text-xs text-center font-semibold">
       Demo data — sign up to save your own
     </div>}
   </>
