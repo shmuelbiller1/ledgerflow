@@ -71,6 +71,65 @@ function parseCmap(cmap: string): Map<number, string> {
   return map;
 }
 
+/** Scan the content operators used by this test helper without retrying a long
+ * unterminated array/string at every opening delimiter. This is not a complete PDF parser. */
+export function pdfTextOperators(content: string): Array<{ font?: string; array?: string; scalar?: string }> {
+  const n = content.length;
+  const nextNonSpace = new Int32Array(n + 1);
+  const literalEnd = new Int32Array(n + 2).fill(-1);
+  const hexEnd = new Int32Array(n + 1).fill(-1);
+  const arrayClose = new Int32Array(n + 1).fill(-1);
+  nextNonSpace[n] = n;
+  // Each table gives the end of a valid suffix in constant time. LiteralEnd
+  // describes the inside of a literal, while arrayClose describes array contents.
+  for (let i = n - 1; i >= 0; i--) {
+    const c = content[i];
+    nextNonSpace[i] = /\s/.test(c) ? nextNonSpace[i + 1] : i;
+    literalEnd[i] = c === ')' ? i + 1 : c === '(' ? -1
+      : c === '\\' ? (i + 1 < n ? literalEnd[i + 2] : -1) : literalEnd[i + 1];
+    hexEnd[i] = c === '>' ? i + 1 : /[0-9a-fA-F\s]/.test(c) ? hexEnd[i + 1] : -1;
+    if (c === ']') {
+      const op = nextNonSpace[i + 1];
+      arrayClose[i] = content.startsWith('TJ', op) ? i : -1;
+    } else if (c === '(') {
+      const end = literalEnd[i + 1];
+      arrayClose[i] = end < 0 ? -1 : arrayClose[end];
+    } else {
+      arrayClose[i] = c === ')' ? -1 : arrayClose[i + 1];
+    }
+  }
+  const result: Array<{ font?: string; array?: string; scalar?: string }> = [];
+  const font = /\/(F\d+)\s+[-\d.]+\s+Tf/y;
+  for (let i = 0; i < n;) {
+    if (content[i] === '/') {
+      font.lastIndex = i;
+      const match = font.exec(content);
+      if (match) { result.push({ font: match[1] }); i = font.lastIndex; continue; }
+    }
+    if (content[i] === '[') {
+      const close = arrayClose[i + 1];
+      if (close >= 0) {
+        result.push({ array: content.slice(i + 1, close) });
+        i = nextNonSpace[close + 1] + 2;
+        continue;
+      }
+    }
+    if (content[i] === '<' || content[i] === '(') {
+      const end = content[i] === '<' ? hexEnd[i + 1] : literalEnd[i + 1];
+      if (end >= 0) {
+        const op = nextNonSpace[end];
+        if (content.startsWith('Tj', op)) {
+          result.push({ scalar: content.slice(i, end) });
+          i = op + 2;
+          continue;
+        }
+      }
+    }
+    i++;
+  }
+  return result;
+}
+
 export function pdfTextRuns(pdf: Buffer): string[] {
   const objs = objects(pdf);
   // font resource name (F1, F2…) → glyph map
@@ -96,9 +155,9 @@ export function pdfTextRuns(pdf: Buffer): string[] {
     // Chromium may write simple-font ASCII as literal strings, while Hebrew is
     // encoded using a composite font's hex glyphs. Both are valid text operators.
     const strings = /<[0-9a-fA-F\s]*>|\((?:\\[\s\S]|[^\\()])*\)/g;
-    for (const op of content.matchAll(/\/(F\d+)\s+[-\d.]+\s+Tf|\[((?:\((?:\\[\s\S]|[^\\()])*\)|[^\]()])*)\]\s*TJ|(<[0-9a-fA-F\s]*>|\((?:\\[\s\S]|[^\\()])*\))\s*Tj/g)) {
-      if (op[1]) { font = fontMaps.get(op[1]); continue; }
-      const encoded = op[2] !== undefined ? [...op[2].matchAll(strings)].map(match => match[0]) : [op[3]];
+    for (const op of pdfTextOperators(content)) {
+      if (op.font) { font = fontMaps.get(op.font); continue; }
+      const encoded = op.array !== undefined ? [...op.array.matchAll(strings)].map(match => match[0]) : [op.scalar!];
       let run = '';
       for (const token of encoded) {
         const raw = token.startsWith('<') ? Buffer.from(token.slice(1, -1).replace(/\s/g, ''), 'hex') : literalBytes(token);

@@ -1,6 +1,7 @@
 import { useAuthStore } from '../stores/useAuthStore';
 import { ErrorLogRecord } from '../types';
 import { redactForLogs } from './logRedaction';
+import { secureId } from './secureId';
 
 const RECENT_ERRORS_MAX = 5;
 const recentErrors: ErrorLogRecord[] = [];
@@ -112,7 +113,11 @@ export async function reportClientError(
 
   const user = authState.user;
   const workspaceId = authState.currentWorkspaceId || authState.getCurrentWorkspace()?.id || 'unassigned';
-  const errorId = `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  // Keep the existing reference shape for diagnostics and grouping. If Web Crypto
+  // is unavailable, let the telemetry server allocate the id rather than invent
+  // a weak client reference. The server fallback has its own separate review.
+  const randomId = secureId('');
+  let errorId = randomId ? `err_${Date.now()}_${randomId.replace(/-/g, '')}` : '';
   const stableMessage = sanitizeText(message);
   const screen = typeof extra?.metadata?.view === 'string'
     ? extra.metadata.view
@@ -157,11 +162,21 @@ export async function reportClientError(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    await fetch('/api/v1/telemetry/errors', {
+    const response = await fetch('/api/v1/telemetry/errors', {
       method: 'POST',
       headers,
       body: JSON.stringify(record)
     });
+    if (!errorId && response.ok) {
+      const result: unknown = await response.json();
+      const serverId = result && typeof result === 'object' && 'errorId' in result ? result.errorId : null;
+      if (typeof serverId === 'string' && /^err_[a-zA-Z0-9_-]{1,124}$/.test(serverId)) {
+        errorId = serverId;
+        record.id = serverId;
+        // Only update the group if this is still its latest retained record.
+        if (recentErrors.find(item => item.metadata?.fingerprint === fingerprint) === record) group.errorId = serverId;
+      }
+    }
   } catch (networkErr) {
     console.warn('[ErrorTracker] Failed to ship telemetry to server:', networkErr);
   }
