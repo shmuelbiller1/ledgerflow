@@ -157,7 +157,9 @@ test.describe('A-269: a passkey is added and listed in a real browser', () => {
       await expect(panel.getByText('1 passkey can sign in to this account.')).toBeVisible();
       await expect(panel.getByRole('button', { name: 'Remove Work laptop' })).toBeVisible();
 
-      // and the list is what the account holds: reopening the screen reads the same row
+      // and the list is what the account holds: after a reload the screen reads the same row from
+      // the stubbed account (the route and its rows survive the reload; the session is restored)
+      await page.reload();
       await openSecuritySettings(page);
       await expect(page.getByRole('region', { name: 'Passkeys' }).getByRole('button', { name: 'Remove Work laptop' })).toBeVisible({ timeout: 30_000 });
     } finally {

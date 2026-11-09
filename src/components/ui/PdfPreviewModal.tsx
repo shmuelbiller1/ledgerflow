@@ -94,7 +94,7 @@ export default function PdfPreviewModal({
   return (
     <div {...overlayDialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200 print:static print:block print:overflow-visible print:bg-white print:p-0 print:backdrop-blur-none">
       {/* A-271: a printed preview is the document on the paper, not a dialog around it */}
-      <div data-print-root className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden print:max-h-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none print:w-full print:max-w-none">
+      <div data-print-root data-print-preview className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden print:max-h-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none print:w-full print:max-w-none">
         {/* Header */}
         <div data-print-hide className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3">

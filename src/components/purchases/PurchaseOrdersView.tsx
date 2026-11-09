@@ -45,6 +45,8 @@ export const PurchaseOrdersView: React.FC = () => {
   // the vendors and stock this screen reads load on demand, so their loading state is shown (I-05)
   const { loading } = useLedgerCollections('bills', 'inventory', 'vendors');
   const dataHealth = useScreenDataHealth(['bills', 'inventory', 'vendors']);
+  // a failed collection is explained by the notice above and must not keep the order table on a skeleton
+  const collectionsLoading = loading && dataHealth.failedKeys.length === 0;
   // J-08: an order line can be a stock item; the bill made from the order brings its units in
   const stockItems = (useLedgerStore(s => s.inventory) || []).filter(i => i.itemType !== 'service');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -260,8 +262,8 @@ export const PurchaseOrdersView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {(loading || ordersLoading) && <tr><td colSpan={7}><LoadingState what="purchase orders" /></td></tr>}
-              {!loading && !ordersLoading && ordersError && (
+              {(collectionsLoading || ordersLoading) && <tr><td colSpan={7}><LoadingState what="purchase orders" /></td></tr>}
+              {!collectionsLoading && !ordersLoading && ordersError && (
                 <tr><td colSpan={7} className="p-4">
                   <div role="status" data-orders-notice className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-start">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--neg)]" aria-hidden="true" />
@@ -275,7 +277,7 @@ export const PurchaseOrdersView: React.FC = () => {
                   </div>
                 </td></tr>
               )}
-              {!loading && !ordersLoading && !ordersError && purchaseOrders.length === 0 && (
+              {!collectionsLoading && !ordersLoading && !ordersError && purchaseOrders.length === 0 && (
                 <tr><td colSpan={7} className="p-4">
                   <EmptyState
                     title="No purchase orders yet"

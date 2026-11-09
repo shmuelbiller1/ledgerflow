@@ -217,6 +217,9 @@
   body:has([data-print-root]) [data-print-root],
   body:has([data-print-root]) [data-print-root] * { visibility: visible; }
   body:has([data-print-root]) [data-print-root] { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  /* an open document preview is the only thing printed, even inside a report that is itself a print root */
+  body:has([data-print-preview]) [data-print-root]:not([data-print-preview]),
+  body:has([data-print-preview]) [data-print-root]:not([data-print-preview]) *:not([data-print-preview]):not([data-print-preview] *) { visibility: hidden; }
   [data-print-hide] { display: none !important; }
 }
 

@@ -203,7 +203,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                   key={row.partyId}
                   id={rowId(row.partyId)}
                   onClick={e => { openerRef.current = (e.target as HTMLElement).closest('button'); setSelectedPartyId(row.partyId); }}
-                  onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelectedPartyId(row.partyId); } }}
+                  onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); } }}
                   tabIndex={0}
                   aria-label={`Open the ${isCustomer ? 'customer' : 'vendor'} aging detail for ${row.partyName}`}
                   className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
