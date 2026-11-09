@@ -109,10 +109,10 @@ export default function Dashboard() {
   return (
     <div className="w-full p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1360px] mx-auto text-[var(--text)]">
       {/* D-85: a short heading, then the numbers a shop owner opens the page for. */}
-      <header className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
+      <header className="flex flex-wrap items-center justify-between gap-2 pb-3 sm:gap-3 sm:pb-4 border-b border-[var(--line)]">
         <div className="min-w-0">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-[var(--muted)] mt-0.5">Cash, what customers owe you, what you owe, and profit for the selected period.</p>
+          <p className="text-sm text-[var(--muted)]">Cash, what customers owe you, what you owe, and profit for the selected period.</p>
         </div>
         <button
           type="button"
