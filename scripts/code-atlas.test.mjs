@@ -227,3 +227,21 @@ test('artifact-only drift is visible but is not treated as production source dri
   assert.deepEqual(delta.sourceChanges, []);
   assert.ok(delta.generatedArtifactChanges.some(d => d.path === 'docs/CODE_ATLAS_VALIDATION.md'));
 }));
+
+test('SQL policies bind only their own ON clause, not a later statement', () => {
+  const text = `create policy customer_read on public."customers" using (true);
+create policy incomplete;
+create table public.other (id text);
+create policy vendor_read on public."vendors" using (true);`;
+  const facts = extract('policy.sql', Buffer.from(text)).sql;
+  assert.deepEqual(facts.policies.map(policy => policy.name), ['customer_read', 'vendor_read']);
+  assert.equal(facts.policies[1].line, 4);
+});
+
+test('markdown headings stay on their own line, including on long whitespace input', () => {
+  const text = `# First\n#\nNot a heading\n## Second\n#${' '.repeat(100_000)}\n`;
+  const result = extract('guide.md', Buffer.from(text));
+  assert.equal(result.headings[0], 'First');
+  assert.equal(result.headings[1], 'Second');
+  assert.equal(result.headings.includes('Not a heading'), false);
+});

@@ -76,8 +76,8 @@ jobs:
       - name: Test ESLint warning ratchet
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
-      - name: Test import-edge scanner
-        run: node --test scripts/import-edges.test.mjs
+      - name: Test source and fixture utilities
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs

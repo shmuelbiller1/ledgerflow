@@ -50,3 +50,37 @@ test('ticket and fallback message use distinct UUID identifiers and remain linke
     globalThis.fetch = realFetch;
   }
 });
+
+test('no ticket is written if a fallback message ID cannot be generated', async () => {
+  setComponentWorkspace('owner');
+  useSupportStore.setState({ tickets: [], messages: [], selectedTicketId: null });
+  let writes = 0;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input).includes('/rpc/lf_set')) writes++;
+    return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+  const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto')!;
+  const originalAlert = globalThis.alert;
+  let alerts = 0;
+  globalThis.alert = () => { alerts++; };
+  try {
+    render(<SupportView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create support ticket' }));
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Question' } });
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please help' } });
+    let calls = 0;
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {
+      getRandomValues: (bytes: Uint8Array) => { if (++calls === 2) throw new Error('unavailable'); return bytes.fill(1); },
+    } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
+    await waitFor(() => assert.equal(alerts, 1));
+    assert.equal(writes, 0);
+    assert.equal((screen.getByLabelText('Message') as HTMLTextAreaElement).value, 'Please help');
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', originalCrypto);
+    globalThis.alert = originalAlert;
+    cleanup();
+    globalThis.fetch = realFetch;
+  }
+});

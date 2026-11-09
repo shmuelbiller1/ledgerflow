@@ -69,6 +69,20 @@ describe('Settings → Custom fields', () => {
     assert.ok(!screen.queryByRole('button', { name: 'Discard changes' }));
   });
 
+  test('cannot add a definition when secure identifiers are unavailable', () => {
+    render(<CustomFieldsSettings />);
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto')!;
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      fireEvent.click(screen.getByRole('button', { name: 'Add on vendors' }));
+      const defsTable = screen.getByRole('table', { name: 'Custom field definitions' });
+      assert.equal(within(defsTable).getAllByRole('row').slice(1).length, 3);
+      assert.ok(screen.getByRole('button', { name: 'Save definitions' }).matches(':disabled'));
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', original);
+    }
+  });
+
   test('values show each record’s stored value with the field’s own editor', () => {
     render(<CustomFieldsSettings />);
     const valuesTable = screen.getByRole('table', { name: 'Custom field values on customers' });

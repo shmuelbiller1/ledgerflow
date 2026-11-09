@@ -74,7 +74,7 @@ function sqlFacts(text) {
   };
   scan(/\b(?:create\s+table(?:\s+if\s+not\s+exists)?|alter\s+table)\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'table-ddl', result.tables);
   scan(/\bcreate\s+(?:or\s+replace\s+)?function\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'function-ddl', result.functions);
-  scan(/\bcreate\s+policy\s+([^\s]+)[\s\S]*?\bon\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
+  scan(/\bcreate\s+policy\s+([^\s]+)\s+on\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
   for (const m of clean.matchAll(/\b(all_tables)\s+text\[\]\s*:=\s*array\s*\[([\s\S]*?)\]/gi)) {
     for (const table of m[2].matchAll(/'([^']+)'/g)) result.tables.push({ kind: 'dynamic-template-array-candidate', name: table[1], line: clean.slice(0, m.index).split('\n').length, excerpt: 'all_tables array; inspect FOREACH/format DDL before assuming creation' });
   }
@@ -89,7 +89,8 @@ export function extract(file, buffer) {
   if (ARTIFACTS.has(file)) { f.category = 'generated-atlas-artifact'; f.contentInspection = 'inventory/blob metadata only; deliberately not recursively indexed'; return f; }
   if (file.endsWith('.sql')) { f.sql = sqlFacts(text); return f; }
   if (!JS.test(file)) {
-    f.headings = [...text.matchAll(/^#{1,4}\s+(.+)$/gm)].map(m => m[1]);
+    // Markdown heading whitespace cannot consume a line break into the next paragraph.
+    f.headings = [...text.matchAll(/^#{1,4}[^\S\r\n\u2028\u2029]+(.+)$/gm)].map(m => m[1]);
     f.supportEvidence = text.split('\n').map((s, i) => ({ line: i + 1, text: compact(s, 240) })).filter(x => x.text).slice(0, 4);
     return f;
   }

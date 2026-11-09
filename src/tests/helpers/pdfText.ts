@@ -12,12 +12,24 @@ interface PdfFont { glyphs?: Map<number, string>; bytes: number }
 function objects(pdf: Buffer): Map<number, PdfObject> {
   const text = pdf.toString('latin1');
   const out = new Map<number, PdfObject>();
-  const re = /(\d+) 0 obj\s*([\s\S]*?)endobj/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
-    const body = m[2];
+  // Search each object marker once; retrying a greedy digit run at every digit is quadratic
+  // on a malformed PDF containing a long number with no object marker.
+  let cursor = 0;
+  for (;;) {
+    const marker = text.indexOf(' 0 obj', cursor);
+    if (marker < 0) break;
+    let idStart = marker;
+    while (idStart > cursor && text[idStart - 1] >= '0' && text[idStart - 1] <= '9') idStart--;
+    if (idStart === marker) { cursor = marker + 6; continue; }
+    const objectId = Number(text.slice(idStart, marker));
+    let bodyStart = marker + 6;
+    while (bodyStart < text.length && /\s/.test(text[bodyStart])) bodyStart++;
+    const endObject = text.indexOf('endobj', bodyStart);
+    if (endObject < 0) break;
+    const body = text.slice(bodyStart, endObject);
+    cursor = endObject + 6;
     const s = body.indexOf('stream');
-    if (s === -1) { out.set(Number(m[1]), { dict: body }); continue; }
+    if (s === -1) { out.set(objectId, { dict: body }); continue; }
     const dict = body.slice(0, s);
     const start = s + 'stream'.length + (body[s + 6] === '\r' ? 2 : 1);
     const end = body.lastIndexOf('endstream');
@@ -25,7 +37,7 @@ function objects(pdf: Buffer): Map<number, PdfObject> {
     if (/\/FlateDecode/.test(dict)) {
       try { raw = zlib.inflateSync(raw); } catch { raw = zlib.inflateSync(raw.subarray(0, raw.length - 1)); }
     }
-    out.set(Number(m[1]), { dict, stream: raw });
+    out.set(objectId, { dict, stream: raw });
   }
   return out;
 }

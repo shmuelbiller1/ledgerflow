@@ -4,11 +4,11 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 
 ## Findings behind the dispositions
 
-- **Fixed in this batch:** invitation validation uses the existing tested linear email-shape helper; log redaction no longer retries the local-part expression from every character; project-command parsing consumes its separator once; unreachable receipt helper removed; source-graph walkers parse syntax trees instead of a backtracking regex and stop mistaking comments for imports. Support tickets and fallback messages now use UUIDs rather than short random IDs, which reduces collision/overwrite risk. Loop counter updates were rewritten without changing their skipping behavior. CI installs no longer execute dependency lifecycle scripts and Playwright is invoked from the lockfile installation; the ratchet action is pinned and its triggering repository is checked. Small convention/precedence findings were addressed too.
+- **Fixed in this batch:** invitation validation uses the existing tested linear email-shape helper; log redaction no longer retries the local-part expression from every character; project-command parsing consumes its separator once; unreachable receipt helper removed; source-graph walkers parse syntax trees instead of a backtracking regex and stop mistaking comments for imports. Support tickets, fallback messages, record notes, and custom fields now use cryptographically random identifiers, which reduces collision/overwrite risk; UI writes refuse safely if no secure source exists. Receipt fixture font discovery uses built-in globbing instead of a shell; the PDF test helper scans object headers without retrying a digit run at every character. The atlas SQL-policy and heading scans no longer backtrack across unrelated text, and do not attribute a later statement or line to a malformed one. Loop counter updates were rewritten without changing their skipping behavior. CI installs no longer execute dependency lifecycle scripts and Playwright is invoked from the lockfile installation; the ratchet action is pinned and its triggering repository is checked. Small convention/precedence findings were addressed too.
 
 - **Preserve:** the 17 focusable regions are scroll regions except the keyboard grid, whose focus is intentional for its key handler. Removing `tabIndex` would break keyboard access. The 11 `| 0` findings implement 32-bit hash/PRNG wraparound, not merely truncation; `Math.trunc` is not equivalent. The migration already uses `IS NULL` and quoted camel-case PostgreSQL table names require quotes. The two test files register tests through `describeSaveFailures`; the test helper default object is newly created per call. The PostgreSQL passwords are credentials for ephemeral CI test services, not deployed secrets.
 
-- **Further review / lead-owned:** `moneyFormat.ts` and the mailer have potentially expensive regexes; changing the former risks money-input semantics and the latter is in the server lane. The payment operation-key fallback and SDK key fallback deserve a compatibility and collision review because they identify non-repeatable writes; do not mechanically replace them without testing supported browsers and Node 18. The server MD5 is used for a cache key, not authentication, but cache-collision risk and migration belong with the server owner. The 10 MB, one-file limit is a bounded authenticated upload, but suitability under concurrency needs an operational assessment. Remaining source-scanner, PDF-test, PATH, archived-script and random-ID findings need context-specific review; no claim is made that they are all defects.
+- **Further review / lead-owned:** `moneyFormat.ts` and the mailer have potentially expensive regexes; changing the former risks money-input semantics and the latter is in the server lane. The payment operation-key fallback and SDK key fallback deserve a compatibility and collision review because they identify non-repeatable writes; do not mechanically replace them without testing supported browsers and Node 18. The server MD5 is used for a cache key, not authentication, but cache-collision risk and migration belong with the server owner. The 10 MB, one-file limit is a bounded authenticated upload, but suitability under concurrency needs an operational assessment. Remaining PDF-test, PATH, archived-script and diagnostic-ID findings need context-specific review; no claim is made that they are all defects.
 
 `IntentResolver.resolveEntry` already refuses lines longer than 500 characters, limiting individual regex inputs; this is mitigation, not a proof of linear runtime. Several other ID fallbacks use `crypto.randomUUID` when available; their legacy fallbacks remain to be assessed separately. Archived shell utilities are not CI paths.
 
@@ -29,7 +29,7 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 | `AaGKrB1befMaWPlOl81c` | `typescript:S6845` | `src/components/projects/ProjectPipeline.tsx:120` | Preserve / reviewed |
 | `AaGKrB-YefMaWPlOl83a` | `typescript:S8786` | `scripts/receipt-fixture-eval.ts:37` | Fixed |
 | `AaGKrB-YefMaWPlOl83b` | `typescript:S8786` | `scripts/receipt-fixture-eval.ts:38` | Fixed |
-| `AaGKrB-AefMaWPlOl83Y` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:91` | Further review |
+| `AaGKrB-AefMaWPlOl83Y` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:91` | Fixed |
 | `AaGKrB-AefMaWPlOl83Z` | `javascript:S4036` | `scripts/receipt-fixtures.mjs:472` | Further review |
 | `AaGKrB9JefMaWPlOl83M` | `plsql:NullComparison` | `supabase/migrations/20261023010000_repost_queue.sql:49` | Preserve / reviewed |
 | `AaGKrB9JefMaWPlOl83N` | `plsql:NullComparison` | `supabase/migrations/20261023010000_repost_queue.sql:49` | Preserve / reviewed |
@@ -49,15 +49,15 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 | `AaGKrB-_efMaWPlOl83w` | `githubactions:S8543` | `.github/workflows/ci.yml:368` | Hardened |
 | `AaGKrB-2efMaWPlOl83d` | `javascript:S5850` | `scripts/code-atlas.mjs:20` | Fixed |
 | `AaGKrB-2efMaWPlOl83e` | `javascript:S4036` | `scripts/code-atlas.mjs:22` | Further review |
-| `AaGKrB-2efMaWPlOl83f` | `javascript:S8786` | `scripts/code-atlas.mjs:77` | Further review |
-| `AaGKrB-2efMaWPlOl83g` | `javascript:S8786` | `scripts/code-atlas.mjs:92` | Further review |
+| `AaGKrB-2efMaWPlOl83f` | `javascript:S8786` | `scripts/code-atlas.mjs:77` | Fixed |
+| `AaGKrB-2efMaWPlOl83g` | `javascript:S8786` | `scripts/code-atlas.mjs:92` | Fixed |
 | `AaGKrB-2efMaWPlOl83j` | `javascript:S4036` | `scripts/code-atlas.mjs:271` | Further review |
 | `AaGKrBx1efMaWPlOl8zt` | `typescript:S6845` | `src/components/reporting/CustomerTaxCertificatesView.tsx:61` | Preserve / reviewed |
 | `AaGKrB_BefMaWPlOl831` | `githubactions:S7631` | `.github/workflows/eslint-warning-ratchet.yml:29` | Hardened |
 | `AaGKrB_BefMaWPlOl832` | `githubactions:S6505` | `.github/workflows/eslint-warning-ratchet.yml:38` | Hardened |
 | `AaGKrB_BefMaWPlOl833` | `githubactions:S7637` | `.github/workflows/eslint-warning-ratchet.yml:48` | Hardened |
-| `AaGKrB1GefMaWPlOl81P` | `typescript:S2245` | `src/components/common/RecordNotesPanel.tsx:58` | Further review |
-| `AaGKrBwYefMaWPlOl8zC` | `typescript:S2245` | `src/components/platform/settings/CustomFieldsSettings.tsx:39` | Further review |
+| `AaGKrB1GefMaWPlOl81P` | `typescript:S2245` | `src/components/common/RecordNotesPanel.tsx:58` | Fixed |
+| `AaGKrBwYefMaWPlOl8zC` | `typescript:S2245` | `src/components/platform/settings/CustomFieldsSettings.tsx:39` | Fixed |
 | `AaGKrBwDefMaWPlOl8yz` | `typescript:S2245` | `src/lib/serverAction.ts:82` | Lead review |
 | `AaGKrB98efMaWPlOl83X` | `shell:S7688` | `scripts/line-count.sh:17` | Fixed |
 | `AaGKrBykefMaWPlOl8z3` | `typescript:S6845` | `src/components/reporting/VendorWithholdingView.tsx:46` | Preserve / reviewed |
@@ -79,7 +79,7 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 | `AaGKrB-_efMaWPlOl83o` | `githubactions:S6505` | `.github/workflows/ci.yml:133` | Hardened |
 | `AaGKrBvCefMaWPlOl8ya` | `typescript:S8786` | `src/lib/intentResolver.ts:229` | Further review |
 | `AaGKrBvCefMaWPlOl8yb` | `typescript:S8786` | `src/lib/intentResolver.ts:230` | Further review |
-| `AaGKrB29efMaWPlOl810` | `typescript:S8786` | `src/tests/helpers/pdfText.ts:15` | Further review |
+| `AaGKrB29efMaWPlOl810` | `typescript:S8786` | `src/tests/helpers/pdfText.ts:15` | Fixed |
 | `AaGKrBvCefMaWPlOl8yY` | `typescript:S8786` | `src/lib/intentResolver.ts:188` | Further review |
 | `AaGKrBvCefMaWPlOl8yZ` | `typescript:S8786` | `src/lib/intentResolver.ts:198` | Further review |
 | `AaGKrB6LefMaWPlOl82E` | `typescript:S2245` | `src/server/routes/telemetryRoutes.ts:22` | Lead review |
