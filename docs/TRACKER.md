@@ -1834,3 +1834,17 @@ Review round (26 Oct): saved-view comparison/period restore, private query-key a
 ## Money input fixes (AI #1, 28–29 Oct)
 - [x] **AF-010** typed amounts: `readAmountCents` on ten screens (#432); quick entry always posts two lines (#431); a mistyped estimate price no longer freezes the price box (#437).
 - [x] **AF-011** decimal comma: `12,50` read 1,250.00 and `1.234,56` read 1.23. Now `1.234,56`, `1 234,56` and `1234,56` read as the decimal everywhere, and `12,50` / `1,23` finish as a decimal only in comma-decimal books, so an en-US save still refuses a half-typed `1,234` (#438).
+
+## UX — the whole front end, screen by screen (owner, 9 Nov: "make sure the UI/UX of the whole site is good, normal and great")
+
+Method for every item: open the screen in a browser at 1280 and 1440 px (and 390 px for phones), fix what is messy, check the screenshot again, then a PR. Plain words only, no made-up figures, one page-header shape (title + one line + actions on the right, like Purchases), tables fit the screen.
+
+- [x] UX-1 Journal Entries: one-row toolbar, table fills the window and fits the width, one line per entry, plain words (PR #582)
+- [x] UX-2 Sales: plain header and cards, fake "Mid-Term" $0 card removed, page padding; compact Columns chooser on every list (PR #582)
+- [ ] UX-3 Reconcile: title not in capitals, "LIVE • RECONCILED 0%" in words, same header shape
+- [ ] UX-4 Reports: the controls above a report (paper size, Generate, saved views, "Choose report" box) into one tidy row
+- [ ] UX-5 Dashboard: the empty "First-hour bookkeeping guide" box, spacing, date range in the header row
+- [ ] UX-6 Settings: survey and tidy
+- [ ] UX-7 Top of every page: backup reminder and demo banner in one slim line; tab bar spacing
+- [ ] UX-8 One shared page-header component used by every main screen
+- [ ] UX-9 Phone (390 px) pass over the same screens
