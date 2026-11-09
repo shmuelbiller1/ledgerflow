@@ -8,22 +8,22 @@ export const ConnectionBanner: React.FC = () => {
   const [showReconnected, setShowReconnected] = useState(false);
   const wasOfflineRef = useRef(false);
 
-  // Going offline clears any confirmation during render, not in an effect: a synchronous setState
-  // in an effect body cascades renders for a value that is already derivable from `isOnline`.
-  if (!isOnline && showReconnected) setShowReconnected(false);
-
   useEffect(() => {
     if (!isOnline) {
       wasOfflineRef.current = true;
+      const clearTimer = setTimeout(() => setShowReconnected(false), 0);
+      return () => clearTimeout(clearTimer);
     } else if (wasOfflineRef.current) {
-      // Transitioned from offline to online: confirm straight away (deferring it by a tick hid the
-      // confirmation whenever the store change came from outside an act() scope), then let it lapse.
+      // Transitioned from offline to online
       wasOfflineRef.current = false;
-      setShowReconnected(true);
+      const showTimer = setTimeout(() => setShowReconnected(true), 0);
       const timer = setTimeout(() => {
         setShowReconnected(false);
       }, 3500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(timer);
+      };
     }
   }, [isOnline]);
 
@@ -35,7 +35,7 @@ export const ConnectionBanner: React.FC = () => {
         className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-medium tracking-wide animate-in fade-in duration-200"
       >
         <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-        <span>Working offline — changes can't be saved until you reconnect</span>
+        <span>Working offline — changes will sync when you reconnect</span>
         <a href="/status" className="underline font-semibold ml-1">
           System status
         </a>

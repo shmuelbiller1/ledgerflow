@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
-import { settleAnimations, waitForFiniteAnimations } from './support/a11yGate';
+import { waitForFiniteAnimations } from './support/a11yGate';
 
 let a11yBaseline: Record<string, number> = {};
 try {
@@ -51,11 +51,10 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
 
   for (const view of coreViews) {
     test(`Navigate and mount view: ${view.label}`, async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
       const btn = page.locator(`button:has-text("${view.label}")`).first();
       if (await btn.isVisible()) {
         await btn.click();
-        // no fixed delay: settle the finite animations only (infinite ones never end)
+        await page.waitForTimeout(500);
         await waitForFiniteAnimations(page);
 
         // Assert that the page renders without crashing or showing error boundaries
@@ -205,10 +204,9 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
 
   for (const report of reportTabs) {
     test(`Report tab mounts: ${report.label} (${report.componentName})`, async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.locator('button:has-text("Reports")').first().click();
       await chooseReport(page, report.label);
-      await settleAnimations(page, 500);
+      await page.waitForTimeout(500);
 
       const bodyText = await page.locator('body').innerText();
       expect(bodyText).not.toContain('Something went wrong');
@@ -254,12 +252,11 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
 
   for (const tab of settingsTabs) {
     test(`Settings tab mounts: ${tab.label} (${tab.componentName})`, async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.locator('button:has-text("Settings")').first().click();
       const button = page.locator(`button:has-text("${tab.label}")`).first();
       await expect(button).toBeVisible({ timeout: 10000 });
       await button.click();
-      await settleAnimations(page, 500);
+      await page.waitForTimeout(500);
 
       const bodyText = await page.locator('body').innerText();
       expect(bodyText).not.toContain('Something went wrong');
@@ -281,11 +278,10 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
   });
 
   test('Intelligence Center & Analytics Sandbox render without fatal errors', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     const intelBtn = page.locator('button:has-text("Intelligence"), button:has-text("Insights"), button:has-text("Analytics")').first();
     if (await intelBtn.isVisible()) {
       await intelBtn.click();
-      await settleAnimations(page, 1000);
+      await page.waitForTimeout(1000);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();
@@ -294,11 +290,10 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
   });
 
   test('Tax Center & Compliance Manager mount cleanly', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     const taxBtn = page.locator('button:has-text("Taxes"), button:has-text("Tax Center"), button:has-text("Tax Liability")').first();
     if (await taxBtn.isVisible()) {
       await taxBtn.click();
-      await settleAnimations(page, 800);
+      await page.waitForTimeout(800);
 
       await expect(page.locator('body')).toBeVisible();
       const bodyText = await page.locator('body').innerText();

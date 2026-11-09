@@ -1,2 +1,0 @@
-cases: 400000 x 3 modes; unknown-mode(10.5)=11
-ALL PROPERTIES HELD

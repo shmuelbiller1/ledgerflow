@@ -1,7 +1,6 @@
 import type { Transaction } from '../types';
 import { getAbsoluteTotal, isPostable, isTransactionInDateRange } from './txFilters';
 import { normalizeSearchText } from './textNormalization';
-import { splitTypedAmount } from './textShape';
 
 /** The Query screen's filter (the fields of a saved view it uses); browser and server share it. */
 export interface EntryQuery {
@@ -46,10 +45,10 @@ export const ENTRY_QUERY_LIMIT = 1000;
  * (19.994 → 1999.5) for the caller to round toward its bound. Undefined when the text is not a plain amount.
  */
 export function typedAmountCents(text: string): number | undefined {
-  const m = splitTypedAmount(text);
-  if (!m || (!m.whole && !m.fraction)) return undefined;
-  const frac = m.fraction || '';
-  const whole = Number(m.whole || '0') * 100 + Number((frac + '00').slice(0, 2));
+  const m = /^\s*(-?)(\d*)(?:\.(\d*))?\s*$/.exec(text);
+  if (!m || (!m[2] && !m[3])) return undefined;
+  const frac = m[3] || '';
+  const whole = Number(m[2] || '0') * 100 + Number((frac + '00').slice(0, 2));
   // a part cent is kept as a half cent, whatever its size: added to a large whole, a tiny fraction would vanish in
   // the float, and only its presence matters to the caller rounding toward its bound (CodeRabbit on #516)
   const rest = /[1-9]/.test(frac.slice(2)) ? 0.5 : 0;
@@ -57,5 +56,5 @@ export function typedAmountCents(text: string): number | undefined {
   // risk losing the part cent (CodeRabbit on #516)
   if (!(whole < 2 ** 52)) return undefined;
   const cents = whole + rest;
-  return m.sign ? -cents : cents;
+  return m[1] ? -cents : cents;
 }

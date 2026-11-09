@@ -12,13 +12,7 @@
 **Evidence (at reviewed SHA):**
 
 - `src/server/routes/plaidRoutes.ts:242-245`: `/sync` reads all changes from the saved cursor via `syncAllPages` and accumulates added, modified, and removed rows in response-local arrays.
-- `src/server/routes/plaidRoutes.ts:261`: the route persists `syncCursor: nextCursor` before responding with the row arrays at `:289`.
-
-> **Update at review of `main` `7550f2b` (integration note, not the original 21 Oct finding):** the server
-> half of AF-001 is fixed — `storePlaidSync` now writes the bank lines and moves the cursor in the same
-> transaction (`plaidRoutes.ts` "AF-001: the new rows become bank lines in the same transaction that moves
-> the cursor"), so the ordering above no longer holds at `main`. The **caller half is still live**: the
-> Banking “Sync now” handler still reads the response but never persists `transactions`/`modified`/`removed`.
+- `src/server/routes/plaidRoutes.ts:261`: the route persists `syncCursor: nextCursor` before responding with the row arrays at `:287`.
 - `src/components/banking/Banking.tsx:41-64`: the Banking “Sync now” caller reads JSON but never reads or persists `data.transactions`, `data.modified`, or `data.removed`; it only updates reconnect UI and shows a toast. A successful response can therefore acknowledge cursor advancement while dropping the returned changes from this caller entirely.
 - `src/components/ledger/BankFeedImport.tsx:94-122`: the import caller does consume only `data.transactions` into a review draft, but cursor advancement has already occurred. Rows not selected, a dismissed review, or failure before `onImport` leaves the cursor past those changes. The sync response also returns modified/removed separately, and this caller does not map those arrays into the import draft.
 

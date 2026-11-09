@@ -35,9 +35,8 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     }
     if (width === 1280) {
       const navigation = page.getByRole('navigation', { name: 'Main navigation', exact: true });
-      // D-92 named the box after what it shows: account-type balances (or projects when there are any).
-      await expect(navigation.getByRole('heading', { name: 'Balances by account type', exact: true })).toBeVisible();
-      await expect(navigation.getByText('The total of every account in each type, as recorded in your books. The balance sheet shows the detail.', { exact: true })).toBeVisible();
+      await expect(navigation.getByRole('heading', { name: 'Account totals', exact: true })).toBeVisible();
+      await expect(navigation.getByText('Sum of absolute account balances', { exact: true })).toBeVisible();
       await expect(navigation.getByRole('heading', { name: 'Worlds', exact: true })).toHaveCount(0);
     }
   });

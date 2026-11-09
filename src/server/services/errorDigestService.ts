@@ -57,7 +57,7 @@ export function generateErrorFingerprint(source: string, message: string, stack?
       return frame
         .replace(/:\d+:\d+/g, '')
         .replace(/:\d+/g, '')
-        .split('?')[0];
+        .replace(/\?.*$/g, '');
     });
 
     if (topFrames.length > 0) {

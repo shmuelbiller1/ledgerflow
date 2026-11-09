@@ -1,4 +1,3 @@
-import { headBeforeFiveDigits } from './textShape';
 /**
  * E-36: conservative suggestions for free-text Israeli contact addresses.
  * This is a preview-only parser, not an address verifier or a source of tax jurisdiction. It keeps
@@ -89,7 +88,7 @@ export function parseIsraeliAddress(source: string | null | undefined): IsraeliA
   let segments = text
     .replace(/[\r\n]+/gu, ',')
     .split(/[,;|]+/u)
-    .map(part => part.replace(/\s+/gu, ' ').trim()) // split above leaves no , ; | to trim
+    .map(part => part.replace(/\s+/gu, ' ').trim().replace(/^[,;|]+|[,;|]+$/gu, '').trim())
     .filter(Boolean);
   // Contact exporters often append the country to a free-text address. It is not one of the fields
   // this Israeli parser returns, so remove only an exact terminal country label.
@@ -115,9 +114,9 @@ export function parseIsraeliAddress(source: string | null | undefined): IsraeliA
       const remaining = segments.filter(segment => segment !== candidate);
       if (remaining.length === 1 && !/\d/u.test(remaining[0])) city = remaining[0];
       else if (remaining.length === 1) {
-        const possibleCity = headBeforeFiveDigits(remaining[0]);
-        if (possibleCity && /\p{L}/u.test(possibleCity)) {
-          city = possibleCity.trim();
+        const possibleCity = remaining[0].match(/^(.*?)\s+(\d{5})$/u);
+        if (possibleCity?.[1] && /\p{L}/u.test(possibleCity[1])) {
+          city = possibleCity[1].trim();
           warnings.push('An unlabelled five-digit value was left unclassified, not treated as a postal code.');
         } else warnings.push('City could not be separated unambiguously; review the original address.');
       } else if (remaining.length > 0) warnings.push('City could not be separated unambiguously; review the original address.');

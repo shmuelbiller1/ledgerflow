@@ -1,5 +1,4 @@
 import { byCodeUnit } from './codeUnitOrder';
-import { splitTrailingDigits } from './textShape';
 /**
  * A-184: missing numbers inside a document series (invoices, bills, credit notes…).
  *
@@ -50,13 +49,13 @@ export const MAX_MISSING_PER_SERIES = 200;
 export function parseDocumentNumber(number: unknown): { prefix: string; sequence: number } | null {
   if (typeof number !== 'string') return null;
   const trimmed = number.trim();
-  const match = splitTrailingDigits(trimmed);
+  const match = trimmed.match(/^(.*?)(\d+)$/);
   if (!match) return null;
-  const digits = match.digits;
+  const digits = match[2];
   if (digits.length > 12) return null;
   const sequence = Number(digits);
   if (!Number.isSafeInteger(sequence)) return null;
-  return { prefix: match.head, sequence };
+  return { prefix: match[1], sequence };
 }
 
 export function documentNumberGaps(documents: readonly NumberedDocument[]): DocumentNumberReport {

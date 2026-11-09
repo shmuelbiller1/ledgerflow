@@ -626,26 +626,12 @@ never invent an account or a rate, posting goes through the server.
 - [x] **D-76 Quality ratchet: lower ESLint warnings from 212 to 180** — AI #4 reconciliation, 24 Oct: current enforced cap is 105; full ESLint passes with 0 errors/105 warnings. Target already exceeded; no cap increase or duplicate cleanup.
 
 **UI design batch (owner, 18 Oct) — follow `docs/UI_GUIDE.md`; before/after screenshots in each PR; do D-45 and D-46 first.**
-
-- [~] **D-78 Reports tab bar on phones: horizontally scrolling, whole readable labels, no overlap; active tab scrolled into view**
-- [~] **D-77 Reports header: replace the tall "Financial Intelligence Hub" hero with a compact title row (title, period, Print/Export) ≤120px**
-- [x] **D-79 Dark mode: report filter row (period dates, Basis, Label, comparison) readable — use CSS variables, contrast ≥4.5:1**
-- [~] **D-80 Dark mode: highlighted ledger rows (Retained earnings on the balance sheet) readable**
-- [ ] **D-81 Sentence case for buttons and headings across reports and settings (no all-caps buttons)**
-- [ ] **D-82 Remove invented jargon from visible labels ("Worlds", "Financial Intelligence Hub", "Precision Core"…) — list in the PR, plain replacements**
-- [ ] **D-83 Profit and loss screen: one primary action, filters grouped on one row (desktop) / stacked (phone)**
-- [ ] **D-84 Balance sheet: same layout as P&L (D-83); account names truncate with tooltip, numbers never cut**
-- [x] **D-85 Dashboard: first screen shows cash, owed to you, you owe, profit this month, tasks (P2-31); everything else below** *(AI #4, 21 Oct: compact heading, the four cards first, setup checklist moved below — `arena/3f7e3a1d-ledgerflow`, W2/W5 screens; visual references pending review)*
 - [ ] **D-86 Invoice form: labels above fields, errors under the field, Save in the same place; phone layout checked**
 - [ ] **D-87 Bill form: same as D-86**
 - [ ] **D-88 Banking screen: empty, loading and error states with one action each (EmptyState/LoadingState)**
 - [ ] **D-89 Lists (transactions, invoices, bills, contacts): money right-aligned with tabular figures; sticky header**
 - [ ] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button**
 - [x] **D-92 Sidebar: clearer names and grouping; the "Worlds" balances box renamed and explained or removed**
-- [x] **D-90 Settings: group the tabs into five sections with a search box (P2-30)** *(AI #4, 21 Oct: `src/lib/settingsSections.ts` + `Settings.tsx`; every registered screen stays reachable and a new one without a section fails `settings-navigation.test.tsx`)*
-- [~] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button** *(AI #4, 21 Oct: the guard test is in — `icon-button-labels.test.ts` fails on any new icon-only button without a name, with an exact-count list for the 7 inside AI #1's reserved `Sales.tsx`/`EstimatesView.tsx`. Left: the `title` tooltip on the ~90 existing buttons that already have a name (`BillModal`, `InvoiceModal`, `PurchaseOrdersView`, `TaxManager` are AI #1's) — next batch, one sweep.)*
-- [x] **D-92 Sidebar: clearer names and grouping; the "Worlds" balances box renamed and explained or removed** *(AI #4, 21 Oct: "Projects" or "Balances by account type", explained, one real action, fake row buttons removed)*
-- [x] **D-93 Test harness: rendering ProfitAndLossView/TrialBalanceView with `currentWorkspaceId` set hangs the node test runner (even with `--test-force-exit`); find what keeps running (live query / interval / render loop), fix it, then add the BUG-02 screen test: success for one period, failure for the next → no old figures, no server badge**
 
 - [x] **D-95 Settings tab bar on phones: labels overlap ("Pre Data Sup Help Doc Pricing API" at 390px). Same fix as D-78 for the report tabs: whole readable labels, horizontal scroll, active tab revealed.**
 - [x] **D-96 Settings → Billing & Plan in dark mode: the plan panel stays white (hard-coded light colours). Use the theme variables (UI_GUIDE dark-mode rules); refresh the settings references.**
@@ -797,29 +783,29 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 Same rules as every helper AI: one branch and PR per task from the latest main, tests, a line under Messages, no change to how money is calculated or posted.
 
 - [ ] **F-1 Dashboard desktop browser test** (AI #3 saw `dashboard-widgets.spec.ts:28` time out while P&L shows Loading): find the root cause (not a longer timeout) and fix it.
-- [~] **F-2 Incomplete-data banner**: every analytical screen that reads a capped collection (`truncatedCollections`) says the figures are incomplete and links to the full server report. *(AI #7, 19 Oct: the one global `DataStatusBar` above every screen (`src/core/layout/RootLayout.tsx`) already reports what is loading, what failed with a retry, and which lists are capped ("Only the most recent 10,000 invoices are loaded: totals on screen may be incomplete."); `src/tests/data-status-bar.test.tsx` (5 cases) locks those states. Still open: a per-screen link to the full server report where one exists — the bar is global and cannot point at one report.)*
-- [x] **F-3 Error boundary per screen**: a screen that throws shows "this screen failed" with Retry and the error reference, the rest of the app keeps working; tests. *(AI #7, 19 Oct: `ViewErrorBoundary` wraps the active view in `MainViewSwitcher`, and each report/settings tab separately; it now also shows the telemetry `errorId` the crash report returned, and `src/tests/view-error-boundary.test.tsx` proves the named failure, the reference, Retry re-rendering the same subtree and the telemetry record's `metadata.view`.)*
+- [ ] **F-2 Incomplete-data banner**: every analytical screen that reads a capped collection (`truncatedCollections`) says the figures are incomplete and links to the full server report.
+- [ ] **F-3 Error boundary per screen**: a screen that throws shows "this screen failed" with Retry and the error reference, the rest of the app keeps working; tests.
 - [ ] **F-4 Phone-width pass**: the 20 most used screens at 390px: no horizontal scroll, buttons at least 44px; e2e screenshots.
 - [ ] **F-5 Loading states**: one loading component used everywhere (no flicker between empty and loading, like #68); tests on 5 screens.
 - [ ] **F-6 Slow-screen finder**: an e2e that records the first-render time of each registered screen and fails above a budget; report in `docs/perf.md`.
 
 ### More work (Claude, 12 Oct, at the owner's request: every AI enough for days). Same rules as the queue above.
 
-- [~] **F-7 Offline banner** when the connection drops, a banner says so and edits wait; tests. *(AI #7, 19 Oct: `ConnectionBanner` is mounted above every screen and follows the `online`/`offline` listeners in `useUIStore`; `src/tests/connection-banner.test.tsx` covers offline (alert), saving (syncing) and reconnected. The offline copy now says changes cannot be saved until the connection returns (it used to promise a sync that does not exist). Still open: nothing queues an edit while offline — a save attempted offline fails, and the form's own error path says so.)*
+- [ ] **F-7 Offline banner** when the connection drops, a banner says so and edits wait; tests.
 - [ ] **F-8 Retry on save** a failed save keeps the form and offers Retry instead of losing input; 5 forms.
 - [ ] **F-9 Unsaved changes guard** leaving a form with changes asks first; all document forms.
 - [ ] **F-10 Long list performance** virtualise lists over 500 rows (invoices, transactions); tests.
 - [ ] **F-11 Startup time** measure and cut the first screen's load (bundle split per screen); numbers in docs/perf.md.
 - [ ] **F-12 Memory leak check** navigate 50 screens in e2e and check heap growth; fix leaks found.
 - [ ] **F-13 Realtime reconnect** after the Supabase socket drops, data resubscribes; tests.
-- [x] **F-14 Timezone sweep** every date shown and saved uses the workspace's time zone helpers; a scan test for new Date() in screens. *(AI #7, 19 Oct, `arena/3125e92e-ledgerflow`: `src/tests/timezone-scan.test.ts` scans all components/hooks for UTC "today" (`new Date().toISOString().slice(0,10)` and siblings) and fails naming file:line; the one real hit, the API-key default name, now uses `getLocalDateISO()`; the guard checks it saw >100 screens so it cannot pass vacuously.)*
+- [ ] **F-14 Timezone sweep** every date shown and saved uses the workspace's time zone helpers; a scan test for new Date() in screens.
 - [ ] **F-15 Number input consistency** one money input component everywhere (no float drift); tests.
-- [x] **F-16 Toast and error wording** every error toast says what happened and what to do; a lint rule for bare 'Error'. *(AI #7, 19 Oct: `src/tests/toast-wording.test.ts` — a guard over every literal `toast.error`/`toast.warning` in components and hooks; a bare `Error`/`Failed`/`Oops` or a one-word message fails, and the scan asserts it found >20 messages so it cannot pass vacuously. Dynamic messages keep going through the existing `describeFailure`/`errorText` helpers; no wording was changed because none was bare.)*
+- [ ] **F-16 Toast and error wording** every error toast says what happened and what to do; a lint rule for bare 'Error'.
 - [ ] **F-17 Focus after dialogs** closing any dialog returns focus to what opened it; e2e on 10 dialogs.
 - [ ] **F-18 Print stability** every PDF/print view renders under 3 seconds with 200 lines; tests.
 - [ ] **F-19 Mobile navigation** the sidebar as a bottom sheet on phones; e2e.
 - [ ] **F-20 Dark mode pass** every screen readable in dark mode (contrast check in e2e).
-- [x] **F-21 Crash reporting** client errors grouped with screen and version (existing telemetry route), no personal data. *(AI #7, 19 Oct: `errorFingerprint` groups by screen + message with ids/times normalized + release, `getErrorGroups()` returns count/first/last (cap 50); the telemetry record carries `metadata.{fingerprint,screen,repeatCount}` after the existing F-35 redaction. `src/tests/error-grouping.test.ts` (4 cases) proves grouping, distinct screens/messages/releases, and no e-mail or card in the posted body.)*
+- [ ] **F-21 Crash reporting** client errors grouped with screen and version (existing telemetry route), no personal data.
 
 
 ### More for AI #7: stability (Claude, 13 Oct). Same rules: one branch/PR per task from the latest main, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's).
@@ -832,13 +818,13 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 - [ ] **F-27 Retry with backoff for FX and AI calls; never for posting**
 - [ ] **F-28 Graceful degraded mode banner when AI or bank feeds are down**
 - [ ] **F-29 Startup checks: required env vars listed with a clear error page**
-- [x] **F-30 Load test script: 50 users posting and reading reports (k6), results in docs** *(AI #7, 19 Oct: `perf/load-test.js` — 50 VUs post a 1-cent balanced entry through the ledger door and read P&L + trial balance; thresholds p95 < 2 s, <1 % failed, zero 5xx; refuses to run without `WORKSPACE_ID` so it cannot touch real books. Recipe, limits and the empty run log in `docs/PERF_LOAD.md`; no run recorded in this sandbox.)*
+- [ ] **F-30 Load test script: 50 users posting and reading reports (k6), results in docs**
 - [ ] **F-31 Memory leak check on the dashboard (long session)**
-- [x] **F-32 Flaky test detector: run the e2e suite 3× nightly, report tests that differ** *(AI #7, 19 Oct: `src/lib/flakyReport.ts` + `scripts/flaky-tests.ts` (`npm run test:flaky [-- --runs N | --compare a.json b.json]`) + `.github/workflows/nightly-stability.yml` (03:17 UTC, 3 runs); a test missing from a run counts as interrupted, never as a pass; exit 1 when anything is flaky or broken; 7 tests.)*
-- [x] **F-33 Database connection pool tuning notes and limits** *(AI #7, 19 Oct: `docs/DB_POOLING.md` — the real settings read from `src/server/db/pgFirestore.ts` (`PG_POOL_MAX`/10, 10 s idle, 15 s connect), what Supabase's shared limit means for two instances, what to watch, and what is deliberately not built (worker pool, per-tenant limits). No server change.)*
-- [x] **F-34 Uptime check workflow (GitHub Actions cron hitting the health endpoint)** *(AI #7, 19 Oct: same nightly workflow, `uptime` job — three attempts at `$HEALTH_URL/api/health` with a clear error when it is not `ok`; skips with a message when the repository variable is unset, so it cannot fail spuriously.)*
-- [x] **F-35 Log redaction test: no emails, tokens or card numbers in logs** *(AI #7, 19 Oct: `src/lib/logRedaction.ts` — one rule for passwords/secrets/bearer tokens/API keys, e-mail addresses and Luhn-valid card numbers, used by the client crash reporter (`sanitizeText`); `src/tests/log-redaction.test.ts` (5 tests) drives the real `reportClientError` path with a stubbed fetch and checks the telemetry body and the in-memory record. Server `logger.ts` redaction is AI #1's lane — reported, not edited.)*
-- [x] **F-36 Release notes generator from commit messages per week** *(AI #7, 19 Oct: `src/lib/releaseNotes.ts` (pure, no clock or time zone: week starts, `feat/fix/perf/a11y` + `[user-facing]`, plain sentences only) + `scripts/release-notes.ts` (`npm run release:notes [-- --weeks 4 --write]`); 6 tests. Notes say "No user-facing changes this week" rather than inventing one.)*
+- [ ] **F-32 Flaky test detector: run the e2e suite 3× nightly, report tests that differ**
+- [ ] **F-33 Database connection pool tuning notes and limits**
+- [ ] **F-34 Uptime check workflow (GitHub Actions cron hitting the health endpoint)**
+- [ ] **F-35 Log redaction test: no emails, tokens or card numbers in logs**
+- [ ] **F-36 Release notes generator from commit messages per week**
 
 
 ### Testing grade-up for AI #7 (Claude, 13 Oct, compared with storytold/photocraft)
@@ -847,50 +833,41 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 - [ ] **F-38 Nightly speed budgets: a `perf/budgets.json` for posting, P&L, balance sheet, search and the 20 main screens; a nightly job fails when a budget is broken (photocraft's perf-nightly)**
 - [ ] **F-39 Quality scorecard file (`docs/SCORECARD.md`, updated by a script): tests, coverage, warnings, open bugs by area, screens without help or e2e — one table the owner can read**
 - [ ] **F-40 Architecture layers check in CI: lib/ never imports components/ or server/; components/ never imports server/; a test fails on a wrong import (photocraft's `xtask layers`)**
-- [x] **F-37 Fuzz the importers (like storytold/photocraft's 35 fuzz targets): CSV, OFX/QFX, bank statements, QuickBooks/Xero files and the receipt parser get a fast-check fuzz run in CI (5 min nightly) — no crash, no partial write, clear error** *(AI #7, 19 Oct: `src/tests/fuzz-importers.test.ts` — 12 targets (generic CSV, QIF mdy/dmy, MT940, CAMT.053, BAI2, five US bank layouts) × 150 fast-check runs each; the contract checked is: array or an `Error` with a plain-word message (no TypeError/stack overflow), every returned line has a real calendar date, safe whole cents and a debit/credit type. **It found a real defect:** MT940 turned `:61:991332…` into the impossible date `2099-13-32`; fixed in `src/lib/mt940Parser.ts` with `bankStatementDate` and a clear refusal, with a regression test. Runs in `npm test` on every push (seconds, no nightly needed).)*
-- [x] **F-38 Nightly speed budgets: a `perf/budgets.json` for posting, P&L, balance sheet, search and the 20 main screens; a nightly job fails when a budget is broken (photocraft's perf-nightly)** *(AI #7, 19 Oct, `arena/3125e92e-ledgerflow`: `perf/budgets.json` with posting/pL/balanceSheet/search + 7 screens first-render budgets; `npm run check:perf-budgets` validates in CI; see docs/verification/ai7-journeys-w2-w9.md)*
-- [x] **F-39 Quality scorecard file (`docs/SCORECARD.md`, updated by a script): tests, coverage, warnings, open bugs by area, screens without help or e2e — one table the owner can read** *(AI #7, 19 Oct: `docs/SCORECARD.md` + `scripts/scorecard.ts` + `npm run scorecard:update`; rows from RELEASE_GATE/TRACKER/COORDINATION, W2/W3/W4/W6/W9 updated; see verification/ai7-journeys-w2-w9.md)*
-- [x] **F-40 Architecture layers check in CI: lib/ never imports components/ or server/; components/ never imports server/; a test fails on a wrong import (photocraft's `xtask layers`)** *(AI #7, 19 Oct: `src/tests/layers-guard.test.ts` — lib/ vs components/ vs server/ checked by import regex; fails CI on violation; allowed list empty; see verification/ai7-journeys-w2-w9.md)*
-- [x] **F-41 Browser journey test W2: invoice → send → payment → customer statement, figures checked against worked numbers.** *(AI #7, 19 Oct, `arena/3125e92e-ledgerflow`: `e2e/journeys-w2-w9.spec.ts` F-41 — invoice INV-1001 $1,000.00, payment $600.00, statement 01–31 May shows $400.00 outstanding, Acme Corp, Invoice + Payment rows, running balance 1,000 → 400; 390 px, axe serious/critical; see verification/ai7-journeys-w2-w9.md; updates RELEASE_GATE W2 Browser → Yes)*
-- [x] **F-42 Browser journey test W3: bill → payment run → vendor statement.** *(AI #7, 19 Oct, same file F-42 — bill B-77 $250.00 fully paid, vendor Office Depot, outstanding $0.00, Bill + Payment rows; vendor toggle, 390 px, axe; see verification/ai7-journeys-w2-w9.md; RELEASE_GATE W3 → Yes)*
-- [x] **F-43 Browser journey test W4: bank CSV import → match → reconciled balance.** *(AI #7, 19 Oct, F-43 — checking acct, t1 $500 Acme + t2 $1,200 rent, bank lines b1 $500 + b2 $-1,200 + matched history 1; Reconciliation shows pending, Match found, hand-match POST /reconcile {b1→t1}, Auto Align exists; 390 px, axe; see verification/ai7-journeys-w2-w9.md; RELEASE_GATE W4 → Yes)*
-- [x] **F-44 Browser journey test W6: order with 25% deposit → part invoices → delivery charged once (DEP-1 figures).** *(AI #7, 19 Oct, F-44 — order EST-1 $1,100 = 1,000 goods + 100 delivery; the real `OrderInvoiceDialog` creates 25 % = $275.00 (goods 250 + delivery 25) then the rest = $825.00 (goods 750 + delivery 75), 27,500 + 82,500 = 110,000 with delivery 10,000 once, 900.00 against 825.00 left refused, exhausted order says "Nothing is left to invoice"; 390 px, axe; corrected 19 Oct in the second pass; see verification/ai7-journeys-w2-w9.md; RELEASE_GATE W6 → Yes)*
-- [x] **F-45 Browser journey test W9: close a month → posting refused → reopen with reason.** *(AI #7, 19 Oct, F-45 — empty September 2026: 5 of 9 steps done, Close POST {mode: hard} → "Closed: nobody can post" and the shared `postingLock` rule refuses 2026-09-25; reopen disabled until a reason → POST {reason} → "2026-09 is open." and the same date allowed; real MonthEndCloseView + Close journey panel; 390 px, close-card width and axe; corrected 19 Oct in the second pass; see verification/ai7-journeys-w2-w9.md; RELEASE_GATE W9 → Yes)*
 
 ## AI #8: tasks (spare queue for the next AI; written by Claude, 12 Oct)
 
 Same rules as every helper AI.
 
-- [~] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
-- [~] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
+- [ ] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
+- [ ] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
 - [ ] **F-46 → moved to AI #4 (21 Oct, AI #7 inactive)** Browser journey test W10: make a backup, change records, restore it → P&L, balance sheet and trial balance equal the figures from before the change (exact amounts).** Use the e2e journey fixture from F-41; owner role; no change to restore code (report failures to AI #1).
 - [x] **F-47 Browser journey test W12: two books with known figures → group report shows the combined totals and the eliminations; export matches the screen.** — AI #4, 23 Oct, PR #370: original journey plus W12-GOLD at 1280/390px, with rendered summary rows compared directly to parsed CSV rows. Local Chromium 3/3; full CI run 39996381151 green on `944ecb8`. Evidence: `verification/ai4-d47-w12-2026-10-23.md`.
-- [x] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
-- [x] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
-- [x] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
-- [x] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
-- [x] **G-5 Feature flags screen** — owners turn optional modules on/off (existing BB-07 modules) with explanations.
-- [x] **G-6 Translation file** — move screen strings for 10 screens into a translation table (English/Hebrew) without changing behaviour.
-- [x] **G-7 Accessibility statement** — docs page with the WCAG level reached and known gaps.
-- [x] **G-8 Onboarding emails** — day 1/3/7 emails for a new owner (templates only, sent through the existing mail path behind a setting).
+- [ ] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
+- [ ] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
+- [ ] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
+- [ ] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
+- [ ] **G-5 Feature flags screen** — owners turn optional modules on/off (existing BB-07 modules) with explanations.
+- [ ] **G-6 Translation file** — move screen strings for 10 screens into a translation table (English/Hebrew) without changing behaviour.
+- [ ] **G-7 Accessibility statement** — docs page with the WCAG level reached and known gaps.
+- [ ] **G-8 Onboarding emails** — day 1/3/7 emails for a new owner (templates only, sent through the existing mail path behind a setting).
 
 ### More for AI #8 (spare): product polish (Claude, 13 Oct). Same rules: one branch/PR per task from the latest main, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's).
 
-- [x] **G-9 Onboarding: sample company per country (IL, US) with realistic data** *(AI #8; verified in `docs/verification/ai8-verification-2026-10-20.md`: 12-month balanced double-entry books, real report checks, and guest-only sandbox gate; UK remains intentionally out of scope)*
-- [x] **G-10 Help centre: 20 short how-to articles (EN/HE) linked from screens**
-- [x] **G-11 In-app search of help articles**
-- [x] **G-12 Keyboard shortcut sheet screen**
-- [x] **G-13 Accessibility statement page**
-- [x] **G-14 Status page link and incident banner**
-- [x] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
-- [x] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
+- [ ] **G-9 Onboarding: sample company per country (IL, US, UK) with realistic data** *(18 Oct: IL and US only for now)*
+- [ ] **G-10 Help centre: 20 short how-to articles (EN/HE) linked from screens**
+- [ ] **G-11 In-app search of help articles**
+- [ ] **G-12 Keyboard shortcut sheet screen**
+- [ ] **G-13 Accessibility statement page**
+- [ ] **G-14 Status page link and incident banner**
+- [ ] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
+- [ ] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
 - [ ] **G-17 Vendor portal: vendor uploads a bill PDF to a staging inbox**
 - [ ] **G-18 Mobile: receipt photo capture flow to a draft expense**
 - [ ] **G-19 Mobile: approve bills and expenses from the phone**
-- [x] **G-20 Notifications centre polish: group by type, mark all read**
-- [x] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
-- [x] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
-- [x] **G-23 Demo data reset button for testers (guest and sandbox only)**
+- [ ] **G-20 Notifications centre polish: group by type, mark all read**
+- [ ] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
+- [ ] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
+- [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - [ ] **G-24 First-hour journey test (W1, P2-1): sign up → company details → chart of accounts → first invoice → first report, no dead ends; browser test plus a list of every place a new user got stuck.**
 
 
@@ -2122,78 +2099,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - 2026-11-05 AI #8 follow-up: upstream issues [#519](https://github.com/shmuelbiller1/ledgerflow/issues/519), [#517](https://github.com/shmuelbiller1/ledgerflow/issues/517), [#518](https://github.com/shmuelbiller1/ledgerflow/issues/518) filed. #519 also reproduced in real Chromium using synthetic stores/stubbed API (control pass, contract fail; no authenticated/persisted journey). On isolated Postgres 17, all migrations and RLS passed. Full unit runner: **5,098 pass / 1 timing failure** (1,521.99 ms vs 1,500 ms; isolated performance file 3/3 pass); not a green full run. Details and recovery: [`06-broad-tests-browser-checkpoint.md`](../audit/agent8-2026-11-05-session-2033/06-broad-tests-browser-checkpoint.md). Priority/merge remain Shmuel's decisions.
 
 - 2026-11-05 AI #8 PR handoff: [fork draft #14](https://github.com/Chaim-Richard/ledgerflow/pull/14) is open for review; **do not merge** its outdated fork-base comparison, which includes unrelated upstream synchronization. Creating the narrow upstream PR was denied by GitHub integration permissions (HTTP 403). Details, test status, backup verification and recovery: [`07-pr-and-recovery-checkpoint.md`](../audit/agent8-2026-11-05-session-2033/07-pr-and-recovery-checkpoint.md).
-- 2026-10-28 AI #6 (Arena, `arena/3310a772-ledgerflow`) — **S-22 source-pinned rate-limit audit delta; review-only, no application/schema changes.** At upstream `main` `b4a92158dcd804438e4791e02c53594613f6c75f`, the `/api/v1/brain` shared Postgres 20/min limiter is mounted before `apiAuthenticate`, so human requests use an IP bucket, not the available UID branch (API keys also have their own post-auth key limiter). The merged #404 statement that `/api/ai` and `/api/v1/ai` have “no limit at all” is too broad: current generic IP caps are 1,000/15m on `/api/*` and 100/min on `/api/v1/*`, but no specialized shared per-user AI cap is mounted. `authRateLimiter` (5/15m/IP) is exported but unused; browser sign-in/signup/reset call Supabase Auth directly, and the deployed provider limits remain unknown. S-22 stays open; no RELEASE_GATE row is claimed. Evidence: [`docs/verification/ai6-s22-rate-limit-audit-2026-10-28.md`](verification/ai6-s22-rate-limit-audit-2026-10-28.md). Node 24.12.0 / disposable Postgres 18.4: DB setup (46 migrations plus the test stub), focused tests **18/18**, route-order reproduction and RLS pass; typecheck and build pass; ESLint **0 errors / 42 warnings**. The full unsharded `npm test` exceeded the 30-minute sandbox limit and was stopped; no full-suite result is claimed. Vercel's red authorization status observed on AI #8's separate PR #424 is consistent with the owner's paused automatic previews, not treated as a code-test failure. No server code was patched.
 
-
-- 2026-10-28 AI #8: G-9 was already implemented and verified on `main` (IL + US only, per the 18 Oct scope; UK intentionally excluded). Started F-48 on `ai8/f-48-deterministic-axe`: reduce animation-related accessibility-test flakes by emulating reduced motion and waiting for finite animations before axe scans. Implementation pushed to this branch; local Playwright/Chromium execution is unavailable in this GitHub-only session, so F-48 remains pending validation and is not ticked complete. Vercel preview status is not used as a code verdict because automatic previews are paused for usage limits.
-- 2026-10-28 AI #8: F-49 queue check: `vite.config.ts` on current main already scans `index.html` plus `src/**/*.tsx` and pre-includes `recharts`/`d3`, explicitly documenting the lazy-screen dependency re-optimization failure. This is implementation evidence only; no fresh-browser first-run reproduction was available here, so it remains `[~]`, not complete. Next verification should start a fresh Vite process and run the browser suite without retries masking a reload.
-- 2026-10-28 AI #8: F-48 review follow-up: CodeRabbit identified that Motion animations can escape `document.getAnimations()` in the W14 journey fixture. Updated `e2e/support/journeyFixture.ts` to wrap all mounted screens in `MotionConfig reducedMotion="always"` before mounting, and refreshed the stale `CURRENT_WORK.md` header. Original PR head `d0603259` had all Actions checks green (five browser shards, E2E smoke, unit suites, lint/typecheck/DB rules, accounting/security coverage, production build, CodeQL); the follow-up commits do not yet have a new Actions run, so F-48 remains `[~]` pending validation of the updated head.
-- 2026-10-19 AI #7 (stability, arena/3125e92e-ledgerflow), **second batch: F-14, F-30, F-32…F-37 and the F-38…F-45 work above.** No money, posting, server route, migration or budget change.
-  - **F-37 fuzzing found a real defect and it is fixed:** `parseMT940Statement(':61:991332C123,45NTRF')` returned a bank line dated **2099-13-32** (month 13, day 32). `src/lib/mt940Parser.ts` now validates `YYMMDD` through the existing `bankStatementDate` helper and refuses the file in plain words; the existing two-line integration test passes unchanged. The fuzz file covers 12 targets (generic CSV, QIF mdy/dmy, MT940, CAMT.053, BAI2, five US bank layouts) × 150 fast-check runs, asserting: an array or an `Error` with a clear message (never a TypeError or stack overflow), and every returned line has a real calendar date, safe whole cents and a debit/credit type.
-  - **F-35** `src/lib/logRedaction.ts` (passwords/secrets/bearer/API keys, e-mail addresses, Luhn-valid card numbers) now backs `errorTracker.sanitizeText`; 5 tests drive the real `reportClientError` path with a stubbed fetch and read the telemetry body. **Handoff to AI #1:** `src/server/utils/logger.ts` still writes whatever fields its callers pass; server-side redaction is your file, reported not edited.
-  - **F-32** flaky detector (`src/lib/flakyReport.ts`, `npm run test:flaky`, `.github/workflows/nightly-stability.yml`, 03:17 UTC, 3 runs): a test missing from a run counts as interrupted, never as a pass, and the job exits 1 when anything differs. **F-34** the same workflow polls `$HEALTH_URL/api/health` three times and skips cleanly when the variable is unset. **F-30** `perf/load-test.js` (50 VUs, 1-cent balanced entries through the ledger door, p95 < 2 s, zero 5xx, refuses without `WORKSPACE_ID`); **not run here** — `docs/PERF_LOAD.md` says so. **F-33** `docs/DB_POOLING.md` reads the real settings (`PG_POOL_MAX`/10, 10 s idle, 15 s connect) and says what is not built.
-  - **F-36** release notes from commits (`src/lib/releaseNotes.ts`, `npm run release:notes`): calendar-day arithmetic without `Date` (the `utcDateCount` ratchet stays at 35), only `feat/fix/perf/a11y`/`[user-facing]`, and "No user-facing changes this week" rather than an invented entry.
-  - **F-14** time-zone scan (`src/tests/timezone-scan.test.ts`) covers every component and hook; its one real hit (the API-key default name using `toLocaleDateString`) now uses `getLocalDateISO()`. **F-40** layer guard allows `src/server/reports/` on purpose (the pure statement functions both sides call) and fails on every other server import from `lib/` or `components/`.
-  - Local checks: `npm ci` clean; `npx tsc --noEmit` clean; ESLint **0 errors / 210 warnings** (cap unchanged); full `npm test` **2,949 passed / 0 failed / 1 skipped** (738 suites; the skip is the Postgres suite, which runs on GitHub); all structural guards pass with the quality baseline untouched. Playwright and RLS run on GitHub for this branch.
-  - Files: `docs/verification/ai7-stability-batch-2026-10-19.md` (the batch), `docs/verification/ai7-journeys-w2-w9.md` (the journeys), `docs/SCORECARD.md`, `docs/DB_POOLING.md`, `docs/PERF_LOAD.md`, `perf/budgets.json`, `perf/load-test.js`, `.github/workflows/nightly-stability.yml`, `scripts/{scorecard,release-notes,flaky-tests}.ts`, `src/lib/{logRedaction,releaseNotes,flakyReport}.ts`, `src/lib/mt940Parser.ts`, `src/tests/{layers-guard,fuzz-importers,log-redaction,release-notes,flaky-report,timezone-scan}.test.ts`.
-- 2026-10-19 AI #7 (stability, arena/3125e92e-ledgerflow): **F-41…F-45 done — browser journey tests for W2, W3, W4, W6, W9 + grade-up foundations F-38/F-39/F-40.** Five journey specs in `e2e/journeys-w2-w9.spec.ts` (each 390 px/phone, axe serious/critical, no DB/secret), with independently re-worked cents that the screens compute from the existing libraries:
-  - **F-41/W2:** invoice INV-1001 $1,000.00 → $600.00 paid → $400.00 outstanding — StatementView shows Acme Corp, billed 1,000, paid 600, running 1,000 → 400 (period 01–31 May 2026, opening 0).
-  - **F-42/W3:** bill B-77 $250.00 fully paid → $0 outstanding — Vendor Statement toggle, Office Depot, Bill + Payment rows, outstanding 0.00.
-  - **F-43/W4:** checking 1000 with t1 $500/acme and t2 -$1,200/rent vs bank lines b1 $500 / b2 $-1,200 + 1 matched history — Reconciliation shows pending, Match found, hand-match sends correct `/reconcile` operations, Auto Align present.
-  - **F-44/W6:** order EST-1 $1,100 = $1,000 goods + $100 delivery (DEP-1), 25 % = $275.00 left $825 stage partly invoiced, rest $825 stage invoiced, delivery charged exactly once. **Corrected 19 Oct (second pass):** the first version rendered a hand-built view (not a screen) and showed `$NaN` for the total; it now drives the real `OrderInvoiceDialog`: preview goods $250 + delivery $25 → Create $275, then the rest goods $750 + delivery $75 → Create $825, both 27,500 + 82,500 = 110,000 with delivery 10,000 once, a 900.00 part against 825.00 left refused as "That is more than is left to invoice", and after everything is invoiced the dialog says "Nothing is left to invoice on this order".
-  - **F-45/W9:** September 2026 clean month, 5 of 9 steps, Close 2026-09 POST {mode: hard} → "Closed: nobody can post", reopen disabled until reason → POST {reason} → back to open — real MonthEndCloseView + close journey panel. **Corrected 19 Oct (second pass):** the fixture mixed paid invoices/bills and a matched bank line into the "clean" month (changing the step counts), and "posting refused 403" was not actually exercised; it now uses the proven clean-month seed and checks the shared `postingLock` rule (the same rule the posting routes call) refuses 2026-09-25 while closed and allows it after the reopen.
-  Plus **F-38** `perf/budgets.json` (posting, P&L, balance sheet, search + 7 screens), **F-39** `docs/SCORECARD.md` + `scripts/scorecard.ts` (scorecard:update), **F-40** `src/tests/layers-guard.test.ts` (lib∤components∤server). No money, posting, server, migration or quality-budget change; every figure read from the existing `computeStatement`/`salesOrders`/`reconciliation`/`closeJourney` code.
-  Checks here: `npm ci` clean, `npx tsc --noEmit` pass, `npm run lint:eslint` 0 errors/210 warnings (cap 210, unchanged); the layers guard and the new unit tests pass locally. The five journey specs could **not** run here (the Chromium download is blocked in this sandbox); they run on GitHub, which is how the shard-1 failure below was found. RELEASE_GATE W2/W3/W4/W6/W9 Browser → Yes (evidence `docs/verification/ai7-journeys-w2-w9.md` + 5 split links). Next for AI #7 in NOW order: remaining `[~]` then F-1…F-37 (stability backlog). Branch `arena/3125e92e-ledgerflow` pushed; PR opened for AI #1's review.
-- 2026-10-19 AI #6 (ChatGPT): S-37…S-40 / AUD-09 initial test-only change pushed to `ai6/S-37-access-write-family-tests`. Added cross-workspace mutation assertions for invoices, bills, payments, credit notes, vendor credits, reconciliations, customers and vendors to `supabase/tests/rls.test.sql`; W14 now records that the database run is pending. No server, posting or money-calculation code changed. **Not yet verified:** the current `.github/workflows/ci.yml` includes `pull_request` and provisions PostgreSQL for `npm run test:rules`; no workflow run/status was visible when checked, so await the PR checks and inspect their results before treating this as passed. PR opened for review; task remains pending validation.
-
-- 2026-10-19 AI #7 (stability, `arena/95baad41-ledgerflow`): **second pass on the same batch, merged with upstream `main` through `2cba305`.** Push `7cc5d65`.
-  - `ViewErrorBoundary` now prints the telemetry `errorId` it received as an “Error reference”, so a user can quote the exact crash; the boundary test waits for it. **F-03 complete.**
-  - COORDINATION: F-03 and F-21 ticked; F-02 recorded as partial (the global `DataStatusBar` warns about capped lists; no per-screen link to the server report exists yet) and F-07 as partial (the banner follows online/offline and now says changes cannot be saved until the connection returns; edits are not queued while offline).
-  - The earlier F-44/F-45 claims are corrected in the evidence doc: F-44 drives the real `OrderInvoiceDialog` (275 + 825 = 1,100, delivery once, 900 against 825 left refused), F-45 checks the shared `postingLock` rule before and after the reopen (5 of 9 → closed → open). The React-refresh preamble is installed in every journey fixture.
-  - W9's close card is checked for its own width at 390 px instead of the whole page.
-  - Checks: `npx tsc --noEmit` clean, `npm run build` pass, statement 12/12, sales-orders 10/10, F-02/F-03/F-07 9/9, F-21/F-35 9/9, ESLint 0 errors / 210 warnings (cap unchanged). Full `npm test` and the browser shards run on GitHub.
-  - **PR blocked upstream:** the GitHub integration here is read-only on `shmuelbiller1/ledgerflow` (`createPullRequest` → “Resource not accessible by integration”), so the PR is opened in the owner’s fork: `Chaim-Richard/ledgerflow#3` → `main`. Upstream compare link: https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:arena/95baad41-ledgerflow?expand=1. PR #1 is marked superseded; #182 is a parallel AI #7 attempt — take one.
-
-### Next batch for AI #3 (Claude, 8 Nov: finish A-263…A-267 first). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted.
-- [ ] **A-268 Standard cost report screen** — Reports → Inventory → "Standard cost variance" from `standardCostReport()` (`src/lib/standardCost.ts`): item, quantity, standard, actual, variance per unit, %, on hand; total; "N items have no standard cost" with a link to Inventory. Read-only; one component test, one phone check.
-- [ ] **A-269 Passkey sign-in browser check** — a Chromium test with a virtual WebAuthn authenticator (CDP `WebAuthn.addVirtualAuthenticator`) that adds a passkey in Settings → Security and lists it; skipped cleanly when the local auth server has passkeys off.
-- [ ] **A-270 Keyboard path on Reports** — open a report, change the period, open a row's drill-down and return, all by keyboard with focus back on the row (same contract as A-259).
-- [ ] **A-271 Print styles** — invoice, statement and the five main reports print on A4/Letter with no navigation, no cut-off columns; a Playwright `page.pdf()` check that the page count is stable.
-- [ ] **A-272 Empty and error states, next ten screens** — the screens A-235/A-262 did not cover, same shared pattern and a test each.
-- [ ] **F-2 Incomplete-data banner**: every analytical screen that reads a capped collection (`truncatedCollections`) says the figures are incomplete and links to the full server report.
-- [ ] **F-3 Error boundary per screen**: a screen that throws shows "this screen failed" with Retry and the error reference, the rest of the app keeps working; tests.
-- [ ] **F-7 Offline banner** when the connection drops, a banner says so and edits wait; tests.
-- [ ] **F-14 Timezone sweep** every date shown and saved uses the workspace's time zone helpers; a scan test for new Date() in screens.
-- [ ] **F-16 Toast and error wording** every error toast says what happened and what to do; a lint rule for bare 'Error'.
-- [ ] **F-21 Crash reporting** client errors grouped with screen and version (existing telemetry route), no personal data.
-- [ ] **F-30 Load test script: 50 users posting and reading reports (k6), results in docs**
-- [ ] **F-32 Flaky test detector: run the e2e suite 3× nightly, report tests that differ**
-- [ ] **F-33 Database connection pool tuning notes and limits**
-- [ ] **F-34 Uptime check workflow (GitHub Actions cron hitting the health endpoint)**
-- [ ] **F-35 Log redaction test: no emails, tokens or card numbers in logs**
-- [ ] **F-36 Release notes generator from commit messages per week**
-- [ ] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
-- [ ] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
-- [ ] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
-- [ ] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
-- [ ] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
-- [ ] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
-- [ ] **G-5 Feature flags screen** — owners turn optional modules on/off (existing BB-07 modules) with explanations.
-- [ ] **G-6 Translation file** — move screen strings for 10 screens into a translation table (English/Hebrew) without changing behaviour.
-- [ ] **G-7 Accessibility statement** — docs page with the WCAG level reached and known gaps.
-- [ ] **G-8 Onboarding emails** — day 1/3/7 emails for a new owner (templates only, sent through the existing mail path behind a setting).
-- [ ] **G-9 Onboarding: sample company per country (IL, US, UK) with realistic data** *(18 Oct: IL and US only for now)*
-- [ ] **G-10 Help centre: 20 short how-to articles (EN/HE) linked from screens**
-- [ ] **G-11 In-app search of help articles**
-- [ ] **G-12 Keyboard shortcut sheet screen**
-- [ ] **G-13 Accessibility statement page**
-- [ ] **G-14 Status page link and incident banner**
-- [ ] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
-- [ ] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
-- [ ] **G-20 Notifications centre polish: group by type, mark all read**
-- [ ] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
-- [ ] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
-- [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 - **8 Nov, Claude (AI #1):** AI #3's queue was down to A-263…A-267 (all in progress); added A-268…A-272 under "Next batch for AI #3 (8 Nov)".
 - **8 Nov, Claude (AI #1):** owner asked for queues for two more AIs: **AI #10** ("AI #10: tasks", H-1, H-4, H-6…H-9 open) and **AI #11** (new: imports, exports and documents, J-1…J-8). New spare queue **AI #12** (N-1…N-5). Every queue now has at least five open tasks.

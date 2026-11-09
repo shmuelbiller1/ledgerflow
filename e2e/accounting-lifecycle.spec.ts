@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { settleAnimations } from './support/a11yGate';
 
 type TestLedgerTransaction = {
   id?: string;
@@ -101,7 +100,7 @@ test.describe('End-to-End Accounting Lifecycle & Workflows', () => {
 
     // Verify reconciliation workspace loads
     await expect(page.locator('body')).toBeVisible();
-    await settleAnimations(page, 1000);
+    await page.waitForTimeout(1000);
 
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).not.toContain('NaN');
@@ -112,7 +111,7 @@ test.describe('End-to-End Accounting Lifecycle & Workflows', () => {
     const closeNav = page.locator('button:has-text("Month-End Close"), button:has-text("Closing")').first();
     if (await closeNav.isVisible()) {
       await closeNav.click();
-      await settleAnimations(page, 1000);
+      await page.waitForTimeout(1000);
 
       // Verify the checklist stages render
       await expect(page.locator('text="Month-End Close Workspace"').first()).toBeVisible();
@@ -130,7 +129,7 @@ test.describe('End-to-End Accounting Lifecycle & Workflows', () => {
     const arAgingTab = page.locator('button:has-text("A/R Aging"), button:has-text("Accounts Receivable")').first();
     if (await arAgingTab.isVisible()) {
       await arAgingTab.click();
-      await settleAnimations(page, 500);
+      await page.waitForTimeout(500);
       const text = await page.locator('body').innerText();
       expect(text).not.toContain('NaN');
     }
@@ -138,7 +137,7 @@ test.describe('End-to-End Accounting Lifecycle & Workflows', () => {
     const apAgingTab = page.locator('button:has-text("A/P Aging"), button:has-text("Accounts Payable")').first();
     if (await apAgingTab.isVisible()) {
       await apAgingTab.click();
-      await settleAnimations(page, 500);
+      await page.waitForTimeout(500);
       const text = await page.locator('body').innerText();
       expect(text).not.toContain('NaN');
     }

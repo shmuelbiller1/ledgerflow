@@ -2,7 +2,7 @@
 
 import { Key, Copy, RefreshCw, CheckCircle2, AlertCircle, Shield, Trash2, Clock, Lock, X } from 'lucide-react';
 
-import { cn, getLocalDateISO } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 
 
 import { Labelled } from '../ui/Labelled';
@@ -25,7 +25,7 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
               </div>
               <button
                  onClick={() => {
-                   setNewKeyName(`Integration Key (${getLocalDateISO()})`);
+                   setNewKeyName(`Integration Key (${new Date().toLocaleDateString()})`);
                    setSelectedScopes(AVAILABLE_SCOPES.map(s => s.id));
                    setExpiration('never');
                    setShowCreateModal(true);

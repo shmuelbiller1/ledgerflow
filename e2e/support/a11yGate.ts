@@ -102,20 +102,3 @@ export async function expectNoNewAccessibilityIssues(
 
   expect(over.join('; '), `serious or critical accessibility issues on ${key}`).toBe('');
 }
-
-/**
- * Wait until the page is no longer animating, but never longer than `timeout` milliseconds.
- *
- * `page.waitForFunction(fn, arg, options)` takes its options *third*; passing `{ timeout }` second
- * makes it the argument instead, so the call waits the default 30 seconds whenever the condition is
- * false. That happened in every axe helper this project added for F-48 (23 call sites), and it turned
- * a 200 ms settle into a 30-second wait on any screen that keeps a looping animation running — the
- * reason one browser shard took 45 minutes while the others finished in five. Use this helper instead
- * of writing the call by hand.
- */
-export async function settleAnimations(page: Page, timeout = 2_000): Promise<void> {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page
-    .waitForFunction(() => document.getAnimations().length === 0, undefined, { timeout, polling: 50 })
-    .catch(() => undefined);
-}

@@ -18,7 +18,6 @@
  */
 import { parseCsv } from './csv';
 import { byCodeUnit } from './codeUnitOrder';
-import { groupThousands } from './textShape';
 
 export type PayrollProvider = 'adp' | 'gusto' | 'paychex';
 
@@ -97,8 +96,7 @@ export interface PayrollLabelChoice {
 }
 
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
-const groupDecimal = (fixed: string) => { const [whole, frac] = fixed.split('.'); return `${groupThousands(whole)}.${frac}`; };
-const money = (cents: number) => `${cents < 0 ? '−' : ''}${groupDecimal((Math.abs(cents) / 100).toFixed(2))}`;
+const money = (cents: number) => `${cents < 0 ? '−' : ''}${(Math.abs(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
 /** "1,234.56", "$1,234.56", "-12.00" or "(12.00)" → cents; blank → 0; anything else → null. */
 export function payrollCents(value: string): number | null {

@@ -1,7 +1,6 @@
 import Decimal from 'decimal.js';
 import { currencyDigits } from './currencyMinorUnits';
 import { readBrowserWorkspacePrefs } from './workspacePrefs';
-import { isPlainDecimal } from './textShape';
 
 // Set default rounding mode to HALF_UP (standard financial rounding)
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP });
@@ -177,7 +176,7 @@ export function parseAmountToCents(val: string | number | undefined | null, opts
   if (!/\d/.test(text)) return 0;
   if (/\d[\s\p{L}\p{Sc}]*[+*/×÷=][\s\p{L}\p{Sc}(]*\d/u.test(text)) throw new Error(`"${text}" is not an amount`);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
-  if (!isPlainDecimal(cleanStr)) throw new Error(`"${text}" is not an amount`);
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) throw new Error(`"${text}" is not an amount`);
   const cents = new Decimal(cleanStr).mul(100).round().toNumber();
   return text.startsWith('(') ? -Math.abs(cents) : cents;
 }

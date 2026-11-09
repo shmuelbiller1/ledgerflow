@@ -23,7 +23,7 @@ export function EmptyState({ title, description, actionLabel, onAction, action }
         <button
           type="button"
           onClick={onAction}
-          className="flex min-h-11 items-center gap-2 px-6 py-3 bg-[var(--text)] text-[var(--surface)] rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity shadow-md"
+          className="flex items-center gap-2 px-6 py-3 bg-[var(--text)] text-[var(--surface)] rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity shadow-md"
         >
           <Plus size={16} aria-hidden="true" />
           {actionLabel}

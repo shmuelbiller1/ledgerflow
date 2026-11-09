@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { settleAnimations } from './support/a11yGate';
 
 /**
  * Every screen fits a 1280 px laptop: nothing sticks out past the right edge of the main area (the
@@ -32,7 +31,7 @@ test.describe('Layout at 1280 x 800', () => {
       // its heading, not just any text: the help bar above every screen (C-20) has text of its own
       await expect.poll(() => main.evaluate(el => el.innerText.trim().length), { timeout: 15000 }).toBeGreaterThan(20);
       await expect.poll(() => page.locator('h1:visible').count(), { timeout: 15000 }).toBeGreaterThan(0);
-      await settleAnimations(page, 600);
+      await page.waitForTimeout(600);
       const { overflow, text } = await main.evaluate(el => ({ overflow: el.scrollWidth - el.clientWidth, text: el.innerText.trim().length }));
       expect(overflow, `${screen} is ${overflow}px wider than the window`).toBeLessThanOrEqual(1);
       expect(text, `${screen} drew nothing`).toBeGreaterThan(20);

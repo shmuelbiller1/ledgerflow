@@ -1,5 +1,4 @@
 import { safeFetch } from '../utils/safeFetch';
-import { trimSpacesBeforeNewlines } from '../../lib/textShape';
 
 /**
  * The one place that talks to the email provider (Resend, Postmark or SendGrid, whichever key
@@ -47,14 +46,12 @@ export function isMailConfigured(): boolean {
 
 /** Plain text from simple HTML (the fallback when a caller gives only HTML). */
 export function htmlToText(html: string): string {
-  let text = html
+  return html
     .replace(/<(br|\/p|\/div|\/h[1-6]|\/tr|\/li)\s*\/?>/gi, '\n')
-    .replace(/<a [^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)');
-  // strip tags until nothing changes, so no tag can be left behind by a single pass (CodeQL incomplete sanitization)
-  for (let before = ''; before !== text;) { before = text; text = text.replace(/<[^>]+>/g, ''); }
-  text = text
-    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&');
-  return trimSpacesBeforeNewlines(text).replace(/\n{3,}/g, '\n\n').trim();
+    .replace(/<a [^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 const base64 = (content: string | Buffer) => (Buffer.isBuffer(content) ? content.toString('base64') : content);

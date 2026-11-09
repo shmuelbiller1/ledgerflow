@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
-import { formatCurrency, readAmountCents, safeConfirm } from '../../lib/utils';
+import { formatCurrency, readAmountCents } from '../../lib/utils';
 import { type OrderPart, type OrderProgress, hasItemLines, orderLineProgress, orderPartInvoice, partCents, partLabel, partProblem } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
 import type { Milestone } from '../../lib/milestones';
@@ -33,15 +33,10 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
   const [amount, setAmount] = useState('');
   const [quantities, setQuantities] = useState<string[]>(() => lines.map(l => String(l.leftQuantity)));
   const [saving, setSaving] = useState(false);
-  // I-07: leaving with a part chosen but not made asks first, like the invoice and bill forms.
-  const [dirty, setDirty] = useState(false);
-  const close = () => {
-    if (!dirty || safeConfirm('Discard your changes to this order invoice?')) onClose();
-  };
   // V-09: the order's milestone schedule, and the milestone being invoiced now
   const [milestones, setMilestones] = useState<Milestone[]>(() => estimate.milestones || []);
   const [milestone, setMilestone] = useState<Milestone | null>(null);
-  const { dialogProps, titleId } = useDialog(close, true);
+  const { dialogProps, titleId } = useDialog(onClose, true);
   const part: OrderPart = mode === 'quantities' ? { mode, quantities: quantities.map(q => (q.trim() === '' ? 0 : Number(q))) }
     : mode === 'rest' ? { mode } : mode === 'percent' ? { mode, percent: Number(percent) } : { mode, cents: readAmountCents(amount) ?? 0 };
   const problem = partProblem(part, progress, estimate);
@@ -66,7 +61,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
 
   const choice = (value: Mode, text: string) => (
     <label className="flex items-center gap-2 cursor-pointer">
-      <input type="radio" name="order-part" checked={mode === value} onChange={() => { setMode(value); setDirty(true); }} />
+      <input type="radio" name="order-part" checked={mode === value} onChange={() => setMode(value)} />
       {text}
     </label>
   );
@@ -76,7 +71,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
       <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-md w-full border border-[var(--line)]">
         <div className="flex items-center justify-between p-5 border-b border-[var(--line)]">
           <h2 id={titleId} className="text-lg font-bold text-[var(--text)]">Invoice order {estimate.number || ''}</h2>
-          <button type="button" onClick={close} aria-label="Close" className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)]">
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)]">
             <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
@@ -107,7 +102,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
                       <td className="py-0.5 pl-2 text-right">
                         <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
                           disabled={line.leftQuantity <= 0}
-                          onChange={e => { setDirty(true); setQuantities(qs => qs.map((q, i) => (i === line.position ? e.target.value : q))); }} className={`${field} w-20 font-mono text-right`} />
+                          onChange={e => setQuantities(qs => qs.map((q, i) => (i === line.position ? e.target.value : q)))} className={`${field} w-20 font-mono text-right`} />
                       </td>
                     </tr>
                   ))}
@@ -118,18 +113,18 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold text-[var(--muted)] mb-1">How much to invoice now</legend>
             <MilestoneSchedule estimateId={estimate.id} milestones={milestones} canWrite={canWrite} onSaved={setMilestones}
-              onPick={m => { setMilestone(m); setDirty(true); setMode('percent'); setPercent(String(m.percent)); }} />
+              onPick={m => { setMilestone(m); setMode('percent'); setPercent(String(m.percent)); }} />
             {choice('rest', `All that is left (${money(progress.leftCents)})`)}
             <div className="flex items-center gap-2">
               {choice('percent', 'A percentage of the order')}
               {mode === 'percent' && (
-                <input aria-label="Percentage of the order" inputMode="decimal" value={percent} onChange={e => { setDirty(true); setPercent(e.target.value); }} className={`${field} w-20 font-mono text-right`} />
+                <input aria-label="Percentage of the order" inputMode="decimal" value={percent} onChange={e => setPercent(e.target.value)} className={`${field} w-20 font-mono text-right`} />
               )}
             </div>
             <div className="flex items-center gap-2">
               {choice('amount', 'An amount')}
               {mode === 'amount' && (
-                <input aria-label={`Amount to invoice (${currency})`} inputMode="decimal" value={amount} onChange={e => { setDirty(true); setAmount(e.target.value); }} className={`${field} w-28 font-mono text-right`} />
+                <input aria-label={`Amount to invoice (${currency})`} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className={`${field} w-28 font-mono text-right`} />
               )}
             </div>
           </fieldset>
@@ -151,12 +146,10 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
               </tbody>
             </table>
           )}
-          {/* WCAG AA: rose-600 on the dialog's panel is 4.22:1; rose-700 reaches 6.3:1 and keeps
-              the error readable in light and dark themes. */}
-          {problem && <p role="alert" className="text-xs font-semibold text-rose-700 dark:text-rose-300">{problem}</p>}
+          {problem && <p role="alert" className="text-xs text-rose-600">{problem}</p>}
           <p className="text-xs text-[var(--muted)]">It is saved as a draft: review it in Sales, then send it.</p>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={close} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>
+            <button type="button" onClick={onClose} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>
             <button type="button" onClick={() => void create()} disabled={Boolean(problem) || saving}
               className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50">
               {saving ? 'Creating…' : `Create ${money(cents)} invoice`}

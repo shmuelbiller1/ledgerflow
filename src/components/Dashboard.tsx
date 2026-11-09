@@ -52,6 +52,9 @@ export default function Dashboard() {
   const setupStarted = Boolean(currentWorkspaceId && setupStartedFor === currentWorkspaceId);
   const setupClosed = Boolean(currentWorkspaceId && setupClosedFor === currentWorkspaceId);
 
+  // Lens state: 'owner' vs 'accountant'
+  const [lens, setLens] = useState<'owner' | 'accountant'>('owner');
+
   // Track setup checklist banner dismissal in localStorage
   const [isChecklistDismissed, setIsChecklistDismissed] = useState<boolean>(() => {
     try {
@@ -108,20 +111,16 @@ export default function Dashboard() {
 
   return (
     <div className="w-full p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1360px] mx-auto text-[var(--text)]">
-      {/* D-85: a short heading, then the numbers a shop owner opens the page for. */}
-      <header className="flex flex-wrap items-center justify-between gap-2 pb-3 sm:gap-3 sm:pb-4 border-b border-[var(--line)]">
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-[var(--muted)]">Cash, what customers owe you, what you owe, and profit for the selected period.</p>
+      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+          {lens === 'owner' ? 'Real-Time Financial Ledger' : 'Consolidated Double-Entry Trial Balance'}
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex border border-[var(--line)] rounded-xl bg-[var(--panel)] text-xs">
+            {(['owner', 'accountant'] as const).map(value => <button key={value} type="button" aria-pressed={lens === value} onClick={() => setLens(value)} className={cn('min-h-11 px-3 rounded-xl', lens === value ? 'bg-[var(--brass-soft)] font-semibold' : 'text-[var(--muted)]')}>{value === 'owner' ? 'Owner Lens' : 'Accountant Lens'}</button>)}
+          </div>
+          <button type="button" onClick={() => setQuickEntryOpen(true)} className="min-h-11 inline-flex items-center gap-1.5 bg-[var(--brass)] text-[var(--ink)] px-3 rounded-xl text-xs font-bold"><Plus size={15} aria-hidden="true" />Add Entry</button>
         </div>
-        <button
-          type="button"
-          onClick={() => setQuickEntryOpen(true)}
-          className="flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--brass)] px-4 text-sm font-semibold text-[var(--ink)] hover:opacity-95 transition-opacity"
-        >
-          <Plus size={15} aria-hidden="true" />
-          Add Entry
-        </button>
       </header>
 
       <details className="border border-[var(--line)] rounded-xl p-4">
@@ -134,37 +133,38 @@ export default function Dashboard() {
         <NeedsAttentionCard />
       {/* Setup Checklist Guidance Banner (when setup is incomplete) */}
       {isSetupIncomplete && (
-        <div className="bg-[var(--panel)] border border-[var(--line)] rounded-2xl p-4 sm:p-5 relative">
+        <div className="bg-gradient-to-r from-[var(--brass-soft)] via-[var(--panel)] to-[var(--surface)] border border-[var(--brass-line)] rounded-2xl p-4 sm:p-5 relative shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-wider bg-[var(--brass)] text-[var(--ink)] px-2 py-0.5 rounded-md font-bold">
-                  Setup {setupStepCount} of 3
+                  Setup Progress ({setupStepCount}/3)
                 </span>
-                <h2 className="text-sm font-semibold text-[var(--text)]">Finish setting up your books</h2>
+                <h2 className="text-sm font-semibold text-[var(--text)]">Workspace Setup Checklist</h2>
               </div>
               <p className="text-xs text-[var(--muted)]">
-                Choose a chart of accounts, import your history and check the balances. This checklist does not verify their accuracy.
+                Review your accounts and entries before relying on reports. This checklist does not verify their accuracy.
               </p>
             </div>
             <button
               type="button"
               onClick={dismissChecklist}
-              className="text-[var(--muted)] hover:text-[var(--text)] min-h-11 min-w-11 flex items-center justify-center rounded-lg hover:bg-[var(--surface)] transition-colors"
+              className="text-[var(--muted)] hover:text-[var(--text)] p-1 rounded-lg hover:bg-[var(--surface)] transition-colors cursor-pointer"
               title="Dismiss checklist"
-              aria-label="Dismiss checklist">
-              <X size={16} aria-hidden="true" />
+             aria-label="Dismiss checklist">
+              <X size={16} />
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+            {/* Step 1: Chart Template */}
             <button
               type="button"
               onClick={() => setTemplateSelectorOpen(true)}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer",
                 hasAccounts
-                  ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
+                  ? "bg-[var(--surface)]/80 border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--brass-line)] hover:border-[var(--brass)]"
               )}
             >
@@ -172,23 +172,24 @@ export default function Dashboard() {
                 "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
                 hasAccounts ? "bg-emerald-500/10 text-emerald-500" : "bg-[var(--brass)]/10 text-[var(--brass)]"
               )}>
-                {hasAccounts ? <CheckCircle2 size={16} aria-hidden="true" /> : <Layers size={16} aria-hidden="true" />}
+                {hasAccounts ? <CheckCircle2 size={16} /> : <Layers size={16} />}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--text)] truncate">1. Chart of accounts</p>
+                <p className="text-xs font-semibold text-[var(--text)] truncate">1. Chart Template</p>
                 <p className="text-[10px] text-[var(--muted)] truncate">
-                  {hasAccounts ? `${accounts.length} accounts set up` : 'Choose a starting list'}
+                  {hasAccounts ? `${accounts.length} accounts configured` : 'Select industry COA'}
                 </p>
               </div>
             </button>
 
+            {/* Step 2: Bank Lines / Import */}
             <button
               type="button"
               onClick={() => setActiveTab('banking')}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer",
                 hasTransactions
-                  ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
+                  ? "bg-[var(--surface)]/80 border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"
               )}
             >
@@ -196,23 +197,24 @@ export default function Dashboard() {
                 "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
                 hasTransactions ? "bg-emerald-500/10 text-emerald-500" : "bg-indigo-500/10 text-indigo-500"
               )}>
-                {hasTransactions ? <CheckCircle2 size={16} aria-hidden="true" /> : <UploadCloud size={16} aria-hidden="true" />}
+                {hasTransactions ? <CheckCircle2 size={16} /> : <UploadCloud size={16} />}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--text)] truncate">2. Import your history</p>
+                <p className="text-xs font-semibold text-[var(--text)] truncate">2. Import History</p>
                 <p className="text-[10px] text-[var(--muted)] truncate">
-                  {hasTransactions ? `${rawTransactions.length} entries recorded` : 'Connect a bank or import a CSV'}
+                  {hasTransactions ? `${rawTransactions.length} entries recorded` : 'Connect bank or CSV'}
                 </p>
               </div>
             </button>
 
+            {/* Step 3: Recon / First Entry */}
             <button
               type="button"
               onClick={() => hasTransactions ? setActiveTab('reconciliation') : setQuickEntryOpen(true)}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer",
                 hasTransactions
-                  ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
+                  ? "bg-[var(--surface)]/80 border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"
               )}
             >
@@ -220,12 +222,12 @@ export default function Dashboard() {
                 "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
                 hasTransactions ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
               )}>
-                {hasTransactions ? <CheckCircle2 size={16} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
+                {hasTransactions ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--text)] truncate">3. Check the balances</p>
+                <p className="text-xs font-semibold text-[var(--text)] truncate">3. Reconcile & Verify</p>
                 <p className="text-[10px] text-[var(--muted)] truncate">
-                  {hasTransactions ? 'Reconcile and review the rules' : 'Record your first entry'}
+                  {hasTransactions ? 'Verify balances & rules' : 'Record manual entry'}
                 </p>
               </div>
             </button>

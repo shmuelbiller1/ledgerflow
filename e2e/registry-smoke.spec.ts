@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { settleAnimations } from './support/a11yGate';
 
 /**
  * A-213: mount the busiest registry entries that previously had no browser smoke coverage.
@@ -61,7 +60,7 @@ async function openGuest(page: Page, url: string) {
   await expect(page.locator('h1:visible')).toHaveCount(1, { timeout: 15_000 });
   await expect.poll(() => main.evaluate(element => element.innerText.trim().length)).toBeGreaterThan(20);
   // Let lazy data/report effects settle so a later render error cannot escape the assertion.
-  await settleAnimations(page, 600);
+  await page.waitForTimeout(600);
 }
 
 function watchCodeErrors(page: Page): string[] {

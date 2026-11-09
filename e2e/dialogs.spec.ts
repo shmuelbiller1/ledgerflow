@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { settleAnimations } from './support/a11yGate';
 
 /**
  * Money dialogs with a keyboard and a screen reader (E-08…E-20): each opens as a dialog named by
@@ -44,7 +43,7 @@ test.describe('Dialogs', () => {
       await d.show(page);
       const dialog = page.getByRole('dialog', { name: d.title });
       await expect(dialog).toBeVisible();
-      await settleAnimations(page, 600); // entrance animation
+      await page.waitForTimeout(600); // entrance animation
       expect(await dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
 
       // D-51: the tested dialogs keep keyboard focus in the real tab order and expose the shared

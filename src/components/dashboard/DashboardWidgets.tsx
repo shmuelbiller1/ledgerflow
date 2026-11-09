@@ -22,11 +22,7 @@ import { useScenarioStore } from '../../lib/scenarioStore';
 import BankFeedHealth from './BankFeedHealth';
 import DashboardTrendChart from './DashboardTrendChart';
 
-/**
- * D-85/D-82: plain words for the first four cards. The rest keep the accounting names.
- * The ids stay the same, so layouts saved before this change keep working.
- */
-const LABELS: Record<DashboardWidget, string> = { revenue: 'Revenue', expenses: 'Expenses', profit: 'Profit', networth: 'Net worth', scenario: 'Scenario preview', summary: 'Account summary', cash: 'Cash', receivables: 'Owed to you', payables: 'You owe', banks: 'Bank and cash accounts', feeds: 'Bank feed health', recent: 'Recent transactions', integrity: 'Books balance' };
+const LABELS: Record<DashboardWidget, string> = { revenue: 'Revenue', expenses: 'Expenses', profit: 'Net income', networth: 'Net worth', scenario: 'Scenario preview', summary: 'Account summary', cash: 'Cash balance', receivables: 'Receivables', payables: 'Payables', banks: 'Bank and cash accounts', feeds: 'Bank feed health', recent: 'Recent transactions', integrity: 'Books balance' };
 const KPIS = ['networth', 'revenue', 'expenses', 'profit', 'cash'] as const;
 /** Each refresh reads only the collections feeding its own widget; no global cache is overwritten. */
 const WIDGET_SOURCES: Record<DashboardWidget, readonly LedgerKey[]> = {

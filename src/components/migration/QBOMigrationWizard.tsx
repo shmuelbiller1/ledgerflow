@@ -192,8 +192,8 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           if (!val) return 0;
           const str = String(val).trim();
           const isParenNegative = /^\(.*\)$/.test(str);
-          const isCr = /(?:\bcr\b)|(?:cr$)/i.test(str);
-          const isDr = /(?:\bdr\b)|(?:dr$)/i.test(str);
+          const isCr = /\bcr\b|cr$/i.test(str);
+          const isDr = /\bdr\b|dr$/i.test(str);
           const cleaned = str.replace(/[^0-9.-]/g, '');
           const numVal = Number.parseFloat(cleaned);
           if (Number.isNaN(numVal)) return 0;

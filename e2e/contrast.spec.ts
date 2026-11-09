@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
-import { settleAnimations } from './support/a11yGate';
 
 /**
  * Text contrast in both themes (E-27, A-227): axe's color-contrast check on the main screens and
@@ -35,11 +34,10 @@ for (const theme of ['light', 'dark'] as const) {
 
     for (const view of views) {
       test(`${theme}: ${view}`, async ({ page }) => {
-        await page.emulateMedia({ reducedMotion: 'reduce' });
         const btn = page.locator(`button:has-text("${view}")`).first();
         if (await btn.isVisible()) await btn.click();
         // let entrance animations finish: text fading in is measured at its final colour
-        await settleAnimations(page, 1500);
+        await page.waitForTimeout(1500);
         const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
         const failing = results.violations.reduce((n, v) => n + v.nodes.length, 0);
         const key = `${theme}:${view}`;
@@ -51,10 +49,9 @@ for (const theme of ['light', 'dark'] as const) {
     if (theme === 'dark') {
       for (const screen of darkUrlScreens) {
         test(`dark: ${screen.name}`, async ({ page }) => {
-          await page.emulateMedia({ reducedMotion: 'reduce' });
           await page.goto(screen.url);
           await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 15000 });
-          await settleAnimations(page, 1500);
+          await page.waitForTimeout(1500);
           const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
           const failing = results.violations.reduce((n, v) => n + v.nodes.length, 0);
           const key = `dark:${screen.name}`;
