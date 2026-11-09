@@ -7,7 +7,7 @@ import { Transaction, FilterCriteria } from '../../types';
 
 import { toast } from 'sonner';
 
-import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
+import { emptyLabelColumns, gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
 import { gridFieldEditable, gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
@@ -270,9 +270,10 @@ function useTransactionGridModel() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const rowHeight = isCompactMode ? (isMobileGrid ? 44 : 32) : isProMode ? 44 : 72;
+  const rowHeight = isCompactMode ? (isMobileGrid ? 44 : 32) : isProMode ? 40 : 52;
   // one width per cell the rows draw (desktop rows also have a running balance and actions)
-  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout);
+  const emptyColumns = useMemo(() => emptyLabelColumns(transactionsWithBalance), [transactionsWithBalance]);
+  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout, emptyColumns);
 
   const trackLayout = { mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode };
   const naturalColumnOrder = gridTracks(trackLayout, hiddenColumns).map(([id]) => id);
@@ -340,7 +341,7 @@ function useTransactionGridModel() {
     downloadCsv(`ledger_export_${getLocalDateISO()}.csv`,
       ['Date', 'Description', 'Category', 'Project', 'Amount', 'Currency', 'Status'],
       transactionsWithBalance.map(t => [t.date, t.description, resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || 'General', csvMoney(signedCents(t)), t.currency || '', t.status]));
-    toast.success('Ledger Export Matrix Generated');
+    toast.success('Transactions exported');
   };
 
   const handleBulkUpdate = useCallback(async (updates: Partial<Transaction>) => {

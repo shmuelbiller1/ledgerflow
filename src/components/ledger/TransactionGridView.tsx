@@ -18,10 +18,35 @@ import { TransactionGridBody } from './TransactionGridBody';
 import type { TransactionGridModel } from './TransactionGrid';
 import { copyWithFeedback } from '../../lib/clipboard';
 import { inBackground } from '../../lib/inBackground';
+import { useEffect, useRef, useState } from 'react';
+
+/**
+ * Desktop: the card takes the window height from where it starts, so only the table rows scroll and the
+ * toolbar and column headers stay in view (owner, 9 Nov). Phones keep the normal page scroll.
+ */
+function useFillWindowHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const node = ref.current;
+      if (!node || typeof window === 'undefined' || window.innerWidth < 1024) { setHeight(null); return; }
+      const top = node.getBoundingClientRect().top + window.scrollY;
+      setHeight(Math.max(420, window.innerHeight - top - 8));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  return { ref, style: height ? { height } : undefined };
+}
 export function TransactionGridView(model: TransactionGridModel) {
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
+ const { ref: fillRef, style: fillStyle } = useFillWindowHeight();
  return (
     <div
+      ref={fillRef}
+      style={fillStyle}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}

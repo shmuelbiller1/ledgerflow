@@ -40,7 +40,7 @@ function assert44(what: string, element: Element | null, { width = true } = {}) 
 test('a customer row at 390 px: the row actions and the inline "Enter Invoice" are 44 px', () => {
   markComponentCollectionsLoaded('creditNotes', 'customers', 'invoices', 'payments');
   render(<Sales />);
-  fireEvent.click(screen.getByRole('button', { name: 'Customers & Clients' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Customers' }));
   assert.ok(screen.getByText('Acme'), 'the seeded customer is listed');
   assert44('Archive Acme', screen.getByRole('button', { name: 'Archive Acme' }));
   assert44('Delete Acme', screen.getByRole('button', { name: 'Delete Acme' }));

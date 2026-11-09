@@ -6,7 +6,7 @@ test.use({ locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' });
 const screens = [
   ['dashboard', '/#dashboard', 'Dashboard'],
   ['transactions', '/#transactions', 'Journal Entries'],
-  ['sales', '/#sales', 'Invoicing & Customer Accounts'],
+  ['sales', '/#sales', 'Sales'],
   ['purchases', '/#purchases', 'Purchases & AP'],
   ['reconcile', '/#reconciliation', 'Smart Matching & Bank Reconciliation'],
   ['pnl', '/?report=pnl&start=2026-09-01&end=2026-09-30&cmp=none#reports', 'Reports'],

@@ -63,7 +63,7 @@ const PAYMENTS = [
 const salesOptions = (requests: MountOptions['requests']): MountOptions & { fixture: string; heading: string; user: FixtureUser } => ({
   fixture: 'w2-sales-fixture',
   // The screen's own title; "Sales" alone is not a heading on it.
-  heading: 'Invoicing & Customer Accounts',
+  heading: 'Sales',
   title: 'W2 Sales',
   user: USER,
   screen: '/src/components/sales/Sales.tsx',

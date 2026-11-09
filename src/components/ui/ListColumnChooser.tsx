@@ -45,8 +45,8 @@ function ScopedChooser({ scope, label, columns, storageKey }: Props & { storageK
   return (
     <>
       <style>{listColumnCss(scope, hidden)}</style>
-      <details data-print-hide className="m-2 rounded border bg-[var(--surface)] p-2 text-sm">
-        <summary className="min-h-11 cursor-pointer">
+      <details data-print-hide className="px-3 py-1 text-sm open:m-2 open:rounded open:border open:bg-[var(--surface)] open:p-2">
+        <summary className="min-h-11 md:min-h-7 inline-flex items-center cursor-pointer text-xs text-[var(--muted)] hover:text-[var(--text)]">
           Columns{hidden.length ? ` (${hidden.length} hidden)` : ''}
         </summary>
         <p className="mb-2 text-xs text-[var(--muted)]">

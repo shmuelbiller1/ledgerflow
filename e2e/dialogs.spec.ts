@@ -13,8 +13,8 @@ async function open(page: Page, group: string, screen: string) {
 }
 
 const dialogs: Array<{ name: string; title: RegExp; show: (p: Page) => Promise<void> }> = [
-  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Money In', 'Invoices & AP'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
-  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Money In', 'Invoices & AP'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
+  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
+  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
   { name: 'bill', title: /Record New Bill/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Record Bill/ }).first().click(); } },
   { name: 'vendor', title: /Add Vendor/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Vendors/ }).first().click(); await p.getByRole('button', { name: /Add Vendor|New Vendor/ }).first().click(); } },
   { name: 'credit note', title: /Credit Note/, show: async p => { await open(p, 'Transactions', 'Credit Notes & Vendor Credits'); await p.getByRole('button', { name: /New Credit Note/ }).first().click(); } },

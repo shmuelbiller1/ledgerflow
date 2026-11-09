@@ -121,11 +121,11 @@ function HelpControl({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex items-center justify-end gap-3 px-4 py-1 border-b border-[var(--line)] bg-[var(--surface)]">
-      <span className="text-sm text-[var(--muted)]">{entry.label}</span>
+    <div className="flex items-center justify-end gap-3 px-4 py-1 md:py-0.5 border-b border-[var(--line)] bg-[var(--surface)]">
+      <span className="text-sm md:text-xs text-[var(--muted)]">{entry.label}</span>
       <button
         type="button"
-        className="shrink-0 min-h-11 min-w-11 px-3 border rounded-lg"
+        className="shrink-0 min-h-11 min-w-11 md:min-h-7 md:min-w-0 px-3 border rounded-lg md:text-xs"
         aria-label={`Help for ${entry.label}`}
         onClick={() => setOpen(true)}
       >

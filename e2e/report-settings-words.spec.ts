@@ -16,7 +16,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       if (screen === 'pnl') await expect(page.getByLabel('Reporting period start date')).toBeVisible();
       if (screen === 'balance-sheet') await expect(page.getByRole('heading', { name: 'Assets', exact: true })).toBeVisible();
       if (screen === 'settings') {
-        await expect(page.getByRole('heading', { name: 'About settings', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Workspace', exact: true })).toBeVisible();
         await expect(surface).not.toContainText(/Precision Core|Documentation Protocol|topological registries/);
       }
       // Inspect nested labels as well: an uppercase span can override a normal-case button.

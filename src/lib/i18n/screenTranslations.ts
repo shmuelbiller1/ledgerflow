@@ -63,7 +63,7 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
     screenNameEn: 'Sales',
     screenNameHe: 'מכירות',
     strings: [
-      { key: 'title', en: 'Invoicing & Customer Accounts', he: 'חשבוניות וחשבונות לקוחות' },
+      { key: 'title', en: 'Sales', he: 'מכירות' },
       { key: 'action.newInvoice', en: 'New Invoice', he: 'חשבונית חדשה' },
       { key: 'action.receivePayment', en: 'Receive Payment', he: 'קבלת תשלום' },
       { key: 'status.open', en: 'Open', he: 'פתוחה' },

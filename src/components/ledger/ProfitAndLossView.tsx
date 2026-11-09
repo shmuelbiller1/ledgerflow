@@ -622,7 +622,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs truncate flex items-center gap-1.5">
+                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
                         {acc.name}
                         <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
                       </span>
@@ -704,7 +704,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs truncate flex items-center gap-1.5">
+                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
                         {acc.name}
                         <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
                       </span>

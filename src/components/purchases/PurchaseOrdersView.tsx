@@ -212,7 +212,7 @@ export const PurchaseOrdersView: React.FC = () => {
   const { dialogProps: receiveDialogProps } = useDialog(() => setReceivingPO(null), !!receivingPO);
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="purchase-orders-view">
+    <div className="space-y-6 w-full min-w-0 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="purchase-orders-view">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="w-5 h-5" aria-hidden="true" /> Purchase orders</h1>
@@ -229,7 +229,7 @@ export const PurchaseOrdersView: React.FC = () => {
         )}
       </div>
 
-      <div className="flex gap-1 p-1 rounded-lg w-fit bg-[var(--panel)] border border-[var(--line)]" role="tablist" aria-label="Purchase orders">
+      <div className="flex gap-1 p-1 rounded-lg w-fit max-w-full overflow-x-auto bg-[var(--panel)] border border-[var(--line)]" role="tablist" aria-label="Purchase orders">
         {tabs.map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setActiveTab(id)}
             className={`px-4 py-1.5 text-xs font-semibold rounded-md ${activeTab === id ? 'bg-[var(--surface)] text-[var(--text)]' : 'text-[var(--muted)]'}`}>
