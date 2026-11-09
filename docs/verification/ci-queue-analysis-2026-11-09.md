@@ -20,11 +20,10 @@ Each CI run creates 17 initial jobs: 4 unit, 6 timezone, 5 browser, validation, 
 ## Reproduce a timing report
 
 ```sh
-gh api 'repos/shmuelbiller1/ledgerflow/actions/runs/42656515766/jobs?per_page=100' > /tmp/ci-jobs.json
-node scripts/ci-timing.mjs /tmp/ci-jobs.json
+gh api 'repos/shmuelbiller1/ledgerflow/actions/runs/42656515766/jobs?per_page=100' | node scripts/ci-timing.mjs
 ```
 
-The report distinguishes job wait from execution and excludes cancelled, skipped and queued jobs from timing percentiles because GitHub may provide placeholder start times for jobs that never ran. For a run with more than 100 jobs, collect all pages before analyzing. The tool does not request credentials, change runs, or make API calls itself.
+The report distinguishes job wait from execution and excludes cancelled, skipped and queued jobs from timing percentiles because GitHub may provide placeholder start times for jobs that never ran. For a run with more than 100 jobs, collect all pages before analyzing. The tool reads standard input; it does not open arbitrary paths, request credentials, change runs, or make API calls itself.
 
 ## Follow-up decisions
 

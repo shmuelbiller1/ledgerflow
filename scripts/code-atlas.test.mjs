@@ -245,3 +245,16 @@ test('markdown headings stay on their own line, including on long whitespace inp
   assert.equal(result.headings[1], 'Second');
   assert.equal(result.headings.includes('Not a heading'), false);
 });
+
+test('heading scanner matches the prior single-line grammar for short strings', () => {
+  const pattern = /^#{1,4}[^\S\r\n\u2028\u2029]+(.+)$/m;
+  let level = [''];
+  for (let n = 0; n <= 6; n++) {
+    for (const text of level) {
+      const expected = pattern.exec(text)?.[1];
+      const actual = extract('fixture.md', Buffer.from(text)).headings;
+      assert.deepEqual(actual, expected === undefined ? [] : [expected], JSON.stringify(text));
+    }
+    level = level.flatMap(text => ['#', ' ', '\t', 'a'].map(char => text + char));
+  }
+});

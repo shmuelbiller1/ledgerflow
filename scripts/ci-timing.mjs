@@ -2,10 +2,9 @@
 /**
  * Diagnose a GitHub Actions run without conflating runner wait with execution time.
  *
- *   gh api 'repos/OWNER/REPO/actions/runs/RUN_ID/jobs?per_page=100' > jobs.json
- *   node scripts/ci-timing.mjs jobs.json
+ *   gh api 'repos/OWNER/REPO/actions/runs/RUN_ID/jobs?per_page=100' | node scripts/ci-timing.mjs
  *
- * This reads a local API response; it does not change or cancel runs. Job creation can occur
+ * This reads an API response from standard input; it does not change or cancel runs. Job creation can occur
  * after dependencies finish, so this measures job-created-to-start, not total workflow latency.
  * GitHub can populate started_at for jobs that never ran, so cancelled/skipped/queued jobs are
  * not included in the timing percentiles. All timestamps in the API are UTC.
@@ -57,8 +56,8 @@ export function formatTiming(report) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    if (process.argv.length !== 3) throw new Error('Usage: node scripts/ci-timing.mjs jobs.json');
-    console.log(formatTiming(analyzeJobs(JSON.parse(readFileSync(process.argv[2], 'utf8')))));
+    if (process.argv.length !== 2) throw new Error('Usage: gh api ... | node scripts/ci-timing.mjs');
+    console.log(formatTiming(analyzeJobs(JSON.parse(readFileSync(0, 'utf8')))));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -81,6 +81,21 @@ function sqlFacts(text) {
   for (const m of clean.matchAll(/\bexecute\s+format\s*\(/gi)) result.dynamic.push({ kind: 'runtime-formatted-sql', line: clean.slice(0, m.index).split('\n').length, status: 'unknown-until-SQL-reviewed' });
   return result;
 }
+// Markdown heading whitespace is restricted to the current line. Scan rather than
+// combining overlapping whitespace and content quantifiers on untrusted source text.
+function markdownHeadings(text) {
+  const headings = [];
+  for (const line of text.split(/\r\n|[\r\n\u2028\u2029]/)) {
+    let i = 0;
+    while (i < line.length && line[i] === '#' && i < 4) i++;
+    if (i === 0 || i === line.length || !/\s/.test(line[i])) continue;
+    const spaceStart = i;
+    while (i < line.length && /\s/.test(line[i])) i++;
+    if (i < line.length) headings.push(line.slice(i));
+    else if (i - spaceStart > 1) headings.push(line.slice(-1));
+  }
+  return headings;
+}
 export function extract(file, buffer) {
   const binary = buffer.includes(0);
   const text = binary ? '' : buffer.toString('utf8');
@@ -89,8 +104,7 @@ export function extract(file, buffer) {
   if (ARTIFACTS.has(file)) { f.category = 'generated-atlas-artifact'; f.contentInspection = 'inventory/blob metadata only; deliberately not recursively indexed'; return f; }
   if (file.endsWith('.sql')) { f.sql = sqlFacts(text); return f; }
   if (!JS.test(file)) {
-    // Markdown heading whitespace cannot consume a line break into the next paragraph.
-    f.headings = [...text.matchAll(/^#{1,4}[^\S\r\n\u2028\u2029]+(.+)$/gm)].map(m => m[1]);
+    f.headings = markdownHeadings(text);
     f.supportEvidence = text.split('\n').map((s, i) => ({ line: i + 1, text: compact(s, 240) })).filter(x => x.text).slice(0, 4);
     return f;
   }

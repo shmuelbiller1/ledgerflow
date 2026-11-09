@@ -28,3 +28,14 @@ test('refuses invalid responses and does not invent durations for malformed time
   assert.equal(result.waitP50Seconds, null);
   assert.match(formatTiming(result), /median n\/a/);
 });
+
+test('CLI reads GitHub job data from stdin and refuses file path arguments', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const script = new URL('./ci-timing.mjs', import.meta.url).pathname;
+  const result = spawnSync(process.execPath, [script], { input: JSON.stringify({ jobs: [] }), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Jobs: 0/);
+  const refused = spawnSync(process.execPath, [script, '../../private.json'], { input: '{}', encoding: 'utf8' });
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /Usage:/);
+});
