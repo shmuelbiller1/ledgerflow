@@ -438,7 +438,7 @@ export interface FicaBreakdown {
 export function calculateFicaTax(
   currentPeriodWageCents: number,
   priorYtdSubjectWageCents = 0,
-  filingStatus: UsPayrollFilingStatus = 'single',
+  _filingStatus: UsPayrollFilingStatus = 'single',
   date = '2026-01-01',
 ): FicaBreakdown {
   if (currentPeriodWageCents <= 0) {
