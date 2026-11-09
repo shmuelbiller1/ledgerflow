@@ -39,6 +39,20 @@ describe('F-35 log redaction rule', () => {
     assert.ok(out.startsWith('שלח אל '), 'surrounding text is kept exactly');
   });
 
+  test('email scanner retains the previous matching semantics on mixed text', () => {
+    const original = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}/g;
+    // Include invalid domains, adjacent addresses, punctuation and partial suffixes.
+    const examples = ['a@x.co,b@y.org', 'a@bad-.com b@ok.test', '@example.com',
+      'prefix+tag@sub-domain.example.com!', 'a@b.c a@b.co123', 'a@@b.example.com'];
+    for (const text of examples) assert.equal(redactForLogs(text), text.replace(original, '[EMAIL]'));
+  });
+
+  test('long non-address text does not cause repeated local-part rescans', () => {
+    const text = 'a'.repeat(200_000);
+    assert.equal(redactForLogs(text), text);
+    assert.equal(redactForLogs(`${text}@example.com`), '[EMAIL]');
+  });
+
   test('a Luhn-valid card number is masked whole, with spaces or dashes', () => {
     for (const card of [liveCard, liveCardCompact, '4111-1111-1111-1111']) {
       const out = redactForLogs(`card ${card} declined`);

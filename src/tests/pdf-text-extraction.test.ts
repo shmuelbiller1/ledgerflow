@@ -46,3 +46,10 @@ two) Tj <3132332E3435> Tj`);
 test('a single-byte ToUnicode font uses its codespace instead of assuming two-byte glyphs', () => {
   assert.deepEqual(pdfTextRuns(mixedPdf('/F3 9 Tf <41> Tj (A) Tj')), ['A', 'A']);
 });
+
+
+test('PDF object scanning skips a long digit run without an object marker', () => {
+  const pdf = mixedPdf('/F3 9 Tf (A) Tj');
+  const prefix = Buffer.from('9'.repeat(200_000) + ' invalid\n');
+  assert.deepEqual(pdfTextRuns(Buffer.concat([prefix, pdf])), ['A']);
+});

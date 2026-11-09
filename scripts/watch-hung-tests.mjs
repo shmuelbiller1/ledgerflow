@@ -1,64 +1,46 @@
 #!/usr/bin/env node
-/**
- * Name the browser test that is hanging while it hangs.
- *
- * A shard that is killed at its time limit fails with "exceeded the maximum execution time" and no
- * failing test: the report only lists what finished. This watches the Playwright JSON report (which
- * is rewritten as tests complete) and prints a workflow annotation for each spec file that has had a
- * test running for longer than the limit, so the answer is in the run's annotations rather than only
- * in a log nobody can fetch.
- *
- * Usage: WATCH_REPORT=test-results/playwright-results-1.json WATCH_LIMIT_MINUTES=8 \
- *          node scripts/watch-hung-tests.mjs &     (then kill it after Playwright exits)
- */
+/** Watch the live Playwright reporter's file and annotate tests running past a limit. */
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 
-const REPO_ROOT = path.resolve(import.meta.dirname, '..');
-const requested = path.resolve(REPO_ROOT, process.env.WATCH_REPORT ?? 'playwright-report.json');
-const reportPath = requested.startsWith(REPO_ROOT + path.sep) ? requested : null;
-const limitMinutes = Number(process.env.WATCH_LIMIT_MINUTES ?? 8);
-const intervalMs = 30_000;
+const escapeData = value => stripVTControlCharacters(String(value)).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+const escapeProperty = value => escapeData(value).replace(/:/g, '%3A').replace(/,/g, '%2C');
 
-if (!reportPath) {
-  console.log('::warning::WATCH_REPORT points outside the checkout; the hang watcher is off.');
-  process.exit(0);
+/** Produce one annotation per running test attempt, without trusting titles or file paths. */
+export function longRunningAnnotations(report, now, limitMs, announced, root = process.cwd()) {
+  const annotations = [];
+  for (const item of Array.isArray(report?.active) ? report.active : []) {
+    if (!item || typeof item.id !== 'string' || typeof item.startedAt !== 'number' || !Number.isFinite(item.startedAt) || typeof item.title !== 'string') continue;
+    const key = `${item.id}:${item.startedAt}`;
+    const duration = now - item.startedAt;
+    if (duration < limitMs || announced.has(key)) continue;
+    announced.add(key);
+    const relative = typeof item.file === 'string' ? path.relative(root, path.resolve(root, item.file)) : '';
+    const file = relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+      ? ` file=${escapeProperty(relative.replaceAll(path.sep, '/'))},` : ' ';
+    annotations.push(`::error${file}title=Long-running browser test::${escapeData(item.title)} has been running for ${Math.round(duration / 60_000)} minutes`);
+  }
+  return annotations;
 }
 
-const announced = new Set();
-
-/** Titles of the tests whose latest result is still running, with their file. */
-function running(file) {
-  let report;
-  try {
-    report = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return [];
-  }
-  const found = [];
-  const walk = (suite, trail) => {
-    for (const spec of suite.specs ?? []) {
-      for (const test of spec.tests ?? []) {
-        const result = (test.results ?? []).at(-1);
-        if (!result || result.status !== 'running') continue;
-        const startedAt = Date.parse(result.startTime ?? '');
-        if (Number.isNaN(startedAt)) continue;
-        found.push({ title: [...trail, spec.title].filter(Boolean).join(' › '), file: spec.file, startedAt });
-      }
-    }
-    for (const child of suite.suites ?? []) walk(child, [...trail, child.title]);
-  };
-  for (const suite of report.suites ?? []) walk(suite, []);
-  return found;
+export function readLive(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
 }
 
-const timer = setInterval(() => {
-  for (const test of running(reportPath)) {
-    const minutes = (Date.now() - test.startedAt) / 60_000;
-    if (minutes < limitMinutes || announced.has(test.title)) continue;
-    announced.add(test.title);
-    const file = test.file ? `file=${test.file},` : '';
-    console.log(`::error ${file}title=Long-running browser test::${test.title} has been running for ${Math.round(minutes)} minutes`);
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const root = process.cwd();
+  const requested = path.resolve(root, process.env.WATCH_REPORT || 'test-results/playwright-live.json');
+  const limit = Number(process.env.WATCH_LIMIT_MINUTES ?? 8);
+  const interval = Number(process.env.WATCH_INTERVAL_MS ?? 30_000);
+  if (!requested.startsWith(root + path.sep) || !Number.isFinite(limit) || limit < 0 || !Number.isFinite(interval) || interval < 10) {
+    console.log('::warning::Invalid live browser watcher configuration; the watcher is off.');
+  } else {
+    const announced = new Set();
+    // Keep the process alive until the parent explicitly stops it.
+    setInterval(() => {
+      for (const annotation of longRunningAnnotations(readLive(requested), Date.now(), limit * 60_000, announced, root)) console.log(annotation);
+    }, interval);
   }
-}, intervalMs);
-timer.unref?.();
+}

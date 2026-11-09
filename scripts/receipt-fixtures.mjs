@@ -25,7 +25,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,10 +87,9 @@ function pickFont(explicit, kind) {
   }
   return kind === 'he' ? null : 'DejaVu-Sans';
 }
-function globOne(pattern) {
-  const shell = spawnSync('bash', ['-lc', `compgen -G ${JSON.stringify(pattern)} | head -1`], { encoding: 'utf8' });
-  const hit = (shell.stdout || '').trim();
-  return hit && existsSync(hit) ? hit : null;
+export function globOne(pattern) {
+  // Built-in globbing avoids running a shell to find fonts. Sort for a repeatable choice.
+  return globSync(pattern).sort().find(hit => existsSync(hit)) || null;
 }
 
 export function resolveFonts(env = process.env) {

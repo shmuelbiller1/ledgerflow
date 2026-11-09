@@ -17,6 +17,20 @@ export interface ParsedCommandIntent {
   displaySummary: string;
 }
 
+// Extract the project prefix first, then consume the separator once. The previous
+// overlapping whitespace quantifiers could repeatedly backtrack on malformed input.
+function projectNameFromCommand(text: string): string | null {
+  const prefix = /^(?:new\s+)?(?:book\s+|realestate\s+|property\s+)?project/i.exec(text);
+  if (!prefix) return null;
+  const tail = text.slice(prefix[0].length);
+  if (!tail || (tail[0] !== ':' && !/\s/.test(tail[0]))) return null;
+  const afterWhitespace = tail.trimStart();
+  let name = afterWhitespace.startsWith(':') ? afterWhitespace.slice(1).trimStart() : afterWhitespace;
+  // With whitespace before a bare colon, the original expression treated ':' as the name.
+  if (!name && tail.length !== afterWhitespace.length && afterWhitespace === ':') name = ':';
+  return name && !/[\r\n\u2028\u2029]/.test(name) ? name.trim() : null;
+}
+
 // Deterministic PEG-lite parsing for natural language entries and commands
 export function parseNaturalLanguageEntry(text: string): ParsedCommandIntent {
   const trimmed = text.trim();
@@ -27,9 +41,8 @@ export function parseNaturalLanguageEntry(text: string): ParsedCommandIntent {
   }
 
   // 1. Check for Project Creation intent: "new project: Shakespeare Folio", "new book project Aspen"
-  const projectMatch = trimmed.match(/^(?:new\s+)?(?:book\s+|realestate\s+|property\s+)?project\s*[:\s]\s*(.+)$/i);
-  if (projectMatch && projectMatch[1]) {
-    const projectName = projectMatch[1].trim();
+  const projectName = projectNameFromCommand(trimmed);
+  if (projectName !== null) {
     return {
       type: 'project',
       projectName,

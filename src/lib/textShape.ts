@@ -294,8 +294,9 @@ const isAsciiDigit = (c: string | undefined) => c !== undefined && c >= '0' && c
 export function trailingNumberStart(text: string): number {
   let tail = text.length;
   while (tail > 0 && (isAsciiDigit(text[tail - 1]) || isWs(text[tail - 1]) || text[tail - 1] === '-')) tail--;
-  for (let p = tail; p < text.length; p++) {
-    if (!isWs(text[p])) continue;
+  let p = tail;
+  while (p < text.length) {
+    if (!isWs(text[p])) { p++; continue; }
     let q = p;
     while (isWs(text[q])) q++;
     if (isAsciiDigit(text[q])) return p;

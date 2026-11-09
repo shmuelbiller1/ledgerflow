@@ -17,7 +17,7 @@ const DEFAULT_INDEX = 'docs/CODE_ATLAS.jsonl';
 const ARTIFACTS = new Set([DEFAULT_INDEX, 'docs/CODE_ATLAS_VALIDATION.md']);
 const CODE = /\.(?:[cm]?[jt]sx?|sql|sh|css|html)$/;
 const JS = /\.(?:[cm]?[jt]sx?)$/;
-const TEST = /(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TEST = /(?:(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 const MAX_BUFFER = 128 * 1024 * 1024;
 const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER });
 const txt = (root, args) => git(root, args).toString('utf8').trim();
@@ -74,12 +74,27 @@ function sqlFacts(text) {
   };
   scan(/\b(?:create\s+table(?:\s+if\s+not\s+exists)?|alter\s+table)\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'table-ddl', result.tables);
   scan(/\bcreate\s+(?:or\s+replace\s+)?function\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'function-ddl', result.functions);
-  scan(/\bcreate\s+policy\s+([^\s]+)[\s\S]*?\bon\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
+  scan(/\bcreate\s+policy\s+([^\s]+)\s+on\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
   for (const m of clean.matchAll(/\b(all_tables)\s+text\[\]\s*:=\s*array\s*\[([\s\S]*?)\]/gi)) {
     for (const table of m[2].matchAll(/'([^']+)'/g)) result.tables.push({ kind: 'dynamic-template-array-candidate', name: table[1], line: clean.slice(0, m.index).split('\n').length, excerpt: 'all_tables array; inspect FOREACH/format DDL before assuming creation' });
   }
   for (const m of clean.matchAll(/\bexecute\s+format\s*\(/gi)) result.dynamic.push({ kind: 'runtime-formatted-sql', line: clean.slice(0, m.index).split('\n').length, status: 'unknown-until-SQL-reviewed' });
   return result;
+}
+// Markdown heading whitespace is restricted to the current line. Scan rather than
+// combining overlapping whitespace and content quantifiers on untrusted source text.
+function markdownHeadings(text) {
+  const headings = [];
+  for (const line of text.split(/\r\n|[\r\n\u2028\u2029]/)) {
+    let i = 0;
+    while (i < line.length && line[i] === '#' && i < 4) i++;
+    if (i === 0 || i === line.length || !/\s/.test(line[i])) continue;
+    const spaceStart = i;
+    while (i < line.length && /\s/.test(line[i])) i++;
+    if (i < line.length) headings.push(line.slice(i));
+    else if (i - spaceStart > 1) headings.push(line.slice(-1));
+  }
+  return headings;
 }
 export function extract(file, buffer) {
   const binary = buffer.includes(0);
@@ -89,7 +104,7 @@ export function extract(file, buffer) {
   if (ARTIFACTS.has(file)) { f.category = 'generated-atlas-artifact'; f.contentInspection = 'inventory/blob metadata only; deliberately not recursively indexed'; return f; }
   if (file.endsWith('.sql')) { f.sql = sqlFacts(text); return f; }
   if (!JS.test(file)) {
-    f.headings = [...text.matchAll(/^#{1,4}\s+(.+)$/gm)].map(m => m[1]);
+    f.headings = markdownHeadings(text);
     f.supportEvidence = text.split('\n').map((s, i) => ({ line: i + 1, text: compact(s, 240) })).filter(x => x.text).slice(0, 4);
     return f;
   }

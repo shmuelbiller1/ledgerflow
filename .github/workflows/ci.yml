@@ -54,14 +54,14 @@ jobs:
           cache: 'npm'
 
       - name: Verify lockfile is in sync
-        run: npm ci --dry-run
+        run: npm ci --ignore-scripts --dry-run
         env:
           NODE_ENV: development
           npm_config_production: false
           HUSKY: 0
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -75,6 +75,9 @@ jobs:
 
       - name: Test ESLint warning ratchet
         run: node --test scripts/eslint-warning-ratchet.test.mjs
+
+      - name: Test source and CI utilities
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -130,7 +133,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -156,7 +159,8 @@ jobs:
   # One check for the whole unit suite: every part passed, and the merged coverage meets the thresholds (it only goes up).
   unit_gate:
     name: Accounting & Security Test Suites (coverage gate)
-    if: always()
+    # Run after failures/skips, but do not queue an obsolete gate after workflow cancellation.
+    if: ${{ !cancelled() }}
     needs: unit
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -195,7 +199,7 @@ jobs:
           node-version: 24
           cache: 'npm'
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -249,7 +253,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -303,14 +307,14 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
           HUSKY: 0
 
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
+        run: node_modules/.bin/playwright install --with-deps chromium
 
       - name: Prepare the test database (Supabase migrations)
         run: npm run db:test-setup
@@ -318,21 +322,21 @@ jobs:
       - name: Run all browser tests across isolated shards
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/playwright-results-${{ matrix.shard }}.json
-          WATCH_REPORT: test-results/playwright-results-${{ matrix.shard }}.json
+          WATCH_REPORT: test-results/playwright-live-${{ matrix.shard }}.json
         run: |
           set +e
-          # Reported while it happens: a test that runs past eight minutes is named in the
-          # annotations, so a shard killed at its limit still says which file was stuck.
+          # The live reporter writes running tests before Playwright finishes; the final JSON
+          # reporter is separate. A test past eight minutes is named in annotations.
           WATCH_LIMIT_MINUTES=8 node scripts/watch-hung-tests.mjs &
           watcher=$!
-          npm run test:e2e -- --shard=${{ matrix.shard }}/5 --reporter=list,json,blob
+          npm run test:e2e -- --shard=${{ matrix.shard }}/5 --reporter=list,json,blob,./scripts/playwright-live-reporter.mjs
           browser_exit=$?
           kill "$watcher" 2>/dev/null
           node scripts/playwright-ci-feedback.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME"
           exit "$browser_exit"
 
       - name: Upload browser reports and failure diagnostics
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-shard-${{ matrix.shard }}
@@ -345,7 +349,8 @@ jobs:
   # Preserve the original required check: skipped/cancelled/failed shards cannot pass it.
   e2e:
     name: Playwright E2E Smoke Suite
-    if: always()
+    # A superseded run must stop rather than queue this report-and-gate job.
+    if: ${{ !cancelled() }}
     needs: e2e_shards
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -355,7 +360,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
         env:
           HUSKY: 0
       - name: Download every shard report
@@ -365,9 +370,9 @@ jobs:
           path: playwright-reports
           merge-multiple: true
       - name: Merge browser reports
-        run: npx playwright merge-reports --reporter=html playwright-reports/blob-report
+        run: node_modules/.bin/playwright merge-reports --reporter=html playwright-reports/blob-report
       - name: Upload combined report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-combined-report
@@ -377,10 +382,10 @@ jobs:
       # question a reader has is "which file was it stuck in". The blob report survives the
       # cancellation and names the suites the shard never finished.
       - name: Say which suites a cancelled shard never reached
-        if: always()
+        if: ${{ !cancelled() }}
         run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           SHARD_RESULT: ${{ needs.e2e_shards.result }}
         run: test "$SHARD_RESULT" = success

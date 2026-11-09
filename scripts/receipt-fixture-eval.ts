@@ -34,10 +34,6 @@ const flag = (name: string) => {
 function builtInReader(): FixtureRead[] {
   return RECEIPT_FIXTURES.map((fixture) => {
     const read = parseReceiptOCR(fixture.ocrText, []);
-    const amount = (line: string) => line.match(/(\d[\d, ]*)\.(\d{2})\s*$/)?.[0]
-      ? Math.round(Number(line.match(/(\d[\d, ]*)\.(\d{2})\s*$/)![0].replace(/[,\s]/g, '')) * 100)
-      : undefined;
-    void amount;
     return {
       id: fixture.id,
       merchant: read.merchant,

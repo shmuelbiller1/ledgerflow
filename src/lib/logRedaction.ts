@@ -12,9 +12,34 @@
  */
 
 const CARD = /\b(?:\d[ -]?){12,18}\d\b/g;
-// Each domain label is matched as a unit ([label](.[label])*), so the engine cannot re-split one long
-// run of letters and dots in exponentially many ways on text that is not an address.
-const EMAIL = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}/g;
+// Sticky matching avoids retrying the domain expression at every character. The local part
+// is scanned backwards from each @, rather than retrying a greedy local-part regex on every
+// character of a long non-address (which is quadratic).
+const EMAIL_DOMAIN = /(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}/y;
+const EMAIL_LOCAL_CHAR = /[A-Za-z0-9._%+-]/;
+
+function redactEmails(input: string): string {
+  let copiedThrough = 0;
+  let searchFrom = 0;
+  const parts: string[] = [];
+  for (;;) {
+    const at = input.indexOf('@', searchFrom);
+    if (at === -1) break;
+    let start = at;
+    while (start > searchFrom && EMAIL_LOCAL_CHAR.test(input[start - 1])) start--;
+    EMAIL_DOMAIN.lastIndex = at + 1;
+    const domain = start < at ? EMAIL_DOMAIN.exec(input) : null;
+    if (domain) {
+      parts.push(input.slice(copiedThrough, start), '[EMAIL]');
+      copiedThrough = EMAIL_DOMAIN.lastIndex;
+      searchFrom = copiedThrough;
+    } else {
+      searchFrom = at + 1;
+    }
+  }
+  parts.push(input.slice(copiedThrough));
+  return parts.join('');
+}
 const BEARER = /\b(bearer\s+)[A-Za-z0-9._~+/=-]+/gi;
 const API_KEY = /\b(api[_-]?key["']?\s*[:=]\s*["']?)[A-Za-z0-9._-]+/gi;
 const PASSWORD = /\b(password|passwd|pwd)["']?\s*[:=]\s*["']?[^\s"',;]+/gi;
@@ -38,12 +63,12 @@ export function isCardNumber(digits: string): boolean {
 /** The same text with credentials, addresses and card numbers replaced. */
 export function redactForLogs(input: string): string {
   if (!input) return '';
-  return input
+  const redacted = input
     .replace(BEARER, '$1[REDACTED]')
     .replace(API_KEY, '$1[REDACTED]')
     .replace(PASSWORD, (_match, label: string) => `${label}=[REDACTED]`)
-    .replace(SECRET, (_match, label: string) => `${label}=[REDACTED]`)
-    .replace(EMAIL, '[EMAIL]')
+    .replace(SECRET, (_match, label: string) => `${label}=[REDACTED]`);
+  return redactEmails(redacted)
     .replace(CARD, match => (isCardNumber(match.replace(/[ -]/g, '')) ? '[CARD]' : match));
 }
 
