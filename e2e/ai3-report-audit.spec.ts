@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './support/a11yGate';
 
 /**
  * A-203 / A-204 / A-205 for the reports AI #3 built.
@@ -65,7 +66,7 @@ async function open(page: Page, id: string, title: string) {
   await expect(region).toBeVisible({ timeout: 30000 });
   // the lazy screen and its first paint, without waiting on unrelated background work
   await expect.poll(() => region.innerText().then(text => text.trim().length), { timeout: 20000 }).toBeGreaterThan(10);
-  await page.waitForTimeout(200);
+  await settleAnimations(page, 200);
   return region;
 }
 
@@ -119,7 +120,7 @@ for (const { id, title, selector: reportSelector } of reports) {
     // cannot be reviewed in the push that creates it, and the visual baselines have their own workflow).
     await testInfo.attach(`${id}-390.png`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.waitForTimeout(300);
+    await settleAnimations(page, 300);
     await testInfo.attach(`${id}-1280.png`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
     await page.setViewportSize({ width: 390, height: 844 });
 

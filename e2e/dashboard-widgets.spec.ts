@@ -16,7 +16,7 @@ for (const width of [1280, 390]) {
     const toggle = dashboard.getByRole('checkbox', { name: 'Revenue', exact: true });
     await toggle.focus(); await toggle.press('Space'); await expect(revenue).toHaveCount(0);
     await page.reload(); await dashboard.getByText('Customize widgets', { exact: true }).click(); await expect(toggle).not.toBeChecked();
-    const move = dashboard.getByRole('button', { name: 'Move Cash balance up', exact: true });
+    const move = dashboard.getByRole('button', { name: 'Move You owe up', exact: true });
     await move.focus(); await move.press('Enter');
     await dashboard.getByRole('button', { name: 'Reset layout', exact: true }).click(); await expect(revenue).toBeVisible();
     await dashboard.getByLabel('Dashboard date range').selectOption('custom');

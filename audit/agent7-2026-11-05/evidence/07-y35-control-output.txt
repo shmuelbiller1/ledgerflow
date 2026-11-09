@@ -1,0 +1,6 @@
+{
+  n: 28572,
+  'down differs from half_up': 14287,
+  'half_even differs from half_up': 18
+}
+19.99 inclusive 10% down -> {"treatment":"standard","netCents":1818,"taxCents":181,"selfAssessedCents":0,"components":[{"name":"a","rate":10,"taxCents":181}]}

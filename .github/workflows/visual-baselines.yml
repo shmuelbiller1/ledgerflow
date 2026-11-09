@@ -23,13 +23,32 @@ jobs:
       - run: npm ci
         env:
           HUSKY: 0
-      - run: npx playwright install --with-deps chromium
+      - run: node_modules/.bin/playwright install --with-deps chromium
       - name: Generate candidate reference images
         env:
+          # Read in the shell, never interpolated into the script text: the spec wraps this line in
+          # JavaScript template literals, so `${{ inputs.screens }}` pasted into the run block was
+          # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
           SCREENS: ${{ inputs.screens }}
-        run: npx playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0
-      - name: Check the entire reference set
-        run: npx playwright test e2e/visual-regression.spec.ts --retries=0
+        # `--update-snapshots` still runs every assertion before the screenshot, so a failing wait
+        # (a heading that was renamed, a store that never filled) aborts the capture and leaves the
+        # reviewer with no images. The JSON report is replayed into the step summary, because the raw
+        # job log is not always reachable from a reviewer's tools.
+        run: |
+          set +e
+          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0 --reporter=list,json
+          status=$?
+          # The JSON reporter writes next to test-results/, not to the working directory.
+          report=$(find . -maxdepth 3 -name 'playwright-report.json' -newermt '-20 minutes' | head -1)
+          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" --summary "$GITHUB_STEP_SUMMARY"
+          exit $status
+      # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
+      # named a subset (the other screens legitimately still differ), which blocked the push of a
+      # correct candidate set; the reviewer still merges only after looking at the images.
+      - name: Check the captured reference set
+        env:
+          SCREENS: ${{ inputs.screens }}
+        run: node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

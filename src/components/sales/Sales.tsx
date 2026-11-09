@@ -336,7 +336,7 @@ export default function Sales() {
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
           <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-rose-500 dark:text-[#ff495a] font-semibold mb-3 relative z-10">Critical Overdue</p>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">Critical Overdue</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-rose-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.overdue)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <AlertCircle size={12} />
@@ -351,8 +351,8 @@ export default function Sales() {
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
           <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-amber-500 font-semibold mb-3 relative z-10">Short-Term (30d)</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300 font-semibold mb-3 relative z-10">Short-Term (30d)</p>
+          <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-700 dark:text-amber-300 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <Activity size={12} />
              Operational Inflow Expected
@@ -465,7 +465,7 @@ export default function Sales() {
                         </span>
                         {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">Receipt</span>}
                         {(inv.writtenOffCents || 0) > 0 && (
-                          <span className="text-[10px] text-amber-600 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
                         )}
                       </div>
                       {inv.viewedAt && inv.status !== 'paid' && (
@@ -555,7 +555,7 @@ export default function Sales() {
                         {(inv.writtenOffCents || 0) > 0 && (
                           <button
                             onClick={() => reverseWriteOff(inv)}
-                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-amber-600 transition-all"
+                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-amber-700 dark:text-amber-300 transition-all"
                             title="Customer paid after all: reverse the bad debt write-off"
                             aria-label="Reverse the bad debt write-off"
                           >
@@ -713,7 +713,7 @@ export default function Sales() {
                               onOpen={() => setSelectedCustomerId(cust.id)} />
                             <button type="button"
                               onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
-                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
+                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-700 dark:text-emerald-300'}`}
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
@@ -741,7 +741,7 @@ export default function Sales() {
                     <td className="p-4 md:p-8">
                       <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all justify-end">
                         
-                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
+                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
                         {canEditContacts && <PartyRowActions side="customer" party={cust} />}
                       </div>
                     </td>

@@ -126,7 +126,7 @@ for (const width of [1280, 390]) {
     if (await consent.isVisible()) await consent.click();
     const revenue = page.getByRole("article", { name: "Revenue", exact: true });
     const cash = page.getByRole("article", {
-      name: "Cash balance",
+      name: "Cash",
       exact: true,
     });
     await revenue
