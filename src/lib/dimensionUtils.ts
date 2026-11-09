@@ -1,5 +1,6 @@
 import { TransactionLine, Transaction, DimensionDefinition, SplitAllocation, DimensionNode } from '../types';
 import { byCodeUnit } from './codeUnitOrder';
+import { bracketDimensions } from './textShape';
 
 export const DEFAULT_WORKSPACE_DIMENSIONS: DimensionDefinition[] = [
   { id: 'category', name: 'Category', systemDefault: true, sortOrder: 0 },
@@ -536,12 +537,10 @@ export function extractMultiDimensionalLabels(
   if (!text) return { dimensions, tags: Array.from(tagSet), deepPaths };
 
   // 1. Match bracketed dimensions: [Key:Value] or [Key:Value/SubValue]
-  // the value's leading spaces are trimmed below, so no \s* before it (Sonar S8786)
-  const bracketRegex = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]([^\]]+)\]/gu;
-  let bMatch;
-  while ((bMatch = bracketRegex.exec(text)) !== null) {
-    const dimKey = bMatch[1].normalize('NFC').toLowerCase().trim();
-    const dimVal = bMatch[2].trim();
+  // one pass, so a long run of unclosed "[x:" stays linear (Sonar S8786)
+  for (const bracket of bracketDimensions(text)) {
+    const dimKey = bracket.key.normalize('NFC').toLowerCase().trim();
+    const dimVal = bracket.value.trim();
     dimensions[dimKey] = dimVal;
     deepPaths.push(`${dimKey}:${dimVal}`);
     tagSet.add(`${dimKey}:${dimVal}`);

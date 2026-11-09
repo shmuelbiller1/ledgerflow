@@ -248,6 +248,31 @@ export function maskEmails(text: string, mask: string): string {
   return out;
 }
 
+const DIM_KEY = /[\p{L}\p{M}\p{N}_-]+/uy;
+const DIM_GAP = /\s*/uy;
+
+/** Every "[key:value]" (or "[key=value]") in reading order, in one pass over the text.
+ * Gives the same matches as /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]\s*([^\]]+)\]/gu once the value is trimmed. */
+export function bracketDimensions(text: string): Array<{ index: number; key: string; value: string }> {
+  const found: Array<{ index: number; key: string; value: string }> = [];
+  let close = -1; // the first ']' at or after the current scan point
+  for (let open = text.indexOf('['); open !== -1; open = text.indexOf('[', open + 1)) {
+    DIM_KEY.lastIndex = open + 1;
+    if (!DIM_KEY.test(text)) continue;
+    const keyEnd = DIM_KEY.lastIndex;
+    DIM_GAP.lastIndex = keyEnd;
+    DIM_GAP.test(text);
+    const sep = DIM_GAP.lastIndex;
+    if (text[sep] !== ':' && text[sep] !== '=') continue;
+    if (close <= sep) close = text.indexOf(']', sep + 1);
+    if (close === -1) break; // no ']' left, so no later bracket can close either
+    if (close === sep + 1) continue; // the value needs at least one character
+    found.push({ index: open, key: text.slice(open + 1, keyEnd), value: text.slice(sep + 1, close) });
+    open = close; // the next match starts after this one
+  }
+  return found;
+}
+
 const isWs = (c: string | undefined) => c !== undefined && /\s/.test(c);
 const isAsciiDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
 

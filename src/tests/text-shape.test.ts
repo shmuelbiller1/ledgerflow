@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maskEmails, firstAmtElement, isPhoneText, trailingNumberStart, trailingStateStart, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
+import { bracketDimensions, maskEmails, firstAmtElement, isPhoneText, trailingNumberStart, trailingStateStart, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -149,6 +149,14 @@ test('maskEmails and the two rewritten patterns match the old ones', () => {
   const NEW_DIM = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]([^\]]+)\]/gu;
   const pairs = (re: RegExp, s: string) => [...s.matchAll(re)].map(m => `${m.index}|${m[1]}|${m[2].trim()}`);
   for (const s of strings(['[', ']', 'a', ':', ' '], 7)) assert.deepEqual(pairs(NEW_DIM, s), pairs(OLD_DIM, s), JSON.stringify(s));
+  const scanned = (s: string) => bracketDimensions(s).map(b => `${b.index}|${b.key}|${b.value.trim()}`);
+  for (const s of strings(['[', ']', 'a', ':', '=', ' ', '\n'], 7)) assert.deepEqual(scanned(s), pairs(OLD_DIM, s), JSON.stringify(s));
+  assert.deepEqual(scanned('x [Proj:Apollo] [é𝟘:a[b] [dept = eng ]'), pairs(OLD_DIM, 'x [Proj:Apollo] [é𝟘:a[b] [dept = eng ]'));
+  const unclosed = '[x:'.repeat(50000);
+  const t0 = Date.now();
+  assert.deepEqual(bracketDimensions(unclosed), []);
+  assert.deepEqual(bracketDimensions(unclosed + ']').length, 1);
+  assert.ok(Date.now() - t0 < 1000, 'unclosed brackets are scanned in linear time');
 });
 
 test('trailingNumberStart, trailingStateStart, isPhoneText and firstAmtElement match the old patterns', () => {
