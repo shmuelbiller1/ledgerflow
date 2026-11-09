@@ -10,14 +10,16 @@ Source: attached `issues.json` (103 findings against the report revision). Line 
 
 - **Further review / lead-owned:** `moneyFormat.ts` and the mailer have potentially expensive regexes; changing the former risks money-input semantics and the latter is in the server lane. The payment operation-key fallback and SDK key fallback deserve a compatibility and collision review because they identify non-repeatable writes; do not mechanically replace them without testing supported browsers and Node 18. The server MD5 is used for a cache key, not authentication, but cache-collision risk and migration belong with the server owner. The 10 MB, one-file limit is a bounded authenticated upload, but suitability under concurrency needs an operational assessment. Remaining PDF-test, PATH, archived-script and diagnostic-ID findings need context-specific review; no claim is made that they are all defects.
 
-`IntentResolver.resolveEntry` already refuses lines longer than 500 characters, limiting individual regex inputs; this is mitigation, not a proof of linear runtime. Several other ID fallbacks use `crypto.randomUUID` when available; their legacy fallbacks remain to be assessed separately. Archived utilities are not CI paths; the historical llama probe no longer installs packages or uses npx, and requires a preinstalled local package.
+`IntentResolver.resolveEntry` already refuses lines longer than 500 characters, limiting individual regex inputs; this is mitigation, not a proof of linear runtime. Several other ID fallbacks use `crypto.randomUUID` when available; their legacy fallbacks remain to be assessed separately. The archived maintenance utilities are not CI paths (the llama probe has a CI regression test); the historical llama probe no longer installs packages or uses npx, and requires a preinstalled local package.
 
 ## Follow-up queue and review boundaries (9 November)
 
-All 103 report keys are listed exactly once: 23 fixed, 15 hardened, 38 preserved/reviewed, 12 lead review and 15 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
+All 103 report keys are listed exactly once: 24 fixed, 16 hardened, 38 preserved/reviewed, 12 lead review and 13 further review. This is not a promise that all findings are resolved. Dispositions describe code review, not the current Sonar server state. Prioritize remaining work as follows; do not close a finding merely because it appears below.
 
 1. **Financial/server owner — 12 lead-review entries:** investigate the money-input and mailer regexes with adversarial and behavior-preserving tests; review payment/SDK, petty cash, loans, journal, telemetry and database ID fallbacks in their runtime and write/idempotency contexts; assess the cache-key collision and upload concurrency risks. The owner boundary and earlier handoff in `docs/COORDINATION.md` remain in force.
-2. **Parsing and diagnostics — 6 further-review entries:** four intent-entry regexes have a 500-character *per-line* limit, but that does not prove linear runtime or bound the number of lines; preserve the fallback and financial parsing semantics if changed. The PDF helper's content-operator regex remains distinct from the already-hardened object-header scan and needs malformed-input tests. Client error IDs become document IDs on the telemetry route; their collision behavior and no-Web-Crypto behavior need a safe end-to-end design so reporting does not silently disappear.
+2. **Parsing — 4 further-review entries:** four intent-entry regexes have a 500-character *per-line* limit, but that does not prove linear runtime or bound the number of lines; preserve the fallback and financial parsing semantics if changed. The PDF test helper now scans content operators without retrying long malformed arrays; tests compare the previous grammar on 5,000 mixed streams and exercise a 200,000-character malformed input.
+
+   **Diagnostic IDs — hardened, not fully resolved:** client references now use Web Crypto. If unavailable, telemetry is still sent with no client ID and adopts the server response when present; local diagnostics remain available even when no ID is returned. The server's existing non-cryptographic fallback remains a separate lead-owned finding and can still collide, so end-to-end collision resistance is not claimed.
 3. **Executable lookup — 9 further-review entries:** receipt generation invokes ImageMagick `convert`; the atlas invokes `git` and `tar`; six archived fixers invoke `find`, `grep`, or `npx eslint` via a shell. These commands rely on a trusted PATH and, for the archived fixers, a trusted checkout; do not run them in an untrusted environment. The arguments are not evidence that an untrusted user can inject shell commands; removing PATH dependence requires a portable executable policy, not a hard-coded OS-specific path.
 
 The archived llama probe's two original installation findings are fixed here: it does not install packages, use npx, or write a temporary source file. It only inspects an already installed `llamaindex`, and still relies on a trusted `node` in PATH. Its output depends on the installed package version.
@@ -52,7 +54,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB5HefMaWPlOl81-` | `typescript:S2187` | `src/tests/save-failures-sales.test.tsx` | Preserve / reviewed |
 | `AaGKrBrmefMaWPlOl8xE` | `typescript:S7767` | `src/lib/sampleBusinessYear.ts:96` | Preserve / reviewed |
 | `AaGKrB-aefMaWPlOl83c` | `javascript:S8786` | `scripts/screen-reachability.mjs:38` | Fixed |
-| `AaGKrB29efMaWPlOl817` | `typescript:S8786` | `src/tests/helpers/pdfText.ts:87` | Further review |
+| `AaGKrB29efMaWPlOl817` | `typescript:S8786` | `src/tests/helpers/pdfText.ts:87` | Fixed |
 | `AaGKrBymefMaWPlOl8z4` | `typescript:S6845` | `src/components/reporting/BudgetActualReportView.tsx:65` | Preserve / reviewed |
 | `AaGKrB-_efMaWPlOl83u` | `githubactions:S6505` | `.github/workflows/ci.yml:358` | Hardened |
 | `AaGKrB-_efMaWPlOl83v` | `githubactions:S6505` | `.github/workflows/ci.yml:368` | Hardened |
@@ -117,7 +119,7 @@ The archived llama probe's two original installation findings are fixed here: it
 | `AaGKrB-_efMaWPlOl83t` | `githubactions:S8543` | `.github/workflows/ci.yml:313` | Hardened |
 | `AaGKrBpeefMaWPlOl8wA` | `typescript:S7767` | `src/lib/algorithms/isolation-forest-algo.ts:10` | Preserve / reviewed |
 | `AaGKrB-_efMaWPlOl83m` | `githubactions:S6505` | `.github/workflows/ci.yml:57` | Hardened |
-| `AaGKrBwRefMaWPlOl8y_` | `typescript:S2245` | `src/lib/errorTracker.ts:115` | Further review |
+| `AaGKrBwRefMaWPlOl8y_` | `typescript:S2245` | `src/lib/errorTracker.ts:115` | Hardened |
 | `AaGKrB2PefMaWPlOl81o` | `typescript:S2245` | `src/components/support/SupportView.tsx:118` | Fixed |
 | `AaGKrB-_efMaWPlOl83n` | `githubactions:S6505` | `.github/workflows/ci.yml:64` | Hardened |
 | `AaGKrB9uefMaWPlOl83R` | `javascript:S4036` | `archive/fix_eslint.cjs:4` | Further review |

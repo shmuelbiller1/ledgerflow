@@ -71,6 +71,82 @@ describe('F-21 client error grouping', () => {
     assert.equal(kept.metadata?.fingerprint, metadata.fingerprint);
   });
 
+  test('client references use secure randomness and stay grouped when included in errors', async () => {
+    const a = await reportClientError('first error');
+    const b = await reportClientError('second error');
+    assert.match(a, /^err_\d+_[a-f0-9]{32}$/);
+    assert.notEqual(a, b);
+    assert.equal(errorFingerprint('Screen', `failed ${a}`, 'v1'), errorFingerprint('Screen', `failed ${b}`, 'v1'));
+  });
+
+  test('without Web Crypto telemetry continues and uses the server reference', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        sent.push({ url: '/api/v1/telemetry/errors', body: JSON.parse(String(init?.body)) });
+        return new Response(JSON.stringify({ errorId: 'err_123_server' }), { status: 200 });
+      }) as typeof fetch;
+      const id = await reportClientError('crypto unavailable', { metadata: { view: 'Dashboard' } });
+      assert.equal(sent[0].body.id, '');
+      assert.equal(id, 'err_123_server');
+      assert.equal(getRecentErrors()[0].id, id);
+      assert.equal(getErrorGroups()[0].errorId, id);
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  });
+
+  test('late server references do not replace a newer group reference', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      const replies: Array<(response: Response) => void> = [];
+      globalThis.fetch = (() => new Promise<Response>(resolve => replies.push(resolve))) as typeof fetch;
+      const first = reportClientError('same crash');
+      const second = reportClientError('same crash');
+      // Allow the asynchronous token lookups to reach fetch.
+      await Promise.resolve();
+      assert.equal(replies.length, 2);
+      replies[1](new Response(JSON.stringify({ errorId: 'err_2_new' }), { status: 200 }));
+      assert.equal(await second, 'err_2_new');
+      replies[0](new Response(JSON.stringify({ errorId: 'err_1_old' }), { status: 200 }));
+      assert.equal(await first, 'err_1_old');
+      assert.equal(getErrorGroups()[0].errorId, 'err_2_new');
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  });
+
+  test('without crypto or a server reference, retain diagnostics without inventing an id', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+      assert.equal(await reportClientError('reference unavailable'), '');
+      assert.equal(getRecentErrors()[0].message, 'reference unavailable');
+      assert.equal(getRecentErrors()[0].id, '');
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  });
+
+  test('rejects malformed server references and retains the local report', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      globalThis.fetch = (async () => new Response(JSON.stringify({ errorId: '../unsafe' }), { status: 200 })) as typeof fetch;
+      assert.equal(await reportClientError('bad server reference'), '');
+      assert.equal(getRecentErrors()[0].message, 'bad server reference');
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  });
+
   test('fingerprints ignore ids and timestamps, and keep the words', () => {
     const a = errorFingerprint('Sales', 'Posting failed for 2026-10-19T10:00:00.000Z (req 7f3c9a1e-1111-4222-8333-444455556666)', 'v1');
     const b = errorFingerprint('Sales', 'Posting failed for 2026-10-19T11:30:00.000Z (req 8a4d0b2f-9999-4222-8333-444455556666)', 'v1');
