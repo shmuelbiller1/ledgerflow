@@ -32,3 +32,16 @@ test('new PR commits cancel older runs without cancelling main-branch runs', () 
   assert.match(workflow, /group: ci-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}-\$\{\{ github\.ref == 'refs\/heads\/main' && github\.sha \|\| 'latest' \}\}/);
   assert.match(workflow, /cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}/);
 });
+
+
+test('browser cleanup runs after failures but not after workflow cancellation', () => {
+  for (const [name, step] of [
+    ['e2e_shards', 'Upload browser reports and failure diagnostics'],
+    ['e2e', 'Upload combined report'],
+    ['e2e', 'Say which suites a cancelled shard never reached'],
+    ['e2e', 'Require every shard to succeed'],
+  ]) {
+    const config = job(name);
+    assert.ok(config.includes(`- name: ${step}\n        if: \${{ !cancelled() }}`), `${name}: ${step}`);
+  }
+});

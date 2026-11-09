@@ -77,7 +77,7 @@ jobs:
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
       - name: Test source and CI utilities
-        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -322,21 +322,21 @@ jobs:
       - name: Run all browser tests across isolated shards
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/playwright-results-${{ matrix.shard }}.json
-          WATCH_REPORT: test-results/playwright-results-${{ matrix.shard }}.json
+          WATCH_REPORT: test-results/playwright-live-${{ matrix.shard }}.json
         run: |
           set +e
-          # Reported while it happens: a test that runs past eight minutes is named in the
-          # annotations, so a shard killed at its limit still says which file was stuck.
+          # The live reporter writes running tests before Playwright finishes; the final JSON
+          # reporter is separate. A test past eight minutes is named in annotations.
           WATCH_LIMIT_MINUTES=8 node scripts/watch-hung-tests.mjs &
           watcher=$!
-          npm run test:e2e -- --shard=${{ matrix.shard }}/5 --reporter=list,json,blob
+          npm run test:e2e -- --shard=${{ matrix.shard }}/5 --reporter=list,json,blob,./scripts/playwright-live-reporter.mjs
           browser_exit=$?
           kill "$watcher" 2>/dev/null
           node scripts/playwright-ci-feedback.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME"
           exit "$browser_exit"
 
       - name: Upload browser reports and failure diagnostics
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-shard-${{ matrix.shard }}
@@ -372,7 +372,7 @@ jobs:
       - name: Merge browser reports
         run: node_modules/.bin/playwright merge-reports --reporter=html playwright-reports/blob-report
       - name: Upload combined report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-combined-report
@@ -382,10 +382,10 @@ jobs:
       # question a reader has is "which file was it stuck in". The blob report survives the
       # cancellation and names the suites the shard never finished.
       - name: Say which suites a cancelled shard never reached
-        if: always()
+        if: ${{ !cancelled() }}
         run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           SHARD_RESULT: ${{ needs.e2e_shards.result }}
         run: test "$SHARD_RESULT" = success
