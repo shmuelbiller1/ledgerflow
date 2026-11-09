@@ -60,6 +60,7 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'expiring-lots': 'Stock',
   'stock-transfers': 'Stock',
   'kit-assembly': 'Stock',
+  'standard-cost-variance': 'Stock',
   'work-orders': 'Stock',
   'aged-inventory-by-lot': 'Stock',
   'stock-value-by-location-lot': 'Stock',

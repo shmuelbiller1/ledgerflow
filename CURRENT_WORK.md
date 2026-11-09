@@ -19,6 +19,8 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 | Stage B: W13 stock | Full stock browser journey (W13-GOLD figures verified #281) | AI #4 / AI #9 |
 | Stage B: ERPNext depth | Repost engine (EG-1 #348 design), Payment ledger (EG-2), Period closing voucher (EG-3), Stock snapshots (EG-7) | AI #1 / AI #9 |
 
+**AI #3 update — 8 November:** A-268 standard cost variance report screen implemented on `ai3/a268-standard-cost-report`: Reports → Inventory → Standard Cost Variance (`standard-cost-variance`) with item, quantity, standard, actual, unit variance, %, on hand variance, total variance, and "N items have no standard cost" linking to Inventory. Tests: 4/4 view tests, types/lint (0 errors / 42 warnings)/build clean, phone check in `e2e/phone-report-screens.spec.ts`. Evidence: [`docs/verification/ai3-a268-2026-11-08.md`](docs/verification/ai3-a268-2026-11-08.md).
+
 **AI #3 update — 2 November:** A-263/A-265 implemented on `arena/821df0d8-ledgerflow`, pending CI/lead review. New Chromium checks **9/9**, focused regressions **29/29**, types/lint/build passed. Full local suite timed out after 30 minutes with an A-229 performance failure, so not called green. A-264/A-266/A-267 remain open. [Evidence](docs/verification/ai3-a263-a265-2026-11-02.md).
 
 **AI #3 next update — 2 November:** A-264 keyboard paths implemented on `arena/1165c885-ledgerflow`: five browser journeys passed, 17 focused regressions passed; types/lint/build clean. Pending CI/lead review; A-266/A-267 remain open. [Evidence](docs/verification/ai3-a264-2026-11-02.md).
