@@ -260,7 +260,7 @@ export function isPhoneText(text: string): boolean {
   while (f < s.length && PHONE_BODY(s[f])) f++;
   if (f === 0) return false;
   if (f === s.length) return true;
-  const lower = s.slice(f).toLowerCase();
+  const lower = s.slice(f).replace(/[A-Z]/g, c => c.toLowerCase());
   return EXTENSION_WORDS.some(word => {
     if (!lower.startsWith(word)) return false;
     let k = word.length;
@@ -274,7 +274,8 @@ export function isPhoneText(text: string): boolean {
 /** The first <Amt …>value</Amt> in `xml` (any case): its attribute text and value, or null. Same as
  * /<Amt\b([^<>]*)>\s*([^<]+)<\/Amt\s*>/i.exec(xml) → [, attributes, value]. */
 export function firstAmtElement(xml: string): { attributes: string; value: string } | null {
-  const lower = xml.toLowerCase();
+  // ASCII-only lowering keeps every offset equal to the source's ('İ'.toLowerCase() is two characters)
+  const lower = xml.replace(/[A-Z]/g, c => c.toLowerCase());
   const wordChar = (c: string | undefined) => c !== undefined && /\w/.test(c);
   for (let i = lower.indexOf('<amt'); i !== -1; i = lower.indexOf('<amt', i + 1)) {
     let j = i + 4;

@@ -157,4 +157,8 @@ test('trailingNumberStart, trailingStateStart, isPhoneText and firstAmtElement m
   const xml = '<Ntry><AMT Ccy="EUR"> 12.50 </amt ><Amt>1</Amt></Ntry>';
   assert.deepEqual(firstAmtElement(xml), { attributes: ' Ccy="EUR"', value: '12.50 ' });
   assert.equal(firstAmtElement('<Amtx>1</Amt>'), null);
+  // a character whose lower case is longer ('İ' → 'i̇') before the amount must not shift the tag positions
+  const turkish = '<NtryRef>İ-123</NtryRef><Amt Ccy="EUR">5.00</Amt>';
+  const old = OLD_AMT.exec(turkish);
+  assert.deepEqual(firstAmtElement(turkish), { attributes: old![1], value: old![2] });
 });
