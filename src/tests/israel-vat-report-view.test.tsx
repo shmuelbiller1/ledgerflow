@@ -10,6 +10,7 @@ import {
   IL_VAT_REPORT_CSV_HEADERS,
   ilVatReportCsvRows,
 } from '../lib/ilVatReportCsv';
+import { toCsv } from '../lib/csvExport';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { makeChartAccount } from './fixtures';
@@ -280,12 +281,66 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
     const originalPrint = window.print;
     window.print = () => { printed = true; };
 
-    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
-    const printButton = screen.getByRole('button', { name: /Print/i });
-    fireEvent.click(printButton);
+    try {
+      render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+      const printButton = screen.getByRole('button', { name: /Print/i });
+      fireEvent.click(printButton);
 
-    assert.equal(printed, true);
-    window.print = originalPrint;
+      assert.equal(printed, true);
+    } finally {
+      window.print = originalPrint;
+    }
+  });
+
+  test('exports only a complete, loaded report with a CSV filename', async () => {
+    const report: IlVatReturn = {
+      registration: TA_REG,
+      startDate: '2026-09-01', endDate: '2026-09-30',
+      taxableSalesCents: 900_000, outputVatCents: 162_000,
+      zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
+      fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
+      toPayCents: 100_800, documentCount: 5,
+    };
+    const props = {
+      report, registrations: [], activeReg: TA_REG, onRegistrationChange: () => {},
+      startDate: report.startDate, onStartDateChange: () => {},
+      endDate: report.endDate, onEndDateChange: () => {},
+    };
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let blob: Blob | undefined;
+    let filename = '';
+    URL.createObjectURL = value => { blob = value as Blob; return 'blob:vat-test'; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+
+    try {
+      const { rerender } = render(<IsraelVatReportPanel {...props} partial />);
+      const exportButton = screen.getByRole('button', { name: /Export CSV/i }) as HTMLButtonElement;
+      assert.equal(exportButton.disabled, true);
+      fireEvent.click(exportButton);
+      assert.equal(filename, '');
+
+      rerender(<IsraelVatReportPanel {...props} loading />);
+      assert.equal(exportButton.disabled, true);
+      rerender(<IsraelVatReportPanel {...props} report={null} />);
+      assert.equal(exportButton.disabled, true);
+      rerender(<IsraelVatReportPanel {...props} />);
+      assert.equal(exportButton.disabled, false);
+      fireEvent.click(exportButton);
+      assert.equal(filename, 'israel-vat-report-2026-09-01-to-2026-09-30.csv');
+      assert.ok(blob);
+      const downloadedBlob = blob;
+      await act(async () => {
+        assert.deepEqual(Buffer.from(await downloadedBlob.arrayBuffer()), Buffer.from('\uFEFF' + toCsv(IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows(report))));
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
   });
 
   test('validates date range entry', () => {

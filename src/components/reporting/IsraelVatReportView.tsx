@@ -164,10 +164,10 @@ export function IsraelVatReportPanel({
           </button>
           <button
             type="button"
-            disabled={!report || loading}
+            disabled={!report || loading || partial}
             onClick={() => {
               if (report) {
-                downloadCsv(`israel-vat-report-${report.startDate}-to-${report.endDate}`, IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows(report));
+                downloadCsv(`israel-vat-report-${report.startDate}-to-${report.endDate}.csv`, IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows(report));
               }
             }}
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2 disabled:opacity-50"
