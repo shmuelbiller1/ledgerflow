@@ -1843,7 +1843,7 @@ Method for every item: open the screen in a browser at 1280 and 1440 px (and 390
 - [x] UX-2 Sales: plain header and cards, fake "Mid-Term" $0 card removed, page padding; compact Columns chooser on every list (PR #582)
 - [x] UX-3 Reconcile: normal-case title, "0% of bank lines matched", controls fit at 1280 and 390, names wrap (#589, 9 Nov)
 - [x] UX-4 Reports: the controls above a report (paper size, Generate, saved views, "Choose report" box) into one tidy row — done (#591, 9 Nov)
-- [ ] UX-5 Dashboard: the empty "First-hour bookkeeping guide" box, spacing, date range in the header row
+- [x] UX-5 Dashboard: the empty "First-hour bookkeeping guide" box, spacing, date range in the header row — done (#594, 9 Nov)
 - [ ] UX-6 Settings: survey and tidy
 - [ ] UX-7 Top of every page: backup reminder and demo banner in one slim line; tab bar spacing
 - [ ] UX-8 One shared page-header component used by every main screen
