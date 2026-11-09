@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { firstAmtElement, isPhoneText, trailingNumberStart, trailingStateStart, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
+import { bracketDimensions, maskEmails, firstAmtElement, isPhoneText, trailingNumberStart, trailingStateStart, countBeforeWord, firstAmountText, headBeforeUsCountry, restAfterCommandWord, firstTwoPlaceAmount, splitLeadingCode, splitTypedAmount, groupThousands, headBeforeFiveDigits, isEmailShape, isPlainDecimal, trimChar, trimEndChar, trimEndChars, trimEndDigits, trimSpacesBeforeNewlines, splitTrailingDigits, splitTrimmedLines } from '../lib/textShape';
 
 const OLD_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -136,6 +136,27 @@ test('restAfterCommandWord, firstAmountText, countBeforeWord and headBeforeUsCou
   assert.equal(headBeforeUsCountry('Austin, TX 78701, USA'), 'Austin, TX 78701');
   assert.equal(firstAmountText('spent $12.345 on fuel'), '12.34');
   assert.equal(countBeforeWord('we have 3 children', ['kids', 'child', 'children', 'dependents']), '3');
+});
+
+test('maskEmails and the two rewritten patterns match the old ones', () => {
+  const OLD_EMAIL = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g;
+  for (const s of strings(['a', '@', '.', '-', ' ', '+'], 7)) assert.equal(maskEmails(s, '#'), s.replace(OLD_EMAIL, '#'), JSON.stringify(s));
+  assert.equal(maskEmails('mail a.b+c@ex-ample.co.uk now, x@y', '[E]'), '[E] now, x@y'.replace('[E]', 'mail [E]'));
+  const OLD_Q = /sub\s*-?\s*total/i;
+  const NEW_Q = /sub\s*(?:-\s*)?total/i;
+  for (const s of strings([' ', '-', 'x'], 6)) assert.equal(NEW_Q.test(`sub${s}total`), OLD_Q.test(`sub${s}total`), s);
+  const OLD_DIM = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]\s*([^\]]+)\]/gu;
+  const NEW_DIM = /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]([^\]]+)\]/gu;
+  const pairs = (re: RegExp, s: string) => [...s.matchAll(re)].map(m => `${m.index}|${m[1]}|${m[2].trim()}`);
+  for (const s of strings(['[', ']', 'a', ':', ' '], 7)) assert.deepEqual(pairs(NEW_DIM, s), pairs(OLD_DIM, s), JSON.stringify(s));
+  const scanned = (s: string) => bracketDimensions(s).map(b => `${b.index}|${b.key}|${b.value.trim()}`);
+  for (const s of strings(['[', ']', 'a', ':', '=', ' ', '\n'], 7)) assert.deepEqual(scanned(s), pairs(OLD_DIM, s), JSON.stringify(s));
+  assert.deepEqual(scanned('x [Proj:Apollo] [é𝟘:a[b] [dept = eng ]'), pairs(OLD_DIM, 'x [Proj:Apollo] [é𝟘:a[b] [dept = eng ]'));
+  const unclosed = '[x:'.repeat(50000);
+  const t0 = Date.now();
+  assert.deepEqual(bracketDimensions(unclosed), []);
+  assert.deepEqual(bracketDimensions(unclosed + ']').length, 1);
+  assert.ok(Date.now() - t0 < 1000, 'unclosed brackets are scanned in linear time');
 });
 
 test('trailingNumberStart, trailingStateStart, isPhoneText and firstAmtElement match the old patterns', () => {

@@ -220,6 +220,72 @@ export function headBeforeUsCountry(line: string): string | null {
   return null;
 }
 
+const EMAIL_LOCAL = (c: string | undefined) => c !== undefined && /[a-zA-Z0-9_.+-]/.test(c);
+const EMAIL_LABEL = (c: string | undefined) => c !== undefined && /[a-zA-Z0-9-]/.test(c);
+
+/** `text` with every email address replaced by `mask`, scanning once. Same as
+ * text.replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, mask). */
+export function maskEmails(text: string, mask: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (!EMAIL_LOCAL(text[i])) { out += text[i]; i++; continue; }
+    let at = i;
+    while (EMAIL_LOCAL(text[at])) at++;
+    let ok = false;
+    let end = at;
+    if (text[at] === '@') {
+      let d = at + 1;
+      while (EMAIL_LABEL(text[d])) d++;
+      if (d > at + 1 && text[d] === '.') {
+        let e = d + 1;
+        while (EMAIL_LABEL(text[e]) || text[e] === '.') e++;
+        if (e > d + 1) { ok = true; end = e; }
+      }
+    }
+    if (ok) { out += mask; i = end; } else { out += text.slice(i, at); i = at; }
+  }
+  return out;
+}
+
+const DIM_KEY_CHAR = /[\p{L}\p{M}\p{N}_-]/u;
+const isDimGap = (c: string | undefined) => c !== undefined && /\s/.test(c);
+
+/** Where a run of key characters starting at `from` ends (by code point, so astral digits and letters count). */
+function dimKeyEnd(text: string, from: number): number {
+  let i = from;
+  while (i < text.length) {
+    const ch = String.fromCodePoint(text.codePointAt(i)!);
+    if (!DIM_KEY_CHAR.test(ch)) break;
+    i += ch.length;
+  }
+  return i;
+}
+
+/** Every "[key:value]" (or "[key=value]") in reading order, in one pass over the text.
+ * Gives the same matches as /\[([\p{L}\p{M}\p{N}_-]+)\s*[:=]\s*([^\]]+)\]/gu once the value is trimmed. */
+export function bracketDimensions(text: string): Array<{ index: number; key: string; value: string }> {
+  const found: Array<{ index: number; key: string; value: string }> = [];
+  let close = -1; // the first ']' at or after the current scan point
+  let open = text.indexOf('[');
+  while (open !== -1) {
+    let next = open + 1;
+    const keyEnd = dimKeyEnd(text, open + 1);
+    let sep = keyEnd;
+    while (isDimGap(text[sep])) sep++;
+    if (keyEnd > open + 1 && (text[sep] === ':' || text[sep] === '=')) {
+      if (close <= sep) close = text.indexOf(']', sep + 1);
+      if (close === -1) break; // no ']' left, so no later bracket can close either
+      if (close > sep + 1) { // the value needs at least one character
+        found.push({ index: open, key: text.slice(open + 1, keyEnd), value: text.slice(sep + 1, close) });
+        next = close + 1; // the next match starts after this one
+      }
+    }
+    open = text.indexOf('[', next);
+  }
+  return found;
+}
+
 const isWs = (c: string | undefined) => c !== undefined && /\s/.test(c);
 const isAsciiDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
 

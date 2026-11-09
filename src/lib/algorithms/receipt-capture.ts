@@ -25,7 +25,7 @@ const AMOUNT = /(?<![\d.,]|\d[ \u00a0\u202f])(?:([$€£₪])\s*(\d{1,3}(?:[ \u0
 const SPACED = /\d[ \u00a0\u202f]\d{3}\.\d{2}(?!\d)/;
 const DATE = /(?<!\d)(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2}))(?!\d)/g;
 const PAYABLE = /\b(?:grand\s+total|amount\s+due|balance\s+due|total\s+due|total)\b/i;
-const QUALIFIED = /sub\s*-?\s*total|\btotal\s+(?:savings?|saved|tax(?:es)?|discounts?|items?|qty|quantity)\b|\b(?:savings?|tax(?:es)?|discounts?|items?|qty|quantity)\s+total\b/i;
+const QUALIFIED = /sub\s*(?:-\s*)?total|\btotal\s+(?:savings?|saved|tax(?:es)?|discounts?|items?|qty|quantity)\b|\b(?:savings?|tax(?:es)?|discounts?|items?|qty|quantity)\s+total\b/i;
 
 interface Amount { symbol?: string; whole: string; fraction: string; line: string }
 const readAmount = (line: string): Amount | undefined => {
