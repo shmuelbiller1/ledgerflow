@@ -97,6 +97,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     { label: 'Expiring Lots', componentName: 'ExpiringLotsReportView' },
     { label: 'Stock Transfers', componentName: 'StockTransfersReportView' },
     { label: 'Kit Assembly', componentName: 'KitAssemblyReportView' },
+    { label: 'Standard Cost Variance', componentName: 'StandardCostReportView' },
     { label: 'Stock Value by Location & Lot', componentName: 'StockValueByLocationLotReportView' },
     { label: 'Data Quality Checks', componentName: 'DataQualityReportView' },
     { label: '12-Month Sample Year & Speed', componentName: 'SampleYearBenchmarkReportView' },
