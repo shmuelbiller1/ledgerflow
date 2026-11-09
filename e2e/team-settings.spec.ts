@@ -32,11 +32,9 @@ test('team inline edits and named removal work by keyboard on a phone', async ({
   await choice.selectOption('bookkeeper'); await choice.press('Enter');
   await expect(role).toHaveText('Bookkeeper');
   expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1);
-  const invite = team.getByRole('button', { name: inlineEditName('Edit Invite team member email') });
-  await invite.focus(); await invite.press('Enter');
   const email = team.getByRole('textbox', { name: 'Invite team member email' });
   await email.fill('person@example.test'); await email.press('Enter');
-  await expect(invite).toBeVisible();
+  await expect(email).toHaveValue('');
   expect(writes.filter(write => write.method === 'POST')).toHaveLength(1);
   const revoke = team.getByRole('button', { name: 'Revoke', exact: true });
   await revoke.focus(); await revoke.press('Enter');
