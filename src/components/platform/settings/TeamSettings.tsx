@@ -11,6 +11,7 @@ import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
 import { copyWithFeedback } from '../../../lib/clipboard';
 import { planFor } from '../../../lib/plans';
+import { isEmailShape } from '../../../lib/textShape';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -201,9 +202,7 @@ function ScopedTeamSettings() {
             {canManage ? <form className="relative sm:col-span-6 flex gap-2" onSubmit={async event => {
               event.preventDefault();
               const email = inviteEmail.trim();
-              const at = email.indexOf('@');
-              const dot = email.indexOf('.', at + 2);
-              if (at <= 0 || at !== email.lastIndexOf('@') || dot < 0 || dot === email.length - 1 || /\s/.test(email)) { setInviteError('Enter a valid email address.'); return; }
+              if (!isEmailShape(email)) { setInviteError('Enter a valid email address.'); return; }
               setInviting(true); setInviteError('');
               try { await handleSendInvite(email); setInviteEmail(''); }
               catch (failure) { setInviteError(failure instanceof Error ? failure.message : 'The invitation was not created.'); }

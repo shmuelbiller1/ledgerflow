@@ -54,14 +54,14 @@ jobs:
           cache: 'npm'
 
       - name: Verify lockfile is in sync
-        run: npm ci --dry-run
+        run: npm ci --ignore-scripts --dry-run
         env:
           NODE_ENV: development
           npm_config_production: false
           HUSKY: 0
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -75,6 +75,9 @@ jobs:
 
       - name: Test ESLint warning ratchet
         run: node --test scripts/eslint-warning-ratchet.test.mjs
+
+      - name: Test import-edge scanner
+        run: node --test scripts/import-edges.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -130,7 +133,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -195,7 +198,7 @@ jobs:
           node-version: 24
           cache: 'npm'
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -249,7 +252,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
@@ -303,14 +306,14 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           NODE_ENV: development
           npm_config_production: false
           HUSKY: 0
 
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
+        run: node_modules/.bin/playwright install --with-deps chromium
 
       - name: Prepare the test database (Supabase migrations)
         run: npm run db:test-setup
@@ -355,7 +358,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
         env:
           HUSKY: 0
       - name: Download every shard report
@@ -365,7 +368,7 @@ jobs:
           path: playwright-reports
           merge-multiple: true
       - name: Merge browser reports
-        run: npx playwright merge-reports --reporter=html playwright-reports/blob-report
+        run: node_modules/.bin/playwright merge-reports --reporter=html playwright-reports/blob-report
       - name: Upload combined report
         if: always()
         uses: actions/upload-artifact@v4

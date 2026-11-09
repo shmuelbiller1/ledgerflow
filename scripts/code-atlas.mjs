@@ -17,7 +17,7 @@ const DEFAULT_INDEX = 'docs/CODE_ATLAS.jsonl';
 const ARTIFACTS = new Set([DEFAULT_INDEX, 'docs/CODE_ATLAS_VALIDATION.md']);
 const CODE = /\.(?:[cm]?[jt]sx?|sql|sh|css|html)$/;
 const JS = /\.(?:[cm]?[jt]sx?)$/;
-const TEST = /(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TEST = /(?:(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 const MAX_BUFFER = 128 * 1024 * 1024;
 const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER });
 const txt = (root, args) => git(root, args).toString('utf8').trim();

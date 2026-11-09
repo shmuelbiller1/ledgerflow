@@ -60,8 +60,9 @@ function titleCase(word: string, i: number): string {
 export function wideGapStart(s: string): number {
   let lastBreak = -1;
   for (let i = 0; i < s.length; i++) if (/[\n\r\u2028\u2029]/.test(s[i])) lastBreak = i;
-  for (let a = 0; a < s.length; a++) {
-    if (!/\s/.test(s[a])) continue;
+  let a = 0;
+  while (a < s.length) {
+    if (!/\s/.test(s[a])) { a++; continue; }
     let b = a;
     while (b < s.length && /\s/.test(s[b])) b++;
     if (b - a >= 2 && b > lastBreak) return a;

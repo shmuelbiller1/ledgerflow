@@ -115,7 +115,7 @@ export default function SupportView() {
 
     setIsSending(true);
     try {
-      const ticketId = `ticket-${Math.random().toString(36).substring(2, 9)}`;
+      const ticketId = `ticket-${crypto.randomUUID()}`;
       const createdAt = new Date().toISOString();
       
       const safeSubject = maskCardNumbers(newTicketSubject);
@@ -163,7 +163,7 @@ export default function SupportView() {
       }
 
       if (!sentViaApi) {
-        const messageId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+        const messageId = `msg-${crypto.randomUUID()}`;
         const newMessage: SupportMessage = {
           id: messageId,
           ticketId,
@@ -217,7 +217,7 @@ export default function SupportView() {
       }
 
       if (!sentViaApi) {
-        const messageId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+        const messageId = `msg-${crypto.randomUUID()}`;
         const createdAt = new Date().toISOString();
         const newMessage: SupportMessage = {
           id: messageId,
