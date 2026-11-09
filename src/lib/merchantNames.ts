@@ -1,3 +1,4 @@
+import { trailingNumberStart, trailingStateStart } from './textShape';
 /**
  * Transaction enrichment (K-36): a readable payee name from a bank line's raw text —
  * "SQ *JOES COFFEE 4421 SEATTLE WA" → "Joes Coffee", "AMZN Mktp US*2K4L91TQ0" → "Amazon". Card
@@ -41,7 +42,6 @@ const NOISE = [
   /\b(us|usa|ca|gb|uk|il)\b$/i,            // trailing country
 ];
 
-const US_STATE = /\s+[A-Z]{2}$/;
 
 const SUFFIX: Record<string, string> = { llc: 'LLC', inc: 'Inc', ltd: 'Ltd', co: 'Co', gmbh: 'GmbH', plc: 'PLC' };
 const SMALL = new Set(['to', 'of', 'at', 'in', 'on', 'by', 'for', 'and', 'the']);
@@ -62,7 +62,7 @@ export function cleanMerchantName(raw: string): string {
   for (const [pattern, name] of KNOWN) if (pattern.test(text)) return name;
   // not Latin script at all (Hebrew, Arabic…): keep it, only tidy spaces and trailing numbers
   if (!/\p{L}/u.test(text)) return text; // no letters at all: nothing better to say
-  if (!/[A-Za-z]/.test(text)) return text.replace(/\s+\d[\d\s-]*$/, '').replace(/\s+/g, ' ').trim() || text;
+  if (!/[A-Za-z]/.test(text)) { const at = trailingNumberStart(text); return (at === -1 ? text : text.slice(0, at)).replace(/\s+/g, ' ').trim() || text; }
 
   let s = text;
   for (let before = ''; before !== s;) { before = s; s = s.replace(PREFIX, ''); } // "POS PURCHASE …"
@@ -71,7 +71,8 @@ export function cleanMerchantName(raw: string): string {
   for (const n of NOISE) s = s.replace(n, ' ');
   s = s.replace(/[*_|]+/g, ' ').replace(/\s+/g, ' ').trim();
   // "JOES COFFEE SEATTLE WA": drop a trailing two-letter state (and the city before it only when the name has 3+ words)
-  if (US_STATE.test(s) && s.split(' ').length >= 3) s = s.replace(US_STATE, '').split(' ').slice(0, -1).join(' ');
+  const stateAt = trailingStateStart(s);
+  if (stateAt !== -1 && s.split(' ').length >= 3) s = s.slice(0, stateAt).split(' ').slice(0, -1).join(' ');
   s = s.replace(/(?<![\s,.-])[\s,.-]+$/, '').trim();
   if (s.length < 2) return text;
   return s.split(' ').map((w, i) => titleCase(w, i)).join(' ');
