@@ -34,7 +34,7 @@ export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
   const recipients = s.recipients || [];
   if (!recipients.length) return 'Add at least one email address';
   if (recipients.length > MAX_RECIPIENTS) return `At most ${MAX_RECIPIENTS} addresses`;
-  const bad = recipients.find(r => !(isEmailShape(r) && !/[,;<>]/.test(r)) || r.length > 254);
+  const bad = recipients.find(r => !(isEmailShape(String(r)) && !/[,;<>]/.test(String(r))) || r.length > 254);
   if (bad) return `"${bad}" is not an email address`;
   return null;
 }

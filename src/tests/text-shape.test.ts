@@ -100,3 +100,9 @@ test('firstTwoPlaceAmount, splitLeadingCode and splitTypedAmount match the old p
   assert.deepEqual(splitLeadingCode('1200 Accounts Receivable (A/R)'), { code: '1200', rest: 'Accounts Receivable (A/R)' });
   assert.equal(firstTwoPlaceAmount('C1234,56EUR'), '1234,56');
 });
+
+test('a scheduled-report recipient that is not a string is refused, not thrown on', async () => {
+  const { scheduleProblem } = await import('../lib/scheduledReports');
+  const problem = scheduleProblem({ recipients: [123 as unknown as string] } as never);
+  assert.equal(typeof problem, 'string');
+});
