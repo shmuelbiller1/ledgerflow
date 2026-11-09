@@ -8,6 +8,7 @@ import { brandColor, LOGO_DATA_URL, MAX_LOGO_BYTES } from '../../lib/branding';
 import type { BrandedDocument, WorkspaceBranding } from '../../lib/branding';
 import { drawLine, wrapText } from './pdfText';
 import { DOCUMENT_WORDS, type DocumentLanguage, type DocumentWords } from '../../lib/documentLanguage';
+import { splitTrimmedLines } from '../../lib/textShape';
 
 /**
  * Document PDFs (invoices, estimates, credit notes, payment receipts, statements) with pdfkit:
@@ -190,7 +191,7 @@ export function layoutDocumentPdf(
     title: `${saleReceipt ? words.titles.saleReceipt : salesOrder ? words.titles.salesOrder : words.titles[type]}${options.copyMark ? ` · ${words.copyMark[options.copyMark]}` : ''}`,
     company: {
       name: clean(workspace?.name || workspace?.companyName || 'LedgerFlow Workspace', 120),
-      addressLines: clean(branding.address, 300).split(/\s*\n\s*/).filter(Boolean).slice(0, 5),
+      addressLines: splitTrimmedLines(clean(branding.address, 300)).slice(0, 5),
     },
     meta,
     recipientLabel: words.recipient[type],

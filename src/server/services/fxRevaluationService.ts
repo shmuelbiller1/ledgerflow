@@ -13,6 +13,7 @@ import { writeServerAuditLog } from './auditLogService';
 import { FxService } from './FxService';
 import { workspaceRole } from '../../lib/periodLock';
 import type { ChartAccount } from '../../types';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * Month-end currency revaluation (R-07): the open foreign-currency invoices and bills are worth a
@@ -221,7 +222,7 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
       throw new FxRevaluationError(400, `${noAccount.length} ${noAccount.length === 1 ? 'document has' : 'documents have'} no ${sides} account to move, and revaluation will not guess one. Set it up in the chart of accounts first.`);
     }
 
-    const currencies = [...new Set(open.map(d => String(d.currency || '').toUpperCase()).filter(c => c && c !== base))].sort();
+    const currencies = [...new Set(open.map(d => String(d.currency || '').toUpperCase()).filter(c => c && c !== base))].sort(byCodeUnit);
     const rates: Record<string, number | undefined> = historical
       ? Object.fromEntries(currencies.map(currency => {
         const rate = input.rates?.[currency];

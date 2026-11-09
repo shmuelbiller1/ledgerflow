@@ -9,7 +9,8 @@
  * - Grouped strictly by currency (`bill.currency`) — currencies are never added together or converted.
  * - Read/metadata tracking only: does NOT alter `Bill.amountCents` or post separate GL entries.
  */
-import type { Bill } from '../types';
+import type { Bill, DimensionNode } from '../types';
+import { resolveDimensionLabel } from './dimensionUtils';
 
 export type RetentionState = 'past-due' | 'upcoming' | 'unscheduled' | 'released';
 
@@ -87,8 +88,22 @@ export function computeBillRetentionReport(
   bills: Bill[],
   asOfDate: string,
   defaultCurrency = 'USD',
+  dimensionNodes?: DimensionNode[],
+  projects?: ReadonlyArray<{ id?: string; name: string }>,
 ): { rows: BillRetentionRow[]; totalsByCurrency: BillRetentionCurrencyTotal[] } {
   const rows: BillRetentionRow[] = [];
+  const projectById = new Map<string, string>();
+  for (const p of projects || []) {
+    if (p.id && p.name?.trim()) projectById.set(p.id.trim().toLowerCase(), p.name.trim());
+  }
+  const resolveProject = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === 'Unassigned') return 'Unassigned';
+    const byId = projectById.get(trimmed.toLowerCase()) || trimmed;
+    return dimensionNodes && dimensionNodes.length > 0
+      ? resolveDimensionLabel(dimensionNodes, 'project', byId)
+      : byId;
+  };
 
   for (const bill of bills || []) {
     if (IGNORED_BILLS.has(String(bill.status))) continue;
@@ -97,7 +112,8 @@ export function computeBillRetentionReport(
     const gross = Math.max(0, Math.round(Number(bill.amountCents) || 0));
     const heldCents = Math.min(gross, meta.heldCents);
     const splitProject = (bill.splits || []).find(s => s.dimensions?.project?.trim())?.dimensions?.project?.trim();
-    const project = meta.project || splitProject || String(bill.projectId || '').trim() || 'Unassigned';
+    const rawProject = meta.project || splitProject || String(bill.projectId || '').trim() || 'Unassigned';
+    const project = resolveProject(rawProject);
     const releaseDate = meta.releaseDate || '';
     const releasedAt = meta.releasedAt || '';
     const state: RetentionState = releasedAt

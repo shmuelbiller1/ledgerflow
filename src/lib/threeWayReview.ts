@@ -17,6 +17,7 @@
  */
 import type { Bill, PurchaseOrder, ThreeWayMatchResult, Vendor } from '../types';
 import { performThreeWayMatch } from './threeWayMatchEngine';
+import { byCodeUnit } from './codeUnitOrder';
 
 export type ThreeWayStatus = ThreeWayMatchResult['status'];
 
@@ -125,7 +126,7 @@ export function threeWayReview(input: ThreeWayReviewInput): ThreeWayReviewReport
     const own = filtered.filter(row => row.status === status);
     return { status, orders: own.length, varianceCents: own.reduce((sum, row) => sum + Math.abs(row.varianceCents), 0) };
   });
-  const currencies = [...new Set(filtered.map(row => row.currency))].sort();
+  const currencies = [...new Set(filtered.map(row => row.currency))].sort(byCodeUnit);
   const byCurrency = currencies.map(currency => {
     const own = filtered.filter(row => row.currency === currency);
     return { currency, orders: own.length, varianceCents: own.reduce((sum, row) => sum + Math.abs(row.varianceCents), 0) };

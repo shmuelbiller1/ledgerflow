@@ -17,6 +17,8 @@
  * Posting, the open-period check and refusing the same file twice are on the server (payrollImportService.ts).
  */
 import { parseCsv } from './csv';
+import { byCodeUnit } from './codeUnitOrder';
+import { groupThousands } from './textShape';
 
 export type PayrollProvider = 'adp' | 'gusto' | 'paychex';
 
@@ -95,7 +97,8 @@ export interface PayrollLabelChoice {
 }
 
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
-const money = (cents: number) => `${cents < 0 ? '−' : ''}${(Math.abs(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+const groupDecimal = (fixed: string) => { const [whole, frac] = fixed.split('.'); return `${groupThousands(whole)}.${frac}`; };
+const money = (cents: number) => `${cents < 0 ? '−' : ''}${groupDecimal((Math.abs(cents) / 100).toFixed(2))}`;
 
 /** "1,234.56", "$1,234.56", "-12.00" or "(12.00)" → cents; blank → 0; anything else → null. */
 export function payrollCents(value: string): number | null {
@@ -226,7 +229,7 @@ export function payrollEntries(rows: PayrollRow[], accounts: PayrollAccounts, la
   }
   if (problems.length) return { payDates: [], problems: [...new Set(problems)] };
 
-  const dates = [...new Set(rows.map(r => r.payDate))].sort();
+  const dates = [...new Set(rows.map(r => r.payDate))].sort(byCodeUnit);
   const payDates = dates.map(payDate => {
     const these = rows.filter(r => r.payDate === payDate);
     const totals = payrollTotals(these);

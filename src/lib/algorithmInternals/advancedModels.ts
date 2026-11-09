@@ -114,7 +114,7 @@ export class AnomalyDetector {
     const n = leadingDigits.length;
     const actualNorm = actualDist.map(v => v / n);
     // True Benford distribution probabilities P(d) = log10(1 + 1/d)
-    const expectedDist = [Math.log10(1 + 1/1), Math.log10(1 + 1/2), Math.log10(1 + 1/3), Math.log10(1 + 1/4), Math.log10(1 + 1/5), Math.log10(1 + 1/6), Math.log10(1 + 1/7), Math.log10(1 + 1/8), Math.log10(1 + 1/9)];
+    const expectedDist = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => Math.log10(1 + 1 / d));
 
     // Exact Pearson's Chi-Squared Statistic: sum( (O - E)^2 / E )
     let chiSquared = 0;

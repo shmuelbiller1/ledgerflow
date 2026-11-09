@@ -3,6 +3,7 @@ import { FieldValue } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { sameSuggestion, suggestFromRules, type BankRuleContext, type BankRuleSuggestion } from '../../lib/bankRules';
 import type { AutoRule, ChartAccount } from '../../types';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * EG-9: the bank-feed rules run on the server (src/lib/bankRules.ts is the one rule function, shared
@@ -117,7 +118,7 @@ export async function rerunBankRules(db: Firestore, input: { workspaceId: string
   const snap = await db.collection('bankLines').where('workspaceId', '==', input.workspaceId).where('status', '==', 'pending').get();
   // by id, from after the cursor: a workspace with more lines than one call takes goes on with nextCursor
   const limit = Math.max(1, Math.min(MAX_RERUN_LINES, Math.floor(input.limit ?? MAX_RERUN_LINES)));
-  const pendingIds = snap.docs.filter(d => !d.data().matchedTransactionId).map(d => d.id).sort()
+  const pendingIds = snap.docs.filter(d => !d.data().matchedTransactionId).map(d => d.id).sort(byCodeUnit)
     .filter(id => input.after === undefined || id > input.after);
   const ids = pendingIds.slice(0, limit);
   const { rules, context } = await loadBankRuleInputs(db, null, input.workspaceId);

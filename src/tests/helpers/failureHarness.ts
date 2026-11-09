@@ -155,7 +155,7 @@ export function assertErrorInWords(toasts: ToastLog, words: RegExp): void {
   const errors = toasts.of('error');
   assert.ok(errors.length > 0, 'an error is shown');
   assert.ok(errors.some(e => words.test(e)), `the error says why (${words}); shown: ${JSON.stringify(errors)}`);
-  for (const e of errors) assert.doesNotMatch(e, /^\{|"operationType"|\[object Object\]|undefined/, 'no raw error text');
+  for (const e of errors) assert.doesNotMatch(e, /(?:^\{)|"operationType"|\[object Object\]|undefined/, 'no raw error text');
 }
 
 export function assertNoSuccess(toasts: ToastLog, when = ''): void {

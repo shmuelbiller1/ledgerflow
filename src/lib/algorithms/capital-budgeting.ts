@@ -2,6 +2,7 @@ import type { AlgoResultRow } from './types';
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { calculateNPV, calculateIRR } from './math';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { byCodeUnit } from '../codeUnitOrder';
 
 export const CAPITAL_BUDGETING_ALGO: AlgorithmDefinition = {
   id: 'valuation_1',
@@ -63,7 +64,7 @@ export const CAPITAL_BUDGETING_ALGO: AlgorithmDefinition = {
       yearlyFlows[year] += (netImpact / 100);
     });
     
-    const sortedYears = Object.keys(yearlyFlows).sort();
+    const sortedYears = Object.keys(yearlyFlows).sort(byCodeUnit);
     let cashFlowArray = sortedYears.map(y => yearlyFlows[y]);
     
     // Determine Initial Investment (Capex): User explicit input takes strict precedence

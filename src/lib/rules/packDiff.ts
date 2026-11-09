@@ -11,6 +11,7 @@
  */
 import type { Rule } from './rules';
 import type { TaxEffect } from './packs/shared';
+import { byCodeUnit } from '../codeUnitOrder';
 
 /** The stable, reviewable shape of one rule. Anything not here (ids of targets excluded) is not compared. */
 export interface RuleSnapshot {
@@ -52,7 +53,7 @@ export function snapshotRule(pack: string, rule: Rule<TaxEffect>): RuleSnapshot 
     ...(typeof effect.rate === 'number' ? { rate: effect.rate } : {}),
     effectKind: effect.kind,
     sourceUrl: rule.source?.url || '',
-    when: rule.when.map(c => `${c.attribute}=${(c.values || []).join('|')}${c.values ? '' : c.op}`).sort(),
+    when: rule.when.map(c => `${c.attribute}=${(c.values || []).join('|')}${c.values ? '' : c.op}`).sort(byCodeUnit),
   };
 }
 

@@ -65,6 +65,7 @@ import { computeSalesByItem, type SalesByItemReport } from '../reports/itemRepor
 import { computeTransactionsByReference, type TransactionsByReference } from '../reports/referenceReport';
 import { computeGeneralLedger } from '../reports/computeReports';
 import { entryMatches, ENTRY_QUERY_LIMIT, type EntryQuery } from '../../lib/entryQuery';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 export const UNASSIGNED = 'Unassigned';
 export type Cents = Record<string, number>;
@@ -190,7 +191,7 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
 }
 
 function checksumOf(entries: Entry[]): string {
-  const keys = entries.filter(isPostable).map(e => `${e.id}@${e._updated || ''}`).sort();
+  const keys = entries.filter(isPostable).map(e => `${e.id}@${e._updated || ''}`).sort(byCodeUnit);
   return crypto.createHash('sha256').update(keys.join('\n')).digest('hex');
 }
 
@@ -330,7 +331,7 @@ async function closedYearEnds(db: Firestore, workspaceId: string): Promise<strin
     const details = (d.data().details || {}) as { closingDate?: unknown; lockPeriod?: unknown };
     if (details.lockPeriod === true && typeof details.closingDate === 'string' && DATE.test(details.closingDate) && details.closingDate <= lockDate) ends.add(details.closingDate);
   }
-  return [...ends].sort();
+  return [...ends].sort(byCodeUnit);
 }
 
 /**
@@ -343,7 +344,7 @@ export async function rebuildSnapshots(db: Firestore, workspaceId: string, built
   const have = new Map(existing.map(s => [s.asOf, s]));
   const wanted = new Set([...await closedYearEnds(db, workspaceId), ...existing.filter(s => s.stale === true).map(s => s.asOf)]);
   const built: string[] = [];
-  for (const asOf of [...wanted].sort()) {
+  for (const asOf of [...wanted].sort(byCodeUnit)) {
     const current = have.get(asOf);
     if (current && current.stale !== true) continue;
     await buildSnapshot(db, workspaceId, asOf, builtBy);
@@ -447,15 +448,30 @@ export async function profitabilityOver(db: Firestore, workspaceId: string, by: 
   const sales = await invoiceSalesInputs(db, workspaceId, from, to);
   const ofWorkspace = async <T>(name: string) => (await db.collection(name).where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as T);
   let transactions = sales.transactions;
+  let dimensionNodes: DimensionNode[] = [];
   if (by === 'project') {
     const seen = new Set(transactions.map(t => t.id));
-    const { entries } = await accountsAndEntriesFrom(db, workspaceId, from, to);
+    const [{ entries }, nodesSnap] = await Promise.all([
+      accountsAndEntriesFrom(db, workspaceId, from, to),
+      db.collection('dimensionNodes').where('workspaceId', '==', workspaceId).get(),
+    ]);
     transactions = [...transactions, ...entries.filter(t => !seen.has(t.id))];
+    if (!nodesSnap.empty) {
+      dimensionNodes = nodesSnap.docs.map(d => {
+        const raw = d.data() as Partial<DimensionNode>;
+        return { ...raw, id: typeof raw.id === 'string' && raw.id ? raw.id : d.id } as DimensionNode;
+      });
+    } else {
+      const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
+      const legacy = (wsSnap.data() as { dimensionNodes?: DimensionNode[] } | undefined)?.dimensionNodes;
+      if (Array.isArray(legacy)) dimensionNodes = legacy;
+    }
   }
   const lines = profitabilityLines(by, {
     ...sales, transactions,
     customers: by === 'customer' ? await ofWorkspace<Customer>('customers') : [],
     projects: by === 'project' ? await ofWorkspace<ProfitabilityInput['projects'][number]>('projects') : [],
+    dimensionNodes,
     startDate: from, endDate: to,
   });
   return { lines, invoicesRead: sales.invoices.length };

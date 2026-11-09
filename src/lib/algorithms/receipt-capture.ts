@@ -1,4 +1,5 @@
 import { AlgorithmDefinition } from './types';
+import { groupThousands } from '../textShape';
 
 /**
  * AUD-14: reads the merchant, date and total from a receipt's text lines (from a scanner or OCR) with simple positional
@@ -32,7 +33,7 @@ const readAmount = (line: string): Amount | undefined => {
   return m ? { symbol: m[1], whole: m[2] ?? m[3], fraction: m[4], line } : undefined;
 };
 const cents = (a: Amount) => Number(a.whole.replace(/[^\d]/g, '')) * 100 + Number(a.fraction);
-const shown = (a: Amount) => `${a.whole.replace(/[^\d]/g, '').replace(/\B(?=(\d{3})+$)/g, ',')}.${a.fraction}`;
+const shown = (a: Amount) => `${groupThousands(a.whole.replace(/[^\d]/g, ''))}.${a.fraction}`;
 
 const leap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];

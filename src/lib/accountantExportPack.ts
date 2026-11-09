@@ -24,6 +24,7 @@ import { buildTaxReturn } from './taxReturnDocs';
 import type { TaxableDocument } from './taxReturnDocs';
 import { makeStoredZip } from './workspaceArchive';
 import type { Bill, ChartAccount, CreditNote, Customer, Invoice, Transaction, Vendor, VendorCredit } from '../types';
+import { trimChar } from './textShape';
 
 export const ACCOUNTANT_PACK_FORMAT = 'ledgerflow-accountant-pack-v1';
 /** More general-ledger lines than this in one pack is refused: narrow the period instead. */
@@ -125,7 +126,7 @@ export function packMonths(startDate: string, endDate: string): Array<{ month: s
 
 /** A file-name-safe workspace name: `Galil Design` → `galil-design`. */
 export function packSlug(name: string): string {
-  const slug = (name || '').normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase().slice(0, 40);
+  const slug = trimChar((name || '').normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-'), '-').toLowerCase().slice(0, 40);
   return slug || 'workspace';
 }
 

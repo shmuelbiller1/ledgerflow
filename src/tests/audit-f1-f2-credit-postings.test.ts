@@ -194,4 +194,22 @@ describe('audit F1/F2: credit postings', { skip: !url }, () => {
     });
   });
 
+
+  test('F1: a credit applied after the draft save was built is not reversed (Codex on #521)', async () => {
+    await isolated(async (db, ws) => {
+      const id = `${ws}_cn`;
+      await postDocument(db, { uid: 'owner' } as never, credit(ws, id, 'open'));
+      // $60 of the $100 credit is applied to an invoice between the draft save's planning and its commit
+      const originalRun = db.runTransaction.bind(db);
+      let applied = false;
+      db.runTransaction = (async (fn: never, options: never) => {
+        if (!applied) { applied = true; await db.collection('creditNotes').doc(id).update({ remainingCents: 4000 }); }
+        return originalRun(fn, options);
+      }) as typeof db.runTransaction;
+      await assert.rejects(postDocument(db, { uid: 'owner' } as never, { ...credit(ws, id, 'draft'), action: 'update' }), /go back to draft/);
+      db.runTransaction = originalRun;
+      // the issuance stays: A/R still down by the full $100
+      assert.equal(netOn(await entriesOf(db, ws), `${ws}_ar`), -10000);
+    });
+  });
 });

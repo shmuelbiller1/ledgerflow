@@ -15,6 +15,7 @@ import { orderedMoves, stockByLocation, stockHistoryProblem, type StockMove } fr
 import {
   groupReorderLines, reorderLineFor, roundUpToPack, vendorPriceMaps, type ReorderGroup, type ReorderLine,
 } from './reorderSuggestions';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface LocationLevel {
   min: number;
@@ -131,7 +132,7 @@ export function locationReorderSuggestions(input: LocationReorderInput): { group
       continue;
     }
     const at = new Map(reading.at.map(r => [r.locationId, r.onHand] as const));
-    for (const locationId of locationIds.sort()) {
+    for (const locationId of locationIds.sort(byCodeUnit)) {
       const level = levels[locationId];
       const onHand = at.get(locationId) || 0;
       if (!(onHand < level.min)) continue;

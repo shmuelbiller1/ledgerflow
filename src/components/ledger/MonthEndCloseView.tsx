@@ -24,6 +24,7 @@ import PeriodClosingPanel from './PeriodClosingPanel';
 import { closeStepItems } from '../../lib/closeSteps';
 import { closePackageSheets } from '../../lib/closePackage';
 import type { ClientQuery } from '../../lib/clientQueries';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * Month-End Close (R-01 checklist, R-02 sign-offs, R-03 soft/hard close, R-08 drafts, R-10 roles,
@@ -197,7 +198,7 @@ export default function MonthEndCloseView() {
         : [];
       const sheets = closePackageSheets({
         month, monthEnd: end, state: STATE_LABEL[state].text,
-        closedThrough: [workspace?.lockDate || '', workspace?.softLockDate || ''].sort().pop() || '',
+        closedThrough: [workspace?.lockDate || '', workspace?.softLockDate || ''].sort(byCodeUnit).pop() || '',
         items: [...items, ...stepItems], signOffs, accounts: accounts || [], transactions: transactions || [], queries,
       });
       const workbook = await createWorkbook();

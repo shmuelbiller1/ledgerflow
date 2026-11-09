@@ -35,7 +35,7 @@ const Row = ({ index, style, data }: { index: number, style: React.CSSProperties
                 {log.action}
               </span>
               <p className="text-xs font-bold text-[var(--text)] uppercase tracking-tight truncate">
-                {log.entityType} <span className="text-[var(--muted)] opacity-40 mx-1.5">//</span> {auditDescription(log) || log.entityId}
+                {log.entityType} <span className="text-[var(--muted)] opacity-40 mx-1.5">{'//'}</span> {auditDescription(log) || log.entityId}
               </p>
             </div>
             <div className="flex items-center gap-4 text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider italic">

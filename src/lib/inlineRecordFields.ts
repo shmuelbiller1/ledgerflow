@@ -1,4 +1,5 @@
 import { code128Problem } from './code128';
+import { isEmailShape } from './textShape';
 
 /** C-15 edits only non-posting record fields, plus planning budget values. */
 export const INLINE_RECORD_FIELDS = {
@@ -34,7 +35,7 @@ function validate(target: InlineRecordTarget, field: string, value: string | num
       const problem = code128Problem(value);
       if (problem) throw new Error(problem);
     }
-    if (field === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error('Enter an email address.');
+    if (field === 'email' && value && !isEmailShape(value)) throw new Error('Enter an email address.');
     if (['date', 'expiryDate', 'warrantyExpires', 'insuranceRenews', 'nextServiceDue'].includes(field)) { const date = new Date(`${value}T00:00:00Z`); if (field === 'date' && !value || value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value)) throw new Error('Enter a valid date.'); }
   }
 }

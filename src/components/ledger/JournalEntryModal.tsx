@@ -25,6 +25,11 @@ import { documentCurrencies } from '../../lib/exchangeRates';
 import { firstOfNextMonth, reversalDateProblem, withReversal } from '../../lib/autoReversal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
+import {
+  ensureDimensionNodesInMap,
+  normalizeDimensionInputToNodeId,
+  resolveWorkspaceProjectId,
+} from '../../lib/dimensionNodeActions';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isLockedDate } from '../../lib/periodLock';
 import { describeError } from '../../lib/errorRemedies';
@@ -218,6 +223,8 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     toEditorLine({ class: '', location: '', project: '', dimensions: {} }, `added-${nextLineKey.current++}`);
 
   const { formRef, showFieldError } = useNativeFormErrors(isOpen);
+
+  /** Validates double-entry balance, registers line dimension labels sequentially, preserves workspace project IDs, and posts the journal entry. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) {
@@ -248,30 +255,40 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
         return;
       }
 
-      const mappedLines = filteredLines.map(l => {
+      const workspaceProjects = useLedgerStore.getState().projects || [];
+      const mappedLines = [];
+      for (const l of filteredLines) {
         const debitCents = l.debit || 0;
         const creditCents = l.credit || 0;
         const baseCents = Math.round((debitCents > 0 ? debitCents : -creditCents) * appliedRate);
         const rawDims = l.dimensions || {};
-        const dims: Record<string, string> = {};
+        const seedDims: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawDims)) {
-          if (v) dims[k] = v;
+          if (v && v.trim()) seedDims[k] = v.trim();
         }
-        if (l.class && !('class' in rawDims)) dims.class = l.class;
-        if (l.location && !('location' in rawDims)) dims.location = l.location;
-        if (l.project && !('project' in rawDims)) dims.project = l.project;
-        if ((l as typeof l & { world?: string }).world && !('world' in rawDims)) dims.world = (l as typeof l & { world: string }).world;
-        
-        return {
+        if (l.class && !('class' in rawDims)) seedDims.class = normalizeDimensionInputToNodeId(dimensionNodes, 'class', l.class);
+        if (l.location && !('location' in rawDims)) seedDims.location = normalizeDimensionInputToNodeId(dimensionNodes, 'location', l.location);
+        if (l.project && !('project' in rawDims)) seedDims.project = normalizeDimensionInputToNodeId(dimensionNodes, 'project', l.project);
+        if ((l as typeof l & { world?: string }).world && !('world' in rawDims)) {
+          seedDims.world = normalizeDimensionInputToNodeId(dimensionNodes, 'world', (l as typeof l & { world: string }).world);
+        }
+        const dims = (await ensureDimensionNodesInMap(seedDims)) || seedDims;
+        const matchedProjectId = resolveWorkspaceProjectId(
+          [l.project, rawDims.project, dims.project],
+          workspaceProjects,
+          useLedgerStore.getState().dimensionNodes,
+        );
+
+        mappedLines.push({
           accountId: l.accountId,
           accountName: l.accountName,
           amountCents: baseCents,
           class: dims.class || undefined,
           location: dims.location || undefined,
-          project: dims.project || undefined,
+          project: matchedProjectId ?? (dims.project || undefined),
           dimensions: Object.keys(dims).length > 0 ? dims : undefined
-        };
-      });
+        });
+      }
 
       // Post any foreign currency rounding difference to an explicit rounding account
       const netImbalanceCents = mappedLines.reduce((sum, l) => sum + l.amountCents, 0);

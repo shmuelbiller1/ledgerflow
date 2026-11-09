@@ -192,7 +192,7 @@ export function readGsaPerDiemCsv(content: string, options: { fiscalYear?: numbe
   const fiscalYear = statedYear || chosenYear || ([...fileYears].length === 1 ? [...fileYears][0] : null);
   if (!fiscalYear) {
     throw new Error(fileYears.size > 1
-      ? `The file mixes fiscal years (${[...fileYears].sort().join(', ')}). Import one fiscal year's GSA file at a time.`
+      ? `The file mixes fiscal years (${[...fileYears].sort((a, b) => a - b).join(', ')}). Import one fiscal year's GSA file at a time.`
       : 'The file does not say which fiscal year its rates are for (its rate columns carry no FY year and there is no fiscal-year column). Choose the fiscal year on the import screen — the year is never guessed from the amounts.');
   }
   if (problems.length) {

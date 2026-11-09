@@ -14,6 +14,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { form856Notes, form856Rows, form856Summary, form856Year } from '../../lib/tax/form856';
 import { form856ReviewExport, type Form856ReviewPayment } from '../../lib/tax/form856ReviewExport';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 const th = 'font-semibold py-1 px-2';
 
@@ -42,7 +43,7 @@ export default function Form856ReportView() {
       const y = form856Year(payment.date);
       if (y) found.add(y);
     }
-    return [...found].sort().reverse();
+    return [...found].sort(byCodeUnit).reverse();
   }, [scopedPayments, thisYear]);
 
   const rows = useMemo(() => form856Rows(scopedPayments, year), [scopedPayments, year]);

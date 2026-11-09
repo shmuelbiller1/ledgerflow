@@ -8,6 +8,7 @@ import { unusualEntries } from '../../lib/unusualEntries';
 import type { ChartAccount, Transaction } from '../../types';
 import { logger } from '../utils/logger';
 import { notify } from './notificationService';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 /**
  * Ledger health monitor (CA-32), part of the daily job: runs the Data Health checks on each
@@ -85,7 +86,7 @@ export async function checkLedgerHealth(db: Firestore, workspaceId: string, now 
     const notice = problemNotice(fresh);
     await notify(db, {
       workspaceId, kind: 'health.problem', title: notice.title, message: notice.message,
-      eventKey: `health:${today}:${fresh.map(f => f.id).sort().join(',').slice(0, 150)}`, workspace: ws,
+      eventKey: `health:${today}:${fresh.map(f => f.id).sort(byCodeUnit).join(',').slice(0, 150)}`, workspace: ws,
     });
   }
   // S-17: entries of the last two weeks far bigger than their account usually sees (once per entry)

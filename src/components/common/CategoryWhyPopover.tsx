@@ -3,6 +3,7 @@ import { BrainCircuit, ShieldCheck, Cpu, ArrowRight } from 'lucide-react';
 import { MatchingEngine } from '../../lib/MatchingEngine';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { LoadedEntriesOnlyNote } from './LoadedEntriesOnlyNote';
 
 interface CategoryWhyPopoverProps {
   description: string;
@@ -97,6 +98,8 @@ export default function CategoryWhyPopover({ description, accountName, className
                 Resolved Account: <span className="font-bold text-white">{debugInfo.accountName || accountName || 'Manual Review'}</span>
               </div>
             </div>
+
+            <LoadedEntriesOnlyNote testId="category-why-loaded-only" what="the past entries this explanation learns from" className="text-[10px] text-amber-300" />
 
             <div className="p-2 rounded bg-slate-950/80 border border-slate-800 text-[11px] space-y-1">
               <div className="text-[9px] uppercase tracking-wider text-indigo-300 font-bold">

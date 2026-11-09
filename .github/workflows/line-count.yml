@@ -1,9 +1,9 @@
 name: Daily line count
 permissions:
   contents: write
+# Stopped by the owner (8 Nov): the daily commit to main made other branches out of date.
+# Run it by hand from the Actions tab if a count is wanted.
 on:
-  schedule:
-    - cron: '47 5 * * *'
   workflow_dispatch:
 jobs:
   count:

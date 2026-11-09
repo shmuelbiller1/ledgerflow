@@ -1,13 +1,22 @@
 import { useDialog } from '../../hooks/useDialog';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
-import React, { useState, useRef, useId } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import { Transaction, TransactionLine, ChartAccount, Project } from '../../types';
 import { Plus, Trash2, Save, X, AlertCircle, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
 import { resolveAccountName, cn, parseAmountToCents } from '../../lib/utils';
+import { DEFAULT_WORKSPACE_DIMENSIONS, getLineDimension } from '../../lib/dimensionUtils';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { DimensionValueActions, InlineAddDimensionAxis } from '../common/DimensionValueActions';
+import {
+  buildTransactionLineDimensionPatch,
+  normalizeDimensionsMap,
+  resolveWorkspaceProjectId,
+} from '../../lib/dimensionNodeActions';
 import { Labelled } from '../ui/Labelled';
 
+/** Assigns deterministic React keys to repeated split lines even when lines lack explicit IDs. */
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -26,6 +35,7 @@ interface SplitEditorProps {
   onClose: () => void;
 }
 
+/** Modal editor for splitting a transaction across multiple accounts and dimension labels. */
 export default function SplitEditor({
   transaction,
   accounts,
@@ -35,6 +45,14 @@ export default function SplitEditor({
 }: SplitEditorProps) {
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, true);
   const editorId = useId();
+  const workspaceDimensions = useAuthStore(s => s.getCurrentWorkspace()?.dimensions);
+  const dimensionNodes = useLedgerStore(s => s.dimensionNodes || []);
+  const storeClasses = useLedgerStore(s => s.classes || []);
+  const storeLocations = useLedgerStore(s => s.locations || []);
+  const configuredAxes = (workspaceDimensions && workspaceDimensions.length > 0
+    ? workspaceDimensions
+    : DEFAULT_WORKSPACE_DIMENSIONS
+  ).filter(d => d.id !== 'category');
   const [lines, setLines] = useState<TransactionLine[]>(
     transaction.lines?.length > 0 
       ? [...transaction.lines] 
@@ -51,30 +69,54 @@ export default function SplitEditor({
   const diff = transaction.totalAmountCents - totalCents;
   const isBalanced = diff === 0;
 
+  const lineKeysRef = useRef(lineKeys);
+  useEffect(() => {
+    lineKeysRef.current = lineKeys;
+  }, [lineKeys]);
+
   const addLine = () => {
-    setLines([...lines, { accountId: '', accountName: '', amountCents: diff > 0 ? diff : 0 }]);
     const key = `added-${nextLineKey.current++}`;
-    setLineKeys(keys => [...keys, key]);
+    const nextKeys = [...lineKeysRef.current, key];
+    lineKeysRef.current = nextKeys;
+    setLines(prev => [...prev, { accountId: '', accountName: '', amountCents: diff > 0 ? diff : 0 }]);
+    setLineKeys(nextKeys);
   };
 
   const removeLine = (index: number) => {
     if (lines.length <= 1) return;
-    setLines(lines.filter((_, i) => i !== index));
-    setLineKeys(keys => keys.filter((_, i) => i !== index));
+    const nextKeys = lineKeysRef.current.filter((_, i) => i !== index);
+    lineKeysRef.current = nextKeys;
+    setLines(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+    setLineKeys(nextKeys);
   };
 
-  const updateLine = (index: number, updates: Partial<TransactionLine>) => {
-    const nextLines = [...lines];
-    nextLines[index] = { ...nextLines[index], ...updates };
-    
-    // Auto-calculate amount if quantity and unitPrice are updated
-    if (updates.quantity !== undefined || updates.unitPriceCents !== undefined) {
-      const q = updates.quantity ?? nextLines[index].quantity ?? 1;
-      const p = updates.unitPriceCents ?? nextLines[index].unitPriceCents ?? 0;
-      nextLines[index].amountCents = Math.round(q * p);
-    }
-    
-    setLines(nextLines);
+  /** Applies a functional or partial update to a split line, ignoring completions for deleted rows and recalculating amount only when quantity or unit price changes. */
+  const updateLine = (
+    index: number,
+    updates: Partial<TransactionLine> | ((current: TransactionLine) => Partial<TransactionLine>),
+    lineKey?: string,
+  ) => {
+    setLines(prev => {
+      let targetIdx = index;
+      if (lineKey !== undefined) {
+        targetIdx = lineKeysRef.current.indexOf(lineKey);
+        if (targetIdx < 0) return prev;
+      }
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const current = prev[targetIdx];
+      const patch = typeof updates === 'function' ? updates(current) : updates;
+      const merged = { ...current, ...patch };
+      const qtyEdited = patch.quantity !== undefined && patch.quantity !== current.quantity;
+      const priceEdited = patch.unitPriceCents !== undefined && patch.unitPriceCents !== current.unitPriceCents;
+      if (qtyEdited || priceEdited) {
+        const q = patch.quantity ?? merged.quantity ?? 1;
+        const p = patch.unitPriceCents ?? merged.unitPriceCents ?? 0;
+        merged.amountCents = Math.round(q * p);
+      }
+      const next = [...prev];
+      next[targetIdx] = merged;
+      return next;
+    });
   };
 
   const [expandedLineKey, setExpandedLineKey] = useState<string | null>(null);
@@ -209,56 +251,93 @@ export default function SplitEditor({
                     animate={{ height: 'auto', opacity: 1 }}
                     className="overflow-hidden border-x border-b border-[var(--line)] rounded-b-2xl mx-2 p-4 bg-[var(--ink)]/10 flex flex-col gap-4"
                   >
-                    <div className="flex flex-wrap gap-4">
-                      <div className="flex-1 space-y-2">
-                        <label htmlFor={`${editorId}-project-${idx}`} className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Dimension Attribution</label>
-                        <div className="relative">
-                          <select 
-                            id={`${editorId}-project-${idx}`}
-                            value={line.project || ''}
-                            onChange={(e) => updateLine(idx, { project: e.target.value })}
-                            className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] focus:text-indigo-600 outline-none cursor-pointer"
-                          >
-                            <option value="">No Project Assigned</option>
-                            {projects.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="flex-[0.5] space-y-2">
-                        <label htmlFor={`${editorId}-class-${idx}`} className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Class</label>
-                        <div className="relative">
-                          <input 
-                            id={`${editorId}-class-${idx}`}
-                            list={`${editorId}-class-options-${idx}`}
-                            value={line.class || ''}
-                            onChange={(e) => updateLine(idx, { class: e.target.value })}
-                            placeholder="Type or select class"
-                            className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-[11px] font-black uppercase tracking-wider text-[var(--muted)] focus:text-indigo-600 outline-none"
-                          />
-                          <datalist id={`${editorId}-class-options-${idx}`}>
-                            {useLedgerStore.getState().classes?.map(c => <option key={c} value={c} />)}
-                          </datalist>
-                        </div>
-                      </div>
-                      <div className="flex-[0.5] space-y-2">
-                        <label htmlFor={`${editorId}-location-${idx}`} className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Location</label>
-                        <div className="relative">
-                          <input 
-                            id={`${editorId}-location-${idx}`}
-                            list={`${editorId}-location-options-${idx}`}
-                            value={line.location || ''}
-                            onChange={(e) => updateLine(idx, { location: e.target.value })}
-                            placeholder="Type or select location"
-                            className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-[11px] font-black uppercase tracking-wider text-[var(--muted)] focus:text-indigo-600 outline-none"
-                          />
-                          <datalist id={`${editorId}-location-options-${idx}`}>
-                            {useLedgerStore.getState().locations?.map(l => <option key={l} value={l} />)}
-                          </datalist>
-                        </div>
-                      </div>
-                      <div className="flex-[2] space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {configuredAxes.map(axis => {
+                        const rawVal = getLineDimension(line, transaction, axis.id, dimensionNodes);
+                        const resolvedVal =
+                          axis.id === 'project' && rawVal !== 'Unassigned'
+                            ? projects.find(p => p.id === rawVal)?.name || rawVal
+                            : rawVal;
+                        const displayVal = resolvedVal === 'Unassigned' ? '' : resolvedVal;
+                        const options = Array.from(new Set([
+                          ...dimensionNodes
+                            .filter(n => n.dimensionId === axis.id && n.status !== 'archived')
+                            .map(n => n.description),
+                          ...(axis.id === 'project' ? projects.map(p => p.name) : []),
+                          ...(axis.id === 'class' ? storeClasses : []),
+                          ...(axis.id === 'location' ? storeLocations : []),
+                        ].filter(Boolean)));
+                        const listId = `${editorId}-dim-options-${axis.id}-${idx}`;
+                        return (
+                          <div key={axis.id} className="space-y-1.5">
+                            <label htmlFor={`${editorId}-dim-${axis.id}-${idx}`} className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">
+                              {axis.name}
+                            </label>
+                            <div className="relative">
+                              <input
+                                id={`${editorId}-dim-${axis.id}-${idx}`}
+                                list={listId}
+                                aria-label={`${axis.name} for split line ${idx + 1}`}
+                                value={displayVal}
+                                onChange={e =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        e.target.value,
+                                        dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
+                                placeholder={`Type or select ${axis.name.toLowerCase()}`}
+                                className="w-full px-4 py-2.5 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-xs font-bold text-[var(--text)] focus:text-indigo-600 outline-none"
+                              />
+                              <datalist id={listId}>
+                                {options.map(opt => <option key={opt} value={opt} />)}
+                              </datalist>
+                              <DimensionValueActions
+                                dimensionId={axis.id}
+                                dimensionName={axis.name}
+                                value={displayVal}
+                                lineNumber={idx + 1}
+                                onSelectNode={node =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        node.id,
+                                        useLedgerStore.getState().dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
+                                onRenamed={node =>
+                                  updateLine(
+                                    idx,
+                                    current =>
+                                      buildTransactionLineDimensionPatch(
+                                        current,
+                                        axis.id,
+                                        node.id,
+                                        useLedgerStore.getState().dimensionNodes,
+                                        projects,
+                                      ),
+                                    lineKeys[idx],
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className="sm:col-span-2 space-y-1.5">
                         <Labelled labelClassName="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest flex items-center justify-between" label={<>Custom Labels / Tags
                           <span className="text-[9px] lowercase italic font-medium opacity-50">Separate by comma</span></>}>
                           <input 
@@ -270,6 +349,9 @@ export default function SplitEditor({
                           />
                         </Labelled>
                       </div>
+                    </div>
+                    <div>
+                      <InlineAddDimensionAxis />
                     </div>
                   </motion.div>
                 )}
@@ -315,7 +397,23 @@ export default function SplitEditor({
               Cancel
             </button>
             <button 
-              onClick={() => onSave(lines)}
+              onClick={() => {
+                const currentNodes = useLedgerStore.getState().dimensionNodes || [];
+                onSave(lines.map(l => {
+                  const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
+                  const resolvedProj =
+                    l.project || normalizedDims?.project
+                      ? resolveWorkspaceProjectId([l.project, normalizedDims?.project], projects, currentNodes)
+                      : undefined;
+                  const nextProject = resolvedProj ?? l.project;
+                  if (normalizedDims === l.dimensions && nextProject === l.project) return l;
+                  return {
+                    ...l,
+                    ...(nextProject !== l.project ? { project: nextProject } : {}),
+                    ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
+                  };
+                }));
+              }}
               disabled={!isBalanced || lines.some(l => !l.accountId)}
               className="btn-primary !px-10 flex items-center gap-3 disabled:opacity-30 disabled:grayscale transition-all shadow-[0_0_20px_rgba(26,115,232,0.2)]"
             >

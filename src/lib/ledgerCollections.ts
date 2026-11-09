@@ -1,3 +1,4 @@
+import { byCodeUnit } from './codeUnitOrder';
 /**
  * What the browser loads into useLedgerStore, and when (launch step 9: C-14 C-15 C-16 AA-06).
  *
@@ -86,5 +87,5 @@ export const isLedgerKey = (k: string): k is LedgerKey => Object.prototype.hasOw
 /** The keys still to subscribe: asked for (or core), not yet active. Sorted, no repeats. */
 export function keysToStart(asked: readonly string[], active: ReadonlySet<string>): LedgerKey[] {
   const want = new Set<LedgerKey>([...CORE_KEYS, ...asked.filter(isLedgerKey)]);
-  return [...want].filter(k => !active.has(k)).sort();
+  return [...want].filter(k => !active.has(k)).sort(byCodeUnit);
 }

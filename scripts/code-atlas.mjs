@@ -23,6 +23,7 @@ const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { 
 const txt = (root, args) => git(root, args).toString('utf8').trim();
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 const unique = xs => [...new Set(xs)];
+const byCodeUnit = (a, b) => (a < b ? -1 : Number(a > b));
 const slash = x => x.split(path.sep).join('/');
 const compact = (s, max = 260) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 const literal = n => n && ts.isStringLiteralLike(n) ? n.text : null;
@@ -215,7 +216,7 @@ function resolveModules(files, snapshot, options) {
           if (!regex) f.unknownRelationships.push({ kind: 'glob', line: raw.line, expression: raw.expression, reason: 'computed-or-unsupported-glob' });
           else targets.push(...files.filter(x => regex.test(x.path)).map(x => x.path));
         }
-        f.dependencies.push({ ...raw, resolution: raw.patterns.every(p => p && globRegex(p)) ? 'static-glob' : 'partial-or-unknown-glob', targets: unique(targets).sort(), target: null });
+        f.dependencies.push({ ...raw, resolution: raw.patterns.every(p => p && globRegex(p)) ? 'static-glob' : 'partial-or-unknown-glob', targets: unique(targets).sort(byCodeUnit), target: null });
         continue;
       }
       if (raw.specifier === null) {
@@ -242,7 +243,7 @@ function resolveModules(files, snapshot, options) {
     for (const target of unique([d.target, d.assetTarget, ...(d.targets || [])].filter(Boolean))) byPath.get(target)?.inbound.push({ path: f.path, kind: d.kind, line: d.line, test: TEST.test(f.path), certainty: d.resolution });
   }
   for (const f of files) {
-    f.verification = { directTestImporters: unique(f.inbound.filter(x => x.test).map(x => x.path)).sort(), evidence: 'test-file import, not tested-symbol coverage or pass evidence', suggested: checklist(f) };
+    f.verification = { directTestImporters: unique(f.inbound.filter(x => x.test).map(x => x.path)).sort(byCodeUnit), evidence: 'test-file import, not tested-symbol coverage or pass evidence', suggested: checklist(f) };
     f.purpose = { certainty: 'inferred-from-source-structure', text: f.mechanical.comments[0] || (f.mechanical.symbols.length ? `Declares ${f.mechanical.symbols.slice(0, 7).map(x => x.name).join(', ')}; inspect recorded signatures, guards and I/O before reuse.` : `${f.mechanical.category}: ${f.mechanical.headings.slice(0, 3).join('; ') || 'see source evidence and classification'}`) };
     f.potentialData = f.mechanical.data.map(d => ({ ...d, migrations: files.filter(m => (d.table && m.mechanical.sql?.tables.some(t => t.name.replace(/^public\./, '') === d.table)) || (d.kind === 'rpc-call' && d.name && m.mechanical.sql?.functions.some(t => t.name.replace(/^public\./, '') === d.name))).map(m => m.path), migrationCertainty: 'textual-table-name-candidate; does not establish deployment or complete schema' }));
   }
@@ -291,7 +292,7 @@ export function generate(root, rev, output = path.join(root, DEFAULT_INDEX), fre
 }
 export function statistics(index) {
   const files = index.files;
-  return { sourceRevision: index.meta?.sourceRevision, sourceTree: index.meta?.sourceTree, inventory: files.length, coverageDenominator: index.meta?.inventoryCount, codeFiles: files.filter(f => f.mechanical.isCode).length, binary: files.filter(f => f.mechanical.binary).length, automaticallyExtracted: files.length, reviewerAnnotated: files.filter(f => f.manual).length, manuallyInspected: files.filter(f => f.manual?.inspection === 'targeted-source-inspection').length, staleAnnotations: files.filter(f => f.manual?.status === 'stale').map(f => f.path), unknownRelationships: files.reduce((n, f) => n + f.unknownRelationships.length, 0), unknownModuleFiles: files.filter(f => f.unknownRelationships.length).map(f => f.path), computedApiCalls: files.reduce((n, f) => n + f.mechanical.api.filter(a => a.url === null).length, 0), parseErrors: files.flatMap(f => f.mechanical.parseErrors.map(e => ({ path: f.path, ...e }))), workflows: index.workflows.map(w => ({ id: w.id, title: w.title, status: w.review?.status || 'unreviewed', runtimeVerification: w.runtimeVerification })), categories: Object.fromEntries(unique(files.map(f => f.mechanical.category)).sort().map(c => [c, files.filter(f => f.mechanical.category === c).length])) };
+  return { sourceRevision: index.meta?.sourceRevision, sourceTree: index.meta?.sourceTree, inventory: files.length, coverageDenominator: index.meta?.inventoryCount, codeFiles: files.filter(f => f.mechanical.isCode).length, binary: files.filter(f => f.mechanical.binary).length, automaticallyExtracted: files.length, reviewerAnnotated: files.filter(f => f.manual).length, manuallyInspected: files.filter(f => f.manual?.inspection === 'targeted-source-inspection').length, staleAnnotations: files.filter(f => f.manual?.status === 'stale').map(f => f.path), unknownRelationships: files.reduce((n, f) => n + f.unknownRelationships.length, 0), unknownModuleFiles: files.filter(f => f.unknownRelationships.length).map(f => f.path), computedApiCalls: files.reduce((n, f) => n + f.mechanical.api.filter(a => a.url === null).length, 0), parseErrors: files.flatMap(f => f.mechanical.parseErrors.map(e => ({ path: f.path, ...e }))), workflows: index.workflows.map(w => ({ id: w.id, title: w.title, status: w.review?.status || 'unreviewed', runtimeVerification: w.runtimeVerification })), categories: Object.fromEntries(unique(files.map(f => f.mechanical.category)).sort(byCodeUnit).map(c => [c, files.filter(f => f.mechanical.category === c).length])) };
 }
 export function changes(root, index, rev = 'worktree') {
   const base = index.meta.sourceRevision;
