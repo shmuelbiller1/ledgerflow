@@ -400,14 +400,14 @@ export function TransactionGridBody({ model }: { model: TransactionGridModel }) 
                 </div>
               )}
               {!isMobileGrid && !isTabletGrid && show('balance') && (
-                <div className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate text-right">Running.Sum</div>
+                <div className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate text-right">Balance</div>
               )}
               {!isMobileGrid && show('status') && (
                 <div
                   className="p-4 border-r border-white/10 font-black text-[9px] uppercase tracking-widest truncate text-center flex items-center justify-center gap-2 group cursor-pointer hover:bg-[var(--surface)]/5 transition-colors relative"
                 >
                   <button type="button" onClick={() => handleSort('status')} className="flex justify-center flex-1 min-w-0 items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-                    System Status {sortConfig?.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUpRight aria-hidden="true" size={10} className="text-indigo-600" /> : <ArrowDownRight aria-hidden="true" size={10} className="text-indigo-600" />)}
+                    Status {sortConfig?.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUpRight aria-hidden="true" size={10} className="text-indigo-600" /> : <ArrowDownRight aria-hidden="true" size={10} className="text-indigo-600" />)}
                   </button>
                   <button
                     aria-label="Filter by status"

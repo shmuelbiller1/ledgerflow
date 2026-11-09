@@ -23,13 +23,6 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
               <h1 className="text-xl md:text-2xl font-black text-[var(--text)] tracking-tight leading-none">
                 Journal Entries
               </h1>
-              <div className="flex items-center gap-3 mt-2">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/5 border border-emerald-500/20 rounded-full">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
-                   <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Integrity Scan Active</span>
-                </div>
-                <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">Matrix Synchronized</span>
-              </div>
             </div>
             <div className="hidden sm:block h-10 w-px bg-slate-200 mx-2" />
             <div className="flex bg-[var(--panel)] p-1 rounded-xl border border-[var(--line)] self-stretch sm:self-auto shadow-3xs">
@@ -129,7 +122,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
                     value={searchTerm}
                     onChange={setSearchTerm}
                     metrics={stats}
-                    placeholder={activeView?.filter?.searchTerm ? `Search within view... (default: ${activeView.filter.searchTerm})` : "Deep search ledger... (e.g. > 500, this month, tag:tax)"}
+                    placeholder={activeView?.filter?.searchTerm ? `Search within view... (default: ${activeView.filter.searchTerm})` : "Search entries… (e.g. > 500, this month, tag:tax)"}
                   />
                 </div>
 
@@ -199,7 +192,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
         </div>
 
         {/* Three-Cell Filtered Totals Summary Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 lg:gap-6 pt-6 lg:pt-8 border-t border-[var(--line)]/30">
+        <div className="flex flex-wrap items-center justify-between gap-4 lg:gap-6 pt-3 border-t border-[var(--line)]/30">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6">
              <div
                data-testid="filtered-totals-bar"
@@ -207,7 +200,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
              >
                {/* Filtered Inflow */}
                <div data-testid="filtered-inflow" className="flex items-center gap-2 px-3 py-2">
-                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Filtered Inflow:</span>
+                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Money in:</span>
                  <span className="text-xs font-black text-[var(--pos)] tabular-nums">
                    +{formatCurrency(stats.inflowCents)}
                  </span>
@@ -215,7 +208,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
 
                {/* Filtered Outflow */}
                <div data-testid="filtered-outflow" className="flex items-center gap-2 px-3 py-2">
-                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Filtered Outflow:</span>
+                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Money out:</span>
                  <span className="text-xs font-black text-[var(--neg)] tabular-nums">
                    -{formatCurrency(stats.outflowCents)}
                  </span>
@@ -224,43 +217,37 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
                {/* Matching Records */}
                <div data-testid="matching-records" className="flex items-center gap-2 px-3 py-2">
                  <div className={cn("w-2 h-2 rounded-full shrink-0", stats.discrepancies > 0 ? "bg-rose-500 animate-pulse" : "bg-emerald-500")} />
-                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Matching Records:</span>
+                 <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Entries:</span>
                  <span className="text-xs font-black text-[var(--text)] tabular-nums">
                    {stats.count.toLocaleString()}
                  </span>
                </div>
              </div>
-             {searchTerm && (
-               <div style={{ height: '50.5px' }} className="hidden sm:flex items-center gap-3 px-5 py-2 bg-indigo-600/5 border border-indigo-600/20 rounded-full">
-                  <Sparkles aria-hidden="true" size={14} className="text-indigo-600" />
-                  <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest truncate italic serif">Analytical Filtering Enabled</span>
-               </div>
-             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 md:gap-4 bg-[var(--ink)]/20 p-1.5 rounded-[32px] border border-[var(--line)]/40 w-full sm:w-auto">
             <button
               onClick={() => {
-                downloadCsv(`ledgerflow_matrix_${getLocalDateISO()}.csv`,
+                downloadCsv(`ledgerflow_transactions_${getLocalDateISO()}.csv`,
                   ['Date', 'Description', 'Amount', 'Currency', 'Account', 'Project', 'Notes'],
                   transactionsWithBalance.map(t => [t.date, t.description, csvMoney(signedCents(t)), t.currency || 'USD', resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || '', t.notes || '']));
-                toast.success('Matrix exported to Excel-compatible CSV.');
+                toast.success('Transactions exported to CSV.');
               }}
               className="flex-1 sm:flex-none flex justify-center items-center gap-2 md:gap-3 px-4 md:px-6 py-3 text-[9px] md:text-[10px] font-black text-[var(--muted)] uppercase tracking-widest hover:text-[var(--text)] hover:bg-[var(--surface)] rounded-xl transition-all"
             >
               <TableIcon aria-hidden="true" size={16} />
-              <span className="hidden sm:inline">Export Matrix</span>
+              <span className="hidden sm:inline">Export CSV</span>
               <span className="sm:hidden">Export</span>
             </button>
             <div className="w-px h-6 bg-slate-200 opacity-50" />
             <button
               onClick={handleBulkSweep}
               className="flex-1 sm:flex-none flex justify-center items-center gap-2 md:gap-3 px-4 md:px-6 py-3 text-[9px] md:text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest bg-[var(--surface)] border border-indigo-600/20 hover:border-indigo-600 rounded-xl transition-all shadow-sm shrink-0 cursor-pointer"
-              aria-label="Analytical Categorization"
+              aria-label="Suggest categories for uncategorized entries"
             >
               <Sparkles aria-hidden="true" size={16} className="shrink-0" />
-              <span className="hidden sm:inline">Analytical Categorization</span>
-              <span className="sm:hidden">Auto Cat</span>
+              <span className="hidden sm:inline">Suggest categories</span>
+              <span className="sm:hidden">Categorize</span>
             </button>
           </div>
         </div>

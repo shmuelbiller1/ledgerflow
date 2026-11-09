@@ -340,7 +340,7 @@ function useTransactionGridModel() {
     downloadCsv(`ledger_export_${getLocalDateISO()}.csv`,
       ['Date', 'Description', 'Category', 'Project', 'Amount', 'Currency', 'Status'],
       transactionsWithBalance.map(t => [t.date, t.description, resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || 'General', csvMoney(signedCents(t)), t.currency || '', t.status]));
-    toast.success('Ledger Export Matrix Generated');
+    toast.success('Transactions exported');
   };
 
   const handleBulkUpdate = useCallback(async (updates: Partial<Transaction>) => {
