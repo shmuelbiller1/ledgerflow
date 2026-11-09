@@ -29,9 +29,11 @@ interface SavedViewsBarProps {
   currentSearchTerm?: string;
   onOpenAdvancedSearch?: () => void;
   className?: string;
+  /** one thin line without a frame, names only (the Journal Entries toolbar) */
+  compact?: boolean;
 }
 
-export default function SavedViewsBar({ currentSearchTerm, className }: SavedViewsBarProps) {
+export default function SavedViewsBar({ currentSearchTerm, className, compact = false }: SavedViewsBarProps) {
   const views = useSavedViewsStore(s => s.views);
   const activeViewId = useSavedViewsStore(s => s.activeViewId);
   const setActiveView = useSavedViewsStore(s => s.setActiveView);
@@ -68,8 +70,8 @@ export default function SavedViewsBar({ currentSearchTerm, className }: SavedVie
   };
 
   return (
-    <div className={cn("w-full bg-[var(--surface-card)] border border-[var(--line)] rounded-xl p-3 shadow-xs transition-all", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={cn(compact ? "w-full" : "w-full bg-[var(--surface-card)] border border-[var(--line)] rounded-xl p-3 shadow-xs transition-all", className)}>
+      <div className={cn("flex items-center justify-between gap-2", compact ? "flex-nowrap" : "flex-wrap")}>
         
         {/* Left: View Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
@@ -87,7 +89,7 @@ export default function SavedViewsBar({ currentSearchTerm, className }: SavedVie
               <div
                 key={view.id}
                 className={cn(
-                  "group relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 border select-none",
+                  compact ? "group relative flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all shrink-0 border select-none" : "group relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 border select-none",
                   isActive
                     ? "bg-[var(--brass)]/15 border-[var(--brass)] text-[var(--text)] shadow-xs font-semibold scale-[1.02]"
                     : "bg-[var(--surface-elevated)] border-[var(--line)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--line-strong)]"
@@ -109,19 +111,19 @@ export default function SavedViewsBar({ currentSearchTerm, className }: SavedVie
                   <div className="flex flex-col text-left">
                     <div className="flex items-center gap-1.5 leading-none">
                       <span className="truncate max-w-[130px]">{view.name}</span>
-                      {view.isDefault && (
+                      {view.isDefault && !compact && (
                         <span className="text-[9px] px-1 py-0.2 bg-[var(--brass)]/20 text-[var(--brass)] rounded font-semibold uppercase tracking-wider">
                           Default
                         </span>
                       )}
                     </div>
 
-                    <span className="text-[10px] font-bold mt-0.5 text-[var(--text-secondary)] tabular-nums">
+                    {!compact && <span className="text-[10px] font-bold mt-0.5 text-[var(--text-secondary)] tabular-nums">
                       {formatCurrency(metrics.totalMoneyCents)}
                       <span className="text-[9px] font-normal text-[var(--muted)] ml-1">
                         ({metrics.matchingCount})
                       </span>
-                    </span>
+                    </span>}
                   </div>
                 </button>
 
