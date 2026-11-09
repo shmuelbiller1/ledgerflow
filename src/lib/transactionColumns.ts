@@ -25,9 +25,9 @@ export function gridTracks(layout: { mobile: boolean; tablet: boolean; compact: 
     : [
         // text columns share the free width and shrink to a floor; figures keep a fixed width, so the
         // table fits next to the sidebar on a normal desktop screen instead of running off the right edge
-        ['select', compact ? '40px' : '60px'], ['date', compact ? '100px' : '110px'], ['description', 'minmax(160px,1fr)'],
-        ['category', 'minmax(110px,0.8fr)'], ['project', 'minmax(72px,0.45fr)'], ['class', 'minmax(72px,0.45fr)'], ['location', 'minmax(72px,0.45fr)'],
-        ['amount', compact ? '140px' : '160px'], ['balance', '130px'], ['status', compact ? '80px' : '104px'], ['actions', '56px'],
+        ['select', compact ? '40px' : '48px'], ['date', compact ? '100px' : '110px'], ['description', 'minmax(150px,1fr)'],
+        ['category', 'minmax(120px,0.8fr)'], ['project', 'minmax(72px,0.45fr)'], ['class', 'minmax(72px,0.45fr)'], ['location', 'minmax(72px,0.45fr)'],
+        ['amount', compact ? '130px' : '140px'], ['balance', '120px'], ['status', compact ? '80px' : '96px'], ['actions', '56px'],
       ];
   // the small layouts always show what they have room for
   return tracks.filter(([id]) => mobile || !hidden.has(id));
@@ -41,7 +41,7 @@ export function orderedGridTracks(layout: { mobile: boolean; tablet: boolean; co
 }
 /** Label columns no entry uses yet: they stay (a value can still be typed in) but take little room. */
 export const NARROW_WHEN_EMPTY = ['project', 'class', 'location'] as const;
-const NARROW_TRACK = 'minmax(56px,0.15fr)';
+const NARROW_TRACK = 'minmax(64px,0.15fr)';
 
 export function gridTemplate(layout: { mobile: boolean; tablet: boolean; compact: boolean }, hidden: ReadonlySet<string>, preferences?: ColumnLayout, emptyColumns?: ReadonlySet<string>): string {
   return orderedGridTracks(layout, hidden, preferences)

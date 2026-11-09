@@ -30,7 +30,7 @@ describe('Transaction list columns', () => {
 
   test('the table is never narrower than its columns plus room for the description', () => {
     assert.equal(gridMinWidth('40px 100px 1fr 100px'), 480);
-    assert.equal(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)), 1106);
+    assert.equal(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)), 1056);
     // fits beside the 240 px sidebar on a 1440 px screen (it was 1330 px and ran off the right edge)
     assert.ok(gridMinWidth(gridTemplate({ mobile: false, tablet: false, compact: false }, none)) <= 1440 - 240 - 48);
   });
@@ -52,7 +52,7 @@ describe('Empty label columns', () => {
     const layout = { mobile: false, tablet: false, compact: false };
     const t = gridTemplate(layout, none, undefined, empty);
     assert.equal(count(t), 11);
-    assert.equal(t.split(' ').filter(w => w === 'minmax(56px,0.15fr)').length, 2);
+    assert.equal(t.split(' ').filter(w => w === 'minmax(64px,0.15fr)').length, 2);
     assert.ok(gridMinWidth(t) < gridMinWidth(gridTemplate(layout, none)));
   });
 });

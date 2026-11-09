@@ -32,7 +32,7 @@ test('width/order controls persist after remount, update cell DOM order, and res
   fireEvent.click(view.getByRole('button', { name: 'Move Description left' }));
   const columns = () => Array.from(view.getByTestId('columns').children).map(cell => cell.getAttribute('data-column'));
   assert.deepEqual(columns().slice(0, 3), ['select', 'description', 'date']);
-  assert.ok(view.getByTestId('columns').style.gridTemplateColumns.startsWith('60px 320px 110px'));
+  assert.ok(view.getByTestId('columns').style.gridTemplateColumns.startsWith('48px 320px 110px'));
   fireEvent.click(view.getByText('Toggle project'));
   assert.ok(!columns().includes('project'));
   view.unmount(); view = render(<Harness />);

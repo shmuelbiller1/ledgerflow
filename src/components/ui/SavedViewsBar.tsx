@@ -74,7 +74,7 @@ export default function SavedViewsBar({ currentSearchTerm, className, compact = 
       <div className={cn("flex items-center justify-between gap-2", compact ? "flex-nowrap" : "flex-wrap")}>
         
         {/* Left: View Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+        <div className="flex items-center gap-1.5 py-0.5 min-w-0 flex-1 flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible">
           <div className="flex items-center gap-1 pr-2 border-r border-[var(--line)] shrink-0">
             <Filter aria-hidden="true" size={14} className="text-[var(--muted)]" />
             <span className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider">Views</span>
@@ -110,7 +110,7 @@ export default function SavedViewsBar({ currentSearchTerm, className, compact = 
 
                   <div className="flex flex-col text-left">
                     <div className="flex items-center gap-1.5 leading-none">
-                      <span className="truncate max-w-[130px]">{view.name}</span>
+                      <span className="whitespace-nowrap" title={view.name}>{view.name}</span>
                       {view.isDefault && !compact && (
                         <span className="text-[9px] px-1 py-0.2 bg-[var(--brass)]/20 text-[var(--brass)] rounded font-semibold uppercase tracking-wider">
                           Default

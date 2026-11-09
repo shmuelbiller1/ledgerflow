@@ -196,17 +196,18 @@ const TransactionRow = React.memo(({
             "px-4 font-bold text-[var(--text)] transition-colors text-xs h-full flex flex-col justify-center relative border-r border-[var(--line)]/50 group-hover/active:text-white", 
             isProMode && "px-2 text-[10px]",
             isFocused && focusedField === 'description' && "ring-2 ring-inset ring-indigo-600 bg-indigo-600/5",
-            "truncate"
+            "overflow-hidden"
           )} 
           dir="auto"
+          title={displayTx.description}
         >
           <>
-              <div className="text-left truncate w-full font-sans tracking-tight flex items-center gap-1.5 flex-wrap">
+              <div className="text-left w-full min-w-0 font-sans tracking-tight flex items-center gap-1.5">
                 <InlineEdit value={displayTx.description} label={`Description of ${displayTx.description || 'this entry'}`}
                   canEdit={!isLocked && !!onUpdate && tx.status !== 'void'} suggestions={descriptions}
                   display={<HighlightMatch text={displayTx.description} match={searchTerm} />}
                   validate={v => (String(v).trim() ? null : 'Enter a description')}
-                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="truncate" />
+                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="line-clamp-2 break-words leading-tight min-w-0" />
                 {displayTx.fileUrls && displayTx.fileUrls.length > 0 && (
                   <span 
                     data-testid="attachment-badge"
@@ -251,12 +252,12 @@ const TransactionRow = React.memo(({
                 const name = resolveAccountName(accounts, shown.accountId, shown.accountName);
                 return (
                   <div className="flex items-center gap-1 w-full min-w-0" title={others.length ? `${name} · ${others.join(', ')}` : name}>
-                    <span dir="auto" className="truncate min-w-0 flex-1 text-xs font-medium text-[var(--text)]">
+                    <span dir="auto" className="line-clamp-2 break-words leading-tight min-w-0 flex-1 text-xs font-medium text-[var(--text)]">
                       {shown === categoryLine ? (
                         <InlineEdit kind="select" value={shown.accountId} label={`Category of ${displayTx.description || 'this entry'}`}
                           options={choices.some(c => c.value === shown.accountId) ? choices : [{ value: shown.accountId, label: name }, ...choices]}
                           display={<HighlightMatch text={name} match={searchTerm} />}
-                          onSave={setCategory} />
+                          onSave={setCategory} className="line-clamp-2 break-words leading-tight" />
                       ) : <HighlightMatch text={name} match={searchTerm} />}
                     </span>
                     {lines.length > 2 && <span className="shrink-0 text-[10px] text-[var(--muted)]">+{lines.length - 2}</span>}

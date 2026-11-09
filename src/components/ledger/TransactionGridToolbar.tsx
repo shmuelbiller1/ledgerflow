@@ -15,7 +15,7 @@ import DeepSearchBar from '../ui/DeepSearchBar';
 
 import type { TransactionGridModel } from './TransactionGrid';
 export function TransactionGridToolbar({ model }: { model: TransactionGridModel }) {
- const { columnLayout, setColumnWidth, moveColumn, resetColumnLayout, formId, onAction, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, selectedIds, setSelectedIds, toggleSelectAll, accounts, activeView, transactionsWithBalance, stats, activeFilterColumn, setActiveFilterColumn, hiddenColumns, toggleColumnVisibility, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep } = model;
+ const { columnLayout, setColumnWidth, moveColumn, resetColumnLayout, formId, onAction, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, selectedIds, setSelectedIds, toggleSelectAll, accounts, activeView, transactionsWithBalance, stats, totalBalancedSum, activeFilterColumn, setActiveFilterColumn, hiddenColumns, toggleColumnVisibility, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep } = model;
 
  const [moreOpen, setMoreOpen] = useState(false);
  const btn = "h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)] shrink-0 cursor-pointer";
@@ -30,7 +30,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
       {/* one row: title, search, totals, columns, more, new entry */}
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold text-[var(--text)] leading-none mr-2 shrink-0">Journal Entries</h1>
-        <div className="flex-1 min-w-[14rem]">
+        <div className="flex-1 min-w-[10rem]">
           <DeepSearchBar
             value={searchTerm}
             onChange={setSearchTerm}
@@ -41,7 +41,8 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
         <div data-testid="filtered-totals-bar" className="hidden md:flex items-center gap-3 px-2 text-xs text-[var(--muted)] shrink-0">
           <span data-testid="filtered-inflow" className="whitespace-nowrap" title="Money in">In: <span className="font-semibold text-[var(--pos)] tabular-nums">+{formatCurrency(stats.inflowCents)}</span></span>
           <span data-testid="filtered-outflow" className="whitespace-nowrap" title="Money out">Out: <span className="font-semibold text-[var(--neg)] tabular-nums">-{formatCurrency(stats.outflowCents)}</span></span>
-          <span data-testid="matching-records" className="whitespace-nowrap">Entries: <span className={cn("font-semibold tabular-nums", stats.discrepancies > 0 ? "text-rose-500" : "text-[var(--text)]")}>{stats.count.toLocaleString()}</span></span>
+          <span data-testid="matching-records" className="whitespace-nowrap hidden xl:inline">Entries: <span className={cn("font-semibold tabular-nums", stats.discrepancies > 0 ? "text-rose-500" : "text-[var(--text)]")}>{stats.count.toLocaleString()}</span></span>
+          {totalBalancedSum === 0 && transactionsWithBalance.length > 0 && <span data-testid="books-balanced" className="whitespace-nowrap font-semibold text-[var(--pos)]">Balanced</span>}
         </div>
         <div className="relative shrink-0">
           <button type="button" onClick={() => setActiveFilterColumn(activeFilterColumn === 'visibility' ? null : 'visibility')} aria-expanded={activeFilterColumn === 'visibility'} className={btn}>
