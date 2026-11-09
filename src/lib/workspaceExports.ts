@@ -90,16 +90,6 @@ export { israelVatReturn } from './tax/ilVatReturn';
  * No production download or tax submission action uses this formatter.
  */
 export { buildPcn874FixtureDraft as buildHistoricalPcn874Draft } from './tax/pcn874Draft';
-export {
-  US_FEDERAL_WITHHOLDING_2026_ANNUAL,
-  US_FICA_FUTA_HISTORY,
-  calculateFederalIncomeTaxWithholding,
-  calculateFicaTax,
-  calculateFutaTax,
-  getFicaRatesOn,
-  getFederalWithholdingTable,
-} from './tax/usFederalPayroll';
-
 /**
  * E-10: historical/year-specific US 1099 review helpers, intentionally not IRIS,
  * printable IRS form output, or an automatic tax filing workflow.
