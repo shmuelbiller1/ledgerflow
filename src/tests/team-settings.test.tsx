@@ -55,6 +55,12 @@ test('invitation by typing and Enter validates email and retains draft on server
   await act(async () => fireEvent.submit(input.closest('form')!));
   assert.equal(mutations().length, 0);
   assert.match(screen.getByRole('alert').textContent || '', /valid email/);
+  for (const email of ['a@.test', 'a@test.', 'a@@test.com', `a@${'x'.repeat(100_000)}`]) {
+    fireEvent.change(input, { target: { value: email } });
+    await act(async () => fireEvent.submit(input.closest('form')!));
+    assert.equal(mutations().length, 0);
+    assert.match(screen.getByRole('alert').textContent || '', /valid email/);
+  }
   status = 403;
   fireEvent.change(input, { target: { value: 'person@example.test' } });
   await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send invite' })));
