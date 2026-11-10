@@ -97,9 +97,22 @@ test('#518: a US sale with no state is in no return and is counted as unplaced, 
   const US = { country: 'US' };
   const r = txReturn([sale('s1', { metadata: { taxPlace: US } })], US);
   assert.deepEqual(figures(r), [0, 0, 0]);
-  assert.deepEqual(r.unplaced, { documentCount: 1, netCents: 10000, taxCents: 825 });
+  assert.deepEqual(r.unplaced, { documentCount: 1, netCents: 10000, taxCents: 825, documents: [{ id: 'invoice:s1', netCents: 10000, taxCents: 825 }] });
   // state missing on the customer only (no snapshot on the sale): the same
-  assert.deepEqual(txReturn([sale('s1')], US).unplaced, { documentCount: 1, netCents: 10000, taxCents: 825 });
+  assert.deepEqual([txReturn([sale('s1')], US).unplaced.documentCount, txReturn([sale('s1')], US).unplaced.taxCents], [1, 825]);
+});
+
+test('#518: an incomplete saved place does not trap the sale — adding the state to the customer or the ship-to places it', () => {
+  const US = { country: 'US' };
+  const stuck = sale('s1', { metadata: { taxPlace: US } });
+  // the customer's state was added afterwards: the sale is now in Texas, and no longer unplaced
+  const fixedOnCustomer = txReturn([stuck], TX);
+  assert.deepEqual([...figures(fixedOnCustomer), fixedOnCustomer.unplaced.documentCount], [1, 10000, 825, 0]);
+  // or the ship-to state on the invoice
+  const fixedOnInvoice = txReturn([sale('s1', { metadata: { taxPlace: US }, shippingAddress: { country: 'US', state: 'TX' } })], US);
+  assert.deepEqual([...figures(fixedOnInvoice), fixedOnInvoice.unplaced.documentCount], [1, 10000, 825, 0]);
+  // a complete saved place still wins over the customer's place today (#519 is unchanged)
+  assert.deepEqual(figures(txReturn([sale('s1', { metadata: { taxPlace: TX } })], OK)), [1, 10000, 825]);
 });
 
 test('#518: what is not unplaced — a sale abroad, a counter sale with no place anywhere, and a complete one', () => {

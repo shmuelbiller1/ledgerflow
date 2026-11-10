@@ -360,3 +360,23 @@ test('AF-004 (#518): a US sale with no state is reported as a problem and the qu
   assert.ok(stateFigures(clean).length > 0);
   assert.deepEqual(stateFigures(withUnplaced), stateFigures(clean));
 });
+
+test('AF-004 (#518): unplaced sales of two selling entities with their own permits are both counted, each once', () => {
+  const two: TaxProfiles = {
+    books: { place: { country: 'IL' }, registrations: [] },
+    labels: {
+      'world:tx': { place: { country: 'US', state: 'TX' }, registrations: [{ kind: 'sales_tax', number: '3200', place: { country: 'US', state: 'TX' } }] },
+      'world:tx2': { place: { country: 'US', state: 'TX' }, registrations: [{ kind: 'sales_tax', number: '4400', place: { country: 'US', state: 'TX' } }] },
+    },
+  };
+  const q = usQuarterJourney({
+    quarter: QUARTER, today: TODAY, currency: 'USD', profiles: two, order: ['world'],
+    customers: [{ id: 'nowhere', metadata: { taxPlace: { country: 'US' } } }],
+    invoices: [
+      doc('u1', 'nowhere', 10825, 825, [['Texas state sales tax', 825]]),
+      doc('u2', 'nowhere', 10625, 625, [['Texas state sales tax', 625]], { dimensions: { world: 'tx2' } }),
+    ],
+    creditNotes: [], bills: [], items: [], vendors: [], payments: [], periods: [],
+  });
+  assert.equal(q.problems.find(p => /no state/.test(p)), "2 US sales have no state on the invoice or the customer, with 14.50 of tax: they are in no state's return. Add the state to the customer or the invoice.");
+});
