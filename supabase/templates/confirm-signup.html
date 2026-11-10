@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Confirm your email</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F8F7;-webkit-text-size-adjust:100%;">
+<!-- Confirm your email. Paste into Supabase: Authentication > Emails > Templates. Keep the {{ ... }} parts as they are. -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F4F8F7;">One click to finish setting up your account.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F8F7;">
+<tr><td align="center" style="padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+    <tr><td style="background:#0F242D;border-radius:12px 12px 0 0;padding:22px 32px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td style="width:32px;height:32px;border:1px solid #D6A852;border-radius:8px;text-align:center;vertical-align:middle;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#D6A852;">L</td>
+        <td style="padding-left:12px;font-family:'Space Grotesk',Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;color:#DEE8E6;letter-spacing:-0.2px;">LedgerFlow</td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="height:3px;background:#D6A852;line-height:3px;font-size:0;">&nbsp;</td></tr>
+    <tr><td style="background:#FFFFFF;border:1px solid #D4DEDB;border-top:0;border-radius:0 0 12px 12px;padding:36px 32px 32px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#0E2229;">
+      <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;font-weight:700;color:#0E2229;">Confirm your email</h1>
+      <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#0E2229;">Thanks for signing up for LedgerFlow. Confirm that <strong>{{ .Email }}</strong> is your address and your books are ready to use.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0;"><tr>
+        <td style="background:#D6A852;border-radius:8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#0A1920;text-decoration:none;border-radius:8px;">Confirm email address</a>
+        </td>
+      </tr></table>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:#4D6564;">This link works once and expires in 24 hours.</p>
+      <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#4D6564;">If the button doesn't work, copy this link into your browser:<br>
+        <a href="{{ .ConfirmationURL }}" style="color:#7A550E;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+    </td></tr>
+    <tr><td style="padding:20px 32px 0;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#4D6564;text-align:center;">
+      You're getting this because someone signed up with this address. If it wasn't you, ignore this email: no account is created.<br>
+      LedgerFlow &middot; bookkeeping for your business
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>
