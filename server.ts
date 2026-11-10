@@ -47,7 +47,6 @@ import { createOriginCheck, resolvePort } from "./src/server/http/origins.ts";
 import { applySecurityMiddleware } from "./src/server/http/securityMiddleware.ts";
 import { apiRequestLogger } from "./src/server/http/apiRequestLog.ts";
 import { publicInvoiceLimiter, pdfGenerationLimiter, brainRateLimiter, createAppRateLimiters } from "./src/server/middleware/rateLimiters.ts";
-import { BRAND } from './src/config/brand';
 
 declare const __SERVERLESS_BUILD__: boolean | undefined;
 
@@ -180,7 +179,7 @@ process.on('uncaughtException', (error) => {
 
 // On Vercel, api/index.mjs imports build/api.cjs (createApp) instead of starting a listener/scheduler.
 if (typeof __SERVERLESS_BUILD__ === "undefined" && process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
-  console.debug(`🌀 [Server] Booting ${BRAND.name} Backend...`);
+  console.debug("🌀 [Server] Booting LedgerFlow Backend...");
   Promise.all([buildApp(), import("./src/server/http/serveApp.ts")]).then(([{ app, port }, { serveApp }]) => serveApp(app, port)).catch(err => {
     console.error("💥 [Server] Critical Startup Failure:", err);
     process.exit(1);
