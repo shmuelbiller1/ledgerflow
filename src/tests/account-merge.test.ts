@@ -15,16 +15,17 @@ import type { Firestore } from '../server/db/pgFirestore';
 import { mergedAccount, mergeProblem, replaceAccountId } from '../lib/accountMerge';
 import type { ChartAccount } from '../types';
 
+import { BRAND_NAME } from '../config/brand';
 const account = (id: string, fields: Partial<ChartAccount> = {}): ChartAccount =>
   ({ id, uid: 'u', workspaceId: 'w', code: '', name: id, type: 'expense', balanceCents: 0, ...fields } as ChartAccount);
 
 describe('Account merge rules', () => {
-  test('only two different accounts of the same kind and currency; not one LedgerFlow uses itself', () => {
+  test(`only two different accounts of the same kind and currency; not one ${BRAND_NAME} uses itself`, () => {
     assert.equal(mergeProblem(account('a'), account('b')), null);
     assert.match(String(mergeProblem(account('a'), account('a'))), /two different/);
     assert.match(String(mergeProblem(account('a', { type: 'asset' }), account('b'))), /"a" is an asset account and "b" is an expense account/);
     assert.match(String(mergeProblem(account('a', { currency: 'EUR' }), account('b', { currency: 'USD' }))), /EUR/);
-    assert.match(String(mergeProblem(account('a', { isSystem: true }), account('b'))), /used by LedgerFlow itself/);
+    assert.match(String(mergeProblem(account('a', { isSystem: true }), account('b'))), new RegExp(String.raw`used by ${BRAND_NAME} itself`));
     assert.match(String(mergeProblem(undefined, account('b'))), /Both accounts/);
     assert.match(String(mergeProblem(account('a', { openingBalanceCents: 5, asOfDate: '2026-01-01' }), account('b', { openingBalanceCents: 7, asOfDate: '2026-02-01' }))), /different dates/);
   });
@@ -113,7 +114,7 @@ describe('Account merge (database)', { skip: !url && 'LF_TEST_DATABASE_URL not s
     await db.terminate();
   });
 
-  test('refused for a bookkeeper, for different kinds, and for an account LedgerFlow uses itself', async () => {
+  test(`refused for a bookkeeper, for different kinds, and for an account ${BRAND_NAME} uses itself`, async () => {
     assert.equal((await post('book-1', '/merge', merge)).status, 403);
     const kinds = await post('acct-1', '/merge', { fromId: id('office2'), intoId: id('bank') });
     assert.equal(kinds.status, 400);

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getIdToken } from '../../../firebase';
 import { safeConfirm } from '../../../lib/utils';
 
+import { BRAND_NAME, BRAND } from '../../../config/brand';
 /**
  * Recovery codes for two-step login (L-85): ten one-time codes for the day the authenticator app is
  * lost. Shown once when made (copy or download them then); making new ones ends the old ones. On the
@@ -43,12 +44,12 @@ export default function RecoveryCodesPanel() {
     }
   };
 
-  const text = () => `LedgerFlow recovery codes (each works once)\n\n${(codes || []).join('\n')}\n`;
+  const text = () => `${BRAND_NAME} recovery codes (each works once)\n\n${(codes || []).join('\n')}\n`;
   const download = () => {
     const url = URL.createObjectURL(new Blob([text()], { type: 'text/plain' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'ledgerflow-recovery-codes.txt';
+    a.download = `${BRAND.fileSlug}-recovery-codes.txt`;
     document.body.appendChild(a);
     a.click();
     a.remove();

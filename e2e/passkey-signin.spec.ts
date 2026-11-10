@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 
+import { BRAND_NAME } from '../src/config/brand';
 /**
  * A-269: a passkey in a real browser, with Chromium's own virtual authenticator.
  *
@@ -50,7 +51,7 @@ async function stubAuthServer(page: Page, options: { refuse?: boolean } = {}) {
       return json(200, {
         challenge_id: 'challenge-browser-1',
         options: {
-          rp: { id: 'localhost', name: 'LedgerFlow' },
+          rp: { id: 'localhost', name: `${BRAND_NAME}` },
           user: { id: b64url(Buffer.from(USER_ID)), name: 'passkey@example.test', displayName: 'Passkey Browser' },
           challenge: b64url(crypto.getRandomValues(new Uint8Array(32))),
           pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],

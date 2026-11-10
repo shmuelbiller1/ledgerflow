@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import fs from 'fs';
+import { BRAND } from './src/config/brand';
 
 export default defineConfig({
   // Dev-only: allow the sandbox live-preview host (Vite rejects unknown Host headers).
@@ -18,6 +19,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom']
   },
   plugins: [
+    // %BRAND_NAME%, %BRAND_TAGLINE%, %BRAND_DESCRIPTION%, %BRAND_DOMAIN% in index.html come from src/config/brand.ts
+    { name: 'brand-html', transformIndexHtml: (html: string) => html.replace(/%BRAND_NAME%/g, BRAND.name).replace(/%BRAND_TAGLINE%/g, BRAND.tagline).replace(/%BRAND_DESCRIPTION%/g, BRAND.description).replace(/%BRAND_DOMAIN%/g, BRAND.domain) },
     react(),
     tailwindcss(),
     VitePWA({
@@ -25,12 +28,12 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['robots.txt', 'apple-touch-icon.png', '**/*.svg'],
       manifest: {
-        id: 'com.ledgerflow.app',
+        id: BRAND.appId,
         start_url: '/#dashboard',
         scope: '/',
-        name: 'LedgerFlow',
-        short_name: 'LedgerFlow',
-        description: 'Professional cloud financial management and smart double-entry auditing.',
+        name: BRAND.name,
+        short_name: BRAND.name,
+        description: BRAND.tagline,
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',

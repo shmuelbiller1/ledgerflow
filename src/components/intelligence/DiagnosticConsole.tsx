@@ -8,6 +8,7 @@ import { DoubleEntryAuditor } from '../../services/auditor';
 import { cn, formatCurrency } from '../../lib/utils';
 import { isCashAccount, isPostable, calculateTransactionImpact } from '../../lib/txFilters';
 
+import { BRAND_NAME } from '../../config/brand';
 interface DiagnosticConsoleProps {
   isOpen: boolean;
   onClose: () => void;
@@ -174,7 +175,7 @@ export default function DiagnosticConsole({ isOpen, onClose }: DiagnosticConsole
       case 'status':
         newHistory.push(
           'System Status:',
-          '  Engine: LedgerFlow v2.4 (Material Core)',
+          `  Engine: ${BRAND_NAME} v2.4 (Material Core)`,
           `  Storage: ${accounts.length} active nodes`,
           `  Records: ${transactions.length} processed`,
           '  Region: us-east-1',
@@ -214,7 +215,7 @@ export default function DiagnosticConsole({ isOpen, onClose }: DiagnosticConsole
             <div className="bg-slate-800 px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <Terminal aria-hidden="true" size={16} className="text-indigo-400" />
-                <span className="text-[11px] font-medium text-slate-100 uppercase tracking-wider">System Terminal :: LedgerFlow</span>
+                <span className="text-[11px] font-medium text-slate-100 uppercase tracking-wider">System Terminal :: {BRAND_NAME}</span>
               </div>
               <button aria-label="Close" onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X aria-hidden="true" size={18} /></button>
             </div>

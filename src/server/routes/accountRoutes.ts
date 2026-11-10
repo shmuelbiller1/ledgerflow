@@ -20,6 +20,7 @@ import { practiceRows } from '../services/practiceService';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { isEmailShape } from '../../lib/textShape';
 
+import { BRAND_NAME, BRAND } from '../../config/brand';
 export const accountRouter = express.Router();
 
 accountRouter.get('/my-data', async (req, res) => {
@@ -27,7 +28,7 @@ accountRouter.get('/my-data', async (req, res) => {
   if (!user?.uid) return res.status(401).json({ error: 'Sign in required' });
   try {
     const data = await collectPersonalData(getDb(), { uid: user.uid, email: user.email });
-    res.setHeader('Content-Disposition', 'attachment; filename="ledgerflow-my-data.json"');
+    res.setHeader('Content-Disposition', `attachment; filename="${BRAND.fileSlug}-my-data.json"`);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Could not collect your data' });
@@ -162,7 +163,7 @@ accountRouter.post('/groups/:id/share', async (req, res) => {
   try {
     let withUid = '';
     try { withUid = (await authAdmin.getUserByEmail(email)).uid; } catch { /* answered below */ }
-    if (!withUid) return res.status(404).json({ status: 'error', message: 'No one signs in to LedgerFlow with that email yet: ask them to sign up first' });
+    if (!withUid) return res.status(404).json({ status: 'error', message: `No one signs in to ${BRAND_NAME} with that email yet: ask them to sign up first` });
     res.json({ status: 'success', group: await shareGroup(getDb(), { uid: user.uid, email: user.email, groupId: String(req.params.id), withUid, withEmail: email }) });
   } catch (err) { groupFail(res, err); }
 });

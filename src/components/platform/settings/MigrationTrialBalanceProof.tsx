@@ -4,6 +4,7 @@ import { formatCurrency } from '../../../lib/utils';
 import { compareTrialBalances, parseQuickBooksTrialBalance } from '../../../lib/migrationTrialBalanceProof';
 import type { SourceTrialBalance, ServerTrialBalanceSnapshot } from '../../../lib/migrationTrialBalanceProof';
 
+import { BRAND_NAME } from '../../../config/brand';
 type Proof = ReturnType<typeof compareTrialBalances>;
 
 export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: string }) {
@@ -73,7 +74,7 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
     <section className="ledger-card rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4" aria-labelledby="migration-proof-title">
       <div>
         <h2 id="migration-proof-title" className="text-lg font-bold text-[var(--text)]">QuickBooks migration balance review</h2>
-        <p className="text-sm text-[var(--muted)]">Upload a QuickBooks Trial Balance CSV with Account, Debit and Credit columns. Compare it with the saved LedgerFlow trial balance on the same date. This does not import or post anything.</p>
+        <p className="text-sm text-[var(--muted)]">Upload a QuickBooks Trial Balance CSV with Account, Debit and Credit columns. Compare it with the saved {BRAND_NAME} trial balance on the same date. This does not import or post anything.</p>
       </div>
       <p className="text-xs text-[var(--muted)]">Use the same company, currency, accounting basis and cutoff date in both systems. Account names must be unique and match exactly after whitespace/case normalization. Renamed accounts require manual review. Importing contact/account lists does not migrate opening balances.</p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -95,8 +96,8 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
             {proof.accountsMatch ? 'Trial balance figures match by account for this comparison.' : 'Trial balance differences require review.'}
           </p>
           <div className="overflow-x-auto"><table className="w-full text-sm tabular-nums">
-            <caption className="sr-only">QuickBooks versus LedgerFlow trial balance in cents</caption>
-            <thead><tr><th scope="col" className="text-left py-2">Measure</th><th scope="col" className="text-right py-2">QuickBooks</th><th scope="col" className="text-right py-2">LedgerFlow</th><th scope="col" className="text-right py-2">Difference</th></tr></thead>
+            <caption className="sr-only">QuickBooks versus {BRAND_NAME} trial balance in cents</caption>
+            <thead><tr><th scope="col" className="text-left py-2">Measure</th><th scope="col" className="text-right py-2">QuickBooks</th><th scope="col" className="text-right py-2">{BRAND_NAME}</th><th scope="col" className="text-right py-2">Difference</th></tr></thead>
             <tbody>
               <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Debits</th><td className="text-right">{amount(proof.sourceDebitCents)}</td><td className="text-right">{amount(proof.ledgerDebitCents)}</td><td className="text-right">{amount(proof.debitDifferenceCents)}</td></tr>
               <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Credits</th><td className="text-right">{amount(proof.sourceCreditCents)}</td><td className="text-right">{amount(proof.ledgerCreditCents)}</td><td className="text-right">{amount(proof.creditDifferenceCents)}</td></tr>

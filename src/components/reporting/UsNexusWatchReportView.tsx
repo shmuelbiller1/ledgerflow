@@ -8,6 +8,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import ReportTableScroll from './ReportTableScroll';
 
+import { BRAND_NAME } from '../../config/brand';
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -64,7 +65,7 @@ export function UsNexusWatchPanel({ watch, currency = 'USD', asOf, onAsOfChange,
       against the state&rsquo;s economic-nexus threshold, from the posted invoices less credit notes, for each selling entity on its own. A sale counts where it went (its own tax place or ship-to state, else the customer&rsquo;s). A state at 80% of a
       threshold is flagged before it is crossed. States measure differently (the previous or current year, the last
       four quarters, marketplace sales), so this is a watch, not a conclusion that you must register: ask your
-      accountant or the state. LedgerFlow has checked the tables of {US_NEXUS_SUPPORTED_STATES.join(', ')}; other
+      accountant or the state. {BRAND_NAME} has checked the tables of {US_NEXUS_SUPPORTED_STATES.join(', ')}; other
       states are shown &ldquo;not verified&rdquo;. Nothing here files, posts or registers anything.
     </p>
     <label className="flex flex-col gap-1 text-sm max-w-xs">As of

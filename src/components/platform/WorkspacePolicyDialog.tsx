@@ -9,6 +9,7 @@ import { cn } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
 
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
+import { BRAND_NAME } from '../../config/brand';
 export function WorkspacePolicyDialog({ model }: { model: SystemCommandCenterModel }) {
  const { overlay1DialogProps, overlay1TitleId, formId, editingWorkspace, setEditingWorkspace, savingWorkspace, activeFormTab, setActiveFormTab, formState, setFormState, handleSaveWorkspaceLimits } = model;
  return (<AnimatePresence>
@@ -330,7 +331,7 @@ export function WorkspacePolicyDialog({ model }: { model: SystemCommandCenterMod
                         <div className="p-4 bg-[var(--ink)] rounded-[32px] border border-[var(--line)]">
                           <h3 className="text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1.5">Monetization Deployment Strategy</h3>
                           <p className="text-[10px] text-[var(--muted)] leading-relaxed uppercase tracking-wide">
-                            LedgerFlow is fully structured to receive custom payment processors (e.g. Stripe Customer Portal). This admin system already manages and updates plans, quotas, and limits. By connecting a Stripe webhook, you will be able to process subscriptions and charge client cards directly, with this UI serving as your operational control tower.
+                            {BRAND_NAME} is fully structured to receive custom payment processors (e.g. Stripe Customer Portal). This admin system already manages and updates plans, quotas, and limits. By connecting a Stripe webhook, you will be able to process subscriptions and charge client cards directly, with this UI serving as your operational control tower.
                           </p>
                         </div>
                       </div>

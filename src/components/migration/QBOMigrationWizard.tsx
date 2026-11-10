@@ -11,6 +11,7 @@ import { fromDayNumber } from '../../lib/calendarDate';
 import { parseExcelToRows } from '../../lib/excelExport';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { QBOMigrationWizardView } from './QBOMigrationWizardView';
+import { BRAND_NAME } from '../../config/brand';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -533,7 +534,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           }
         }
 
-        toast.success(`Successfully migrated ${parsedRows.length} transactions into LedgerFlow!`);
+        toast.success(`Successfully migrated ${parsedRows.length} transactions into ${BRAND_NAME}!`);
         setIsProcessing(false);
         onClose();
       } catch (err) {

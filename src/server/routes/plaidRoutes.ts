@@ -10,6 +10,7 @@ import { notify } from "../services/notificationService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
 import { PLAID_SYNC_CONFLICT, claimPlaidSyncLease, releasePlaidSyncLease, updateBankIfLeaseHeld, plaidAccountFor, plaidRowsAsBankLines, storePlaidSync } from "../services/plaidIngest.ts";
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Bank feeds through Plaid. A connection (collection `banks`) belongs to one workspace: only its
  * owner/accountant/bookkeeper can connect or reconnect it, and a sync returns only that
@@ -68,7 +69,7 @@ plaidRouter.post("/create_link_token", ledgerWriters, async (req, res) => {
     }
     const response = await plaidClient.linkTokenCreate({
       user: { client_user_id: user.uid },
-      client_name: "LedgerFlow",
+      client_name: `${BRAND_NAME}`,
       country_codes: ["US"] as never[],
       language: "en",
       ...(accessToken ? { access_token: accessToken } : { products: ["transactions"] as never[] }),

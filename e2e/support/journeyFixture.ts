@@ -1,5 +1,6 @@
 import { expect, type Page, type Request } from '@playwright/test';
 
+import { BRAND_NAME } from '../../src/config/brand';
 /**
  * Shared harness for the W-journey browser tests (F-41…F-45, RELEASE_GATE W2, W3, W4, W6, W9).
  *
@@ -92,7 +93,7 @@ export async function mountJourney(page: Page, options: JourneyOptions): Promise
 
   await page.route('**/journey-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en" class="light"><head><title>LedgerFlow journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en" class="light"><head><title>${BRAND_NAME} journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/journey-fixture');
 

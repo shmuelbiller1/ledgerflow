@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mountJourney } from './support/journeyFixture';
 
+import { BRAND_NAME } from '../src/config/brand';
 /**
  * D-97 (G-02): plain-language evidence for the first-hour path. The reconciliation
  * screen, the chart template selector and the reconciliation wizard must name things
@@ -153,7 +154,7 @@ test('reconciliation wizard step two speaks plain language', async ({ page }, te
   await page.route('**/rest/v1/**', route => route.fulfill({ status: 200, json: [] }));
   await page.route('**/journey-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en" class="light"><head><title>LedgerFlow journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en" class="light"><head><title>${BRAND_NAME} journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/journey-fixture');
 

@@ -3,6 +3,7 @@ import { FileUp, CheckCircle2, Download, Activity, RefreshCw, Loader2, Sparkles 
 import { formatCurrency } from '../../lib/utils';
 import type { QBOMigrationWizardModel } from './QBOMigrationWizard';
 
+import { BRAND_NAME } from '../../config/brand';
 export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDialogProps, overlayTitleId, step, setStep, isProcessing, file, parsedRows, accountMappings, setAccountMappings, accounts, getRootProps, getInputProps, isDragActive, handleLoadSampleQBO, metrics, handleNext }: QBOMigrationWizardModel) {
   return (
     <div {...overlayDialogProps} className="fixed inset-0 z-[600] flex items-center justify-center p-4">
@@ -147,7 +148,7 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text)]">Chart of Accounts Mapping</h3>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
-                    Match accounts from your QuickBooks export to your LedgerFlow Chart of Accounts.
+                    Match accounts from your QuickBooks export to your {BRAND_NAME} Chart of Accounts.
                   </p>
                 </div>
 
@@ -159,7 +160,7 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                         <th scope="col" className="p-3 font-bold uppercase tracking-wider">QuickBooks Account</th>
                         <th scope="col" className="p-3 font-bold uppercase tracking-wider">Category Type</th>
                         <th scope="col" className="p-3 font-bold uppercase tracking-wider text-center">Tx Count</th>
-                        <th scope="col" className="p-3 font-bold uppercase tracking-wider">Target LedgerFlow Account</th>
+                        <th scope="col" className="p-3 font-bold uppercase tracking-wider">Target {BRAND_NAME} Account</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">

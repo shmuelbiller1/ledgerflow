@@ -34,6 +34,7 @@ import {
 import { cn } from '../../lib/utils';
 import { CustomTemplate } from '../../types';
 
+import { BRAND_NAME } from '../../config/brand';
 function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -430,7 +431,7 @@ export default function TemplateSelector({
                   <span className="text-[9px] font-black uppercase tracking-wider leading-none">Balanced books, enforced</span>
                 </div>
                 <p className="text-[9.5px] font-medium leading-relaxed text-emerald-700">
-                  Unlike spreadsheets, LedgerFlow only posts balanced double entries, so the books cannot drift out of balance.
+                  Unlike spreadsheets, {BRAND_NAME} only posts balanced double entries, so the books cannot drift out of balance.
                 </p>
               </div>
 

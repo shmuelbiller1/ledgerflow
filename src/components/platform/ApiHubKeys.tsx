@@ -9,6 +9,7 @@ import { Labelled } from '../ui/Labelled';
 import { AVAILABLE_SCOPES } from './ApiHubShared';
 import type { useApiHubModel } from './useApiHubModel';
 import { inBackground } from '../../lib/inBackground';
+import { BRAND_NAME } from '../../config/brand';
 export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { overlayDialogProps, overlayTitleId, formId, currentWorkspace, nowMs, apiKey, isRegenerating, isCopied, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, generateNewKey, revokeKey, copyKey } = model;
  return (<div className="space-y-6">
@@ -44,7 +45,7 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                    <h4 className="text-sm font-black uppercase text-emerald-800 tracking-wider">Secret Key Generated Successfully</h4>
                 </div>
                 <p className="text-xs text-emerald-700/80 mb-4 font-medium">
-                  <strong>Private Hashing Notice:</strong> Please copy this secret key now. For your security, LedgerFlow does NOT store this raw token string in the database. You will not be able to retrieve or see these characters again after you close this warning.
+                  <strong>Private Hashing Notice:</strong> Please copy this secret key now. For your security, {BRAND_NAME} does NOT store this raw token string in the database. You will not be able to retrieve or see these characters again after you close this warning.
                 </p>
 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
@@ -299,7 +300,7 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
 
                   {/* Private hashing notice */}
                   <div className="p-4 rounded-[32px] bg-[var(--ink)] border border-slate-150 text-[11px] text-[var(--muted)] leading-relaxed font-medium">
-                     🔓 <strong>Hashed Storage Guarantee:</strong> LedgerFlow stores credentials using a one-way salt-hashed SHA-256 match protocol. Nobody can ever decrypt or view the original secret sequence. Copy the key safely when displayed.
+                     🔓 <strong>Hashed Storage Guarantee:</strong> {BRAND_NAME} stores credentials using a one-way salt-hashed SHA-256 match protocol. Nobody can ever decrypt or view the original secret sequence. Copy the key safely when displayed.
                   </div>
                 </div>
 

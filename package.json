@@ -46,7 +46,8 @@
     "check:layers": "tsx --test src/tests/layers-guard.test.ts",
     "check:perf-budgets": "node -e \"const b=require('./perf/budgets.json'); if(!b.version) process.exit(1); console.log('Perf budgets valid:', Object.keys(b.budgets).length, 'entries')\"",
     "release:notes": "tsx scripts/release-notes.ts",
-    "test:flaky": "tsx scripts/flaky-tests.ts"
+    "test:flaky": "tsx scripts/flaky-tests.ts",
+    "brand:emails": "tsx scripts/build-email-templates.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",

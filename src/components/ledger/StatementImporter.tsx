@@ -37,6 +37,7 @@ import { parseUsBankCsv, type UsBankCsvFormat } from '../../lib/usBankCsv';
 import { readIsraeliBankCsv, type IsraeliBankDateOrder } from '../../lib/israeliBankCsv';
 import StatementFormatControls from './StatementFormatControls';
 
+import { BRAND_NAME } from '../../config/brand';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -515,7 +516,7 @@ export default function StatementImporter({
               >
                 <div className="p-6 bg-[var(--ink)] border border-[var(--line)] rounded-2xl text-[var(--text)]">
                   <h3 className="text-xl font-black mb-1 uppercase tracking-tight">Map file columns</h3>
-                  <p className="text-xs text-[var(--muted)] font-medium">Match each column in your file to the LedgerFlow field it contains.</p>
+                  <p className="text-xs text-[var(--muted)] font-medium">Match each column in your file to the {BRAND_NAME} field it contains.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -10,6 +10,7 @@ import { ledgerComplianceStats } from '../../lib/forensicChecks';
 import { toast } from 'sonner';
 import { useTimeout } from '../../hooks/useTimeout';
 
+import { BRAND_NAME } from '../../config/brand';
 const BENFORD_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: boolean }) {
@@ -82,7 +83,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `LedgerFlow_Forensic_Report_${getLocalDateISO()}.txt`;
+        link.download = `${BRAND_NAME}_Forensic_Report_${getLocalDateISO()}.txt`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

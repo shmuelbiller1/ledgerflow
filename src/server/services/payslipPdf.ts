@@ -3,6 +3,7 @@ import { drawLine } from './pdfText';
 import { fonts } from './pdfService';
 import { yearToDate, type PayRunEmployeeLine } from '../../lib/payRunPosting';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Payslips (U-01): one employee's pay for one posted pay run, as a PDF: gross pay, pre-tax
  * deductions, each kind of tax withheld, garnishments and after-tax deductions (U-05, U-06, each by
@@ -60,7 +61,7 @@ export function layoutPayslip(
       { label: 'Deductions', amount: m(total.deductionsCents) },
       { label: 'Net pay', amount: m(total.netCents) },
     ] : [],
-    note: 'Tax amounts are estimates worked out by LedgerFlow; check them against the tax tables before filing.',
+    note: `Tax amounts are estimates worked out by ${BRAND_NAME}; check them against the tax tables before filing.`,
   };
 }
 

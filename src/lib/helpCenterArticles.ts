@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../config/brand';
 export interface ScreenHelpDoc {
   slug: string;
   screenIds: readonly string[];
@@ -361,7 +362,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     keyTasksEn: [
       'Set a tax rate per jurisdiction in Settings → Tax profiles, with an effective date and an official source; rates are yours or your accountant\'s choice, not verified by the product.',
       'Check the Sales Tax Liability screen for tax collected, tax paid on purchases and the balance for the period before you file.',
-      'Use Reports → tax worksheets (Israel VAT month, US quarter, 1099 preview, filing calendars) as calculations to review; nothing is filed from LedgerFlow.',
+      `Use Reports → tax worksheets (Israel VAT month, US quarter, 1099 preview, filing calendars) as calculations to review; nothing is filed from ${BRAND_NAME}.`,
     ],
     keyTasksHe: [
       'הגדרת שיעור מס לכל תחולה בהגדרות → פרופילי מס, עם תאריך תחילה ומקור רשמי; השיעור הוא בחירה שלכם או של רואה החשבון ואינו מאומת על ידי המערכת.',
@@ -609,7 +610,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'ייצוא ואימות גיבוי JSON מלא לפני שינויים',
     summaryEn: 'Download a SHA-256 checksummed snapshot of accounts, entries, invoices, and settings.',
     summaryHe: 'הורדת קובץ גיבוי מלא החתום בחתימת SHA-256 של כל החשבונות, הפקודות והמסמכים.',
-    stepsEn: ['Go to Settings -> Backup & Export and click Export JSON Backup.', 'Keep the dated JSON archive before bulk imports or structural account edits.', 'When restoring, LedgerFlow verifies schema version and SHA-256 checksum before sending the snapshot.'],
+    stepsEn: ['Go to Settings -> Backup & Export and click Export JSON Backup.', 'Keep the dated JSON archive before bulk imports or structural account edits.', `When restoring, ${BRAND_NAME} verifies schema version and SHA-256 checksum before sending the snapshot.`],
     stepsHe: ['עברו להגדרות -> גיבוי וייצוא ולחצו על ייצוא גיבוי JSON.', 'שמרו את הקובץ המתוארך לפני ייבוא נתונים רחב או שינויי מבנה.', 'בעת שחזור המערכת מאמתת את מבנה הקובץ וחתימת SHA-256 לפני הביצוע.'],
   },
   {

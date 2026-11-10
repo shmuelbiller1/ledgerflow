@@ -13,6 +13,7 @@ import type { DocumentData } from "../db/firestore";
 import { exportWorkspaceBackup, restoreWorkspaceBackup, RestoreError } from "../services/workspaceRestoreService";
 import { authAdmin } from "../auth/supabaseAuth";
 import { NEW_WORKSPACE_MODULES } from '../../lib/modules';
+import { BRAND } from '../../config/brand';
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -167,7 +168,7 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
           ];
           csvContent += row.join(",") + "\n";
         });
-        res.setHeader("Content-Disposition", `attachment; filename="ledgerflow-transactions-${workspaceId}-${todayIso}.csv"`);
+        res.setHeader("Content-Disposition", `attachment; filename="${BRAND.fileSlug}-transactions-${workspaceId}-${todayIso}.csv"`);
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         return res.send(csvContent);
       }
@@ -175,7 +176,7 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
       // JSON backup: every collection the restore brings back (workspaceRestoreService.ts, L-07)
       const payload = await exportWorkspaceBackup(db, workspaceId, authReq.user?.uid || 'user');
 
-      res.setHeader("Content-Disposition", `attachment; filename="ledgerflow-backup-${workspaceId}-${todayIso}.json"`);
+      res.setHeader("Content-Disposition", `attachment; filename="${BRAND.fileSlug}-backup-${workspaceId}-${todayIso}.json"`);
       res.setHeader("Content-Type", "application/json");
       return res.send(JSON.stringify(payload, null, 2));
     } catch (err) {

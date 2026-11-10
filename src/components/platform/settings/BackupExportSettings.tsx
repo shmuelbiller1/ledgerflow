@@ -10,6 +10,7 @@ import WorkspaceExportDialog from './WorkspaceExportDialog';
 import WorkspaceArchiveExport from './WorkspaceArchiveExport';
 import IifListExport from './IifListExport';
 import { backupFromWorkspaceArchive } from '../../../lib/workspaceArchive';
+import { BRAND } from '../../../config/brand';
 
 export default function BackupExportSettings() {
   const [exportOpen, setExportOpen] = useState(false);
@@ -101,7 +102,7 @@ export default function BackupExportSettings() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `ledgerflow-backup-${workspaceId}-${getLocalDateISO()}.json`;
+      link.download = `${BRAND.fileSlug}-backup-${workspaceId}-${getLocalDateISO()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

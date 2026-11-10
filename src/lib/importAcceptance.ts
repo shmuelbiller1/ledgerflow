@@ -12,6 +12,7 @@ import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from './accountDefaults';
 import type { ChartAccount } from '../types';
 import { splitLeadingCode } from './textShape';
 
+import { BRAND_NAME } from '../config/brand';
 /** One line of the source trial balance: its balance as a debit (a credit balance is negative). */
 export interface SourceLine { row: number; account: string; code?: string; debitCents: number }
 
@@ -29,7 +30,7 @@ export interface AcceptanceLine {
   sourceCents: number | null;
   ledgerCents: number | null;
   differenceCents: number;
-  why?: 'balance differs' | 'not in LedgerFlow' | 'not in the source';
+  why?: 'balance differs' | `not in ${string}` | 'not in the source';
 }
 
 export interface Acceptance {
@@ -118,7 +119,7 @@ export function compareImport(source: SourceTrialBalance, accounts: ChartAccount
     differences.push({ accountId: a.id, label, sourceCents: src, ledgerCents: own, differenceCents: own - src, why: 'balance differs' });
   }
   for (const l of unmatched) {
-    differences.push({ label: `${l.code ? `${l.code} ` : ''}${l.account} (row ${l.row})`, sourceCents: l.debitCents, ledgerCents: null, differenceCents: -l.debitCents, why: 'not in LedgerFlow' });
+    differences.push({ label: `${l.code ? `${l.code} ` : ''}${l.account} (row ${l.row})`, sourceCents: l.debitCents, ledgerCents: null, differenceCents: -l.debitCents, why: `not in ${BRAND_NAME}` });
   }
 
   const tax = accountInUse(DEFAULT_ACCOUNT_SLOTS.find(s => s.key === 'tax payable')!, accounts, mappings).account;

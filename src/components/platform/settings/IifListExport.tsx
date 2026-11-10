@@ -16,6 +16,7 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { verifiedBackupCollections } from '../../../lib/workspaceArchive';
 import { buildIifExport } from '../../../lib/iifExport';
 import type { ChartAccount, Customer, InventoryItem, Vendor } from '../../../types';
+import { BRAND } from '../../../config/brand';
 
 export default function IifListExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -77,7 +78,7 @@ function IifListExportBody() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'ledgerflow-lists-' + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.iif';
+      link.download = `${BRAND.fileSlug}-lists-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.iif';
       document.body.appendChild(link);
       link.click();
       link.remove();

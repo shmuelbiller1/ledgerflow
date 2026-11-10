@@ -11,10 +11,11 @@ import type { Server } from 'node:http';
 import { LedgerFlowClient, LedgerFlowError, type LedgerEntry } from '../../sdk/ledgerflowClient';
 import type { Firestore } from '../server/db/pgFirestore';
 
+import { BRAND_NAME } from '../config/brand';
 const url = process.env.LF_TEST_DATABASE_URL;
 const reply = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
-test('a 429 is waited out (Retry-After) and retried; a refusal becomes a LedgerFlowError', async () => {
+test(`a 429 is waited out (Retry-After) and retried; a refusal becomes a ${BRAND_NAME}Error`, async () => {
   const waits: number[] = [];
   const answers = [reply(429, { message: 'slow down' }, { 'retry-after': '2' }), reply(200, { transactions: [{ id: 't1', date: '2026-10-01', lines: [] }], nextCursor: null })];
   const sent: Array<Record<string, string>> = [];

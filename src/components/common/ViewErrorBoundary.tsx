@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { reportClientError } from '../../lib/errorTracker';
 import { isChunkLoadFailure, reloadOnceForNewVersion } from '../../lib/chunkReload';
 
+import { BRAND_NAME } from '../../config/brand';
 interface Props {
   children: ReactNode;
   viewName?: string;
@@ -48,7 +49,7 @@ export class ViewErrorBoundary extends Component<Props, State> {
       if (isChunkLoadFailure(this.state.error)) {
         return (
           <div role="status" className="p-8 max-w-xl mx-auto my-12 text-center space-y-4">
-            <p className="text-sm text-[var(--text)]">A new version of LedgerFlow is available. Updating…</p>
+            <p className="text-sm text-[var(--text)]">A new version of {BRAND_NAME} is available. Updating…</p>
             <button type="button" className="btn-primary min-h-11 px-4" onClick={() => window.location.reload()}>Reload now</button>
           </div>
         );

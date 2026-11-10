@@ -23,6 +23,7 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { getSupabase } from '../lib/db/client';
 import type { DimensionDefinition, Transaction } from '../types';
 
+import { BRAND_NAME } from '../config/brand';
 const dims = (requiredOn?: DimensionDefinition['requiredOn']): DimensionDefinition[] => [
   { id: 'category', name: 'Category', systemDefault: true },
   { id: 'property', name: 'Property', ...(requiredOn ? { requiredOn } : {}) },
@@ -46,7 +47,7 @@ describe('The rule', () => {
     assert.equal(refusedLabels(entry({ status: 'draft' }), refusing).length, 0, 'a draft');
   });
 
-  test('entries LedgerFlow makes itself and reversals are never refused; bills, invoices and journal entries are', () => {
+  test(`entries ${BRAND_NAME} makes itself and reversals are never refused; bills, invoices and journal entries are`, () => {
     for (const type of ['invoice-cogs-auto', 'credit-return-auto', 'fx-revaluation', 'revenue-recognition', 'depreciation-run', 'invoice-payment']) {
       assert.equal(typedByPerson({ metadata: { type } }), false, type);
       assert.equal(refusedLabels(entry({ metadata: { type } } as Partial<Transaction>), refusing).length, 0, type);
@@ -126,7 +127,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     assert.equal(await exists('j2'), true);
   });
 
-  test('entries LedgerFlow makes and entries made with imported bank lines are saved, and listed', async () => {
+  test(`entries ${BRAND_NAME} makes and entries made with imported bank lines are saved, and listed`, async () => {
     const auto = await call('/bulk', 'POST', { workspaceId: ws, transactions: [journal('auto', false, { type: 'revenue-recognition' })] });
     assert.equal(auto.status, 200, JSON.stringify(auto.body));
     const line = { id: `${ws}_bl1`, status: 'matched', accountId: `${ws}_bank`, date: '2026-10-05', description: 'ELECTRIC CO', amountCents: -12000, matchedTransactionId: `${ws}_fromBank` };

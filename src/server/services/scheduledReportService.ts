@@ -12,6 +12,7 @@ import type { ChartAccount, Customer, Invoice, Transaction } from '../../types';
 import { isMailConfigured, sendMail } from './mailer';
 import { logger } from '../utils/logger';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Scheduled reports (K-28): the daily job emails each schedule's last finished week or month once;
  * "Send now" sends it straight away.
@@ -45,7 +46,7 @@ export async function reportEmail(db: Firestore, workspace: { id: string; name?:
   const html = reportEmailHtml(parts.map(p => p.table), { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, workspace.moneyDisplay) });
   const title = parts.length > 1 ? `Report pack ${period.startDate} – ${period.endDate}` : parts[0].table.title;
   const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table)}`, 'utf8'), contentType: 'text/csv' }));
-  return { subject: `${title} · ${workspace.name || 'LedgerFlow'}`, html, attachments };
+  return { subject: `${title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments };
 }
 
 export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod): Promise<ReportTable> {

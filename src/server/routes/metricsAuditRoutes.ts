@@ -11,6 +11,7 @@ import { calculateAmountDue } from "../../lib/documentMath";
 import { toBaseCents } from "../reports/partyReports";
 import { getDb } from "../db/firestore";
 
+import { BRAND_NAME } from '../../config/brand';
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerContext): void {
   app.get("/api/v1/metrics", apiAuthenticate, async (req: express.Request, res: express.Response) => {
@@ -398,7 +399,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
       // Markdown Strategic narrative
       const markdownReport = `### EXECUTIVE STRATEGIC DECISION AUDIT SUMMARY
-Report generated chronologically for workspace **${wsData.name || 'LedgerFlow Register'}** on **${formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone)}** via LedgerFlow Deep API.
+Report generated chronologically for workspace **${wsData.name || `${BRAND_NAME} Register`}** on **${formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone)}** via ${BRAND_NAME} Deep API.
 
 #### 1. VELOCITY RECEIVABLES ANALYSIS (DSO & WACC DRAG)
 * Outstanding accounts receivable function effectively as 0% interest lines of credit to clients.

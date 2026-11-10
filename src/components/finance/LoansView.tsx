@@ -44,6 +44,7 @@ import {
 import type { Loan, LoanDraft } from '../../lib/loans';
 import type { ChartAccount, Transaction } from '../../types';
 
+import { BRAND_NAME } from '../../config/brand';
 const inputClass = 'w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
 const accountLabel = (a: ChartAccount) => (a.code ? `${a.code} · ${a.name}` : a.name);
@@ -320,7 +321,7 @@ export default function LoansView() {
                   {!liabilityAccounts.length && 'This workspace has no liability account. '}
                   {!interestAccounts.length && 'It has no expense account for the interest. '}
                   {!bankAccounts.length && 'It has no bank or cash account. '}
-                  Add one in the chart of accounts — LedgerFlow does not invent accounts.
+                  Add one in the chart of accounts — {BRAND_NAME} does not invent accounts.
                 </span>
               </p>
             )}

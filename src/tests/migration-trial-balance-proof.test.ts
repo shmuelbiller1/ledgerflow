@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compareTrialBalances, parseQuickBooksTrialBalance } from '../lib/migrationTrialBalanceProof';
 
+import { BRAND_NAME } from '../config/brand';
 const fixture = 'Account,Debit,Credit\nCash,100.00,\nRevenue,,100.00\nTOTAL,100.00,100.00';
 const server = {
   accounts: [
@@ -39,7 +40,7 @@ test('E-57: detects an amount mismatch even where both trials balance', () => {
   assert.equal(result.creditDifferenceCents, -100);
 });
 
-test('E-57: does not match duplicate LedgerFlow names as if mapped uniquely', () => {
+test(`E-57: does not match duplicate ${BRAND_NAME} names as if mapped uniquely`, () => {
   const result = compareTrialBalances(parseQuickBooksTrialBalance(fixture), {
     accounts: [{ id: 'a', name: 'Cash', debit: 5000, credit: 0 }, { id: 'b', name: 'Cash', debit: 5000, credit: 0 },
       { id: 'c', name: 'Revenue', debit: 0, credit: 10000 }],

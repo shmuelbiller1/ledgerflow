@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { X, ShieldCheck, FileText, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import { BRAND_NAME } from '../../config/brand';
 interface LegalModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,7 +35,7 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'terms' }: Le
                 <h2 id={overlayTitleId} className="text-lg font-bold text-slate-900">
                   {activeTab === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
                 </h2>
-                <p className="text-xs text-[var(--muted)] font-medium">LedgerFlow Platform Compliance & Legal Agreement</p>
+                <p className="text-xs text-[var(--muted)] font-medium">{BRAND_NAME} Platform Compliance & Legal Agreement</p>
               </div>
             </div>
             <button
@@ -79,21 +80,21 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'terms' }: Le
                 <section>
                   <h3 className="text-base font-bold text-slate-900 mb-2">1. Acceptance of Terms</h3>
                   <p>
-                    By accessing or using LedgerFlow ("Platform"), provided by LedgerFlow Systems, you agree to be bound by these Terms of Service. If you are entering into this agreement on behalf of a company or other legal entity, you represent that you have authority to bind such entity to these terms.
+                    By accessing or using {BRAND_NAME} ("Platform"), provided by {BRAND_NAME} Systems, you agree to be bound by these Terms of Service. If you are entering into this agreement on behalf of a company or other legal entity, you represent that you have authority to bind such entity to these terms.
                   </p>
                 </section>
 
                 <section>
                   <h3 className="text-base font-bold text-slate-900 mb-2">2. Description of Service</h3>
                   <p>
-                    LedgerFlow provides cloud-based enterprise resource planning, financial accounting, general ledger, and double-entry transaction management software. LedgerFlow is designed as an analytical tool and does not constitute certified legal, tax, or official CPA audit advice.
+                    {BRAND_NAME} provides cloud-based enterprise resource planning, financial accounting, general ledger, and double-entry transaction management software. {BRAND_NAME} is designed as an analytical tool and does not constitute certified legal, tax, or official CPA audit advice.
                   </p>
                 </section>
 
                 <section>
                   <h3 className="text-base font-bold text-slate-900 mb-2">3. User Data & Workspace Ownership</h3>
                   <p>
-                    You retain full ownership of all transaction data, chart of accounts, bank imports, and financial records uploaded to your workspace. LedgerFlow grants you a non-exclusive, non-transferable license to access and manage your workspace in accordance with your subscription tier.
+                    You retain full ownership of all transaction data, chart of accounts, bank imports, and financial records uploaded to your workspace. {BRAND_NAME} grants you a non-exclusive, non-transferable license to access and manage your workspace in accordance with your subscription tier.
                   </p>
                 </section>
 
@@ -107,7 +108,7 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'terms' }: Le
                 <section>
                   <h3 className="text-base font-bold text-slate-900 mb-2">5. Limitation of Liability</h3>
                   <p>
-                    To the maximum extent permitted by applicable law, LedgerFlow shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from loss of data, income, or business interruption.
+                    To the maximum extent permitted by applicable law, {BRAND_NAME} shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from loss of data, income, or business interruption.
                   </p>
                 </section>
               </>

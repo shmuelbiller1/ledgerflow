@@ -11,6 +11,7 @@ import { NAV_GROUPS, APP_TABS } from '../../config/registry';
 import BookmarksGroup from './BookmarksGroup';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 
+import { BRAND_NAME } from '../../config/brand';
 interface SidebarProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
@@ -142,7 +143,7 @@ const Sidebar = React.memo(({
           <WorkspaceSwitcher onSelect={onSelectWorkspace} onNewWorkspace={onNewWorkspace} />
         ) : (
           <div className="flex items-center justify-center w-full">
-            <div className="w-8 h-8 rounded-lg bg-[var(--brass-soft)] border border-[var(--brass-line)] flex items-center justify-center text-[var(--brass)] shrink-0 shadow-sm" title={workspaces.find(w => w.id === currentWorkspaceId)?.name || 'LedgerFlow'}>
+            <div className="w-8 h-8 rounded-lg bg-[var(--brass-soft)] border border-[var(--brass-line)] flex items-center justify-center text-[var(--brass)] shrink-0 shadow-sm" title={workspaces.find(w => w.id === currentWorkspaceId)?.name || `${BRAND_NAME}`}>
               <Compass aria-hidden="true" size={18} className="animate-spin-slow" />
             </div>
           </div>

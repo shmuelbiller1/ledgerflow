@@ -8,6 +8,7 @@ import { addToDateISO } from './calendarDate';
 import { csvMoney, toCsv } from './csvExport';
 import { isEmailShape } from './textShape';
 
+import { BRAND_NAME } from '../config/brand';
 export const SCHEDULED_REPORTS = {
   'profit-and-loss': 'Profit and loss',
   'balance-sheet': 'Balance sheet',
@@ -133,7 +134,7 @@ const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
 /** The email: a plain table (amounts in the workspace currency) and where it came from. */
 export function reportEmailHtml(table: ReportTable | ReportTable[], meta: { workspaceName: string; currency: string; format: (cents: number) => string }): string {
   const tables = Array.isArray(table) ? table : [table];
-  const footer = `<p style="font-family:sans-serif;color:#888;font-size:12px">Sent by LedgerFlow on a schedule set in Settings → Scheduled reports. The same figures are attached as ${tables.length > 1 ? 'spreadsheets (CSV), one per report' : 'a spreadsheet (CSV)'}.</p>`;
+  const footer = `<p style="font-family:sans-serif;color:#888;font-size:12px">Sent by ${BRAND_NAME} on a schedule set in Settings → Scheduled reports. The same figures are attached as ${tables.length > 1 ? 'spreadsheets (CSV), one per report' : 'a spreadsheet (CSV)'}.</p>`;
   return tables.map(t => reportSection(t, meta)).join('<hr style="border:none;border-top:1px solid #ddd;margin:24px 0">') + footer;
 }
 

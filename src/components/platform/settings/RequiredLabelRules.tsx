@@ -17,6 +17,7 @@ import { withRequiredOn, type RequiredOn } from '../../../lib/requiredLabels';
 import { getLocalDateISO } from '../../../lib/utils';
 import type { DimensionDefinition } from '../../../types';
 
+import { BRAND_NAME } from '../../../config/brand';
 export function RequiredLabelRules({ dimensions, onSaved }: { dimensions: DimensionDefinition[]; onSaved: (saved: DimensionDefinition[]) => void }) {
   const role = useCurrentRole();
   const canChange = role === 'owner' || role === 'accountant';
@@ -51,7 +52,7 @@ export function RequiredLabelRules({ dimensions, onSaved }: { dimensions: Dimens
     <section aria-labelledby="required-labels-title" className="p-6 bg-[var(--surface)] border border-[var(--line)] rounded-[32px] space-y-3">
       <h3 id="required-labels-title" className="text-sm font-bold text-[var(--text)]">Required labels</h3>
       <p className="text-xs text-[var(--muted)]">
-        Choose the accounts whose entries must carry a label, e.g. Property on Utilities. Entries from the date chosen on that are missing it are listed in Data Health, and the forms warn before saving. Choose "Refuse" to stop such entries being saved at all (entries LedgerFlow makes itself, such as cost of goods sold, are only listed). Nothing is required until you add an account.
+        Choose the accounts whose entries must carry a label, e.g. Property on Utilities. Entries from the date chosen on that are missing it are listed in Data Health, and the forms warn before saving. Choose "Refuse" to stop such entries being saved at all (entries {BRAND_NAME} makes itself, such as cost of goods sold, are only listed). Nothing is required until you add an account.
       </p>
       {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
       <ul className="space-y-3">

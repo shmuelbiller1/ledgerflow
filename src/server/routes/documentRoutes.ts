@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { documentPostRouter } from './documentPostRoutes';
 import { trimEndChar } from '../../lib/textShape';
 
+import { BRAND_NAME } from '../../config/brand';
 export const documentRouter = express.Router();
 // L-94 step 2: POST /:type/:id/post saves an invoice or bill and builds its entries on the server
 documentRouter.use(documentPostRouter);
@@ -93,7 +94,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
     const db = dbOverride || getDb();
     await validateWorkspaceMember(db, body.workspaceId, user);
     const wsSnap = await db.collection('workspaces').doc(body.workspaceId).get();
-    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: 'LedgerFlow Workspace' };
+    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
     const files: Array<{ name: string; data: Buffer }> = [];
     const used = new Set<string>();
     for (const id of [...new Set(body.ids)]) {
@@ -139,7 +140,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
 
     // Fetch workspace
     const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
-    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: 'LedgerFlow Workspace' };
+    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
 
     let docData: PdfDocument | null = null;
     let paymentUrl: string | undefined;

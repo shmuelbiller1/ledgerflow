@@ -82,6 +82,7 @@ const parseBundleParts = (raw: FormDataEntryValue | null): BundlePart[] | undefi
 };
 import { deleteWithUndo, isDeletePending } from '../../lib/undoableDelete';
 
+import { BRAND_NAME } from '../../config/brand';
 export default function Inventory() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const uid = useAuthStore(s => s.user?.uid);
@@ -343,7 +344,7 @@ export default function Inventory() {
              )}
            >
              <BarChart3 aria-hidden="true" size={18} />
-             {showRuleIntel ? "LedgerFlow AI Active" : "Rule Intel"}
+             {showRuleIntel ? `${BRAND_NAME} AI Active` : "Rule Intel"}
            </button>
 
            <div className="h-12 w-px bg-slate-200 opacity-20 hidden xl:block" />

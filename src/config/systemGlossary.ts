@@ -1,3 +1,4 @@
+import { BRAND } from './brand';
 /**
  * Shared localized system glossary used by initial auth/loading screens and lexicon hooks.
  * Kept in its own leaf module so initial bootstrap screens do not pull in the full lazy
@@ -12,7 +13,7 @@ export const SYSTEM_GLOSSARY: Record<string, Record<string, string>> = {
   'dashboard.onboarding.step2.desc': { en: 'Connect or create asset accounts to track cash flow.', he: 'התחבר או צור חשבונות נכסים.' },
   'dashboard.onboarding.step3.title': { en: 'Create First Invoice', he: 'צור חשבונית ראשונה' },
   'dashboard.onboarding.step3.desc': { en: 'Get paid by your customers and record sales.', he: 'קבל תשלום מהלקוחות שלך ורשום מכירות.' },
-  appName: { en: 'LedgerFlow', he: 'לדג׳רפלואו' },
+  appName: { en: BRAND.name, he: BRAND.nameHe },
   overview: { en: 'Overview', he: 'סקירה' },
   transactions: { en: 'Transactions', he: 'תנועות' },
   generalLedger: { en: 'General Ledger', he: 'ספר ראשי' },
