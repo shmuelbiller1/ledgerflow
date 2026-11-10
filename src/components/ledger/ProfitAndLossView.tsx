@@ -81,7 +81,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     return scoped;
   }, [allTransactions, labelFilter]);
   const accounts = useLedgerStore(s => s.accounts);
-  useLedgerCollections('budgets'); // R-2: "compare to budget"
+  const { loading: budgetsLoading } = useLedgerCollections('budgets'); // R-2: "compare to budget"
+  const budgetHealth = useScreenDataHealth(['budgets']);
+  const budgetsTruncated = useLedgerStore(s => Boolean(s.truncatedCollections?.budgets));
   const budgets = useLedgerStore(s => s.budgets);
   const [compareTo, setCompareTo] = useState<'previous' | 'budget'>('previous');
   const [dateRange, setDateRange] = usePageSyncedState(
@@ -540,6 +542,8 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         </p>
       )}
       {/* R-4: the note for the dates on screen */}<ReportNote key={`pnl|${dateRange.start}|${dateRange.end}`} report="pnl" startDate={dateRange.start} endDate={dateRange.end} />
+      {vsBudget && (budgetsLoading || budgetHealth.failedKeys.length > 0 || budgetsTruncated) && <p role="status" className="text-sm text-amber-700 dark:text-amber-300">{budgetsLoading ? 'Budgets are still loading: the budget column may be incomplete.' : budgetHealth.failedKeys.length > 0 ? 'The budgets could not be loaded: the budget column may be incomplete. Try again from the notice above.' : 'Only the first budgets loaded: the budget column may be incomplete.'}</p>}
+      {vsBudget && labelFilter && <p role="status" className="text-sm text-amber-700 dark:text-amber-300">The actual figures follow the label filter; budgets are set per account, so the budget column is for the whole account.</p>}
       {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
         startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}

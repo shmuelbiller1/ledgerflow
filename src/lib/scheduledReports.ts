@@ -37,7 +37,7 @@ export const MAX_RECIPIENTS = 10;
 
 /** What is wrong with a schedule, or null. */
 export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
-  if (!s.report || !(s.report in SCHEDULED_REPORTS)) return 'Choose a report';
+  if (!s.report || !Object.hasOwn(SCHEDULED_REPORTS, s.report)) return 'Choose a report';
   if (s.frequency !== 'weekly' && s.frequency !== 'monthly') return 'Choose weekly or monthly';
   const recipients = s.recipients || [];
   if (!recipients.length) return 'Add at least one email address';

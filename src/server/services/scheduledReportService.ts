@@ -161,7 +161,7 @@ export async function sendScheduleNow(db: Firestore, input: { workspaceId: strin
 
 /** R-3: what a schedule would send for its last finished period, without sending it (a preview before saving). */
 export async function previewSchedule(db: Firestore, input: { workspaceId: string; report: unknown; frequency: unknown; now?: Date }) {
-  if (typeof input.report !== 'string' || !(input.report in SCHEDULED_REPORTS)) throw new ScheduledReportError(400, 'Choose a report');
+  if (typeof input.report !== 'string' || !Object.hasOwn(SCHEDULED_REPORTS, input.report)) throw new ScheduledReportError(400, 'Choose a report');
   if (input.frequency !== 'weekly' && input.frequency !== 'monthly') throw new ScheduledReportError(400, 'Choose weekly or monthly');
   const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!ws) throw new ScheduledReportError(404, 'Workspace not found');
