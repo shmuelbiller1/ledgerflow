@@ -25,7 +25,8 @@ Written so another agent can continue without this Arena session.
    (which sets `SYSTEM_SALT`), not the bare `tsx` line.
 2. **DB-gated suites** — 203 skipped, no Postgres in the sandbox. The F-03 live demonstration and
    S-32's `lf_rules` assertions need a real database.
-3. **Browser suites, build** — not run.
+3. **Browser suites** — not run (no Playwright browsers). **`npm run build` — RUN, PASSES**:
+   4,885 modules, 87 precache entries, `build/server.cjs` 6.8 MB + `build/api.cjs` 6.7 MB, exit 0.
 4. **#517 / #519** (the other two members of the US-sales-tax family) not reproduced; F-01 covers
    #518's mechanism concretely.
 5. **F-02 fix** — the registration-level route matrix is written as a *probe*; promoting it into
@@ -35,6 +36,19 @@ Written so another agent can continue without this Arena session.
 6. **F-09 / F-10 fixes** — both are shaped in `02-findings.md`; neither is implemented (audit lane only).
 7. **Not swept**: the ~40 remaining workflows in `docs/DEEP_CODE_AUDIT.md` (AUD-05…AUD-20) were read
    for scope but only AUD-01, AUD-07, AUD-08, AUD-09 and the AF/EG families were re-verified here.
+
+## The gates, in one line each (details in `03-gates.md`)
+
+| gate | result |
+|---|---|
+| `tsc --noEmit` | 0 errors, 2,513 files |
+| repo ESLint | 0 errors, 42 standing `no-explicit-any` warnings |
+| unit suite, all 4 shards | **8,026 tests · 8,007 pass · 10 failing subtests, all environmental · 0 product failures** |
+| `npm run build` | **passes** (4,885 modules, 26.4 s, `server.cjs` + `api.cjs`) |
+| probes | **20/20** (6 files) |
+| targeted tax/close/reconcile suites | 120 assertions, 0 fail |
+| DB/RLS suites | **NOT RUN** — no Postgres (203 skipped) |
+| Playwright | **NOT RUN** — no browsers |
 
 ## The one-paragraph summary for Shmuel
 Two **P1 tax-reporting defects** are live at `main`: the US state sales-tax return silently drops
