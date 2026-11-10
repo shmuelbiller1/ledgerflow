@@ -1846,5 +1846,5 @@ Method for every item: open the screen in a browser at 1280 and 1440 px (and 390
 - [x] UX-5 Dashboard: the empty "First-hour bookkeeping guide" box, spacing, date range in the header row — done (#594, 9 Nov)
 - [x] UX-6 Settings: survey and tidy — plan cards fixed in #582; 25 sub-pages checked at 1280/390, nothing clipped (9 Nov)
 - [x] UX-7 Top of every page: backup reminder and demo banner in one slim line; tab bar spacing — done (#596, 9 Nov)
-- [ ] UX-8 One shared page-header component used by every main screen
-- [ ] UX-9 Phone (390 px) pass over the same screens
+- [x] UX-8 One shared page-header component used by every main screen — `PageHeader` on Dashboard, Sales, Purchases, Purchase orders (#597, 10 Nov)
+- [x] UX-9 Phone (390 px) pass over the same screens — clipping check over 10 main screens at 1280/390 clean (#598, 10 Nov)
