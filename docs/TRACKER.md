@@ -1658,7 +1658,7 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 
 ## Issues and connections (18 Oct)
 
-- [~] ISS-130 *(→ AI #9 from 20 Oct; PR open, ai9/ISS-130)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
+- [x] ISS-130 *(AI #9, merged #259; DB change applied by the owner 21 Oct; issue closed 10 Nov)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
 *Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 - [~] CON-2 *(→ AI #9 from 20 Oct; PR open, ai9/CON-2)* US nexus watch (138) on a screen from posted invoices, for the supported states.
