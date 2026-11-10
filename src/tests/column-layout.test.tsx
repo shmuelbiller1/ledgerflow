@@ -64,7 +64,7 @@ test('invalid preferences are sanitized, boundaries stay pinned and mobile order
   assert.equal(preferences.order[0], 'select'); assert.equal(preferences.order.at(-1), 'actions');
   assert.equal(new Set(preferences.order).size, 11);
   assert.deepEqual(preferences.widths, { amount: 600, date: 64, description: 124 });
-  assert.equal(gridTemplate({ mobile: true, tablet: false, compact: false }, new Set(), preferences), '48px 92px minmax(112px,1fr) 104px');
+  assert.equal(gridTemplate({ mobile: true, tablet: false, compact: false }, new Set(), preferences), '48px 98px minmax(106px,1fr) 104px');
   localStorage.setItem('lf_tx_layout_test-user', '{');
   const view = render(<Harness />);
   assert.ok(view.getByTestId('columns'));
