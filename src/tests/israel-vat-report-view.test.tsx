@@ -52,6 +52,29 @@ const mockWorkspace: Workspace = {
   },
 };
 
+/** One worked September return, shared by the two CSV download tests (no duplicated fixture). */
+const csvReport: IlVatReturn = {
+  registration: TA_REG,
+  startDate: '2026-09-01', endDate: '2026-09-30',
+  taxableSalesCents: 900_000, outputVatCents: 162_000,
+  zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
+  fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
+  toPayCents: 100_800, documentCount: 5,
+};
+
+/** Panel inputs for that return; `currency` is passed only when a test checks the CSV header. */
+const csvPanelProps = (currency?: string) => ({
+  report: csvReport,
+  registrations: [] as Array<{ registration: string; number: string; from: string; filing?: string }>,
+  activeReg: TA_REG,
+  onRegistrationChange: () => {},
+  startDate: csvReport.startDate,
+  onStartDateChange: () => {},
+  endDate: csvReport.endDate,
+  onEndDateChange: () => {},
+  ...(currency ? { currency } : {}),
+});
+
 const accounts = [
   makeChartAccount({ id: 'acc-machinery', code: '1500', name: 'Machinery & Equipment', type: 'asset', category: 'Fixed Assets' }),
   makeChartAccount({ id: 'acc-supplies', code: '6000', name: 'Office Supplies', type: 'expense', category: 'Operating' }),
@@ -298,19 +321,8 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
   });
 
   test('exports only a complete, loaded report with a CSV filename', async () => {
-    const report: IlVatReturn = {
-      registration: TA_REG,
-      startDate: '2026-09-01', endDate: '2026-09-30',
-      taxableSalesCents: 900_000, outputVatCents: 162_000,
-      zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
-      fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
-      toPayCents: 100_800, documentCount: 5,
-    };
-    const props = {
-      report, registrations: [], activeReg: TA_REG, onRegistrationChange: () => {},
-      startDate: report.startDate, onStartDateChange: () => {},
-      endDate: report.endDate, onEndDateChange: () => {},
-    };
+    const report = csvReport;
+    const props = csvPanelProps();
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
@@ -355,21 +367,7 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
   });
 
   test('produces correct CSV export rows', () => {
-    const sampleReturn: IlVatReturn = {
-      registration: 'vat:IL:514000001',
-      startDate: '2026-09-01',
-      endDate: '2026-09-30',
-      taxableSalesCents: 900_000,
-      outputVatCents: 162_000,
-      zeroRatedSalesCents: 500_000,
-      exemptSalesCents: 0,
-      fixedAssetInputVatCents: 16_200,
-      otherInputVatCents: 45_000,
-      toPayCents: 100_800,
-      documentCount: 5,
-    };
-
-    const rows = ilVatReportCsvRows(sampleReturn);
+    const rows = ilVatReportCsvRows(csvReport);
     assert.equal(IL_VAT_REPORT_CSV_HEADERS.length, 4);
     assert.deepEqual(rows[0], ['Header', 'VAT Registration', 'מספר עוסק מורשה', '514000001']);
     assert.deepEqual(rows[4], ['Box 1', 'Taxable sales (excluding VAT)', 'עסקאות חייבות במס (ללא מע״מ)', '9000.00']);
@@ -379,7 +377,7 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
 
     // CodeRabbit on #570: the negative (reclaim) branch needs its own CSV assertion.
     const refundReturn: IlVatReturn = {
-      ...sampleReturn,
+      ...csvReport,
       taxableSalesCents: 100_000, outputVatCents: 18_000,
       fixedAssetInputVatCents: 50_000, otherInputVatCents: 20_000,
       toPayCents: -52_000, documentCount: 3,
@@ -389,24 +387,11 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
     // The shared csvMoney formatter keeps exact integer cents where division by 100 does not.
     const largeCents = 9_007_199_254_730_993;
     assert.equal(csvMoney(largeCents), '90071992547309.93');
-    assert.equal(ilVatReportCsvRows({ ...sampleReturn, taxableSalesCents: largeCents })[4][3], csvMoney(largeCents));
+    assert.equal(ilVatReportCsvRows({ ...csvReport, taxableSalesCents: largeCents })[4][3], csvMoney(largeCents));
   });
 
   test('CSV amount column names the workspace currency, not NIS', async () => {
-    const report: IlVatReturn = {
-      registration: TA_REG,
-      startDate: '2026-09-01', endDate: '2026-09-30',
-      taxableSalesCents: 900_000, outputVatCents: 162_000,
-      zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
-      fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
-      toPayCents: 100_800, documentCount: 5,
-    };
-    const props = {
-      report, registrations: [], activeReg: TA_REG, onRegistrationChange: () => {},
-      startDate: report.startDate, onStartDateChange: () => {},
-      endDate: report.endDate, onEndDateChange: () => {},
-      currency: 'USD',
-    };
+    const props = csvPanelProps('USD');
     assert.deepEqual(ilVatReportCsvHeaders('USD'), ['Code', 'Field (English)', 'Field (Hebrew)', 'Amount (USD)']);
     assert.deepEqual(IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvHeaders('ILS'));
 
@@ -425,7 +410,7 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
       await act(async () => {
         assert.deepEqual(
           Buffer.from(await downloaded.arrayBuffer()),
-          Buffer.from('\uFEFF' + toCsv(ilVatReportCsvHeaders('USD'), ilVatReportCsvRows(report)))
+          Buffer.from('\uFEFF' + toCsv(ilVatReportCsvHeaders('USD'), ilVatReportCsvRows(csvReport)))
         );
         await new Promise(resolve => setTimeout(resolve, 0));
       });

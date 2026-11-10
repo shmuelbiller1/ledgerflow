@@ -85,7 +85,17 @@ then restored and passed again:
   `audit/FINAL_ACCURATE_LIST_2026-11-10.md`; nothing outside AI #2's screen/report/help lane was
   patched here.
 
-## PR #601 CI
+## PR #601 CI and the Sonar duplication gate
+
+The first PR #601 head (`3012546` + docs `2e7b88d`) passed CodeQL, lint/typecheck/database rules,
+production build, CycloneDX and the unit/timezone shards, but **SonarCloud failed its quality gate
+with 6.6% Duplication on New Code (required ≤ 3%)**. The public Sonar measures API attributed
+**15 duplicated new lines** to a repeated 15-line `report`/`props` fixture in
+`src/tests/israel-vat-report-view.test.tsx` (blocks at lines 298 and 393), plus 1 line each in the
+two long help strings. The test fixture is now one shared `csvReport` + `csvPanelProps()` helper and
+the third copy (`sampleReturn`) reuses it too; no test inputs or expected figures changed. Focused
+14/14, related guards 20/20, `tsc` clean and ESLint 0 errors/42 warnings after the refactor. This
+is a real bot/CI finding, answered in code rather than suppressed.
 
 The `pull_request` workflow runs the DB-backed rules, coverage gate, four unit shards, six timezone
 shards, five browser shards, CodeQL and the production build — the gates this sandbox cannot run.

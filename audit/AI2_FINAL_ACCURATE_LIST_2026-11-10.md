@@ -135,4 +135,10 @@ This slice was pushed as `3012546` and opened as **PR #601** ("codex: C-40 revie
 answer every PR #570 bot finding"). The local numbers in §1 are final. CI on the PR head is the
 remaining verification; its result is recorded in the PR body and in the session's final answer,
 not silently rewritten here. Agent #7 opened **PR #600** concurrently (A-273…A-277) — its bot
-comments are in that PR's own lane, not AI #2's.
+comments (Codex P1 on `JournalView.tsx`, P2 on `TrialBalanceView.tsx`) are in that PR's own lane,
+not AI #2's. **Sonar follow-up:** the first PR #601 analysis failed the ≤3% new-code duplication
+gate with 6.6% (15 duplicated new lines in the C-40 test fixture). Extracted the fixture to a
+shared `csvReport`/`csvPanelProps()` helper with no change to any test input or expected figure;
+focused 14/14, guards 20/20, `tsc` and ESLint clean. Codex's PR #601 review reported
+**0 findings / 0 unresolved**; CodeRabbit skipped automatic review because the repository has
+fewer than 10 stars (no findings to resolve).
