@@ -567,6 +567,11 @@ export default function ImportSettings() {
                     ))}
                   </tbody>
                 </table>
+                {issuesAfterPreview.length > 200 && (
+                  <p className="border-t border-[var(--line)] px-3 py-2 text-[10px] text-[var(--muted)]">
+                    Showing the first 200 of {issuesAfterPreview.length} rows with problems. Fix these and check again to see the rest.
+                  </p>
+                )}
               </div>
             )}
 
