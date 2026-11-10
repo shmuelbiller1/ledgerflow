@@ -29,7 +29,9 @@ Session: independent-audit slice (docs/INDEPENDENT_AUDIT_AGENT.md, umbrella issu
 
 - `audit/FINAL_ACCURATE_LIST_2026-11-10.md` — the current accurate list at the pin (15 issues categorized; executed evidence; counts; limitations; added a per-gate FIRST_TESTERS_GATE.md beta-readiness assessment, clearly labelled NOT CERTIFIED).
 - Conflict-marker fix to `audit/FINAL_ACCURATE_LIST_2026-11-08.md` (both sides preserved).
+- `audit/function-audit/SCORECARD-2026-11-10.md` — dated slice scorecard (findings delta, executed evidence, next 10-function batch).
 - `audit/function-audit/probes/af004-519-customer-moves.ts` — new #519 reproduction probe.
+- New upstream issue `#599` (P1 docs-integrity on main; conflict marker fix suggestion for CI).
 - This checkpoint.
 
 ## Tested
@@ -55,6 +57,6 @@ Session: independent-audit slice (docs/INDEPENDENT_AUDIT_AGENT.md, umbrella issu
 
 ## Where things are saved
 
-- Branch `arena/016300c9-ledgerflow` on the fork (pushed; commit `2e8d685a` + docs-accuracy follow-up commit). Fork PR: `Chaim-Richard/ledgerflow#17` (https://github.com/Chaim-Richard/ledgerflow/pull/17). Upstream PR blocked for this integration (403); owner opens it from https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:ledgerflow:arena/016300c9-ledgerflow?expand=1 (4-file diff).
-- Google Drive folder `2026-11-10 final accurate list session` (`1rWocRGHuq834BzET46Bq3PsmFxhvNFMd`) inside `LedgerFlow AI7 audit 2026-11-06` — checkpoints, the list, probe outputs, patch file.
+- Branch `arena/016300c9-ledgerflow` on the fork (pushed; pinned base upstream `dc4073970`). Commits: `2e8d685a` (final accurate list + conflict-marker fix + #519 probe + checkpoint), `6338dcfe` (green upstream CI recorded; local suite not claimed), `88b7bd13` (FIRST_TESTERS_GATE per-gate matrix; D-34 chain-coverage check), `a5e00ace` (dated scorecard). Fork PR: `Chaim-Richard/ledgerflow#17` (https://github.com/Chaim-Richard/ledgerflow/pull/17); final report comment: https://github.com/Chaim-Richard/ledgerflow/pull/17#issuecomment-6758228251. Upstream PR blocked for this integration (403); owner opens it from https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:ledgerflow:arena/016300c9-ledgerflow?expand=1. New upstream issue for the conflict-marker defect: https://github.com/shmuelbiller1/ledgerflow/issues/599. Upstream issue #150 comment is blocked for this integration; the same report text is on PR #17 and in the Drive folder (`agent7-2026-11-10-issue150-comment.md`).
+- Google Drive folder `2026-11-10 final accurate list session` (`1rWocRGHuq834BzET46Bq3PsmFxhvNFMd`) inside `LedgerFlow AI7 audit 2026-11-06` — FINAL_ACCURATE_LIST_2026-11-10.md, agent7-checkpoint-2026-11-10.md, resolved FINAL_ACCURATE_LIST_2026-11-08.md, evidence bundle (probe outputs), patch `agent7-2026-11-10-dc407397.patch`, issue #599 comment text, `audit/function-audit/SCORECARD-2026-11-10.md`.
 - Recovery patch: `git diff dc407397..HEAD` saved in that folder.
