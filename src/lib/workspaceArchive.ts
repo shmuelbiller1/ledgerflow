@@ -12,7 +12,7 @@
 import { toCsv } from './csvExport';
 import { recordExportTable } from './workspaceExports';
 
-type JsonObject = Record<string, unknown>;
+export type JsonObject = Record<string, unknown>;
 const textEncoder = new TextEncoder();
 const obj = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
 const safeKey = (s: string) => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(s);
@@ -30,7 +30,7 @@ export function zipCrc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-interface ZipEntry { path: string; content: string }
+export interface ZipEntry { path: string; content: string }
 
 /** A portable UTF-8 ZIP archive with stored entries and correct central directory. */
 export function makeStoredZip(files: readonly ZipEntry[]): Blob {

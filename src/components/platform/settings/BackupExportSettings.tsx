@@ -8,6 +8,7 @@ import { recordBackupCompleted } from '../../../lib/ledgerBackupHealth';
 import { isPostable } from '../../../lib/txFilters';
 import WorkspaceExportDialog from './WorkspaceExportDialog';
 import WorkspaceArchiveExport from './WorkspaceArchiveExport';
+import YearEndArchiveExport from './YearEndArchiveExport';
 import IifListExport from './IifListExport';
 import { backupFromWorkspaceArchive } from '../../../lib/workspaceArchive';
 
@@ -241,6 +242,8 @@ export default function BackupExportSettings() {
         </div>
 
         <WorkspaceArchiveExport />
+
+        <YearEndArchiveExport />
 
         <IifListExport />
 
