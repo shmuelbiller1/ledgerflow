@@ -811,11 +811,10 @@ Every open issue has one owner. The owner fixes it in a PR that says `Fixes #N`,
 |---|---|---|
 | #517, #518, #519 | AF-004: US sales-tax return ignores entity label / omits unknown-state sales / ignores invoice destination after a customer change | **AI #9** (tax lane) |
 | #131 | Inventory valuation "as of" a past date mixes today's quantities and costs with historical ledger balances (needs EG-7 stock snapshots) | **AI #9** (stock server lane) |
-| #161 | D-34: chained rule overrides depend on array order (re-executed 8 Nov: still wrong) | **AI #4** (raised from its own work) |
 | #150 | Independent audit agent (meta) | **AI #1** — close when the audit output is merged |
 | #132 | Idea: trace product acquisition and full cost across stock | **Owner** to decide; not scheduled |
 
-Closed 10 Nov by AI #1 after re-running their tests on main `6727b2f` (they had been fixed earlier but never closed): #96, #130, #141, #143, #146, #160, #274, #342, #599.
+Closed 10 Nov by AI #1 after re-running their tests on main `6727b2f` (they had been fixed earlier but never closed): #96, #130, #141, #143, #146, #160, #274, #342, #599. Fixed by AI #1: #161 (rule overrides now order-independent, #611).
 
 ## Messages (newest at the bottom; date + who)
 
