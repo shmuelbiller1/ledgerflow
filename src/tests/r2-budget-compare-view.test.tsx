@@ -53,3 +53,9 @@ describe('R-2: the P&L compared to the budget', () => {
     assert.ok(text.includes(formatCurrency(1_200_000)), `budget 12,000.00 in ${text}`);
   });
 });
+
+test('R-2: the KPI cards say "vs Budget" (not "vs Prior") when comparing to the budget', async () => {
+  const src = await import('node:fs').then(fs => fs.readFileSync('src/components/ledger/ProfitAndLossView.tsx', 'utf8'));
+  assert.equal((src.match(/% vs \{vsBudget \? 'Budget' : 'Prior'\}/g) || []).length, 3);
+  assert.ok(!src.includes('% vs Prior'));
+});
