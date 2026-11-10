@@ -41,3 +41,90 @@ test('the Texas permit\'s return for the quarter', () => {
   assert.deepEqual([r.grossSalesCents, r.exemptSalesCents, r.taxableSalesCents, r.taxCollectedCents, r.documentCount], [140000, 50000, 90000, 7425, 3]);
   assert.deepEqual(r.byJurisdiction, [{ name: 'Austin', taxCents: 1800 }, { name: 'Texas state sales tax', taxCents: 5625 }]);
 });
+
+/**
+ * AF-004 (issues #517, #518, #519), each with the issue's own figures: one Q3 sale of 100.00 net + 8.25 tax.
+ * Texas books hold permit 3200; the Israeli entity (world:il) has its own VAT registration and no US permit.
+ */
+const txBooks: TaxProfiles = {
+  books: { place: { country: 'US', state: 'TX' }, registrations: [{ kind: 'sales_tax', number: '3200', place: { country: 'US', state: 'TX' } }] },
+  labels: { 'world:il': { place: { country: 'IL' }, registrations: [{ kind: 'vat', number: '514000000', place: { country: 'IL' } }] } },
+};
+const sale = (id: string, extra: Partial<UsSalesDocument> = {}): UsSalesDocument =>
+  ({ id, date: '2026-08-10', status: 'sent', taxVersion: 2, amountCents: 10825, taxAmountCents: 825, customerId: 'buyer', taxTreatment: 'standard',
+     taxBreakdown: [{ name: 'Texas state sales tax', rate: 0, taxCents: 825 }], ...extra }) as UsSalesDocument;
+const txReturn = (invoices: UsSalesDocument[], buyerPlace: unknown, creditNotes: UsSalesDocument[] = []) => usSalesTaxReturn({
+  registration: 'sales_tax:US-TX:3200', profiles: txBooks, order: ['world'], startDate: '2026-07-01', endDate: '2026-09-30',
+  customers: [{ id: 'buyer', metadata: buyerPlace === undefined ? {} : { taxPlace: buyerPlace } }], invoices, creditNotes,
+});
+const figures = (r: ReturnType<typeof txReturn>) => [r.documentCount, r.grossSalesCents, r.taxCollectedCents];
+const TX = { country: 'US', state: 'TX' };
+const OK = { country: 'US', state: 'OK' };
+
+test('#519: a sale keeps the destination saved on it when the customer later moves (TX → OK)', () => {
+  assert.deepEqual(figures(txReturn([sale('s1', { metadata: { taxPlace: TX } })], TX)), [1, 10000, 825]);
+  // the customer now lives in Oklahoma; the issued invoice still records Texas
+  assert.deepEqual(figures(txReturn([sale('s1', { metadata: { taxPlace: TX } })], OK)), [1, 10000, 825]);
+  // and the other way round: a sale issued to Oklahoma does not enter Texas because the customer moved to Texas
+  assert.deepEqual(figures(txReturn([sale('s2', { metadata: { taxPlace: OK } })], TX)), [0, 0, 0]);
+});
+
+test('#519: an older sale with no saved destination still follows the customer (the legacy fallback); ship-to comes before the customer', () => {
+  assert.deepEqual(figures(txReturn([sale('s1')], TX)), [1, 10000, 825]);
+  assert.deepEqual(figures(txReturn([sale('s1')], OK)), [0, 0, 0]);
+  assert.deepEqual(figures(txReturn([sale('s1', { shippingAddress: { country: 'US', state: 'TX' } })], OK)), [1, 10000, 825]);
+});
+
+test('#519: a credit note follows its invoice\'s destination, so it reduces the same state after the customer moves', () => {
+  const invoice = sale('s1', { metadata: { taxPlace: TX } });
+  const credit = sale('c1', { status: 'applied', invoiceId: 's1', amountCents: 2165, taxAmountCents: 165, taxBreakdown: [{ name: 'Texas state sales tax', rate: 0, taxCents: 165 }] });
+  const r = txReturn([invoice], OK, [credit]);
+  assert.deepEqual(figures(r), [2, 8000, 660]);
+  assert.deepEqual(r.byJurisdiction, [{ name: 'Texas state sales tax', taxCents: 660 }]);
+});
+
+test('#517: the entity label on the first line decides the seller — the Israeli entity\'s sale is not in the Texas books\' return', () => {
+  // exactly as the invoice screen saves it: the label is on items[0], not on the document
+  assert.deepEqual(figures(txReturn([sale('s1', { items: [{ dimensions: { world: 'il' } }] })], TX)), [0, 0, 0]);
+  // the same label on the document itself (older documents) is excluded too, and an unlabelled sale is the books'
+  assert.deepEqual(figures(txReturn([sale('s1', { dimensions: { world: 'il' } })], TX)), [0, 0, 0]);
+  assert.deepEqual(figures(txReturn([sale('s1', { items: [{}] })], TX)), [1, 10000, 825]);
+  // the first line wins over a different document-level label
+  assert.deepEqual(figures(txReturn([sale('s1', { items: [{ dimensions: { world: 'il' } }], dimensions: {} })], TX)), [0, 0, 0]);
+});
+
+test('#518: a US sale with no state is in no return and is counted as unplaced, never guessed into Texas', () => {
+  const US = { country: 'US' };
+  const r = txReturn([sale('s1', { metadata: { taxPlace: US } })], US);
+  assert.deepEqual(figures(r), [0, 0, 0]);
+  assert.deepEqual(r.unplaced, { documentCount: 1, netCents: 10000, taxCents: 825, documents: [{ id: 'invoice:s1', netCents: 10000, taxCents: 825 }] });
+  // state missing on the customer only (no snapshot on the sale): the same
+  assert.deepEqual([txReturn([sale('s1')], US).unplaced.documentCount, txReturn([sale('s1')], US).unplaced.taxCents], [1, 825]);
+});
+
+test('#518: an incomplete saved place does not trap the sale — adding the state to the customer or the ship-to places it', () => {
+  const US = { country: 'US' };
+  const stuck = sale('s1', { metadata: { taxPlace: US } });
+  // the customer's state was added afterwards: the sale is now in Texas, and no longer unplaced
+  const fixedOnCustomer = txReturn([stuck], TX);
+  assert.deepEqual([...figures(fixedOnCustomer), fixedOnCustomer.unplaced.documentCount], [1, 10000, 825, 0]);
+  // or the ship-to state on the invoice
+  const fixedOnInvoice = txReturn([sale('s1', { metadata: { taxPlace: US }, shippingAddress: { country: 'US', state: 'TX' } })], US);
+  assert.deepEqual([...figures(fixedOnInvoice), fixedOnInvoice.unplaced.documentCount], [1, 10000, 825, 0]);
+  // a complete saved place still wins over the customer's place today (#519 is unchanged)
+  assert.deepEqual(figures(txReturn([sale('s1', { metadata: { taxPlace: TX } })], OK)), [1, 10000, 825]);
+});
+
+test('#518: what is not unplaced — a sale abroad, a counter sale with no place anywhere, and a complete one', () => {
+  // a foreign customer: in no state and not a missing state
+  const abroad = txReturn([sale('s1')], { country: 'IL' });
+  assert.deepEqual([...figures(abroad), abroad.unplaced.documentCount], [0, 0, 0, 0]);
+  // nothing recorded on the sale or the customer: an over-the-counter sale at the seller's own place (Texas)
+  const counter = txReturn([sale('s1')], undefined);
+  assert.deepEqual([...figures(counter), counter.unplaced.documentCount], [1, 10000, 825, 0]);
+  // no customer at all: the same
+  const walkIn = txReturn([sale('s1', { customerId: undefined })], undefined);
+  assert.deepEqual([...figures(walkIn), walkIn.unplaced.documentCount], [1, 10000, 825, 0]);
+  const complete = txReturn([sale('s1', { metadata: { taxPlace: TX } })], TX);
+  assert.equal(complete.unplaced.documentCount, 0);
+});
