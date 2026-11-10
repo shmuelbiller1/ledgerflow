@@ -87,8 +87,6 @@ probe uses is ~40 lines.
 
 ---
 
-## B. Verified at the pin as source facts (no run needed)
-
 ### F-03 (P2, data-layer guard) — 47 of the 68 `lf_rules` collections still have no JSONB field allowlist and no field cap
 
 * `lf_rules` drives `lf_guard()` (`supabase/migrations/20260924190000_init.sql:185-240`). A row
@@ -149,6 +147,46 @@ cycle is "resolved" by whoever comes first.
   between two installs at the same data. Any fix should either compute the transitive closure of
   displacement or **refuse** a chained/cyclic override graph with a named error, and the probe above
   is the acceptance test either way.
+
+### F-08 (P1, screen/API inconsistency) — "Recorded as filed" on the US quarter screen and the server's tax-return ledger are **two different universes that cannot be reconciled**
+
+This is the same class as AUD-01 (#141, "the statement PDF ignores the selected period") but on the
+tax screens, and it is a *workflow* finding (Pass B), not a single-function one.
+
+* The screen: `UsQuarterJourneyReportView.tsx:64-80` asks
+  `GET /api/v1/workspaces/:id/tax-returns` for **all filed returns** and reduces each to
+  `{ startDate, endDate }`, dropping `registration`. `usQuarterJourney` then marks a state return
+  filed when *any* recorded return covers the same dates
+  (`src/lib/usQuarterJourney.ts:281-283`: `filed.has(permit.registration) || filed.has(quarterKey)
+  || filedPeriods.some(f => f.startDate === startDate && f.endDate === endDate)`).
+  The table column is then rendered as **"Recorded as filed"** with a bare `Yes`
+  (`UsQuarterJourneyReportView.tsx:186,199`) — no registration, no kind, no date.
+* The record: filing goes through `POST /tax-returns` → `fileTaxReturn`
+  (`src/server/services/taxReturnService.ts:56-101`), which
+  (a) accepts a `registration` only if `vatRegistrationsIn(...)` contains it — and that helper
+  filters `r.kind === 'vat'` **only** (`:43-48`), so a **US sales-tax permit can never be the
+  scope of a filed return**; and
+  (b) computes the boxes with `buildTaxReturn(invoices, bills, creditNotes, vendorCredits, …)`
+  (`:36`) — an **invoice/credit-note/VAT-box** computation that the US quarter journey never
+  reads. The journey's own figures come from `usSalesTaxReturn` (F-01's function).
+* Consequences a tester can hit in the first quarter:
+  1. File the quarter's return once → **every** state row on the quarter screen reads
+     "Recorded as filed: Yes", including states with a permit and no sales. File one state's
+     permit (if the server accepted it) → every other state's row also says Yes.
+  2. The number the server stored with the filing (`boxes`) is not the number the screen shows
+     (gross/taxable/collected by state, F-01's computation). Two "tax returns" exist for the same
+     period with no stated relationship — exactly the AUD-01 failure mode, on the tax path.
+  3. The filing is refused for a US permit with a message about **VAT** registrations
+     (`'… is not one of this workspace's VAT registrations …'`), which is the wrong vocabulary for
+     a US bookkeeper and hides that the operation is unsupported for them.
+* Fix shape: one tax-return record type carrying `{ jurisdiction, registration, kind, period,
+  source: 'vat'|'sales_tax', figuresFrom }`; the quarter screen must match on **registration +
+  kind**, print which record it matched, and the server must either compute the sales-tax figures
+  for a `sales_tax:` registration or refuse the filing explicitly ("state returns are not filed
+  from LedgerFlow yet"). Both are AI #1 lane; the acceptance test is a two-state book with one
+  filing, asserting the other state still reads "not recorded".
+
+## B. Verified at the pin as source facts (no run needed)
 
 ### F-04 (P3, ops) — the production-settings check still is not wired anywhere
 

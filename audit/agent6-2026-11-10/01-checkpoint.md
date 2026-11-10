@@ -25,6 +25,8 @@
 | `probes/s7-route-guards.test.ts` | 4/4 pass — registrations without middleware; D-30 cannot see them |
 | `probes/af012-rule-chain-order.test.ts` | 2/2 pass — shipped `evaluateRules` order-dependence (#161) |
 | `probes/lf-rules-coverage.py` | re-runnable parse: 68 collections, 47 without a field allowlist |
+| `probes/f8-tax-return-two-universes.test.ts` | 4/4 pass — one filing marks every state "Recorded as filed"; the server can only file `kind: 'vat'` |
+| `04-scorecard.md` | coverage counts, findings register, the order a next session should work in |
 
 ## Verified so far (with a run)
 1. **F-01** (P1, tax): `usSalesTaxReturn` reads `place.state`; the seeded sample book and
