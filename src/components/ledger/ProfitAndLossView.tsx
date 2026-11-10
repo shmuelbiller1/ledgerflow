@@ -444,7 +444,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.income?.total || 0) >= prevData.income?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}% vs Prior
+                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -479,7 +479,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.expense?.total || 0) <= prevData.expense?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}% vs Prior
+                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -524,7 +524,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold ml-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
-                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}%
+                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -762,7 +762,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                     "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded", 
                     (data.netIncome || 0) >= prevData.netIncome ? "bg-emerald-950 text-emerald-400" : "bg-rose-950 text-rose-400"
                   )}>
-                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs Prior
+                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                   </span>
                 </div>
               )}
