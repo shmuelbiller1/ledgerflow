@@ -49,7 +49,7 @@ export default function QuickCreateMenu({
         className={
           phone
             ? "flex flex-1 min-w-[44px] h-16 flex-col items-center justify-center gap-1 rounded-lg text-[var(--text)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
-            : "hidden md:flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sm font-semibold"
+            : "hidden md:flex shrink-0 min-h-11 min-w-11 items-center justify-center rounded-lg text-sm font-semibold"
         }
       >
         <span
