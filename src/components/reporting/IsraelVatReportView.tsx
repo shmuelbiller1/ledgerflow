@@ -7,18 +7,47 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import { israelVatReturn, type IlVatDocument, type IlVatReturn } from '../../lib/tax/ilVatReturn';
+import { belongsTo, israelVatReturn, type IlVatDocument, type IlVatReturn } from '../../lib/tax/ilVatReturn';
+import { COUNTED_PURCHASES } from '../../lib/taxCodes';
 import { withEquipment } from '../../lib/tax/ilVatEquipment';
 import { ilVatRegistrations } from '../../lib/israelMonthJourney';
-import { IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
+import { ilVatReportCsvHeaders, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+/** The ledger's home currency when a workspace has none saved (AGENTS.md §5). */
+const WORKSPACE_CURRENCY_FALLBACK = 'USD';
+/** A standalone panel render has no workspace to read; its contract is an ILS return. */
+const PANEL_CURRENCY_FALLBACK = 'ILS';
 
 /** Only this workspace's rows; a row with no workspace id is a fixture or a shared record. */
 const inWorkspace = <T extends { workspaceId?: string }>(rows: T[] | undefined, workspaceId?: string | null) =>
   (rows || []).filter(row => !workspaceId || !row.workspaceId || row.workspaceId === workspaceId);
+
+/**
+ * Mixed bills that the chosen return really counts: the same counted-purchase status, period and
+ * VAT registration that `computeTaxReturn` uses. A mixed bill from another period or dealer must
+ * not produce a notice on this return. Keeps the whole list for vendor-credit classification.
+ */
+function countedMixedBills(
+  mixed: readonly unknown[],
+  input: {
+    profiles: Parameters<typeof belongsTo>[1];
+    order: string[];
+    registration: string;
+    startDate: string;
+    endDate: string;
+  },
+): number {
+  return mixed.filter(bill => {
+    const doc = bill as IlVatDocument;
+    const day = String(doc.date || doc.issueDate || '').slice(0, 10);
+    return COUNTED_PURCHASES.has(String(doc.status))
+      && day >= input.startDate && day <= input.endDate
+      && belongsTo(doc, input.profiles, input.order, input.registration);
+  }).length;
+}
 
 interface IsraelVatReportViewProps {
   startDate?: string;
@@ -32,6 +61,7 @@ interface IsraelVatReportViewProps {
  * Read-only summary of the period's sales (taxable, zero-rated, exempt), output VAT,
  * input VAT on fixed assets (equipment) vs other inputs, and the net amount to pay or reclaim.
  * Computed directly via `israelVatReturn` in `src/lib/tax/ilVatReturn.ts`.
+ * Figures are the workspace's base currency, not a converted ILS filing amount.
  * Nothing is filed, posted, or paid from this screen.
  */
 export default function IsraelVatReportView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: IsraelVatReportViewProps = {}) {
@@ -44,8 +74,10 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   const failed = useDataNeedsStore(state => state.failed);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
+  const currency = workspace?.currency || WORKSPACE_CURRENCY_FALLBACK;
 
-  const { loading } = useLedgerCollections('invoices', 'bills', 'creditNotes', 'vendorCredits');
+  // The equipment split reads the chart of accounts, so that list must be ready too.
+  const { loading } = useLedgerCollections('invoices', 'bills', 'creditNotes', 'vendorCredits', 'accounts');
 
   // Default period: current fiscal year start or month start to today
   const [startDate, setStartDate] = usePageSyncedState(
@@ -55,13 +87,21 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   );
   const [endDate, setEndDate] = usePageSyncedState(pageEndDate || '', pageEndDate, getLocalDateISO);
 
-  // Israeli VAT registrations in force for this workspace
+  const registrationOrder = useMemo(
+    () => [workspace?.dimensions?.find(d => d.isWorld)?.id || 'world'],
+    [workspace?.dimensions]
+  );
+
+  // Israeli VAT registrations in force for this workspace and period end
   const registrations = useMemo(() => {
     return ilVatRegistrations(workspace?.taxProfiles, endDate || getLocalDateISO());
   }, [workspace?.taxProfiles, endDate]);
 
   const [selectedReg, setSelectedReg] = useState<string>('');
-  const activeReg = selectedReg || registrations[0]?.registration || 'vat:IL:default';
+  // A stale selection (period or workspace changed) is never used: no fabricated registration.
+  const activeReg = registrations.find(r => r.registration === selectedReg)?.registration
+    ?? registrations[0]?.registration
+    ?? '';
 
   // Mark fixed-asset equipment bills and vendor credits
   const { bills: equipmentBills, vendorCredits: equipmentVendorCredits, mixed } = useMemo(() => {
@@ -71,11 +111,11 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }, [bills, vendorCredits, accounts, workspaceId]);
 
   const report = useMemo(() => {
-    if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate) || startDate > endDate) return null;
+    if (!activeReg || !DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate) || startDate > endDate) return null;
     return israelVatReturn({
       registration: activeReg,
       profiles: workspace?.taxProfiles,
-      order: [workspace?.dimensions?.find(d => d.isWorld)?.id || 'world'],
+      order: registrationOrder,
       invoices: inWorkspace(invoices, workspaceId) as unknown as IlVatDocument[],
       creditNotes: inWorkspace(creditNotes, workspaceId) as unknown as IlVatDocument[],
       bills: equipmentBills as unknown as IlVatDocument[],
@@ -83,11 +123,19 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
       startDate,
       endDate,
     });
-  }, [activeReg, workspace?.taxProfiles, workspace?.dimensions, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate]);
+  }, [activeReg, workspace?.taxProfiles, registrationOrder, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate]);
+
+  const mixedBillsCount = useMemo(() => activeReg ? countedMixedBills(mixed, {
+    profiles: workspace?.taxProfiles,
+    order: registrationOrder,
+    registration: activeReg,
+    startDate,
+    endDate,
+  }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits ||
-    failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || truncated.accounts ||
+    failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits || failed.accounts
   );
 
   return <IsraelVatReportPanel
@@ -101,11 +149,19 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
     onEndDateChange={setEndDate}
     loading={loading}
     partial={partial}
-    mixedBillsCount={mixed.length}
+    missingRegistration={registrations.length === 0}
+    currency={currency}
+    mixedBillsCount={mixedBillsCount}
     embedded={embedded}
   />;
 }
 
+/**
+ * Presentational panel for one Israel VAT return. `currency` is the workspace's base currency:
+ * the figures are home-currency cents from `israelVatReturn`, so a non-ILS workspace gets a clear
+ * non-filing notice and its CSV amount column is labeled with that currency, never "NIS".
+ * A missing registration is a configuration state, not a zero-liability return.
+ */
 export function IsraelVatReportPanel({
   report,
   registrations,
@@ -117,6 +173,8 @@ export function IsraelVatReportPanel({
   onEndDateChange,
   loading = false,
   partial = false,
+  missingRegistration = false,
+  currency = PANEL_CURRENCY_FALLBACK,
   mixedBillsCount = 0,
   embedded = false,
 }: {
@@ -130,12 +188,14 @@ export function IsraelVatReportPanel({
   onEndDateChange: (value: string) => void;
   loading?: boolean;
   partial?: boolean;
+  missingRegistration?: boolean;
+  currency?: string;
   mixedBillsCount?: number;
   embedded?: boolean;
 }) {
   const Heading = embedded ? 'h2' : 'h1';
-  const currency = 'ILS';
   const dealerNumber = activeReg.split(':').pop() || activeReg;
+  const csvHeaders = ilVatReportCsvHeaders(currency);
 
   const validDates = DATE_REGEX.test(startDate) && DATE_REGEX.test(endDate) && startDate <= endDate;
 
@@ -164,10 +224,10 @@ export function IsraelVatReportPanel({
           </button>
           <button
             type="button"
-            disabled={!report || loading || partial}
+            disabled={!report || loading || partial || missingRegistration}
             onClick={() => {
               if (report) {
-                downloadCsv(`israel-vat-report-${report.startDate}-to-${report.endDate}.csv`, IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvRows(report));
+                downloadCsv(`israel-vat-report-${report.startDate}-to-${report.endDate}.csv`, csvHeaders, ilVatReportCsvRows(report));
               }
             }}
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2 disabled:opacity-50"
@@ -220,6 +280,16 @@ export function IsraelVatReportPanel({
 
       {loading && <p role="status" className="text-sm">Loading documents and VAT registrations…</p>}
       {partial && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">A loaded list is capped or failed, so the figures below are provisional until all records are loaded.</p>}
+      {missingRegistration && (
+        <p role="alert" className="text-sm text-rose-600">
+          No Israeli VAT registration is configured for this period. Add one in Settings → Tax profiles before preparing a VAT report; figures cannot be calculated without a registration.
+        </p>
+      )}
+      {currency !== 'ILS' && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Figures are in the workspace's base currency ({currency}). An Israeli VAT return is filed in ILS; this screen does not convert currencies or file a return.
+        </p>
+      )}
       {!validDates && <p role="alert" className="text-sm text-rose-600">Please enter a valid date range (YYYY-MM-DD) with start date before or equal to end date.</p>}
 
       {mixedBillsCount > 0 && (
@@ -234,6 +304,7 @@ export function IsraelVatReportPanel({
             <span>Dealer number: <b>{dealerNumber}</b></span>
             <span>Period: <b>{report.startDate}</b> to <b>{report.endDate}</b></span>
             <span>Documents evaluated: <b>{report.documentCount}</b></span>
+            <span>Currency: <b>{currency}</b></span>
           </div>
 
           <ReportTableScroll>
