@@ -41,3 +41,20 @@ test('the Texas permit\'s return for the quarter', () => {
   assert.deepEqual([r.grossSalesCents, r.exemptSalesCents, r.taxableSalesCents, r.taxCollectedCents, r.documentCount], [140000, 50000, 90000, 7425, 3]);
   assert.deepEqual(r.byJurisdiction, [{ name: 'Austin', taxCents: 1800 }, { name: 'Texas state sales tax', taxCents: 5625 }]);
 });
+
+test('#517: the seller is the first line\'s entity label, as the invoice screen saves it', () => {
+  // the books hold Texas permit 3200; the Israeli entity has its own VAT number and no US permit
+  const books: TaxProfiles = {
+    books: { place: { country: 'US', state: 'TX' }, registrations: [{ kind: 'sales_tax', number: '3200', place: { country: 'US', state: 'TX' } }] },
+    labels: { 'world:il': { place: { country: 'IL' }, registrations: [{ kind: 'vat', number: '514000000', place: { country: 'IL' } }] } },
+  };
+  const run = (invoices: UsSalesDocument[]) => usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles: books, order: ['world'], customers, startDate: '2026-07-01', endDate: '2026-09-30', invoices });
+  // Q3 sale: 100.00 + 8.25 tax to the Austin customer
+  const sale = (id: string, extra: Partial<UsSalesDocument>) => doc(id, 'austin', 10825, 825, [['Texas state sales tax', 825]], { dimensions: undefined, ...extra });
+  assert.equal(run([sale('line-il', { items: [{ dimensions: { world: 'il' } }] })]).documentCount, 0, 'the Israeli entity\'s sale (label on the line) is not on the Texas books\' return');
+  assert.equal(run([sale('doc-il', { dimensions: { world: 'il' } })]).documentCount, 0, 'an older document-level label still counts');
+  const own = run([sale('unlabelled', { items: [{ dimensions: {} }] })]);
+  assert.equal(own.documentCount, 1, 'an unlabelled sale is the books\' own');
+  assert.equal(own.taxableSalesCents, 10000);
+  assert.equal(own.taxCollectedCents, 825);
+});

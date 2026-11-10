@@ -3,18 +3,21 @@
  * notes: gross sales, exempt sales (an exempt or zero treatment, or the customer's good exemption
  * certificate, T-05), taxable sales, the tax collected, and the tax by jurisdiction part (state,
  * county, city, district: the invoice's saved tax breakdown). A document belongs to the permit when
- * its seller (its entity label, else the books, PLAN §6) holds that permit on the date and the
+ * its seller (its entity label — the first line's, as the invoice screen saves it — else the books, PLAN §6) holds that permit on the date and the
  * customer's tax place is in the permit's state. Credit notes reduce the period they fall in.
  * Read-only; amounts in the home currency. Pure.
  */
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { COUNTED_SALES } from '../taxCodes';
 import { exemptionOn } from '../taxExemption';
+import { documentEntityLabels } from './ilVatReturn';
 import { registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 
 export interface UsSalesDocument extends TaxableDocument {
   customerId?: string;
   dimensions?: Record<string, string>;
+  /** the invoice screen saves the entity label on the first line (#517) */
+  items?: unknown;
 }
 
 export interface UsSalesTaxReturn {
@@ -54,7 +57,7 @@ export function usSalesTaxReturn(input: {
     for (const doc of docs || []) {
       const date = String(doc.date || doc.issueDate || '').slice(0, 10);
       if (!COUNTED_SALES.has(String(doc.status)) || date < input.startDate || date > input.endDate) continue;
-      const seller = resolveSellerProfile(input.profiles, doc.dimensions, input.order);
+      const seller = resolveSellerProfile(input.profiles, documentEntityLabels(doc), input.order);
       if (!registrationsOn(seller, 'sales_tax', date).some(r => registrationKey(r) === input.registration)) continue;
       const customer = doc.customerId ? customers.get(doc.customerId) : undefined;
       const place = (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;
