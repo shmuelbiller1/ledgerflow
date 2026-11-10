@@ -457,3 +457,142 @@ entry parser (`src/lib/algorithms/nl-parser.ts`).
 
 **P-24. A live Google Sheet.** *How:* "Open in Google Sheets" on a report, refreshed from the API,
 for people who will always finish in a spreadsheet.
+
+---
+
+# Part 4: a screen that always tells you what to do next
+
+Added 10 Nov 2026. Parts 1 to 3 came from reading code. This part comes from looking at the screens
+themselves: the screenshot baselines in `e2e/__screenshots__/` (guest demo data, desktop 1280 and
+phone 390). The goal is one sentence: **on any screen, within five seconds, a person knows what the
+screen is, whether anything needs them, and which one button to press.**
+
+## What the screens show today
+
+**Overview** (`dashboard-1280-light`, `dashboard-390-light`)
+- The page is 3,000 pixels tall on a desktop and 6,552 on a phone, about eight phone screens.
+- Thirteen widgets, each with its own "Refresh", its own "Demo data — no live refresh" line, and
+  Bar / Line / Area chart buttons.
+- The same $3,000 of cash appears six times: top tile, Cash widget, Net worth, Bank and cash
+  accounts, Account summary, and the sidebar.
+- Three buttons create something: "+ New" in the header, "+ Add Entry" on the page, and the guide.
+- Caveats are printed in the open: "Current unpaid amounts; later documents excluded. Past payments
+  are not reconstructed." and "This checklist does not verify their accuracy."
+- Nothing on the page says what to do next.
+
+**Around every screen**
+- Four strips sit above the page title: a banner, the header, a tab row, and a breadcrumb row with
+  Help. `UI_GUIDE.md` asks for a header of 120px at most.
+- The search box suggests `world:realestate property:homes/* amount:>1000` (`Header.tsx:116`).
+- The header shows "Main Ledger · VIEWER"; the footer shows "LEDGERFLOW ONLINE · 5 Accounts ·
+  2 Transactions · Base Currency: USD · Double-Entry Balanced" (`StatusBar.tsx`).
+- The sidebar ends with "Balances by account type": Asset, Liability, Income, Expense (`Sidebar.tsx:110`).
+
+**Sales** (`sales-1280-light`, `sales-390-light`)
+- The menu says "Money In", the tab and title say "Sales".
+- With no invoices there are still three total tiles, a column chooser and a table header, and two
+  buttons for the same thing with different words: "Add Invoice" and "CREATE INVOICE".
+- $0.00 overdue is printed in red and $0.00 due in orange.
+- On the phone the empty message is cut off at the right edge ("No invo…", "CREAT…").
+
+**Transactions** (`transactions-1280-light`)
+- The menu says "Transactions", the title says "Journal Entries", the buttons say "New Entry" and
+  "Add Entry".
+- Five saved views are offered before any work exists ("Liquid Cash & Bank Funds", "High-Value
+  Revenue (> $1,000)"…), and Project, Class and Location columns are shown empty.
+
+**Profit and loss** (`pnl-1280-light`)
+- About twenty-two controls come before a report of five rows.
+- The period can be set four ways (Month / Quarter / Year with year and month lists, a month
+  stepper, two date fields, and "Custom range"). Export appears four times (Export, Export to Excel,
+  Export columns CSV, Workspace exports). Comparison appears twice.
+- A green banner explains that the report was "worked out in this browser" because "the server
+  report could not be loaded".
+
+**Reconcile** (`reconcile-1280-light`)
+- The title is "Smart Matching & Bank Reconciliation".
+- The filled main button is "Auto-match all" while there is nothing to match. The step that would
+  help, importing a statement, is a small outline button.
+
+**Settings** (`settings-1280-light`)
+- It opens on the price plans. About thirty links follow, and Help, Support and Pricing are tabs
+  inside Settings.
+
+## Twelve rules, and how to apply each
+
+**U-1. A "Next" line on every screen.** One sentence and one button under the title, worked out
+from the books. Examples: "No customers yet. Add your first customer." / "2 invoices are still
+drafts. Send them." / "14 bank lines need review." / "You are up to date. Next: September's bank
+statement."
+*How:* the list already exists for the Overview (`src/lib/needsAttention.ts`, shown by
+`NeedsAttentionCard.tsx`). Give each row a screen it belongs to, and render the first matching row
+in the page frame (`src/core/layout/RootLayout.tsx`) so every screen gets it without changes.
+
+**U-2. One filled button per screen, and it follows the state.** Reconcile with no bank lines:
+"Import statement". With lines: "Match automatically". Everything else is an outline button or sits
+under "More". Remove "+ Add Entry" from the Overview; "+ New" in the header is enough.
+
+**U-3. An empty screen shows the way, not the tool.** With no records, hide totals, filters, saved
+views, the column chooser and the table header. Show one sentence, one button, and "See an example".
+*How:* one `isEmpty` branch in the shared list (S-1) and in `EmptyState` (S-4).
+
+**U-4. Say each number once.** The Overview becomes: four numbers (cash, owed to you, you owe,
+profit), the "Next" list, one chart. The other widgets move behind "More detail" and are off by
+default; one Refresh and one demo note for the page. Remove the sidebar balances
+(`Sidebar.tsx:110`); they repeat the Overview in accountant's words.
+
+**U-5. One word per thing.**
+
+| Today | Use everywhere |
+|---|---|
+| Money In / Sales | Sales |
+| Money Out / Purchases | Purchases |
+| Transactions / Journal Entries / Entry | Transactions (and "journal entry" only for the manual kind) |
+| Dashboard / Overview | Overview |
+| Add Invoice / Create Invoice / New | New invoice |
+| Smart Matching & Bank Reconciliation | Match the bank |
+
+*How:* one vocabulary file and a test that fails on the banned variants, as the registry already
+does for help text.
+
+**U-6. One way to do each thing.** Reports get one period control (a single button, "September
+2026", opening month, quarter, year and custom) and one "Export" menu (Excel, CSV, PDF, link).
+Paper size and "Generate" move into Print. That takes the profit and loss from about twenty-two
+controls to five.
+
+**U-7. Caveats on request, system state only when wrong.** Replace printed caveats with a small
+"How is this worked out?" link. Show "viewer", "offline", "not balanced" or "server report failed"
+only when it is a problem and only with what to do about it. Remove the footer bar.
+
+**U-8. After every save, offer the next step.** Saving an invoice ends on "Invoice 1042 saved.
+Send it · Record a payment · New invoice" in place of a closed dialog.
+*How:* a `next` option on the confirmation message in `useEntityOperations.ts`, so it is written
+once per record type.
+
+**U-9. Every document shows its path.** At the top of an invoice: Draft → Sent → Paid, with the
+current step marked and the button for the next one beside it. Bills: Entered → Approved → Paid.
+A person never has to know where "receive payment" lives.
+
+**U-10. Colour means "look here".** Red only when an overdue amount is above zero; a zero is grey.
+Gold for the one filled button and nothing else.
+
+**U-11. A thinner frame.** Header and tab row only; the banner becomes a dot on the header, Help
+moves into the header, the breadcrumb row goes. That returns about 100px to every screen.
+
+**U-12. Search that speaks like a person.** Placeholder: "Search, or type what you want to do".
+The query language stays available but is not the first thing a new person reads.
+
+## Keeping it that way
+
+The repository already protects behaviour with guard tests. Add four for the interface, so the
+rules hold while many hands work on it:
+1. each registered screen renders exactly one filled button;
+2. the page title starts within 130px of the top at 1280 wide;
+3. no red or orange text on a zero amount;
+4. no banned word from the U-5 table in any screen.
+
+## Order
+
+U-12, U-10 and the Overview half of U-4 are a day or two each and change the first impression.
+U-1 and U-8 are the two that create the feeling of always knowing what to do; build them next.
+U-3 and U-6 follow once the shared list (S-1) exists.
