@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedDemoBooks } from './helpers/demoBooks';
 
 /**
  * A-270: the keyboard path on Reports — open a report, change its period, open a row's drill-down
@@ -8,6 +9,10 @@ import { test, expect, type Page } from '@playwright/test';
  * The A/R and A/P aging reports are the ones with rows that open a detail drawer (the other main
  * reports open their totals' entries; A-270's row contract lives here). Every step is a real key:
  * Tab/Shift+Tab to the control, Enter/Arrow keys to work it, Escape to leave the drawer.
+ *
+ * A-274: the same contract across two rows — open the first row's drawer from its arrow button,
+ * close it, then open a different row with Enter and close: focus must land on the second row, not
+ * back on the first row's arrow (the `openerRef` the arrow set must not survive the second open).
  */
 
 async function signInAsGuest(page: Page) {
@@ -20,13 +25,28 @@ async function signInAsGuest(page: Page) {
 
 /** A guest book with one customer and two open invoices, so the aging report has a row to open. */
 async function seedAging(page: Page) {
+  await seedDemoBooks(page);
+}
+
+/**
+ * A-274: two customers, each with one open invoice, so the aging report has two rows to open in
+ * turn. The demo seed leaves only December open, so the two January/February invoices are reopened
+ * here (same shape, status `sent`, nothing paid).
+ */
+async function seedTwoAgingRows(page: Page) {
+  await seedAging(page);
   await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
     const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({ accounts: data.accounts, transactions: data.transactions, invoices: data.invoices, bills: data.bills, customers: data.customers, vendors: data.vendors });
+    const { invoices, customers } = useLedgerStore.getState();
+    const reopen = (invoice: (typeof invoices)[number], customerId: string, id: string) => ({
+      ...invoice, id, customerId, status: 'sent', amountPaidCents: 0,
+    });
+    useLedgerStore.setState({
+      invoices: [
+        reopen(invoices[0], customers[0].id, 'aging-inv-a'),
+        reopen(invoices[1], customers[1].id, 'aging-inv-b'),
+      ],
+    });
   });
 }
 
@@ -139,6 +159,50 @@ test('A-270: A/R aging — the period changes from the keyboard and the report a
   await expect(chooser).toBeFocused();
   await chooser.selectOption('journal-sheet');
   await expect(page.locator('[data-print-root]').first()).toContainText('Journal', { timeout: 60_000 });
+
+  expect(errors).toEqual([]);
+});
+
+test('A-274: A/R aging — arrow-open one row, Enter-open another, focus lands on the second row', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await signInAsGuest(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?report=ar-aging#reports');
+  await expect(page.getByLabel('Paper size for printing')).toBeVisible({ timeout: 60_000 });
+  await seedTwoAgingRows(page);
+
+  const rows = page.locator('[data-print-root] tbody tr[tabindex="0"]');
+  await expect(rows).toHaveCount(2, { timeout: 30_000 });
+  const first = rows.nth(0);
+  const second = rows.nth(1);
+  const secondLabel = (await second.getAttribute('aria-label')) || '';
+  expect(secondLabel).not.toBe('');
+
+  const drawer = page.getByRole('dialog', { name: /^Outstanding Ledger:/ });
+
+  // 1. open the first row from its arrow button and close: focus returns to that arrow
+  const firstArrow = first.locator('button[aria-label^="Open "]');
+  await firstArrow.focus();
+  await expect(firstArrow).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(firstArrow).toBeFocused();
+
+  // 2. open the second row with Enter on the row itself and close: focus must land on the second
+  //    row — not back on the first row's arrow the previous open left in `openerRef`
+  await second.focus();
+  await expect(second).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toContainText('Outstanding Ledger:');
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(second).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(secondLabel);
 
   expect(errors).toEqual([]);
 });

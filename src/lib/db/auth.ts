@@ -421,7 +421,11 @@ export function passkeyName(name: string | undefined, fallback = 'Passkey'): str
 /** True when the error means passkeys are not switched on for this site yet (Supabase Auth setting). */
 export function passkeysOff(e: unknown): boolean {
   const code = e instanceof AuthError ? e.code : '';
-  return /passkey.*(disabled|not_enabled)|webauthn.*not_enabled|provider_disabled/i.test(code);
+  if (/passkey.*(disabled|not_enabled)|webauthn.*not_enabled|provider_disabled/i.test(code)) return true;
+  // A-275: the server also answers with the words and no matching code ("Passkeys are not enabled
+  // for this project"); the reader gets the same plain wording either way, never the raw server text.
+  const text = e instanceof Error ? e.message : '';
+  return /passkeys are not enabled/i.test(text);
 }
 
 export async function signInWithPasskey(_auth: Auth): Promise<UserCredential> {

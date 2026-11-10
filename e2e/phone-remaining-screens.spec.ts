@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mountJourney } from './support/journeyFixture';
+import { scrollBoxProblems } from './helpers/phoneGeometry';
 
 const screens = [
   { tab: 'inventory', heading: 'Inventory', control: { role: 'button', name: 'Enlist Asset' } },
@@ -42,24 +43,15 @@ for (const screen of screens) {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 
     // The shell clips overflow. A width-only check would miss unreachable controls and tables.
-    const geometry = await main.evaluate(root => {
+    const geometry = [
+      ...(await scrollBoxProblems(main)),
+      ...(await main.evaluate(root => {
       const width = innerWidth;
       const boxes = Array.from(root.querySelectorAll<HTMLElement>('*')).filter(el => {
         const style = getComputedStyle(el);
         return ['auto', 'scroll'].includes(style.overflowX) && el.getBoundingClientRect().width > 0;
       });
       const problems: string[] = [];
-      for (const el of boxes) {
-        const rect = el.getBoundingClientRect();
-        if (rect.left < -1 || rect.right > width + 1) {
-          // A virtual list's own vertical scroll box can be wider than the phone inside the
-          // table's fitting horizontal scroller. Its columns remain reachable there.
-          const containingScroller = boxes.find(parent => parent !== el && parent.contains(el)
-            && parent.scrollWidth > parent.clientWidth && parent.getBoundingClientRect().left >= -1
-            && parent.getBoundingClientRect().right <= width + 1);
-          if (!containingScroller) problems.push(`scroll box ${el.className}: ${rect.left}…${rect.right}`);
-        }
-      }
       for (const el of root.querySelectorAll<HTMLElement>('button, select, input:not([type="hidden"]), textarea, summary')) {
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height) continue;
@@ -72,7 +64,8 @@ for (const screen of screens) {
         }
       }
       return problems;
-    });
+      })),
+    ];
     expect(geometry).toEqual([]);
     const box = await control.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(-1);

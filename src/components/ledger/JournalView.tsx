@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Copy, Undo2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Copy, Printer, Undo2 } from 'lucide-react';
 import { JournalEntry } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import PrintLayoutControl from '../reporting/PrintLayoutControl';
 
 /** A journal entry as the list shows it: what kind it is and how it relates to reversals. */
 export type JournalListEntry = JournalEntry & {
@@ -67,14 +68,34 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
   const debits = (e: JournalListEntry) => e.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
   const total = entries.reduce((sum, e) => sum + debits(e), 0);
 
+  // Codex #600 P1: the screen paginates (200 at a time) but the printed journal must carry every
+  // matching entry, so the heading's count and debit total reconcile with the printed rows.
+  // beforeprint expands the list; afterprint restores the reader's pagination.
+  const shownRef = useRef(shown);
+  const countRef = useRef(entries.length);
+  const savedShown = useRef(shown);
+  useEffect(() => { shownRef.current = shown; }, [shown]);
+  useEffect(() => { countRef.current = entries.length; }, [entries.length]);
+  useEffect(() => {
+    const beforePrint = () => { savedShown.current = shownRef.current; setShown(countRef.current); };
+    const afterPrint = () => setShown(savedShown.current);
+    window.addEventListener('beforeprint', beforePrint);
+    window.addEventListener('afterprint', afterPrint);
+    return () => { window.removeEventListener('beforeprint', beforePrint); window.removeEventListener('afterprint', afterPrint); };
+  }, []);
+
   return (
-    <section aria-labelledby="journal-title" className="bg-[var(--surface)] border border-[var(--line)] rounded-xl overflow-hidden flex-1 flex flex-col">
+    // A-277: the journal is its own print root, so printing from the Ledger tab prints the journal
+    // alone (the shared print stylesheet hides the app shell around it).
+    <section aria-labelledby="journal-title" data-print-root className="bg-[var(--surface)] border border-[var(--line)] rounded-xl overflow-hidden flex-1 flex flex-col">
       <div className="p-4 border-b border-[var(--line)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-[var(--ink)]">
         <div>
           <h2 id="journal-title" className="text-sm font-bold text-[var(--text)]">General journal</h2>
           <p className="text-xs text-[var(--muted)]">{entries.length} {entries.length === 1 ? 'entry' : 'entries'} · {formatCurrency(total)} in debits</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs">
+          {/* A-277: the filters stay on screen; the paper carries the title and the entries */}
+          <div data-print-hide className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" checked={manualOnly} onChange={e => { setManualOnly(e.target.checked); setShown(PAGE); }} />
             Entries typed in by hand only
@@ -88,6 +109,13 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
             <input type="search" value={search} onChange={e => { setSearch(e.target.value); setShown(PAGE); }} placeholder="Search description, reference, account"
               className="px-2 py-1 border border-[var(--line)] rounded bg-[var(--panel)] min-w-[14rem]" />
           </label>
+          </div>
+          {/* A-277: the paper choice and Print, like the Reports page (both stay off the paper) */}
+          <PrintLayoutControl columnCount={3} />
+          <button type="button" onClick={() => window.print()} aria-label="Print journal"
+            className="min-h-11 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[var(--line)] font-semibold">
+            <Printer className="w-4 h-4" aria-hidden="true" /> Print
+          </button>
         </div>
       </div>
 
