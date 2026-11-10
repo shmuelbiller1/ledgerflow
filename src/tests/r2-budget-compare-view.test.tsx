@@ -54,8 +54,29 @@ describe('R-2: the P&L compared to the budget', () => {
   });
 });
 
-test('R-2: the KPI cards say "vs Budget" (not "vs Prior") when comparing to the budget', async () => {
-  const src = await import('node:fs').then(fs => fs.readFileSync('src/components/ledger/ProfitAndLossView.tsx', 'utf8'));
-  assert.equal((src.match(/% vs \{vsBudget \? 'Budget' : 'Prior'\}/g) || []).length, 3);
-  assert.ok(!src.includes('% vs Prior'));
+describe('R-2: the KPI cards name what they compare to', () => {
+  // the income and expense cards carry a labelled badge (the net card shows the bare %)
+  const badges = () => (document.body.textContent || '').match(/% vs (Budget|Prior)/g) || [];
+  test('"vs Budget" on the cards when comparing to the budget', async () => {
+    render(<ProfitAndLossView startDate="2026-03-01" endDate="2026-03-31" />);
+    await act(async () => {});
+    await act(async () => { fireEvent.click(screen.getByLabelText('Comparative Mode')); });
+    await act(async () => { fireEvent.change(screen.getByLabelText('Compare to'), { target: { value: 'budget' } }); });
+    // actual 10,000 vs budget 12,000 income = -16.7%; 4,000 vs 3,500 rent = +14.3%
+    assert.deepEqual(badges(), ['% vs Budget', '% vs Budget']);
+    assert.match(document.body.textContent || '', /-16\.7% vs Budget/);
+    assert.match(document.body.textContent || '', /14\.3% vs Budget/);
+  });
+  test('"vs Prior" on the cards when comparing to the previous period', async () => {
+    useLedgerStore.setState({ transactions: [...transactions,
+      makeTransaction({ id: 'febsale', workspaceId: 'component-workspace', date: '2026-02-10', lines: [{ accountId: 'sales', amountCents: -800_000 }, { accountId: 'cash', amountCents: 800_000 }] }),
+      makeTransaction({ id: 'febrent', workspaceId: 'component-workspace', date: '2026-02-15', lines: [{ accountId: 'rent', amountCents: 400_000 }, { accountId: 'cash', amountCents: -400_000 }] }),
+    ] });
+    render(<ProfitAndLossView startDate="2026-03-01" endDate="2026-03-31" />);
+    await act(async () => {});
+    await act(async () => { fireEvent.click(screen.getByLabelText('Comparative Mode')); });
+    // 10,000 vs February 8,000 income = +25.0%; rent 4,000 both months = 0.0%
+    assert.deepEqual(badges(), ['% vs Prior', '% vs Prior']);
+    assert.match(document.body.textContent || '', /25\.0% vs Prior/);
+  });
 });
