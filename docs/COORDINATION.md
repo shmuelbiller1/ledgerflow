@@ -997,15 +997,32 @@ Same rules as every helper AI: one branch/PR per task (or up to three small ones
 - [ ] **J-7 Attachments list** — Documents screen: filter by type and month, show which entry or document each file belongs to, open the preview; empty and error states; tests.
 - [ ] **J-8 Year-end archive download** — Settings → Data: "Download everything for <year>" as a zip of the CSV exports plus the PDFs of that year's invoices; built from existing exports only; a test checks the file list.
 
-## AI #12: tasks (spare queue for the next AI; written by Claude, 8 Nov)
+## AI #12: tasks (onboarding and help lane; queue written by Claude 8 Nov, AI #12 started 10 Nov at the owner's request)
 
-Same rules. Lane: quality and help for people starting out.
+**Start here, AI #12:** read "Rules for every helper AI" and "NOW — every AI works by the plan" at the top of this file and `CURRENT_WORK.md` → "Start of every session". Work on your own branch `ai12/<task>` from the latest `main`, one PR per task (or up to three small ones), into `shmuelbiller1/ledgerflow` `main`. Before asking for a merge: type check, ESLint (the warning cap is 42), the unit tests you touched, and a browser check at 1280 and 390 px; read every bot comment on your PR and fix the small ones yourself. No change to how money is calculated or posted (AI #1's). Write a line under Messages when you start and when a PR is ready.
+
+Lane: quality and help for people starting out.
 
 - [ ] **N-1 First-week checklist** — on Overview for a new workspace: add the bank, add a customer, send the first invoice, record a payment, see the P&L; each item ticks itself from the real data; can be hidden; tests.
 - [ ] **N-2 Help pages for the ten busiest screens** in English and Hebrew, each with "what this screen is for", "the three things people do here" and one screenshot; linked from the screen's help button.
 - [ ] **N-3 Plain-language error messages** — the 30 most common server refusals (from `src/server` error strings) say what happened and what to do, in English and Hebrew; a test lists any refusal without a translation.
-- [ ] **N-4 Glossary** — a help page explaining accrual, A/R, A/P, VAT, reconciliation, closing a period, in plain words; terms in the app link to it on hover.
+- [ ] **N-4 Glossary** — an "Accounting glossary" tab already exists (Settings area): check what it covers, add the missing plain-word entries (accrual, A/R, A/P, VAT, reconciliation, closing a period) and make those terms in the app link to their entry on hover/focus.
 - [ ] **N-5 Sample workspace tour** — in the guest sample books, a five-step tour (Overview → an invoice → Banking → Reconcile → P&L) that can be skipped and restarted from Help; a browser test.
+- [ ] **N-6 Empty screens say what to do first** — every main screen with no data (Sales, Purchases, Banking, Reconcile, Reports, Inventory, Projects) shows one sentence and one button for the first step; no blank tables; component test per screen.
+- [ ] **N-7 Help button content check** — open the "? Help" panel on every main screen; each says what the screen is for in plain words (no "immutable", "topological", etc.); a test fails on any screen whose help text is missing or still uses the banned words list in `src/tests/plain-language*.test.tsx`.
+- [ ] **N-8 First invoice walk-through** — from the empty Sales screen: add a customer, make an invoice, preview it, mark it paid, see it on the P&L; Playwright journey at 1280 and 390 px; fix any dead end found.
+- [ ] **N-9 Feedback button reaches a person** — the "Send feedback" button (bug / missing tool / question): check each kind arrives where the owner reads it (see `docs/FOR_YOU.md`), the sender sees a clear "sent" message, and a failed send says so; tests for all three kinds.
+- [ ] **N-10 Hebrew pass on the onboarding screens** — sign-up, company setup, first-hour guide and the N-1 checklist read correctly right-to-left (layout, numbers, dates); screenshots at 390 px in Hebrew; fix what is wrong.
+
+## AI #13: tasks (spare queue for the next AI; written by Claude, 10 Nov)
+
+Same rules as AI #12 above. Lane: reports people check every month.
+
+- [ ] **R-1 Month-end checklist screen** — the steps of closing a month (reconcile every bank, review uncategorized, check A/R and A/P aging, run P&L and balance sheet, lock the period) with each step ticking itself from the data; links to each screen; tests.
+- [ ] **R-2 Report comparisons** — P&L and balance sheet "compare to": previous period, same period last year, budget; columns with the difference and %; phone layout; tests with hand-worked figures.
+- [ ] **R-3 Saved report packs by email** — a saved report pack can be scheduled monthly to the owner's email (uses the existing scheduled-reports code); preview before saving; tests.
+- [ ] **R-4 Report notes** — a short note per report and period ("rent paid late this month"), shown on screen and in the PDF; tests.
+- [ ] **R-5 Report speed check** — every report on the 5,000-entry sample year opens in under one second on a normal laptop; fix the slow ones without changing the figures; the existing speed test extended.
 
 ## New tasks from the bookkeeping-first plan (Claude, 20 Oct; PLAN §17)
 
@@ -2205,6 +2222,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 - **10 Nov, Claude (AI #1):** merged AI #3's A-268…A-272 (#595) after fixing the review notes on the branch (party-aging focus return, purchase-order loading gate, passkey reload, preview-only printing, corrected print/passkey evidence). AI #3's queue was empty; added A-273…A-277 under "Next batch for AI #3 (10 Nov)".
+- **10 Nov, Claude (AI #1):** at the owner's request AI #12 is now an active AI (onboarding and help lane). Its queue has N-1…N-10 and a "Start here" note under "AI #12: tasks". New spare queue "AI #13: tasks" (R-1…R-5, monthly reports) for the next AI.
 - **8 Nov, Claude (AI #1):** AI #3's queue was down to A-263…A-267 (all in progress); added A-268…A-272 under "Next batch for AI #3 (8 Nov)".
 - **8 Nov, Claude (AI #1):** owner asked for queues for two more AIs: **AI #10** ("AI #10: tasks", H-1, H-4, H-6…H-9 open) and **AI #11** (new: imports, exports and documents, J-1…J-8). New spare queue **AI #12** (N-1…N-5). Every queue now has at least five open tasks.
 - 2026-11-08 AI #2 (Codex): **C-40 delivered** — Reports → **Israel VAT Report** (`IsraelVatReportView.tsx`). Reads pure Form 836 figures from `israelVatReturn`, marks equipment and mixed bills via `withEquipment`, supports multiple Israeli VAT registrations via `ilVatRegistrations`, provides bilingual Form 836 line items (EN/HE), CSV export (`ilVatReportCsv.ts`), and print layout support (`window.print()`). Unit/DOM tests `src/tests/israel-vat-report-view.test.tsx` (7/7). Quality metrics clean (`untestedViews: 0`, `suppressionCount: 0`, `anyCount: 37`, warnings 42/42).
