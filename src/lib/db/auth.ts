@@ -296,6 +296,34 @@ export async function signInWithPopup(_auth: Auth, provider: GoogleAuthProvider)
   return new Promise<UserCredential>(() => {});
 }
 
+/**
+ * Whether the "Continue with Microsoft" button is offered. It is off until the owner has registered the app with
+ * Microsoft, turned on the Azure provider in Supabase, and set VITE_MICROSOFT_SIGNIN=true for the build
+ * (docs/MICROSOFT_SIGNIN.md): before that, the button would only lead to an error page.
+ */
+export function microsoftSignInEnabled(): boolean {
+  try {
+    return (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_MICROSOFT_SIGNIN === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Microsoft sign-in (work, school and personal accounts), through Supabase's Azure provider. Like Google it is a
+ * full-page redirect: the browser leaves and comes back signed in, and onAuthStateChanged fires then. The `email`
+ * scope is what lets Supabase read the account's address.
+ */
+export async function signInWithMicrosoft(): Promise<void> {
+  const { error } = await getSupabase().auth.signInWithOAuth({
+    provider: 'azure',
+    options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined, scopes: 'email' },
+  });
+  if (error) fail(error, 'popup-closed-by-user');
+  // The page is navigating away; this promise never needs to resolve.
+  return new Promise<void>(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Two-step sign-in (authenticator app / TOTP)
 // ---------------------------------------------------------------------------

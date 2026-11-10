@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, ShieldCheck, Mail, UserPlus, KeyRound } from 'lucide-react';
-import { passkeysSupported } from '../../lib/db/auth';
+import { microsoftSignInEnabled, passkeysSupported, signInWithMicrosoft } from '../../lib/db/auth';
 import { useBillingStore } from '../../modules/billing/BillingService';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
@@ -20,11 +20,13 @@ interface AuthScreenProps {
   onGuest: () => void;
   /** CC-12: sign in with a passkey; the button shows only where the browser supports passkeys */
   onPasskeyLogin?: () => Promise<void>;
+  /** whether to offer "Continue with Microsoft"; by default the build's VITE_MICROSOFT_SIGNIN setting */
+  microsoftSignIn?: boolean;
   language: string;
 }
 
 /** Sign-in, registration, guest entry, and password-reset screen with lazy legal policy modal. */
-export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, onPasskeyLogin, language: _language }: AuthScreenProps) {
+export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, onPasskeyLogin, microsoftSignIn = microsoftSignInEnabled(), language: _language }: AuthScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,6 +43,17 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
     setIsSubmitting(true);
     try {
       await onLogin();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setIsSubmitting(true);
+    try {
+      await signInWithMicrosoft();
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Microsoft sign-in could not start. Try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -224,6 +237,18 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                   <LogIn size={18} className="text-[#0047AB]" aria-hidden="true" />
                   Continue with Google
                 </AsyncButton>
+
+                {microsoftSignIn && (
+                  <AsyncButton
+                    onClick={handleMicrosoftLogin}
+                    type="button"
+                    loadingText="Connecting..."
+                    className="h-12 bg-white border border-[#E5E5E5] hover:border-[#0047AB] text-[#0A0A0A] rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0047AB] focus-visible:ring-offset-2"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#F25022" /><rect x="11" y="1" width="9" height="9" fill="#7FBA00" /><rect x="1" y="11" width="9" height="9" fill="#00A4EF" /><rect x="11" y="11" width="9" height="9" fill="#FFB900" /></svg>
+                    Continue with Microsoft
+                  </AsyncButton>
+                )}
 
                 {onPasskeyLogin && !isRegistering && passkeysSupported() && (
                   <AsyncButton
