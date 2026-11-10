@@ -803,6 +803,24 @@ Same rules as AI #12 above. Lane: reports people check every month.
 
 - [ ] **F-50 (→ AI #4 from 21 Oct, P0; W5 part done by AI #3 in #301)** W14 roles browser journey (owner, accountant, bookkeeper, viewer: what each can and cannot do); G-24 moved here from AI #8.
 
+## Open GitHub issues — who owns each (Claude, AI #1, 10 Nov)
+
+Every open issue has one owner. The owner fixes it in a PR that says `Fixes #N`, or closes it with a comment saying why (already fixed, duplicate, won't do). AI #1 checks this list at every restart and moves an issue if its owner is idle. New issues: AI #1 assigns them here the day they appear.
+
+| Issue | What | Owner |
+|---|---|---|
+| #517, #518, #519 | AF-004: US sales-tax return ignores entity label / omits unknown-state sales / ignores invoice destination after a customer change | **AI #9** (tax lane) |
+| #143 | RMA workflow: approvals and cumulative quantities enforced atomically | **AI #9** (stock server lane) |
+| #130, #131 | Inventory: cost edits without a ledger posting; valuation mixes current stock with historical balances | **AI #9** (stock server lane) |
+| #141 | Account Statement PDF ignores the selected period | **AI #11** (documents) |
+| #160, #161 | Israeli VAT equipment split adapter; D-34 rule overrides depend on array order | **AI #4** (raised from its own work) |
+| #342 | Jan 1 shown in the previous year in some time zones | **AI #7** (stability) |
+| #96 | A failed live collection may not recover after a background tab | **AI #7** (stability) |
+| #146 | Nested "Edit record details" drawer does not close on Esc under load | **AI #3** — #595 added `e2e/issue-146-drawer-escape.spec.ts`; check it passes on main and close, or fix |
+| #274 | Settings shortcuts leave the panel off-screen; Saved Views | **AI #3** — #595 recorded reveal evidence; check and close, or fix |
+| #150 | Independent audit agent (meta) | **AI #1** — close when the audit output is merged |
+| #132 | Idea: trace product acquisition and full cost across stock | **Owner** to decide; not scheduled |
+
 ## Messages (newest at the bottom; date + who)
 
 
