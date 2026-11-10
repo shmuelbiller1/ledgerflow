@@ -85,8 +85,10 @@ export function evaluateRules<E>(rules: Rule<E>[], composed: ComposedFacts, inpu
   const liveIds = new Set(live.map(c => c.rule.id));
   const overriders = new Map<string, string[]>();
   for (const { rule } of live) if (rule.combine === 'override') for (const t of rule.targets || []) {
-    if (t !== rule.id && liveIds.has(t)) overriders.set(t, [...(overriders.get(t) || []), rule.id]);
+    // a rule overriding itself is a loop of one: kept, so it is left undecided like any other loop
+    if (liveIds.has(t)) overriders.set(t, [...(overriders.get(t) || []), rule.id]);
   }
+  const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   const stands = new Set<string>();
   const displacedBy = new Map<string, string>();
   for (let changed = true; changed;) {
@@ -94,7 +96,7 @@ export function evaluateRules<E>(rules: Rule<E>[], composed: ComposedFacts, inpu
     for (const { rule } of live) {
       const id = rule.id;
       if (stands.has(id) || displacedBy.has(id)) continue;
-      const by = (overriders.get(id) || []).filter(o => stands.has(o)).sort()[0];
+      const by = (overriders.get(id) || []).filter(o => stands.has(o)).sort(byId)[0];
       if (by) { displacedBy.set(id, by); changed = true; continue; }
       if ((overriders.get(id) || []).every(o => displacedBy.has(o))) { stands.add(id); changed = true; }
     }
@@ -104,9 +106,9 @@ export function evaluateRules<E>(rules: Rule<E>[], composed: ComposedFacts, inpu
     const excluded = excludedBy.get(id);
     if (excluded) out.displaced.push({ rule: c.rule, by: excluded });
     // named once everything is settled, so the same rule is named whatever the listing order
-    else if (displacedBy.has(id)) out.displaced.push({ rule: c.rule, by: (overriders.get(id) || []).filter(o => stands.has(o)).sort()[0] });
+    else if (displacedBy.has(id)) out.displaced.push({ rule: c.rule, by: (overriders.get(id) || []).filter(o => stands.has(o)).sort(byId)[0] });
     else if (stands.has(id)) out.applied.push(c);
-    else out.undecided.push({ rule: c.rule, conflicting: [], cycle: (overriders.get(id) || []).filter(o => !displacedBy.has(o)).sort() });
+    else out.undecided.push({ rule: c.rule, conflicting: [], cycle: (overriders.get(id) || []).filter(o => !displacedBy.has(o)).sort(byId) });
   }
   return out;
 }

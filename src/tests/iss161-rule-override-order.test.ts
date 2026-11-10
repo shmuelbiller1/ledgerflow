@@ -18,12 +18,13 @@ const rule = (id: string, combine: Rule['combine'], targets: string[] = []): Rul
 const permutations = <T>(xs: T[]): T[][] => xs.length <= 1 ? [xs]
   : xs.flatMap((x, i) => permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map(rest => [x, ...rest]));
 
+const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const summary = (rules: Rule<string>[]) => {
   const out = evaluateRules(rules, facts, { date: DATE, scope: 'line' });
   return {
-    applied: out.applied.map(a => a.rule.id).sort(),
-    displaced: out.displaced.map(d => `${d.rule.id}<${d.by}`).sort(),
-    undecided: out.undecided.map(u => `${u.rule.id}~${(u.cycle || []).join(',')}`).sort(),
+    applied: out.applied.map(a => a.rule.id).sort(byText),
+    displaced: out.displaced.map(d => `${d.rule.id}<${d.by}`).sort(byText),
+    undecided: out.undecided.map(u => `${u.rule.id}~${(u.cycle || []).join(',')}`).sort(byText),
   };
 };
 
@@ -57,6 +58,11 @@ test('a loop (A over B, B over A) is not decided by list order: both are left fo
 test('an excluded rule neither applies nor replaces: E excludes A, so A cannot switch off B', () => {
   sameInEveryOrder([rule('E', 'exclude', ['A']), rule('A', 'override', ['B']), rule('B', 'accumulate')],
     { applied: ['B', 'E'], displaced: ['A<E'], undecided: [] });
+});
+
+test('a rule overriding itself is a loop of one: left undecided, and what it targets is not decided by it either', () => {
+  sameInEveryOrder([rule('A', 'override', ['A', 'B']), rule('B', 'accumulate')],
+    { applied: [], displaced: [], undecided: ['A~A', 'B~A'] });
 });
 
 test('nothing overridden: every matching rule applies (unchanged behaviour)', () => {
