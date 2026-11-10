@@ -39,7 +39,7 @@ Introduced by commit `2245ff43` (author `shmuelbiller1`, committed 2026-11-09, s
 - `docs/COORDINATION.md` (dc407397): AI #12 is now an active lane (N-1…N-10) and spare queue AI #13 (R-1…R-5) was added — not audit-relevant.
 - AI #1's 2026-11-07 message still stands: every open PR into `main` was blocked; PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 
-**ESLint ratchet on `5968faf3`:** `ESLint warning ratchet` workflow **completed successfully** (2026-11-10 run). On `dc407397`: `CI` and `CodeQL security scanning` were **in progress** at the time of writing (started 2026-11-10T03:08Z); `Dependency SBOM evidence` **succeeded**. Vercel previews remain "Authorization required to deploy" per the owner's deliberate usage freeze — not a code signal.
+**ESLint ratchet on `5968faf3`:** `ESLint warning ratchet` workflow **completed successfully** (2026-11-10 run). On `dc407397`: `CI` (**success** — every job incl. unit shards, coverage gate, browser shards, Postgres-17 rules job, production build; run 03:08Z), `ESLint warning ratchet` (**success**, 03:16Z), `Dependency SBOM evidence` (**success**), `CodeQL security scanning` (**success**). Vercel previews remain "Authorization required to deploy" per the owner's deliberate usage freeze — not a code signal.
 
 ---
 
@@ -174,10 +174,19 @@ Code unchanged between 11-08 and today for these subsystems (except #96's hook, 
 - Focused unit suites (`NODE_ENV=test SYSTEM_SALT=… npx tsx --test --test-force-exit …`): `rules-engine-properties`, `iss143-rma-server` (0 tests — DB-gated, skipped), `iss160-il-vat-equipment`, `collection-retry`, `calendar-dates`, `civil-date-properties`, `aud01-statement-scope` → **38 pass / 0 fail**; `rules-engine-properties` alone: 6/6.
 - `git grep` conflict-marker scan over all tracked files → exactly one hit, `audit/FINAL_ACCURATE_LIST_2026-11-08.md` (fixed in this PR).
 - `node scripts/code-atlas.mjs stats` → inventory 2141, code files 1967, reviewer-annotated 126, manually inspected 54, stale annotations 0, unresolved module/glob links 82. (Inventory, not an audit.)
-- `gh` checks: all 15 open issues re-read at 2026-11-10; PRs #524…#539, #527 confirmed merged 2026-11-09; #525 closed unmerged; CI on `5968faf3` (ESLint ratchet success) and `dc407397` (CI + CodeQL in progress at 03:10Z).
+- `gh` checks: all 15 open issues re-read at 2026-11-10; PRs #524…#539, #527 confirmed merged 2026-11-09; #525 closed unmerged; CI on `5968faf3` (ESLint ratchet success) and on `dc4073970` — full `CI` **success** (all unit shards incl. timezone legs, coverage gate, browser shards, Postgres-17 rules job, production build, Playwright smoke), plus ESLint ratchet, SBOM and CodeQL **success**.
 - File counts at the pin: 3,502 tracked files; 2,667 `.ts/.tsx`.
 
-**Also started:** the full `npm test` suite (all `src/tests/*.test.*` etc.) was launched at the pin and was still running when this document was finalised — **its result is reported in the PR and in the Google Drive checkpoint, not claimed here**. Focused money/audit-adjacent suites are green; the authoritative full-suite signal is the CI `unit (1-4/4)` + `unit_gate` jobs on this PR and on `main`.
+**Verified — upstream `main` at the pin, full CI (`CI` workflow, run on 2026-11-10T03:08Z, conclusion `success`):**
+- `Lint, Typecheck, and Database rules` — **success** (includes `npm run test:rules` / RLS against a Postgres 17 service).
+- `Unit tests 1/4…4/4` — **success**, plus the timezone legs (`Unit tests in Pacific/Auckland (1-3/3)` and `Unit tests in America/Los_Angeles (1-3/3)` — **success**).
+- `Accounting & Security Test Suites (coverage gate)` — **success**.
+- `Production build` — **success**; `Browser shard 1/5…5/5` — **success**; `Playwright E2E Smoke Suite` — **success**.
+- `ESLint warning ratchet` (5968faf3 and 03:16Z re-run) and `Dependency SBOM evidence` and `CodeQL security scanning` — **success**.
+
+This PR changes no `src/` (docs + one review-only probe), so the pin's CI results cover the full suite, DB/rules, build and browser journeys at this exact base.
+
+**Local full `npm test` (honest record):** launched at the pin in this sandbox; after ~55 minutes it produced no output and its processes showed ~0 CPU time (no Postgres/database here; the sandbox cannot reach one). It was **stopped without a result** and is **not** claimed anywhere as passing. Focused suites are green (Section 7); the authoritative full-suite signal is the CI run quoted above.
 
 **Not executed (hard limits of this sandbox, recorded, not waved through):**
 - `npm run test:rules` and the DB-gated suites (`LF_TEST_DATABASE_URL` unset — no Postgres binary in this sandbox). CI's Postgres 17 job runs them; until a green run is on record, **#143 and the RLS rows are unverified by this audit**.
