@@ -27,6 +27,13 @@ This document is the proposal plus the evidence, so the owner can decide without
    says so before the import, which is honest, but there is no way for the bookkeeper to say "update the
    existing one" or "the tax id changed, this is the same company".
 
+5. **A duplicate inside the file is already refused before the server sees it.** Probe
+   `audit/agent11/probes/j3-max-import-rows.ts`: three rows named "Acme Ltd" produce
+   `{"records":1, ..., "errors":[{"row":3,"message":"Same name as row 2"},{"row":4,"message":"Same name as row 2"}]}`
+   — `prepareImport` keeps the first and refuses the rest by row number, and the import is blocked until
+   the file is fixed. The cap is `MAX_IMPORT_ROWS = 2000`. So the only duplicates that reach the server
+   are the ones against **records already in the workspace**, which is exactly what this proposal covers.
+
 ## The change proposed (server + one screen control)
 
 ```ts
