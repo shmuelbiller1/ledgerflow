@@ -15,6 +15,8 @@ import { useDialog } from '../../hooks/useDialog';
 import DisposeAssetDialog from './DisposeAssetDialog';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import TransferAssetDialog from './TransferAssetDialog';
 import AssetLabels from './AssetLabels';
 import { assetMatches, missingTags } from '../../lib/assetTags';
@@ -45,6 +47,7 @@ export const FixedAssetsView: React.FC = () => {
   const accounts = useLedgerStore(s => s.accounts) as ChartAccount[] | undefined;
   const bills = useLedgerStore(s => s.bills);
   const { loading } = useLedgerCollections('assets', 'bills');
+  const dataHealth = useScreenDataHealth(['assets', 'bills']);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const { addEntity, updateEntity } = useEntityOperations();
   const role = useCurrentRole();
@@ -198,6 +201,7 @@ export const FixedAssetsView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6" id="fixed-assets-view">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this register" />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>
           <h1 className="text-xl font-bold text-[var(--text)] flex items-center gap-2">

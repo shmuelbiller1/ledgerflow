@@ -24,7 +24,11 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { EmptyState } from '../ui/EmptyState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { inBackground } from '../../lib/inBackground';
+import { useUIStore } from '../../stores/useUIStore';
 
 /**
  * Recurring invoices and entries. The daily job (src/server/services/recurringService.ts) runs
@@ -38,9 +42,12 @@ export default function RecurringTransactionsView() {
   const [searchTerm, setSearchTerm] = useState('');
   const focusedId = useRecordFocus('recurring', { ready: recurring.length > 0, onFocus: () => setSearchTerm('') });
   const { loading } = useLedgerCollections('recurring');
+  const dataHealth = useScreenDataHealth(['recurring']);
   const { updateEntity, deleteEntity } = useEntityOperations();
   const role = useCurrentRole();
   const canEdit = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
+  // A-272: the empty list offers the one action that fills it (a schedule starts on an invoice)
+  const openSales = useUIStore(s => s.setActiveTab);
 
   const togglePause = (rule: RecurringTransaction) => updateEntity('recurring', rule.id,
     { isActive: !rule.isActive, status: rule.isActive ? 'paused' : 'active' },
@@ -80,6 +87,9 @@ export default function RecurringTransactionsView() {
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg)]">
+      <div className="px-6 pt-6">
+        <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="these schedules" />
+      </div>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between p-6 border-b border-[var(--line)] bg-[var(--surface)] gap-4">
         <div className="flex items-center gap-4">
@@ -111,6 +121,17 @@ export default function RecurringTransactionsView() {
       </div>
 
       {/* Stats Summary */}
+      {!loading && recurring.length === 0 && (
+        <div className="p-6">
+          <EmptyState
+            title="No recurring invoices or entries yet"
+            description="A schedule repeats one invoice or entry on its own (weekly rent, a monthly bill, a quarterly journal). It is created from the document itself, so the amounts are the ones you already reviewed."
+            actionLabel="Go to Sales to set one up"
+            onAction={() => openSales('sales')}
+          />
+        </div>
+      )}
+      {recurring.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-[var(--bg)]">
         <div className="bg-[var(--surface)] p-4 rounded-xl border border-[var(--line)]">
           <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-1">Active Rules</p>
@@ -133,8 +154,10 @@ export default function RecurringTransactionsView() {
           <p className="text-2xl font-bold text-zinc-500">{recurring.length}</p>
         </div>
       </div>
+      )}
 
-      {/* Content */}
+      {/* Content: nothing scheduled is said once, above, with the action that fills it */}
+      {(!loading && recurring.length === 0) ? null : (
       <div className="flex-1 overflow-auto p-6 pt-0">
         <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse">
@@ -230,12 +253,14 @@ export default function RecurringTransactionsView() {
               ))}
               {filteredRecurring.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
-                    {loading ? <LoadingState what="recurring schedules" /> : (<>
-                    <RefreshCw aria-hidden="true" size={48} className="mx-auto mb-4 opacity-10" />
-                    <p className="text-sm font-medium">No recurring invoices or entries yet</p>
-                    <p className="mt-2 text-xs">Create an invoice in Sales and choose "Recurring" to send the same invoice on a schedule.</p>
-                    </>)}
+                  <td colSpan={7}>
+                    {loading ? <LoadingState what="recurring schedules" /> : (
+                      <div className="px-6 py-12 text-center text-zinc-500">
+                        <RefreshCw aria-hidden="true" size={48} className="mx-auto mb-4 opacity-10" />
+                        <p className="text-sm font-medium">No schedule matches the search</p>
+                        <p className="mt-2 text-xs">Try other words, or clear the search to see all {recurring.length}.</p>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}
@@ -243,6 +268,7 @@ export default function RecurringTransactionsView() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

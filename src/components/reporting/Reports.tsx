@@ -324,6 +324,8 @@ const Reports = React.memo(() => {
               {(['month', 'quarter', 'year'] as const).map((t) => (
                 <button
                   key={t}
+                  type="button"
+                  aria-pressed={timeframe === t}
                   onClick={() => { setCustomPeriod(undefined); setTimeframe(t); }}
                   className={cn(
                     "px-3 py-1 rounded-md text-sm font-medium transition-all cursor-pointer",
