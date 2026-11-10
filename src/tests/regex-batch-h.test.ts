@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { wideGapStart } from '../lib/merchantNames';
+import { cleanMerchantName, wideGapStart } from '../lib/merchantNames';
+import { parseReceiptOCR } from '../lib/algorithms/receipt-capture';
 
 function strings(alphabet: string[], maxLength: number): string[] {
   let level = [''];
@@ -33,5 +34,18 @@ describe('wideGapStart', () => {
       const m = /\s{2,}.*$/.exec(s);
       assert.equal(wideGapStart(s), m ? m.index : -1, JSON.stringify(s));
     }
+  });
+});
+
+describe('the rewritten patterns through their callers', () => {
+  it('cleanMerchantName drops a wide-gap city and state, and keeps other text after a wide gap', () => {
+    assert.equal(cleanMerchantName('JOES COFFEE  NEW YORK NY'), 'Joes Coffee');
+    assert.equal(cleanMerchantName('JOES  COFFEE SHOP'), 'Joes Coffee Shop');
+  });
+  it('a long "sub … TOTAL" line is read quickly and is not taken for a sub-total', () => {
+    const t0 = Date.now();
+    const reading = parseReceiptOCR(['Shop', 'Item $2.00', 'sub' + ' '.repeat(50_000) + 'x TOTAL $1.00'], []);
+    assert.equal(reading.totalCents, 100);
+    assert.ok(Date.now() - t0 < 1000, 'linear time');
   });
 });

@@ -40,7 +40,7 @@ import type { Loan } from '../lib/loans';
 
 import { DoubleEntryValidator } from '../kernel/validation/DoubleEntryValidator';
 import type { LockException } from '../lib/periodLock';
-import { entriesAfter, openingCutoff, type ServerOpening } from '../lib/serverBalances';
+import { entriesAfter, openingCutoff, setOpeningCutoffFallback, type ServerOpening } from '../lib/serverBalances';
 declare global {
   interface Window {
     _recomputeTimer?: ReturnType<typeof setTimeout>;
@@ -150,6 +150,9 @@ export interface LedgerState {
   matchingThreshold: number;
   isDataTruncated: boolean;
   truncatedCollections: Record<string, boolean>;
+  /** L-123 step 4: entries on or before this day are not loaded; the server's year-end snapshot sums them (null = every entry loaded). */
+  entriesClosedThrough: string | null;
+  setEntriesClosedThrough: (day: string | null) => void;
   runningBalances: {
     totalIncome: number;
     totalExpense: number;
@@ -302,6 +305,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   matchingThreshold: 0.8,
   isDataTruncated: false,
   truncatedCollections: {},
+  entriesClosedThrough: null,
   isPrivacyMode: false,
 
   setLockDate: (date) => set({ lockDate: date }),
@@ -310,6 +314,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   setMatchingThreshold: (threshold) => set({ matchingThreshold: threshold }),
   setPrivacyMode: (active) => set({ isPrivacyMode: active }),
   setIsDataTruncated: (isTruncated) => set({ isDataTruncated: isTruncated }),
+  setEntriesClosedThrough: (day) => { setOpeningCutoffFallback(day); set({ entriesClosedThrough: day }); },
   setCollectionTruncated: (collectionName, isTruncated) => set((state) => {
     const next = { ...state.truncatedCollections, [collectionName]: isTruncated };
     const isAnyTruncated = Object.values(next).some(Boolean);
@@ -592,6 +597,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
    * Closed periods, the lock exception, invites and the truncation flags used to stay, so the new
    * workspace was checked against the old one's closed months until its own loaded. */
   resetStore: () => {
+    setOpeningCutoffFallback(null);
     LedgerEngine.clearNormalizationCache();
     set({
       periods: [],
@@ -603,6 +609,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       lockException: null,
       isDataTruncated: false,
       truncatedCollections: {},
+      entriesClosedThrough: null,
       transactions: [],
       optimisticIds: new Set(),
       accounts: [],

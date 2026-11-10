@@ -40,7 +40,7 @@ Stage A (synthetic bookkeeping beta) is largely ready per prior RELEASE_GATE wor
 ## Preservation
 - This document will be pushed to branch `ai8/accurate-findings-2026-11-08` on the fork.
 - Also uploaded to Google Drive folder `LedgerFlow-Audit-Agent8-2026-11-05` (or successor).
-- Previous session artifacts remain on Drive and under `audit/agent8-2026-11-05-session-*`.
+- Previous session artifacts remain on Drive and under `docs/archive/audit/agent8-2026-11-05-session-*`.
 
 ## Recommended owner actions (priority)
 1. Decide product rule for cross-country tax profile inheritance (AF-004-F1) and whether stage-A can create such profiles.

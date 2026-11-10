@@ -17,6 +17,8 @@ export default function DataStatusBar() {
   const failed = useDataNeedsStore(s => s.failed);
   const retry = useDataNeedsStore(s => s.retry);
   const truncated = useLedgerStore(s => s.truncatedCollections);
+  const closedThrough = useLedgerStore(s => s.entriesClosedThrough);
+  const entryCount = useLedgerStore(s => s.transactions.length);
   const signedIn = useAuthStore(s => Boolean(s.user && s.currentWorkspaceId));
   if (!signedIn) return null;
 
@@ -24,7 +26,9 @@ export default function DataStatusBar() {
   const failedKeys = wanted.filter(k => failed[k]);
   const loadingKeys = wanted.filter(k => !loaded[k] && !failed[k]);
   const cut = (Object.keys(LEDGER_COLLECTIONS) as LedgerKey[])
-    .filter(k => truncated?.[LEDGER_COLLECTIONS[k].collection]);
+    .filter(k => truncated?.[LEDGER_COLLECTIONS[k].collection])
+    // closed years left to the server are said on their own line; the entry cap only when it is reached too
+    .filter(k => k !== 'transactions' || !closedThrough || entryCount >= LEDGER_COLLECTIONS.transactions.cap);
 
   // loading floats over the page and takes no space: a bar appearing and going as each kind of data
   // arrives made the whole page jump up and down
@@ -34,7 +38,7 @@ export default function DataStatusBar() {
       <span>Loading {collectionList(loadingKeys)}…</span>
     </div>
   );
-  if (!failedKeys.length && !cut.length) return loadingNote || null;
+  if (!failedKeys.length && !cut.length && !closedThrough) return loadingNote || null;
   return (
     <div className="border-b border-[var(--line)] text-xs px-4 py-1.5 space-y-1">
       {loadingNote}
@@ -47,6 +51,11 @@ export default function DataStatusBar() {
               try again{failedKeys.length > 1 ? ` (${COLLECTION_LABELS[k]})` : ''}
             </button>
           ))}
+        </div>
+      )}
+      {closedThrough && (
+        <div role="status" data-testid="closed-years-note" className="text-[var(--muted)]">
+          Entries up to {closedThrough} are in the closed years' opening balances: balances and reports include them from the server; open an account's history or the general ledger to see them.
         </div>
       )}
       {cut.length > 0 && (

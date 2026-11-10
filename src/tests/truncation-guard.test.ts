@@ -10,7 +10,8 @@ describe('Truncation Guard Suite (AA-05)', () => {
     // one subscriber serves every collection in src/lib/ledgerCollections.ts
     const subscriber = content.slice(content.indexOf('function subscribeLedgerCollection'));
     assert.ok(subscriber.includes('limit(spec.cap)'), 'the live subscriber must apply the cap');
-    assert.ok(subscriber.includes('setCollectionTruncated(spec.collection, snap.docs.length >= spec.cap)'),
+    // L-123 step 4: partial at the cap, or when the closed years are left to the server (entryListPartial)
+    assert.ok(subscriber.includes('setCollectionTruncated(spec.collection, entryListPartial(snap.docs.length, spec.cap, closedThrough))'),
       'the live subscriber must record truncation');
     for (const [key, spec] of Object.entries(LEDGER_COLLECTIONS)) assert.ok(spec.cap > 0, `${key} needs a cap`);
     assert.equal((content.match(/onSnapshot\(query\(collection\(db, spec\.collection\)/g) || []).length, 1,
