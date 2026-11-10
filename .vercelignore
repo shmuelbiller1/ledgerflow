@@ -47,7 +47,6 @@ work/
 
 # Root documentation, AI instructions, linter/test configs, and quality-ratchet baselines
 **/AGENTS.md
-/API_DOCS.md
 /CLAUDE.md
 /CURRENT_WORK.md
 /LICENSE.md

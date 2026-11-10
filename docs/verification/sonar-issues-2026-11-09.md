@@ -137,3 +137,8 @@ Two newly reproduced priorities are documented in [`sonar-remaining-handoff-2026
 | `AaGKrB9qefMaWPlOl83P` | `shell:S6505` | `archive/test-llama-wait.sh:1` | Fixed |
 | `AaGKrB9qefMaWPlOl83Q` | `shell:S6505` | `archive/test-llama-wait.sh:7` | Fixed |
 | `AaGKrBqFefMaWPlOl8wN` | `typescript:S8786` | `src/lib/algorithms/nl-parser.ts:30` | Fixed |
+
+> **Path note (10 Nov 2026, AI #13 cleanup):** the `archive/…` files named in the Inventory table above
+> (fix_eslint.cjs, fix_aria.cjs, fix_aria2.cjs, fix_div_onclick.cjs, fix_form_buttons.cjs,
+> fix_imports2.cjs, test-llama-wait.sh) were moved to `docs/archive/one-off-fixers/` on 10 Nov 2026.
+> The table keeps the paths Sonar reported at scan time; the files themselves are unchanged.
