@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageHeader } from './ui/PageHeader';
 import NeedsAttentionCard from './dashboard/NeedsAttentionCard';
 import { Plus, CheckCircle2, Layers, UploadCloud, Sparkles, X } from 'lucide-react';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -109,19 +110,17 @@ export default function Dashboard() {
   return (
     <div className="w-full p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1360px] mx-auto text-[var(--text)]">
       {/* D-85: a short heading, then the numbers a shop owner opens the page for. */}
-      <header className="flex flex-wrap items-center justify-between gap-2 pb-3 sm:gap-3 sm:pb-4 border-b border-[var(--line)]">
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-[var(--muted)]">Cash, what customers owe you, what you owe, and profit for the selected period.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setQuickEntryOpen(true)}
-          className="flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--brass)] px-4 text-sm font-semibold text-[var(--ink)] hover:opacity-95 transition-opacity"
-        >
-          <Plus size={15} aria-hidden="true" />
-          Add Entry
-        </button>
+      <header className="pb-3 sm:pb-4 border-b border-[var(--line)]">
+        <PageHeader title="Dashboard" description="Cash, what customers owe you, what you owe, and profit for the selected period.">
+          <button
+            type="button"
+            onClick={() => setQuickEntryOpen(true)}
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--brass)] px-4 text-sm font-semibold text-[var(--ink)] hover:opacity-95 transition-opacity"
+          >
+            <Plus size={15} aria-hidden="true" />
+            Add Entry
+          </button>
+        </PageHeader>
       </header>
 
       <details className="group border border-[var(--line)] rounded-xl px-4 bg-[var(--surface)] open:pb-4">

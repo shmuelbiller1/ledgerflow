@@ -1,4 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
+import { PageHeader } from '../ui/PageHeader';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { EmptyState } from '../ui/EmptyState';
@@ -224,21 +225,16 @@ export const PurchaseOrdersView: React.FC = () => {
   return (
     <div className="space-y-6 w-full min-w-0 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="purchase-orders-view">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="w-5 h-5" aria-hidden="true" /> Purchase orders</h1>
-          <p className="text-sm text-[var(--muted)] mt-1">
-            Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.
-            {poRule.enabled && poRule.thresholdCents > 0 ? ` Orders above ${formatCurrency(poRule.thresholdCents, workspace?.currency)} require approval before receiving or billing.` : ''}
-          </p>
-        </div>
+      <PageHeader className="border-b border-[var(--line)] pb-5" icon={<ShoppingCart className="w-6 h-6" aria-hidden="true" />} title="Purchase orders"
+        description={<>Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.
+          {poRule.enabled && poRule.thresholdCents > 0 ? ` Orders above ${formatCurrency(poRule.thresholdCents, workspace?.currency)} require approval before receiving or billing.` : ''}</>}>
         {canEdit && (
           <button type="button" onClick={() => setIsCreatingPO(true)} id="create-po-btn"
             className="px-4 py-2 text-xs font-semibold bg-[var(--brass)] text-[var(--ink)] rounded-lg flex items-center gap-1.5">
             <Plus className="w-3.5 h-3.5" aria-hidden="true" /> New purchase order
           </button>
         )}
-      </div>
+      </PageHeader>
 
       <div className="flex gap-1 p-1 rounded-lg w-fit max-w-full overflow-x-auto bg-[var(--panel)] border border-[var(--line)]" role="tablist" aria-label="Purchase orders">
         {tabs.map(([id, label]) => (

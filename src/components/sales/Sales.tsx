@@ -1,4 +1,5 @@
 import { PartyDetailButton } from '../common/PartyDetailButton';
+import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -262,17 +263,8 @@ export default function Sales() {
         <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
       )}
       {/* header: same shape as Purchases (title, one line, tabs and actions on the right) */}
-      <div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />
-              Sales
-            </h1>
-            <p className="text-sm text-[var(--muted)]">Invoices you send and the money customers owe you.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title="Sales"
+        description="Invoices you send and the money customers owe you.">
             <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
 
               <button 
@@ -322,9 +314,7 @@ export default function Sales() {
               <Plus size={15} />
               {activeSubTab === 'invoices' ? 'Add Invoice' : 'Add Customer'}
             </button>
-          </div>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* what customers owe: overdue, due soon, total */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
