@@ -226,7 +226,35 @@ This PR changes no `src/` (docs + one review-only probe), so the pin's CI result
 5. **Lead/owner:** verify ISS-130's successor migration is indeed in force on the live database (screen lock exists; DB refused required for a direct browser write), then close **#130**.
 6. **This audit is not a launch approval.** Stage A remains "READY" per `RELEASE_GATE.md`; Stage B (W11/W12/W13 + production-like gates) is the owner's gate; W7/W8 stay "check before filing". Nothing in this file waives the `FIRST_TESTERS_GATE.md` P0 items.
 
-## 10. Provenance, backups and handoff
+## 10. Beta readiness matrix (`docs/FIRST_TESTERS_GATE.md`) at the pin — audit assessment, not certification
+
+The gate doc says **NOT CERTIFIED** and that every row needs evidence on an exact commit/deployment. This section is the honest current state of each row at `dc4073970`. It is a **status audit, not an approval**; the gate requires the deployed site checks, which this sandbox cannot perform.
+
+| Gate | Audit reading at the pin |
+|---|---|
+| G-01 | First-hour/return journey evidence exists in-repo (G-24 #282, D-97, A-234 wizard walk; CI browser green on `main`). **Deployed-site check still pending (owner).** |
+| G-02 | Same journey + plain-language pass (D-97) in repo; no dead-end evidence on the deployed site. **Unverified on deployment.** |
+| G-03 | Robustness fixes merged (#521 F1/F2/F8, #545 F3, #546 F4/F5) and #96 bounded retry — green in CI on `main`. Browser re-run by this audit: **not done**. |
+| G-04 | RLS/server rules suite green on CI's Postgres 17 job at the pin (`Lint, Typecheck, and Database rules` = success); W14 roles journey merged (#324). Live two-workspace check: **pending (owner deployment)**. |
+| G-05 | Test-environment banner ships in the production bundle (`testEnvironment.ts`); not checked on the live site. **Code evidence only.** |
+| G-06 | Feedback form + support reference merged; Settings → Support lists tickets. Not checked live. **Code evidence only.** |
+| G-07 | CI browser shards 1–5/5 green at the pin; phone/390 px and Hebrew coverage exist in specs (not re-run here). **CI evidence; independent browser audit pending.** |
+| G-08 | Written pilot permission / license clarity — **owner/legal action; not auditable from code.** |
+| G-09 | Ledger door + batch validation + idempotency fixes merged; CI unit shards green. Production-like concurrent-write proof: **pending (B).** |
+| G-10 | AF-001 closed (#151): Plaid cursor advances only after durable ingestion. Banking-screen AU-1 changed/removed lines remain open per RELEASE_GATE W4. **A-stage fix; B-stage evidence pending.** |
+| G-11 | Deposit/order invoicing journey green (W6, #446-era); duplicate-click paths covered by server idempotency. **Evidence in CI; production-like concurrency pending.** |
+| G-12 | W5 by-label worked figures + browser journey merged; **DIM-3 balancing roles remain open** (RELEASE_GATE W5). Label/entity ownership not confused by design there, but the open role issue blocks a clean B sign-off. |
+| G-13 | W1/W2/W3 worked figures + W13 stock as-of iss131 evidence in repo. **Signed off only when #131's residual server figure lands or owner accepts the limit.** |
+| G-14 | AUD-01/#141 fixed at the pin (§4); screen/PDF period parity enforced by `resolveStatementScope` + tests. GitHub issue still open (§4). **Code evidence; PDF/CSV live parity spot check pending.** |
+| G-15 | D-98 backup/restore journey merged (#324); AUD-02 restore races fixed (#520-era). Concurrent-writes + dry-run on production-like deployment: **pending (B).** |
+| G-16 | **Blocked for US state automation scope** by the live #517/#518/#519/AF-004 attribution defects (§3.2–3.5): returns answer from mutable customer data, silently drop unknown states, ignore line entity labels and leak books registrations into labelled entities. IL VAT path shares the same root (P7). Stage A/B remain *user-chosen rates* per RELEASE_GATE; nothing here should be offered as filing-ready. |
+| G-17 | **Unverified (owner):** `DATABASE_CA_CERT` unset (AUD-20), 4 agent-generated secrets to rotate, live sign-up untested, deployment protection on, SMTP/Stripe pending. `docs/FOR_YOU.md` items 2–8, 17. |
+| G-18 | Export evidence in repo (Auditor/Accountant export packs, Workspace archive ZIP). Rehearsed exit on a real deployment: **pending (B).** |
+| G-19 | Perf budgets + scorecard exist; no 10k+ production-like load run evidence. **Unverified (B).** |
+
+**Bottom line:** Stage A (synthetic invited preview) gates G-01..G-08 have in-repo/CI evidence for most rows, but the gate demands the deployed-site checks — until the owner performs them, first testers remain **uninvited** and this list certifies nothing. Stage B is held back by G-16 (open tax-attribution defects in the money lane), G-17 (owner config), G-12 (DIM-3), and the #131 residual. **This audit does not change the NOT CERTIFIED status.**
+
+## 11. Provenance, backups and handoff
 
 - **This PR**: `arena/016300c9-ledgerflow` on `Chaim-Richard/ledgerflow` → PR into `shmuelbiller1/ledgerflow:main` (see PR body for the link and the fork-compare fallback if upstream PR creation is disallowed for forks).
 - **Google Drive**: folder `2026-11-10 final accurate list session` in `LedgerFlow AI7 audit 2026-11-06` (id `1rWocRGHuq834BzET46Bq3PsmFxhvNFMd`) — dated checkpoints, this list, the probe outputs, and a patch file of the branch.

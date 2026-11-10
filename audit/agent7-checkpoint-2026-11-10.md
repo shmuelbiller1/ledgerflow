@@ -27,7 +27,7 @@ Session: independent-audit slice (docs/INDEPENDENT_AUDIT_AGENT.md, umbrella issu
 
 ## Implemented
 
-- `audit/FINAL_ACCURATE_LIST_2026-11-10.md` — the current accurate list at the pin (15 issues categorized; executed evidence; counts; limitations).
+- `audit/FINAL_ACCURATE_LIST_2026-11-10.md` — the current accurate list at the pin (15 issues categorized; executed evidence; counts; limitations; added a per-gate FIRST_TESTERS_GATE.md beta-readiness assessment, clearly labelled NOT CERTIFIED).
 - Conflict-marker fix to `audit/FINAL_ACCURATE_LIST_2026-11-08.md` (both sides preserved).
 - `audit/function-audit/probes/af004-519-customer-moves.ts` — new #519 reproduction probe.
 - This checkpoint.
