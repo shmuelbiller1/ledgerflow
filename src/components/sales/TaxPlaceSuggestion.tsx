@@ -9,13 +9,14 @@ import { categoriesInWords, usInvoiceTax, US_SUPPORTED_STATES, type UsInvoiceTax
 const packRates = ruleRateTable();
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
 
+import { BRAND_NAME } from '../../config/brand';
 const SAYS: Record<Exclude<LineTaxReason, 'taxed'>, string> = {
   'exempt-certificate': 'no tax: the customer has an exemption certificate',
   export: 'no tax: sold to another country',
   'zero-area': 'no tax: a zero-rated area',
   'exempt-area': 'Eilat dealer selling in Eilat: the sale can be exempt',
   'not-registered': 'no tax: the seller has no tax registration for the customer\'s place',
-  'no-rate-table': 'LedgerFlow has no rates for this place yet; choose the tax yourself',
+  'no-rate-table': `${BRAND_NAME} has no rates for this place yet; choose the tax yourself`,
 };
 
 // CON-3: the Israeli special areas say which of the two a 0% sale is, and the VAT report needs a code of that kind
@@ -113,14 +114,14 @@ function UsSalesTaxSuggestion({ answer, who, currentRate, onUseRate }: {
   const local = answer.kind !== 'confirm' && answer.localIncluded
     ? ' City, county and district rates are included.'
     : ` This is the ${answer.state} state rate only: city, county and district rates are not included, so add them for the customer's address.`;
-  const verified = answer.verified ? '' : ` Not verified: LedgerFlow has checked the state tables of ${US_SUPPORTED_STATES.join(', ')} only.`;
+  const verified = answer.verified ? '' : ` Not verified: ${BRAND_NAME} has checked the state tables of ${US_SUPPORTED_STATES.join(', ')} only.`;
   const noItem = answer.linesWithoutItem ? ` ${answer.linesWithoutItem} line(s) without an item are counted as general goods.` : '';
   if (answer.kind === 'confirm') {
     return (
       <p role="status" className="text-xs text-[var(--muted)]">
-        {who}{answer.unclear.length ? `whether ${categoriesInWords(answer.unclear)} ${answer.unclear.length === 1 ? 'is' : 'are'} taxed in ${answer.state} is not settled in LedgerFlow's table` : ''}
+        {who}{answer.unclear.length ? `whether ${categoriesInWords(answer.unclear)} ${answer.unclear.length === 1 ? 'is' : 'are'} taxed in ${answer.state} is not settled in ${BRAND_NAME}'s table` : ''}
         {answer.unclear.length && answer.unknown.length ? '; ' : ''}
-        {answer.unknown.length ? `an item has a tax category LedgerFlow does not know (${answer.unknown.join(', ')})` : ''}
+        {answer.unknown.length ? `an item has a tax category ${BRAND_NAME} does not know (${answer.unknown.join(', ')})` : ''}
         {(answer.unclear.length || answer.unknown.length) && answer.unloaded ? '; ' : ''}
         {answer.unloaded ? `${answer.unloaded} line(s) have an item that is not loaded yet, so its tax category is not known` : ''}: confirm with the state and choose the tax yourself.{verified}{noItem}
       </p>

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TransactionSchema } from '../schemas';
 
+import { BRAND_NAME } from '../config/brand';
 /**
  * The public API described for tools (Z-01): an OpenAPI 3.1 document built from the code. The entry
  * shape is the same schema the server checks requests with (`TransactionSchema`, as JSON Schema), so
@@ -20,7 +21,7 @@ export function openApiDocument(serverUrl = '/') {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'LedgerFlow API',
+      title: `${BRAND_NAME} API`,
       version: '1',
       description: 'Entries in a workspace\'s books. Authenticate with an API key (`X-API-Key: <keyId>.<secret>`) or a signed-in session token. Amounts are whole cents; an entry\'s lines add up to zero.',
     },

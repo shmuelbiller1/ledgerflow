@@ -13,6 +13,7 @@ import { describeChanges } from '../lib/accountMerge';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { makeChartAccount } from './fixtures';
 
+import { BRAND_NAME } from '../config/brand';
 type Call = { url: string; body: Record<string, unknown> };
 const accounts = [
   makeChartAccount({ id: 'office', code: '6100', name: 'Office', type: 'expense' }),
@@ -52,7 +53,7 @@ describe('Merge into… on the chart of accounts', () => {
     await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
   });
 
-  test('a bookkeeper has no merge, and an account LedgerFlow uses itself cannot be merged away', () => {
+  test(`a bookkeeper has no merge, and an account ${BRAND_NAME} uses itself cannot be merged away`, () => {
     setComponentWorkspace('bookkeeper');
     view();
     fireEvent.click(screen.getByRole('button', { name: 'Account options for Office 2' }));

@@ -12,6 +12,7 @@ import type { ChartAccount, Customer, Invoice, Transaction } from '../../types';
 import { isMailConfigured, sendMail } from './mailer';
 import { logger } from '../utils/logger';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Scheduled reports (K-28): the daily job emails each schedule's last finished week or month once;
  * "Send now" sends it straight away.
@@ -65,7 +66,7 @@ export async function sendReport(db: Firestore, workspace: { id: string; name?: 
   for (const to of schedule.recipients) {
     if (options.skip?.has(to)) continue;
     try {
-      await sendMail({ to, subject: `${table.title} · ${workspace.name || 'LedgerFlow'}`, html, attachments: [attachment], ...(options.idempotencyPrefix ? { idempotencyKey: `${options.idempotencyPrefix}_${to}` } : {}) });
+      await sendMail({ to, subject: `${table.title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments: [attachment], ...(options.idempotencyPrefix ? { idempotencyKey: `${options.idempotencyPrefix}_${to}` } : {}) });
       delivered.push(to);
     } catch (err) {
       failed.push(to);

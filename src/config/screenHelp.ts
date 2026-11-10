@@ -6,6 +6,7 @@
  */
 import { SCREEN_HELP_HE } from "./screenHelpHe";
 
+import { BRAND_NAME } from './brand';
 export const SCREEN_HELP: Record<string, Record<string, string>> = {
   main: {
     practice:
@@ -153,7 +154,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
     "cash-flow":
       "Review the existing posted cash-flow statement. Compare periods and inspect included account activity. Scenario forecasts are separate from this statement.",
     "import-acceptance":
-      "After moving books in from QuickBooks or a CSV file, upload the old system's trial balance for the date of the move. Each account and the trial balance, A/R, A/P, cash and tax payable totals are set against LedgerFlow's on the same date. Every difference is named: a balance that differs, a source line with no account here, or an account here the source does not have.",
+      `After moving books in from QuickBooks or a CSV file, upload the old system's trial balance for the date of the move. Each account and the trial balance, A/R, A/P, cash and tax payable totals are set against ${BRAND_NAME}'s on the same date. Every difference is named: a balance that differs, a source line with no account here, or an account here the source does not have.`,
     "party-linked-trial-balance":
       "Review journals explicitly linked to one customer or supplier. Choose a party and inspect debits, credits and account balances. Unallocated workspace openings and unlinked journals are excluded.",
     "sales-trends":

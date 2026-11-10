@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
+import { BRAND_NAME } from '../../src/config/brand';
 /**
  * Mounting a screen inside the running dev server, shared by the browser journeys.
  *
@@ -50,7 +51,7 @@ export type MountOptions = {
 export function fixtureHtml(title: string): string {
   return [
     '<!doctype html><html lang="en" class="light"><head>',
-    `<title>LedgerFlow ${title}</title>`,
+    `<title>${BRAND_NAME} ${title}</title>`,
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     '<link rel="stylesheet" href="/src/index.css">',
     '</head><body><div id="root"></div></body></html>',

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeQuickBooksCsv } from '../lib/quickBooksCsvImport';
 import { guessMapping, applyMapping, prepareImport, openingStockCents, type ImportKind } from '../lib/recordImport';
 
+import { BRAND_NAME } from '../config/brand';
 function prepared(kind: ImportKind, source: string[][]) {
   const table = normalizeQuickBooksCsv(kind, source);
   return prepareImport(kind, applyMapping(kind, table.slice(1), guessMapping(kind, table[0])));
@@ -60,7 +61,7 @@ test('E-20 QBO Account List maps account type and number but not the exported ba
   assert.deepEqual(result.errors, []);
   assert.equal(result.records[0].data.code, '1000');
   assert.equal(result.records[0].data.type, 'asset');
-  assert.equal(result.records[0].data.category, 'Cash', 'bank account must retain LedgerFlow cash role');
+  assert.equal(result.records[0].data.category, 'Cash', `bank account must retain ${BRAND_NAME} cash role`);
   assert.equal(result.records[0].data.subtype, 'Checking', 'QBO detail type remains available for review');
   assert.equal(result.records[1].data.type, 'revenue');
   assert.ok(result.records.every(row => !('balance' in row.data)));

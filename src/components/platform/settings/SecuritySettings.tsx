@@ -22,6 +22,7 @@ import { TWO_STEP_CHANGED } from '../../../lib/accessReview';
 import AuditEvidencePackPanel from './AuditEvidencePackPanel';
 import { inBackground } from '../../../lib/inBackground';
 
+import { BRAND_NAME, BRAND } from '../../../config/brand';
 type AuthenticatorFactor = Awaited<ReturnType<ReturnType<typeof multiFactor>['getFactors']>>[number];
 
 /** Personal account settings: independent of the user's workspace role. */
@@ -124,7 +125,7 @@ function TwoStepLoginPanel() {
       {setup && <div className="space-y-3">
         {secret ? <>
           <p className="text-sm">Scan this QR code or enter the setup key in your authenticator app, then verify its current code.</p>
-          {secret.qrCodeSvg && <img src={secret.qrCodeSvg} alt="QR code to add LedgerFlow to your authenticator app" className="w-40 h-40 bg-white p-2 rounded" />}
+          {secret.qrCodeSvg && <img src={secret.qrCodeSvg} alt={`QR code to add ${BRAND_NAME} to your authenticator app`} className="w-40 h-40 bg-white p-2 rounded" />}
           <code className="block break-all text-sm text-[var(--text)]">{secret.secretKey}</code>
         </> : <p className="text-sm">To remove {removing?.friendly_name || 'this authenticator'}, enter a current code from that app. {verified.length === 1 && 'Removing your last authenticator turns off two-step login.'}</p>}
         <label htmlFor={`${id}-code`} className="block text-sm">Current 6-digit authenticator code</label>
@@ -288,7 +289,7 @@ export default function SecuritySettings() {
                       const blob = new Blob([JSON.stringify(await res.json(), null, 2)], { type: 'application/json' });
                       const link = document.createElement('a');
                       link.href = URL.createObjectURL(blob);
-                      link.download = 'ledgerflow-my-data.json';
+                      link.download = `${BRAND.fileSlug}-my-data.json`;
                       link.click();
                       URL.revokeObjectURL(link.href);
                     } catch (err) {

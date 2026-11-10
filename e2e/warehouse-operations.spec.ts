@@ -2,11 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 
+import { BRAND_NAME } from '../src/config/brand';
 // Real screens and DB request contract; this is not a live Supabase/provider acceptance test.
 async function mount(page: Page, { longLabels = false, direction = 'ltr' }: { longLabels?: boolean; direction?: 'ltr' | 'rtl' } = {}) {
   await page.route('**/warehouse-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en"><head><title>LedgerFlow warehouse audit</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><main><div id="main-content"><div id="root"></div></div></main></body></html>',
+    body: `<!doctype html><html lang="en"><head><title>${BRAND_NAME} warehouse audit</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><main><div id="main-content"><div id="root"></div></div></main></body></html>`,
   }));
   await page.goto('/warehouse-fixture');
   await page.evaluate(async ({ longLabels, direction }) => {

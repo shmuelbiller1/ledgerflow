@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useTimeout } from '../../hooks/useTimeout';
 
+import { BRAND_NAME } from '../../config/brand';
 interface AcceptInviteViewProps {
   token?: string;
   onSuccess?: () => void;
@@ -113,7 +114,7 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
             Workspace Invitation
           </h1>
           <p className="text-xs text-[var(--muted)]">
-            LedgerFlow Enterprise Permissioned Multi-User Invite
+            {BRAND_NAME} Enterprise Permissioned Multi-User Invite
           </p>
         </div>
 

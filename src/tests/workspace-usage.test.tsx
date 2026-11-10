@@ -16,6 +16,7 @@ import { setComponentWorkspace } from './helpers/componentFixtures';
 import { stubFetchWithBodies } from './helpers/dom';
 import { getSupabase } from '../lib/db/client';
 
+import { BRAND_NAME } from '../config/brand';
 describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {
   const ws = `ws_usage_${crypto.randomBytes(4).toString('hex')}`;
   let server: Server;
@@ -72,6 +73,6 @@ describe('Settings → Billing: usage', () => {
     setComponentWorkspace('owner');
     stubFetchWithBodies(200, { status: 'success', usage: { plan: 'pro', unlimited: true, entries: { used: 1, limit: 10000 }, seats: { used: 1, limit: 25 }, storageMb: { used: 0, limit: 25000 } } });
     render(<UsagePanel />);
-    await waitFor(() => assert.ok(screen.getByText('Free access (given by LedgerFlow): no limits apply to this workspace.')));
+    await waitFor(() => assert.ok(screen.getByText(`Free access (given by ${BRAND_NAME}): no limits apply to this workspace.`)));
   });
 });

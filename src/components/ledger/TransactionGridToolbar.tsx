@@ -15,6 +15,7 @@ import SavedViewsBar from '../ui/SavedViewsBar';
 import DeepSearchBar from '../ui/DeepSearchBar';
 
 import type { TransactionGridModel } from './TransactionGrid';
+import { BRAND } from '../../config/brand';
 export function TransactionGridToolbar({ model }: { model: TransactionGridModel }) {
  const { columnLayout, setColumnWidth, moveColumn, resetColumnLayout, formId, onAction, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, selectedIds, setSelectedIds, toggleSelectAll, accounts, activeView, transactionsWithBalance, stats, totalBalancedSum, activeFilterColumn, setActiveFilterColumn, hiddenColumns, toggleColumnVisibility, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep } = model;
 
@@ -24,7 +25,7 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
  const btn = "min-h-11 md:min-h-0 md:h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)] shrink-0 cursor-pointer";
  const menuItem = "w-full text-left px-3 py-2 text-sm rounded-md hover:bg-[var(--ink)] flex items-center justify-between gap-3";
  const exportCsv = () => {
-   downloadCsv(`ledgerflow_transactions_${getLocalDateISO()}.csv`,
+   downloadCsv(`${BRAND.fileSlug}_transactions_${getLocalDateISO()}.csv`,
      ['Date', 'Description', 'Amount', 'Currency', 'Account', 'Project', 'Notes'],
      transactionsWithBalance.map(t => [t.date, t.description, csvMoney(signedCents(t)), t.currency || 'USD', resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || '', t.notes || '']));
    toast.success('Transactions exported to CSV.');

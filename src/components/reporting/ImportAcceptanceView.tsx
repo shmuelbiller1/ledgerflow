@@ -6,6 +6,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { compareImport, readSourceTrialBalance, type LedgerRow, type SourceTrialBalance } from '../../lib/importAcceptance';
 import ReportEmptyState from './ReportEmptyState';
 
+import { BRAND_NAME } from '../../config/brand';
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -47,7 +48,7 @@ export default function ImportAcceptanceView() {
   return (
     <section aria-labelledby="import-acceptance-title" className="space-y-4">
       <h2 id="import-acceptance-title" className="text-lg font-bold text-[var(--text)]">Import acceptance</h2>
-      <p className="text-sm text-[var(--muted)]">Upload the old system's trial balance for the date the books moved (QuickBooks: Reports → Trial Balance → Export to CSV). Each account and the main totals are set against LedgerFlow's on the same date.</p>
+      <p className="text-sm text-[var(--muted)]">Upload the old system's trial balance for the date the books moved (QuickBooks: Reports → Trial Balance → Export to CSV). Each account and the main totals are set against {BRAND_NAME}'s on the same date.</p>
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1 text-[var(--muted)]">Source trial balance (CSV)
           <input type="file" accept=".csv,text/csv" onChange={e => { void readFile(e.target.files?.[0]); }} className="text-[var(--text)]" />
@@ -63,7 +64,7 @@ export default function ImportAcceptanceView() {
         <div className="space-y-3" data-testid="import-acceptance">
           <p role="status" className={`text-sm font-semibold ${acceptance.accepted ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
             {acceptance.accepted
-              ? `Accepted: every account in ${source.name} agrees with LedgerFlow on ${asOf}.`
+              ? `Accepted: every account in ${source.name} agrees with ${BRAND_NAME} on ${asOf}.`
               : `Not accepted yet: ${acceptance.differences.length} account${acceptance.differences.length === 1 ? '' : 's'} differ${acceptance.differences.length === 1 ? 's' : ''}${acceptance.problems.length ? `, and the file has ${acceptance.problems.length} problem${acceptance.problems.length === 1 ? '' : 's'}` : ''}.`}
           </p>
           {acceptance.problems.map(p => <p key={p} className="text-xs text-amber-700 dark:text-amber-400">{p}</p>)}
@@ -72,7 +73,7 @@ export default function ImportAcceptanceView() {
               <caption className="text-left font-semibold text-[var(--text)] pb-1">Totals on {asOf}</caption>
               <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                 <th scope="col" className="text-left font-semibold py-1">Total</th><th scope="col" className="text-right font-semibold py-1">Source</th>
-                <th scope="col" className="text-right font-semibold py-1">LedgerFlow</th><th scope="col" className="text-right font-semibold py-1">Difference</th>
+                <th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th><th scope="col" className="text-right font-semibold py-1">Difference</th>
               </tr></thead>
               <tbody>{acceptance.checks.map(c => (
                 <tr key={c.key} className="border-b border-[var(--line)]/50">
@@ -89,7 +90,7 @@ export default function ImportAcceptanceView() {
                 <caption className="text-left font-semibold text-[var(--text)] pb-1">Accounts that differ (balances as debits; credits are negative). {acceptance.agreeing} agree.</caption>
                 <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                   <th scope="col" className="text-left font-semibold py-1">Account</th><th scope="col" className="text-left font-semibold py-1">Why</th>
-                  <th scope="col" className="text-right font-semibold py-1">Source</th><th scope="col" className="text-right font-semibold py-1">LedgerFlow</th>
+                  <th scope="col" className="text-right font-semibold py-1">Source</th><th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th>
                   <th scope="col" className="text-right font-semibold py-1">Difference</th>
                 </tr></thead>
                 <tbody>{acceptance.differences.map(d => (

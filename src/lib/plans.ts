@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../config/brand';
 /**
  * The one plan table (owner, 13 Oct: two pricing pages and the checkout disagreed). The public
  * pricing page, Settings → Billing & Plan, the admin policy dialog, the server's plan limits and
@@ -19,7 +20,7 @@ export interface Plan {
 export const PLANS: Plan[] = [
   {
     id: 'free', name: 'Free', monthlyUsd: 0,
-    description: 'For trying LedgerFlow and very small businesses',
+    description: `For trying ${BRAND_NAME} and very small businesses`,
     limits: { transactions: 100, seats: 1, storageMb: 500 },
     features: ['Up to 100 entries', '1 person', 'All standard reports', 'Invoices in English and Hebrew'],
   },

@@ -31,6 +31,7 @@ import { useAIActions } from '../../hooks/useAIActions';
 
 import { useSystemActions } from '../../hooks/useSystemActions';
 
+import { BRAND_NAME } from '../../config/brand';
 const CommandPalette = createRetryableLazy(() => import('../../components/layout/CommandPalette'));
 const ShortcutOverlay = createRetryableLazy(() => import('../../components/layout/ShortcutOverlay'));
 const DiagnosticConsole = createRetryableLazy(() => import('../../components/intelligence/DiagnosticConsole'));
@@ -164,7 +165,7 @@ export function RootLayout() {
         <div id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar focus:outline-none">
           {/* A-17: printed at the top of every page of a printout (hidden on screen) */}
           <div className="print-only-title px-2 pb-2 text-sm font-semibold border-b border-[var(--line)] mb-3" aria-hidden="true">
-            {workspaces.find(w => w.id === currentWorkspaceId)?.name || 'LedgerFlow'} · {getLocalDateISO()}
+            {workspaces.find(w => w.id === currentWorkspaceId)?.name || `${BRAND_NAME}`} · {getLocalDateISO()}
           </div>
           <MainViewSwitcher activeTab={activeTab as unknown as string} />
         </div>

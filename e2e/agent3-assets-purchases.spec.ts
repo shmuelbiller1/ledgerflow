@@ -2,11 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 
+import { BRAND_NAME } from '../src/config/brand';
 // Authenticated component fixtures with the real DB request boundary stubbed. No live provider writes.
 async function mount(page: Page, mode: 'maintenance' | 'labels' | 'purchases') {
   await page.route('**/agent3-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en"><head><title>LedgerFlow Agent 3 workflow</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en"><head><title>${BRAND_NAME} Agent 3 workflow</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/agent3-fixture');
   await page.evaluate(async mode => {

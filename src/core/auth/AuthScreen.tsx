@@ -9,6 +9,7 @@ import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordPolicy';
 import { createRetryableLazy } from '../../lib/lazyWithRetry';
 import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
 
+import { BRAND_NAME } from '../../config/brand';
 const LegalModal = createRetryableLazy(() => import('../../components/legal/LegalModal'));
 
 interface AuthScreenProps {
@@ -93,7 +94,7 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
           <div className="w-10 h-10 bg-white flex items-center justify-center rounded-xl shadow-lg">
             <ShieldCheck size={20} className="text-[#090D16]" />
           </div>
-          <span className="font-display font-extrabold text-xl tracking-tight text-white">LedgerFlow</span>
+          <span className="font-display font-extrabold text-xl tracking-tight text-white">{BRAND_NAME}</span>
         </div>
 
         <div className="relative z-10 max-w-md my-auto py-12">
@@ -129,7 +130,7 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                 <div className="w-10 h-10 bg-[#0A0A0A] flex items-center justify-center rounded-xl shadow-lg">
                   <ShieldCheck size={20} className="text-white" />
                 </div>
-                <span className="font-display font-extrabold text-xl text-[#0A0A0A] tracking-tight">LedgerFlow</span>
+                <span className="font-display font-extrabold text-xl text-[#0A0A0A] tracking-tight">{BRAND_NAME}</span>
               </header>
               
               <h2 className="font-display font-extrabold text-4xl tracking-tight text-[#0A0A0A] mb-2">

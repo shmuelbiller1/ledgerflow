@@ -7,6 +7,7 @@ import { generateOFX } from '../../../lib/ofx-exporter';
 import { getLocalDateISO } from '../../../lib/utils';
 import { toast } from 'sonner';
 import { copyWithFeedback } from '../../../lib/clipboard';
+import { BRAND } from '../../../config/brand';
 
 export default function DeveloperSettings() {
   const transactions = useLedgerStore(state => state.transactions);
@@ -40,7 +41,7 @@ export default function DeveloperSettings() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ledgerflow_${defaultAcc.code}_${getLocalDateISO()}.ofx`;
+    a.download = `${BRAND.fileSlug}_${defaultAcc.code}_${getLocalDateISO()}.ofx`;
     a.click();
     toast.success("OFX Export Layer Successful");
   };

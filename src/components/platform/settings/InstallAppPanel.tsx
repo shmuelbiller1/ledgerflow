@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 import { Download } from 'lucide-react';
 import { isAppleMobile, usePWAInstall } from '../../../hooks/usePWAInstall';
 
+import { BRAND_NAME } from '../../../config/brand';
 /**
  * Install LedgerFlow (Settings → Appearance): LedgerFlow as its own app on the computer or phone,
  * with its own window and icon, opened like any other app. The button shows when the browser can
@@ -15,15 +16,15 @@ export default function InstallAppPanel() {
     <section aria-labelledby={`${id}-title`} className="p-5 bg-[var(--panel)] border border-[var(--line)] rounded-xl space-y-3">
       <h3 id={`${id}-title`} className="text-xs font-bold uppercase tracking-wider text-[var(--text)] flex items-center gap-2">
         <Download aria-hidden="true" size={15} className="text-[var(--brass)]" />
-        Install LedgerFlow
+        Install {BRAND_NAME}
       </h3>
       {isInstalled ? (
-        <p className="text-sm text-[var(--muted)]">LedgerFlow is installed on this device.</p>
+        <p className="text-sm text-[var(--muted)]">{BRAND_NAME} is installed on this device.</p>
       ) : isInstallable ? (
         <>
-          <p className="text-sm text-[var(--muted)]">Open LedgerFlow in its own window, from your desktop, dock or home screen.</p>
+          <p className="text-sm text-[var(--muted)]">Open {BRAND_NAME} in its own window, from your desktop, dock or home screen.</p>
           <button type="button" onClick={() => void promptInstall()} className="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
-            Install LedgerFlow
+            Install {BRAND_NAME}
           </button>
         </>
       ) : isAppleMobile() ? (

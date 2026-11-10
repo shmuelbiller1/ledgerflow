@@ -2,6 +2,7 @@ import React from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { MAIN_PATH, MAIN_PATH_FIELDS } from '../../lib/mainPathGuide';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Help & Guide → Main path (DA-06): one page per step of the main path, each with the same ten
  * questions answered (src/lib/mainPathGuide.ts) and a button to the screen where it is done.
@@ -10,7 +11,7 @@ export default function MainPathGuide() {
   const goToPage = useUIStore(s => s.goToPage);
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-6">
-      <p className="text-sm text-[var(--muted)]">The twelve steps of keeping the books, in order. Each says what you do, what LedgerFlow changes, and what still needs you. What works today, with its limits: Help → What&apos;s new and <code>docs/CAPABILITIES.md</code>.</p>
+      <p className="text-sm text-[var(--muted)]">The twelve steps of keeping the books, in order. Each says what you do, what {BRAND_NAME} changes, and what still needs you. What works today, with its limits: Help → What&apos;s new and <code>docs/CAPABILITIES.md</code>.</p>
       <nav aria-label="Main path steps">
         <ol className="flex flex-wrap gap-2 text-xs">
           {MAIN_PATH.map(step => <li key={step.id}><a href={`#main-path-${step.id}`} className="underline">{step.title}</a></li>)}

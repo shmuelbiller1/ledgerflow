@@ -1,5 +1,5 @@
 name: Something is wrong
-description: A number, screen or action in LedgerFlow does not do what it should.
+description: A number, screen or action in the app does not do what it should.
 labels: [bug, needs-triage]
 body:
   - type: markdown

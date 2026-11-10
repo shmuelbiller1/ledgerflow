@@ -10,6 +10,7 @@ import { drawLine, wrapText } from './pdfText';
 import { DOCUMENT_WORDS, type DocumentLanguage, type DocumentWords } from '../../lib/documentLanguage';
 import { splitTrimmedLines } from '../../lib/textShape';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Document PDFs (invoices, estimates, credit notes, payment receipts, statements) with pdfkit:
  * every line on as many pages as needed with "Page x of y" (Y-17), the workspace's logo, colour,
@@ -190,7 +191,7 @@ export function layoutDocumentPdf(
   return {
     title: `${saleReceipt ? words.titles.saleReceipt : salesOrder ? words.titles.salesOrder : words.titles[type]}${options.copyMark ? ` · ${words.copyMark[options.copyMark]}` : ''}`,
     company: {
-      name: clean(workspace?.name || workspace?.companyName || 'LedgerFlow Workspace', 120),
+      name: clean(workspace?.name || workspace?.companyName || `${BRAND_NAME} Workspace`, 120),
       addressLines: splitTrimmedLines(clean(branding.address, 300)).slice(0, 5),
     },
     meta,

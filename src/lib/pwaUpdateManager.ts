@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import { safeConfirm } from './utils';
 
+import { BRAND_NAME } from '../config/brand';
 export type RegisterSWFn = (options?: {
   immediate?: boolean;
   onNeedReload?: () => void;
@@ -212,7 +213,7 @@ export async function requestSafePWAUpdate(options?: {
   const doc = options?.doc === undefined ? (typeof document !== 'undefined' ? document : null) : options.doc;
 
   if (hasUnsavedDocumentWork(doc)) {
-    const proceed = confirmFn('You have an open editor or unsaved changes in this tab. Reload now to finish updating LedgerFlow?');
+    const proceed = confirmFn(`You have an open editor or unsaved changes in this tab. Reload now to finish updating ${BRAND_NAME}?`);
     if (!proceed) {
       return false;
     }
@@ -267,7 +268,7 @@ export function initPWAUpdateManager(
     });
 
   const notify = options?.notify ?? ((onAccept: () => void) => {
-    toast.info('A new version of LedgerFlow is ready.', {
+    toast.info(`A new version of ${BRAND_NAME} is ready.`, {
       id: 'ledgerflow-pwa-update',
       duration: Infinity,
       description: 'Save any open work, then update when convenient.',

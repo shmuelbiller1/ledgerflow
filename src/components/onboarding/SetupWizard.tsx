@@ -14,6 +14,7 @@ import { describeError } from '../../lib/errorRemedies';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import type { ChartAccount } from '../../types';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * First-run setup (L-19, BO-03): the business's basics, a chart of accounts, and the opening
  * balances, posted as one entry that balances by construction (the difference goes to Opening
@@ -238,7 +239,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
           <section className="space-y-4" aria-labelledby="setup-opening">
             <h2 id="setup-opening" className="text-lg font-semibold">Opening balances</h2>
             <p className="text-sm text-[var(--muted)]">
-              What the business had and owed on the day you start using LedgerFlow (from your last balance sheet or bank statements).
+              What the business had and owed on the day you start using {BRAND_NAME} (from your last balance sheet or bank statements).
               Customers&apos; and vendors&apos; unpaid amounts are added as invoices and bills instead, so you know who owes what.
             </p>
             <div className="space-y-1">

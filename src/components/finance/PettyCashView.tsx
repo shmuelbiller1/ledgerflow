@@ -38,6 +38,7 @@ import {
 import type { ChartAccount, Transaction } from '../../types';
 import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 
+import { BRAND_NAME } from '../../config/brand';
 const inputClass = 'w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 const labelClass = 'block text-xs font-semibold text-[var(--muted)] mb-1';
 const buttonClass = 'px-4 py-2 rounded-lg bg-[var(--text)] text-[var(--surface)] text-sm font-bold disabled:opacity-50';
@@ -256,7 +257,7 @@ export default function PettyCashView() {
         <div className="max-w-5xl mx-auto">
           <EmptyState
             title="No cash account for a petty cash box"
-            description="A petty cash box is one of this workspace's own cash-type bank accounts. Add one in the chart of accounts and choose it here — LedgerFlow does not invent accounts."
+            description={`A petty cash box is one of this workspace's own cash-type bank accounts. Add one in the chart of accounts and choose it here — ${BRAND_NAME} does not invent accounts.`}
           />
         </div>
       </div>
@@ -313,7 +314,7 @@ export default function PettyCashView() {
                   {!categories.length && (
                     <p role="alert" className="text-sm text-amber-700 flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 mt-0.5" aria-hidden="true" />
-                      <span>This workspace has no expense account to book the spending to. Add one in the chart of accounts — LedgerFlow does not invent accounts.</span>
+                      <span>This workspace has no expense account to book the spending to. Add one in the chart of accounts — {BRAND_NAME} does not invent accounts.</span>
                     </p>
                   )}
                   <div>

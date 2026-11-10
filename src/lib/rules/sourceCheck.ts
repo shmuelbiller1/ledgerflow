@@ -14,6 +14,7 @@
  */
 import type { Rule } from './rules';
 import type { TaxEffect } from './packs/shared';
+import { BRAND } from '../../config/brand';
 
 /** One unique source URL, and every rule that proves itself by it. */
 export interface RuleSourceEntry {
@@ -128,7 +129,7 @@ export async function checkRuleSources(
         method: 'GET',
         redirect: 'follow',
         signal: controller.signal,
-        headers: { 'user-agent': 'ledgerflow-rule-source-check/1.0 (+by hand; not a crawler)' },
+        headers: { 'user-agent': `${BRAND.fileSlug}-rule-source-check/1.0 (+by hand; not a crawler)` },
       });
       const finalUrl = typeof response.url === 'string' && response.url && response.url !== entry.url ? response.url : undefined;
       entries.push({

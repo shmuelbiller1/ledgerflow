@@ -10,6 +10,7 @@ import {
 import ArchitectureMonitor from './ArchitectureMonitor';
 import { useAuditTelemetry } from '../../hooks/useAuditTelemetry';
 
+import { BRAND_NAME } from '../../config/brand';
 export default function SystemArchitecture({ isOpen, onClose, transactions, accounts }: { isOpen: boolean; onClose: () => void; transactions?: import("../../types").Transaction[]; accounts: import("../../types").ChartAccount[] }) {
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, isOpen);
   const telemetry = useAuditTelemetry(transactions!, accounts);
@@ -56,7 +57,7 @@ export default function SystemArchitecture({ isOpen, onClose, transactions, acco
                   <div>
                      <h3 className="text-zinc-100 text-[10px] font-medium uppercase tracking-wider mb-2">Analytical Summary</h3>
                      <p className="text-xs leading-relaxed text-zinc-300">
-                        The LedgerFlow data pipeline implements a <span className="text-white font-bold italic">Deterministic Intelligence</span> protocol. 
+                        The {BRAND_NAME} data pipeline implements a <span className="text-white font-bold italic">Deterministic Intelligence</span> protocol. 
                         Every transaction passes through O(1) Bloom filters, MinHash Entity Resolution, and Trend Analysis 
                         before being committed to the ledger.
                      </p>

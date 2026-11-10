@@ -13,6 +13,7 @@ import { toCsv } from './csvExport';
 import { recordExportTable } from './workspaceExports';
 import { byCodeUnit } from './codeUnitOrder';
 
+import { BRAND_NAME } from '../config/brand';
 type JsonObject = Record<string, unknown>;
 const textEncoder = new TextEncoder();
 const obj = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -248,7 +249,7 @@ export async function backupFromWorkspaceArchive(bytes: Uint8Array): Promise<{ t
   };
   const manifest = read('manifest.json');
   if (!obj(manifest) || manifest.format !== 'ledgerflow-backup-archive-v1' || manifest.restoreFile !== 'backup.json') {
-    throw new Error('This ZIP is not a LedgerFlow workspace archive.');
+    throw new Error(`This ZIP is not a ${BRAND_NAME} workspace archive.`);
   }
   const backup = read('backup.json');
   if (!obj(backup) || !obj(backup.metadata) || backup.metadata.checksum !== manifest.sourceChecksumSha256
