@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Printer, Undo2 } from 'lucide-react';
 import { JournalEntry } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
@@ -67,6 +67,22 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
   }, [journalEntries, manualOnly, adjustingOnly, search]);
   const debits = (e: JournalListEntry) => e.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
   const total = entries.reduce((sum, e) => sum + debits(e), 0);
+
+  // Codex #600 P1: the screen paginates (200 at a time) but the printed journal must carry every
+  // matching entry, so the heading's count and debit total reconcile with the printed rows.
+  // beforeprint expands the list; afterprint restores the reader's pagination.
+  const shownRef = useRef(shown);
+  const countRef = useRef(entries.length);
+  const savedShown = useRef(shown);
+  useEffect(() => { shownRef.current = shown; }, [shown]);
+  useEffect(() => { countRef.current = entries.length; }, [entries.length]);
+  useEffect(() => {
+    const beforePrint = () => { savedShown.current = shownRef.current; setShown(countRef.current); };
+    const afterPrint = () => setShown(savedShown.current);
+    window.addEventListener('beforeprint', beforePrint);
+    window.addEventListener('afterprint', afterPrint);
+    return () => { window.removeEventListener('beforeprint', beforePrint); window.removeEventListener('afterprint', afterPrint); };
+  }, []);
 
   return (
     // A-277: the journal is its own print root, so printing from the Ledger tab prints the journal

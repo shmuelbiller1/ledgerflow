@@ -608,6 +608,8 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                   title="Open every posted line behind the total debit column"
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"
                 >{formatCurrency(trialBalance.totalDebits)}<span className="sr-only"> — see the posted lines behind the total debit column</span></button>
+                {/* Codex #600 P2: the print stylesheet hides buttons, so the paper carries the total as text */}
+                <span data-testid="tb-total-debits-print" className="hidden print:inline">{formatCurrency(trialBalance.totalDebits)}</span>
               </td>
               <td className="px-5 py-3.5 text-right font-mono text-sm font-bold text-[var(--text)] tabular-nums">
                 <button
@@ -620,6 +622,8 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                   title="Open every posted line behind the total credit column"
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"
                 >{formatCurrency(trialBalance.totalCredits)}<span className="sr-only"> — see the posted lines behind the total credit column</span></button>
+                {/* Codex #600 P2: the print stylesheet hides buttons, so the paper carries the total as text */}
+                <span data-testid="tb-total-credits-print" className="hidden print:inline">{formatCurrency(trialBalance.totalCredits)}</span>
               </td>
             </tr>
           </tfoot>

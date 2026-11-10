@@ -334,6 +334,13 @@ test('A-277: the trial balance prints on A4 then US Letter — the paper changes
   await expect(main.getByRole('heading', { name: 'Trial Balance', exact: true })).toBeVisible({ timeout: 60_000 });
 
   await expectLedgerPrintRoot(page, 'Trial Balance');
+
+  // Codex #600 P2: the footer totals print as text (the drill-down buttons stay off the paper)
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByTestId('tb-total-debits-print')).toBeVisible();
+  await expect(page.getByTestId('tb-total-credits-print')).toBeVisible();
+  await page.emulateMedia({ media: 'screen' });
+
   expect(errors).toEqual([]);
 });
 
@@ -364,5 +371,23 @@ test('A-277: the journal prints on A4 then US Letter — the paper changes, noth
   await main.getByRole('checkbox', { name: 'Entries typed in by hand only' }).uncheck();
 
   await expectLedgerPrintRoot(page, 'General journal');
+
+  // Codex #600 P1: beforeprint expands the paginated list, so the printed journal carries every
+  // matching entry and the printed rows reconcile with the printed count
+  const journalCount = await page.evaluate(() => {
+    const section = document.querySelector('[data-print-root]');
+    const heading = section?.querySelector('p')?.textContent ?? '';
+    const match = heading.match(/^(\d+)\s+entr/);
+    return { heading, count: match ? Number(match[1]) : 0 };
+  });
+  expect(journalCount.count).toBeGreaterThan(0);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  // wait for React to render the expanded list, then check every entry is on the paper
+  await page.waitForFunction((expected: number) => {
+    const section = document.querySelector('[data-print-root]');
+    return (section?.querySelectorAll('ul > li').length ?? 0) === expected;
+  }, journalCount.count, { timeout: 30_000 });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+
   expect(errors).toEqual([]);
 });
