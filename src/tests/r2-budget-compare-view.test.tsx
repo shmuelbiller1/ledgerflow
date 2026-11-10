@@ -55,7 +55,7 @@ describe('R-2: the P&L compared to the budget', () => {
 });
 
 describe('R-2: the KPI cards name what they compare to', () => {
-  // the income and expense cards carry a labelled badge (the net card shows the bare %)
+  // income, expense and net cards each carry a labelled badge
   const badges = () => (document.body.textContent || '').match(/% vs (Budget|Prior)/g) || [];
   test('"vs Budget" on the cards when comparing to the budget', async () => {
     render(<ProfitAndLossView startDate="2026-03-01" endDate="2026-03-31" />);
@@ -63,7 +63,9 @@ describe('R-2: the KPI cards name what they compare to', () => {
     await act(async () => { fireEvent.click(screen.getByLabelText('Comparative Mode')); });
     await act(async () => { fireEvent.change(screen.getByLabelText('Compare to'), { target: { value: 'budget' } }); });
     // actual 10,000 vs budget 12,000 income = -16.7%; 4,000 vs 3,500 rent = +14.3%
-    assert.deepEqual(badges(), ['% vs Budget', '% vs Budget']);
+    assert.deepEqual(badges(), ['% vs Budget', '% vs Budget', '% vs Budget']);
+    // net 6,000 vs budget 8,500 = -29.4%
+    assert.match(document.body.textContent || '', /-29\.4% vs Budget/);
     assert.match(document.body.textContent || '', /-16\.7% vs Budget/);
     assert.match(document.body.textContent || '', /14\.3% vs Budget/);
   });
@@ -76,7 +78,9 @@ describe('R-2: the KPI cards name what they compare to', () => {
     await act(async () => {});
     await act(async () => { fireEvent.click(screen.getByLabelText('Comparative Mode')); });
     // 10,000 vs February 8,000 income = +25.0%; rent 4,000 both months = 0.0%
-    assert.deepEqual(badges(), ['% vs Prior', '% vs Prior']);
+    assert.deepEqual(badges(), ['% vs Prior', '% vs Prior', '% vs Prior']);
+    // net 6,000 vs February 4,000 = +50.0%
+    assert.match(document.body.textContent || '', /50\.0% vs Prior/);
     assert.match(document.body.textContent || '', /25\.0% vs Prior/);
   });
 });

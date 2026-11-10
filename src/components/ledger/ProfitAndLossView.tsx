@@ -524,7 +524,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold ml-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
-                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}%
+                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
