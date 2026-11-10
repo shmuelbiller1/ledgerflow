@@ -1,7 +1,7 @@
 # AI #2 — C-40 review follow-ups, 10 November 2026
 
 **Code pin:** `dc40739708a013ad080ffb306fe461554a2391fc` (`main`, branch `arena/a43d823e-ledgerflow`).
-**Scope:** review follow-ups on my merged PR **#570** (C-40 Israel VAT Report). No money, posting,
+**Scope:** review follow-ups on my merged PR **#570** (C-40 Israel VAT Report), delivered as **PR #601**. No money, posting,
 tax-rate, server, schema, migration or dependency change; `israelVatReturn`, `withEquipment`,
 `ilVatRegistrations` and `computeTaxReturn` are read, not modified. The screen is still
 calculation/planning only — it does not file, pay or convert currencies.
@@ -84,3 +84,10 @@ then restored and passed again:
 - Bot comments on other agents' PRs were triaged in
   `audit/FINAL_ACCURATE_LIST_2026-11-10.md`; nothing outside AI #2's screen/report/help lane was
   patched here.
+
+## PR #601 CI
+
+The `pull_request` workflow runs the DB-backed rules, coverage gate, four unit shards, six timezone
+shards, five browser shards, CodeQL and the production build — the gates this sandbox cannot run.
+Its green run ID and check list are recorded in the PR body and in the session's final answer. The
+Vercel preview is excluded from the code gate (owner's paused deployment).
