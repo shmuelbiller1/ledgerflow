@@ -18,7 +18,7 @@ import { attachmentRouter } from './attachmentRoutes';
 import { incomingEventRouter } from './incomingEventRoutes';
 import { tagRouter } from './tagRoutes';
 import { journalTemplateRouter } from './journalTemplateRoutes';
-import { ScheduledReportError, sendScheduleNow } from '../services/scheduledReportService';
+import { reportScheduleRouter } from './reportScheduleRoutes';
 import { portalLinkRouter } from './customerPortalRoutes';
 import { signLinkRouter } from './estimateSignRoutes';
 import { mountTeamRoutes } from './taskRoutes';
@@ -181,17 +181,8 @@ workspaceRouter.use('/:workspaceId/tags', requireWorkspaceRole(['owner', 'accoun
 workspaceRouter.use('/:workspaceId/customers/:customerId/portal-link', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), portalLinkRouter);
 workspaceRouter.use('/:workspaceId/estimates/:estimateId/sign-link', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), signLinkRouter);
 mountTeamRoutes(workspaceRouter, requireWorkspaceRole(['owner', 'accountant', 'bookkeeper', 'viewer']));
-// Scheduled reports (K-28): send one now (owners and accountants); the daily job sends the rest
-workspaceRouter.post('/:workspaceId/report-schedules/:scheduleId/send-now', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  try {
-    const { workspaceId, scheduleId } = req.params as Record<string, string>;
-    const result = await sendScheduleNow(getDb(), { workspaceId, scheduleId });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    if (err instanceof ScheduledReportError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The report could not be sent', details: err instanceof Error ? err.message : String(err) });
-  }
-});
+// Scheduled reports (K-28, R-3): preview and send one now (owners and accountants); the daily job sends the rest
+workspaceRouter.use('/:workspaceId/report-schedules', requireWorkspaceRole(['owner', 'accountant']), reportScheduleRouter);
 // Journal entry templates (BD-09 / CA-27): members read; writers save and remove (checked in the route)
 workspaceRouter.use('/:workspaceId/journal-templates', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper', 'viewer']), journalTemplateRouter);
 // Questions about entries (BD-07): writers ask, every member answers (checked in the service)

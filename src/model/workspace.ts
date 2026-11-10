@@ -62,6 +62,8 @@ export interface Workspace {
   moneyDisplay?: MoneyDisplaySettings;
   /** Scheduled reports (K-28, src/lib/scheduledReports.ts): emailed after each finished week or month. */
   scheduledReports?: ScheduledReport[];
+  /** R-4: a short note per report and period, keyed by reportNoteKey(report, start, end) (src/lib/reportNotes.ts) */
+  reportNotes?: Record<string, string>;
   /** A-37 (CG-01, src/lib/customFields.ts): owner-defined extra fields on customers, vendors and items; values live in each record's metadata. */
   customFields?: CustomFieldDef[];
   /** Which period each schedule last sent (written by the server only). */

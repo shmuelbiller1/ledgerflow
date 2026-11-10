@@ -10,6 +10,8 @@ interface PLFigures { income: PLSection; expense: PLSection; netIncome: number }
 
 export async function exportPlToExcel(input: {
   data: PLFigures | null; prevData: PLFigures | null; isComparative: boolean;
+  /** R-2: the comparison column's name ('Budget'); 'Prior Amount' when not given */
+  compareLabel?: string;
   labels: { title: string; revenueStreams: string; expenseClusters: string; netLabel: string; exportName: string };
   start: string; end: string; cash: boolean;
 }) {
@@ -20,7 +22,7 @@ export async function exportPlToExcel(input: {
   const columns = [
     { header: 'Account', key: 'account', width: 30 },
     { header: 'Amount', key: 'amount', width: 20 },
-    { header: isComp ? 'Prior Amount' : '', key: 'priorAmount', width: 20 },
+    { header: isComp ? (input.compareLabel || 'Prior Amount') : '', key: 'priorAmount', width: 20 },
     { header: isComp ? 'Variance %' : '', key: 'variance', width: 20 },
   ];
 
