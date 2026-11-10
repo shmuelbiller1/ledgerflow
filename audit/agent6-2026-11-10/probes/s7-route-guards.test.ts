@@ -28,14 +28,12 @@ function middlewareOf(line: string): string[] {
   const rest = m[2];
   const names: string[] = [];
   // middleware arguments up to the first `async (` / `(req` / arrow — the handler
-  let depth = 0;
   for (const part of splitTopLevel(rest)) {
     const p = part.trim();
     if (/^(async\s*)?\(?\s*(req|_req)\b\s*[:,)]/.test(p) || /^(async\s*)?\(\s*req\b/.test(p)) break;
     const name = /^([A-Za-z_$][\w$]*)/.exec(p)?.[1];
     if (name) names.push(name);
     else break;
-    void depth;
   }
   return names;
 }
