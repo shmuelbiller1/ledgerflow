@@ -12,6 +12,7 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { budgetPL } from '../lib/budgetStatement';
+import { statementColumnCsv } from '../lib/reportColumns';
 import type { ChartAccount } from '../types';
 import type { SavedBudget } from '../lib/budgetActual';
 
@@ -42,5 +43,13 @@ describe('R-2: budget figures for the P&L', () => {
     const pl = budgetPL([], accounts, '2026-01-01', '2026-01-31');
     assert.equal(pl.netIncome, 0);
     assert.deepEqual(pl.income.accounts, {});
+  });
+
+  test('the export names the budget column Budget, not Previous', () => {
+    const period = { id: 'p', label: 'March', startDate: '2026-03-01', endDate: '2026-03-31' };
+    const data = budgetPL([], accounts, '2026-03-01', '2026-03-31');
+    const csv = statementColumnCsv([], [{ period, data, previousData: data } as never], false, true, accounts, 'Budget');
+    assert.ok(csv.headers.includes('March (2026-03-01 to 2026-03-31) Budget'), csv.headers.join(' | '));
+    assert.equal(csv.headers.some(h => h.endsWith(' Previous')), false);
   });
 });

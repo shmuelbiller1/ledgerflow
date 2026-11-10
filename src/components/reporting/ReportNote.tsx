@@ -4,18 +4,18 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { db } from '../../firebase';
 import { doc, updateDoc } from '../../lib/db/firestore';
+import { workspaceScope } from '../../lib/serverAction';
 import { REPORT_NOTE_MAX, reportNoteKey, withReportNote } from '../../lib/reportNotes';
 
 /**
- * R-4: the note for this report and period, above the report and in its print / PDF. Owners, accountants and
- * bookkeepers write it; everyone who can see the report reads it.
+ * R-4: the note for this report and period, above the report and in its print / PDF. Owners and accountants write it
+ * (it is a workspace setting); everyone who can see the report reads it.
  */
 export default function ReportNote({ report, startDate, endDate }: { report: string; startDate: string; endDate: string }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const workspaces = useAuthStore(s => s.workspaces);
-  const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const role = useCurrentRole();
-  const canWrite = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
+  // workspace settings are written by owners and accountants (the database's admin_update policy)
+  const canWrite = role === 'owner' || role === 'accountant';
   const key = reportNoteKey(report, startDate, endDate);
   const saved = workspace?.reportNotes?.[key] || '';
   const [editing, setEditing] = useState(false);
@@ -24,18 +24,23 @@ export default function ReportNote({ report, startDate, endDate }: { report: str
 
   const save = async () => {
     if (!workspace?.id) return;
+    const workspaceId = workspace.id;
     const next = withReportNote(workspace.reportNotes, key, text);
     if ('problem' in next) { toast.error(next.problem); return; }
+    // a save that finishes after the user moved to another workspace or account changes nothing on screen
+    const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     setBusy(true);
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { reportNotes: next.notes, updatedAt: new Date().toISOString() });
-      setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, reportNotes: next.notes } : w)));
+      await updateDoc(doc(db, 'workspaces', workspaceId), { reportNotes: next.notes, updatedAt: new Date().toISOString() });
+      if (!scope.isCurrent()) return;
+      const { workspaces: current, setWorkspaces } = useAuthStore.getState();
+      setWorkspaces(current.map(w => (w.id === workspaceId ? { ...w, reportNotes: next.notes } : w)));
       setEditing(false);
       toast.success(text.trim() ? 'Note saved' : 'Note removed');
     } catch {
-      toast.error('Could not save the note');
+      if (scope.isCurrent()) toast.error('Could not save the note');
     } finally {
-      setBusy(false);
+      if (scope.isCurrent()) setBusy(false);
     }
   };
 

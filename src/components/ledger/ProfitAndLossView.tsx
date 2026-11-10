@@ -9,6 +9,7 @@ import { exportPlToExcel } from '../../lib/plExport';
 import { isPostable, lineAmount, calculateNetIncome, isTransactionInDateRange } from '../../lib/txFilters';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { budgetPL } from '../../lib/budgetStatement';
+import ReportNote from '../reporting/ReportNote';
 import type { SavedBudget } from '../../lib/budgetActual';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -80,8 +81,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     return scoped;
   }, [allTransactions, labelFilter]);
   const accounts = useLedgerStore(s => s.accounts);
-  // R-2: "compare to budget" reads the saved budgets
-  useLedgerCollections('budgets');
+  useLedgerCollections('budgets'); // R-2: "compare to budget"
   const budgets = useLedgerStore(s => s.budgets);
   const [compareTo, setCompareTo] = useState<'previous' | 'budget'>('previous');
   const [dateRange, setDateRange] = usePageSyncedState(
@@ -346,7 +346,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const incomeGroups = groupedSection(data?.income?.accounts, 'income');
   const expenseGroups = groupedSection(data?.expense?.accounts, 'expense');
 
-  const exportToExcel = () => exportPlToExcel({ data, prevData, isComparative, labels, start: dateRange.start, end: dateRange.end, cash: basis === 'cash' });
+  const exportToExcel = () => exportPlToExcel({ data, prevData, isComparative, compareLabel: vsBudget ? 'Budget' : undefined, labels, start: dateRange.start, end: dateRange.end, cash: basis === 'cash' });
 
   if (!data) return null;
 
@@ -539,6 +539,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             : loadingStates.pl ? 'Calculating on cash basis…' : 'Cash basis is calculated by the server, and it could not be reached: try again in a moment.'}
         </p>
       )}
+      {/* R-4: the note for the dates on screen */}<ReportNote key={`pnl|${dateRange.start}|${dateRange.end}`} report="pnl" startDate={dateRange.start} endDate={dateRange.end} />
       {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
         startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}

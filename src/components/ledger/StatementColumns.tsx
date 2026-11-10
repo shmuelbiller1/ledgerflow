@@ -196,6 +196,7 @@ export function StatementColumns(props: StatementColumnsProps) {
       showPercent,
       compare,
       accounts,
+      compareLabel,
     );
     downloadCsv(
       `${kind === "pl" ? "Profit_and_Loss" : "Balance_Sheet"}_${startDate}_${endDate}_${mode}.csv`,

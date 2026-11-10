@@ -27,7 +27,7 @@ describe('R-4: the note on the report', () => {
   const realFetch = globalThis.fetch;
   afterEach(async () => { cleanup(); globalThis.fetch = realFetch; await getSupabase().auth.dispose(); });
   const key = reportNoteKey('pnl', '2026-03-01', '2026-03-31');
-  const withNotes = (role: 'owner' | 'viewer', reportNotes?: Record<string, string>) => {
+  const withNotes = (role: 'owner' | 'viewer' | 'bookkeeper', reportNotes?: Record<string, string>) => {
     const ws = setComponentWorkspace(role);
     useAuthStore.setState({ workspaces: [{ ...ws, ...(reportNotes ? { reportNotes } : {}) } as never] });
   };
@@ -47,6 +47,13 @@ describe('R-4: the note on the report', () => {
     const saved = (calls.find(c => c.url.includes('lf_update'))!.body.p_set as { reportNotes: Record<string, string> }).reportNotes;
     assert.deepEqual(saved, { [key]: 'Rent was paid late' });
     await waitFor(() => assert.match(screen.getByTestId('report-note').textContent || '', /Note: Rent was paid late/));
+  });
+
+  test('a bookkeeper reads the note but cannot write one (workspace settings are for owners and accountants)', () => {
+    withNotes('bookkeeper', { [key]: 'Rent was paid late' });
+    render(<ReportNote report="pnl" startDate="2026-03-01" endDate="2026-03-31" />);
+    assert.match(screen.getByTestId('report-note').textContent || '', /Rent was paid late/);
+    assert.equal(screen.queryByRole('button', { name: 'Edit note' }), null);
   });
 
   test('a viewer reads the note and cannot change it; with no note, a viewer sees nothing', () => {
