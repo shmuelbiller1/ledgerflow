@@ -288,6 +288,28 @@ mismatch with `409`. Add the three routes to `scripts/idempotency-route-inventor
 and only 5 as helper-backed — that script is a review lead, not a certification, and the queue's S-05
 item should say so.
 
+### F-01b (P2, test coverage — *why* F-01 survives) — the demo/sample book and the US state-return readers use different key names, and no test puts them in the same room
+
+Probe: `probes/af004-taxplace-key-mismatch.test.ts` (4/4) establishes F-01. This note establishes that
+the suite **cannot** catch it, which is the part that matters for launch-readiness:
+
+* `src/lib/sampleBusinessYear.ts:142,144,214,233` — the "realistic small-business year" fixture that the
+  performance gates (A-148/A-206/A-229), the golden-year tests and the sample-year screens run on — writes
+  `place: { country: 'US', region: 'TX' }` and `taxPlace: { country: 'US', region: state }`.
+* `src/lib/tax/usSalesTaxReturn.ts:61-62` reads `place.state`, and `src/lib/tax/profile.ts:14-22`
+  (`TaxPlace`) has **no `region` field at all**; `src/components/common/PartyModal.tsx:116` (the UI that
+  creates customers) writes `state`. So three writers, two names, and the type says only one is legal.
+* `grep -l 'usSalesTaxReturn|usQuarterJourney' src/tests/*.ts | xargs grep -l sampleBusinessYear` →
+  **no file**. The state-return tests (`us-sales-tax-return.test.ts:29`) build their permits by hand with
+  `state: 'TX'`; the sample-year tests (`sample-business-year.test.ts`) assert counts and totals, never
+  feed the fixture to the return. **The two halves are individually green and jointly wrong.**
+* Re-run at the pin for the record: `us-sales-tax-return`, `us-quarter-journey`,
+  `golden-year-fixtures`, `w8-gold`, `sample-business-year` → **29 pass + 2 = 31 assertions, 0 fail**.
+  Also green: `il-vat-return(-golden)`, `eu-vat`, `ca-sales-tax`, `us-use-tax`, `tax-manager`,
+  `document-math-tax`, `eg12-line-tax-record` → **45/45**. The tax lane is well tested; the *seam*
+  between the fixture and the return is untested. The acceptance test for the F-01 fix should be
+  exactly that seam: `sampleBusinessYear` → `usSalesTaxReturn` → non-zero taxable sales.
+
 ## B. Verified at the pin as source facts (no run needed)
 
 ### F-04 (P3, ops) — the production-settings check still is not wired anywhere
