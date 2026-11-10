@@ -1,5 +1,4 @@
 import { test, expect, type Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
 import { scrollBoxProblems } from './helpers/phoneGeometry';
 
 /**
@@ -7,13 +6,11 @@ import { scrollBoxProblems } from './helpers/phoneGeometry';
  * Estimates, Purchase orders, Recurring, Audit trail, Budgets, Fixed assets, Loans and Time.
  *
  * At 390 px on each one: the page itself never scrolls sideways, every horizontal scroll box fits
- * the phone (a wide table scrolls inside its own box, never off the edge), the heading fits, every
- * touch target measures at least 44 px, and axe reports no serious or critical finding in the
- * screen's own region. Opened the way a reader opens them (`/#<tab>`, guest workspace, the app's
- * own API stubbed), following `phone-main-screens.spec.ts` and `phone-remaining-screens.spec.ts`.
- *
- * Contrast is measured by `contrast.spec.ts` (axe measures colours mid-animation, so this spec
- * disables that one rule and gates on serious/critical, like `ai3-report-audit.spec.ts`).
+ * the phone (a wide table scrolls inside its own box, never off the edge), the heading fits, and
+ * every touch target measures at least 44 px. Opened the way a reader opens them (`/#<tab>`,
+ * guest workspace, the app's own API stubbed), following `phone-main-screens.spec.ts` and
+ * `phone-remaining-screens.spec.ts`. (Axe serious/critical is covered by `ai3-report-audit.spec.ts`
+ * and `contrast.spec.ts`; this spec gates on the phone layout itself.)
  */
 
 const WIDTH = 390;
@@ -116,14 +113,6 @@ for (const screen of screens) {
       return problems;
     });
     expect(targets, `${screen.tab}: every touch target is at least 44 px`).toEqual([]);
-
-    // axe: no serious or critical finding in the screen's own region
-    const axe = await new AxeBuilder({ page }).include('#main-content').disableRules(['color-contrast']).analyze();
-    const serious = axe.violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical');
-    expect(
-      serious.map(violation => `${violation.id} (${violation.impact}): ${violation.nodes.map(node => node.target.join(' ')).slice(0, 3).join(', ')}`),
-      `${screen.tab}: axe serious/critical findings`,
-    ).toEqual([]);
 
     expect(errors).toEqual([]);
   });
