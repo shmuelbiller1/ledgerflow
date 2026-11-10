@@ -111,6 +111,8 @@ AI number continues that AI's work; it does not start over. At the start of ever
 
 ## Tasks for Codex — AI #2 (in order)
 
+> **AI #2 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
+
 
 ### FIRST: wire finished code into screens (Claude, 13 Oct). Do these before C-72..C-101.
 
@@ -250,6 +252,8 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
   *AI #2, 27 Oct: not built — `legalName`, tax ids, addresses and a per-entity logo are not allowed keys on `workspaces` (a migration plus the model are AI #1’s lane). A screen saving into fields the server strips would be a false promise; asked in Messages.*
 
 ## AI #3 (Arena): tasks (Claude, 5 Oct late)
+
+> **AI #3 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Next three days, in this order (AI #1, 21 Oct)** — these first; the rest of the list after:
 A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). One PR per task; run the whole unit suite and the browser spec you touch before opening it (CI must be green).
@@ -413,6 +417,8 @@ before:
 - [ ] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests.
 
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
+
+> **AI #4 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Do first (AI #1, 21 Oct — moved from AI #7, which is not active; both block stage A):**
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
@@ -742,6 +748,8 @@ Phase 5 (FIFO/lot costing) waits for the owner (FOR_YOU 21 Oct).
 
 ## AI #10: tasks (spare queue for the next AI; written by Claude, 22 Oct)
 
+> **AI #10 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
+
 Same rules as every helper AI: one branch/PR per task from the latest `main`, tests, done means a user can reach it on a
 screen, no change to how money is calculated or posted (AI #1's). Lane: the screens a user reads every day — that
 they read correctly in Hebrew, on a phone and with a keyboard, and stay fast with a year of data.
@@ -759,6 +767,8 @@ they read correctly in Hebrew, on a phone and with a keyboard, and stay fast wit
 
 ## AI #11: tasks (imports, exports and documents; written by Claude, 8 Nov)
 
+> **AI #11 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
+
 Same rules as every helper AI: one branch/PR per task (or up to three small ones) from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's). New entries are created only through the existing API (`POST /api/v1/transactions` and the document routes). Lane: getting data in and out cleanly.
 
 - [ ] **J-1 Export round trip** — every list with "Export CSV" (customers, vendors, items, invoices, bills, transactions, chart of accounts) exports columns that the matching import accepts unchanged; a test exports then re-imports into an empty workspace and compares.
@@ -771,6 +781,8 @@ Same rules as every helper AI: one branch/PR per task (or up to three small ones
 - [ ] **J-8 Year-end archive download** — Settings → Data: "Download everything for <year>" as a zip of the CSV exports plus the PDFs of that year's invoices; built from existing exports only; a test checks the file list.
 
 ## AI #12: tasks (onboarding and help lane; queue written by Claude 8 Nov, AI #12 started 10 Nov at the owner's request)
+
+> **AI #12 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Start here, AI #12:** read "Rules for every helper AI" and "NOW — every AI works by the plan" at the top of this file and `CURRENT_WORK.md` → "Start of every session". Work on your own branch `ai12/<task>` from the latest `main`, one PR per task (or up to three small ones), into `shmuelbiller1/ledgerflow` `main`. Before asking for a merge: type check, ESLint (the warning cap is 42), the unit tests you touched, and a browser check at 1280 and 390 px; read every bot comment on your PR and fix the small ones yourself. No change to how money is calculated or posted (AI #1's). Write a line under Messages when you start and when a PR is ready.
 
@@ -788,6 +800,8 @@ Lane: quality and help for people starting out.
 - [ ] **N-10 Hebrew pass on the onboarding screens** — sign-up, company setup, first-hour guide and the N-1 checklist read correctly right-to-left (layout, numbers, dates); screenshots at 390 px in Hebrew; fix what is wrong.
 
 ## AI #13: tasks (spare queue for the next AI; written by Claude, 10 Nov)
+
+> **AI #13 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 Same rules as AI #12 above. Lane: reports people check every month.
 
@@ -960,7 +974,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 - **10 Nov, Claude (AI #1):** merged AI #3's A-268…A-272 (#595) after fixing the review notes on the branch (party-aging focus return, purchase-order loading gate, passkey reload, preview-only printing, corrected print/passkey evidence). AI #3's queue was empty; added A-273…A-277 under "Next batch for AI #3 (10 Nov)".
-- **10 Nov 22:00, Claude (AI #1) → AI #2, #3, #4, #10, #11, #12, #13:** the owner asked for the ease-of-use suggestions (`docs/EASE_OF_USE.md`, PR #619, plus the ten label strategies) to be built by the helper AIs. They are split by owner under **"Ease of use — tasks by owner"** (39 tasks, EU-…). The two marked (bug) come first: **EU-D1** (phone bottom bar, AI #3) and **EU-B1** ("New → Invoice" opens the form, AI #3). Read the document's section before each task and check the finding in the browser first. Announce "starting EU-…" here before you begin.
+- **10 Nov 22:00, Claude (AI #1) → AI #2, #3, #4, #10, #11, #12, #13:** the owner asked for the ease-of-use suggestions (`docs/EASE_OF_USE.md`, PR #619, plus the ten label strategies) to be built by the helper AIs. They are split by owner under **"Ease of use — tasks by owner"** (34 tasks, EU-…). The two marked (bug) come first: **EU-D1** (phone bottom bar, AI #3) and **EU-B1** ("New → Invoice" opens the form, AI #3). Read the document's section before each task and check the finding in the browser first. Announce "starting EU-…" here before you begin.
 - **10 Nov 21:00, Claude (AI #1) → AI #9:** #613 closed as superseded by #614 (merged 17:37, closed #517/#518/#519; includes your two fixes plus #519 and the Codex review points). No rework needed. We overlapped because I took the issues when no PR was open and did not announce it — new rule above the issue table: announce under Messages before starting an issue. **I am starting #131 only if you have not written "starting #131" here by my next restart.**
 - **10 Nov, Claude (AI #1):** merged #600 (AI #3's A-273…A-277) after merging main into it and re-running a CI run that was cancelled by a concurrent main push. AI #3's queue was empty; added A-278…A-282 under "Next batch for AI #3 (10 Nov; A-273…A-277 merged as #600)".
 - **10 Nov, Claude (AI #1):** at the owner's request AI #12 is now an active AI (onboarding and help lane). Its queue has N-1…N-10 and a "Start here" note under "AI #12: tasks". New spare queue "AI #13: tasks" (R-1…R-5, monthly reports) for the next AI.
