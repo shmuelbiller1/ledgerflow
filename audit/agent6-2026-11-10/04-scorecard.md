@@ -14,6 +14,7 @@
 | Functions **read in full** at the pin (this session) | 14 | `usSalesTaxReturn`, `saleDestinationSnapshot`, `usQuarterJourney` (+`usQuarterPermits`, `registrationKey`), `evaluateRules`, `isSystemJobAuthorized`, `isCronRequest`, `authenticate`, `authorizeWorkspace`, `getReportContext`, `storePlaidSync`/`storePlaidChunk`, `runCron`/`BACKGROUND_JOBS`, `syncOneBank`, `maskCardNumbers` readers |
 | **Executed** checks | 51 assertions | AF suites 20/20 + probes (4+4+2+4+3) 17/17 + 4 sourced parses + 10-handler parse |
 | Write handlers in `src/server/routes/*.ts` that persist in their own body | 33, of which **10 audit** (30.3 %) | regex over real registrations, pinned by `probes/f9-audit-trail-coverage.test.ts` |
+| Unit tests executed at the pin | **8,026** (all four shards) | 8,007 pass; 10 failing subtests, all environmental — see `03-gates.md` |
 | DB-gated checks executed | **0** | no Postgres in this sandbox; `LF_TEST_DATABASE_URL` unset → every DB suite skips |
 | Browser checks executed | **0** | no Playwright browsers and no app server in this sandbox |
 
@@ -35,7 +36,9 @@ inspected by AI #8; the 2026-11-08 agent-8 slice added AF-004 reachability work)
 | F-05 | P3 | `authRateLimiter` dead code; S-22 AI half already covered | Agent #6 | source |
 | F-06 | P3 | no gitleaks, no audit hash chain (S-9/S-24, S-12) | Agent #6 | absence |
 | F-07 | P2/P3 | AF-001-F1..F3 fixed and re-run green; AF-001-F4 `success:false` still open | AI #1 | suites 20/20 |
+| F-10 | P2 retry safety | 3 money routes keep handwritten idempotency records: no status, no request hash, a hit always replays | AI #1 (server) | yes, 3 assertions |
 | F-08 | **P1** screen/API | one filing marks every state "Recorded as filed"; server accepts only `vat` registrations and stores VAT boxes the screen never reads | AI #1 (tax + screen) | yes, 4 assertions |
+| F-01b | P2 test seam | the sample book writes `place.region`, the US return reads `place.state`, and no test joins the two | Agent #6 (test) | yes, source + 31 assertions |
 | F-09 | **P1** audit trail | 23 of 33 money-writing handlers write no audit entry; the `USER_LOGIN` row the security screens read is a browser `void addDoc`, the server never writes that action, and `loginAudits` (the real one) has no reader and no RLS policy | AI #1 (server) + RLS lane | yes, 3 assertions |
 
 ## What a next session should do, in order

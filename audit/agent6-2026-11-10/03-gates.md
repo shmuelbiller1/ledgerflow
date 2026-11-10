@@ -156,3 +156,45 @@ NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic \
 ```
 
 **20 tests, 20 pass, 0 fail** (AF-004 4, AF-012 2, F-08 4, F-09 3, F-10 3, S-7 routes 4).
+
+## Unit shard 4/4 at the pin — CLEAN
+
+| | value |
+|---|---|
+| tests | **1,111** |
+| pass | **1,111** |
+| fail | **0** |
+| skipped | 0 |
+| wall clock | 244 s |
+
+## ALL FOUR SHARDS — the full unit suite at `dc407397`
+
+| shard | tests | pass | fail | of which environmental | of which product |
+|---|---:|---:|---:|---:|---:|
+| 1/4 | 4,583 | 4,576 | 2 (+5 subtests in 1 suite) | 2 × A-229 ms budget + `vercel-ignore-boundary` (`git ls-files`, no `.git`) | **0** |
+| 2/4 | 1,189 | 1,187 | 1 suite (2 subtests) | A-229 / A-206 ms budget | **0** |
+| 3/4 | 1,143 | 1,133 | 7 subtests in 4 suites | 7 × missing `SYSTEM_SALT` (re-run green: 24/24) + `vercel-ignore-boundary` | **0** |
+| 4/4 | 1,111 | 1,111 | 0 | — | **0** |
+| **total** | **8,026** | **8,007** | **10 subtests / 6 suites** | **all 10** | **0** |
+
+**Every failure at this pin is environmental**: five are millisecond performance budgets on a 2-vCPU
+sandbox, four are the missing `SYSTEM_SALT` in the bare-`tsx` command I used for shards 1–3, and one is
+`vercel-ignore-boundary` needing a git checkout. Nothing in `src/` is red. **This does not make the
+product launch-ready** — 203 DB-gated tests skip without `LF_TEST_DATABASE_URL` and no browser test ran
+(see the not-run list); it means the unit lane is clean at this pin.
+
+Shard 3/4 and 4/4 were run without `SYSTEM_SALT`/with the bare `tsx` line; shard 4/4 happened to have no
+salt-dependent test. The next agent should use `npm run test:shard` for all four.
+
+## Other gates at this pin (all recorded above)
+
+| gate | result |
+|---|---|
+| `npx tsc --noEmit` | **exit 0, no output**, 2,513 files |
+| `npx eslint .` (repo-wide) | **0 errors**, 42 `no-explicit-any` warnings (the standing ratchet cap) |
+| probes, whole folder | **20/20** |
+| targeted audit + tax suites | 20/20 (AF) · 45/45 (IL/EU/CA/US tax) · 31 (US return/quarter/golden) · 24/24 (close + reconcile) |
+| DB suites (`npm run test:rules`, RLS, AUD-09) | **NOT RUN** — no Postgres |
+| Playwright / browser | **NOT RUN** — no browsers |
+| `npm run build` | **NOT RUN** |
+| Vercel preview | **not a code signal** — automatic previews are off for cost |
