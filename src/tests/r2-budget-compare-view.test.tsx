@@ -48,7 +48,8 @@ describe('R-2: the P&L compared to the budget', () => {
     assert.ok(within(table).getByRole('columnheader', { name: 'Budget' }));
     const salesRow = within(table).getAllByRole('row').find(r => /Sales/.test(r.textContent || '') && /4000/.test(r.textContent || ''));
     assert.ok(salesRow, 'a Sales row');
-    assert.match(salesRow!.textContent || '', new RegExp(formatCurrency(1_000_000).replace(/[.$]/g, '\\$&')));
-    assert.match(salesRow!.textContent || '', new RegExp(formatCurrency(1_200_000).replace(/[.$]/g, '\\$&')));
+    const text = salesRow!.textContent || '';
+    assert.ok(text.includes(formatCurrency(1_000_000)), `actual 10,000.00 in ${text}`);
+    assert.ok(text.includes(formatCurrency(1_200_000)), `budget 12,000.00 in ${text}`);
   });
 });
