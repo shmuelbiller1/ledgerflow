@@ -246,6 +246,48 @@ events. The failure is in *what is written*, not in *who may write it*.
 3. Turn F-09a into a guard test: a route file that persists and has no audit call fails, with the
    wire-endpoints in an explicit allowlist (that is the ratchet pattern already used for `no-explicit-any`).
 
+### F-10 (P2, retry safety) — three money routes keep their own idempotency record: no status, no request hash, and a hit is always answered as success
+
+Probe: `probes/f10-handwritten-idempotency.test.ts` — **3/3 pass**.
+
+The shared helpers are good: `executeIdempotent` / `createPaymentIdempotent`
+(`src/server/utils/idempotency.ts:52-102`, `src/server/services/paymentService.ts:95-112`) key on
+`workspace:OPERATION:id`, store `{status, payloadHash, actor, result}`, refuse the same key with a
+different request `409`, and `INT-3` tests the race with two simultaneous requests. The payment route
+(`paymentRoutes.ts:77-102`) and the bulk ledger route (`ledgerBulkCommit.ts:109-116,175-183`) use them.
+
+Three routes do not. `POST /inventory/cogs` (`inventoryRoutes.ts:52-56,146,153-160,178-182`),
+`POST /leases/capitalize` (`leaseRoutes.ts:45-50,104-112`) and `POST /revenue/recognize`
+(`revenueRoutes.ts:46-51,105-113`) each read `idempotencyKeys/{ws}_{inv|lease|rev}_{key}` themselves and:
+
+1. **store `{response: responsePayload, timestamp, workspaceId}` — no `status`, no `payloadHash`.**
+   The response payload is built *before* the write (`inventoryRoutes.ts:113-119`,
+   `leaseRoutes.ts:93-97`, `revenueRoutes.ts:93-97`). Anything that throws after it is built and before
+   `t.set(idempRef, …)` — the stock check `'Insufficient inventory stock. Requested X, available Y.'`
+   (`inventoryRoutes.ts:146`, inside the transaction), a period that closed between check and commit,
+   a lost lease on a transaction retry — leaves **no** record, so the retry is not a replay.
+2. **answer a hit with the first attempt's body and 200**, unconditionally
+   (`return res.json(idempDoc.data()?.response)`), so a client cannot tell a stored answer from a fresh
+   one. For these routes the stored body is only ever a success, so this is "success means success",
+   but the shape gives no way to store a refusal and no way to expire it.
+3. **do not bind the key to the request.** Send the same `Idempotency-Key` with `quantitySold: 100`
+   instead of `10` and the route answers with the first request's `{transactionId, totalCogsCents}`
+   and posts nothing — a silent no-op the caller believes succeeded. Everywhere else this is a `409`.
+4. The record's `expiresAt`-style cleanup does not exist on this table (the payment helper writes
+   `expiresAt` at +30 days but **nothing sweeps it** — see F-11).
+
+This is P2, not P1: the failure mode needs a throw in a narrow window or a client that reuses a key for
+a different request, and the stock check is the only one of the three with a *reachable* post-build
+failure. It belongs with F-09 as "the ratchet stopped at the routes that were remembered".
+
+**Fix shape:** replace the three handwritten blocks with `executeIdempotent` (they already have
+`workspaceId`, `operationId` and a small body to hash), or at minimum store
+`{status:'success', payloadHash: requestPayloadHash(validatedTx-or-payload), response}` and refuse a
+mismatch with `409`. Add the three routes to `scripts/idempotency-route-inventory.ts`'s
+`visible-helper-call` column, which today reports **209 of 214 mutating registrations as `not-visible`**
+and only 5 as helper-backed — that script is a review lead, not a certification, and the queue's S-05
+item should say so.
+
 ## B. Verified at the pin as source facts (no run needed)
 
 ### F-04 (P3, ops) — the production-settings check still is not wired anywhere
@@ -305,13 +347,14 @@ documented so the next agent does not "implement" it twice.
 ## D. What I ran, exactly
 
 ```sh
-# probes (all pass: 4/4, 4/4, 2/2, 4/4, 3/3 assertions)
+# probes (all pass: 4/4, 4/4, 2/2, 4/4, 3/3, 3/3 assertions)
 NODE_ENV=test SYSTEM_SALT=… npx tsx --test \
   audit/agent6-2026-11-10/probes/af004-taxplace-key-mismatch.test.ts \
   audit/agent6-2026-11-10/probes/s7-route-guards.test.ts \
   audit/agent6-2026-11-10/probes/af012-rule-chain-order.test.ts \
   audit/agent6-2026-11-10/probes/f8-tax-return-two-universes.test.ts \
-  audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts
+  audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts \
+  audit/agent6-2026-11-10/probes/f10-handwritten-idempotency.test.ts
 
 # the pin's own audit suites for the money primitives (20/20 pass)
 NODE_ENV=test SYSTEM_SALT=… npx tsx --test \
