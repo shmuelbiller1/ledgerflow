@@ -23,6 +23,7 @@ test('related details drawer retains an actual bill draft, saves an address and 
   const bill = page.getByRole('dialog', { name: 'Record New Bill' });
   await expect(bill).toBeVisible();
   await bill.getByLabel('Vendor', { exact: true }).selectOption('vendor-drawer');
+  await bill.locator('summary').filter({ hasText: 'More options' }).click();
   await bill.getByLabel('Bill Number', { exact: true }).fill('Draft 17');
   await page.getByRole('button', { name: 'Edit selected vendor', exact: true }).click();
   const drawer = page.getByRole('dialog', { name: 'Edit record details' });

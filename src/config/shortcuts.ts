@@ -7,6 +7,7 @@
  * are the browser's find and print.
  */
 export type ShortcutId =
+  | 'newInvoice' | 'newBill' | 'newJournalEntry'
   | 'palette' | 'quickEntry' | 'overview' | 'transactions' | 'ledger' | 'reports' | 'export'
   | 'import' | 'theme' | 'focus' | 'diagnostics' | 'architecture' | 'shortcuts' | 'pinPage';
 
@@ -18,6 +19,9 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: Shortcut[] = [
+  { id: 'newInvoice', keys: ['n i'], label: 'New invoice' },
+  { id: 'newBill', keys: ['n b'], label: 'New bill' },
+  { id: 'newJournalEntry', keys: ['n j'], label: 'New journal entry' },
   { id: 'palette', keys: ['mod+k'], label: 'Command palette (search and go anywhere)' },
   { id: 'quickEntry', keys: ['mod+shift+e'], label: 'Quick entry' },
   { id: 'overview', keys: ['mod+1'], label: 'Overview' },
@@ -43,6 +47,7 @@ export function isMacPlatform(): boolean {
 
 /** "mod+shift+e" → "⌘ ⇧ E" on a Mac, "Ctrl + Shift + E" elsewhere. */
 export function shortcutLabel(keys: string, mac: boolean): string {
+  if (keys.includes(' ')) return keys.split(' ').map(key => shortcutLabel(key, mac)).join(' then ');
   const parts = keys.split('+').map(part => {
     if (part === 'mod') return mac ? '⌘' : 'Ctrl';
     if (part === 'shift') return mac ? '⇧' : 'Shift';

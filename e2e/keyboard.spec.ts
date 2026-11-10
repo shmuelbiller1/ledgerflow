@@ -64,6 +64,7 @@ test.describe('Keyboard', () => {
         return (byFor || el.getAttribute('aria-label') || el.textContent || '').trim();
       });
       reached.add(label);
+      if (label === 'More options') await page.keyboard.press('Enter');
       if (label === 'Item / Description') await page.keyboard.type('Consulting');
       if (/^Rate/.test(label)) await page.keyboard.type('120');
     }
@@ -390,6 +391,7 @@ test.describe('Keyboard', () => {
         const byFor = id ? document.querySelector(`label[for="${id}"]`)?.textContent : '';
         return (byFor || el.getAttribute('aria-label') || el.textContent || '').trim();
       });
+      if (label === 'More options') await page.keyboard.press('Enter');
       if (label === 'Item / Description') await page.keyboard.type('Advisory Retainer');
       if (/^Rate/.test(label)) await page.keyboard.type('250');
       if (label === 'Save & Close') break;

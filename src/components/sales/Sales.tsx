@@ -1,3 +1,4 @@
+import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
 import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
@@ -165,6 +166,12 @@ export default function Sales() {
   const approvalSettings = useAuthStore(s => s.getCurrentWorkspace()?.invoiceApproval);
   const canDecideApproval = isApproverRole(useCurrentRole());
   const [searchTerm, setSearchTerm] = useState('');
+  useNewRecord('invoice', canEditContacts, () => {
+    setActiveSubTab('invoices'); setSelectedCustomerId(null); setNewInvoiceFor(undefined); setReceiptMode(false); setIsInvoiceModalOpen(true);
+  });
+  useNewRecord('customer', canEditContacts, () => {
+    setActiveSubTab('customers'); setSelectedCustomerId(null); setIsCustomerModalOpen(true);
+  });
   // A record link (#sales/invoice/<id>, e.g. from Data Health) shows and highlights the invoice
   const focusedInvoiceId = useRecordFocus('invoice', { ready: invoices.length > 0, onFocus: () => { setActiveSubTab('invoices'); setSearchTerm(''); } });
 

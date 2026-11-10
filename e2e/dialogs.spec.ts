@@ -55,6 +55,7 @@ test.describe('Dialogs', () => {
         'select:not([disabled]):visible',
         'textarea:not([disabled]):visible',
         'a[href]:visible',
+        'summary:visible',
         '[tabindex]:not([tabindex="-1"]):visible',
       ].join(', '));
       const focusableCount = await focusable.count();

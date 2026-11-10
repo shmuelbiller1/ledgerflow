@@ -1,3 +1,5 @@
+import DocumentMoreOptions from '../common/DocumentMoreOptions';
+import { hasBillOptions } from '../../lib/documentOptions';
 import { useDialog } from '../../hooks/useDialog';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { documentCurrencies } from '../../lib/exchangeRates';
@@ -54,7 +56,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeVendors = (Array.isArray(vendors) ? vendors : []).filter(c => !isArchivedParty(c) || c.id === initialBill?.vendorId);
   const safeAccounts = Array.isArray(accounts) ? accounts.filter(a => a?.type === 'expense' || a?.type === 'cost_of_goods' || a?.type === 'asset') : [];
-  
+
   const storeBills = useLedgerStore(s => s.bills) || [];
   const storeTransactions = useLedgerStore(s => s.transactions) || [];
   useLedgerCollections('bills');
@@ -115,7 +117,10 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     : null;
   const showFieldError = (id: string, message: string) => {
     setFieldErrors(prev => ({ ...prev, [id]: message }));
-    document.getElementById(id)?.focus();
+    const field = document.getElementById(id);
+    const options = field?.closest('details');
+    if (options) options.open = true;
+    field?.focus();
   };
 
   const [filledFrom, setFilledFrom] = useState<Partial<Bill> | undefined>(undefined);
@@ -124,6 +129,8 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     setFilledFrom(initialBill);
     const { splits: initialSplits, ...fields } = initialBill;
     setBill(prev => ({ ...prev, ...fields }));
+    const savedMemo = initialBill.metadata?.memo;
+    setMemo(typeof savedMemo === 'string' ? savedMemo : '');
     if (initialSplits?.length) setSplits(initialSplits.map(s => copyLine(s)));
   }
 
@@ -327,14 +334,14 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
   return (
     <div {...dialogProps} className="fixed inset-0 z-[600] flex items-center justify-center p-2 sm:p-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={requestClose}
         className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm"
       />
-      
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -369,7 +376,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
             return next;
           });
         }} className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-8 custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label htmlFor="bill-vendor" className="micro-label">Vendor</label>
@@ -379,7 +386,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
                   </span>
                 )}
               </div>
-              <select 
+              <select
                 id="bill-vendor"
                 required
                 aria-invalid={Boolean(fieldErrors['bill-vendor'])}
@@ -393,40 +400,8 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               </select>{fieldError('bill-vendor')}
             </div>
             <div className="space-y-2">
-              <label htmlFor="bill-number" className="micro-label">Bill Number</label>
-              <input 
-                id="bill-number"
-                type="text"
-                required
-                aria-invalid={Boolean(fieldErrors['bill-number'])}
-                aria-describedby={fieldErrors['bill-number'] ? 'bill-number-error' : undefined}
-                value={bill.number}
-                onChange={(e) => setBill({ ...bill, number: e.target.value })}
-                className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-mono font-bold"
-              />{fieldError('bill-number')}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="bill-status" className="micro-label">Status</label>
-              <select 
-                id="bill-status"
-                aria-invalid={Boolean(fieldErrors['bill-status'])}
-                aria-describedby={fieldErrors['bill-status'] ? 'bill-status-error' : undefined}
-                value={bill.status}
-                onChange={(e) => setBill({ ...bill, status: e.target.value as Bill['status'] })}
-                className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-              >
-                <option value="pending">Pending</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>{fieldError('bill-status')}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
               <label htmlFor="bill-date" className="micro-label">Bill Date</label>
-              <input 
+              <input
                 id="bill-date"
                 type="date"
                 required
@@ -439,7 +414,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
             </div>
             <div className="space-y-2">
               <label htmlFor="bill-due-date" className="micro-label">Due Date</label>
-              <input 
+              <input
                 id="bill-due-date"
                 type="date"
                 required
@@ -449,59 +424,6 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
                 onChange={(e) => setBill({ ...bill, dueDate: e.target.value })}
                 className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
               />{fieldError('bill-due-date')}
-            </div>
-          </div>
-
-          {!editingExisting && (
-            <div className="space-y-2 max-w-xs">
-              <label htmlFor="bill-repeat" className="micro-label">Repeat</label>
-              {/* BE-08: a draft copy of this bill is made on each date, to check and save */}
-              <select id="bill-repeat" value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)}
-                className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold">
-                <option value="">Doesn't repeat</option>
-                <option value="weekly">Every week</option>
-                <option value="monthly">Every month</option>
-                <option value="quarterly">Every quarter</option>
-                <option value="yearly">Every year</option>
-              </select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <label htmlFor="bill-currency" className="micro-label">Currency</label>
-              <select id="bill-currency" value={billCurrency}
-                onChange={(e) => setBill({ ...bill, currency: e.target.value, exchangeRate: e.target.value === workspaceCurrency ? 1 : bill.exchangeRate })}
-                className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold">
-                {documentCurrencies(workspaceCurrency, billCurrency, [...storeBills, ...safeVendors]).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {billCurrency !== workspaceCurrency && (
-              <div className="space-y-2">
-                <label htmlFor="bill-exchange-rate" className="micro-label">1 {billCurrency} = ? {workspaceCurrency}</label>
-                <input id="bill-exchange-rate" type="number" step="0.0001" min="0.0001" value={bill.exchangeRate || 1}
-                  onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setBill({ ...bill, exchangeRate: rate, metadata: { ...bill.metadata, rateUsed: { rate, date: bill.date || getLocalDateISO(), source: 'typed' } } }); }}
-                  className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold" />
-                {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <label htmlFor="bill-tax-code" className="micro-label">Tax</label>
-              <select id="bill-tax-code" value={bill.taxCodeId || ''} onChange={(e) => setBill({ ...bill, taxCodeId: e.target.value || undefined })}
-                className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold">
-                <option value="">No tax</option>
-                {purchaseCodes.map(c => <option key={c.id} value={c.id}>{c.name}{c.treatment !== 'standard' ? ` (${TAX_TREATMENTS[c.treatment]})` : ''}</option>)}
-              </select>
-              {purchaseCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
-            </div>
-            <div className="space-y-2 flex flex-col justify-end pb-3">
-              <label htmlFor="bill-prices-include-tax" className="flex items-center gap-2 cursor-pointer">
-                <input id="bill-prices-include-tax" type="checkbox" checked={pricesIncludeTax} onChange={e => setBill({ ...bill, pricesIncludeTax: e.target.checked })} className="w-5 h-5 rounded" />
-                <span className="text-sm font-bold text-[var(--text)]">Amounts include tax (as on the vendor's bill)</span>
-              </label>
             </div>
           </div>
 
@@ -536,45 +458,134 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               ) : undefined}
             />
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[var(--line)] pt-8 mt-8">
-            <div className="space-y-4">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label htmlFor="bill-tax-code" className="micro-label">Tax</label>
+              <select id="bill-tax-code" value={bill.taxCodeId || ''} onChange={(e) => setBill({ ...bill, taxCodeId: e.target.value || undefined })}
+                className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold">
+                <option value="">No tax</option>
+                {purchaseCodes.map(c => <option key={c.id} value={c.id}>{c.name}{c.treatment !== 'standard' ? ` (${TAX_TREATMENTS[c.treatment]})` : ''}</option>)}
+              </select>
+              {purchaseCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
+            </div>
+            <div className="space-y-2 flex flex-col justify-end pb-3">
+              <label htmlFor="bill-prices-include-tax" className="flex items-center gap-2 cursor-pointer">
+                <input id="bill-prices-include-tax" type="checkbox" checked={pricesIncludeTax} onChange={e => setBill({ ...bill, pricesIncludeTax: e.target.checked })} className="w-5 h-5 rounded" />
+                <span className="text-sm font-bold text-[var(--text)]">Amounts include tax (as on the vendor's bill)</span>
+              </label>
+            </div>
+          </div>
+
+          <DocumentMoreOptions kind="bill" documentKey={initialBill?.id || "new"} hasValues={hasBillOptions(bill, workspaceCurrency, { memo, repeat, attachments: attachments.length })}>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label htmlFor="bill-memo" className="micro-label">Internal Memo</label>
-                <textarea 
-                  id="bill-memo"
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  placeholder="Notes about this bill..."
-                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24"
-                />
+                <label htmlFor="bill-number" className="micro-label">Bill Number</label>
+                <input
+                  id="bill-number"
+                  type="text"
+                  required
+                  aria-invalid={Boolean(fieldErrors['bill-number'])}
+                  aria-describedby={fieldErrors['bill-number'] ? 'bill-number-error' : undefined}
+                  value={bill.number}
+                  onChange={(e) => setBill({ ...bill, number: e.target.value })}
+                  className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-mono font-bold"
+                />{fieldError('bill-number')}
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="bill-status" className="micro-label">Status</label>
+                <select
+                  id="bill-status"
+                  aria-invalid={Boolean(fieldErrors['bill-status'])}
+                  aria-describedby={fieldErrors['bill-status'] ? 'bill-status-error' : undefined}
+                  value={bill.status}
+                  onChange={(e) => setBill({ ...bill, status: e.target.value as Bill['status'] })}
+                  className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="unpaid">Unpaid</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                </select>{fieldError('bill-status')}
               </div>
             </div>
-            <div className="space-y-4">
-              {bill.id ? (
-                <AttachmentsPanel target={{ collection: 'bills', id: bill.id, label: `Bill ${bill.number || ''}`.trim() }} />
-              ) : (
+
+            {!editingExisting && (
+              <div className="space-y-2 max-w-xs">
+                <label htmlFor="bill-repeat" className="micro-label">Repeat</label>
+                {/* BE-08: a draft copy of this bill is made on each date, to check and save */}
+                <select id="bill-repeat" value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)}
+                  className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold">
+                  <option value="">Doesn't repeat</option>
+                  <option value="weekly">Every week</option>
+                  <option value="monthly">Every month</option>
+                  <option value="quarterly">Every quarter</option>
+                  <option value="yearly">Every year</option>
+                </select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label htmlFor="bill-currency" className="micro-label">Currency</label>
+                <select id="bill-currency" value={billCurrency}
+                  onChange={(e) => setBill({ ...bill, currency: e.target.value, exchangeRate: e.target.value === workspaceCurrency ? 1 : bill.exchangeRate })}
+                  className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold">
+                  {documentCurrencies(workspaceCurrency, billCurrency, [...storeBills, ...safeVendors]).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {billCurrency !== workspaceCurrency && (
                 <div className="space-y-2">
-                  <label htmlFor="bill-file-upload" className="micro-label">Files and receipts</label>
-                  <label htmlFor="bill-file-upload" className="cursor-pointer flex items-center justify-center w-full px-4 py-3 bg-[var(--ink)] border-2 border-dashed border-zinc-300 rounded-xl hover:bg-zinc-100 transition-colors">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Select files</span>
-                    <input id="bill-file-upload" type="file" multiple className="hidden" onChange={handleFileUpload} />
-                  </label>
-                  {attachments.length > 0 && (
-                    <ul className="flex flex-wrap gap-2 mt-2" aria-label="Files to keep with the bill">
-                      {attachments.map(f => (
-                        <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex items-center gap-1 px-2 py-1 bg-zinc-100 text-zinc-600 text-xs rounded-lg">
-                          <bdi>{f.name}</bdi>
-                          <button type="button" onClick={() => setAttachments(prev => prev.filter(x => x !== f))} aria-label={`Don't attach ${f.name}`} className="text-zinc-400 hover:text-rose-600"><X size={12} aria-hidden="true" /></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {attachments.length > 0 && <p className="text-[10px] text-[var(--muted)]">Kept with the bill when you save it.</p>}
+                  <label htmlFor="bill-exchange-rate" className="micro-label">1 {billCurrency} = ? {workspaceCurrency}</label>
+                  <input id="bill-exchange-rate" type="number" step="0.0001" min="0.0001" value={bill.exchangeRate || 1}
+                    onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setBill({ ...bill, exchangeRate: rate, metadata: { ...bill.metadata, rateUsed: { rate, date: bill.date || getLocalDateISO(), source: 'typed' } } }); }}
+                    className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold" />
+                  {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}
                 </div>
               )}
             </div>
-          </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[var(--line)] pt-8 mt-8">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="bill-memo" className="micro-label">Internal Memo</label>
+                  <textarea
+                    id="bill-memo"
+                    value={memo}
+                    onChange={(e) => setMemo(e.target.value)}
+                    placeholder="Notes about this bill..."
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24"
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                {bill.id ? (
+                  <AttachmentsPanel target={{ collection: 'bills', id: bill.id, label: `Bill ${bill.number || ''}`.trim() }} />
+                ) : (
+                  <div className="space-y-2">
+                    <label htmlFor="bill-file-upload" className="micro-label">Files and receipts</label>
+                    <label htmlFor="bill-file-upload" className="cursor-pointer flex items-center justify-center w-full px-4 py-3 bg-[var(--ink)] border-2 border-dashed border-zinc-300 rounded-xl hover:bg-zinc-100 transition-colors">
+                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Select files</span>
+                      <input id="bill-file-upload" type="file" multiple className="hidden" onChange={handleFileUpload} />
+                    </label>
+                    {attachments.length > 0 && (
+                      <ul className="flex flex-wrap gap-2 mt-2" aria-label="Files to keep with the bill">
+                        {attachments.map(f => (
+                          <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex items-center gap-1 px-2 py-1 bg-zinc-100 text-zinc-600 text-xs rounded-lg">
+                            <bdi>{f.name}</bdi>
+                            <button type="button" onClick={() => setAttachments(prev => prev.filter(x => x !== f))} aria-label={`Don't attach ${f.name}`} className="text-zinc-400 hover:text-rose-600"><X size={12} aria-hidden="true" /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {attachments.length > 0 && <p className="text-[10px] text-[var(--muted)]">Kept with the bill when you save it.</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </DocumentMoreOptions>
         </form>
 
         <div id="bill-save-footer" className="shrink-0 p-3 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/50 flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -589,14 +600,14 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
             </span>
           </div>
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
-            <button 
+            <button
               type="button"
               onClick={requestClose}
               className="min-h-11 px-4 sm:px-6 py-3 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] font-medium uppercase tracking-wider text-[10px] hover:bg-[var(--ink)] transition-all"
              aria-label="Cancel">
               Cancel
             </button>
-            <AsyncButton 
+            <AsyncButton
               type="button"
               disabled={isSubmitting}
               onClick={(e) => handleAction(e, 'draft')}
@@ -605,7 +616,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
             >
               Save Draft
             </AsyncButton>
-            <AsyncButton 
+            <AsyncButton
               type="submit"
               disabled={isSubmitting}
               onClick={(e) => handleAction(e, 'pending')}
@@ -615,7 +626,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               <Save size={16} />
               Save & Close
             </AsyncButton>
-            <AsyncButton 
+            <AsyncButton
               type="button"
               disabled={isSubmitting}
               onClick={(e) => handleAction(e, 'approved')}
