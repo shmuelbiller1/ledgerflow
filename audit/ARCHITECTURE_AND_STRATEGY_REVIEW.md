@@ -35,7 +35,7 @@ The repository already has sound architectural pieces to connect: a single posti
 - **1,403 database-operation candidates** are syntactic callsites, not individually reviewed DB queries or proof of deployed SQL/RLS behavior.
 - Current Atlas revalidation resolved all 215 references in 18 prior workflow traces; that checks references, not workflow correctness.
 
-The corresponding durable maps are `COMPLETE_FILE_INVENTORY.csv`, `COMPLETE_FUNCTION_MAP.csv`, `COMPLETE_CALL_EDGE_MAP.csv`, `EVERY_UI_ACTION_MAP.csv`, `BACKEND_FUNCTIONALITY_MAP.csv`, `DATABASE_OPERATION_MAP.csv`, `FEATURE_COMPLETENESS_MATRIX.csv` and `END_TO_END_WORKFLOW_MAP.md`.
+The corresponding durable maps are `COMPLETE_FILE_INVENTORY.csv`, `COMPLETE_FUNCTION_MAP.csv`, `COMPLETE_CALL_EDGE_MAP.csv`, `EVERY_UI_ACTION_MAP.csv`, `BACKEND_FUNCTIONALITY_MAP.csv`, `DATABASE_OPERATION_MAP.csv`, `FEATURE_COMPLETENESS_MATRIX.csv` and `docs/archive/audit/END_TO_END_WORKFLOW_MAP.md`.
 
 ## What is working architecturally
 

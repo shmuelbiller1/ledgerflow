@@ -20,6 +20,8 @@ work/
 # (verified non-build, non-runtime: 48.18 MiB including 34.34 MiB docs/CODE_ATLAS.jsonl & 11.45 MiB verification PNGs)
 /docs/
 /audit/
+# (the archive/ directory itself moved to docs/archive/one-off-fixers on 10 Nov 2026; this entry
+# stays because src/tests/vercel-ignore-boundary.test.ts pins the pattern for historical paths)
 /archive/
 
 # CI workflows, Git hooks, database migrations/RLS tests, and standalone SDK

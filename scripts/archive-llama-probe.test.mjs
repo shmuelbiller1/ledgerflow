@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const script = fileURLToPath(new URL('../archive/test-llama-wait.sh', import.meta.url));
+const script = fileURLToPath(new URL('../docs/archive/one-off-fixers/test-llama-wait.sh', import.meta.url));
 
 test('historical llama probe neither installs nor writes when dependency is missing', () => {
   const cwd = mkdtempSync(path.join(os.tmpdir(), 'llama-probe-'));
