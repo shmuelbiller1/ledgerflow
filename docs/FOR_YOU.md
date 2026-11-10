@@ -102,6 +102,11 @@ Last updated: 2026-10-07.
     parts' cost). That is a new stock posting, so only with your say-so. *Default: built when sold.* Say
     "build kits into stock" if you need it.
 
+**⚠ 2 database changes waiting (10 Nov, from #608 monthly reports).** In Supabase → SQL editor, run one at a time:
+1. `supabase/migrations/20261110000000_report_pack_schedule.sql` (lets a schedule send the "report pack")
+2. `supabase/migrations/20261110010000_report_notes.sql` (saves report notes)
+Until they are in, a report-pack schedule and a report note cannot be saved. Everything else works.
+
 ## B. Decisions (Claude uses the default until you say otherwise)
 
 10. **Hebrew data — decided by owner (2 Oct).** Keep menus and options in English. The system and algorithms must handle Hebrew and mixed Hebrew/English names, labels, item descriptions and other record text throughout search/matching, imports/exports and documents. This is data-language support, not a request to translate the interface. Codex is auditing it after C-6…C-11; existing financial rules must stay intact.
