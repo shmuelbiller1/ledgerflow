@@ -11,7 +11,6 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { budgetPL } from '../../lib/budgetStatement';
 import ReportNote from '../reporting/ReportNote';
 import type { SavedBudget } from '../../lib/budgetActual';
-import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFinancialReporting } from '../../hooks/useFinancialReporting';
@@ -30,14 +29,14 @@ import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import { statementTotalDrill, type StatementTotal } from '../../lib/statementDrill';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { BudgetComparisonNotice } from './BudgetComparisonNotice';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /** A P&L line as the report holds it; `parentId` is only for account groups (K-14). */
 interface PLAccount { name: string; code?: string; balance: number; parentId?: string }
-
 /** A P&L line with its own id, the shape the account-group helpers want. */
 interface PLRow { id: string; name: string; code?: string; type: string; parentId?: string; balance: number }
-
 interface PLData {
   income: { total: number; accounts: Record<string, PLAccount> };
   cogs: { total: number; accounts: Record<string, PLAccount> };
@@ -540,6 +539,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         </p>
       )}
       {/* R-4: the note for the dates on screen */}<ReportNote key={`pnl|${dateRange.start}|${dateRange.end}`} report="pnl" startDate={dateRange.start} endDate={dateRange.end} />
+      {vsBudget && <BudgetComparisonNotice labelFiltered={Boolean(labelFilter)} />}
       {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
         startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}

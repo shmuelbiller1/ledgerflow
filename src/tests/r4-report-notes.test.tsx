@@ -44,8 +44,10 @@ describe('R-4: the note on the report', () => {
     fireEvent.change(screen.getByLabelText('Note for this report and period'), { target: { value: 'Rent was paid late' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save note' })); });
     await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-    const saved = (calls.find(c => c.url.includes('lf_update'))!.body.p_set as { reportNotes: Record<string, string> }).reportNotes;
-    assert.deepEqual(saved, { [key]: 'Rent was paid late' });
+    // only this note's field is written, so notes saved meanwhile for other reports or periods stay
+    const set = calls.find(c => c.url.includes('lf_update'))!.body.p_set as Record<string, unknown>;
+    assert.equal(set[`reportNotes.${key}`], 'Rent was paid late');
+    assert.equal('reportNotes' in set, false);
     await waitFor(() => assert.match(screen.getByTestId('report-note').textContent || '', /Note: Rent was paid late/));
   });
 

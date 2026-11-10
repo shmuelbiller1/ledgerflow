@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
+import { deleteField, doc, updateDoc } from '../../lib/db/firestore';
 import { workspaceScope } from '../../lib/serverAction';
 import { REPORT_NOTE_MAX, reportNoteKey, withReportNote } from '../../lib/reportNotes';
 
@@ -31,10 +31,17 @@ export default function ReportNote({ report, startDate, endDate }: { report: str
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     setBusy(true);
     try {
-      await updateDoc(doc(db, 'workspaces', workspaceId), { reportNotes: next.notes, updatedAt: new Date().toISOString() });
+      // only this note's field is written, so a note someone else saved meanwhile for another report or period stays
+      const value = text.trim();
+      await updateDoc(doc(db, 'workspaces', workspaceId), { [`reportNotes.${key}`]: value || deleteField(), updatedAt: new Date().toISOString() });
       if (!scope.isCurrent()) return;
       const { workspaces: current, setWorkspaces } = useAuthStore.getState();
-      setWorkspaces(current.map(w => (w.id === workspaceId ? { ...w, reportNotes: next.notes } : w)));
+      setWorkspaces(current.map(w => {
+        if (w.id !== workspaceId) return w;
+        const notes = { ...(w.reportNotes || {}) };
+        if (value) notes[key] = value; else delete notes[key];
+        return { ...w, reportNotes: notes };
+      }));
       setEditing(false);
       toast.success(text.trim() ? 'Note saved' : 'Note removed');
     } catch {

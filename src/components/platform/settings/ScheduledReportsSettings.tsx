@@ -34,6 +34,8 @@ export default function ScheduledReportsSettings() {
   // R-3: the email the new schedule would send for its last finished period, before saving it
   const latestPreview = useRef('');
   const [preview, setPreview] = useState<{ subject: string; html: string; attachments: string[] } | null>(null);
+  // a preview belongs to the report and frequency it was asked for: changing either drops it, and a reply still on its way is ignored
+  const dropPreview = () => { latestPreview.current = ''; setPreview(null); };
   const showPreview = async () => {
     if (!workspace?.id) return;
     // a reply for another workspace or report (the user switched while it loaded) is not shown
@@ -147,13 +149,13 @@ export default function ScheduledReportsSettings() {
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted)]">Report</span>
-              <select value={report} onChange={e => setReport(e.target.value as ScheduledReportKind)} className={field}>
+              <select value={report} onChange={e => { dropPreview(); setReport(e.target.value as ScheduledReportKind); }} className={field}>
                 {(Object.keys(SCHEDULED_REPORTS) as ScheduledReportKind[]).map(k => <option key={k} value={k}>{SCHEDULED_REPORTS[k]}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted)]">How often</span>
-              <select value={frequency} onChange={e => setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly')} className={field}>
+              <select value={frequency} onChange={e => { dropPreview(); setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly'); }} className={field}>
                 <option value="monthly">Monthly (on the 1st, for the month before)</option>
                 <option value="weekly">Weekly (on Monday, for the week before)</option>
               </select>
