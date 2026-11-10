@@ -18,6 +18,8 @@ export interface UsSalesDocument extends TaxableDocument {
   dimensions?: Record<string, string>;
   /** the invoice screen saves the entity label on the first line (#517) */
   items?: unknown;
+  /** a credit note's invoice: a credit with no entity label of its own follows its invoice's seller */
+  invoiceId?: string;
 }
 
 export interface UsSalesTaxReturn {
@@ -55,11 +57,15 @@ export function usSalesTaxReturn(input: {
   };
   const parts = new Map<string, number>();
   const customers = new Map(input.customers.map(c => [c.id, c]));
+  const invoicesById = new Map((input.invoices || []).map(i => [i.id, i]));
   const add = (docs: UsSalesDocument[] | undefined, sign: 1 | -1) => {
     for (const doc of docs || []) {
       const date = String(doc.date || doc.issueDate || '').slice(0, 10);
       if (!COUNTED_SALES.has(String(doc.status)) || date < input.startDate || date > input.endDate) continue;
-      const seller = resolveSellerProfile(input.profiles, documentEntityLabels(doc), input.order);
+      // the credit screen saves only the invoice link: a credit with no label of its own is its invoice's seller's
+      const invoice = sign === -1 && doc.invoiceId ? invoicesById.get(doc.invoiceId) : undefined;
+      const labels = documentEntityLabels(doc) ?? (invoice ? documentEntityLabels(invoice) : undefined);
+      const seller = resolveSellerProfile(input.profiles, labels, input.order);
       if (!registrationsOn(seller, 'sales_tax', date).some(r => registrationKey(r) === input.registration)) continue;
       const customer = doc.customerId ? customers.get(doc.customerId) : undefined;
       const place = (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;

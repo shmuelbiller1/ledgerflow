@@ -75,3 +75,24 @@ test('#518: a sale to a US customer with no state is named, not dropped or guess
   const foreign = [...customers, { id: 'uk', metadata: { taxPlace: { country: 'GB' } } }];
   assert.deepEqual(usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles, order: ['world'], customers: foreign, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [doc('uk1', 'uk', 10000, 0, [])] }).unknownStateDocumentIds, []);
 });
+
+test('#613 review: a credit note with no label of its own follows its invoice\'s seller', () => {
+  const books: TaxProfiles = {
+    books: { place: { country: 'US', state: 'TX' }, registrations: [{ kind: 'sales_tax', number: '3200', place: { country: 'US', state: 'TX' } }] },
+    labels: { 'world:il': { place: { country: 'IL' }, registrations: [{ kind: 'vat', number: '514000000', place: { country: 'IL' } }] } },
+  };
+  // the Israeli entity's 100.00 + 8.25 sale, fully credited from the credit screen (invoice link only, no labels)
+  const sale = doc('il-sale', 'austin', 10825, 825, [['Texas state sales tax', 825]], { dimensions: undefined, items: [{ dimensions: { world: 'il' } }] });
+  const credit = doc('il-credit', 'austin', 10825, 825, [['Texas state sales tax', 825]], { dimensions: undefined, invoiceId: 'il-sale', status: 'applied' });
+  const r = usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles: books, order: ['world'], customers, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [sale], creditNotes: [credit] });
+  assert.equal(r.documentCount, 0, 'neither the sale nor its credit is on the Texas books\' return');
+  assert.equal(r.taxableSalesCents, 0);
+  assert.equal(r.taxCollectedCents, 0);
+  // the books' own sale and credit still cancel on the return: 100.00 − 100.00, 8.25 − 8.25
+  const ownSale = doc('own-sale', 'austin', 10825, 825, [['Texas state sales tax', 825]], { dimensions: undefined });
+  const ownCredit = doc('own-credit', 'austin', 10825, 825, [['Texas state sales tax', 825]], { dimensions: undefined, invoiceId: 'own-sale', status: 'applied' });
+  const own = usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles: books, order: ['world'], customers, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [ownSale], creditNotes: [ownCredit] });
+  assert.equal(own.documentCount, 2);
+  assert.equal(own.taxableSalesCents, 0);
+  assert.equal(own.taxCollectedCents, 0);
+});
