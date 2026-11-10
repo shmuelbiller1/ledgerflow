@@ -150,8 +150,8 @@ export function RootLayout() {
       />
 
       <main className={cn(
-        "flex-1 flex flex-col overflow-hidden relative transition-all duration-300 bg-[var(--ink)] text-[var(--text)] pb-[env(safe-area-inset-bottom)] lg:pb-0",
-        "pb-[64px] lg:pb-0" // Add 64px padding on mobile specifically for the BottomNav
+        "flex-1 flex flex-col overflow-hidden relative transition-all duration-300 bg-[var(--ink)] text-[var(--text)]",
+        "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0" // Reserve the phone bar and the device safe area
       )}>
         <ConnectionBanner />
         <LedgerBackupReminder />

@@ -1,78 +1,98 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Users, UserCheck, Calculator, FileSpreadsheet } from 'lucide-react';
-import { useUIStore } from '../../stores/useUIStore';
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  Plus,
+  FileText,
+  Users,
+  UserCheck,
+  Calculator,
+  FileSpreadsheet,
+  X,
+} from "lucide-react";
+import { useUIStore } from "../../stores/useUIStore";
+import { useCurrentRole } from "../../hooks/useCurrentRole";
+import { useDialog } from "../../hooks/useDialog";
+import type { NewRecordType } from "../../lib/recordLinks";
 
-export default function QuickCreateMenu() {
+const ACTIONS = [
+  { type: "invoice", label: "Invoice", icon: FileText },
+  { type: "customer", label: "Customer", icon: Users },
+  { type: "bill", label: "Bill", icon: FileSpreadsheet },
+  { type: "vendor", label: "Vendor", icon: UserCheck },
+  { type: "journalEntry", label: "Journal entry", icon: Calculator },
+] satisfies Array<{ type: NewRecordType; label: string; icon: typeof Plus }>;
+
+export default function QuickCreateMenu({
+  phone = false,
+}: {
+  phone?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const setActiveTab = useUIStore(state => state.setActiveTab);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  const handleAction = (tab: string, _action?: string) => {
-    setActiveTab(tab);
-    setIsOpen(false);
-    // Ideally we would trigger a specific 'create' modal here. 
-    // For now, switching to the tab where the user can create it is a huge friction reducer.
-  };
+  const openNewRecord = useUIStore((state) => state.openNewRecord);
+  const canCreate = useCurrentRole() !== "viewer";
+  const { dialogProps, titleId } = useDialog(() => setIsOpen(false), isOpen);
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="hidden md:flex items-center gap-1.5 bg-slate-900 text-white dark:bg-white dark:text-black hover:opacity-90 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm cursor-pointer"
+    <>
+      <button
+        type="button"
+        aria-label="New"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        disabled={!canCreate}
+        title={
+          canCreate
+            ? "Create a record"
+            : "Creating records requires edit access"
+        }
+        onClick={() => setIsOpen(true)}
+        className={
+          phone
+            ? "flex flex-1 min-w-[44px] h-16 flex-col items-center justify-center gap-1 rounded-lg text-[var(--text)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
+            : "hidden md:flex min-h-11 min-w-11 items-center justify-center gap-1.5 bg-slate-900 text-white dark:bg-white dark:text-black hover:opacity-90 px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50"
+        }
       >
-        <Plus size={16} />
-        <span className="hidden lg:inline">New</span>
+        <Plus aria-hidden="true" size={phone ? 22 : 16} />
+        <span className={phone ? "text-[11px]" : "hidden lg:inline"}>New</span>
       </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-64 bg-[var(--surface)] border border-[var(--line)] shadow-xl rounded-2xl overflow-hidden z-50"
-          >
-            <div className="p-2 space-y-1">
-              <div className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-3 pt-2 pb-1">Customers</div>
-              <button onClick={() => handleAction('sales')} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--ink)] rounded-xl transition-colors text-left font-medium cursor-pointer">
-                <FileText size={16} className="text-indigo-500" /> Invoice
-              </button>
-              <button onClick={() => handleAction('sales')} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--ink)] rounded-xl transition-colors text-left font-medium cursor-pointer">
-                <Users size={16} className="text-emerald-500" /> Customer
-              </button>
-              
-              <div className="h-px bg-[var(--line)] my-1"></div>
-              
-              <div className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-3 pt-2 pb-1">Vendors</div>
-              <button onClick={() => handleAction('purchases')} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--ink)] rounded-xl transition-colors text-left font-medium cursor-pointer">
-                <FileSpreadsheet size={16} className="text-rose-500" /> Bill
-              </button>
-              <button onClick={() => handleAction('purchases')} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--ink)] rounded-xl transition-colors text-left font-medium cursor-pointer">
-                <UserCheck size={16} className="text-amber-500" /> Vendor
-              </button>
-
-              <div className="h-px bg-[var(--line)] my-1"></div>
-
-              <div className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider px-3 pt-2 pb-1">Other</div>
-              <button onClick={() => handleAction('ledger')} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--ink)] rounded-xl transition-colors text-left font-medium cursor-pointer">
-                <Calculator size={16} className="text-[var(--muted)]" /> Journal Entry
-              </button>
+      {isOpen &&
+        createPortal(
+          <div {...dialogProps} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-3"
+            >
+              <div className="flex items-center justify-between gap-2 px-2">
+                <h2 id={titleId} className="font-semibold">
+                  Create new
+                </h2>
+                <button
+                  type="button"
+                  aria-label="Close create menu"
+                  className="min-h-11 min-w-11 flex items-center justify-center"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <X aria-hidden="true" size={20} />
+                </button>
+              </div>
+              {ACTIONS.map(({ type, label, icon: Icon }) => (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={!canCreate}
+                  onClick={() => {
+                    setIsOpen(false);
+                    openNewRecord(type);
+                  }}
+                  className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-left disabled:opacity-50"
+                >
+                  <Icon aria-hidden="true" size={18} />
+                  {label}
+                </button>
+              ))}
             </div>
-          </motion.div>
+          </div>,
+          document.body,
         )}
-      </AnimatePresence>
-    </div>
+    </>
   );
 }

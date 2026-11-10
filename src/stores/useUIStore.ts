@@ -8,9 +8,9 @@ import {
 } from '../lib/reportPreferences';
 import { create } from 'zustand';
 import type { AppTab, FilterCriteria } from '../types';
-import { parseRecordHash, recordHash } from '../lib/recordLinks';
+import { parseRecordHash, recordHash, newRecordHash, NEW_RECORD_TABS } from '../lib/recordLinks';
 import { setDateDisplayFormat } from '../lib/utils';
-import type { RecordRef } from '../lib/recordLinks';
+import type { NewRecordType, RecordRef } from '../lib/recordLinks';
 
 /** A file being read into transactions (shown above the transaction list). */
 export interface ParsingItem { id: string; name: string; status: 'uploading' | 'parsing' | 'done' | 'error'; idempotencyKey?: string }
@@ -46,6 +46,9 @@ interface UIState {
   focusRecord: RecordRef | null;
   openRecord: (record: RecordRef) => void;
   clearFocusRecord: () => void;
+  newRecord: NewRecordType | null;
+  openNewRecord: (type: NewRecordType) => void;
+  clearNewRecord: () => void;
   isSidebarOpen: boolean;
   isCompactMode: boolean;
   isProMode: boolean;
@@ -164,10 +167,23 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   activeTab: (initialHash.tab || 'dashboard') as AppTab,
   focusRecord: initialHash.record || null,
+  newRecord: initialHash.create || null,
+  openNewRecord: (type) => {
+    // pushState avoids a delayed hashchange re-delivering a consumed creation request.
+    if (typeof window !== 'undefined') window.history.pushState(null, '', `#${newRecordHash(type)}`);
+    set({ activeTab: NEW_RECORD_TABS[type] as AppTab, focusRecord: null, newRecord: type, isSidebarOpen: false });
+  },
+  clearNewRecord: () => {
+    if (typeof window !== 'undefined') {
+      const target = parseRecordHash(window.location.hash);
+      if (target.create) window.history.replaceState(null, '', `#${target.tab}`);
+    }
+    set({ newRecord: null });
+  },
   openRecord: (record) => {
     const { tab } = parseRecordHash(recordHash(record));
     if (typeof window !== 'undefined') window.location.hash = recordHash(record);
-    set({ activeTab: tab as AppTab, focusRecord: record });
+    set({ activeTab: tab as AppTab, focusRecord: record, newRecord: null });
   },
   clearFocusRecord: () => set({ focusRecord: null }),
   isSidebarOpen: true,
@@ -278,6 +294,7 @@ export const useUIStore = create<UIState>((set) => ({
     set({
       activeTab: page.tab as AppTab,
       focusRecord: null,
+      newRecord: null,
       ...(page.tab === 'reports' && page.sub ? { activeReportTab: page.sub } : {}),
       ...(page.tab === 'settings' && page.sub ? { activeSettingsTab: page.sub } : {}),
     });
@@ -382,7 +399,7 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveReportTab: (activeReportTab) => set({ activeReportTab }),
   navigateTool: (id: string) => set((state) => {
     // Basic heuristics:
-    const s = { ...state };
+    const s = { ...state, newRecord: null };
     
     // Check Intelligence & Lenses
     if (['radar', 'roi', 'signals', 'yield', 'burn', 'fx-exposure', 'growth-model', 'working-capital', 'pricing-optimizer', 'valuation'].includes(id)) {
@@ -414,7 +431,7 @@ export const useUIStore = create<UIState>((set) => ({
     if (typeof window !== 'undefined' && window.location.hash !== `#${activeTab}`) {
       window.location.hash = activeTab;
     }
-    set({ activeTab, focusRecord: null });
+    set({ activeTab, focusRecord: null, newRecord: null });
   },
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
@@ -523,10 +540,10 @@ export const useUIStore = create<UIState>((set) => ({
 
 if (typeof window !== 'undefined') {
   window.addEventListener('hashchange', () => {
-    const { tab, record } = parseRecordHash(window.location.hash);
+    const { tab, record, create } = parseRecordHash(window.location.hash);
     const state = useUIStore.getState();
-    if (tab && (state.activeTab !== tab || record)) {
-      useUIStore.setState({ activeTab: tab as AppTab, focusRecord: record || null });
+    if (tab && (state.activeTab !== tab || record || create || state.newRecord)) {
+      useUIStore.setState({ activeTab: tab as AppTab, focusRecord: record || null, newRecord: create || null });
     }
   });
 

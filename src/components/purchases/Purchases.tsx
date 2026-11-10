@@ -1,3 +1,4 @@
+import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
 import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
@@ -82,6 +83,12 @@ export default function Purchases() {
   // A record link (#purchases/bill/<id>, e.g. from Data Health) shows and highlights the bill
   const focusedBillId = useRecordFocus('bill', { ready: bills.length > 0, onFocus: () => { setActiveSubTab('bills'); setSelectedVendorId(null); setSearchTerm(''); } });
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+  useNewRecord('bill', canEditContacts, () => {
+    setActiveSubTab('bills'); setSelectedVendorId(null); setEditingBill(undefined); setIsBillModalOpen(true);
+  });
+  useNewRecord('vendor', canEditContacts, () => {
+    setActiveSubTab('vendors'); setSelectedVendorId(null); setIsVendorModalOpen(true);
+  });
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentDocumentId, setPaymentDocumentId] = useState<string | null>(null);

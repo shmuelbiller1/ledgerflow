@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 
 // Stores & Hooks
 import { useAuthStore } from './stores/useAuthStore';
+import { useCurrentRole } from './hooks/useCurrentRole';
 import { useLedgerStore } from './stores/useLedgerStore';
 import { useUIStore } from './stores/useUIStore';
 import type { AppTab } from './types';
@@ -145,6 +146,7 @@ export default function App() {
   const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('privacy');
   const user = useAuthStore(state => state.user);
   const setUser = useAuthStore(state => state.setUser);
+  const canCreateRecords = useCurrentRole() !== 'viewer';
 
   
   const language = useUIStore(state => state.language);
@@ -312,7 +314,15 @@ export default function App() {
   // Operational Keyboard Shortcuts
 const shortcutMap = useMemo(() => {
     // one list for the keys and the "Keyboard shortcuts" card (src/config/shortcuts.ts)
+    // Creation never interrupts another form or dialog. Field typing is protected by the hook.
+    const createRecord = (type: import('./lib/recordLinks').NewRecordType) => {
+      if (!canCreateRecords || document.querySelector('[aria-modal="true"]')) return;
+      useUIStore.getState().openNewRecord(type);
+    };
     const base = shortcutKeyMap({
+      newInvoice: () => createRecord('invoice'),
+      newBill: () => createRecord('bill'),
+      newJournalEntry: () => createRecord('journalEntry'),
       palette: () => setCommandPaletteOpen(!isCommandPaletteOpen),
       quickEntry: () => setQuickEntryOpen(!isQuickEntryOpen),
       overview: () => setActiveTab('dashboard'),
@@ -344,7 +354,7 @@ const shortcutMap = useMemo(() => {
     return base;
   }, [
     isCommandPaletteOpen, isQuickEntryOpen, isDiagnosticConsoleOpen,
-    isShortcutOverlayOpen, isArchitectureOpen, speedDials, navigateTool,
+    isShortcutOverlayOpen, isArchitectureOpen, speedDials, navigateTool, canCreateRecords,
     openExportDialog, setActiveTab, setArchitectureOpen, setCommandPaletteOpen,
     setDiagnosticConsoleOpen, setImporterOpen, setQuickEntryOpen,
     setShortcutOverlayOpen, toggleFocusMode

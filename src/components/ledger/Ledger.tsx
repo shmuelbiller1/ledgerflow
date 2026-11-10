@@ -1,3 +1,4 @@
+import { useNewRecord } from '../../hooks/useNewRecord';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useId, useState, useMemo } from 'react';
 import { usePerformanceTrace } from '../../hooks/usePerformanceTrace';
@@ -167,6 +168,9 @@ const Ledger = React.memo(() => {
   // K-05: "Duplicate" opens the journal form with an entry's lines
   const [duplicateOf, setDuplicateOf] = useState<JournalListEntry | null>(null);
   const ledgerRole = useCurrentRole();
+  useNewRecord('journalEntry', ledgerRole !== 'viewer', () => {
+    setActiveSubTab('journal'); setDuplicateOf(null); setActiveModal('journal');
+  });
   const { dialogProps: overlay2DialogProps, titleId: overlay2TitleId } = useDialog(() => setActiveModal(null), activeModal === 'period');
   const { dialogProps: overlay1DialogProps, titleId: overlay1TitleId } = useDialog(() => setActiveModal(null), activeModal === 'account');
   const [searchTerm, setSearchTerm] = useState('');

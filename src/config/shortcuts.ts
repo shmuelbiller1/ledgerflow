@@ -7,6 +7,7 @@
  * are the browser's find and print.
  */
 export type ShortcutId =
+  | 'newInvoice' | 'newBill' | 'newJournalEntry'
   | 'palette' | 'quickEntry' | 'overview' | 'transactions' | 'ledger' | 'reports' | 'export'
   | 'import' | 'theme' | 'focus' | 'diagnostics' | 'architecture' | 'shortcuts' | 'pinPage';
 
@@ -18,6 +19,9 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: Shortcut[] = [
+  { id: 'newInvoice', keys: ['mod+alt+i'], label: 'New invoice' },
+  { id: 'newBill', keys: ['mod+alt+b'], label: 'New bill' },
+  { id: 'newJournalEntry', keys: ['mod+alt+j'], label: 'New journal entry' },
   { id: 'palette', keys: ['mod+k'], label: 'Command palette (search and go anywhere)' },
   { id: 'quickEntry', keys: ['mod+shift+e'], label: 'Quick entry' },
   { id: 'overview', keys: ['mod+1'], label: 'Overview' },
