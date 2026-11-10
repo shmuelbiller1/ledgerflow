@@ -341,3 +341,22 @@ test('the journey’s document count is the return’s own count', () => {
   assert.equal(counted.length, 6);
   assert.equal(journey().steps.find(s => s.id === 'state-returns')!.returns[0].documentCount, counted.length);
 });
+
+test('AF-004 (#518): a US sale with no state is reported as a problem and the quarter is not ready to close', () => {
+  const clean = journey();
+  assert.equal(clean.problems.some(p => /no state/.test(p)), false);
+  const withUnplaced = usQuarterJourney({
+    quarter: QUARTER, today: TODAY, currency: 'USD', profiles, order: ['world'],
+    customers: [...customers, { id: 'nowhere', metadata: { taxPlace: { country: 'US' } } }],
+    invoices: [...invoices, doc('i-unplaced', 'nowhere', 10825, 825, [['Texas state sales tax', 825]])],
+    creditNotes, bills, items, vendors, payments,
+    periods: [{ month: '2026-07', state: 'soft' }, { month: '2026-08', state: 'soft' }],
+  });
+  const problem = withUnplaced.problems.find(p => /no state/.test(p));
+  assert.equal(problem, "1 US sale has no state on the invoice or the customer, with 8.25 of tax: it is in no state's return. Add the state to the customer or the invoice.");
+  assert.equal(withUnplaced.readyToClose, false);
+  // the Texas figures are the same as without it: the sale was not guessed into Texas
+  const stateFigures = (q: ReturnType<typeof journey>) => q.steps.flatMap(step => step.returns || []).map(r => [r.state, r.taxCollectedCents, r.documentCount]);
+  assert.ok(stateFigures(clean).length > 0);
+  assert.deepEqual(stateFigures(withUnplaced), stateFigures(clean));
+});

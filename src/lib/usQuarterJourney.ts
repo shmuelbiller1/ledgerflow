@@ -251,11 +251,14 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
   const permits = usQuarterPermits(profiles, endDate);
 
   // 2. the state returns, one per permit, from the quarter's invoices and credit notes
+  // AF-004 (#518): a seller's US sales with no state are in no return; the largest count over its permits is reported once
+  let unplaced = { documentCount: 0, taxCents: 0 };
   const returns: UsQuarterStateReturn[] = permits.map(permit => {
     const r = usSalesTaxReturn({
       registration: permit.registration, profiles, order, customers, startDate, endDate,
       invoices, creditNotes,
     });
+    if (r.unplaced.documentCount > unplaced.documentCount) unplaced = r.unplaced;
     const calendar = filingCalendarRow(permit.state);
     const dueDate = filingDueDate(permit.state, endDate);
     const nexus = nexusThreshold(permit.state, endDate);
@@ -282,6 +285,10 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
     };
   });
   const unfiled = returns.filter(r => !r.filed && (r.taxCollectedCents !== 0 || r.documentCount > 0));
+
+  if (unplaced.documentCount > 0) {
+    problems.push(`${unplaced.documentCount} US sale${unplaced.documentCount === 1 ? ' has' : 's have'} no state on the invoice or the customer, with ${(unplaced.taxCents / 100).toFixed(2)} of tax: ${unplaced.documentCount === 1 ? 'it is' : 'they are'} in no state's return. Add the state to the customer or the invoice.`);
+  }
 
   // 3. use tax on purchases used in the permit state
   const useTaxState = (input.useTaxState || permits[0]?.state || '').toUpperCase();
