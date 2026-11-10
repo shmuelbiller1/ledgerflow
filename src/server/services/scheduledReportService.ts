@@ -6,7 +6,7 @@ import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../
 import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
   agingTable, balanceSheetTable, lastFinishedPeriod, profitAndLossTable, reportCsv, reportEmailHtml,
-  scheduleProblem, SCHEDULED_REPORTS, type ReportPeriod, type ReportTable, type ScheduledReport,
+  scheduleParts, scheduleProblem, SCHEDULED_REPORTS, type ReportPeriod, type ReportTable, type ScheduledReport,
 } from '../../lib/scheduledReports';
 import type { ChartAccount, Customer, Invoice, Transaction } from '../../types';
 import { isMailConfigured, sendMail } from './mailer';
@@ -34,7 +34,22 @@ async function workspaceRows<T>(db: Firestore, collection: string, workspaceId: 
   return (await q.get()).docs.map(d => ({ ...(d.data() as T), id: d.id }));
 }
 
-export async function buildReport(db: Firestore, workspaceId: string, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod): Promise<ReportTable> {
+/** Every report a schedule's email holds (one, or the three of a report pack, R-3). */
+export async function buildReports(db: Firestore, workspaceId: string, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod): Promise<Array<{ kind: string; table: ReportTable }>> {
+  return Promise.all(scheduleParts(schedule.report).map(async kind => ({ kind, table: await buildReport(db, workspaceId, { report: kind }, period) })));
+}
+
+/** The email a schedule sends for `period`: its subject, body and attachments (the same for a preview, R-3). */
+export async function reportEmail(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod) {
+  const parts = await buildReports(db, workspace.id, schedule, period);
+  const currency = workspace.currency || 'USD';
+  const html = reportEmailHtml(parts.map(p => p.table), { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, workspace.moneyDisplay) });
+  const title = parts.length > 1 ? `Report pack ${period.startDate} – ${period.endDate}` : parts[0].table.title;
+  const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table)}`, 'utf8'), contentType: 'text/csv' }));
+  return { subject: `${title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments };
+}
+
+export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod): Promise<ReportTable> {
   const dayAfter = addToDateISO(period.endDate, { days: 1 });
   if (schedule.report === 'receivables-aging') {
     const [customers, invoices] = await Promise.all([
@@ -55,18 +70,14 @@ export interface ReportSendResult { sent: number; failed: string[]; delivered: s
 
 export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: ScheduledReport, period: ReportPeriod,
   options: { skip?: Set<string>; idempotencyPrefix?: string } = {}): Promise<ReportSendResult> {
-  const table = await buildReport(db, workspace.id, schedule, period);
-  const currency = workspace.currency || 'USD';
-  const moneyDisplay = workspace.moneyDisplay;
-  const html = reportEmailHtml(table, { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, moneyDisplay) });
-  const attachment = { filename: `${schedule.report}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(table)}`, 'utf8'), contentType: 'text/csv' };
+  const { subject, html, attachments } = await reportEmail(db, workspace, schedule, period);
   const delivered: string[] = [];
   const failed: string[] = [];
   const errors: Record<string, string> = {};
   for (const to of schedule.recipients) {
     if (options.skip?.has(to)) continue;
     try {
-      await sendMail({ to, subject: `${table.title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments: [attachment], ...(options.idempotencyPrefix ? { idempotencyKey: `${options.idempotencyPrefix}_${to}` } : {}) });
+      await sendMail({ to, subject, html, attachments, ...(options.idempotencyPrefix ? { idempotencyKey: `${options.idempotencyPrefix}_${to}` } : {}) });
       delivered.push(to);
     } catch (err) {
       failed.push(to);
@@ -146,6 +157,17 @@ export async function sendScheduleNow(db: Firestore, input: { workspaceId: strin
   if (problem) throw new ScheduledReportError(400, problem);
   const period = lastFinishedPeriod(schedule.frequency, today(ws, input.now || new Date()));
   return { period, ...(await sendReport(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, schedule, period)) };
+}
+
+/** R-3: what a schedule would send for its last finished period, without sending it (a preview before saving). */
+export async function previewSchedule(db: Firestore, input: { workspaceId: string; report: unknown; frequency: unknown; now?: Date }) {
+  if (typeof input.report !== 'string' || !(input.report in SCHEDULED_REPORTS)) throw new ScheduledReportError(400, 'Choose a report');
+  if (input.frequency !== 'weekly' && input.frequency !== 'monthly') throw new ScheduledReportError(400, 'Choose weekly or monthly');
+  const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
+  if (!ws) throw new ScheduledReportError(404, 'Workspace not found');
+  const period = lastFinishedPeriod(input.frequency, today(ws, input.now || new Date()));
+  const email = await reportEmail(db, { id: input.workspaceId, name: ws.name as string, currency: ws.currency as string, moneyDisplay: ws.moneyDisplay as MoneyDisplaySettings | undefined }, { report: input.report as ScheduledReport['report'] }, period);
+  return { period, subject: email.subject, html: email.html, attachments: email.attachments.map(a => a.filename) };
 }
 
 /** The daily run: every workspace's schedules whose last finished period has not been delivered to every address yet. */
