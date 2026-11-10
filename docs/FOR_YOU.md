@@ -539,3 +539,16 @@ reconnected (or I can add a one-time "register webhook" step for existing connec
 
 ## 2 Nov — API keys can no longer change workspace settings (PR #490)
 CodeRabbit found that an API key with only `read:workspaces` could change workspace settings (payment types, alerts, modules, roles…), because every `/workspaces` request mapped to that read scope. Writes there now need `write:workspaces`, which no key can be issued, so keys can read workspace settings but not change them. **Default used:** keep it locked. If an integration of yours needs to change workspace settings with a key, say so and I'll add `write:workspaces` as an issuable scope.
+
+## 10 Nov — AI #9: L-123 step 4 merged; C-19 (archive closed years) paused, your call
+**Done (#602):** a workspace with more than 20,000 entries and a closed year now loads only the open years in the
+browser; balances and reports for the closed years come from the server's year-end snapshot. Smaller workspaces load
+everything, as before.
+
+**C-19, the last item in AI #9's queue, is not started.** It would move closed years' entries into a separate
+`transactionsArchive` table. With step 4 merged, the browser no longer needs the closed years, so C-19 now only helps the
+database itself (smaller main table). It is large: 44 server files read the entries table directly (reports,
+reversals, exports, reconciliation, the repost engine), and every one of them would have to read both tables, plus a
+migration you apply.
+*Default I used:* **paused** until a real workspace gets big enough for the database to be slow (none is yet). Say
+"do C-19" and I start it as one PR.
