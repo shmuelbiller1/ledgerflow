@@ -369,26 +369,40 @@ function subscribeLedgerCollection(key: LedgerKey, workspaceId: string, onFailed
   // L-123 step 4: entries of closed years stay on the server (its year-end snapshot sums them); load the ones after
   let stop: (() => void) | null = null;
   let cancelled = false;
-  void closedThroughDay(workspaceId).then(day => {
+  let current: string | null | undefined;
+  // the snapshot goes stale when an entry in a closed year changes (from any session): ask again now and then and
+  // restart the list on a new day, so the opening and the loaded entries follow it
+  const start = () => closedThroughDay(workspaceId).then(day => {
     if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-    useLedgerStore.getState().setEntriesClosedThrough(day);
-    stop = subscribeLedgerQuery(key, workspaceId, day, onFailed);
-  }).catch(err => {
+    // no answer: keep the list as it is (on the first ask, load every entry, as before)
+    if (day === undefined && current !== undefined) return;
+    const next = day ?? null;
+    if (next === current) return;
+    current = next;
+    stop?.();
+    useLedgerStore.getState().setEntriesClosedThrough(next);
+    stop = subscribeLedgerQuery(key, workspaceId, next, onFailed);
+  });
+  const recheck = setInterval(() => { void start().catch(() => {}); }, CLOSED_THROUGH_RECHECK_MS);
+  void start().catch(err => {
     // a subscription that could not start is a failed load, with "Try again" in the data status bar
     if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
     useDataNeedsStore.getState().markFailed(key, err instanceof Error ? err.message : String(err), err);
     onFailed();
   });
-  return () => { cancelled = true; stop?.(); };
+  return () => { cancelled = true; clearInterval(recheck); stop?.(); };
 }
 
-/** The newest fresh year-end snapshot's day, or null: none, a guest, or no answer (then every entry loads, as before). */
-async function closedThroughDay(workspaceId: string): Promise<string | null> {
+/** How often the loader asks whether the closed-through day changed (a snapshot made stale elsewhere). */
+const CLOSED_THROUGH_RECHECK_MS = 5 * 60 * 1000;
+
+/** The newest fresh year-end snapshot's day; null when there is none; undefined when there is no answer (offline, a guest). */
+async function closedThroughDay(workspaceId: string): Promise<string | null | undefined> {
   try {
     const res = await fetch(`/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-    return res.ok ? closedThroughFrom(await res.json().catch(() => null)) : null;
+    return res.ok ? closedThroughFrom(await res.json().catch(() => null)) : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 

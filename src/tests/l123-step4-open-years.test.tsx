@@ -17,6 +17,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { useServerOpening } from '../hooks/useServerOpening';
+import { openingCutoff } from '../lib/serverBalances';
 import DataStatusBar from '../components/layout/DataStatusBar';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
@@ -60,6 +61,15 @@ describe('L-123 step 4: the status bar', () => {
 });
 
 describe('L-123 step 4: no entry after the closed years', () => {
+  test('the cutoff every opening and period fallback uses is the closed-through day', () => {
+    assert.equal(openingCutoff([]), '');
+    useLedgerStore.getState().setEntriesClosedThrough('2025-12-31');
+    assert.equal(openingCutoff([]), '2025-12-31');
+    assert.equal(openingCutoff([{ id: 'a', date: '2026-02-01' } as never]), '2026-02-01');
+    useLedgerStore.getState().setEntriesClosedThrough(null);
+    assert.equal(openingCutoff([]), '');
+  });
+
   const realFetch = globalThis.fetch;
   afterEach(() => { globalThis.fetch = realFetch; useLedgerStore.setState({ entriesClosedThrough: null }); });
 
