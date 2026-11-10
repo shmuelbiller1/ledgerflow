@@ -53,7 +53,9 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       // the workspace's own payment types (CC-09, migration 20261102020000_workspace_payment_types)
       'paymentTypes',
       // the workspace's customer groups (CC-11, migration 20261102030000_customer_groups)
-      'customerGroups'
+      'customerGroups',
+      // R-4: a short note per report and period (migration 20261110010000_report_notes)
+      'reportNotes'
     ];
     for (const key of expectedWorkspaceKeys) {
       assert.ok(allowed.includes(key), `workspaces allowed fields missing '${key}'`);

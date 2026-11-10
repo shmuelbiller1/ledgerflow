@@ -42,6 +42,8 @@ interface StatementColumnsProps {
   compareStartDate?: string;
   compareEndDate?: string;
   compare: boolean;
+  /** the heading of the comparison column (R-2: "Budget"); "Previous" when not given */
+  compareLabel?: string;
   mode: ReportColumnMode;
   onModeChange: (mode: ReportColumnMode) => void;
   showPercent: boolean;
@@ -67,6 +69,7 @@ export function StatementColumns(props: StatementColumnsProps) {
     compareStartDate,
     compareEndDate,
     compare,
+    compareLabel = "Previous",
     mode,
     onModeChange,
     showPercent,
@@ -367,7 +370,7 @@ export function StatementColumns(props: StatementColumnsProps) {
                       {compare && (
                         <>
                           <th scope="col" className="p-3 text-right">
-                            Previous
+                            {compareLabel}
                           </th>
                           <th scope="col" className="p-3 text-right">
                             Variance

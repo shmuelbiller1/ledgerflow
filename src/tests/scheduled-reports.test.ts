@@ -118,6 +118,24 @@ describe('Sending (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set' },
     assert.equal(sent.length, before + 2);
   });
 
+  test('R-3 preview: the report pack for the last finished month, three spreadsheets, nothing sent; owners and accountants only', async () => {
+    const preview = (uid: string, body: Record<string, unknown>) => fetch(`${base}/api/v1/workspaces/${ws}/report-schedules/preview`, { method: 'POST', headers: { 'x-test-uid': uid, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await preview('book-1', { report: 'report-pack', frequency: 'monthly' })).status, 403);
+    assert.equal((await preview('owner-1', { report: 'nope', frequency: 'monthly' })).status, 400);
+    const before = sent.length;
+    const res = await preview('owner-1', { report: 'report-pack', frequency: 'monthly' });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    const body = await res.json() as { subject: string; html: string; attachments: string[]; period: { endDate: string } };
+    const end = body.period.endDate;
+    assert.match(body.subject, /^Report pack .* · Sched Co$/);
+    assert.match(body.html, /Profit and loss/);
+    assert.match(body.html, /Balance sheet/);
+    assert.match(body.html, /Receivables aging/);
+    assert.deepEqual(body.attachments, [`profit-and-loss-${end}.csv`, `balance-sheet-${end}.csv`, `receivables-aging-${end}.csv`]);
+    assert.equal(sent.length, before, 'a preview sends nothing');
+  });
+
   test('the database refuses a malformed schedule list', async () => {
     const ref = db.collection('workspaces').doc(ws);
     for (const bad of [

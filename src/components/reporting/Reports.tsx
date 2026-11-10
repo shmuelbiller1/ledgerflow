@@ -38,6 +38,7 @@ import ReportViewsControls from './ReportViewsControls';
 import { isTransactionInDateRange } from '../../lib/txFilters';
 import { entriesForAccounts } from '../../lib/statementDrill';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import ReportNote from './ReportNote';
 
 /** The report settings in the address bar when the page opened (a shared link), if any. */
 function linkedReportParams(): URLSearchParams {
@@ -272,6 +273,8 @@ const Reports = React.memo(() => {
           compareEndDate={comparePeriod?.endDate}
         />
       </div>
+      {/* R-4: the note for this report and period, on screen and in the print / PDF */}
+      <ReportNote key={`${activeTab}|${period.startDate}|${period.endDate}`} report={activeTab} startDate={period.startDate} endDate={period.endDate} />
       <section data-print-hide data-testid="reports-heading" aria-label="Reports heading" className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-[var(--text)]">Reports</h1>

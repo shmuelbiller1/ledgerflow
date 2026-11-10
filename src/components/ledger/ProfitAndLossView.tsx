@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 import { exportPlToExcel } from '../../lib/plExport';
 import { isPostable, lineAmount, calculateNetIncome, isTransactionInDateRange } from '../../lib/txFilters';
 import { resolveAccountRole } from '../../lib/accountUtils';
+import { budgetPL } from '../../lib/budgetStatement';
+import type { SavedBudget } from '../../lib/budgetActual';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFinancialReporting } from '../../hooks/useFinancialReporting';
@@ -77,6 +80,10 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     return scoped;
   }, [allTransactions, labelFilter]);
   const accounts = useLedgerStore(s => s.accounts);
+  // R-2: "compare to budget" reads the saved budgets
+  useLedgerCollections('budgets');
+  const budgets = useLedgerStore(s => s.budgets);
+  const [compareTo, setCompareTo] = useState<'previous' | 'budget'>('previous');
   const [dateRange, setDateRange] = usePageSyncedState(
     JSON.stringify([startDate, endDate]),
     startDate && endDate ? { start: startDate, end: endDate } : undefined,
@@ -289,7 +296,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     ? (cashReady ? provenanceFromResponse(serverData) : null)
     : useServer && serverData ? provenanceFromResponse(serverData)
     : serverFailed || labelFilter || browserFigures.completeness !== 'complete' ? browserFigures : null;
-  const prevData = basis === 'cash' ? (cashReady && serverPrevData?.basis === 'cash' ? serverPrevData : emptyPl) : useServer && serverPrevData ? serverPrevData : localCalculation.prevData;
+  const vsBudget = isComparative && compareTo === 'budget' && basis === 'accrual';
+  const budgetData = useMemo(() => budgetPL(budgets as SavedBudget[], accounts, dateRange.start, dateRange.end), [budgets, accounts, dateRange.start, dateRange.end]);
+  const prevData = vsBudget ? budgetData : basis === 'cash' ? (cashReady && serverPrevData?.basis === 'cash' ? serverPrevData : emptyPl) : useServer && serverPrevData ? serverPrevData : localCalculation.prevData;
   const chooseBasis = (next: 'accrual' | 'cash') => {
     setBasis(next);
     setServerData(null);
@@ -397,8 +406,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
                 <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
               </span>
-              <span className="text-[10px] text-[var(--text)]">Prior period</span>
+              <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? 'Budget' : 'Prior period'}</span>
             </label>
+            {isComparative && basis === 'accrual' && (
+              <select aria-label="Compare to" value={compareTo} onChange={e => setCompareTo(e.target.value === 'budget' ? 'budget' : 'previous')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
+                <option value="previous">Previous period</option><option value="budget">Budget</option>
+              </select>
+            )}
           </div>
         </div>
       </div>
@@ -525,8 +539,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             : loadingStates.pl ? 'Calculating on cash basis…' : 'Cash basis is calculated by the server, and it could not be reached: try again in a moment.'}
         </p>
       )}
+      {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
-        startDate={dateRange.start} endDate={dateRange.end} compare={isComparative}
+        startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}
         compareStartDate={prevRange.start} compareEndDate={prevRange.end}
         mode={columnMode} onModeChange={setColumnMode} showPercent={showPercent} onPercentChange={setShowPercent}
         totalData={data} previousTotalData={prevData} totalAuthoritative={useServer}
