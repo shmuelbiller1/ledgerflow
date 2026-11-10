@@ -944,6 +944,9 @@
 
 # Moved 10 Nov 2026 (AI #13 repo cleanup audit; nothing deleted) — finished [x] items
 
+> Path note: evidence notes named `docs/verification/<name>.md` below were moved on 10 Nov 2026 to
+> `docs/archive/verification/<name>.md` when their tasks were finished; the text here is unchanged.
+
 ## SECTION L — OPERATIONS & TRUST
 
 - [x] L-94 Build invoice/bill postings on the server (with the document engine) — design 21 Oct: `docs/design/L-94-server-postings.md`; **step 0 done 21 Oct**: entry builders import only `postingCore.ts` (no Firebase client, stores, toasts), the browser registers its host in `postingKit.ts`, `context.capture` collects entries, guard test `l94-posting-core.test.ts`. **step 1 shadow done 21 Oct** (`postingShadowCheck.ts` logs any difference after each invoice/bill save). Next: read the logs of the first testers; then refuse a mismatch (409), then step 2 **Done (24 Oct, checked by AI #1):** L94-STEP2 (#308) and L94-STEP2B: the server builds the entries of invoices, bills, credit notes and vendor credits (`POST /api/v1/documents/:type/:id/post`); `/transactions/bulk` refuses those documents and any entry naming one (`documentPostedByServer`, tests `l94-step2-document-post`, `l94-step2b-documents`). The shadow check lives on in the tests only, so no live logs are needed before enforcing.

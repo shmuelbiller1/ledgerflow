@@ -1564,6 +1564,9 @@ Claude is out of usage for about 3 days. The project keeps running without it:
 
 # Moved 10 Nov 2026 (AI #13 repo cleanup audit; nothing deleted) — finished [x] tasks and Messages before 27 Oct 2026
 
+> Path note: evidence notes named `docs/verification/<name>.md` below were moved on 10 Nov 2026 to
+> `docs/archive/verification/<name>.md` when their tasks were finished; the text here is unchanged.
+
 ## FIRST: wire finished code into screens (Claude, 13 Oct). Do these before C-72..C-101.
 
 - [x] **C-115 Put `src/lib/tax/entityFilings.ts` on a screen** — find where a user would need it, add it there (or to an existing screen), with help text, an e2e line and a screenshot check. *AI #2, 21 Oct: live on main as Reports → **Entity Filings Calendar** (merged in #242); re-verified at `2b9384c` — 50/50 libraries in `workspaceExports.ts` now reach a screen, so the waiting room is empty. Fixed on `arena/d859969c-ledgerflow`: the screen opens on the current year (was a hard-coded 2026, so a 2027 session would have shown last year's calendar) and an unreadable saved profile or a failed calculation is now reported as a failure with CSV export disabled, instead of an empty table reading "nothing is due" (an unreadable profile used to throw while reading the profiles, before the guard). Tests 5/5. Evidence: `docs/verification/ai2-final-2026-10-21.md`.*
