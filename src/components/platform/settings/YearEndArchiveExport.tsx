@@ -112,8 +112,8 @@ function YearEndArchiveExportBody() {
         if (controller.signal.aborted) return;
         const blob = await fetchInvoicePdf(selectedId, file.documentId, token);
         if (!blob) { failed.push(file.documentNumber || file.documentId); continue; }
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        entries.push({ path: file.path, content: new TextDecoder('latin1').decode(bytes) });
+        // raw bytes: a PDF is binary and must not go through the text encoder
+        entries.push({ path: file.path, bytes: new Uint8Array(await blob.arrayBuffer()) });
         pdfs += 1;
       }
 

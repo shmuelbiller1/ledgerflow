@@ -56,10 +56,11 @@ describe('J-8 year-end archive', () => {
     const plan = planYearArchive(collections, { year: 2026 });
     assert.equal((plan.manifest.undatedRecords as Record<string, number>).transactions, 1);
     const csv = buildYearArchiveCsvEntries(collections, plan).find(entry => entry.path === 'collections/transactions-2026.csv');
-    assert.ok(csv);
+    const text = csv?.content ?? '';
+    assert.ok(text.length > 0, 'the transactions CSV was built');
     // .trim() would remove a leading BOM, so the marker is checked on the raw text
-    assert.ok(csv.content.startsWith('\ufeff'), 'the CSV keeps the UTF-8 marker (J-5)');
-    const rows = csv.content.replace(/^\ufeff/, '').split('\r\n');
+    assert.ok(text.startsWith('\ufeff'), 'the CSV keeps the UTF-8 marker (J-5)');
+    const rows = text.replace(/^\ufeff/, '').split('\r\n');
     assert.equal(rows.length, 3, 'header plus the two 2026 entries — the 2025 and undated rows are out');
     assert.ok(rows[1].includes('2026-01-05'));
     assert.ok(rows[2].includes('2026-12-31'));
@@ -99,6 +100,18 @@ describe('J-8 year-end archive', () => {
     );
     assert.deepEqual(plan.files.filter(file => file.kind === 'pdf'), []);
     assert.equal(plan.manifest.year, 2019);
+  });
+
+  test('a binary entry (an invoice PDF) survives the ZIP byte for byte', async () => {
+    // every byte value, plus a real "%PDF-" header: UTF-8 encoding this would destroy it
+    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, ...Array.from({ length: 256 }, (_, i) => i)]);
+    const zip = makeStoredZip([{ path: 'invoices/INV-1.pdf', bytes: pdf }, { path: 'manifest.json', content: '{}' }]);
+    const back = readStoredZip(new Uint8Array(await zip.arrayBuffer()));
+    assert.deepEqual(Array.from(back.get('invoices/INV-1.pdf') || []), Array.from(pdf));
+  });
+
+  test('the ZIP writer refuses an entry with no content', () => {
+    assert.throws(() => makeStoredZip([{ path: 'empty.txt' }]), /no content/);
   });
 
   test('the ZIP reader gets every planned entry back', async () => {

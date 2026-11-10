@@ -30,7 +30,12 @@ export function zipCrc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-export interface ZipEntry { path: string; content: string }
+/**
+ * One entry of a stored ZIP. `content` is text (UTF-8 encoded, as the CSVs and JSON need); `bytes` is
+ * raw content and is written exactly as given — a PDF is binary, and encoding it as UTF-8 would replace
+ * every invalid byte with U+FFFD and produce a corrupt file that still opened without an error.
+ */
+export interface ZipEntry { path: string; content?: string; bytes?: Uint8Array }
 
 /** A portable UTF-8 ZIP archive with stored entries and correct central directory. */
 export function makeStoredZip(files: readonly ZipEntry[]): Blob {
@@ -43,14 +48,16 @@ export function makeStoredZip(files: readonly ZipEntry[]): Blob {
   const version = 20;
   const flags = 0x0800; // UTF-8 file names
 
-  for (const { path, content } of files) {
+  for (const entry of files) {
+    const { path } = entry;
     if (!path || path.startsWith('/') || path.includes('\\') || path.split('/').some(part => !part || part === '.' || part === '..')
       || Array.from(path).some(character => character.charCodeAt(0) < 32) || seen.has(path)) {
       throw new Error('Unsafe or duplicate ZIP entry name.');
     }
     seen.add(path);
     const name = textEncoder.encode(path);
-    const bytes = textEncoder.encode(content);
+    if (entry.bytes === undefined && entry.content === undefined) throw new Error('A ZIP entry has no content.');
+    const bytes = entry.bytes ?? textEncoder.encode(entry.content ?? '');
     if (name.length > 65535 || bytes.length > 0xffffffff) throw new Error('ZIP entry is too large.');
     const crc = zipCrc32(bytes);
     const local = new Uint8Array(30 + name.length);
@@ -67,7 +74,11 @@ export function makeStoredZip(files: readonly ZipEntry[]): Blob {
     lv.setUint16(26, name.length, true);
     lv.setUint16(28, 0, true);
     local.set(name, 30);
-    chunks.push(local.buffer as ArrayBuffer, bytes.buffer as ArrayBuffer);
+    // a view may sit inside a larger buffer (a PDF read from a Blob), so copy exactly the bytes it covers
+    const payload = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+      ? bytes.buffer as ArrayBuffer
+      : bytes.slice().buffer as ArrayBuffer;
+    chunks.push(local.buffer as ArrayBuffer, payload);
     const directory = new Uint8Array(46 + name.length);
     const dv = new DataView(directory.buffer);
     dv.setUint32(0, 0x02014b50, true);
