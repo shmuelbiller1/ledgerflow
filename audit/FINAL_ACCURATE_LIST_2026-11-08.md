@@ -1,4 +1,16 @@
-<<<<<<< HEAD
+# Ledgerflow — final accurate list of open items — 8 November 2026 (RESOLVED CONFLICT 2026-11-10)
+
+> **Correction note (2026-11-10, Agent #7).** This file reached `main` in commit
+> `2245ff433df317478b5eec8b965fea138cb19845` (9 Nov 2026, authored by shmuelbiller1) with unresolved
+> git merge-conflict markers. The markers and nothing else were removed in this revision; **both sides'
+> text is preserved verbatim below**, clearly delimited. Neither list was edited, reordered or reworded.
+> Both are superseded by [`audit/FINAL_ACCURATE_LIST_2026-11-10.md`](FINAL_ACCURATE_LIST_2026-11-10.md),
+> which re-verified every item (executed probes and source reads) at pin
+> `dc40739708a013ad080ffb306fe461554a2391fc`. Read that file for the current status; this file is kept
+> as history.
+
+## Side A — Agent #7's list (pin `fd50b2f2430ab662a49d11c4cb97543f57127f55`, 8 Nov 2026)
+
 # Ledgerflow — final accurate list of open items — 8 November 2026 (Agent #7)
 
 **Owner main pin:** `fd50b2f2430ab662a49d11c4cb97543f57127f55` (merge of #547, 2026-11-08). Every status below was re-verified against source at this pin on 2026-11-08 by Agent #7. The #161 engine defect was **re-executed** with the exact `evaluateRules` body from the pin; the rest is line-level source verification. No production data, DB, or browser was accessed in this pass — that limitation is recorded per item.
@@ -56,7 +68,9 @@ Paste pending migrations (incl. ISS-130) in Supabase · set `DATABASE_CA_CERT` i
 1. Money lane (AI #1/#9): fix #519/#518/#517 as one change — the state return reads `doc.metadata.taxPlace` (with the #255 snapshot) and the lines' entity labels; add permutation/property tests for `evaluateRules` (#161) and define precedence or reject ambiguous override graphs.
 2. Lead: close the stale issues in section B after spot-verification (each has merged evidence).
 3. Stage B (AI #9): EG-7 stock snapshots to close #131.
-=======
+
+## Side B — Agent #4's list (pin `dbaa11385d6148dc8a135364159b9d6d725a4705`, 8 Nov 2026)
+
 # LedgerFlow — Final, Accurate List (8 Nov 2026) — FINAL
 
 **This document is FINAL as of the code pin below.** (Owner: "work fast to get the final with
@@ -191,4 +205,3 @@ Key architectural advancements merged into `main` between PR #446 and PR #563:
 - **Production Build:** Passes cleanly (`npm run build` generates dist assets, service worker, server bundle, and API serverless bundle).
 
 **Conclusion:** LedgerFlow's accounting engine, data contracts, tenant wall, and user workflows are robust, tested, and ready for initial invited beta testers once the owner completes live production secret rotation and Vercel unpause.
->>>>>>> e9d5ae64 (feat(ai4): D-15/D-18 US Federal Payroll tables, D-30 route security, D-34/D-35/D-64 property tests, D-91 a11y guard, and Nov 8 final audit list)
