@@ -24,7 +24,8 @@ Branch: **`arena/9bdf6e26-ledgerflow`** on `Chaim-Richard/ledgerflow`, tip **`35
 | `2026-11-10_Agent6_Ledgerflow_GATES_v4.md` | `1m7VpZozNe0bf2rgP-jgqHwO96EeJJM1f` | **use this one** — every command run and its result: `tsc` 0 errors / 2,513 files, ESLint 0 errors + 42 standing warnings, **all 4 unit shards = 8,026 tests / 8,007 pass / 0 product failures**, probes 20/20, and the not-run list |
 | `2026-11-10_Agent6_Ledgerflow_GATES.md` (older, superseded) | `1fQkclrChBx2qlFzlUdsDqPJvEKAY3VhV` | first upload, before the gate results were appended (3,059 bytes) |
 | `2026-11-10_Agent6_Ledgerflow_PR-BODY.md` | `1_rObGX3tyeRAPdLnpvzP8E_zFb6yhs7q` | ready-to-paste PR body |
-| `2026-11-10_Agent6_Ledgerflow_ALL-7-commits-2371b13a.patch` | `14UZYeeFwhPlJIIx0D7BI071waJ7c5rSc` | `git am`-able snapshot at `2371b13a`; sha256 `b393bee2c5951f07`. Later commits are on the branch itself — re-run `git format-patch` for the newest. |
+| `2026-11-10_Agent6_Ledgerflow_FINAL-11-commits-060788af.patch` | `1oPxEV3cTlwVb1ci-ixOQE75zmSLhNpH2` | **the snapshot to restore from**: all 11 commits, tip `060788af`, `git am`-able, 90,758 B, sha256 `fda0d3929dccb4df` |
+| `2026-11-10_Agent6_Ledgerflow_ALL-7-commits-2371b13a.patch` | `14UZYeeFwhPlJIIx0D7BI071waJ7c5rSc` | older snapshot, kept |
 | `probe_af004-taxplace-key-mismatch.test.ts.txt` | `1lAn-hirfXT3S_fYfug1gRwfnIoqc3zTM` | 4/4 — TX sale dropped by `region` |
 | `probe_f8-tax-return-two-universes.test.ts.txt` | `1qmFPX1et3wSW5R1_UBy8t70oOd6ov0_q` | 4/4 — one filing marks every state |
 | `probe_af012-rule-chain-order.test.ts.txt` | `13mls8wZnA7ZZ0CkMUWq5aFRsi4McqpDJ` | 2/2 — #161 on the shipped function |
