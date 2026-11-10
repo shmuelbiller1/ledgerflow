@@ -198,17 +198,7 @@ test('A-273: printing an invoice document gives the loaded document alone, not t
   await page.getByRole('button', { name: 'Money In', exact: true }).first().click();
   await page.getByRole('button', { name: 'Invoices', exact: true }).first().click();
   // a demo invoice (the guest workspace's own sample company)
-  await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
-      bills: data.bills, customers: data.customers, vendors: data.vendors,
-    });
-  });
+  await seedDemoBooks(page);
   const row = page.getByRole('row').filter({ hasText: 'DEMO-US-001' }).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
   // the row's own PDF-preview control opens the document preview
@@ -262,6 +252,21 @@ test('A-273: printing an invoice document gives the loaded document alone, not t
 
   expect(errors).toEqual([]);
 });
+
+/** Load the US demo books into the guest workspace, so a screen has rows to print. */
+async function seedDemoBooks(page: Page) {
+  await page.evaluate(async () => {
+    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
+    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
+    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
+    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
+    const data = seedCountryDemoWorkspace(workspaceId, 'US');
+    useLedgerStore.setState({
+      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
+      bills: data.bills, customers: data.customers, vendors: data.vendors,
+    });
+  });
+}
 
 /** A-277: a Ledger print root (trial balance or journal) on the chosen paper, page only, nothing cut. */
 async function expectLedgerPrintRoot(page: Page, heading: string) {
@@ -317,17 +322,7 @@ test('A-277: the trial balance prints on A4 then US Letter — the paper changes
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/#ledger');
   // demo books, so the trial balance has a table to print
-  await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
-      bills: data.bills, customers: data.customers, vendors: data.vendors,
-    });
-  });
+  await seedDemoBooks(page);
   const main = page.locator('#main-content');
   await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
   await main.getByRole('button', { name: 'Trial Balance', exact: true }).click();
@@ -352,17 +347,7 @@ test('A-277: the journal prints on A4 then US Letter — the paper changes, noth
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/#ledger');
   // demo books, so the journal has entries to print
-  await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
-      bills: data.bills, customers: data.customers, vendors: data.vendors,
-    });
-  });
+  await seedDemoBooks(page);
   const main = page.locator('#main-content');
   await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
   await main.getByRole('button', { name: 'General Journal', exact: true }).click();

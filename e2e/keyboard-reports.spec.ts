@@ -40,21 +40,17 @@ async function seedAging(page: Page) {
  * here (same shape, status `sent`, nothing paid).
  */
 async function seedTwoAgingRows(page: Page) {
+  await seedAging(page);
   await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
     const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    const reopen = (invoice: (typeof data.invoices)[number], customerId: string, id: string) => ({
+    const { invoices, customers } = useLedgerStore.getState();
+    const reopen = (invoice: (typeof invoices)[number], customerId: string, id: string) => ({
       ...invoice, id, customerId, status: 'sent', amountPaidCents: 0,
     });
     useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, bills: data.bills,
-      customers: data.customers, vendors: data.vendors,
       invoices: [
-        reopen(data.invoices[0], data.customers[0].id, 'aging-inv-a'),
-        reopen(data.invoices[1], data.customers[1].id, 'aging-inv-b'),
+        reopen(invoices[0], customers[0].id, 'aging-inv-a'),
+        reopen(invoices[1], customers[1].id, 'aging-inv-b'),
       ],
     });
   });
