@@ -369,10 +369,15 @@ function subscribeLedgerCollection(key: LedgerKey, workspaceId: string, onFailed
   // L-123 step 4: entries of closed years stay on the server (its year-end snapshot sums them); load the ones after
   let stop: (() => void) | null = null;
   let cancelled = false;
-  closedThroughDay(workspaceId).then(day => {
+  void closedThroughDay(workspaceId).then(day => {
     if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
     useLedgerStore.getState().setEntriesClosedThrough(day);
     stop = subscribeLedgerQuery(key, workspaceId, day, onFailed);
+  }).catch(err => {
+    // a subscription that could not start is a failed load, with "Try again" in the data status bar
+    if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
+    useDataNeedsStore.getState().markFailed(key, err instanceof Error ? err.message : String(err), err);
+    onFailed();
   });
   return () => { cancelled = true; stop?.(); };
 }

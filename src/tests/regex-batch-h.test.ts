@@ -44,7 +44,7 @@ describe('the rewritten patterns through their callers', () => {
   });
   it('a long "sub … TOTAL" line is read quickly and is not taken for a sub-total', () => {
     const t0 = Date.now();
-    const reading = parseReceiptOCR(['Shop', 'sub' + ' '.repeat(50_000) + 'x TOTAL $1.00'], []);
+    const reading = parseReceiptOCR(['Shop', 'Item $2.00', 'sub' + ' '.repeat(50_000) + 'x TOTAL $1.00'], []);
     assert.equal(reading.totalCents, 100);
     assert.ok(Date.now() - t0 < 1000, 'linear time');
   });

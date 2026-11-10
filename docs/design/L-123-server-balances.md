@@ -181,12 +181,16 @@ A new table, **`periodBalances`**, written only by the server: one document per 
 ## Step 4 — load only open years (AI #9, 10 Nov 2026)
 
 - **Server:** `GET /api/v1/balances/closed-through?workspaceId` answers the newest fresh year-end snapshot's day
-  (`closedThrough`), or null when there is none or it is stale.
+  (`closedThrough`), or null when there is none, it is stale, or the ledger has no more entries than the browser's
+  cap (20,000). A ledger that small loads whole, as before, so no screen that sums every entry (projects, pick-pack)
+  loses the closed years; only a ledger already cut at the cap loads its open years instead of the newest 20,000.
 - **Browser:** the entry list (`useLedgerData`, `transactions` only) asks for that day first and loads only the
   entries dated after it (the 20,000 cap stays as a guard). With a day, the list counts as partial
   (`entryListPartial`), so every screen that sums all entries uses the server's figures, as steps 3–6 made them do
-  for a capped list. Without an answer (offline, a guest, no snapshot) every entry loads, as before.
-- **Status bar:** "Entries up to {day} are in the closed years' opening balances…" instead of the cap line.
+  for a capped list. Without an answer (offline, no snapshot, or a guest: its `Bearer null` is refused) every entry
+  loads up to the cap, as before. With no entry after the day, the server opening is read at the day itself.
+- **Status bar:** "Entries up to {day} are in the closed years' opening balances…"; the cap line shows as well only
+  when the open years alone reach the cap.
 - *Test:* `src/tests/l123-step4-open-years.test.tsx` (the route on a real database: none → null, fresh → its day,
   an edit in the closed year → stale → null; the status bar; the helpers).
 - Next: C-19 (move the closed years' entries to `transactionsArchive`).

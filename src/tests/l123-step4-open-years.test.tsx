@@ -4,9 +4,9 @@
  * marked partial, so every screen that sums all entries reads the server's figures (steps 3–6), and the status
  * bar says the closed years are in the opening balances.
  *
- * Hand-worked case (cents), on a real database when LF_TEST_DATABASE_URL is set:
- *   2025-03-01 sale Cash +50,000 / Sales −50,000; 2025-12-31 snapshot built (fresh) → closedThrough 2025-12-31.
- *   An edit dated 2025-06-01 marks the snapshot stale → closedThrough null (every entry loads again).
+ * On a real database when LF_TEST_DATABASE_URL is set: a ledger of one entry with a fresh 2025-12-31 snapshot still
+ * loads whole (closedThrough null: it is under the 20,000 cap). With 20,001 entries in 2025 the answer is
+ * 2025-12-31; an edit dated in 2025 marks the snapshot stale → null again.
  */
 import './helpers/dom';
 import test, { after, afterEach, before, beforeEach, describe } from 'node:test';
@@ -15,7 +15,8 @@ import crypto from 'crypto';
 import React from 'react';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { useServerOpening } from '../hooks/useServerOpening';
 import DataStatusBar from '../components/layout/DataStatusBar';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
@@ -55,6 +56,24 @@ describe('L-123 step 4: the status bar', () => {
   test('every entry loaded: no note', () => {
     render(<DataStatusBar />);
     assert.equal(screen.queryByTestId('closed-years-note'), null);
+  });
+});
+
+describe('L-123 step 4: no entry after the closed years', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; useLedgerStore.setState({ entriesClosedThrough: null }); });
+
+  test('the server opening is still read, at the closed-through day', async () => {
+    setComponentWorkspace('owner');
+    const asked: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      asked.push(String(input));
+      return new Response(JSON.stringify({ status: 'success', asOf: '2025-12-31', accounts: { cash: 50_000 } }), { status: 200 });
+    }) as typeof fetch;
+    useLedgerStore.setState({ entriesClosedThrough: '2025-12-31' });
+    const { result } = renderHook(() => useServerOpening([]));
+    await waitFor(() => assert.deepEqual(result.current?.accounts, { cash: 50_000 }));
+    assert.match(asked[0], /asOf=2025-12-31/);
   });
 });
 
@@ -101,11 +120,21 @@ describe('L-123 step 4: GET /api/v1/balances/closed-through', { skip: !url && 'L
     await db.terminate();
   });
 
-  test('no snapshot: null; a fresh one: its day; stale: null again; members only', async () => {
+  test('a small ledger loads whole; a big one with a fresh snapshot: its day; stale: null again; members only', async () => {
     assert.deepEqual((await get(ws)).body.closedThrough, null);
     const svc = await import('../server/services/balanceService');
     await svc.buildSnapshot(db, ws, '2025-12-31', 'test');
-    assert.equal((await get(ws)).body.closedThrough, '2025-12-31');
+    assert.equal((await get(ws)).body.closedThrough, null, 'under the cap: every entry loads');
+    await db.pool.query(`
+      insert into public.transactions (id, data)
+      select $1::text || '_b' || i, jsonb_build_object('id', $1 || '_b' || i, 'workspaceId', $1::text, 'uid', $2::text,
+        'date', '2025-04-01', 'description', 'Sale', 'status', 'completed', 'type', 'journal', 'currency', 'USD',
+        'lines', jsonb_build_array(jsonb_build_object('accountId', $1 || '_cash', 'amountCents', 1), jsonb_build_object('accountId', $1 || '_sales', 'amountCents', -1)))
+      from generate_series(1, 20000) i`, [ws, OWNER]);
+    await svc.buildSnapshot(db, ws, '2025-12-31', 'test');
+    const answer = await fetch(`${base}/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId: ws })}`, { headers: { 'x-test-uid': OWNER } });
+    assert.equal(answer.headers.get('cache-control'), 'no-store');
+    assert.equal(((await answer.json()) as { closedThrough: string | null }).closedThrough, '2025-12-31');
     await db.collection('transactions').doc(`${ws}_t1`).update({ date: '2025-06-01' });
     assert.equal((await get(ws)).body.closedThrough, null);
     assert.equal((await get(ws, 'stranger')).status, 403);
