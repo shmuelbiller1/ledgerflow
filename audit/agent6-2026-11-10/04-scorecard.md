@@ -12,7 +12,8 @@
 | Express route files | 51 | `ls src/server/routes/*.ts` minus tests |
 | Route registrations inspected for middleware | 11 of `adminRoutes.ts` (all) + the mounts of `labelingRoutes`, `logsUploadRoutes`, `metricsAuditRoutes`, `telemetryRoutes`, `registrationStatusRoutes`, `apiStatusRoutes`, `workspaceApiRoutes`, `developerApiRoutes`, `apiKeysRoutes`, `brainRoutes`, `authRoutes`, `ledgerMatchRoutes`, `cronRoutes` | read at the pin; the four that matter are pinned by `probes/s7-route-guards.test.ts` |
 | Functions **read in full** at the pin (this session) | 14 | `usSalesTaxReturn`, `saleDestinationSnapshot`, `usQuarterJourney` (+`usQuarterPermits`, `registrationKey`), `evaluateRules`, `isSystemJobAuthorized`, `isCronRequest`, `authenticate`, `authorizeWorkspace`, `getReportContext`, `storePlaidSync`/`storePlaidChunk`, `runCron`/`BACKGROUND_JOBS`, `syncOneBank`, `maskCardNumbers` readers |
-| **Executed** checks | 34 assertions | AF suites 20/20 + probes 8/8 + AF-012 2/2 + 4 sourced parses |
+| **Executed** checks | 51 assertions | AF suites 20/20 + probes (4+4+2+4+3) 17/17 + 4 sourced parses + 10-handler parse |
+| Write handlers in `src/server/routes/*.ts` that persist in their own body | 33, of which **10 audit** (30.3 %) | regex over real registrations, pinned by `probes/f9-audit-trail-coverage.test.ts` |
 | DB-gated checks executed | **0** | no Postgres in this sandbox; `LF_TEST_DATABASE_URL` unset → every DB suite skips |
 | Browser checks executed | **0** | no Playwright browsers and no app server in this sandbox |
 
@@ -34,6 +35,8 @@ inspected by AI #8; the 2026-11-08 agent-8 slice added AF-004 reachability work)
 | F-05 | P3 | `authRateLimiter` dead code; S-22 AI half already covered | Agent #6 | source |
 | F-06 | P3 | no gitleaks, no audit hash chain (S-9/S-24, S-12) | Agent #6 | absence |
 | F-07 | P2/P3 | AF-001-F1..F3 fixed and re-run green; AF-001-F4 `success:false` still open | AI #1 | suites 20/20 |
+| F-08 | **P1** screen/API | one filing marks every state "Recorded as filed"; server accepts only `vat` registrations and stores VAT boxes the screen never reads | AI #1 (tax + screen) | yes, 4 assertions |
+| F-09 | **P1** audit trail | 23 of 33 money-writing handlers write no audit entry; the `USER_LOGIN` row the security screens read is a browser `void addDoc`, the server never writes that action, and `loginAudits` (the real one) has no reader and no RLS policy | AI #1 (server) + RLS lane | yes, 3 assertions |
 
 ## What a next session should do, in order
 
@@ -48,5 +51,8 @@ inspected by AI #8; the 2026-11-08 agent-8 slice added AF-004 reachability work)
    `recoveryCodes`, `apiKeys`) and asserts it in `rls.test.sql` (the S-32 gap).
 4. Re-run the full gate set with Postgres + browsers available: `npm run test:rules`, the whole
    unit suite, ESLint, build, the Playwright shards — none of which this sandbox can do.
-5. Then continue Pass A at `postingCore` / `ledgerBulkCommit` / `reconcileRoutes`, which is where
+5. **F-09** — move the sign-in row into `POST /api/v1/auth/audit` (server-side `USER_LOGIN`), give
+   `loginAudits` a self-read policy, and add the "persists ⇒ audits, or is allowlisted" guard test.
+   Then F-08 (one tax-return record carrying registration + kind).
+6. Then continue Pass A at `postingCore` / `ledgerBulkCommit` / `reconcileRoutes`, which is where
    `audit/function-audit/SCORECARD.md` says the next 10-function batch starts.

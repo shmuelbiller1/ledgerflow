@@ -77,3 +77,43 @@ No Postgres server exists in this sandbox and none of them is claimed as passing
 
 `npm run test:rules` (needs Postgres), the DB-gated unit suites (203 skipped), `npm run test:e2e`
 (needs Playwright browsers + a server), `npm run build`, and unit shards 2/4–4/4.
+
+---
+
+## Unit shard 2/4 at the pin (dc407397)
+
+Command (identical pattern to shard 1/4, run from `/home/user/lf-pin`):
+
+```sh
+NODE_OPTIONS=--max-old-space-size=3072 timeout 2400 npx tsx --test --test-force-exit \
+  --test-shard=2/4 src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts
+```
+
+| | value |
+|---|---|
+| tests | **1,189** |
+| pass | **1,187** |
+| fail | **1** (one suite, two failing subtests) |
+| skipped | 1 |
+| wall clock | 324 s (5 min 25 s) |
+| exit | 1 |
+
+The failure is **A-229 / A-206 in `src/tests/report-speed-12m.test.tsx` — a millisecond budget, not a
+wrong answer**:
+
+* `A-229` (`:168`, assertion at `:258`): *"Loading all 10 screen modules took 2533.14 ms (budget 1500 ms)"*.
+  The test's own comment says it preloads ten route chunks and times a **cold** import; on 2 vCPU with
+  the rest of the shard running, that number is not a statement about the product.
+* `A-206` (`:72`) is the parent suite, reported `not ok` only because `A-229` failed inside it.
+* The same budget failed in shard 1/4 at 2,314 ms. **Same standing sandbox limit, not a new defect** —
+  do not report it as a regression without a dedicated single-file run on an idle machine.
+
+## Probes after F-09 (all green)
+
+| probe | assertions | result |
+|---|---|---|
+| `af004-taxplace-key-mismatch.test.ts` | 4 | pass |
+| `s7-route-guards.test.ts` | 4 | pass |
+| `af012-rule-chain-order.test.ts` | 2 | pass |
+| `f8-tax-return-two-universes.test.ts` | 4 | pass |
+| `f9-audit-trail-coverage.test.ts` | 3 | pass |

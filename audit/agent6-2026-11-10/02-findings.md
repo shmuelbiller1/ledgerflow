@@ -186,6 +186,66 @@ tax screens, and it is a *workflow* finding (Pass B), not a single-function one.
   from LedgerFlow yet"). Both are AI #1 lane; the acceptance test is a two-state book with one
   filing, asserting the other state still reads "not recorded".
 
+### F-09 (P1, audit trail / sign-in evidence) — the trail does not cover the writes that keep the books, and the two "who signed in" screens read a row the server never writes
+
+Probe: `probes/f9-audit-trail-coverage.test.ts` — **3/3 pass**. Three separate defects, one theme: the
+trail that `docs/SECURITY_CONTROLS.md` lists as the A.8.15 control does not say what it claims to.
+
+**(a) The handlers that post the journals mostly write no audit entry.** Measured over the real
+registrations in `src/server/routes/*.ts`: **33 handlers persist in their own body** (`.set/.update/.delete`,
+`.add`, `batch.commit`, `runTransaction`, `FieldValue.*`, SQL) and **10 of them (30.3 %) call
+`writeServerAuditLog`/`writeAuditLog` in that same handler**. The 23 that do not include the ones that
+move money into the general ledger:
+
+| handler | what it writes |
+|---|---|
+| `POST /capitalize` (`leaseRoutes.ts:18,112`) | ASC 842 ROU asset + lease liability (2-line journal) |
+| `POST /recognize` (`revenueRoutes.ts:113`) | revenue-recognition journal |
+| `POST /cogs` (`inventoryRoutes.ts:161`) | COGS journal |
+| `POST /api/v1/ledger` (`developerApiRoutes.ts:171`) | a chart account, through the public API |
+| `POST /api/v1/brain/classify-batch`, `POST /api/v1/projects` | via the public API |
+| `POST /api/v1/keys/provision`, `DELETE /api/v1/keys/revoke/:keyId` (`apiKeysRoutes.ts`) | API-key issue and revoke — *"writes are server-side"* per the RLS comment, and none audited |
+| `POST /webhook/stripe`, `/api/webhook/plaid` | processed-payment / sync state (arguably not trail material, listed for completeness) |
+
+The main document/journal path *is* covered — `ledgerBulkCommit.ts:373` audits deletes, `:387` writes the
+`beforeWrite` audit (credit-limit override, `creditLimitGuard.ts:65-70`), and
+`session`/documents/period/branding/payment/support routes audit too. So this is not "nothing is audited";
+it is **a ratchet that stops at the routes that were remembered**, with no guard to keep the next one honest.
+The two unauthenticated-by-document write paths from F-02 sit in the same set.
+
+**(b) The sign-in rows the security screens read are written by the browser, and the server never writes
+that action at all.** `src/lib/accessReview.ts:148` (`lastSignIn`) and the access-review / audit-evidence
+CSVs take `action === 'USER_LOGIN'` rows from `auditLogs`. The only `USER_LOGIN` writer in the whole tree
+is `useLedgerData.ts:171` — a client `void addDoc(...)` that logs its own failure to the console and
+nothing else, once per browser session (`sessionStorage`). The server's own auth audit
+(`authAuditService.ts:24`) writes a **different** collection (`loginAudits`) under a **different** name
+(`event: 'login'`), from `POST /api/v1/auth/audit` (`authRoutes.ts:45-58`), which is itself a client call.
+So "last recorded sign-in" is a claim the browser makes about itself; a person who never opens a tab
+that runs the hook, or whose insert is refused, has no sign-in row and the screen cannot tell the
+difference between "did not sign in" and "did not manage to log it".
+
+**(c) `loginAudits` — the one record with real server-side provenance — is write-only.** It is declared
+in the migration's *server only* list (`init.sql:80`) and **no RLS policy was ever created for it**, so not
+even a member can read their own sign-ins through the app; no route reads it (probe asserts zero) and the
+only consumer is the personal-data export (`personalDataService.ts:33`). `accountDeletionService.ts:102`
+does delete from it.
+
+**What is right, and should not be "fixed" away:** `auditLogs` is genuinely insert-only — there is a
+`member_read` and a `member_insert` policy and **no update or delete policy** (probe asserts this), so the
+append-only property holds at the database. And a viewer may insert only `action = 'USER_LOGIN'`
+(`init.sql:448`), so the client-side sign-in log cannot be abused by a read-only member to invent other
+events. The failure is in *what is written*, not in *who may write it*.
+
+**Fix shape (AI #1 lane / RLS lane, no money maths):**
+1. Move the sign-in row to the server. `POST /api/v1/auth/audit` already exists; write `action:
+   'USER_LOGIN'` into `auditLogs` there (server-side, real IP/UA, cannot be skipped by a closed tab), and
+   keep `loginAudits` as the per-person security log.
+2. Give `loginAudits` a `member_read` policy that shows a person only their own rows
+   (`data->>'uid' = lf_uid()`), and read it for the "Last sign-in" column; leave the client `addDoc` for
+   the workspace-session breadcrumb only, and say so on the screen.
+3. Turn F-09a into a guard test: a route file that persists and has no audit call fails, with the
+   wire-endpoints in an explicit allowlist (that is the ratchet pattern already used for `no-explicit-any`).
+
 ## B. Verified at the pin as source facts (no run needed)
 
 ### F-04 (P3, ops) — the production-settings check still is not wired anywhere
@@ -245,11 +305,13 @@ documented so the next agent does not "implement" it twice.
 ## D. What I ran, exactly
 
 ```sh
-# probes (all pass: 8/8 + 2/2 assertions)
+# probes (all pass: 4/4, 4/4, 2/2, 4/4, 3/3 assertions)
 NODE_ENV=test SYSTEM_SALT=… npx tsx --test \
   audit/agent6-2026-11-10/probes/af004-taxplace-key-mismatch.test.ts \
   audit/agent6-2026-11-10/probes/s7-route-guards.test.ts \
-  audit/agent6-2026-11-10/probes/af012-rule-chain-order.test.ts
+  audit/agent6-2026-11-10/probes/af012-rule-chain-order.test.ts \
+  audit/agent6-2026-11-10/probes/f8-tax-return-two-universes.test.ts \
+  audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts
 
 # the pin's own audit suites for the money primitives (20/20 pass)
 NODE_ENV=test SYSTEM_SALT=… npx tsx --test \
@@ -258,5 +320,5 @@ NODE_ENV=test SYSTEM_SALT=… npx tsx --test \
   src/tests/audit-af010-money-primitives.test.ts
 ```
 
-Full unit shard 1/4 at the pin: see `03-gates.md` (running; result recorded there, including the
-fact that DB-gated suites skip without `LF_TEST_DATABASE_URL`).
+Unit shards at the pin: see `03-gates.md` — 1/4 = 4,583 tests / 4,576 pass, 2/4 = 1,189 tests /
+1,187 pass, shards 3–4 as recorded there; DB-gated suites skip without `LF_TEST_DATABASE_URL`.
