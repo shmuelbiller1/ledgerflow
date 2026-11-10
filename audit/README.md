@@ -1,8 +1,9 @@
 # LedgerFlow Audit & Release Readiness Hub
 
-Updated: 23 Oct 2026 by Agent #2 (Independent Audit & Release Readiness Agent)
-Index note (10 Nov 2026, AI #13 cleanup): finished one-session audit reports and agent session folders were moved to `docs/archive/audit/`; links below updated. Reports still referenced by live docs stay here.  
+Updated: 23 Oct 2026 by Agent #2 (Independent Audit & Release Readiness Agent)  
 Pinned HEAD: `1f6fe901d0553ff8c26ff08a3ccd4ebcfe72b759` (post-PR #351)
+
+Index note (10 Nov 2026, AI #13 cleanup): finished one-session audit reports and agent session folders were moved to `docs/archive/audit/`; links below updated. Reports still referenced by live docs stay here.
 
 ## Current Status & Verdict
 
