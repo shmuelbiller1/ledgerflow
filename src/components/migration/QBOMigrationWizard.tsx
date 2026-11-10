@@ -280,12 +280,17 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 
-      'text/csv': ['.csv'], 
-      'application/vnd.ms-excel': ['.xls', '.xlsx'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] 
+    // J-4 (Agent #11): `.xls` is NOT accepted. The workbook reader is ExcelJS (parseExcelToRows), which
+    // reads .xlsx and cannot read the legacy BIFF .xls format, but the screen used to advertise .xls and
+    // then fail with a raw parse error. `.xls` files are refused here with a readable message instead.
+    accept: {
+      'text/csv': ['.csv'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
     maxFiles: 1,
+    onDropRejected: () => {
+      toast.error('That file type cannot be read here. Choose a .csv or .xlsx file; if your QuickBooks export saved an old .xls, open it in Excel or Google Sheets and save it as .xlsx first.');
+    },
     onDrop: (acceptedFiles) => {
       if (acceptedFiles.length > 0) {
         const selectedFile = acceptedFiles[0];

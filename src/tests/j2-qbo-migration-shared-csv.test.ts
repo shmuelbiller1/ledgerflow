@@ -52,3 +52,20 @@ describe('J-2 the QuickBooks migration wizard uses the shared CSV reader', () =>
     assert.throws(() => parseCsvChecked('Date,Name\n2026-01-05,"Acme\n2026-01-06,Beta\n'), /never closed|cut off/);
   });
 });
+
+describe('J-4 the migration wizard refuses .xls in words instead of failing to parse it', () => {
+  test('the drop zone accepts .csv and .xlsx only, and says why', () => {
+    const source = fs.readFileSync('src/components/migration/QBOMigrationWizard.tsx', 'utf8');
+    assert.ok(!/application\/vnd\.ms-excel/.test(source), 'no .xls MIME type is advertised');
+    assert.ok(!/'\.xls'/.test(source), 'no .xls extension is advertised');
+    assert.match(source, /onDropRejected/, 'a rejected file is reported');
+    assert.match(source, /\.xlsx/);
+  });
+
+  test('the on-screen help no longer claims .xls support', () => {
+    const view = fs.readFileSync('src/components/migration/QBOMigrationWizardView.tsx', 'utf8');
+    assert.ok(!/Supports \.csv, \.xlsx, and \.xls/.test(view), 'the old .xls claim is gone');
+    assert.match(view, /\.csv and \.xlsx exports/);
+    assert.match(view, /saved as \.xlsx first/, 'the reader is told what to do with an old export');
+  });
+});

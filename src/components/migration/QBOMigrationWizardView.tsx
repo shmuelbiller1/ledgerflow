@@ -88,7 +88,7 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                   <h3 className="text-base font-bold text-[var(--text)] mb-1">
                     {file ? file.name : 'Drop your QuickBooks file here, or browse'}
                   </h3>
-                  <p className="text-xs text-[var(--muted)]">Supports .csv, .xlsx, and .xls exports.</p>
+                  <p className="text-xs text-[var(--muted)]">Supports .csv and .xlsx exports. An older .xls export must be saved as .xlsx first.</p>
                   
                   {file && (
                     <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 text-emerald-600 rounded-full text-xs font-bold border border-emerald-500/20">
