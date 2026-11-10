@@ -4,7 +4,7 @@ import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { activityOver, balancesAsOf, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, entryQueryOver, entryYearsOf, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
+import { activityOver, balancesAsOf, freshSnapshot, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, entryQueryOver, entryYearsOf, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { ENTRY_QUERY_TEXT_MAX } from '../../lib/entryQuery';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
@@ -52,6 +52,25 @@ balanceRouter.get('/', async (req, res) => {
   } catch (err) {
     console.error('[balances] could not read the balances', errorMessage(err));
     res.status(500).json({ status: 'error', message: 'Could not read the balances', details: errorMessage(err) });
+  }
+});
+
+/**
+ * L-123 step 4: the day the browser's entry list starts after. GET /api/v1/balances/closed-through?workspaceId=…
+ * answers the newest fresh year-end snapshot (`closedThrough`: its asOf, or null). Every entry on or before that day
+ * is summed in the snapshot, so the browser loads only the entries after it and reads the older years from here.
+ */
+balanceRouter.get('/closed-through', async (req, res) => {
+  const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : '';
+  if (!workspaceId) return res.status(400).json({ status: 'error', message: 'workspaceId is required' });
+  const db = getDb();
+  if (!(await allowMember(db, workspaceId, req, res))) return;
+  try {
+    const snapshot = await freshSnapshot(db, workspaceId, new Date().toISOString().slice(0, 10));
+    res.json({ status: 'success', workspaceId, closedThrough: snapshot ? snapshot.asOf : null });
+  } catch (err) {
+    console.error('[balances] could not read the closed-through day', errorMessage(err));
+    res.status(500).json({ status: 'error', message: 'Could not read the closed years', details: errorMessage(err) });
   }
 });
 

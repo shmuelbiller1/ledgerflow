@@ -25,7 +25,7 @@ function coreLoaded(extra: Record<string, boolean> = {}) {
 describe('DataStatusBar', () => {
   beforeEach(() => {
     setComponentWorkspace('owner');
-    useLedgerStore.setState({ truncatedCollections: {} });
+    useLedgerStore.setState({ truncatedCollections: {}, entriesClosedThrough: null });
     useDataNeedsStore.setState({ asked: [], loaded: coreLoaded(), loadedWorkspaceId: 'component-workspace', failed: {} });
   });
   afterEach(() => cleanup());

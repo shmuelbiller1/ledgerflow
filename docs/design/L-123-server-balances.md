@@ -177,3 +177,16 @@ A new table, **`periodBalances`**, written only by the server: one document per 
 | `ledger/BalanceSheetView.tsx`, `ledger/ProfitAndLossView.tsx`, `ledger/TrialBalanceView.tsx` | left: they already offer the server report (`loadServerReport`); their browser-side sum is next to move with `foldServerOpening` |
 | `Dashboard.tsx`, `charts/AccountBalanceChart.tsx`, `planning/CashFlowPredictor.tsx`, `planning/BudgetManager.tsx`, `common/BudgetLeft.tsx`, `finance/PettyCashView.tsx`, `finance/LoansView.tsx`, `finance/TaxManager.tsx`, `finance/FinancialChartsDashboard.tsx`, `finance/Consolidation.tsx`, `finance/IntercompanyManager.tsx`, `banking/CashMovementDialog.tsx`, `banking/TransferModal.tsx`, `purchases/BillModal.tsx`, `system/BalanceBreakPanel.tsx`, `system/HealthCheckModal.tsx`, `ledger/OwnerLens.tsx`, `ledger/MonthEndCloseView.tsx`, `ledger/CloseComparisonPanel.tsx`, `ledger/WorkpapersPanel.tsx`, `finance/FiscalPeriodManager.tsx`, `projects/Projects.tsx`, `projects/ProjectPipeline.tsx`, `reporting/PartyLinkedTrialBalanceView.tsx`, `reporting/FinancialRatiosReportView.tsx`, `reporting/EverydayReportViews.tsx`, `reporting/AccountantExportPackView.tsx` | left: each sums `transactions` itself; the move is `foldServerOpening(transactions, useLedgerStore(s => s.serverOpening))` for balance math (never for lists), screen by screen |
 | `runningBalances` (income/expense totals, per-project and per-category figures) | left: per-project and per-category sums need `byLabel` from the route; still loaded entries |
+
+## Step 4 — load only open years (AI #9, 10 Nov 2026)
+
+- **Server:** `GET /api/v1/balances/closed-through?workspaceId` answers the newest fresh year-end snapshot's day
+  (`closedThrough`), or null when there is none or it is stale.
+- **Browser:** the entry list (`useLedgerData`, `transactions` only) asks for that day first and loads only the
+  entries dated after it (the 20,000 cap stays as a guard). With a day, the list counts as partial
+  (`entryListPartial`), so every screen that sums all entries uses the server's figures, as steps 3–6 made them do
+  for a capped list. Without an answer (offline, a guest, no snapshot) every entry loads, as before.
+- **Status bar:** "Entries up to {day} are in the closed years' opening balances…" instead of the cap line.
+- *Test:* `src/tests/l123-step4-open-years.test.tsx` (the route on a real database: none → null, fresh → its day,
+  an edit in the closed year → stale → null; the status bar; the helpers).
+- Next: C-19 (move the closed years' entries to `transactionsArchive`).
