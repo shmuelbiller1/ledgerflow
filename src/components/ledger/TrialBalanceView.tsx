@@ -5,7 +5,7 @@ import { format, subMonths, endOfMonth, endOfQuarter, subQuarters, subYears, end
 import { 
   Scale, CheckCircle2, AlertCircle, Activity, 
   ArrowUpDown, ArrowUp, ArrowDown, Download, 
-  Calendar, FileSpreadsheet 
+  Calendar, FileSpreadsheet, Printer
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { currentReportExportContext, exportToExcel, reportTitleRows } from '../../lib/excelExport';
@@ -25,6 +25,7 @@ import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import PrintLayoutControl from '../reporting/PrintLayoutControl';
 
 /** the trial balance worked out here also reads the journal entries */
 const TB_COLLECTIONS = [...STATEMENT_COLLECTIONS, 'journalEntries'] as const;
@@ -341,7 +342,9 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
   };
 
   return (
-    <div className="space-y-4">
+    // A-277: the trial balance is its own print root, so printing from the Ledger tab prints the
+    // trial balance alone (the shared print stylesheet hides the app shell around it).
+    <div className="space-y-4" data-print-root>
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="tb-statement-provenance" provenance={provenance} onRefresh={loadServerReport} busy={loadingStates.trialBalance} />
@@ -368,7 +371,8 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
               startDate={asOfDate}
               endDate={asOfDate}
             />
-            <div className="flex flex-wrap items-center gap-2 mt-2">
+            {/* A-277: the date controls stay on screen; the paper carries the title, the as-of line and the table */}
+            <div data-print-hide className="flex flex-wrap items-center gap-2 mt-2">
               <MonthNavigator
                 currentDate={asOfDate}
                 onMonthChange={({ end }) => setAsOfDate(end)}
@@ -443,7 +447,16 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
         <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
           {trialBalance.lines.length} Active Ledger Accounts
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A-277: the paper choice and Print, like the Reports page (both stay off the paper) */}
+          <PrintLayoutControl columnCount={4} />
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
+            aria-label="Print trial balance">
+            <Printer aria-hidden="true" size={11} /> Print
+          </button>
           <button 
             onClick={handleExportCSV}
             className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"

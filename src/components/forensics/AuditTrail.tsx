@@ -164,8 +164,9 @@ const AuditTrail = React.memo(({ auditLogs: passedLogs }: AuditTrailProps) => {
   return (
     <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-500">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="the audit trail" />
-      <div className="flex items-center justify-between shrink-0">
-        <div>
+      {/* A-276: the header stacks on a phone, so the search and Export stay on screen */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest truncate mb-4">
             <Shield aria-hidden="true" size={14} />
             Verified Audit Stream
@@ -173,8 +174,8 @@ const AuditTrail = React.memo(({ auditLogs: passedLogs }: AuditTrailProps) => {
           <h1 className="text-3xl md:text-5xl font-black text-[var(--text)] tracking-tighter">Audit Trail</h1>
           <p className="text-[var(--muted)] font-normal text-lg mt-2 max-w-xl leading-relaxed italic opacity-80">Continuous cryptographic observability of legal and fiscal vectors.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative group/search">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
+          <div className="relative group/search w-full sm:w-auto">
             <Search aria-hidden="true" className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted)] group-hover/search:text-indigo-600 transition-colors" size={18} />
             <input aria-label="Search history"
               type="text"
@@ -186,7 +187,7 @@ const AuditTrail = React.memo(({ auditLogs: passedLogs }: AuditTrailProps) => {
           </div>
           <button 
             onClick={downloadAuditLog}
-            className="h-14 px-8 bg-zinc-900 text-white hover:bg-zinc-800 rounded-[32px] flex items-center gap-3 text-[10px] font-medium uppercase tracking-wider transition-all shadow-xl"
+            className="h-14 px-8 bg-zinc-900 text-white hover:bg-zinc-800 rounded-[32px] flex items-center justify-center gap-3 text-[10px] font-medium uppercase tracking-wider transition-all shadow-xl w-full sm:w-auto"
            aria-label="Export Core">
             <Download aria-hidden="true" size={18} />
             Export

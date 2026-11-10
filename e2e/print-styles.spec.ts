@@ -9,6 +9,12 @@ import { test, expect, type Page } from '@playwright/test';
  * `@page` rule the browser obeys); this spec proves the paper the dialog produces really changes,
  * measures the printed geometry in print media, and prints a real PDF with Playwright to count its
  * pages twice. No figures are computed here and nothing is saved.
+ *
+ * A-273: the invoice case loads a real PDF (the document endpoint is stubbed with a small PDF
+ * fixture carrying the invoice number and total) and checks those bytes reached the preview, so the
+ * printed invoice is the document, not the preview shell. A-277: the trial balance and the journal
+ * (Ledger tab) are their own print roots with the same paper choice, and the journal sheet joins
+ * the Reports loop.
  */
 
 const A4_BOX = { width: 595, height: 842 };
@@ -28,6 +34,34 @@ function pageCount(pdf: Buffer): number {
   return counts.length ? Math.max(...counts) : direct;
 }
 
+/**
+ * A-273: a small one-page PDF carrying the given lines, so the invoice preview loads a real
+ * document (the guest has no token, so the document endpoint would refuse). The bytes are the
+ * evidence: the test reads the previewed blob and checks the invoice number and total are in it.
+ */
+function pdfWithText(lines: string[]): Buffer {
+  const escape = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const content = lines.map((line, i) => `BT /F1 14 Tf 72 ${720 - i * 24} Td (${escape(line)}) Tj ET`).join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, 'latin1');
+}
+
 async function signInAsGuest(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('isGuest', 'true');
@@ -42,6 +76,8 @@ const REPORTS = [
   { id: 'cash-flow', title: 'Cash Flow' },
   { id: 'ar-aging', title: 'A/R Aging' },
   { id: 'ap-aging', title: 'A/P Aging' },
+  // A-277: the journal sheet already prints from the Reports root; it joins the same paper checks
+  { id: 'journal-sheet', title: 'Journal Sheet' },
 ] as const;
 
 test.describe('A-271: the reports print on the chosen paper, page only, nothing cut', () => {
@@ -145,12 +181,18 @@ test('A-271: an account statement prints as the statement — no controls, one p
   expect(errors).toEqual([]);
 });
 
-test('A-271: printing an invoice document gives the document alone, not the window around it', async ({ page }) => {
+test('A-273: printing an invoice document gives the loaded document alone, not the window around it', async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await signInAsGuest(page);
   await page.setViewportSize({ width: 1280, height: 900 });
+  // A-273: the guest has no token, so the document endpoint would refuse. Stub it with a small PDF
+  // carrying the invoice number and total (DEMO-US-001 is 1,650,000 cents in the demo seed), so the
+  // preview loads a real document and the printed output is checked against its bytes.
+  const invoicePdf = pdfWithText(['Invoice DEMO-US-001', 'Total: $16,500.00']);
+  await page.route('**/api/v1/documents/invoice/*/pdf*', route =>
+    route.fulfill({ status: 200, contentType: 'application/pdf', body: invoicePdf }));
   await page.goto('/');
   await page.waitForSelector('text="Overview"', { timeout: 60_000 });
   await page.getByRole('button', { name: 'Money In', exact: true }).first().click();
@@ -173,6 +215,19 @@ test('A-271: printing an invoice document gives the document alone, not the wind
   await row.getByRole('button').nth(2).click();
   const dialog = page.getByRole('dialog', { name: /Invoice DEMO-US-001/ });
   await expect(dialog).toBeVisible({ timeout: 30_000 });
+
+  // the preview really loaded: the document frame is there with the stubbed PDF, not the error state
+  const frame = dialog.locator('iframe');
+  await expect(frame).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByText('Unable to render PDF')).toHaveCount(0);
+  const previewedPdf = await page.evaluate(async () => {
+    const el = document.querySelector('[role="dialog"] iframe') as HTMLIFrameElement | null;
+    if (!el?.src?.startsWith('blob:')) return '';
+    const res = await fetch(el.src);
+    return new TextDecoder('latin1').decode(await res.arrayBuffer());
+  });
+  expect(previewedPdf).toContain('DEMO-US-001');
+  expect(previewedPdf).toContain('16,500.00');
 
   await page.emulateMedia({ media: 'print' });
   const printed = await page.evaluate(() => {
@@ -205,5 +260,109 @@ test('A-271: printing an invoice document gives the document alone, not the wind
   expect(pageCount(pdf)).toBeGreaterThanOrEqual(1);
   await page.emulateMedia({ media: 'screen' });
 
+  expect(errors).toEqual([]);
+});
+
+/** A-277: a Ledger print root (trial balance or journal) on the chosen paper, page only, nothing cut. */
+async function expectLedgerPrintRoot(page: Page, heading: string) {
+  const paper = page.getByLabel('Paper size for printing');
+  await expect(paper).toBeVisible({ timeout: 60_000 });
+  await expect(paper).toHaveValue('a4');
+  const a4 = await page.pdf({ printBackground: true, preferCSSPageSize: true });
+  expect(mediaBox(a4)).toEqual(A4_BOX);
+
+  await paper.selectOption('letter');
+  await expect(page.getByTestId('print-layout-summary')).toContainText('mm wide');
+  const letter = await page.pdf({ printBackground: true, preferCSSPageSize: true });
+  expect(mediaBox(letter)).toEqual(LETTER_BOX);
+
+  const again = await page.pdf({ printBackground: true, preferCSSPageSize: true });
+  expect(pageCount(again)).toBe(pageCount(letter));
+  expect(pageCount(letter)).toBeGreaterThanOrEqual(1);
+
+  await page.emulateMedia({ media: 'print' });
+  const printed = await page.evaluate((expectedHeading: string) => {
+    const visible = (el: Element) => {
+      const style = getComputedStyle(el as HTMLElement);
+      const box = (el as HTMLElement).getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && box.height > 0 && box.width > 0;
+    };
+    const printedRoot = document.querySelector('[data-print-root]') as HTMLElement | null;
+    const tables = printedRoot ? [...printedRoot.querySelectorAll('table')] : [];
+    return {
+      roots: document.querySelectorAll('[data-print-root]').length,
+      buttons: [...document.querySelectorAll('button')].filter(visible).length,
+      nav: [...document.querySelectorAll('nav, [role="navigation"], header')].filter(visible).length,
+      buttonsInRoot: printedRoot ? [...printedRoot.querySelectorAll('button')].filter(visible).length : -1,
+      tablesFit: tables.every(t => t.getBoundingClientRect().width <= (printedRoot?.getBoundingClientRect().width ?? 0) + 1),
+      overflow: printedRoot ? getComputedStyle(printedRoot).overflow : '',
+      heading: printedRoot?.textContent?.includes(expectedHeading) ?? false,
+    };
+  }, heading);
+  expect(printed.roots).toBe(1);
+  expect(printed.nav).toBe(0);
+  expect(printed.buttons).toBe(0);
+  expect(printed.buttonsInRoot).toBe(0);
+  expect(printed.tablesFit).toBe(true);
+  expect(printed.overflow).toBe('visible');
+  expect(printed.heading).toBe(true);
+  await page.emulateMedia({ media: 'screen' });
+}
+
+test('A-277: the trial balance prints on A4 then US Letter — the paper changes, nothing is cut', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await signInAsGuest(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/#ledger');
+  // demo books, so the trial balance has a table to print
+  await page.evaluate(async () => {
+    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
+    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
+    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
+    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
+    const data = seedCountryDemoWorkspace(workspaceId, 'US');
+    useLedgerStore.setState({
+      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
+      bills: data.bills, customers: data.customers, vendors: data.vendors,
+    });
+  });
+  const main = page.locator('#main-content');
+  await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
+  await main.getByRole('button', { name: 'Trial Balance', exact: true }).click();
+  await expect(main.getByRole('heading', { name: 'Trial Balance', exact: true })).toBeVisible({ timeout: 60_000 });
+
+  await expectLedgerPrintRoot(page, 'Trial Balance');
+  expect(errors).toEqual([]);
+});
+
+test('A-277: the journal prints on A4 then US Letter — the paper changes, nothing is cut', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await signInAsGuest(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/#ledger');
+  // demo books, so the journal has entries to print
+  await page.evaluate(async () => {
+    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
+    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
+    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
+    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
+    const data = seedCountryDemoWorkspace(workspaceId, 'US');
+    useLedgerStore.setState({
+      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
+      bills: data.bills, customers: data.customers, vendors: data.vendors,
+    });
+  });
+  const main = page.locator('#main-content');
+  await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
+  await main.getByRole('button', { name: 'General Journal', exact: true }).click();
+  await expect(main.getByRole('heading', { name: 'General journal', exact: true })).toBeVisible({ timeout: 60_000 });
+  // the demo entries are income/expense, not hand-typed: widen the filter so they show
+  await main.getByRole('checkbox', { name: 'Entries typed in by hand only' }).uncheck();
+
+  await expectLedgerPrintRoot(page, 'General journal');
   expect(errors).toEqual([]);
 });
