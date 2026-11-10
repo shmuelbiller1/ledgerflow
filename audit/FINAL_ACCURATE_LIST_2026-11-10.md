@@ -215,7 +215,7 @@ This PR changes no `src/` (docs + one review-only probe), so the pin's CI result
 | **#132** | Stage-B feature request | Parked (P2-36) |
 | **#150** | Umbrella audit issue; this file is its current slice | Open by design |
 
-**Counts:** 15 open → 5 defects in the tax/rules engine family (4 P1 + #161 P2), 6 fixed-awaiting-lead-closure (#96, #141, #146, #342, #160, #143), 1 delivered-in-substance with residual server work (#131), 1 owner/live-DB verification (#130), 1 UI legs delivered (#274), 2 not-defects/umbrella (#132, #150). Plus **1 new P1 documentation-integrity finding on `main`** (Section 1, fixed in this PR).
+**Counts:** 15 open → 3 live P1 tax-attribution defects (#517, #518, #519) plus the wider AF-004 cross-country observations (§3.5), 1 latent P2 (#161), 6 fixed-awaiting-lead-closure (#96, #141, #146, #342, #160, #143), 1 delivered-in-substance with residual server work (#131), 1 owner/live-DB verification (#130), 1 UI legs delivered (#274), 2 not-defects/umbrella (#132, #150). Plus **1 new P1 documentation-integrity finding on `main`** (Section 1, fixed in this PR, tracked as #599).
 
 ## 9. Suggested next actions (for the lead / owner — this audit changes nothing on its own)
 
@@ -256,8 +256,7 @@ The gate doc says **NOT CERTIFIED** and that every row needs evidence on an exac
 
 ## 11. Provenance, backups and handoff
 
-- **This PR**: `arena/016300c9-ledgerflow` on `Chaim-Richard/ledgerflow` → PR into `shmuelbiller1/ledgerflow:main` (see PR body for the link and the fork-compare fallback if upstream PR creation is disallowed for forks).
-- **Google Drive**: folder `2026-11-10 final accurate list session` in `LedgerFlow AI7 audit 2026-11-06` (id `1rWocRGHuq834BzET46Bq3PsmFxhvNFMd`) — dated checkpoints, this list, the probe outputs, and a patch file of the branch.
-- **Patch/recovery**: `git diff dc407397..HEAD` attached to the Drive folder as a standalone `.patch`.
+- **Branch** `arena/016300c9-ledgerflow` on the fork `Chaim-Richard/ledgerflow` (pinned base upstream `main` `dc4073970`; head `b30cd850` at the time of writing). **Fork PR:** https://github.com/Chaim-Richard/ledgerflow/pull/17 (final report comment: https://github.com/Chaim-Richard/ledgerflow/pull/17#issuecomment-6758228251). **Upstream PR:** this integration cannot create PRs in `shmuelbiller1/ledgerflow` from a fork (403 "Resource not accessible by integration"); Shmuel opens it from https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:ledgerflow:arena/016300c9-ledgerflow?expand=1 (clean 4+-file diff). **New upstream issue:** https://github.com/shmuelbiller1/ledgerflow/issues/599 (conflict markers on `main`). Commenting on upstream issues is also blocked for this integration; the issue-#150 report is preserved on PR #17 and in Drive.
+- **Google Drive**: folder `2026-11-10 final accurate list session` in `LedgerFlow AI7 audit 2026-11-06` (id `1rWocRGHuq834BzET46Bq3PsmFxhvNFMd`) — FINAL_ACCURATE_LIST_2026-11-10.md, agent7-checkpoint-2026-11-10.md, the resolved FINAL_ACCURATE_LIST_2026-11-08.md, evidence bundle (probe outputs), `SCORECARD-2026-11-10.md`, the issue-#150 comment text, and `agent7-2026-11-10-dc407397.patch` (`git diff dc407397..HEAD`; regenerated at each docs commit — the folder holds the latest).
 - **Previous slice**: `audit/FINAL_ACCURATE_LIST_2026-11-08.md` (Side A/B, conflict resolved here) and its Drive folder `2026-11-08 final accurate list session`.
 - **Handoff**: the next agent (or the owner) reads `AGENTS.md` → `CURRENT_WORK.md` → this file. Umbrella: issue #150; this document is its 2026-11-10 slice.
