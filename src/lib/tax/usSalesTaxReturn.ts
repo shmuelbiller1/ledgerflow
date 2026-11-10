@@ -32,6 +32,8 @@ export interface UsSalesTaxReturn {
   /** the tax by part, as the invoices saved it ("Texas state sales tax", "Austin") */
   byJurisdiction: Array<{ name: string; taxCents: number }>;
   documentCount: number;
+  /** #518: this seller's sales to a US customer with no state: not in any state's figures, never guessed */
+  unknownStateDocumentIds: string[];
 }
 
 const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
@@ -49,7 +51,7 @@ export function usSalesTaxReturn(input: {
   const state = /^sales_tax:US-([A-Z0-9]{1,3})[:-]/.exec(input.registration)?.[1] || '';
   const out: UsSalesTaxReturn = {
     registration: input.registration, state, startDate: input.startDate, endDate: input.endDate,
-    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0,
+    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0, unknownStateDocumentIds: [],
   };
   const parts = new Map<string, number>();
   const customers = new Map(input.customers.map(c => [c.id, c]));
@@ -63,6 +65,7 @@ export function usSalesTaxReturn(input: {
       const place = (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;
       // the buyer's state decides; without one, the seller's own place (an over-the-counter sale)
       const buyerState = place?.country === 'US' ? place.state : place ? undefined : seller.place?.state;
+      if (place?.country === 'US' && !place.state) { out.unknownStateDocumentIds.push(String(doc.id)); continue; }
       if (buyerState !== state) continue;
       const figures = taxReturnDocument(doc);
       const net = sign * toBase(figures.netCents, doc.exchangeRate);

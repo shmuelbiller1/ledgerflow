@@ -251,11 +251,13 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
   const permits = usQuarterPermits(profiles, endDate);
 
   // 2. the state returns, one per permit, from the quarter's invoices and credit notes
+  const unknownState = new Set<string>();
   const returns: UsQuarterStateReturn[] = permits.map(permit => {
     const r = usSalesTaxReturn({
       registration: permit.registration, profiles, order, customers, startDate, endDate,
       invoices, creditNotes,
     });
+    r.unknownStateDocumentIds.forEach(id => unknownState.add(id));
     const calendar = filingCalendarRow(permit.state);
     const dueDate = filingDueDate(permit.state, endDate);
     const nexus = nexusThreshold(permit.state, endDate);
@@ -281,6 +283,8 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
       nexusSalesReached: threshold !== null && (nexus?.strict ? r.grossSalesCents > threshold : r.grossSalesCents >= threshold),
     };
   });
+  // #518: a sale to a US customer with no state is in no state's return; name it rather than drop it
+  if (unknownState.size) problems.push(`${unknownState.size} sale${unknownState.size === 1 ? '' : 's'} to a US customer with no state ${unknownState.size === 1 ? 'is' : 'are'} in no state's return; add the customer's state.`);
   const unfiled = returns.filter(r => !r.filed && (r.taxCollectedCents !== 0 || r.documentCount > 0));
 
   // 3. use tax on purchases used in the permit state

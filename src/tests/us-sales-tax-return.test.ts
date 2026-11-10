@@ -9,6 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { usSalesTaxReturn, type UsSalesDocument } from '../lib/tax/usSalesTaxReturn';
+import { usQuarterJourney } from '../lib/usQuarterJourney';
 import type { TaxProfiles } from '../lib/tax/profile';
 
 const profiles: TaxProfiles = {
@@ -57,4 +58,20 @@ test('#517: the seller is the first line\'s entity label, as the invoice screen 
   assert.equal(own.documentCount, 1, 'an unlabelled sale is the books\' own');
   assert.equal(own.taxableSalesCents, 10000);
   assert.equal(own.taxCollectedCents, 825);
+});
+
+test('#518: a sale to a US customer with no state is named, not dropped or guessed', () => {
+  const nostate = [...customers, { id: 'us-nostate', metadata: { taxPlace: { country: 'US' } } }];
+  // Q3 sale of 100.00 + 8.25 tax by the Texas entity to a US customer whose state is unknown
+  const sale = doc('ns1', 'us-nostate', 10825, 825, [['Texas state sales tax', 825]]);
+  const r = usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles, order: ['world'], customers: nostate, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [sale] });
+  assert.equal(r.documentCount, 0, 'not put in Texas by guess');
+  assert.equal(r.taxCollectedCents, 0);
+  assert.deepEqual(r.unknownStateDocumentIds, ['ns1']);
+  const q = usQuarterJourney({ quarter: '2026-Q3', today: '2026-10-05', profiles, order: ['world'], customers: nostate, invoices: [sale], creditNotes: [] });
+  assert.ok(q.problems.includes("1 sale to a US customer with no state is in no state's return; add the customer's state."), q.problems.join(' | '));
+  assert.equal(q.readyToClose, false);
+  // a foreign customer is not a missing state
+  const foreign = [...customers, { id: 'uk', metadata: { taxPlace: { country: 'GB' } } }];
+  assert.deepEqual(usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles, order: ['world'], customers: foreign, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [doc('uk1', 'uk', 10000, 0, [])] }).unknownStateDocumentIds, []);
 });
