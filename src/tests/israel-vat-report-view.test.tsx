@@ -8,10 +8,12 @@ import IsraelVatReportView, {
 } from '../components/reporting/IsraelVatReportView';
 import {
   IL_VAT_REPORT_CSV_HEADERS,
+  ilVatReportCsvHeaders,
   ilVatReportCsvRows,
 } from '../lib/ilVatReportCsv';
-import { toCsv } from '../lib/csvExport';
+import { csvMoney, toCsv } from '../lib/csvExport';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { makeChartAccount } from './fixtures';
 import { formatCurrency } from '../lib/utils';
@@ -49,6 +51,29 @@ const mockWorkspace: Workspace = {
     },
   },
 };
+
+/** One worked September return, shared by the two CSV download tests (no duplicated fixture). */
+const csvReport: IlVatReturn = {
+  registration: TA_REG,
+  startDate: '2026-09-01', endDate: '2026-09-30',
+  taxableSalesCents: 900_000, outputVatCents: 162_000,
+  zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
+  fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
+  toPayCents: 100_800, documentCount: 5,
+};
+
+/** Panel inputs for that return; `currency` is passed only when a test checks the CSV header. */
+const csvPanelProps = (currency?: string) => ({
+  report: csvReport,
+  registrations: [] as Array<{ registration: string; number: string; from: string; filing?: string }>,
+  activeReg: TA_REG,
+  onRegistrationChange: () => {},
+  startDate: csvReport.startDate,
+  onStartDateChange: () => {},
+  endDate: csvReport.endDate,
+  onEndDateChange: () => {},
+  ...(currency ? { currency } : {}),
+});
 
 const accounts = [
   makeChartAccount({ id: 'acc-machinery', code: '1500', name: 'Machinery & Equipment', type: 'asset', category: 'Fixed Assets' }),
@@ -180,6 +205,9 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
       vendorCredits: vendorCredits as never,
       truncatedCollections: {},
     });
+    useDataNeedsStore.setState({
+      asked: [], loaded: {}, loadedWorkspaceId: null, failed: {}, trouble: {},
+    });
   });
 
   afterEach(() => {
@@ -293,19 +321,8 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
   });
 
   test('exports only a complete, loaded report with a CSV filename', async () => {
-    const report: IlVatReturn = {
-      registration: TA_REG,
-      startDate: '2026-09-01', endDate: '2026-09-30',
-      taxableSalesCents: 900_000, outputVatCents: 162_000,
-      zeroRatedSalesCents: 500_000, exemptSalesCents: 0,
-      fixedAssetInputVatCents: 16_200, otherInputVatCents: 45_000,
-      toPayCents: 100_800, documentCount: 5,
-    };
-    const props = {
-      report, registrations: [], activeReg: TA_REG, onRegistrationChange: () => {},
-      startDate: report.startDate, onStartDateChange: () => {},
-      endDate: report.endDate, onEndDateChange: () => {},
-    };
+    const report = csvReport;
+    const props = csvPanelProps();
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
@@ -350,26 +367,137 @@ describe('C-40: Israel VAT Report View (IsraelVatReportView)', () => {
   });
 
   test('produces correct CSV export rows', () => {
-    const sampleReturn: IlVatReturn = {
-      registration: 'vat:IL:514000001',
-      startDate: '2026-09-01',
-      endDate: '2026-09-30',
-      taxableSalesCents: 900_000,
-      outputVatCents: 162_000,
-      zeroRatedSalesCents: 500_000,
-      exemptSalesCents: 0,
-      fixedAssetInputVatCents: 16_200,
-      otherInputVatCents: 45_000,
-      toPayCents: 100_800,
-      documentCount: 5,
-    };
-
-    const rows = ilVatReportCsvRows(sampleReturn);
+    const rows = ilVatReportCsvRows(csvReport);
     assert.equal(IL_VAT_REPORT_CSV_HEADERS.length, 4);
     assert.deepEqual(rows[0], ['Header', 'VAT Registration', 'מספר עוסק מורשה', '514000001']);
     assert.deepEqual(rows[4], ['Box 1', 'Taxable sales (excluding VAT)', 'עסקאות חייבות במס (ללא מע״מ)', '9000.00']);
     assert.deepEqual(rows[5], ['Box 2', 'Output VAT', 'מע״מ עסקאות', '1620.00']);
     assert.deepEqual(rows[8], ['Box 5', 'Input VAT on fixed assets (equipment)', 'מס תשומות על ציוד', '162.00']);
     assert.deepEqual(rows[10], ['Box 7', 'VAT to pay', 'סכום לתשלום', '1008.00']);
+
+    // CodeRabbit on #570: the negative (reclaim) branch needs its own CSV assertion.
+    const refundReturn: IlVatReturn = {
+      ...csvReport,
+      taxableSalesCents: 100_000, outputVatCents: 18_000,
+      fixedAssetInputVatCents: 50_000, otherInputVatCents: 20_000,
+      toPayCents: -52_000, documentCount: 3,
+    };
+    assert.deepEqual(ilVatReportCsvRows(refundReturn)[10], ['Box 7', 'VAT to reclaim', 'סכום להחזר', '520.00']);
+
+    // The shared csvMoney formatter keeps exact integer cents where division by 100 does not.
+    const largeCents = 9_007_199_254_730_993;
+    assert.equal(csvMoney(largeCents), '90071992547309.93');
+    assert.equal(ilVatReportCsvRows({ ...csvReport, taxableSalesCents: largeCents })[4][3], csvMoney(largeCents));
+  });
+
+  test('CSV amount column names the workspace currency, not NIS', async () => {
+    const props = csvPanelProps('USD');
+    assert.deepEqual(ilVatReportCsvHeaders('USD'), ['Code', 'Field (English)', 'Field (Hebrew)', 'Amount (USD)']);
+    assert.deepEqual(IL_VAT_REPORT_CSV_HEADERS, ilVatReportCsvHeaders('ILS'));
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let blob: Blob | undefined;
+    URL.createObjectURL = value => { blob = value as Blob; return 'blob:vat-usd'; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = function () {};
+    try {
+      render(<IsraelVatReportPanel {...props} />);
+      fireEvent.click(screen.getByRole('button', { name: /Export CSV/i }));
+      const downloaded = blob;
+      assert.ok(downloaded);
+      await act(async () => {
+        assert.deepEqual(
+          Buffer.from(await downloaded.arrayBuffer()),
+          Buffer.from('\uFEFF' + toCsv(ilVatReportCsvHeaders('USD'), ilVatReportCsvRows(csvReport)))
+        );
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+  });
+
+  test('labels a non-ILS workspace with its own base currency, not shekels', () => {
+    useAuthStore.setState({ workspaces: [{ ...mockWorkspace, currency: 'USD' }] });
+    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+    assert.ok(screen.getByText('USD'));
+    assert.ok(screen.getByText(formatCurrency(900_000, 'USD')));
+    assert.match(screen.getByText(/Figures are in the workspace's base currency/).textContent || '', /USD/);
+    assert.match(screen.getByText(/Figures are in the workspace's base currency/).textContent || '', /filed in ILS/);
+  });
+
+  test('shows a configuration state when no Israeli VAT registration exists', () => {
+    useAuthStore.setState({ workspaces: [{ ...mockWorkspace, taxProfiles: undefined }] });
+    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+    assert.match(screen.getByRole('alert').textContent || '', /No Israeli VAT registration is configured/i);
+    assert.equal(screen.queryByText(/Documents evaluated/), null);
+    assert.equal(screen.queryByText('default'), null);
+    const exportButton = screen.getByRole('button', { name: /Export CSV/i }) as HTMLButtonElement;
+    assert.equal(exportButton.disabled, true);
+  });
+
+  test('falls back to an available registration when the period drops the selected one', () => {
+    const expiringWorkspace: Workspace = {
+      ...mockWorkspace,
+      taxProfiles: {
+        ...mockWorkspace.taxProfiles!,
+        labels: {
+          'world:eilat': {
+            ...mockWorkspace.taxProfiles!.labels!['world:eilat'],
+            registrations: [
+              { kind: 'vat', number: '514000002', place: { country: 'IL' }, filing: 'bimonthly', validFrom: '2026-01-01', validTo: '2026-09-30' },
+            ],
+          },
+        },
+      },
+    };
+    useAuthStore.setState({ workspaces: [expiringWorkspace] });
+    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+    const regSelect = screen.getByRole('combobox', { name: /VAT Registration/i }) as HTMLSelectElement;
+    act(() => { fireEvent.change(regSelect, { target: { value: EILAT_REG } }); });
+    assert.equal(regSelect.value, EILAT_REG);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-10-31' } });
+    });
+    // Only the Tel Aviv registration is in force in October: the stale selection must not be used.
+    assert.equal(screen.queryByRole('combobox', { name: /VAT Registration/i }), null);
+    assert.ok(screen.getByText('514000001'));
+    assert.equal(screen.queryByText('514000002'), null);
+  });
+
+  test('treats a failed or capped chart of accounts as provisional and blocks CSV', () => {
+    useDataNeedsStore.setState({ failed: { accounts: 'network unreachable' } });
+    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+    assert.match(screen.getByRole('alert').textContent || '', /provisional/i);
+    const exportButton = screen.getByRole('button', { name: /Export CSV/i }) as HTMLButtonElement;
+    assert.equal(exportButton.disabled, true);
+  });
+
+  test('counts only mixed bills that the selected return actually includes', () => {
+    const outOfPeriodMixed = {
+      id: 'bill-old', number: 'BILL-OLD', date: '2025-05-05', status: 'pending', taxVersion: 2,
+      taxAmountCents: 9_000, amountCents: 59_000,
+      splits: [
+        { accountId: 'acc-machinery', amountCents: 30_000 },
+        { accountId: 'acc-supplies', amountCents: 20_000 },
+      ],
+    };
+    const otherRegistrationMixed = {
+      id: 'bill-eilat', number: 'BILL-EILAT', date: '2026-09-26', status: 'pending', taxVersion: 2,
+      taxAmountCents: 9_000, amountCents: 59_000,
+      splits: [
+        { accountId: 'acc-machinery', amountCents: 30_000, dimensions: { world: 'eilat' } },
+        { accountId: 'acc-supplies', amountCents: 20_000 },
+      ],
+    };
+    useLedgerStore.setState({ bills: [...bills, outOfPeriodMixed, otherRegistrationMixed] as never });
+    render(<IsraelVatReportView startDate="2026-09-01" endDate="2026-09-30" />);
+    // The one September bill belonging to the selected Tel Aviv registration is the only notice.
+    assert.ok(screen.getByText(/1 bill\(s\) mix equipment and operating expense accounts/i));
   });
 });

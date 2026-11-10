@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const archive = fileURLToPath(new URL('../archive/', import.meta.url));
+const archive = fileURLToPath(new URL('../docs/archive/one-off-fixers/', import.meta.url));
 function tempFixture(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archived-fixers-'));
   const write = (file, contents) => {

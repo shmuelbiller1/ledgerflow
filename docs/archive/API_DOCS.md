@@ -1,3 +1,10 @@
+> **Archived 10 Nov 2026 (AI #13 repo cleanup).** This document describes `/api/v1/...` endpoints
+> (forensics worker pools, revaluation, approvals, manufacturing, treasury, …) that do **not exist**
+> in `src/server/` — checked 10 Nov 2026 against the route mounts in `server.ts` and
+> `src/server/routes/` (a 20-endpoint sample matched nothing). The live API surface is described by
+> the generated OpenAPI document in `src/server/openapi.ts` (`GET /api/v1/openapi.json`). Kept here
+> as a historical record only; do not build against it.
+
 # LedgerFlow Enterprise API Documentation
 
 This document outlines the newly upgraded server-side API endpoints that power LedgerFlow's enterprise capabilities, offloading heavy computational tasks to Node.js worker pools and enforcing database-level integrity.
