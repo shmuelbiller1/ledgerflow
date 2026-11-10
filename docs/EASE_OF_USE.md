@@ -28,7 +28,7 @@ keep the other 150 things one search away.**
 | 4 | Short invoice and bill forms with "More options" (B-2) | 20 fields are shown at once |
 | 5 | One word for labels everywhere (E-1) | Five names for one feature |
 | 6 | Defaults from the customer, vendor and item (B-4) | Removes most typing |
-| 7 | Business-type choice that sets accounts, labels and menu (A-2, F-1) | 73 screens is the Odoo problem |
+| 7 | Business-type choice that sets accounts, labels and modules (A-2, F-1) | The on/off modules exist but nothing picks them for the business |
 | 8 | A guest demo people can really use (A-1) | Guests can look but not save |
 | 9 | Hebrew that covers the screens, not only the menu (G-1) | The Israel tax features have an English interface |
 | 10 | Snap a receipt from the phone (C-3) | The habit that keeps people in a bookkeeping app |
@@ -180,12 +180,15 @@ and the transactions API filters only by date and account
 
 ## F. Menu and words
 
-**F-1. A menu that fits the business.** There are 73 screens in the sidebar. A "Pro mode" switch
-exists (`src/stores/useUIStore.ts:175`) but no screen is marked advanced in
-`src/config/registry.tsx`, so it hides nothing.
-*How:* mark each screen with the business types that need it and an advanced flag. Default menu:
-Overview, To review, Sales, Purchases, Bank, Reports, Settings. Everything else stays reachable by
-search and by "Show all tools".
+**F-1. A menu that fits the business.** *(Corrected 10 Nov: the first version of this item missed
+the modules system.)* The registry lists 73 screens, but twelve modules (payroll, fixed assets, loans,
+stock, projects, budgets…) can be turned off, and a new workspace starts with most of them off
+(`src/lib/modules.ts`). Two gaps remain. Nothing in the setup wizard picks modules for the kind of
+business, and a module that is off also leaves the page search (`src/config/pageIndex.ts:40`), so a
+person who types "payroll" finds nothing and concludes the product has no payroll. The separate
+"Pro mode" switch (`src/stores/useUIStore.ts:175`) hides nothing, because no screen is marked advanced.
+*How:* a module preset per business type, chosen in A-2; keep modules that are off in the search as
+"Payroll — turn on"; remove the Pro mode switch or fold it into modules.
 
 **F-2. Plain names.** Still in the menu: "BQL Query Builder", "Forensic Anomaly Detection",
 "Forensic Audit", "Intelligence", "AI Co-pilot"; the app title is "ERP & Financial Engine"
@@ -233,3 +236,118 @@ needs attention in each set of books. One accountant can bring twenty businesses
 
 **I-3. A free tool at the door.** *How:* a public invoice maker that needs no account and offers
 "Save this and track who paid" at the end; it feeds the guest demo in A-1.
+
+---
+
+# Part 2: shortcuts (one change, many screens)
+
+Added 10 Nov 2026. Part 1 lists what to improve screen by screen. This part lists the places where
+the code already has one shared piece, so a single change there improves the whole product. These
+are the cheapest route to "twice as good".
+
+## The ten shortcuts
+
+**S-1. One list component instead of 200 tables.** About 200 screen files draw their own `<table>`.
+The shared grid (`src/components/ui/TanStackDataGrid.tsx`) is used by one screen and the shared
+`Money` component by one. So sorting, search, export, phone layout and keyboard movement have to be
+built 200 times, and are not.
+*How:* grow the shared grid into one list with sort, search, column chooser, export, row keyboard
+movement, tick boxes for bulk actions, saved views and cards on a phone. Move screens over with a
+codemod, the ten most used first, and make `npm run scaffold:report` generate it so every new screen
+gets it. This is the largest single quality jump available.
+
+**S-2. One "new" link.** Record links already open any record: `#sales/invoice/<id>`
+(`src/lib/recordLinks.ts`).
+*How:* accept `new` as the id. That one change fixes the New menu (B-1), gives the command palette
+"New invoice", gives every empty screen a working button, lets the first-hour guide open real forms,
+and lets an email or a help article link straight into a form.
+
+**S-3. Undo in the one place everything is saved.** Simple records are added, changed and deleted
+through three functions that also show the confirmation message (`src/hooks/useEntityOperations.ts:153`).
+*How:* keep the previous copy there and put "Undo" on the message. Start with customers, vendors,
+items and labels; posted documents keep their own void and reverse.
+
+**S-4. Empty screens that teach.** Every registered screen already has a plain description in
+English and Hebrew, enforced by a test (`src/config/screenHelp.ts`), and 23 screens use the shared
+`EmptyState`.
+*How:* let `EmptyState` read the screen's description, its "new" link (S-2) and a "Show me an
+example" button from the registry. Every screen then explains itself, and the product tour is not
+needed.
+
+**S-5. Problems with a "Fix" button.** Data Health runs its checks from one list, and each already
+says what to do in words (`src/lib/dataChecks.ts`).
+*How:* give a check an optional `fix` function and show "Fix these 12". Run the same list when a
+form is saved, as a warning before the mistake is made instead of a finding afterwards.
+
+**S-6. Ask the books from anywhere.** A question in words, answered by the server from the full
+history with the entries listed, already works (`src/components/reporting/AskBooksView.tsx`,
+`src/server/reports/explain.ts`), but only as one report tab.
+*How:* answer in the command palette ("rent last year" shows the figure in place) and on the
+overview. Make every figure clickable for "what is in this number" by putting that on the shared
+`Money` component once S-1 spreads it.
+
+**S-7. One brain for guessing.** The bank feed's matching engine (`src/lib/MatchingEngine.ts`)
+knows rules, history and label aliases. Typed entry, bills and receipts do not use it.
+*How:* call it from the bill form, the command palette (B-6) and receipts (C-4). Whenever a person
+changes a guess, offer "Always do this" (C-3). The product then gets better with every correction.
+
+**S-8. Paste from a spreadsheet.** No screen handles pasting. People live in Excel.
+*How:* one paste handler in the shared line editor (`src/components/common/DocumentLineEditor.tsx`,
+used by invoices, bills and journal entries) that turns copied rows into lines, and the same in
+Import: paste a column of customers and they are created.
+
+**S-9. A Monday email.** Scheduled report emails and the daily job already exist
+(`src/server/services/scheduledReportService.ts`).
+*How:* one more scheduled item, on by default: cash in the bank, who owes you, what you owe, how
+many items need review, each a link into the app. People keep their books without remembering to
+open the product.
+
+**S-10. Hebrew through the shared pieces first.** The menu, help text and glossary are already
+bilingual.
+*How:* translate at the shared components before the screens: `Labelled` (35 files), `EmptyState`,
+`AsyncButton`, the error remedies (`src/lib/errorRemedies.ts`) and the confirmation messages. A few
+files cover a large share of what a person reads. Pre-fill the rest by machine using the glossary
+(`src/config/systemGlossary.ts`) and have a Hebrew-speaking bookkeeper review it.
+
+## New ideas
+
+**N-1. Start from the bank, not from setup.** *What:* the first screen says "Drop three months of
+bank statements here". The product reads them, proposes accounts and rules, and shows a first
+profit and loss within minutes. Setup questions come afterwards, only when needed.
+*Why:* QuickBooks and Odoo both start with forms. Starting with the person's own numbers is the
+moment they decide to stay. *How:* the statement importer with saved bank layouts, the matching
+engine and the chart templates all exist; this is a new first screen that chains them.
+
+**N-2. One "Today" list.** *What:* a single queue of everything waiting: bank lines to review,
+overdue invoices, bills due, data problems, tasks. Each row has one main action and a key.
+*How:* merge the sources behind `InboxView.tsx`, `NeedsAttentionCard.tsx`, Data Health and tasks
+into one list (on S-1). "Inbox zero" is a habit people already understand.
+
+**N-3. Plain words or accountant words.** *What:* one switch: "money in / money out" or
+"debit / credit"; "what you own" or "assets". *How:* the glossary already pairs terms; apply it
+where labels are drawn. Owners get plain words, their accountant gets the usual ones, on the same
+books.
+
+**N-4. Send by WhatsApp.** *What:* a "Share" button beside "Send invoice" that opens WhatsApp with
+the customer's public invoice link. *Why:* in Israel and many other places invoices travel by
+WhatsApp, not email. *How:* the public invoice page exists (`src/server/routes/publicInvoiceRoutes.ts`);
+this is a link, about a day of work. I found no WhatsApp support in the code.
+
+**N-5. A live link for the bank or an investor.** *What:* share one report as a read-only link
+that stays current, with an expiry date. *How:* the same token approach as the customer portal.
+
+**N-6. Recipes by trade.** *What:* a gallery of ready set-ups ("Landlord with 5 flats", "Building
+contractor", "Online shop", "Charity with funds"): accounts, labels, modules, rules and three
+starred reports in one click. *How:* a recipe is a small data file combining pieces that exist
+(chart templates, label presets from E-7, modules, journal templates). Accountants can publish
+their own, which gives them a reason to bring clients.
+
+**N-7. Connect to everything through one listing.** API keys and outgoing webhooks exist
+(`src/server/routes/apiKeysRoutes.ts`, `webhookRoutes.ts`). *How:* publish a Zapier and a Make
+connector on top of them. That gives hundreds of integrations without building any.
+
+## Order
+
+S-2, S-3 and N-4 are days. S-4, S-5, S-8 and S-9 are about a week each. S-1 is the big one: weeks,
+but it is what makes everything after it cheaper. N-1 is the idea most likely to make people choose
+this product over the others.
