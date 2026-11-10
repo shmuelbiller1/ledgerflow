@@ -9,6 +9,7 @@ import { ChartAccount } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
 import { fromDayNumber } from '../../lib/calendarDate';
 import { parseExcelToRows } from '../../lib/excelExport';
+import { parseCsvChecked } from '../../lib/csv';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { QBOMigrationWizardView } from './QBOMigrationWizardView';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
@@ -62,25 +63,12 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
       let json: unknown[][] = [];
 
       if (typeof data === 'string') {
-        // Simple CSV parser supporting quotes
-        const lines = data.split(/\r?\n/);
-        json = lines.filter(l => l.trim()).map(line => {
-          const row: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') inQuotes = !inQuotes;
-            else if (char === ',' && !inQuotes) {
-              row.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-          row.push(current.trim());
-          return row;
-        });
+        // J-2 (Agent #11): use the shared reader (src/lib/csv.ts) that every other import uses.
+        // The hand-rolled version this replaced split on line breaks before looking at quotes, so a
+        // memo containing a line break shifted every later column, a doubled quote was deleted, and
+        // a European semicolon export arrived as one column. It also refused a truncated file
+        // silently; parseCsvChecked reports it instead.
+        json = parseCsvChecked(data);
       } else {
         const excelRows = await parseExcelToRows(data as ArrayBuffer);
         json.push(...excelRows);
