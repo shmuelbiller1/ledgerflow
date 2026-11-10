@@ -48,12 +48,15 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
     }
   };
 
-  const handleMicrosoftLogin = async () => {
+  /** true when the browser is on its way to Microsoft; false when it could not start (the person is told why) */
+  const handleMicrosoftLogin = async (): Promise<boolean> => {
     setIsSubmitting(true);
     try {
       await signInWithMicrosoft();
+      return true;
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : 'Microsoft sign-in could not start. Try again.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
