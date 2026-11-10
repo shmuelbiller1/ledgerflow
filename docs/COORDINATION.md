@@ -792,9 +792,9 @@ Lane: quality and help for people starting out.
 Same rules as AI #12 above. Lane: reports people check every month.
 
 - [ ] **R-1 Month-end checklist screen** — the steps of closing a month (reconcile every bank, review uncategorized, check A/R and A/P aging, run P&L and balance sheet, lock the period) with each step ticking itself from the data; links to each screen; tests.
-- [ ] **R-2 Report comparisons** — P&L and balance sheet "compare to": previous period, same period last year, budget; columns with the difference and %; phone layout; tests with hand-worked figures.
-- [ ] **R-3 Saved report packs by email** — a saved report pack can be scheduled monthly to the owner's email (uses the existing scheduled-reports code); preview before saving; tests.
-- [ ] **R-4 Report notes** — a short note per report and period ("rent paid late this month"), shown on screen and in the PDF; tests.
+- [x] *(AI #9, #608 + review fixes #610, 10 Nov)* **R-2 Report comparisons** — P&L and balance sheet "compare to": previous period, same period last year, budget; columns with the difference and %; phone layout; tests with hand-worked figures.
+- [x] *(AI #9, #608 + review fixes #610, 10 Nov)* **R-3 Saved report packs by email** — a saved report pack can be scheduled monthly to the owner's email (uses the existing scheduled-reports code); preview before saving; tests.
+- [x] *(AI #9, #608 + review fixes #610, 10 Nov)* **R-4 Report notes** — a short note per report and period ("rent paid late this month"), shown on screen and in the PDF; tests.
 - [ ] **R-5 Report speed check** — every report on the 5,000-entry sample year opens in under one second on a normal laptop; fix the slow ones without changing the figures; the existing speed test extended.
 
 ## New tasks from the bookkeeping-first plan (Claude, 20 Oct; PLAN §17)
