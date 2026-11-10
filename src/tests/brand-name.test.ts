@@ -54,3 +54,16 @@ test('the page shell, installed-app settings and email sources take the name fro
   check('vite.config.ts');
   for (const file of fs.readdirSync(path.join(ROOT, 'supabase/templates/src'))) check(`supabase/templates/src/${file}`);
 });
+
+test('the sign-in emails contain only placeholders Supabase understands', () => {
+  // Supabase parses every {{ … }} as a Go template action, even inside an HTML comment.
+  const allowed = new Set(['.ConfirmationURL', '.Email', '.NewEmail', '.Token', '.TokenHash', '.SiteURL', '.RedirectTo', '.Data']);
+  const dir = path.join(ROOT, 'supabase/templates');
+  for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.html'))) {
+    const html = fs.readFileSync(path.join(dir, file), 'utf8');
+    for (const [, inner] of html.matchAll(/\{\{\s*([^}]*?)\s*\}\}/g)) {
+      assert.ok(allowed.has(inner), `${file}: {{ ${inner} }} is not a Supabase template value`);
+    }
+    assert.ok(!/%BRAND_[A-Z]+%/.test(html), `${file} still has a %BRAND_…% placeholder: run npm run brand:emails`);
+  }
+});
