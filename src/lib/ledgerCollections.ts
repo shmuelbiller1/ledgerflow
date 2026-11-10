@@ -89,3 +89,18 @@ export function keysToStart(asked: readonly string[], active: ReadonlySet<string
   const want = new Set<LedgerKey>([...CORE_KEYS, ...asked.filter(isLedgerKey)]);
   return [...want].filter(k => !active.has(k)).sort(byCodeUnit);
 }
+
+/**
+ * L-123 step 4: the entry list is partial when the cap is reached, or when the closed years are left to the server
+ * (`closedThrough`: the newest fresh year-end snapshot's day). Either way the screens that read every entry fall back
+ * to the server's figures, as they do for a capped list.
+ */
+export function entryListPartial(count: number, cap: number, closedThrough: string | null): boolean {
+  return count >= cap || closedThrough !== null;
+}
+
+/** The newest fresh year-end snapshot's day from `GET /api/v1/balances/closed-through`, or null (none, or no answer). */
+export function closedThroughFrom(body: unknown): string | null {
+  const day = (body as { closedThrough?: unknown } | null)?.closedThrough;
+  return typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}

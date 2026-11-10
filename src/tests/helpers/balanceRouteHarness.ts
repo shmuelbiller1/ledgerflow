@@ -19,10 +19,12 @@ export function balanceRouteHarness(wsPrefix: string, name: string) {
 
   return {
     ws,
-    async get<T>(path: string, q: Record<string, string>, uid = OWNER): Promise<{ status: number; body: T }> {
+    async get<T>(path: string, q: Record<string, string>, uid = OWNER): Promise<{ status: number; body: T; headers: Headers }> {
       const res = await realFetch(`${base}/api/v1/balances/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-      return { status: res.status, body: await res.json() as T };
+      return { status: res.status, body: await res.json() as T, headers: res.headers };
     },
+    /** The test database, once started. */
+    db: () => db,
     /** Starts the API and writes the workspace (with `workspace`'s extra fields) and each table's rows (whole documents, by id). */
     async start(rows: Record<string, unknown[]>, workspace: Record<string, unknown> = {}) {
       process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;

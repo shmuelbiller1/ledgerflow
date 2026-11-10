@@ -13,7 +13,9 @@ import type { Transaction } from '../types';
  */
 export function useServerOpening(transactions: Transaction[]): ServerOpening | null {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
-  const asOf = useMemo(() => openingCutoff(transactions || []), [transactions]);
+  // L-123 step 4: with no entry after the closed years, the opening is the snapshot's day itself
+  const closedThrough = useLedgerStore(s => s.entriesClosedThrough);
+  const asOf = useMemo(() => openingCutoff(transactions || []) || closedThrough || '', [transactions, closedThrough]);
   const count = (transactions || []).length;
   const key = workspaceId && asOf ? `${workspaceId}|${asOf}|${count}` : '';
   const [answer, setAnswer] = useState<{ key: string; opening: ServerOpening | null } | null>(null);

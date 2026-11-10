@@ -18,14 +18,25 @@ export interface ServerOpening {
   accounts: Record<string, number>;
 }
 
-/** The oldest book date among the loaded entries ('' when none is loaded). */
+let closedThroughFallback = '';
+
+/**
+ * L-123 step 4: the day the loaded entries start after when the closed years are left to the server (set by
+ * useLedgerStore.setEntriesClosedThrough; '' when every entry is loaded). With no entry after it, that day is the
+ * cutoff, so every opening and period fallback still asks the server.
+ */
+export function setOpeningCutoffFallback(day: string | null): void {
+  closedThroughFallback = day || '';
+}
+
+/** The oldest book date among the loaded entries; with none, the closed-through day ('' when neither). */
 export function openingCutoff(transactions: Transaction[]): string {
   let oldest = '';
   for (const tx of transactions) {
     const d = tx && typeof tx === 'object' ? transactionDate(tx) : '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!oldest || d < oldest)) oldest = d;
   }
-  return oldest;
+  return oldest || closedThroughFallback;
 }
 
 /** The loaded entries the server's answer does not hold: dated after its day. */
