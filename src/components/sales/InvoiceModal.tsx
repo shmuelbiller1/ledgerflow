@@ -1,3 +1,5 @@
+import DocumentMoreOptions from '../common/DocumentMoreOptions';
+import { hasInvoiceOptions } from '../../lib/documentOptions';
 import { useDialog } from '../../hooks/useDialog';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { documentCurrencies } from '../../lib/exchangeRates';
@@ -156,7 +158,10 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     : null;
   const showFieldError = (id: string, message: string) => {
     setFieldErrors(prev => ({ ...prev, [id]: message }));
-    document.getElementById(id)?.focus();
+    const field = document.getElementById(id);
+    const options = field?.closest('details');
+    if (options) options.open = true;
+    field?.focus();
   };
   const [isSubmitting, setIsSubmitting] = useState(false); const lastStatus = useRef<Invoice['status']>('pending'); // EG-5: the status a credit-limit override resends
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -214,7 +219,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
       showFieldError('inv-paid-into', 'Add a bank account (or Undeposited Funds) to the chart first: a sale receipt needs somewhere the money went');
       return;
     }
-    
+
     setIsSubmitting(true); lastStatus.current = actionStatus; reportCreditLimitRefusal(null);
     try {
       await onSave({
@@ -276,14 +281,14 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
 
   return (
     <div {...dialogProps} className="fixed inset-0 z-[600] flex items-center justify-center p-2 sm:p-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={requestClose}
         className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm"
       />
-      
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -311,7 +316,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           const field = e.target as unknown as HTMLInputElement;
           if (field.id) setFieldErrors(prev => ({ ...prev, [field.id]: '' }));
         }} className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-8 custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="inv-customer" className="micro-label">Customer</label>
               <div className="relative">
@@ -343,89 +348,6 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               </div>
             </div>
             <div className="space-y-2">
-              <label htmlFor="inv-number" className="micro-label">Invoice Number</label>
-              <input id="inv-number" aria-invalid={Boolean(fieldErrors["inv-number"])} aria-describedby={fieldErrors["inv-number"] ? 'inv-number-error' : undefined}
-                type="text"
-                required
-                value={invoice.number}
-                onChange={(e) => setInvoice({ ...invoice, number: e.target.value })}
-                className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-mono font-bold"
-              />{fieldError("inv-number")}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="inv-status" className="micro-label">Status</label>
-              <select id="inv-status" aria-invalid={Boolean(fieldErrors["inv-status"])} aria-describedby={fieldErrors["inv-status"] ? 'inv-status-error' : undefined}
-                value={invoice.status}
-                onChange={(e) => setInvoice({ ...invoice, status: e.target.value as Invoice['status'] })}
-                className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-              >
-                <option value="pending">Pending</option>
-                <option value="sent">Sent</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>{fieldError("inv-status")}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-2">
-              <label htmlFor="inv-type" className="micro-label">Invoice Type</label>
-              <select id="inv-type" aria-invalid={Boolean(fieldErrors["inv-type"])} aria-describedby={fieldErrors["inv-type"] ? 'inv-type-error' : undefined}
-                value={invoice.type || 'standard'}
-                onChange={(e) => setInvoice({ ...invoice, type: e.target.value as NonNullable<Invoice['type']> })}
-                className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-              >
-                <option value="standard">Standard</option>
-                <option value="recurring">Recurring</option>
-                <option value="progress">Progress</option>
-              </select>{fieldError("inv-type")}
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="inv-payment-terms" className="micro-label">Payment Terms</label>
-              <select id="inv-payment-terms" aria-invalid={Boolean(fieldErrors["inv-payment-terms"])} aria-describedby={fieldErrors["inv-payment-terms"] ? 'inv-payment-terms-error' : undefined}
-                value={invoice.paymentTerms || 'due_on_receipt'}
-                // the due date follows the terms (it stayed on the invoice date before; L-186)
-                onChange={(e) => { setTermsInherited(false); if (isFixedTerm(e.target.value)) setDueDateEdited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
-                className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-              >
-                {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
-                {termOptions(paymentTermDays, invoice.paymentTerms).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>{fieldError("inv-payment-terms")}
-            </div>
-
-            {invoice.type === 'recurring' && (
-               <div className="space-y-2">
-                 <label htmlFor="inv-recurring-interval" className="micro-label">Recurring Interval</label>
-                 <select id="inv-recurring-interval" aria-invalid={Boolean(fieldErrors["inv-recurring-interval"])} aria-describedby={fieldErrors["inv-recurring-interval"] ? 'inv-recurring-interval-error' : undefined}
-                   value={invoice.recurringInterval || 'monthly'}
-                   onChange={(e) => setInvoice({ ...invoice, recurringInterval: e.target.value as NonNullable<Invoice['recurringInterval']> })}
-                   className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-                 >
-                   <option value="weekly">Weekly</option>
-                   <option value="monthly">Monthly</option>
-                   <option value="yearly">Yearly</option>
-                 </select>{fieldError("inv-recurring-interval")}
-               </div>
-            )}
-
-            {invoice.type === 'progress' && (
-               <div className="space-y-2">
-                 <label htmlFor="inv-progress-pct" className="micro-label">Progress Percentage (%)</label>
-                 <input id="inv-progress-pct" aria-invalid={Boolean(fieldErrors["inv-progress-pct"])} aria-describedby={fieldErrors["inv-progress-pct"] ? 'inv-progress-pct-error' : undefined}
-                   type="number"
-                   min="0"
-                   max="100"
-                   value={invoice.progressPercentage || 0}
-                   onChange={(e) => setInvoice({ ...invoice, progressPercentage: Number.parseInt(e.target.value, 10) })}
-                   className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-                 />{fieldError("inv-progress-pct")}
-               </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
               <label htmlFor="inv-date" className="micro-label">Invoice Date</label>
               <input id="inv-date" aria-invalid={Boolean(fieldErrors["inv-date"])} aria-describedby={fieldErrors["inv-date"] ? 'inv-date-error' : undefined}
                 type="date"
@@ -452,90 +374,6 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-             <div className="space-y-2">
-               <label htmlFor="inv-discount" className="micro-label">Discount ({currency})</label>
-               <input id="inv-discount" aria-invalid={Boolean(fieldErrors["inv-discount"])} aria-describedby={fieldErrors["inv-discount"] ? 'inv-discount-error' : undefined}
-                 type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.discountCents || 0, currency)}
-                 onChange={(e) => setInvoice({ ...invoice, discountCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
-                 className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
-               />{fieldError("inv-discount")}
-             </div>
-             <div className="space-y-2">
-               <label htmlFor="inv-deposit" className="micro-label">Deposit ({currency})</label>
-               <input id="inv-deposit" aria-invalid={Boolean(fieldErrors["inv-deposit"])} aria-describedby={fieldErrors["inv-deposit"] ? "inv-deposit-help inv-deposit-error" : "inv-deposit-help"}
-                 type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.depositCents || 0, currency)}
-                 onChange={(e) => setInvoice({ ...invoice, depositCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
-                 className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
-               />{fieldError("inv-deposit")}
-               <p id="inv-deposit-help" className="text-[11px] text-[var(--muted)]">Paid in advance (booked to Customer Deposits). Tax stays on the full total; the deposit lowers the amount due.</p>
-             </div>
-             <div className="space-y-2">
-               <label htmlFor="inv-retainage" className="micro-label">Retainage ({currency})</label>
-               <input id="inv-retainage" aria-invalid={Boolean(fieldErrors["inv-retainage"])} aria-describedby={fieldErrors["inv-retainage"] ? 'inv-retainage-error' : undefined}
-                 type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.retainageCents || 0, currency)}
-                 onChange={(e) => setInvoice({ ...invoice, retainageCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
-                 className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
-               />{fieldError("inv-retainage")}
-             </div>
-             <div className="space-y-2">
-                 <label htmlFor="inv-milestone" className="micro-label">Milestone / Proj.</label>
-                 <input id="inv-milestone" aria-invalid={Boolean(fieldErrors["inv-milestone"])} aria-describedby={fieldErrors["inv-milestone"] ? 'inv-milestone-error' : undefined}
-                   type="text" value={invoice.milestone || ''}
-                   onChange={(e) => setInvoice({ ...invoice, milestone: e.target.value })}
-                   className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-                 />{fieldError("inv-milestone")}
-             </div>
-             <div className="space-y-2">
-                 <label htmlFor="inv-tax-code" className="micro-label">Tax</label>
-                 <select id="inv-tax-code" aria-invalid={Boolean(fieldErrors["inv-tax-code"])} aria-describedby={fieldErrors["inv-tax-code"] ? 'inv-tax-code-error' : undefined}
-                   value={taxChoice}
-                   onChange={(e) => setInvoice({ ...invoice, taxCodeId: e.target.value === 'custom' || e.target.value === '' ? undefined : e.target.value, taxRate: e.target.value === 'custom' ? (invoice.taxRate || 0) : 0 })}
-                   className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-                 >
-                   <option value="">No tax</option>
-                   {salesCodes.map(c => <option key={c.id} value={c.id}>{c.name}{c.treatment !== 'standard' ? ` (${TAX_TREATMENTS[c.treatment]})` : ''}</option>)}
-                   <option value="custom">Other rate…</option>
-                 </select>{fieldError("inv-tax-code")}
-                 {taxChoice === 'custom' && (
-                   <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
-                     aria-label="Tax rate (%)"
-                     type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
-                     onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
-                     className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
-                   />
-                 )}
-                 {fieldError('inv-custom-tax-rate')}
-                 {salesCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
-                 <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 })} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
-             </div>
-             <div className="space-y-2 flex flex-col justify-end pb-3">
-               <label htmlFor="inv-tax-inclusive" className="flex items-center gap-2 cursor-pointer">
-                 <input id="inv-tax-inclusive" aria-invalid={Boolean(fieldErrors["inv-tax-inclusive"])} aria-describedby={fieldErrors["inv-tax-inclusive"] ? 'inv-tax-inclusive-error' : undefined} type="checkbox" checked={pricesIncludeTax} onChange={e => setInvoice({ ...invoice, pricesIncludeTax: e.target.checked })} className="w-5 h-5 rounded border-zinc-300 text-[var(--text)] focus:ring-zinc-900" />{fieldError("inv-tax-inclusive")}
-                 <span className="text-sm font-bold text-[var(--text)]">Prices include tax</span>
-               </label>
-             </div>
-             <div className="space-y-2">
-                 <label htmlFor="inv-currency" className="micro-label">Currency</label>
-                 <select id="inv-currency" aria-invalid={Boolean(fieldErrors["inv-currency"])} aria-describedby={fieldErrors["inv-currency"] ? 'inv-currency-error' : undefined}
-                   value={currency}
-                   onChange={(e) => setInvoice({ ...invoice, currency: e.target.value, exchangeRate: e.target.value === workspaceCurrency ? 1 : invoice.exchangeRate })}
-                   className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
-                 >
-                   {currencyChoices.map(c => <option key={c} value={c}>{c}</option>)}
-                 </select>{fieldError("inv-currency")}
-             </div>
-             <div className="space-y-2">
-                 <label htmlFor="inv-exchange-rate" className="micro-label">Exchange Rate</label>
-                 <input id="inv-exchange-rate" aria-invalid={Boolean(fieldErrors["inv-exchange-rate"])} aria-describedby={fieldErrors["inv-exchange-rate"] ? 'inv-exchange-rate-error' : undefined}
-                   type="number" step="0.0001" min="0.0001" value={invoice.exchangeRate || 1}
-                   onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
-                   className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
-                 />{fieldError("inv-exchange-rate")}
-                 {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}
-             </div>
-          </div>
-
           <div className="space-y-4">
             <DocumentLineEditor
               side="invoice"
@@ -559,64 +397,241 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[var(--line)] pt-8 mt-8">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="inv-memo" className="micro-label">Customer Memo</label>
-                <textarea 
-                  id="inv-memo"
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  placeholder="Message to customer..."
-                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="inv-terms" className="micro-label">Terms & Conditions</label>
-                <textarea 
-                  id="inv-terms"
-                  value={terms}
-                  onChange={(e) => setTerms(e.target.value)}
-                  placeholder="Standard terms..."
-                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24 text-xs"
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <label htmlFor="inv-tax-code" className="micro-label">Tax</label>
+                <select id="inv-tax-code" aria-invalid={Boolean(fieldErrors["inv-tax-code"])} aria-describedby={fieldErrors["inv-tax-code"] ? 'inv-tax-code-error' : undefined}
+                  value={taxChoice}
+                  onChange={(e) => setInvoice({ ...invoice, taxCodeId: e.target.value === 'custom' || e.target.value === '' ? undefined : e.target.value, taxRate: e.target.value === 'custom' ? (invoice.taxRate || 0) : 0 })}
+                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                >
+                  <option value="">No tax</option>
+                  {salesCodes.map(c => <option key={c.id} value={c.id}>{c.name}{c.treatment !== 'standard' ? ` (${TAX_TREATMENTS[c.treatment]})` : ''}</option>)}
+                  <option value="custom">Other rate…</option>
+                </select>{fieldError("inv-tax-code")}
+                {taxChoice === 'custom' && (
+                  <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
+                    aria-label="Tax rate (%)"
+                    type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
+                    onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
+                    className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
+                  />
+                )}
+                {fieldError('inv-custom-tax-rate')}
+                {salesCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
+                <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 })} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
             </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="inv-email-subject" className="micro-label">Email Subject</label>
-                <input id="inv-email-subject" aria-invalid={Boolean(fieldErrors["inv-email-subject"])} aria-describedby={fieldErrors["inv-email-subject"] ? 'inv-email-subject-error' : undefined}
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  placeholder="Invoice from us"
-                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none"
-                />{fieldError("inv-email-subject")}
-              </div>
-              {invoice.id ? (
-                <AttachmentsPanel target={{ collection: 'invoices', id: invoice.id, label: `Invoice ${invoice.number || ''}`.trim() }} />
-              ) : (
-                <div className="space-y-2">
-                  <label htmlFor="inv-attachments" className="micro-label">Files</label>
-                  <label htmlFor="inv-attachments" className="cursor-pointer flex items-center justify-center w-full px-4 py-3 bg-[var(--ink)] border-2 border-dashed border-zinc-300 rounded-xl hover:bg-zinc-100 transition-colors">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Select files</span>
-                    <input id="inv-attachments" aria-invalid={Boolean(fieldErrors["inv-attachments"])} aria-describedby={fieldErrors["inv-attachments"] ? 'inv-attachments-error' : undefined} type="file" multiple className="hidden" onChange={handleFileUpload} />{fieldError("inv-attachments")}
-                  </label>
-                  {attachments.length > 0 && (
-                    <ul className="flex flex-wrap gap-2 mt-2" aria-label="Files to keep with the invoice">
-                      {attachments.map(f => (
-                        <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex items-center gap-1 px-2 py-1 bg-zinc-100 text-zinc-600 text-xs rounded-lg">
-                          <bdi>{f.name}</bdi>
-                          <button type="button" onClick={() => setAttachments(prev => prev.filter(x => x !== f))} aria-label={`Don't attach ${f.name}`} className="text-zinc-400 hover:text-rose-600"><X size={12} aria-hidden="true" /></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {attachments.length > 0 && <p className="text-[10px] text-[var(--muted)]">Kept with the invoice when you save it.</p>}
-                </div>
-              )}
+            <div className="space-y-2 flex flex-col justify-end pb-3">
+              <label htmlFor="inv-tax-inclusive" className="flex items-center gap-2 cursor-pointer">
+                <input id="inv-tax-inclusive" aria-invalid={Boolean(fieldErrors["inv-tax-inclusive"])} aria-describedby={fieldErrors["inv-tax-inclusive"] ? 'inv-tax-inclusive-error' : undefined} type="checkbox" checked={pricesIncludeTax} onChange={e => setInvoice({ ...invoice, pricesIncludeTax: e.target.checked })} className="w-5 h-5 rounded border-zinc-300 text-[var(--text)] focus:ring-zinc-900" />{fieldError("inv-tax-inclusive")}
+                <span className="text-sm font-bold text-[var(--text)]">Prices include tax</span>
+              </label>
             </div>
           </div>
+
+          <DocumentMoreOptions kind="invoice" documentKey={initialInvoice?.id || "new"} hasValues={hasInvoiceOptions(invoice, workspaceCurrency, { memo, terms, emailSubject, attachments: attachments.length })}>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="inv-number" className="micro-label">Invoice Number</label>
+                <input id="inv-number" aria-invalid={Boolean(fieldErrors["inv-number"])} aria-describedby={fieldErrors["inv-number"] ? 'inv-number-error' : undefined}
+                  type="text"
+                  required
+                  value={invoice.number}
+                  onChange={(e) => setInvoice({ ...invoice, number: e.target.value })}
+                  className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-mono font-bold"
+                />{fieldError("inv-number")}
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="inv-status" className="micro-label">Status</label>
+                <select id="inv-status" aria-invalid={Boolean(fieldErrors["inv-status"])} aria-describedby={fieldErrors["inv-status"] ? 'inv-status-error' : undefined}
+                  value={invoice.status}
+                  onChange={(e) => setInvoice({ ...invoice, status: e.target.value as Invoice['status'] })}
+                  className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="sent">Sent</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                </select>{fieldError("inv-status")}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="space-y-2">
+                <label htmlFor="inv-type" className="micro-label">Invoice Type</label>
+                <select id="inv-type" aria-invalid={Boolean(fieldErrors["inv-type"])} aria-describedby={fieldErrors["inv-type"] ? 'inv-type-error' : undefined}
+                  value={invoice.type || 'standard'}
+                  onChange={(e) => setInvoice({ ...invoice, type: e.target.value as NonNullable<Invoice['type']> })}
+                  className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="recurring">Recurring</option>
+                  <option value="progress">Progress</option>
+                </select>{fieldError("inv-type")}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="inv-payment-terms" className="micro-label">Payment Terms</label>
+                <select id="inv-payment-terms" aria-invalid={Boolean(fieldErrors["inv-payment-terms"])} aria-describedby={fieldErrors["inv-payment-terms"] ? 'inv-payment-terms-error' : undefined}
+                  value={invoice.paymentTerms || 'due_on_receipt'}
+                  // the due date follows the terms (it stayed on the invoice date before; L-186)
+                  onChange={(e) => { setTermsInherited(false); if (isFixedTerm(e.target.value)) setDueDateEdited(false); setInvoice({ ...invoice, paymentTerms: e.target.value, ...(isFixedTerm(e.target.value) ? { dueDate: calculateDueDate(invoice.date || '', e.target.value) } : {}) }); }}
+                  className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                >
+                  {/* CC-08: the standard terms plus the workspace's own, and the invoice's current one */}
+                  {termOptions(paymentTermDays, invoice.paymentTerms).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>{fieldError("inv-payment-terms")}
+              </div>
+
+              {invoice.type === 'recurring' && (
+                 <div className="space-y-2">
+                   <label htmlFor="inv-recurring-interval" className="micro-label">Recurring Interval</label>
+                   <select id="inv-recurring-interval" aria-invalid={Boolean(fieldErrors["inv-recurring-interval"])} aria-describedby={fieldErrors["inv-recurring-interval"] ? 'inv-recurring-interval-error' : undefined}
+                     value={invoice.recurringInterval || 'monthly'}
+                     onChange={(e) => setInvoice({ ...invoice, recurringInterval: e.target.value as NonNullable<Invoice['recurringInterval']> })}
+                     className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                   >
+                     <option value="weekly">Weekly</option>
+                     <option value="monthly">Monthly</option>
+                     <option value="yearly">Yearly</option>
+                   </select>{fieldError("inv-recurring-interval")}
+                 </div>
+              )}
+
+              {invoice.type === 'progress' && (
+                 <div className="space-y-2">
+                   <label htmlFor="inv-progress-pct" className="micro-label">Progress Percentage (%)</label>
+                   <input id="inv-progress-pct" aria-invalid={Boolean(fieldErrors["inv-progress-pct"])} aria-describedby={fieldErrors["inv-progress-pct"] ? 'inv-progress-pct-error' : undefined}
+                     type="number"
+                     min="0"
+                     max="100"
+                     value={invoice.progressPercentage || 0}
+                     onChange={(e) => setInvoice({ ...invoice, progressPercentage: Number.parseInt(e.target.value, 10) })}
+                     className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                   />{fieldError("inv-progress-pct")}
+                 </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="inv-discount" className="micro-label">Discount ({currency})</label>
+                <input id="inv-discount" aria-invalid={Boolean(fieldErrors["inv-discount"])} aria-describedby={fieldErrors["inv-discount"] ? 'inv-discount-error' : undefined}
+                  type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.discountCents || 0, currency)}
+                  onChange={(e) => setInvoice({ ...invoice, discountCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
+                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
+                />{fieldError("inv-discount")}
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="inv-deposit" className="micro-label">Deposit ({currency})</label>
+                <input id="inv-deposit" aria-invalid={Boolean(fieldErrors["inv-deposit"])} aria-describedby={fieldErrors["inv-deposit"] ? "inv-deposit-help inv-deposit-error" : "inv-deposit-help"}
+                  type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.depositCents || 0, currency)}
+                  onChange={(e) => setInvoice({ ...invoice, depositCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
+                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
+                />{fieldError("inv-deposit")}
+                <p id="inv-deposit-help" className="text-[11px] text-[var(--muted)]">Paid in advance (booked to Customer Deposits). Tax stays on the full total; the deposit lowers the amount due.</p>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="inv-retainage" className="micro-label">Retainage ({currency})</label>
+                <input id="inv-retainage" aria-invalid={Boolean(fieldErrors["inv-retainage"])} aria-describedby={fieldErrors["inv-retainage"] ? 'inv-retainage-error' : undefined}
+                  type="number" step={amountStep(currency)} min="0" value={minorToMajor(invoice.retainageCents || 0, currency)}
+                  onChange={(e) => setInvoice({ ...invoice, retainageCents: TruthEngine.parseAmountToCents(e.target.value || '0', currency) })}
+                  className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
+                />{fieldError("inv-retainage")}
+              </div>
+              <div className="space-y-2">
+                  <label htmlFor="inv-milestone" className="micro-label">Milestone / Proj.</label>
+                  <input id="inv-milestone" aria-invalid={Boolean(fieldErrors["inv-milestone"])} aria-describedby={fieldErrors["inv-milestone"] ? 'inv-milestone-error' : undefined}
+                    type="text" value={invoice.milestone || ''}
+                    onChange={(e) => setInvoice({ ...invoice, milestone: e.target.value })}
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                  />{fieldError("inv-milestone")}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <label htmlFor="inv-currency" className="micro-label">Currency</label>
+                  <select id="inv-currency" aria-invalid={Boolean(fieldErrors["inv-currency"])} aria-describedby={fieldErrors["inv-currency"] ? 'inv-currency-error' : undefined}
+                    value={currency}
+                    onChange={(e) => setInvoice({ ...invoice, currency: e.target.value, exchangeRate: e.target.value === workspaceCurrency ? 1 : invoice.exchangeRate })}
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
+                  >
+                    {currencyChoices.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>{fieldError("inv-currency")}
+              </div>
+              <div className="space-y-2">
+                  <label htmlFor="inv-exchange-rate" className="micro-label">Exchange Rate</label>
+                  <input id="inv-exchange-rate" aria-invalid={Boolean(fieldErrors["inv-exchange-rate"])} aria-describedby={fieldErrors["inv-exchange-rate"] ? 'inv-exchange-rate-error' : undefined}
+                    type="number" step="0.0001" min="0.0001" value={invoice.exchangeRate || 1}
+                    onChange={(e) => { setRateTyped(true); const rate = Number.parseFloat(e.target.value || '1'); setInvoice({ ...invoice, exchangeRate: rate, metadata: { ...invoice.metadata, rateUsed: { rate, date: invoice.date || getLocalDateISO(), source: 'typed' } } }); }}
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-mono"
+                  />{fieldError("inv-exchange-rate")}
+                  {rateNote && <p role="status" className="text-[11px] text-[var(--muted)] px-2">{rateNote}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[var(--line)] pt-8 mt-8">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="inv-memo" className="micro-label">Customer Memo</label>
+                  <textarea
+                    id="inv-memo"
+                    value={memo}
+                    onChange={(e) => setMemo(e.target.value)}
+                    placeholder="Message to customer..."
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="inv-terms" className="micro-label">Terms & Conditions</label>
+                  <textarea
+                    id="inv-terms"
+                    value={terms}
+                    onChange={(e) => setTerms(e.target.value)}
+                    placeholder="Standard terms..."
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none h-24 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="inv-email-subject" className="micro-label">Email Subject</label>
+                  <input id="inv-email-subject" aria-invalid={Boolean(fieldErrors["inv-email-subject"])} aria-describedby={fieldErrors["inv-email-subject"] ? 'inv-email-subject-error' : undefined}
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Invoice from us"
+                    className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none"
+                  />{fieldError("inv-email-subject")}
+                </div>
+                {invoice.id ? (
+                  <AttachmentsPanel target={{ collection: 'invoices', id: invoice.id, label: `Invoice ${invoice.number || ''}`.trim() }} />
+                ) : (
+                  <div className="space-y-2">
+                    <label htmlFor="inv-attachments" className="micro-label">Files</label>
+                    <label htmlFor="inv-attachments" className="cursor-pointer flex items-center justify-center w-full px-4 py-3 bg-[var(--ink)] border-2 border-dashed border-zinc-300 rounded-xl hover:bg-zinc-100 transition-colors">
+                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Select files</span>
+                      <input id="inv-attachments" aria-invalid={Boolean(fieldErrors["inv-attachments"])} aria-describedby={fieldErrors["inv-attachments"] ? 'inv-attachments-error' : undefined} type="file" multiple className="hidden" onChange={handleFileUpload} />{fieldError("inv-attachments")}
+                    </label>
+                    {attachments.length > 0 && (
+                      <ul className="flex flex-wrap gap-2 mt-2" aria-label="Files to keep with the invoice">
+                        {attachments.map(f => (
+                          <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex items-center gap-1 px-2 py-1 bg-zinc-100 text-zinc-600 text-xs rounded-lg">
+                            <bdi>{f.name}</bdi>
+                            <button type="button" onClick={() => setAttachments(prev => prev.filter(x => x !== f))} aria-label={`Don't attach ${f.name}`} className="text-zinc-400 hover:text-rose-600"><X size={12} aria-hidden="true" /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {attachments.length > 0 && <p className="text-[10px] text-[var(--muted)]">Kept with the invoice when you save it.</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </DocumentMoreOptions>
         </form>
         <div className="px-3 md:px-6"><CreditLimitRefusalPanel busy={isSubmitting} onIssueAnyway={reason => handleAction(null, lastStatus.current, { reason })} /></div>
         <div className="shrink-0 p-3 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/50 flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -636,7 +651,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
             {invoice.id && (
               <>
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowPdfPreview(true)}
                   className="px-4 py-3 bg-[var(--surface)] border border-[var(--line)] text-zinc-700 dark:text-zinc-300 rounded-[32px] font-medium text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all flex items-center gap-1.5"
@@ -644,7 +659,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   <Eye size={14} />
                   Preview PDF
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => downloadDocumentPdf('invoice', invoice.id!, currentWorkspaceId || 'default', `invoice_${invoice.number || invoice.id}.pdf`)}
                   className="px-4 py-3 bg-[var(--surface)] border border-[var(--line)] text-indigo-600 dark:text-indigo-400 rounded-[32px] font-medium text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all flex items-center gap-1.5"
@@ -654,7 +669,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 </button>
               </>
             )}
-            <button 
+            <button
               type="button"
               onClick={requestClose}
               className="px-6 py-3 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] font-medium text-xs hover:bg-[var(--ink)] transition-all"

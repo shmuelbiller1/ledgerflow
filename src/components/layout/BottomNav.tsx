@@ -37,7 +37,7 @@ export default function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   return (
     <nav
       aria-label="Phone navigation"
-      className="lg:hidden fixed bottom-0 inset-x-0 h-[calc(64px+env(safe-area-inset-bottom))] bg-[var(--surface)] border-t border-[var(--line)] flex items-center justify-around z-50 px-2 pb-[env(safe-area-inset-bottom)]"
+      className="lg:hidden fixed bottom-0 inset-x-0 h-[calc(64px+env(safe-area-inset-bottom))] bg-[var(--surface)] border-t border-[var(--line)] flex items-center justify-around z-[45] px-2 pb-[env(safe-area-inset-bottom)]"
     >
       {actions.map(({ label, icon: Icon, tab, run }, index) => (
         <React.Fragment key={label}>

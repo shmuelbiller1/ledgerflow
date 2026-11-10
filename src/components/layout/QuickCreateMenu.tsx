@@ -49,18 +49,29 @@ export default function QuickCreateMenu({
         className={
           phone
             ? "flex flex-1 min-w-[44px] h-16 flex-col items-center justify-center gap-1 rounded-lg text-[var(--text)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
-            : "hidden md:flex min-h-11 min-w-11 items-center justify-center gap-1.5 bg-slate-900 text-white dark:bg-white dark:text-black hover:opacity-90 px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50"
+            : "hidden md:flex min-h-11 min-w-11 items-center justify-center rounded-lg text-sm font-semibold"
         }
       >
-        <Plus aria-hidden="true" size={phone ? 22 : 16} />
-        <span className={phone ? "text-[11px]" : "hidden lg:inline"}>New</span>
+        <span
+          className={
+            phone
+              ? "contents"
+              : "inline-flex items-center gap-1.5 bg-slate-900 text-white dark:bg-white dark:text-black hover:opacity-90 px-3 py-1.5 rounded-lg shadow-sm"
+          }
+        >
+          <Plus aria-hidden="true" size={phone ? 22 : 16} />
+          <span className={phone ? "text-[11px]" : "hidden lg:inline"}>
+            New
+          </span>
+        </span>
       </button>
       {isOpen &&
         createPortal(
-          <div {...dialogProps} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
-            <div
-              className="w-full max-w-sm rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-3"
-            >
+          <div
+            {...dialogProps}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+          >
+            <div className="w-full max-w-sm rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-3">
               <div className="flex items-center justify-between gap-2 px-2">
                 <h2 id={titleId} className="font-semibold">
                   Create new

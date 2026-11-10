@@ -136,8 +136,37 @@ for (const width of [390, 1280])
         const form = page.getByRole("dialog", { name: title, exact: true });
         await expect(form).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(1);
+        if (width === 390 && ["Customer", "Vendor"].includes(action)) {
+          const home = page
+            .getByRole("navigation", { name: "Phone navigation" })
+            .getByRole("button", { name: "Home", exact: true });
+          expect(
+            await home.evaluate((button) => {
+              const box = button.getBoundingClientRect();
+              return !button.contains(
+                document.elementFromPoint(
+                  box.x + box.width / 2,
+                  box.y + box.height / 2,
+                ),
+              );
+            }),
+          ).toBe(true);
+          const nameField = form.getByRole("textbox", {
+            name: `${action} Name`,
+            exact: true,
+          });
+          await nameField.fill("Unsaved contact");
+          const url = page.url();
+          const box = (await home.boundingBox())!;
+          await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+          await expect(form).toBeVisible();
+          await expect(nameField).toHaveValue("Unsaved contact");
+          expect(page.url()).toBe(url);
+        }
         // Global creation shortcuts must not replace an open form.
-        await page.keyboard.press("Control+Alt+b");
+        await form.focus();
+        await page.keyboard.press("n");
+        await page.keyboard.press("b");
         await expect(form).toBeVisible();
         await page.keyboard.press("Escape");
         await expect(form).toHaveCount(0);
@@ -148,7 +177,8 @@ for (const width of [390, 1280])
         ["j", "New Journal Entry"],
       ]) {
         await page.locator("#main-content").focus();
-        await page.keyboard.press(`Control+Alt+${key}`);
+        await page.keyboard.press("n");
+        await page.keyboard.press(key);
         const form = page.getByRole("dialog", { name: title, exact: true });
         await expect(form).toBeVisible();
         await page.keyboard.press("Escape");
@@ -161,7 +191,8 @@ for (const width of [390, 1280])
         document.body.append(field);
         field.focus();
       });
-      await page.keyboard.press("Control+Alt+i");
+      await page.keyboard.press("n");
+      await page.keyboard.press("i");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await page.locator("#typing-probe").evaluate((el) => el.remove());
       await newButton.click();
@@ -199,7 +230,8 @@ for (const width of [390, 1280])
       await expect(newButton).toBeDisabled();
       await newButton.evaluate((el) => (el as HTMLButtonElement).click());
       await page.locator("#main-content").focus();
-      await page.keyboard.press("Control+Alt+i");
+      await page.keyboard.press("n");
+      await page.keyboard.press("i");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect(errors).toEqual([]);
       expect(

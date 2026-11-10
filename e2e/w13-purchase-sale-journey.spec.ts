@@ -52,6 +52,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
         const dialog = page.getByRole('dialog');
         await dialog.locator('#bill-vendor').selectOption(`${workspaceId}-${vendor}`);
         await expect(dialog.locator('#bill-number')).toHaveValue((await allocated.json()).number);
+        if (!await dialog.locator('details').evaluate(el => (el as HTMLDetailsElement).open)) await dialog.locator('summary').click();
         await dialog.locator('#bill-number').fill(`B-${index}`);
         await dialog.locator('#bill-date').fill(date); await dialog.locator('#bill-due-date').fill(date);
         await dialog.locator('#bill-split-desc-0').fill('Chair');
@@ -77,6 +78,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       const invoice = page.getByRole('dialog');
       await expect(invoice.locator('#inv-number')).toHaveValue((await allocatedInvoice.json()).number);
       await invoice.locator('#inv-customer').fill('Acme');
+      await invoice.locator('summary').click();
       await invoice.locator('#inv-number').fill('INV-1');
       await invoice.locator('#inv-date').fill('2026-04-15'); await invoice.locator('#inv-due-date').fill('2026-05-15');
       await invoice.locator('#inv-item-desc-0').fill('Chair');

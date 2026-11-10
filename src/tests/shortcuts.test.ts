@@ -13,13 +13,15 @@ describe('Keyboard shortcuts', () => {
     assert.equal(shortcutLabel('mod+shift+e', true), '⌘ ⇧ E');
     assert.equal(shortcutLabel('mod+shift+e', false), 'Ctrl + Shift + E');
     assert.equal(shortcutLabel('?', false), '?');
+    assert.equal(shortcutLabel('n i', true), 'N then I');
+    assert.equal(shortcutLabel('n i', false), 'N then I');
     assert.equal(shortcutLabel('alt+r', true), '⌥ R');
   });
 
   test('every key belongs to one shortcut, and none is a key the browser keeps', () => {
     const keys = SHORTCUTS.flatMap(s => s.keys);
     assert.equal(new Set(keys).size, keys.length);
-    for (const reserved of ['mod+q', 'mod+f', 'mod+p', 'mod+w', 'mod+t', 'mod+n']) assert.ok(!keys.includes(reserved), reserved);
+    for (const reserved of ['mod+q', 'mod+f', 'mod+p', 'mod+w', 'mod+t', 'mod+n', 'mod+alt+i', 'mod+alt+j', 'mod+alt+b']) assert.ok(!keys.includes(reserved), reserved);
   });
 
   test('the key map calls the right action for every key', () => {
