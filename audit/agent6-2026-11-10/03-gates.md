@@ -198,3 +198,31 @@ salt-dependent test. The next agent should use `npm run test:shard` for all four
 | Playwright / browser | **NOT RUN** — no browsers |
 | `npm run build` | **NOT RUN** |
 | Vercel preview | **not a code signal** — automatic previews are off for cost |
+
+---
+
+## `npm run build` at the pin — PASSES (this closes the last unrun local gate)
+
+```sh
+NODE_OPTIONS=--max-old-space-size=3072 timeout 1500 npm run build     # /home/user/lf-pin
+```
+
+`tsx scripts/vercel-csp.ts && vite build && esbuild server.ts …`
+
+| step | result |
+|---|---|
+| `scripts/vercel-csp.ts` | exit 0 (silent) |
+| `vite build` (v6.4.5) | **✓ 4,885 modules transformed**, built in 26.4 s |
+| client output | `dist/index.html` 3.63 kB · `dist/assets/index-*.css` 254.90 kB (gzip 35.23) · largest chunk `exceljs.min-*.js` 938.06 kB (gzip 271.31) · `vendor-viz` 465.36 kB · `pageLabels` 243.12 kB |
+| PWA (vite-plugin-pwa 1.3.0, `generateSW`) | 87 precache entries, 1,801.31 KiB, `dist/sw.js` + `dist/workbox-*.js` generated |
+| `esbuild build/server.cjs` | **6.8 MB**, done in 444 ms |
+| `esbuild build/api.cjs` (serverless) | **6.7 MB**, done in 503 ms |
+| **exit** | **0** |
+
+Non-fatal warnings, recorded so nobody mistakes them for new breakage: two `@__PURE__` comment-position
+warnings from **`node_modules/zod`** (rollup drops the comments), and esbuild's own `⚠️` on the two
+bundle sizes. No `src/` warning, no error.
+
+**The three unrun gates are now two.** Still genuinely not run, and not claimed: the **DB/RLS suites**
+(203 skipped; no Postgres in this sandbox) and **Playwright** (no browsers). The red Vercel preview is
+*still* not a code signal — automatic previews are off for cost.
