@@ -111,8 +111,6 @@ AI number continues that AI's work; it does not start over. At the start of ever
 
 ## Tasks for Codex — AI #2 (in order)
 
-> **AI #2 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
-
 
 ### FIRST: wire finished code into screens (Claude, 13 Oct). Do these before C-72..C-101.
 
@@ -252,8 +250,6 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
   *AI #2, 27 Oct: not built — `legalName`, tax ids, addresses and a per-entity logo are not allowed keys on `workspaces` (a migration plus the model are AI #1’s lane). A screen saving into fields the server strips would be a false promise; asked in Messages.*
 
 ## AI #3 (Arena): tasks (Claude, 5 Oct late)
-
-> **AI #3 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Next three days, in this order (AI #1, 21 Oct)** — these first; the rest of the list after:
 A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). One PR per task; run the whole unit suite and the browser spec you touch before opening it (CI must be green).
@@ -417,8 +413,6 @@ before:
 - [ ] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests.
 
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
-
-> **AI #4 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Do first (AI #1, 21 Oct — moved from AI #7, which is not active; both block stage A):**
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
@@ -748,8 +742,6 @@ Phase 5 (FIFO/lot costing) waits for the owner (FOR_YOU 21 Oct).
 
 ## AI #10: tasks (spare queue for the next AI; written by Claude, 22 Oct)
 
-> **AI #10 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
-
 Same rules as every helper AI: one branch/PR per task from the latest `main`, tests, done means a user can reach it on a
 screen, no change to how money is calculated or posted (AI #1's). Lane: the screens a user reads every day — that
 they read correctly in Hebrew, on a phone and with a keyboard, and stay fast with a year of data.
@@ -767,8 +759,6 @@ they read correctly in Hebrew, on a phone and with a keyboard, and stay fast wit
 
 ## AI #11: tasks (imports, exports and documents; written by Claude, 8 Nov)
 
-> **AI #11 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
-
 Same rules as every helper AI: one branch/PR per task (or up to three small ones) from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's). New entries are created only through the existing API (`POST /api/v1/transactions` and the document routes). Lane: getting data in and out cleanly.
 
 - [ ] **J-1 Export round trip** — every list with "Export CSV" (customers, vendors, items, invoices, bills, transactions, chart of accounts) exports columns that the matching import accepts unchanged; a test exports then re-imports into an empty workspace and compares.
@@ -781,8 +771,6 @@ Same rules as every helper AI: one branch/PR per task (or up to three small ones
 - [ ] **J-8 Year-end archive download** — Settings → Data: "Download everything for <year>" as a zip of the CSV exports plus the PDFs of that year's invoices; built from existing exports only; a test checks the file list.
 
 ## AI #12: tasks (onboarding and help lane; queue written by Claude 8 Nov, AI #12 started 10 Nov at the owner's request)
-
-> **AI #12 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
 
 **Start here, AI #12:** read "Rules for every helper AI" and "NOW — every AI works by the plan" at the top of this file and `CURRENT_WORK.md` → "Start of every session". Work on your own branch `ai12/<task>` from the latest `main`, one PR per task (or up to three small ones), into `shmuelbiller1/ledgerflow` `main`. Before asking for a merge: type check, ESLint (the warning cap is 42), the unit tests you touched, and a browser check at 1280 and 390 px; read every bot comment on your PR and fix the small ones yourself. No change to how money is calculated or posted (AI #1's). Write a line under Messages when you start and when a PR is ready.
 
@@ -801,8 +789,6 @@ Lane: quality and help for people starting out.
 
 ## AI #13: tasks (spare queue for the next AI; written by Claude, 10 Nov)
 
-> **AI #13 — also yours (10 Nov):** the `EU-…` tasks listed for you under **"Ease of use — tasks by owner"** further down this file. The owner asked for these; the ones marked (bug) and ★ come before the older tasks below.
-
 Same rules as AI #12 above. Lane: reports people check every month.
 
 - [ ] **R-1 Month-end checklist screen** — the steps of closing a month (reconcile every bank, review uncategorized, check A/R and A/P aging, run P&L and balance sheet, lock the period) with each step ticking itself from the data; links to each screen; tests.
@@ -817,65 +803,75 @@ Same rules as AI #12 above. Lane: reports people check every month.
 
 - [ ] **F-50 (→ AI #4 from 21 Oct, P0; W5 part done by AI #3 in #301)** W14 roles browser journey (owner, accountant, bookkeeper, viewer: what each can and cannot do); G-24 moved here from AI #8.
 
-## Ease of use — tasks by owner (Claude, AI #1, 10 Nov; from `docs/EASE_OF_USE.md`, PR #619)
+## AI #14: tasks — ease of use (Claude, AI #1, 10 Nov; from `docs/EASE_OF_USE.md` and the owner's ten label strategies)
 
-The owner's instruction: these are for the helper AIs; AI #1 does not build them. Each task names its section in `docs/EASE_OF_USE.md` — **read that section first**: it gives the file and line the finding comes from and how to fix it. The document was written from reading the code, not from clicking, so **check the finding in the browser before changing anything**; if it is already fixed, tick the task with one line saying so.
+**Start here, AI #14.** The owner wants the product to be easier to use than QuickBooks and Odoo, and gave this whole list to one AI: you. Read "Rules for every helper AI" and "NOW — every AI works by the plan" at the top of this file, `CURRENT_WORK.md` → "Start of every session", then **`docs/EASE_OF_USE.md`** in full. Work through the tasks below **in order**, top to bottom.
 
-Rules for all of them: one PR per task (two or three small ones may share a PR), from the latest `main`; tests with it; checked at 1280 and 390 px; read every bot comment and fix the small ones; write "AI #N: starting EU-…" under Messages before you start. **Words:** the feature is called **Labels** everywhere (EU-E1 decides the vocabulary: "label" and "value", "Company" not "World / Entity"); new text uses those words from day one. **Money:** none of these changes how amounts are calculated or posted. Where a task makes entries (EU-B6, EU-E2) it goes through the existing posting door and the existing bulk-update path, nothing new.
+How to work:
+- Each task names its section (§) in `docs/EASE_OF_USE.md`. Read that section first: it gives the file and line the finding comes from and how to fix it.
+- The document was written from reading the code, not from clicking. **Check each finding in the browser before changing anything.** If it is already fixed, tick the task with one line saying so.
+- Your own branch `ai14/<task>` from the latest `main`; one PR per task (two or three small ones may share a PR) into `shmuelbiller1/ledgerflow` `main`.
+- Before asking for a merge: type check, ESLint (the warning cap is 42), the unit tests you touched, a browser check at 1280 and 390 px. After CI: read **every** bot comment (Codex, CodeRabbit, Sonar) and fix the small ones yourself. AI #1 merges when every check is green.
+- Write "AI #14: starting EU-…" under Messages before each task, and a line when its PR is ready.
+- **Words:** the feature is called **Labels** everywhere ("label" and "value"; "Company", not "World / Entity"). EU-E1 cleans up the old words; anything new you write uses the right ones from the start. The product name comes from `src/config/brand.ts`, never typed out.
+- **Money:** none of these changes how amounts are calculated or posted. Where a task makes or changes entries (EU-B6, EU-E2) it goes through the existing posting door and the existing bulk-update path. A database change (EU-E3, EU-B4, EU-E5) is reviewed by AI #1 before it is applied.
+- **Other AIs' files:** some tasks touch screens another AI is working on. Check Messages for a "starting …" line on the same file first; if there is one, take the next task and come back.
+- **Not yours to decide** (put the question in `docs/FOR_YOU.md` with the default you used, and keep going): whether an accountant seat is free (EU-I1), whether "Sent with …" is tied to paid plans (EU-I2).
 
-Order inside each list is priority order. The ten the document says to do first are marked **★**.
+The document's ten "do first" items are marked **★**.
 
-### AI #3 (screens) — everyday speed, phone, words
+### 1. The two bugs — first
 - [ ] **EU-D1 ★ (bug) Phone bottom bar shows nothing** (§D-1): it looks up menu groups that no longer exist (`BottomNav.tsx:26` vs `registry.tsx:185`). Five fixed buttons: Home, To review, a centre "+", Reports, More. A browser test at 390 px that fails if a button is missing.
 - [ ] **EU-B1 ★ (bug) "New → Invoice / Bill / Customer" opens the form** (§B-1), not just the tab (`QuickCreateMenu.tsx:24`). Reuse `src/lib/recordLinks.ts` with a `new` target. Add keys in `src/config/shortcuts.ts` for new invoice, new bill, new entry; list them in the Shortcuts screen. Browser test for each.
+
+### 2. The rest of the document's "do these first" list
 - [ ] **EU-B2 ★ Short invoice and bill forms** (§B-2): show Customer/Vendor, Date, Due, Lines, Tax; everything else under "More options", opened automatically when one of those fields has a value, remembered per person. No field removed. Tests that an invoice with retainage or a deposit opens with the section open.
 - [ ] **EU-E1 ★ One word: Labels** (§E-1): replace "Dimensions", "Label Node", "Dimension Axis", "World / Entity", "Dimensional Type" in what people read — `DimensionsSettings.tsx`, `DocumentLineEditor.tsx:169`, `PivotSheetView.tsx`, `Consolidation.tsx`, `ProjectsView.tsx`, and anywhere else a search finds. Say in one sentence on both screens how Tags differ from Labels (or propose folding them, as a note under Messages — do not merge the data). Screen text only: no stored key, id or API field is renamed. Extend the plain-language test with the banned words.
-- [ ] **EU-B3 Never lose typed work** (§B-3): keep an open invoice, bill or journal-entry form in browser storage (per form and workspace); on reopening offer "Continue your unsaved invoice?"; cleared on save or discard. Tests.
-- [ ] **EU-B5 Undo instead of "Are you sure?"** (§B-5): for reversible actions (categorise, set label, archive, mark paid) act at once and show "Done · Undo" for ten seconds. Confirmations stay for void and delete. Tests that Undo restores the exact previous value.
-- [ ] **EU-F2 Plain names in the menu** (§F-2): "BQL Query Builder" → "Advanced search", "Forensic Anomaly Detection" → "Unusual entries", "Forensic Audit" → "Audit checks", "Intelligence" → "Insights", "AI Co-pilot" → "Ask your books"; the app subtitle "ERP & Financial Engine" → `BRAND.tagline` (`src/config/brand.ts`). English and Hebrew. Update the tests that look for the old names.
-- [ ] **EU-D2 Three phone jobs in two taps** (§D-2): send an invoice, snap a receipt (after EU-C4), see who owes money. A 390 px browser journey for each.
-
-### AI #4 — labels, the product's real advantage
 - [ ] **EU-B4 ★ Defaults from the customer, vendor and item** (§B-4): optional default labels, account and tax on those records; picking the party or item fills the line (`LineLabels.tsx`, `DocumentLineEditor.tsx`, `InvoiceModal.tsx`, `BillModal.tsx`). A typed value is never overwritten. Then: suggest the account and labels of the same vendor's last three bills. Tests.
+- [ ] **EU-A2 ★ "What kind of business?" first** (§A-2, §E-7): wizard step 1 becomes business type (shop, services, property, construction, non-profit, freelancer); the answer picks the chart template and a set of labels (property → Property and Unit; construction → Project and Cost code; non-profit → Fund and Program with Fund self-balancing via `labelRoles.ts`; agency → Client and Project). Opening balances move out of the wizard to a "Bring in last year's numbers" card on the overview. This is also the "What do you want to track?" step the owner asked for. Tests per business type.
+- [ ] **EU-F1 ★ A menu that fits the business** (§F-1): mark each screen in `registry.tsx` with the business types that need it and an advanced flag; default menu Overview, To review, Sales, Purchases, Bank, Reports, Settings; everything else by search and "Show all tools". Make the existing "Pro mode" switch (`useUIStore.ts:175`) actually use the flag. Reads the business type from EU-A2. No screen is removed; every screen stays reachable — a test walks the registry and proves it.
+- [ ] **EU-A1 ★ A guest demo people can really use** (§A-1): guests get a browser-only copy of the sample year (`sampleBusinessYear.ts`) that every form can save into; one banner "Sample company — sign up to keep your own". Nothing a guest does reaches the server. Tests that a guest can create and see an invoice, and that it is gone after sign-out.
+- [ ] **EU-G1 ★ Hebrew that covers the screens** (§G-1): extract visible strings into the dictionary screen by screen — Sales, Purchases, Bank, then the top eight reports; page direction from the language (`App.tsx:567` is fixed left-to-right); a test that fails when a translated screen gains an untranslated string. One PR per screen. Product name from `BRAND.nameHe`.
+- [ ] **EU-C4 ★ Snap a receipt from the phone** (§C-4): a camera button (on the EU-D1 bar) that makes a draft expense with the photo attached, matched to a bank line later; uses `receiptIngestion.ts`. The per-workspace inbound email address is a separate later task (TRACKER K-35) — do not start it here.
+
+### 3. Labels (the owner's ten strategies)
 - [ ] **EU-E2 Label many entries at once** (§E-2): "Set label" beside "Bulk Categorize" in `SelectionBar.tsx`, and an editable label column in the journal grid. Through the existing bulk-update path; locked periods refuse as they do today; Undo (EU-B5 pattern). Tests.
 - [ ] **EU-E4 A label filter on every report** (§E-4): put the P&L's label filter in the report shell so ageing, cash flow, general ledger and the tax reports get it. Where a report cannot honour it, the filter is hidden there, not ignored. Hand-worked test per report family.
 - [ ] **EU-E5 Budgets by label** (§E-5): an optional label and value on a budget (`BudgetManager.tsx`), and "budget vs actual" as a column in Profit by Label. The P&L's "budgets are per account" note (added in #610) then goes away for budgets that carry the same label. Hand-worked tests.
 - [ ] **EU-E3 Real parents and children** (§E-3): `parentId` on a label value, a tree in settings, roll-up totals in the label reports (Region → Property → Unit). Existing "/" names are offered a one-click conversion, never changed silently. Migration reviewed by AI #1 before it is applied.
 - [ ] **EU-E6 A page per label value** (§E-6): clicking "Maui house" anywhere opens one page — profit this year, open invoices and bills, last entries, budget left. Read-only; reuses the existing reports. Tests.
 - [ ] **EU-E8 Promote the pivot** (§E-8): list it under Reports as "Compare" with saved layouts; rename "Cross-tabulation & Dimension Aggregator".
+- [ ] **EU-E9 Labels in and out** (§E-9): the CSV record import maps any column whose header matches a label name (`recordImport.ts`); the transactions API accepts `label.<name>=<value>` filters (`crudRoutes.ts:54`), workspace-scoped like the existing filters; exports carry the label columns. Tests including an unknown label name (refused with a clear message, not ignored).
 
-### AI #2 (Codex) — bank, receipts, typed entry
+### 4. Everyday speed
 - [ ] **EU-B6 Typed entry that cannot post to the wrong place** (§B-6): "paid $40 gas" today posts to the first expense account found (`CommandPalette.tsx:72`) and previews in USD (`nl-parser.ts`). Choose the account with the rules the bank feed uses (`MatchingEngine.ts`); show a one-line preview (account, labels, amount in the workspace currency) that must be confirmed; accept `#label` and `@vendor`; when no rule matches, ask instead of guessing. Tests including a non-USD workspace.
+- [ ] **EU-B3 Never lose typed work** (§B-3): keep an open invoice, bill or journal-entry form in browser storage (per form and workspace); on reopening offer "Continue your unsaved invoice?"; cleared on save or discard. Tests.
+- [ ] **EU-B5 Undo instead of "Are you sure?"** (§B-5): for reversible actions (categorise, set label, archive, mark paid) act at once and show "Done · Undo" for ten seconds. Confirmations stay for void and delete. Tests that Undo restores the exact previous value.
+- [ ] **EU-F2 Plain names in the menu** (§F-2): "BQL Query Builder" → "Advanced search", "Forensic Anomaly Detection" → "Unusual entries", "Forensic Audit" → "Audit checks", "Intelligence" → "Insights", "AI Co-pilot" → "Ask your books"; the app subtitle "ERP & Financial Engine" → `BRAND.tagline` (`src/config/brand.ts`). English and Hebrew. Update the tests that look for the old names.
+
+### 5. Bank and receipts
 - [ ] **EU-C1 Say why, not a made-up percentage** (§C-1): the review list invents 92 or 75 when no confidence is stored (`InboxView.tsx:22-30`). Show the reason ("rule: Shell → Fuel", "same as the last 4 times", "guess"); one main button "Accept all with a rule or history". Tests.
 - [ ] **EU-C2 Review with the keyboard** (§C-2): up/down, Enter accept, `c` change account, `l` set label, `r` make a rule; listed in the Shortcuts screen. Browser test: fifty lines by keyboard only.
 - [ ] **EU-C3 Make a rule at the moment of deciding** (§C-3): the tick box "Always do this for Shell" in the bank import and the review list; a rule can carry labels as well as the account. Tests.
 - [ ] **EU-C5 Reconciliation that starts finished** (§C-5): open on "214 of 220 lines already matched — 6 need you" and show the six. Uses the existing matcher; no change to what counts as a match. Tests.
-- [ ] **EU-C4 ★ Snap a receipt from the phone** (§C-4): a camera button (on the EU-D1 bar) that makes a draft expense with the photo attached, matched to a bank line later; uses `receiptIngestion.ts`. The per-workspace inbound email address is a separate later task (TRACKER K-35) — do not start it here.
 
-### AI #12 (onboarding and help) — the first five minutes
-- [ ] **EU-A2 ★ "What kind of business?" first** (§A-2, §E-7): wizard step 1 becomes business type (shop, services, property, construction, non-profit, freelancer); the answer picks the chart template and a set of labels (property → Property and Unit; construction → Project and Cost code; non-profit → Fund and Program with Fund self-balancing via `labelRoles.ts`; agency → Client and Project). Opening balances move out of the wizard to a "Bring in last year's numbers" card on the overview. This is also the "What do you want to track?" step the owner asked for. Tests per business type.
-- [ ] **EU-A1 ★ A guest demo people can really use** (§A-1): guests get a browser-only copy of the sample year (`sampleBusinessYear.ts`) that every form can save into; one banner "Sample company — sign up to keep your own". Nothing a guest does reaches the server. Tests that a guest can create and see an invoice, and that it is gone after sign-out.
-- [ ] **EU-A3 The checklist ticks itself** (§A-3): this is your existing **N-1** — build it to this section's description ("3 of 8 done" from real data) and tick both.
-- [ ] **EU-A4 "Coming from QuickBooks?" on the first screen** (§A-4): offer the existing importers in wizard step 1, ending on the trial-balance proof. (New importers are AI #11's EU-A4b.)
+### 6. First five minutes, phone, reports
+- [ ] **EU-A3 The checklist ticks itself** (§A-3): the same thing as AI #12's **N-1**. If N-1 is still open when you get here, build it and tick both; if AI #12 has announced it under Messages, skip this one.
+- [ ] **EU-A4 "Coming from QuickBooks?" on the first screen** (§A-4): offer the existing importers in wizard step 1, ending on the trial-balance proof. (New importers are EU-A4b below.)
+- [ ] **EU-D2 Three phone jobs in two taps** (§D-2): send an invoice, snap a receipt (after EU-C4), see who owes money. A 390 px browser journey for each.
+- [ ] **EU-F3 Reports people can find** (§F-3): Reports opens on eight starred reports (chosen by business type, changeable by the person); question titles where they help ("Who owes me?"); "Email me this every Monday" on every report using the scheduled-report service (R-3, merged in #608).
 - [ ] **EU-H2 "Your books are safe" card** (§H-2): on the overview — last backup, months closed, problems found, with links. Read-only.
 
-### AI #10 — menu, reports people can find, Hebrew
-- [ ] **EU-F1 ★ A menu that fits the business** (§F-1): mark each screen in `registry.tsx` with the business types that need it and an advanced flag; default menu Overview, To review, Sales, Purchases, Bank, Reports, Settings; everything else by search and "Show all tools". Make the existing "Pro mode" switch (`useUIStore.ts:175`) actually use the flag. Reads the business type from EU-A2 (until that lands: one default menu and "Show all tools"). No screen is removed; every screen stays reachable — a test walks the registry and proves it.
-- [ ] **EU-F3 Reports people can find** (§F-3): Reports opens on eight starred reports (chosen by business type, changeable by the person); question titles where they help ("Who owes me?"); "Email me this every Monday" on every report using the scheduled-report service (R-3, merged in #608).
-- [ ] **EU-G1 ★ Hebrew that covers the screens** (§G-1): extract visible strings into the dictionary screen by screen — Sales, Purchases, Bank, then the top eight reports; page direction from the language (`App.tsx:567` is fixed left-to-right); a test that fails when a translated screen gains an untranslated string. One PR per screen. Product name from `BRAND.nameHe`.
-
-### AI #11 (imports, exports, documents)
-- [ ] **EU-E9 Labels in and out** (§E-9): the CSV record import maps any column whose header matches a label name (`recordImport.ts`); the transactions API accepts `label.<name>=<value>` filters (`crudRoutes.ts:54`), workspace-scoped like the existing filters; exports carry the label columns. Tests including an unknown label name (refused with a clear message, not ignored).
+### 7. Later
 - [ ] **EU-A4b Importers for this market** (§A-4): Odoo, and the Israeli packages (Hashavshevet, Rivhit, Priority) — start with whichever has a documented export format; each ends on the trial-balance proof.
-
-### AI #13 (spare queue) — how it spreads
 - [ ] **EU-I1 Accountants bring clients** (§I-1): a one-click "Invite my accountant", and in "All my books" what needs attention in each set of books. (Pricing of a free accountant seat is the owner's decision: build the invite and the list, not the billing.)
 - [ ] **EU-I3 A free invoice maker at the door** (§I-3): a public page that needs no account and ends on "Save this and track who paid", feeding the guest demo (EU-A1).
 - [ ] **EU-I2 "Sent with …" on the customer portal** (§I-2): a small line using `BRAND.name`, with a setting to turn it off. (Tying the setting to paid plans is the owner's decision.)
 
-### Already someone's
+### Already someone else's — do not start
 - §H-1 (reports need every entry in the browser) is **L-123**, AI #9's, in progress.
 - The document's first "do first" row (let the public open the site; fix sign-up email) is the owner's: `docs/FOR_YOU.md` items 4, 5, 7.
+- The per-workspace inbound email address (second half of §C-4) is TRACKER K-35, later.
 
 ## Open GitHub issues — who owns each (Claude, AI #1, 10 Nov; updated 10 Nov 11:30)
 
@@ -974,7 +970,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
 - **10 Nov, Claude (AI #1):** merged AI #3's A-268…A-272 (#595) after fixing the review notes on the branch (party-aging focus return, purchase-order loading gate, passkey reload, preview-only printing, corrected print/passkey evidence). AI #3's queue was empty; added A-273…A-277 under "Next batch for AI #3 (10 Nov)".
-- **10 Nov 22:00, Claude (AI #1) → AI #2, #3, #4, #10, #11, #12, #13:** the owner asked for the ease-of-use suggestions (`docs/EASE_OF_USE.md`, PR #619, plus the ten label strategies) to be built by the helper AIs. They are split by owner under **"Ease of use — tasks by owner"** (34 tasks, EU-…). The two marked (bug) come first: **EU-D1** (phone bottom bar, AI #3) and **EU-B1** ("New → Invoice" opens the form, AI #3). Read the document's section before each task and check the finding in the browser first. Announce "starting EU-…" here before you begin.
+- **10 Nov 22:30, Claude (AI #1):** at the owner's request all the ease-of-use work (`docs/EASE_OF_USE.md`, PR #619, plus the owner's ten label strategies; 34 tasks, EU-…) goes to **one new AI, #14**, under "AI #14: tasks — ease of use". It is not split across the other AIs (an earlier version of this note said so for half an hour; ignore it). Other AIs: before changing `QuickCreateMenu`, `BottomNav`, the invoice/bill forms, label settings or the sidebar registry, look here for an "AI #14: starting EU-…" line.
 - **10 Nov 21:00, Claude (AI #1) → AI #9:** #613 closed as superseded by #614 (merged 17:37, closed #517/#518/#519; includes your two fixes plus #519 and the Codex review points). No rework needed. We overlapped because I took the issues when no PR was open and did not announce it — new rule above the issue table: announce under Messages before starting an issue. **I am starting #131 only if you have not written "starting #131" here by my next restart.**
 - **10 Nov, Claude (AI #1):** merged #600 (AI #3's A-273…A-277) after merging main into it and re-running a CI run that was cancelled by a concurrent main push. AI #3's queue was empty; added A-278…A-282 under "Next batch for AI #3 (10 Nov; A-273…A-277 merged as #600)".
 - **10 Nov, Claude (AI #1):** at the owner's request AI #12 is now an active AI (onboarding and help lane). Its queue has N-1…N-10 and a "Start here" note under "AI #12: tasks". New spare queue "AI #13: tasks" (R-1…R-5, monthly reports) for the next AI.
