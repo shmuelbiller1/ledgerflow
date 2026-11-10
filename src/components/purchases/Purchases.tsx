@@ -1,4 +1,5 @@
 import { PartyDetailButton } from '../common/PartyDetailButton';
+import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { StageChip } from '../collaboration/StageChip';
@@ -236,18 +237,8 @@ export default function Purchases() {
     <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Purchases Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <ShoppingBag className="w-6 h-6 text-emerald-500" />
-            Purchases & AP
-          </h1>
-          <p className="text-sm text-[var(--muted)] dark:text-slate-400">
-            Manage vendor bills, purchase orders, vendors, and Accounts Payable accounts.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+      <PageHeader icon={<ShoppingBag className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title="Purchases & AP"
+        description="Bills from vendors, the vendors themselves and what you owe them.">
           {activeSubTab === 'bills' && canEditContacts && (
             <button type="button" onClick={() => setPaymentRunOpen(true)}
               title="Pay every bill due by a date and download the bank file"
@@ -286,8 +277,7 @@ export default function Purchases() {
             <Plus className="w-4 h-4" />
             {activeSubTab === 'bills' ? 'Record Bill' : 'Add Vendor'}
           </button>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Navigation Subtabs */}
       <div className="border-b border-slate-200 dark:border-slate-800 flex items-center gap-6">
