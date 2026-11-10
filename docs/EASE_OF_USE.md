@@ -351,3 +351,109 @@ connector on top of them. That gives hundreds of integrations without building a
 S-2, S-3 and N-4 are days. S-4, S-5, S-8 and S-9 are about a week each. S-1 is the big one: weeks,
 but it is what makes everything after it cheaper. N-1 is the idea most likely to make people choose
 this product over the others.
+
+---
+
+# Part 3: found in the code, not in any todo list
+
+Added 10 Nov 2026. Each item was checked against `TRACKER.md`, `TODO_2.md`, `ROADMAP.md`, `PLAN.md`,
+`COORDINATION.md`, `FOR_YOU.md`, parts 1 and 2 above and the TODO comments in the code (there are
+only two). None of them appears there. The check was by keyword, so an item worded very differently
+could have been missed.
+
+## Already written, never connected
+
+**P-1. Sums in amount fields.** `src/lib/amountExpression.ts` works out `1200/12` or `100*1.17` and
+has tests, but only the import checker uses it. *How:* call it from the amount fields, so a person
+can type the sum instead of reaching for a calculator.
+
+**P-2. Late fees.** `src/lib/paymentTerms.ts:30` calculates a late fee; no screen or job calls it.
+*How:* "Add late fee" on an overdue invoice, and an option to add it with the reminder emails.
+
+## Typing and forms
+
+**P-3. Browser pop-ups in eight places.** Plain `alert`, `confirm` and `prompt` boxes, which ignore
+the theme and cannot be styled or translated: `Sales.tsx:233` and `TimeView.tsx:197` (ask for a
+note), `SavedViewsManagerModal.tsx:650` and `ApiHubKeys.tsx:153` (confirm), `SupportView.tsx:188`,
+`:249`, `:289` and `TransferModal.tsx:72` (errors). *How:* the app's own dialog and an error under
+the field.
+
+**P-4. One amount field.** Money is typed into `type="number"` inputs in 137 places. Those change
+value when the mouse wheel passes over them, show no thousands separator and refuse a comma as the
+decimal mark. *How:* one shared amount input (text with a number keypad on phones) that also does
+P-1, swapped in by codemod.
+
+**P-5. Date keys.** No date field has shortcut keys. *How:* in one shared date input: `t` today,
+`+` and `-` a day, `m` and `h` first and last day of the month, `y` and `r` of the year. Bookkeepers
+coming from QuickBooks expect these.
+
+**P-6. Enter saves every dialog.** There are about 86 dialog files and 52 `<form>` elements, so many
+dialogs cannot be saved from the keyboard. *How:* Ctrl+Enter (and Enter outside a text area) in the
+shared `useDialog` hook.
+
+**P-7. Recently used first.** Account, customer and vendor pickers list everything in the same
+order. *How:* show the five most recently used at the top.
+
+**P-8. Batch entry.** *How:* a spreadsheet-like screen for entering twenty bills or expenses in
+rows, with the previous row's date and vendor carried down. The fastest way to catch up a month.
+
+**P-9. Total of the selected rows.** *How:* tick rows in any list and see count and sum at the
+bottom, as a spreadsheet does.
+
+## Reading
+
+**P-10. Very small text.** Text of 10px or smaller is used 1,286 times in 154 screen files. The
+heaviest font weight appears 679 times in 93 files and wide-spaced capitals in 77, both of which
+`UI_GUIDE.md` rules out. *How:* a codemod with a floor of 12px, normal weight for ordinary rows, and
+a lint rule so they do not return.
+
+**P-11. A dollar sign whatever the currency.** `FinancialCalculatorView.tsx` (lines 116 to 391),
+`RulesSettingsView.tsx:285` and `ApiHubBilling.tsx:97` print `$` directly. (L-145 fixed six others.)
+
+**P-12. Hints that never show on a phone.** 268 hints use the browser's `title`, which touch
+screens do not show. *How:* one shared tooltip that opens on tap.
+
+**P-13. Screens with light colours only.** Ten payroll files under `src/components/hr/` and seven
+report views (`ExpenseByCategoryReportView.tsx`, `TagBreakdownReportView.tsx`,
+`IncomeBySourceReportView.tsx` and others) use white and pale grey backgrounds with no dark-mode
+or theme-variable styling in the file.
+
+**P-14. Two leftover jargon lines.** The command palette says "Amount Search Matrix active"
+(`CommandPalette.tsx:522`) and the tax reserve card says "You can safely deploy up to…"
+(`TaxReserveWidget.tsx:145`). *How:* "Searching by amount" and "Safe to spend:".
+
+## Settings that follow the person
+
+**P-15. Preferences live in one browser.** Pinned pages, saved views, date format, theme, text
+size, speed dials and the start page are kept in browser storage (`src/stores/useUIStore.ts`,
+`useSavedViewsStore.ts`), so they are missing on the phone or a new computer. Report preferences
+already sync through the profile (`src/lib/reportPreferences.ts`). *How:* move the rest onto the
+same mechanism.
+
+## New, and in neither the code nor the lists
+
+**P-16. How to pay, on the invoice.** Bank transfer details and a Bit or PayBox link on the invoice
+and its public page. Card payment exists; in Israel most invoices are paid by transfer.
+
+**P-17. Approve from the email.** Approvals and notification emails exist. *How:* "Approve" and
+"Send back" buttons in the email, each a one-time signed link.
+
+**P-18. Customers fix their own details.** *How:* on the customer portal, let the customer correct
+their address, tax number and contact; the change waits for the owner's approval.
+
+**P-19. Signing in again without losing work.** *How:* when the session ends mid-form, keep the
+form, ask for the password in place and continue.
+
+**P-20. Address lookup.** *How:* suggest the address while it is typed on customers and vendors.
+
+**P-21. Swipe on a phone.** *How:* swipe a row in To review to accept, the other way to change the
+account.
+
+**P-22. A money calendar.** *How:* a month view of what is due in and out each day, from open
+invoices, bills and recurring items.
+
+**P-23. Speak an expense.** *How:* a microphone button on the phone that feeds the existing typed
+entry parser (`src/lib/algorithms/nl-parser.ts`).
+
+**P-24. A live Google Sheet.** *How:* "Open in Google Sheets" on a report, refreshed from the API,
+for people who will always finish in a spreadsheet.
