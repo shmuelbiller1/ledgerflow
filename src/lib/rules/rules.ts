@@ -44,8 +44,9 @@ export interface RuleOutcome<E = unknown> {
   blocked: Array<{ rule: Rule<E>; unverified: FactAttribute[] }>;
   /** replaced or switched off by another rule */
   displaced: Array<{ rule: Rule<E>; by: string }>;
-  /** the facts conflict on an attribute a rule reads: nothing is decided until a person resolves it */
-  undecided: Array<{ rule: Rule<E>; conflicting: FactAttribute[] }>;
+  /** the facts conflict on an attribute a rule reads, or the rule sits in a loop of overrides (`cycle`, the other
+   *  rules in it): nothing is decided until a person resolves it */
+  undecided: Array<{ rule: Rule<E>; conflicting: FactAttribute[]; cycle?: string[] }>;
 }
 
 function holds(c: Condition, facts: ComposedFacts['facts']): boolean {
@@ -74,14 +75,40 @@ export function evaluateRules<E>(rules: Rule<E>[], composed: ComposedFacts, inpu
     if (unverified.length) { out.blocked.push({ rule, unverified }); continue; }
     candidates.push({ rule, because: rule.when.map(describe) });
   }
-  // exclusions first, then overrides: a switched-off rule cannot replace another
-  const off = new Map<string, string>();
-  for (const { rule } of candidates) if (rule.combine === 'exclude') for (const t of rule.targets || []) off.set(t, rule.id);
-  for (const { rule } of candidates) if (rule.combine === 'override' && !off.has(rule.id)) for (const t of rule.targets || []) if (!off.has(t)) off.set(t, rule.id);
+  // Exclusions first: an excluded rule never applies and never replaces another.
+  const excludedBy = new Map<string, string>();
+  for (const { rule } of candidates) if (rule.combine === 'exclude') for (const t of rule.targets || []) if (!excludedBy.has(t)) excludedBy.set(t, rule.id);
+  // Then overrides, independent of the order the rules are listed in (#161). A switched-off rule cannot replace
+  // another, so a rule stands when every rule overriding it is itself switched off, and is switched off when a rule
+  // that stands overrides it. Rules in a loop of overrides are neither: they are left for a person to decide.
+  const live = candidates.filter(c => !excludedBy.has(c.rule.id));
+  const liveIds = new Set(live.map(c => c.rule.id));
+  const overriders = new Map<string, string[]>();
+  for (const { rule } of live) if (rule.combine === 'override') for (const t of rule.targets || []) {
+    // a rule overriding itself is a loop of one: kept, so it is left undecided like any other loop
+    if (liveIds.has(t)) overriders.set(t, [...(overriders.get(t) || []), rule.id]);
+  }
+  const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  const stands = new Set<string>();
+  const displacedBy = new Map<string, string>();
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const { rule } of live) {
+      const id = rule.id;
+      if (stands.has(id) || displacedBy.has(id)) continue;
+      const by = (overriders.get(id) || []).filter(o => stands.has(o)).sort(byId)[0];
+      if (by) { displacedBy.set(id, by); changed = true; continue; }
+      if ((overriders.get(id) || []).every(o => displacedBy.has(o))) { stands.add(id); changed = true; }
+    }
+  }
   for (const c of candidates) {
-    const by = off.get(c.rule.id);
-    if (by) out.displaced.push({ rule: c.rule, by });
-    else out.applied.push(c);
+    const id = c.rule.id;
+    const excluded = excludedBy.get(id);
+    if (excluded) out.displaced.push({ rule: c.rule, by: excluded });
+    // named once everything is settled, so the same rule is named whatever the listing order
+    else if (displacedBy.has(id)) out.displaced.push({ rule: c.rule, by: (overriders.get(id) || []).filter(o => stands.has(o)).sort(byId)[0] });
+    else if (stands.has(id)) out.applied.push(c);
+    else out.undecided.push({ rule: c.rule, conflicting: [], cycle: (overriders.get(id) || []).filter(o => !displacedBy.has(o)).sort(byId) });
   }
   return out;
 }
