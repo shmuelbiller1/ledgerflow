@@ -33,4 +33,4 @@
 
 ## Preservation
 - Local checkpoint file: `audit/agent8-checkpoint-2026-11-10.md` (tracked after commit/push if authorized). Branch fixed by session: `arena/29d35e89-ledgerflow`; no branch switch. Need upload this progress and final docs to Google Drive, verify by readback, record links. Existing prior Drive folder from handoff: `https://drive.google.com/drive/folders/1VG4z3otVCVhN2Vmr8jnssok8bIFJ2-RK` (access still must be verified).
-- No commit/push/PR yet. As this is documentation/review-only, can preserve checkpoint commit and push only to fixed session branch; PR creation is constrained by repository permissions and must be checked without merging.
+- Checkpoint is committed as `e6d04b504e1e189d5ec2727b8c8af5d01951eb3f` and pushed to `origin/arena/29d35e89-ledgerflow`; `git ls-remote` verified remote ref equals the commit. No PR yet; create a review PR after the audit package is logically ready, and never merge.
