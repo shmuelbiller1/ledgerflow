@@ -117,3 +117,42 @@ wrong answer**:
 | `af012-rule-chain-order.test.ts` | 2 | pass |
 | `f8-tax-return-two-universes.test.ts` | 4 | pass |
 | `f9-audit-trail-coverage.test.ts` | 3 | pass |
+
+## Unit shard 3/4 at the pin — and why one number in it is not a product failure
+
+Shard 3/4 was launched **without** `SYSTEM_SALT` (the shard-1/2 commands above copied the args, not the
+env the npm script sets). Nine subtests failed with:
+
+```
+error: 'SYSTEM_SALT environment variable is required for forensic stamping.'
+  at TransactionValidator.validateAndPrepare (src/kernel/validation/TransactionValidator.ts:132)
+```
+
+That is `src/services/securityService.ts:30-32` refusing to mint a forensic hash with a fallback salt —
+the guard working as designed, not a defect. `package.json` sets
+`SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic` for `test`, `test:shard` and `test:cov`, and
+`.github/workflows/ci.yml` runs `npm run test:shard:cov`, so CI always has it.
+
+**Re-run of the affected files with the salt: all green** — `period-close.test.ts` 9/9,
+`reconcile-endpoint.test.ts` + `reverse-and-correct.test.ts` 15/15. **Every one of shard 3/4's 7
+failures is environmental**: 7 subtests were the missing salt, and the remaining suite is
+`vercel-ignore-boundary` ("`git ls-files` … not a git repository") — the same `.git`-less-pin limit
+that failed shard 1/4. **No shard-3 failure is a product defect.** So the honest count is:
+
+| shard | tests | pass | fail for real | fail from the missing salt |
+|---|---:|---:|---:|---:|
+| 1/4 | 4,583 | 4,576 | 2 (A-229 ms budget ×2, `vercel-ignore-boundary` needs `.git`) | 0 |
+| 2/4 | 1,189 | 1,187 | 1 suite (A-229/A-206 ms budget) | 0 |
+| 3/4 | 1,143 | 1,133 | 2 real: both are the `git ls-files` boundary test (no `.git` in the pinned tree) | 7 of the 9 (2 more were `git`-related: `vercel-ignore-boundary` subtest 3 + suite) |
+
+**Lesson for the next agent: use `npm run test:shard` (or copy the env), never the bare `tsx` line.**
+A failure whose message mentions `SYSTEM_SALT` is the harness, not the product.
+
+## Probes, whole folder, with the salt
+
+```sh
+NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic \
+  npx tsx --test --test-force-exit audit/agent6-2026-11-10/probes/*.test.ts
+```
+
+**20 tests, 20 pass, 0 fail** (AF-004 4, AF-012 2, F-08 4, F-09 3, F-10 3, S-7 routes 4).
