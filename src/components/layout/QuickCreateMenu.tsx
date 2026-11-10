@@ -33,7 +33,7 @@ export default function QuickCreateMenu({
   const { dialogProps, titleId } = useDialog(() => setIsOpen(false), isOpen);
 
   return (
-    <>
+    <div className={phone ? "contents" : "relative"}>
       <button
         type="button"
         aria-label="New"
@@ -104,6 +104,6 @@ export default function QuickCreateMenu({
           </div>,
           document.body,
         )}
-    </>
+    </div>
   );
 }

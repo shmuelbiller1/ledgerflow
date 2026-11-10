@@ -59,10 +59,11 @@ jobs:
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore
-      - name: Push candidates to a review branch (never main)
+      # One-time AI #14 capture into its existing review PR; restore workflow after capture.
+      - name: Push candidates to the existing AI14 review branch (never main)
         if: success()
         env:
-          BRANCH: visual-baselines/${{ github.run_id }}
+          BRANCH: arena/57611a9e-ledgerflow
           # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
           SCREENS: ${{ inputs.screens }}
         run: |
