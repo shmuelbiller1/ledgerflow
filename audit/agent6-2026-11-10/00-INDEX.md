@@ -3,7 +3,7 @@
 Pin audited: upstream `main` = **`dc40739708a013ad080ffb306fe461554a2391fc`** (2026-11-10 03:07Z).
 Branch: **`arena/9bdf6e26-ledgerflow`** on `Chaim-Richard/ledgerflow`, 12 commits, pushed and verified.
 (Verify the current tip with `git ls-remote origin arena/9bdf6e26-ledgerflow` — it moves with each commit;
-the tip at hand-off was `bd6dbcb9`.)
+the tip was `3f60e2dc` when the FINAL-13 patch was cut; the commits after it are documentation-only.)
 
 ## Where the code is
 * Branch: https://github.com/Chaim-Richard/ledgerflow/tree/arena/9bdf6e26-ledgerflow
@@ -21,12 +21,13 @@ the tip at hand-off was `bd6dbcb9`.)
 |---|---|---|
 | `2026-11-10_Agent6_Ledgerflow_FINDINGS_v5.md` | `1P6umCn88Fh5EFsniLbIpAJ9TtXIOBUgs` | **THE REPORT — use this one.** F-01, F-08, F-09 (P1) · F-01b, F-02, F-03, F-07, F-10 (P2) · F-03b (P1-latent) · F-04–F-06 (P3) |
 | `2026-11-10_Agent6_Ledgerflow_SCORECARD_v2.md` | `1xOS2Kq67ZV4HuRMtt_ZutmTq0JPfFcEd` | coverage counts, findings register (F-01…F-10), fix order |
-| `2026-11-10_Agent6_Ledgerflow_HANDOFF_v2.md` | `1PlmIlCwZ_lHMke96cTMNJ6pK5UzBsqYH` | **use this one** — finished / unfinished / one-paragraph summary for Shmuel |
+| `2026-11-10_Agent6_Ledgerflow_HANDOFF_v3-FINAL.md` | `1q41ZKCCFxq1nDnTzXS7MEquKpISPr50h` | **use this one** — one line per gate, finished / unfinished, one-paragraph summary for Shmuel |
 | `2026-11-10_Agent6_Ledgerflow_CHECKPOINT-01.md` | `19rL7LSUZh1qEVKCDHvS5ehuBnQSyIijD` | pin reconstruction, stale-checkout discovery |
-| `2026-11-10_Agent6_Ledgerflow_GATES_v4.md` | `1m7VpZozNe0bf2rgP-jgqHwO96EeJJM1f` | **use this one** — every command run and its result: `tsc` 0 errors / 2,513 files, ESLint 0 errors + 42 standing warnings, **all 4 unit shards = 8,026 tests / 8,007 pass / 0 product failures**, probes 20/20, and the not-run list |
+| `2026-11-10_Agent6_Ledgerflow_GATES_v5-FINAL.md` | `1kp6er7L2WwcXqu78pGiOGzz6bZLCzgAv` | **use this one** — every command and result: `tsc` 0 errors / 2,513 files, ESLint 0 errors + 42 warnings, **all 4 unit shards = 8,026 tests / 8,007 pass / 0 product failures**, **`npm run build` PASSES** (4,885 modules, `server.cjs` 6.8 MB + `api.cjs` 6.7 MB), probes 20/20, and the only two unrun gates (DB/RLS, Playwright) |
 | `2026-11-10_Agent6_Ledgerflow_GATES.md` (older, superseded) | `1fQkclrChBx2qlFzlUdsDqPJvEKAY3VhV` | first upload, before the gate results were appended (3,059 bytes) |
 | `2026-11-10_Agent6_Ledgerflow_PR-BODY.md` | `1_rObGX3tyeRAPdLnpvzP8E_zFb6yhs7q` | ready-to-paste PR body |
-| `2026-11-10_Agent6_Ledgerflow_FINAL-12-commits-bd6dbcb9.patch` | `1Su1bsvaqn_bZHy8zWvnb3UQHGA8G2bHx` | **the snapshot to restore from**: all 12 commits, tip `bd6dbcb9`, `git am`-able, 93,065 B, sha256 `b6ec54acb80353db` |
+| `2026-11-10_Agent6_Ledgerflow_FINAL-13-commits-3f60e2dc.patch` | `1n6AmbzfkpLj2m02AEYz4FzyuQ9OY2wu8` | **the snapshot to restore from**: 13 commits, tip `3f60e2dc`, `git am`-able, 96,038 B, sha256 `c8c7b4b9e023a39d` |
+| `2026-11-10_Agent6_Ledgerflow_FINAL-12-commits-bd6dbcb9.patch` | `1Su1bsvaqn_bZHy8zWvnb3UQHGA8G2bHx` | previous snapshot, kept |
 | `2026-11-10_Agent6_Ledgerflow_FINAL-11-commits-060788af.patch` | `1oPxEV3cTlwVb1ci-ixOQE75zmSLhNpH2` | previous snapshot, kept |
 | `2026-11-10_Agent6_Ledgerflow_ALL-7-commits-2371b13a.patch` | `14UZYeeFwhPlJIIx0D7BI071waJ7c5rSc` | older snapshot, kept |
 | `probe_af004-taxplace-key-mismatch.test.ts.txt` | `1lAn-hirfXT3S_fYfug1gRwfnIoqc3zTM` | 4/4 — TX sale dropped by `region` |
