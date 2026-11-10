@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { scrollBoxProblems } from './helpers/phoneGeometry';
 
 /**
  * A-276: the phone pass on the ten screens A-272 gave empty/error states — Payments, Credit notes,
@@ -66,22 +67,11 @@ for (const screen of screens) {
     expect(headingBox!.x + headingBox!.width, `${screen.tab}: the heading fits the ${WIDTH} px phone`).toBeLessThanOrEqual(WIDTH + 1.5);
 
     // every scroll box fits the phone, and every table fits or scrolls inside a box that does
-    const layout = await main.evaluate(root => {
+    const layout = [
+      ...(await scrollBoxProblems(main)),
+      ...(await main.evaluate(root => {
       const width = innerWidth;
-      const boxes = Array.from(root.querySelectorAll<HTMLElement>('*')).filter(el => {
-        const style = getComputedStyle(el);
-        return ['auto', 'scroll'].includes(style.overflowX) && el.getBoundingClientRect().width > 0;
-      });
       const problems: string[] = [];
-      for (const el of boxes) {
-        const rect = el.getBoundingClientRect();
-        if (rect.left < -1 || rect.right > width + 1) {
-          const containingScroller = boxes.find(parent => parent !== el && parent.contains(el)
-            && parent.scrollWidth > parent.clientWidth && parent.getBoundingClientRect().left >= -1
-            && parent.getBoundingClientRect().right <= width + 1);
-          if (!containingScroller) problems.push(`scroll box ${el.className}: ${rect.left}…${rect.right}`);
-        }
-      }
       for (const table of root.querySelectorAll('table')) {
         const rect = table.getBoundingClientRect();
         if (rect.width === 0) continue;
@@ -102,7 +92,8 @@ for (const screen of screens) {
         }
       }
       return problems;
-    });
+      })),
+    ];
     expect(layout, `${screen.tab}: scroll boxes and tables fit the phone`).toEqual([]);
 
     // every touch target measures at least 44 px (checkboxes and radios are excluded: their label

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedDemoBooks } from './helpers/demoBooks';
 
 /**
  * A-271: an invoice, a statement and the five main reports print on A4 and on US Letter — the page
@@ -96,20 +97,7 @@ test.describe('A-271: the reports print on the chosen paper, page only, nothing 
       await expect(root).toContainText(report.title);
 
       // the browser's paper follows the page the reader chose (A4 is the default, Letter is offered)
-      const paper = page.getByLabel('Paper size for printing');
-      await expect(paper).toHaveValue('a4');
-      const a4 = await page.pdf({ printBackground: true, preferCSSPageSize: true });
-      expect(mediaBox(a4)).toEqual(A4_BOX);
-
-      await paper.selectOption('letter');
-      await expect(page.getByTestId('print-layout-summary')).toContainText('mm wide');
-      const letter = await page.pdf({ printBackground: true, preferCSSPageSize: true });
-      expect(mediaBox(letter)).toEqual(LETTER_BOX);
-
-      // the same document twice: the page count is the same (a report that fits one sheet stays one)
-      const again = await page.pdf({ printBackground: true, preferCSSPageSize: true });
-      expect(pageCount(again)).toBe(pageCount(letter));
-      expect(pageCount(letter)).toBeGreaterThanOrEqual(1);
+      await expectPaperSwitch(page);
 
       // in print media the page is the report: no navigation, no controls, no sideways overflow
       await page.emulateMedia({ media: 'print' });
@@ -253,25 +241,12 @@ test('A-273: printing an invoice document gives the loaded document alone, not t
   expect(errors).toEqual([]);
 });
 
-/** Load the US demo books into the guest workspace, so a screen has rows to print. */
-async function seedDemoBooks(page: Page) {
-  await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
-      bills: data.bills, customers: data.customers, vendors: data.vendors,
-    });
-  });
-}
-
-/** A-277: a Ledger print root (trial balance or journal) on the chosen paper, page only, nothing cut. */
-async function expectLedgerPrintRoot(page: Page, heading: string) {
+/**
+ * The browser's paper follows the page the reader chose (A4 is the default, Letter is offered),
+ * and the same document twice has the same page count (a report that fits one sheet stays one).
+ */
+async function expectPaperSwitch(page: Page) {
   const paper = page.getByLabel('Paper size for printing');
-  await expect(paper).toBeVisible({ timeout: 60_000 });
   await expect(paper).toHaveValue('a4');
   const a4 = await page.pdf({ printBackground: true, preferCSSPageSize: true });
   expect(mediaBox(a4)).toEqual(A4_BOX);
@@ -284,6 +259,23 @@ async function expectLedgerPrintRoot(page: Page, heading: string) {
   const again = await page.pdf({ printBackground: true, preferCSSPageSize: true });
   expect(pageCount(again)).toBe(pageCount(letter));
   expect(pageCount(letter)).toBeGreaterThanOrEqual(1);
+}
+
+/** Open a Ledger lens tab with the demo books loaded; returns the main region. */
+async function gotoLedgerLens(page: Page, tab: string, heading: string) {
+  await page.goto('/#ledger');
+  await seedDemoBooks(page);
+  const main = page.locator('#main-content');
+  await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
+  await main.getByRole('button', { name: tab, exact: true }).click();
+  await expect(main.getByRole('heading', { name: heading, exact: true })).toBeVisible({ timeout: 60_000 });
+  return main;
+}
+
+/** A-277: a Ledger print root (trial balance or journal) on the chosen paper, page only, nothing cut. */
+async function expectLedgerPrintRoot(page: Page, heading: string) {
+  await expect(page.getByLabel('Paper size for printing')).toBeVisible({ timeout: 60_000 });
+  await expectPaperSwitch(page);
 
   await page.emulateMedia({ media: 'print' });
   const printed = await page.evaluate((expectedHeading: string) => {
@@ -320,13 +312,8 @@ test('A-277: the trial balance prints on A4 then US Letter — the paper changes
   page.on('pageerror', error => errors.push(error.message));
   await signInAsGuest(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/#ledger');
   // demo books, so the trial balance has a table to print
-  await seedDemoBooks(page);
-  const main = page.locator('#main-content');
-  await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
-  await main.getByRole('button', { name: 'Trial Balance', exact: true }).click();
-  await expect(main.getByRole('heading', { name: 'Trial Balance', exact: true })).toBeVisible({ timeout: 60_000 });
+  await gotoLedgerLens(page, 'Trial Balance', 'Trial Balance');
 
   await expectLedgerPrintRoot(page, 'Trial Balance');
 
@@ -345,13 +332,8 @@ test('A-277: the journal prints on A4 then US Letter — the paper changes, noth
   page.on('pageerror', error => errors.push(error.message));
   await signInAsGuest(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/#ledger');
   // demo books, so the journal has entries to print
-  await seedDemoBooks(page);
-  const main = page.locator('#main-content');
-  await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
-  await main.getByRole('button', { name: 'General Journal', exact: true }).click();
-  await expect(main.getByRole('heading', { name: 'General journal', exact: true })).toBeVisible({ timeout: 60_000 });
+  const main = await gotoLedgerLens(page, 'General Journal', 'General journal');
   // the demo entries are income/expense, not hand-typed: widen the filter so they show
   await main.getByRole('checkbox', { name: 'Entries typed in by hand only' }).uncheck();
 

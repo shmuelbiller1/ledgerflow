@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedDemoBooks } from './helpers/demoBooks';
 
 /**
  * A-270: the keyboard path on Reports — open a report, change its period, open a row's drill-down
@@ -24,14 +25,7 @@ async function signInAsGuest(page: Page) {
 
 /** A guest book with one customer and two open invoices, so the aging report has a row to open. */
 async function seedAging(page: Page) {
-  await page.evaluate(async () => {
-    const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
-    const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({ accounts: data.accounts, transactions: data.transactions, invoices: data.invoices, bills: data.bills, customers: data.customers, vendors: data.vendors });
-  });
+  await seedDemoBooks(page);
 }
 
 /**
