@@ -60,7 +60,13 @@ describe('Ledger health monitor (database)', { skip: !url && 'LF_TEST_DATABASE_U
     await db.collection('chartAccounts').doc(id('bank')).set({ workspaceId: ws, name: 'Bank', type: 'asset', code: '1000' });
     await db.collection('chartAccounts').doc(id('sales')).set({ workspaceId: ws, name: 'Sales', type: 'revenue', code: '4000' });
     await entry('fine', [{ accountId: id('bank'), amountCents: 1000 }, { accountId: id('sales'), amountCents: -1000 }]);
-    await entry('lopsided', [{ accountId: id('bank'), amountCents: 1000 }, { accountId: id('sales'), amountCents: -900 }]);
+    // Simulate a legacy pre-trigger corrupted row so the health doctor can prove it detects it
+    await db.pool.query('alter table public."transactions" disable trigger lf_balanced_ledger');
+    try {
+      await entry('lopsided', [{ accountId: id('bank'), amountCents: 1000 }, { accountId: id('sales'), amountCents: -900 }]);
+    } finally {
+      await db.pool.query('alter table public."transactions" enable trigger lf_balanced_ledger');
+    }
   });
 
   after(async () => {

@@ -1,6 +1,6 @@
 import { Transaction } from '../../types';
 import { AlgorithmDefinition } from './types';
-import { parseLocalDate } from '../../lib/utils';
+import { parseLocalDate } from '../calendarDate';
 import { isPostable } from '../../lib/txFilters';
 
 export function detectRecurrences(transactions: readonly Transaction[], minOccurrences = 2) {

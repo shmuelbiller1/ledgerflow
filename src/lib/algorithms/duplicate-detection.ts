@@ -1,6 +1,6 @@
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { Transaction } from '../../types';
-import { parseLocalDate } from '../../lib/utils';
+import { parseLocalDate } from '../calendarDate';
 
 export const DUPLICATE_DETECTION_ALGO: AlgorithmDefinition = {
   id: 'forensics_duplicates',
