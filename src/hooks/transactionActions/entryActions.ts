@@ -6,8 +6,7 @@ import { Transaction, TransactionLine } from '../../types';
 import { toast } from 'sonner';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import { showBudgetWarnings } from '../../lib/budgetWarnings';
-import { safeAsync, getLocalDateISO } from '../../lib/utils';
-import { OperationType } from '../../lib/firebaseUtils';
+import { getLocalDateISO } from '../../lib/utils';
 import { useBillingStore } from '../../modules/billing/BillingService';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import type { ActionContext, TransactionUpdates, TransactionConflictError } from './shared';
@@ -15,6 +14,7 @@ import { UNDO_WINDOW_MS, errorMessage, isConflictError } from './shared';
 import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
 import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions';
+import { isDocumentEntry } from '../../lib/transactionEdits';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
 /**
@@ -29,61 +29,26 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
   const { recordRulePattern, balanceTransactionLines } = posting;
   const { handleAddRule } = rules;
 
+  /**
+   * #662: the ledger list's "Reverse transaction" button. A posted entry is never un-posted in place: one typed by
+   * hand gets a reversing entry dated today (POST /transactions/:id/reverse), and an entry that belongs to a
+   * document (invoice, bill, payment, credit…) is changed through that document, so the document and the books agree.
+   */
   const handleVoidTransaction = async (id: string) => {
-    const originalTransactions = useLedgerStore.getState().transactions;
-    const tx = originalTransactions.find(t => t.id === id);
+    const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
-
-    if (isPeriodLocked(tx.date)) {
-      toast.error("Security alert: This period is locked for historical integrity.");
+    if (isDocumentEntry(tx)) {
+      toast.error('This entry belongs to a document', { description: 'Void or credit the invoice, bill or payment it came from; the entry follows.' });
       return;
     }
-
-    const [, err] = await safeAsync(
-      fetch(`/api/v1/transactions/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-      body: JSON.stringify({ partialUpdate: { status: 'failed', deletedAt: new Date().toISOString() } })
-    }),
-      OperationType.UPDATE,
-      `transactions/${id}`,
-      { action: 'VOID_TRANSACTION' }
-    );
-
-    if (!err) {
-      await recordAudit('VOID_TRANSACTION', 'transaction', id, { description: tx.description });
-      toast.success('Transaction voided', {
-        duration: UNDO_WINDOW_MS, // I-09: time to change your mind
-        action: {
-          label: 'Undo',
-          onClick: async () => {
-            try {
-              const token = await user?.getIdToken();
-              const res = await fetch(`/api/v1/transactions/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ transaction: { ...tx, status: tx.status, deletedAt: tx.deletedAt || null, updatedAt: new Date().toISOString() } })
-              });
-              if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-              toast.success('Transaction restored');
-            } catch (err) {
-              // the undo used to fail silently
-              toast.error('Could not undo the void', { description: err instanceof Error ? err.message : String(err) });
-            }
-          }
-        }
-      });
-    } else {
-      // No optimistic update rollback needed
-      const message = err?.error || 'Unknown network error';
-      toast.error('Could not void transaction.', {
-        description: `Please try again. (${message})`
-      });
-      throw err;
+    const today = getLocalDateISO();
+    if (isPeriodLocked(today)) {
+      toast.error('Security alert: This period is locked for historical integrity.');
+      return;
     }
+    await handleReverseTransaction(id, today, 'Reversed from the ledger list').catch(() => undefined);
   };
 
-  /** Resolves `true` only when the server saved the entry (callers show success on that, #105). */
   const handleQuickAdd = async (data: Partial<Transaction>, operationId?: string): Promise<boolean> => {
     if (!user || !currentWorkspaceId) return false;
     
