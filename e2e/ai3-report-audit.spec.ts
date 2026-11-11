@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { settleAnimations } from './support/a11yGate';
@@ -61,6 +62,7 @@ async function signInAsGuest(page: Page) {
 }
 
 async function open(page: Page, id: string, title: string) {
+  await installSmallSample(page, true);
   await page.goto(`/?report=${id}#reports`);
   const region = page.getByRole('region', { name: title, exact: true });
   await expect(region).toBeVisible({ timeout: 30000 });

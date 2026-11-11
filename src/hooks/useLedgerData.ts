@@ -15,7 +15,8 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Transaction, ChartAccount, RecurringTransaction, Workspace, CustomTemplate, UserProfile, DimensionNode } from '../types';
 import { Scenario, useScenarioStore } from '../lib/scenarioStore';
-import { seedDemoWorkspace } from '../lib/demoWorkspaceSeeder';
+import { loadGuestCompany, publishGuestCompany } from '../lib/guestCompany';
+import { startGuestDatabase, subscribeGuestDatabase, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { migrateWorkspaceDimensionNodesToCollection } from '../lib/migrations/dimensionNodesMigration';
 
 import { handleFirestoreError, OperationType } from '../lib/firebaseUtils';
@@ -46,24 +47,18 @@ export function useLedgerData() {
   const setCurrentWorkspaceId = useAuthStore(s => s.setCurrentWorkspaceId);
   const setUserProfile = useAuthStore(s => s.setUserProfile);
   
-  const setAccounts = useLedgerStore(s => s.setAccounts);
-  const setCustomers = useLedgerStore(s => s.setCustomers);
-  const setVendors = useLedgerStore(s => s.setVendors);
-  const setTransactions = useLedgerStore(s => s.setTransactions);
-  
-  // Guest mode seed effect
+  // The sample has its own local transport and no authenticated identity/subscriptions.
   useEffect(() => {
-    if (!user && isGuest) {
-      const demoData = seedDemoWorkspace('guest');
-      setAccounts(demoData.accounts);
-      setCustomers(demoData.customers);
-      setVendors(demoData.vendors);
-      setTransactions(demoData.transactions);
-      if (!currentWorkspaceId) {
-        setCurrentWorkspaceId('guest');
-      }
+    if (user || !isGuest) return;
+    startGuestDatabase();
+    if (currentWorkspaceId !== SAMPLE_WORKSPACE_ID) {
+      setCurrentWorkspaceId(SAMPLE_WORKSPACE_ID);
+      return;
     }
-  }, [user, isGuest, setAccounts, setCustomers, setVendors, setTransactions, currentWorkspaceId, setCurrentWorkspaceId]);
+    useDataNeedsStore.getState().resetLoaded(SAMPLE_WORKSPACE_ID);
+    loadGuestCompany();
+    return subscribeGuestDatabase(publishGuestCompany);
+  }, [user, isGuest, currentWorkspaceId, setCurrentWorkspaceId]);
 
 
   const userEmail = user?.email || '';

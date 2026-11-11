@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 import { waitForFiniteAnimations } from './support/a11yGate';
 
@@ -28,6 +29,7 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
         localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
         localStorage.setItem('lf_theme', selectedTheme);
       }, theme);
+      await installSmallSample(page);
       await page.goto(url);
       const main = page.locator('#main-content');
       await expect(main.getByRole('heading', { name: heading, exact: true })).toBeVisible({ timeout: 20_000 });

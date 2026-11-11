@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 
 // G-02 navigation evidence only. Guest data + stubbed APIs cannot certify signup or posting.
@@ -25,6 +26,7 @@ for (const width of [390, 1280]) for (const dark of [false, true]) {
       localStorage.setItem('ledgerflow-cookie-consent', JSON.stringify({ essential: true, analytics: false }));
       localStorage.setItem('lf_theme', dark ? 'dark' : 'light');
     }, dark);
+    await installSmallSample(page);
     await page.goto('/#dashboard');
     const main = page.locator('#main-content');
     const openGuide = async () => {
@@ -90,12 +92,13 @@ for (const width of [390, 1280]) for (const dark of [false, true]) {
     }
     await guide.getByRole('button', { name: 'Choose accounts', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(1);
+    await expect.poll(() => page.getByRole('dialog').evaluate(el => el.contains(document.activeElement))).toBe(true);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     // Empty demo books use the same guide, rather than claiming a ready ledger.
     await page.evaluate(async () => {
-      const path = '/src/stores/useLedgerStore.ts';
-      (await import(path)).useLedgerStore.setState({ accounts: [], transactions: [] });
+      const { replaceGuestCompany } = await import('/src/lib/guestCompany.ts');
+      replaceGuestCompany({ currency: 'USD', accounts: [], transactions: [], invoices: [], bills: [], customers: [], vendors: [] }, 'Empty sample');
     });
     await expect(main.getByRole('heading', { name: 'Start your books', exact: true })).toBeVisible();
     await expect(main.getByRole('listitem')).toHaveCount(8);

@@ -22,7 +22,7 @@ export interface BillingState {
 
 export const useBillingStore = create<BillingState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       currentPlan: 'free',
       transactionCount: 0,
       userCount: 1,
@@ -55,20 +55,11 @@ export const useBillingStore = create<BillingState>()(
       },
       // NOTE: checkQuota is for UX/UI feedback ONLY (e.g., showing upgrade prompts or disabling buttons).
       // True security and plan capacity limits are enforced server-side in Firestore rules and API routes.
-      checkQuota: (plan?: string, txCount?: number) => {
-        const workspacePlan = useAuthStore.getState().getCurrentWorkspace()?.plan;
-        const activePlan = (plan || workspacePlan || 'free').toLowerCase();
-        const activeTxCount = txCount !== undefined ? txCount : get().transactionCount;
-        
-        if (activePlan === 'free' || activePlan === 'sandbox') {
-          const cap = get().freeWorkspaceTxCap ?? 100;
-          return activeTxCount < cap;
-        } else if (activePlan === 'growth') {
-          return activeTxCount < 1000;
-        } else if (activePlan === 'pro') {
-          return activeTxCount < 10000;
-        } else if (activePlan === 'enterprise') {
-          return true;
+      // Strategy 7: Ledger entries are uncapped on standard plans so automation and bank feeds are never penalized.
+      checkQuota: (_plan?: string, _txCount?: number) => {
+        const ws = useAuthStore.getState().getCurrentWorkspace() as ({ apiQuotaMonthlyLimitCents?: number } | undefined);
+        if (ws?.apiQuotaMonthlyLimitCents && _txCount !== undefined) {
+          return _txCount < Math.floor(ws.apiQuotaMonthlyLimitCents / 100);
         }
         return true;
       }

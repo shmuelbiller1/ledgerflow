@@ -16,7 +16,9 @@ test('reconciliation retains mixed-language search between empty streams and mat
     const [{ default: React }, { default: { createRoot } }, { default: Reconciliation }, { useAuthStore }, { useLedgerStore }] = await Promise.all([
       import(reactPath), import(domPath), import(screenPath), import(authPath), import(ledgerPath),
     ]);
-    useAuthStore.setState({ user: null, currentWorkspaceId: null, workspaces: [] });
+    // This independently mounted empty-state probe must not leave the full app's guest seeder active.
+    useAuthStore.getState().setIsGuest(false);
+    useAuthStore.setState({ user: null, isGuest: false, currentWorkspaceId: null, workspaces: [] });
     useLedgerStore.setState({ transactions: [], accounts: [], bankLines: [], autoRules: [] });
     const host = document.createElement('div');
     host.id = 'reconciliation-navigation-probe';

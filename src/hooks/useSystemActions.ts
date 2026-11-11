@@ -18,6 +18,7 @@ export function useSystemActions() {
   }, []);
 
   const handleLogout = useCallback(() => {
+    const wasGuest = useAuthStore.getState().isGuest;
     useAuthStore.getState().setIsGuest(false);
     localStorage.removeItem('ledgerflow_use_sandbox_mode');
     localStorage.removeItem('ledgerflow_identity_email');
@@ -34,7 +35,7 @@ export function useSystemActions() {
       });
     }
     
-    signOut(auth).catch((err) => { console.warn('[useSystemActions] Sign-out warning:', err); });
+    if (!wasGuest) signOut(auth).catch((err) => { console.warn('[useSystemActions] Sign-out warning:', err); });
     toast.success('Returned to login screen');
   }, []);
 

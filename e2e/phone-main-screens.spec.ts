@@ -23,7 +23,8 @@ for (const screen of screens) {
       window.print = () => {};
     });
     await page.goto(`/#${screen.tab}`);
-    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
+    // Wait for the lazy screen, not just the shell returned by navigation.
+    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible({ timeout: 15_000 });
     const action = page.locator('#main-content').getByRole('button', { name: screen.action, exact: true });
     await expect(action).toBeEnabled();
     await action.scrollIntoViewIfNeeded();
@@ -41,7 +42,7 @@ for (const screen of screens) {
     } else if (screen.tab === 'settings') {
       await expect(page.getByRole('button', { name: 'Choose export', exact: true })).toBeVisible();
     } else {
-      await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible({ timeout: 15_000 });
     }
   });
 }
@@ -72,7 +73,8 @@ for (const screen of nextScreens) {
       window.print = () => {};
     });
     await page.goto(`/#${screen.tab}`);
-    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
+    // Wait for the lazy screen, not just the shell returned by navigation.
+    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible({ timeout: 15_000 });
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 
     // #main-content clips overflow, so the document width alone would hide a table hanging off the

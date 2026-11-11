@@ -42,12 +42,18 @@ export default function PublicInvoicePage() {
       });
   }, [setSafeTimeout]);
 
-  const handlePay = async () => {
+  const handlePay = async (paymentMethod?: 'card' | 'us_bank_account') => {
     if (!invoice) return;
     setIsPaying(true);
     try {
       const res = await fetch(`/api/v1/invoices/public/${invoice.paymentToken}/pay`, {
-        method: 'POST'
+        method: 'POST',
+        ...(paymentMethod
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentMethod }),
+            }
+          : {}),
       });
       const data = await res.json();
       if (data.url) {
@@ -106,13 +112,25 @@ export default function PublicInvoicePage() {
                 Paid
               </div>
             ) : (
-              <button
-                onClick={handlePay}
-                disabled={isPaying}
-                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md transition-all flex items-center gap-2 disabled:opacity-50 tabular-nums"
-              >
-                {isPaying ? 'Processing...' : `Pay ${formatCurrency(dueCents, currency)}`}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {currency.toUpperCase() === 'USD' && (
+                  <button
+                    type="button"
+                    onClick={() => void handlePay('us_bank_account')}
+                    disabled={isPaying}
+                    className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 rounded-lg text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+                  >
+                    Bank transfer (ACH)
+                  </button>
+                )}
+                <button
+                  onClick={() => void handlePay()}
+                  disabled={isPaying}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md transition-all flex items-center gap-2 disabled:opacity-50 tabular-nums"
+                >
+                  {isPaying ? 'Processing...' : `Pay ${formatCurrency(dueCents, currency)}`}
+                </button>
+              </div>
             )}
           </div>
         </div>

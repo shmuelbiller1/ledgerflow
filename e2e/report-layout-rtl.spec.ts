@@ -1,3 +1,4 @@
+import { mountJourney } from './support/journeyFixture';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -7,8 +8,8 @@ test('phone report columns reorder by keyboard, export exactly the visible cells
   page.on('console', message => { if (message.type() === 'error' && /same key/.test(message.text())) errors.push(message.text()); });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route('**/api/**', route => route.fulfill({ status: 404, json: {} }));
-  await page.addInitScript(() => { localStorage.setItem('isGuest', 'true'); localStorage.setItem('has_seen_onboarding', 'true'); });
-  await page.goto('/');
+  // This component/locale probe must not race the full app's sample workspace hydration.
+  await mountJourney(page, { workspaceId: 'rtl-probe', ledger: {}, mounts: [] });
   await page.evaluate(async () => {
     const paths = ['/node_modules/.vite/deps/react.js', '/node_modules/.vite/deps/react-dom_client.js', '/src/components/reporting/ReportTableScroll.tsx', '/src/components/ui/Money.tsx', '/src/stores/useAuthStore.ts', '/src/stores/useLedgerStore.ts'];
     const [{ default: React }, { default: { createRoot } }, { default: Scroll }, { Money }, { useAuthStore }, { useLedgerStore }] = await Promise.all(paths.map(path => import(path)));

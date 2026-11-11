@@ -17,7 +17,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { applyRule, suggestRule } from '../../lib/allocationRules';
 import { billItemProblem } from '../../lib/billStock';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
+import { nextDocumentNumber } from '../../services/documentNumbers';
 import AsyncButton from '../ui/AsyncButton';
 import { evaluateApprovalRequirement } from '../../lib/approvalWorkflow';
 import { addComment } from '../../lib/commentService';
@@ -54,6 +54,7 @@ const copyLine = (s: NonNullable<Bill['splits']>[number], keepOrder = true) => (
 
 /** Modal form for creating or editing a vendor bill and its line-level accounts, stock items, and dimension labels. */
 export default function BillModal({ isOpen, onClose, onSave, vendors = [], accounts = [], initialBill }: BillModalProps) {
+  const isGuest = useAuthStore(s => s.isGuest && !s.user);
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeVendors = (Array.isArray(vendors) ? vendors : []).filter(c => !isArchivedParty(c) || c.id === initialBill?.vendorId);
@@ -80,21 +81,8 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         try {
           const wsId = useAuthStore.getState().currentWorkspaceId;
           if (!wsId) return;
-          const token = await getIdToken().catch(() => '');
-          const res = await fetch(`/api/v1/workspaces/${wsId}/next-number`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ type: 'bill' })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.number) {
-              setBill(prev => ({ ...prev, number: data.number }));
-            }
-          }
+          const number = await nextDocumentNumber(wsId, 'bill');
+          setBill(prev => ({ ...prev, number }));
         } catch (e) {
           console.error('Failed to fetch next bill number', e);
         }
@@ -534,7 +522,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
                 </div>
               </div>
               <div className="space-y-4">
-                {bill.id ? (
+                {isGuest ? <p className="text-sm text-[var(--muted)]">Files are not saved in the sample company. Sign in to attach files.</p> : bill.id ? (
                   <AttachmentsPanel target={{ collection: 'bills', id: bill.id, label: `Bill ${bill.number || ''}`.trim() }} />
                 ) : (
                   <div className="space-y-2">

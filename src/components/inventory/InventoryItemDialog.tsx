@@ -27,6 +27,7 @@ interface InventoryItemDialogProps {
   /** A-19: every item, so a bundle can pick its parts */
   allItems?: InventoryItem[];
   canChangeStock: boolean;
+  stockActionsAvailable?: boolean;
   onClose: () => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onItemImageChange?: (itemId: string) => void;
@@ -37,7 +38,7 @@ interface InventoryItemDialogProps {
 }
 
 /** The add / edit item form of the Inventory screen (F-16: moved out of Inventory.tsx). */
-export default function InventoryItemDialog({ open, editingItem, categories, taxCodes = [], allItems = [], canChangeStock, onClose, onSubmit, onItemImageChange, onAdjust, onRevalue }: InventoryItemDialogProps) {
+export default function InventoryItemDialog({ open, editingItem, categories, taxCodes = [], allItems = [], canChangeStock, stockActionsAvailable = true, onClose, onSubmit, onItemImageChange, onAdjust, onRevalue }: InventoryItemDialogProps) {
   const { formRef, clearFieldError } = useNativeFormErrors(open);
   // ISS-130: with stock on hand the cost is on the books; it changes by a revaluation, never by this form
   // ISS-130: stock above zero has a value on the books; its cost changes only through a revaluation
@@ -198,7 +199,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                     <div className="flex items-center justify-between px-6 py-4 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] font-bold">
                       <span className="tabular-nums">{editingItem.quantityAtHand}</span>
                       {canChangeStock && (
-                        <button type="button" onClick={() => onAdjust(editingItem)} className="text-xs font-semibold text-emerald-700 hover:underline">
+                        <button type="button" disabled={!stockActionsAvailable} onClick={() => { if (stockActionsAvailable) onAdjust(editingItem); }} className="text-xs font-semibold text-emerald-700 hover:underline">
                           Adjust stock
                         </button>
                       )}
@@ -210,6 +211,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                     <input
                       id="inv-quantity"
                       name="quantity"
+                      disabled={!stockActionsAvailable}
                       type="number"
                       min="0"
                       step="any"
@@ -217,7 +219,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                       aria-describedby="inv-quantity-help"
                       className="w-full px-6 py-4 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:outline-none focus:ring-2 focus:ring-zinc-900 transition-all font-bold"
                     />
-                    <p id="inv-quantity-help" className="text-[10px] text-[var(--muted)]">Recorded at the unit cost against Opening Balance Equity.</p>
+                    <p id="inv-quantity-help" className="text-[10px] text-[var(--muted)]">{stockActionsAvailable ? 'Recorded at the unit cost against Opening Balance Equity.' : 'Opening stock needs a signed-in workspace. This item will start with zero stock.'}</p>
                   </div>
                 )}
                 <div className="space-y-2">

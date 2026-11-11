@@ -28,6 +28,10 @@ export interface PracticeRow {
   nextRecurring: { date: string; description: string } | null;
   /** Data Health from the nightly check (missing labels, duplicate bills, unbalanced entries…), when it ran */
   health: { serious: number; warnings: number; checkedAt: string } | null;
+  /** Strategy 1: measured bank-feed no-touch automation rate for this client book */
+  noTouch?: { noTouchCount: number; totalBankLines: number; ratePercent: number | null } | null;
+  /** Strategy 1: deterministic 0–100 month-end close readiness score */
+  closeReadiness?: { score: number; grade: 'ready' | 'almost_ready' | 'attention_needed' } | null;
 }
 
 /** How much is waiting: each count, and one for last month still open. */

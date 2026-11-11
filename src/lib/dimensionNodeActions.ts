@@ -1,3 +1,5 @@
+import { workspaceActor } from './guestActor';
+import { guestSession, guestRows, writeGuestBatch } from './db/guestDatabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { doc, getDoc, setDoc, updateDoc } from './db/firestore';
@@ -69,6 +71,7 @@ export function deriveDimensionAxisId(
 }
 
 export interface DimensionActionSession {
+  sampleSession?: object;
   uid: string;
   workspaceId: string;
   canWriteNodes: boolean;
@@ -101,10 +104,12 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
   session: () => {
     const auth = useAuthStore.getState();
     const workspace = auth.getCurrentWorkspace();
-    if (!auth.user || !workspace || workspace.id !== auth.currentWorkspaceId) return null;
-    const role = workspace.uid === auth.user.uid ? 'owner' : workspace.roles?.[auth.user.uid];
+    const actor = workspaceActor(auth);
+    if (!actor || !workspace || workspace.id !== auth.currentWorkspaceId) return null;
+    const role = workspace.uid === actor.uid ? 'owner' : workspace.roles?.[actor.uid];
     return {
-      uid: auth.user.uid,
+      uid: actor.uid,
+      ...(guestSession() ? { sampleSession: guestSession()! } : {}),
       workspaceId: workspace.id,
       canWriteNodes: role === 'owner' || role === 'accountant' || role === 'bookkeeper',
       canManageAxes: role === 'owner' || role === 'accountant',
@@ -129,6 +134,12 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
   createOnlyNode: async (workspaceId, node) => {
     if (!db) return 'created';
     const rowId = nodeDocId(workspaceId, node.dimensionId, node.id);
+    const sampleSession = guestSession();
+    if (sampleSession) {
+      if (guestRows('dimensionNodes').some(row => row.id === rowId)) return 'conflict';
+      writeGuestBatch([{ op: 'set', table: 'dimensionNodes', id: rowId, data: { ...node, workspaceId } }], sampleSession);
+      return 'created';
+    }
     const { error } = await db.client().from('dimensionNodes').insert({
       id: rowId,
       data: { ...node, workspaceId },
@@ -162,7 +173,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
 /** Verifies the signed-in user and active workspace have not changed while an async write was in flight. */
 function assertSameSession(adapter: DimensionNodeActionAdapter, initial: DimensionActionSession) {
   const current = adapter.session();
-  if (!current || current.uid !== initial.uid || current.workspaceId !== initial.workspaceId) {
+  if (!current || current.uid !== initial.uid || current.workspaceId !== initial.workspaceId || current.sampleSession !== initial.sampleSession) {
     throw new Error('Workspace or signed-in user changed before the label finished saving.');
   }
   return current;

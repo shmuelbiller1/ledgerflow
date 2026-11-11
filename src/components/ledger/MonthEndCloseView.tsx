@@ -23,6 +23,7 @@ import CloseJourneyPanel from './CloseJourneyPanel';
 import PeriodClosingPanel from './PeriodClosingPanel';
 import { closeStepItems } from '../../lib/closeSteps';
 import { closePackageSheets } from '../../lib/closePackage';
+import { computeNoTouchRate } from '../../lib/practiceAutomation';
 import type { ClientQuery } from '../../lib/clientQueries';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 
@@ -221,6 +222,7 @@ export default function MonthEndCloseView() {
   };
 
   const doneCount = items.filter(i => i.status === 'done' || signOffs[i.id]).length + stepItems.filter(i => signOffs[i.id]).length;
+  const noTouchMonth = useMemo(() => computeNoTouchRate((bankLines || []) as never, transactions || [], month), [bankLines, transactions, month]);
   const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
 
   return (
@@ -257,6 +259,7 @@ export default function MonthEndCloseView() {
                 {workspace?.lockDate ? `Closed through ${workspace.lockDate}` : 'Nothing is closed'}
                 {workspace?.softLockDate && workspace.softLockDate > (workspace.lockDate || '') ? ` · soft-closed through ${workspace.softLockDate}` : ''}
                 {lockException ? ` · unlocked ${lockException.fromDate} to ${lockException.toDate}` : ''}
+                {noTouchMonth.ratePercent !== null ? ` · No-touch bank rate: ${noTouchMonth.ratePercent}% (${noTouchMonth.noTouchCount}/${noTouchMonth.totalBankLines})` : ''}
               </p>
             </div>
             <div className="text-sm text-[var(--muted)]">{doneCount} of {items.length + stepItems.length} checked</div>

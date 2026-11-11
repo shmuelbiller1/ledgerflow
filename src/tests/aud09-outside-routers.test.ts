@@ -19,7 +19,7 @@ const VALIDATES_FIRST = new Set([
   'post /api/v1/reports/explain', 'post /api/v1/billing/verify-session', 'post /api/v1/billing/record-compute',
 ]);
 /** Answers "not built yet" to everyone before any check; nothing is written. */
-const NOT_BUILT = new Set(['post /api/v1/consolidation/eliminate']);
+const NOT_BUILT = new Set<string>([]);
 
 type Db = { pool: { query: (q: string, p: unknown[]) => Promise<unknown> }; terminate: () => Promise<void>; collection: (n: string) => { doc: (id: string) => { set: (d: object) => Promise<unknown> } } };
 

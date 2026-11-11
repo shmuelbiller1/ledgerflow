@@ -1,10 +1,12 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
-import { FieldValue, getDb, assertPeriodOpen, isWorkspaceMemberData } from '../db/firestore';
+import { FieldValue, getDb, assertPeriodOpen, isWorkspaceMemberData, validateWorkspaceMember } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { mayPostEntries } from '../http/ledgerWriter';
+import { computePropertyRentRoll, reconcileSecurityDepositTrust } from '../../lib/verticalAccounting';
+import type { Invoice } from '../../types';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
@@ -35,10 +37,11 @@ leaseRouter.post('/capitalize', async (req, res) => {
     const user = requestUser(req);
     const db = getDb();
 
-    // 1. Authorize workspace membership FIRST before checking idempotency (#82)
-    const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-    const wsData = wsDoc.data();
-    if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, workspaceId)) {
+    // 1. Authorize workspace membership & API-key workspace scope FIRST before checking idempotency (#82)
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, workspaceId, user));
+    } catch {
       return res.status(403).json({ error: 'Not a member' });
     }
     if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
@@ -131,5 +134,103 @@ leaseRouter.post('/capitalize', async (req, res) => {
       ? explicitStatus
       : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
     res.status(status).json({ error: errorMessage(e) });
+  }
+});
+
+const TrustReconciliationSchema = z.object({
+  workspaceId: z.string().min(1),
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  bankStatementTrustCents: z.number().int(),
+  outstandingDepositsCents: z.number().int().optional(),
+  outstandingChecksCents: z.number().int().optional(),
+  trustCashBookBalanceCents: z.number().int(),
+  trustLiabilityAccountBalanceCents: z.number().int(),
+  tenantSubledgers: z.array(
+    z.object({
+      unitId: z.string().min(1),
+      tenantName: z.string().min(1),
+      heldCents: z.number().int(),
+    }),
+  ),
+});
+
+leaseRouter.post('/trust-reconciliation', async (req, res) => {
+  try {
+    const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+    if (!rawWorkspaceId) {
+      return res.status(400).json({ error: 'workspaceId is required' });
+    }
+    const user = requestUser(req);
+    const db = getDb();
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
+    } catch {
+      return res.status(403).json({ error: 'Not a member' });
+    }
+    if (!mayPostEntries(wsData, user)) {
+      return res.status(403).json({ error: 'Only owners, accountants and bookkeepers run trust reconciliations' });
+    }
+
+    const parsed = TrustReconciliationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+    }
+
+    const result = reconcileSecurityDepositTrust(parsed.data);
+    return res.json({ status: 'ok', reconciliation: result });
+  } catch (e) {
+    return res.status(400).json({ error: errorMessage(e) });
+  }
+});
+
+const RentRollRequestSchema = z.object({
+  workspaceId: z.string().min(1),
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  units: z.array(
+    z.object({
+      unitId: z.string().min(1),
+      propertyId: z.string().min(1),
+      propertyName: z.string().min(1),
+      unitLabel: z.string().min(1),
+      tenantId: z.string().nullable().optional(),
+      tenantName: z.string().nullable().optional(),
+      monthlyRentCents: z.number().int().nonnegative(),
+      leaseStart: z.string().nullable().optional(),
+      leaseEnd: z.string().nullable().optional(),
+      securityDepositHeldCents: z.number().int().nonnegative(),
+    }),
+  ),
+});
+
+leaseRouter.post('/rent-roll', async (req, res) => {
+  try {
+    const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+    if (!rawWorkspaceId) {
+      return res.status(400).json({ error: 'workspaceId is required' });
+    }
+    const user = requestUser(req);
+    const db = getDb();
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
+    } catch {
+      return res.status(403).json({ error: 'Not a member' });
+    }
+    if (!mayPostEntries(wsData, user)) {
+      return res.status(403).json({ error: 'Only owners, accountants and bookkeepers compute rent rolls' });
+    }
+
+    const parsed = RentRollRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+    }
+
+    const invSnap = await db.collection('invoices').where('workspaceId', '==', rawWorkspaceId).get();
+    const invoices = invSnap.docs.map(d => ({ ...(d.data() as Invoice), id: d.id }));
+    const rentRoll = computePropertyRentRoll(parsed.data.units, invoices, parsed.data.asOfDate);
+    return res.json({ status: 'ok', rentRoll });
+  } catch (e) {
+    return res.status(400).json({ error: errorMessage(e) });
   }
 });
