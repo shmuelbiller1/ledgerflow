@@ -25,6 +25,7 @@ import {
 } from './tax/profile';
 import { filingCalendarRow, filingDueDate } from './tax/usFilingCalendar';
 import { nexusThreshold } from './tax/usNexus';
+import { documentEntityLabels } from './tax/ilVatReturn';
 import { usSalesTaxReturn, type UsSalesDocument } from './tax/usSalesTaxReturn';
 import { NO_STATE_SALES_TAX, US_STATE_SALES_TAX } from './tax/usStateSalesTax';
 import { reviewUseTax, type UseTaxBill, type UseTaxItem, type UseTaxReview } from './tax/usUseTax';
@@ -324,7 +325,7 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
     if (!COUNTED_SALES.has(String(doc.status)) || date < startDate || date > endDate) continue;
     if (Number(doc.taxAmountCents || 0) !== 0) continue;
     if (doc.taxTreatment !== 'exempt' && doc.taxTreatment !== 'zero_rated') continue;
-    const seller = resolveSellerProfile(profiles, doc.dimensions, order);
+    const seller = resolveSellerProfile(profiles, documentEntityLabels(doc), order);
     if (!registrationsOn(seller, 'sales_tax', date).some(r => r.place?.country === 'US')) continue;
     const customer = doc.customerId ? customersById.get(doc.customerId) : undefined;
     const place = (customer?.metadata as { taxPlace?: { country?: string; state?: string } } | undefined)?.taxPlace;

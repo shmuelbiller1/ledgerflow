@@ -9,6 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { usSalesTaxReturn, type UsSalesDocument } from '../lib/tax/usSalesTaxReturn';
+import { usQuarterJourney } from '../lib/usQuarterJourney';
 import type { TaxProfiles } from '../lib/tax/profile';
 
 const profiles: TaxProfiles = {
@@ -127,4 +128,19 @@ test('#518: what is not unplaced — a sale abroad, a counter sale with no place
   assert.deepEqual([...figures(walkIn), walkIn.unplaced.documentCount], [1, 10000, 825, 0]);
   const complete = txReturn([sale('s1', { metadata: { taxPlace: TX } })], TX);
   assert.equal(complete.unplaced.documentCount, 0);
+});
+
+test('#613 review: the certificate check finds the seller the same way the return does (first-line label)', () => {
+  // the books hold only an Israeli VAT number; the Texas entity holds permit 3200. One Q3 exempt sale of 400.00,
+  // no tax, to a Texas customer with no certificate, labelled Texas on its first line only (as the invoice screen saves it)
+  const dallas = [...customers, { id: 'dallas', metadata: { taxPlace: { country: 'US', state: 'TX' } } }];
+  const sale = doc('ex1', 'dallas', 40000, 0, [], { dimensions: undefined, taxTreatment: 'exempt', items: [{ dimensions: tx }] });
+  const q = usQuarterJourney({ quarter: '2026-Q3', today: '2026-10-05', profiles, order: ['world'], customers: dallas, invoices: [sale], creditNotes: [] });
+  const step = q.steps.find(s => s.id === 'certificates')!;
+  assert.equal(step.status, 'attention');
+  assert.deepEqual(step.figures, [
+    { label: 'Zero-tax sales', count: 1 },
+    { label: 'Certificate missing', count: 1 },
+    { label: 'Certificate expired', count: 0 },
+  ]);
 });
