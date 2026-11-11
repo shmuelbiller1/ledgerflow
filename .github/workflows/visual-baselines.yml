@@ -4,7 +4,6 @@ name: Refresh visual baselines
 # (and the artifact); a reviewer opens the images there and merges the branch only after looking.
 permissions:
   contents: write
-  actions: read
 on:
   workflow_dispatch:
     inputs:
@@ -24,19 +23,21 @@ jobs:
       - run: npm ci --ignore-scripts
         env:
           HUSKY: 0
-      - name: Diagnose previous browser installation failure
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Install Playwright with surfaced diagnostics
         run: |
-          gh api repos/${{ github.repository }}/actions/jobs/130650338726/logs > "$RUNNER_TEMP/previous-browser.log"
-          python3 - <<'PYTHON'
+          set +e
+          node_modules/.bin/playwright install --with-deps chromium > "$RUNNER_TEMP/browser-install.log" 2>&1
+          status=$?
+          tail -60 "$RUNNER_TEMP/browser-install.log"
+          if [ "$status" -ne 0 ]; then
+            python3 - <<'PYTHON'
           import os
-          lines = open(os.environ['RUNNER_TEMP'] + '/previous-browser.log').read().splitlines()
-          install = [line for line in lines if 'error' in line.lower() or 'Error' in line or 'failed' in line.lower() or 'https://' in line]
-          message = '\n'.join(install[-45:])
-          print('::warning title=Previous browser installation log::' + message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          lines = open(os.environ['RUNNER_TEMP'] + '/browser-install.log').read().splitlines()
+          message = '\n'.join(lines[-55:])
+          print('::error title=Browser installation failure::' + message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PYTHON
-      - run: node_modules/.bin/playwright install --with-deps chromium
+          fi
+          exit "$status"
       - name: Generate candidate reference images
         env:
           # Read in the shell, never interpolated into the script text: the spec wraps this line in
