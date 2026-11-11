@@ -171,8 +171,6 @@ export default function Inventory() {
       category: formData.get('category') as string,
       // BF-01: an item with stock on hand stays a stock item
       itemType: formData.get('itemType') === 'service' && !editingItem.quantityAtHand ? 'service' : (editingItem.quantityAtHand ? editingItem.itemType || 'stock' : 'stock'),
-      // A-7 (CA-16): the default tax code an invoice line for this item fills in
-
       // A-30: the item tax category the state taxability table reads
       productTaxCategory: (formData.get('productTaxCategory') as string) || undefined,
       // A-19: the bundle's parts (empty = an ordinary item)
@@ -191,6 +189,7 @@ export default function Inventory() {
         ...updates,
         // Atomic nested update: notes/images edited beside this form must not be replaced by its old metadata.
         'metadata.documentDefaults': Object.keys(defaults).length ? defaults : deleteField(),
+        // A-7: a cleared visible item tax field must remove the saved default.
         defaultTaxCodeId: String(formData.get('defaultTaxCodeId') || '') || deleteField(),
       });
       setEditingItem(null);

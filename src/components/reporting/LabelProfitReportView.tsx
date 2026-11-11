@@ -48,7 +48,8 @@ export default function LabelProfitReportView() {
     const node = (nodes || []).find(n => n.dimensionId === dimensionId && n.id === value);
     return node?.description || value;
   };
-  const dimensionName = dimensions.find(d => d.id === dimensionId)?.name || dimensionId;
+  const dimension = dimensions.find(d => d.id === dimensionId);
+  const dimensionName = dimension ? displayDimensionName(dimension) : dimensionId;
 
   /** a figure that opens the entries behind it; income is shown as credits, so its sign is turned */
   const cell = (cents: number, accountIds: string[], value: string | null, name: string, section: Section | null) => (

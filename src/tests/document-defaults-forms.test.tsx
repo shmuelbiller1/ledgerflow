@@ -58,7 +58,7 @@ test('existing invoice party selection does not introduce defaults or change its
   change('Item / Description', 'Service');
   assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, '');
   assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
-  assert.doesNotMatch(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /P1/);
+  assert.doesNotMatch(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /House/);
 });
 test('service item fills defaults without linking stock or booking stock cost; saved labels travel on line', async () => {
   const saved: Array<{ items?: unknown[] }> = [];
@@ -114,18 +114,18 @@ test('inventory update writes only the defaults metadata path, preserving concur
   const originalFormData = globalThis.FormData;
   globalThis.FormData = window.FormData;
   try {
-  const calls = stubFetchWithBodies(200, [{ id: item.id, data: { ...item, metadata: { recordNotes: [{ text: 'New note' }] } } }]);
-  render(<Inventory />);
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Edit item Service' })));
-  fireEvent.click(screen.getByRole('button', { name: 'Edit item Service' }));
-  change('Default account', 'exp');
-  change('Default tax code', '');
-  await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Update Item' }).closest('form')!); });
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-  const body = calls.find(c => c.url.includes('lf_update'))!.body as { p_set: Record<string, unknown>; p_unset: string[] };
-  assert.deepEqual(body.p_set['metadata.documentDefaults'], { accountId: 'exp' });
-  assert.equal('metadata' in body.p_set, false, 'never replace notes with stale metadata');
-  assert.ok(body.p_unset.includes('defaultTaxCodeId'), 'explicitly clearing item tax removes its old field');
+    const calls = stubFetchWithBodies(200, [{ id: item.id, data: { ...item, metadata: { recordNotes: [{ text: 'New note' }] } } }]);
+    render(<Inventory />);
+    await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Edit item Service' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item Service' }));
+    change('Default account', 'exp');
+    change('Default tax code', '');
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Update Item' }).closest('form')!); });
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
+    const body = calls.find(c => c.url.includes('lf_update'))!.body as { p_set: Record<string, unknown>; p_unset: string[] };
+    assert.deepEqual(body.p_set['metadata.documentDefaults'], { accountId: 'exp' });
+    assert.equal('metadata' in body.p_set, false, 'never replace notes with stale metadata');
+    assert.ok(body.p_unset.includes('defaultTaxCodeId'), 'explicitly clearing item tax removes its old field');
   } finally { globalThis.FormData = originalFormData; }
 });
 test('cancelled item defaults do not leak to the next new item', () => {
@@ -150,4 +150,24 @@ test('default edit markers reset on reopening and workspace identity changes', a
   result.current.markTax();
   await act(async () => { useAuthStore.setState({ currentWorkspaceId: 'different-workspace' }); });
   assert.equal(result.current.taxAvailable(), true);
+});
+
+test('new preselected invoice and bill inherit eligible contact defaults on their first lines', () => {
+  const view = render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={customers} accounts={accounts} initialInvoice={{ customerId: 'c', customerName: 'Client' }} />);
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'gst');
+  assert.match(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /House/);
+  view.unmount();
+  render(<BillModal isOpen onClose={() => {}} onSave={() => {}} vendors={vendors} accounts={accounts} initialBill={{ vendorId: 'v' }} />);
+  assert.equal((screen.getByLabelText('Expense Account') as HTMLInputElement).value, 'exp');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'gst');
+});
+
+test('prefilled invoice lines, custom tax and explicit no-tax choices win over contact defaults', () => {
+  const initial = { customerId: 'c', customerName: 'Client', taxCodeId: '', items: [{ id: 'provided', description: 'My line', accountId: 'alt', quantity: 2, rateCents: 400, amountCents: 800, dimensions: { project: 'Mine' } }] };
+  render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={customers} accounts={accounts} initialInvoice={initial} />);
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Other');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
+  assert.equal((screen.getByLabelText('Item / Description') as HTMLInputElement).value, 'My line');
+  assert.match(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /Mine/);
 });

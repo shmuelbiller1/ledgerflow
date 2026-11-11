@@ -86,6 +86,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     { id: crypto.randomUUID(), description: '', quantity: 1, rateCents: 0, amountCents: 0, accountId: '' }
   ]);
 
+  const taxRates = useLedgerStore(s => s.taxRates || []);
+  const salesCodes = useMemo(() => taxRates.filter(r => r.type === 'Sales' && r.appliesTo !== 'purchases').map(taxCodeFromRate), [taxRates]);
+
   const [filledFrom, setFilledFrom] = useState<Partial<Invoice> | undefined>(undefined);
   // whether the terms came from a customer (not chosen by hand), so picking another customer with no
   // usual terms puts the default back instead of keeping the previous customer's (CC-11)
@@ -103,14 +106,18 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
       ? termsForCustomer(safeCustomers.find(c => c.id === initialInvoice.customerId) as { id: string; paymentTerms?: string; groupId?: string } | undefined,
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;
+    const hints = !initialInvoice.id ? documentDefaultsOf(safeCustomers.find(c => c.id === initialInvoice.customerId)) : {};
+    const defaultTax = !Object.hasOwn(initialInvoice, 'taxCodeId') && !Object.hasOwn(initialInvoice, 'taxRate') && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
     setTermsInherited(Boolean(preset));
     setDueDateEdited(false);
     setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : {
-      ...prev, ...initialInvoice,
+      ...prev, ...defaultTax, ...initialInvoice,
       ...(preset ? { paymentTerms: preset, dueDate: calculateDueDate(initialInvoice.date || prev.date || '', preset) } : {}),
     }));
     if (initialInvoice.items && initialInvoice.items.length > 0) {
-      setItems(initialInvoice.items);
+      setItems(initialInvoice.items.map(line => defaults.fill(line, hints)));
+    } else if (!initialInvoice.id) {
+      setItems(prev => prev.map(line => defaults.fill(line, hints)));
     }
   }
 
@@ -170,8 +177,6 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const [attachments, setAttachments] = useState<File[]>([]);
   const total = items.reduce((sum, item) => sum + item.amountCents, 0);
   // Tax: a saved tax code (Settings → Tax), or a custom rate typed here (older invoices)
-  const taxRates = useLedgerStore(s => s.taxRates || []);
-  const salesCodes = useMemo(() => taxRates.filter(r => r.type === 'Sales' && r.appliesTo !== 'purchases').map(taxCodeFromRate), [taxRates]);
   const taxChoice = invoice.taxCodeId || (Number(invoice.taxRate) > 0 ? 'custom' : '');
   const taxCode = taxChoice === 'custom' ? customRateCode(Number(invoice.taxRate) || 0) : salesCodes.find(c => c.id === taxChoice) || null;
   const pricesIncludeTax = invoice.pricesIncludeTax ?? (invoice.taxVersion === 2 ? false : Boolean(invoice.taxInclusive));

@@ -124,21 +124,26 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     field?.focus();
   };
 
+  const taxRates = useLedgerStore(s => s.taxRates || []);
+  const purchaseCodes = useMemo(() => taxRates.filter(r => r.type === 'Sales' && r.appliesTo !== 'sales').map(taxCodeFromRate), [taxRates]);
+
   const [filledFrom, setFilledFrom] = useState<Partial<Bill> | undefined>(undefined);
   if (isOpen && initialBill && initialBill !== filledFrom) {
     // copy the pre-filled bill into the form once per opening (adjusting state during render)
     setFilledFrom(initialBill);
     const { splits: initialSplits, ...fields } = initialBill;
-    setBill(prev => ({ ...prev, ...fields }));
+    const hints = !initialBill.id ? documentDefaultsOf(safeVendors.find(v => v.id === initialBill.vendorId)) : {};
+    const defaultTax = !Object.hasOwn(initialBill, 'taxCodeId') && purchaseCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
+    setBill(prev => ({ ...prev, ...defaultTax, ...fields }));
     const savedMemo = initialBill.metadata?.memo;
     setMemo(typeof savedMemo === 'string' ? savedMemo : '');
-    if (initialSplits?.length) setSplits(initialSplits.map(s => copyLine(s)));
+    if (initialSplits?.length) setSplits(initialSplits.map(s => defaults.fill(copyLine(s), hints)));
+    else if (!initialBill.id) setSplits(prev => prev.map(line => defaults.fill(line, hints)));
   }
 
   const total = splits.reduce((sum, split) => sum + split.amountCents, 0);
 
   // Tax: a purchase tax code (Settings → Tax); reverse charge means the vendor charges none
-  const taxRates = useLedgerStore(s => s.taxRates || []);
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   // Q-05: a saved split rule whose text the vendor or a line contains is suggested, with why; applying it
   // only changes the lines here (each line split by the rule's shares, in whole cents)
@@ -149,7 +154,6 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   const [ruleApplied, setRuleApplied] = useState('');
   const suggested = suggestRule(allocationRules, { vendorName: bill.vendorName, description: splits.map(sp => sp.description).join(' ') });
   const canSplit = Boolean(suggested && suggested.rule.id !== ruleApplied && splits.some(sp => sp.amountCents));
-  const purchaseCodes = useMemo(() => taxRates.filter(r => r.type === 'Sales' && r.appliesTo !== 'sales').map(taxCodeFromRate), [taxRates]);
   const taxCode = purchaseCodes.find(c => c.id === bill.taxCodeId) || null;
   const pricesIncludeTax = bill.pricesIncludeTax ?? true;
   const taxRounding = useAuthStore(s => s.getCurrentWorkspace()?.taxRounding) || 'half_up';

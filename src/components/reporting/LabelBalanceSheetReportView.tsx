@@ -46,7 +46,7 @@ export default function LabelBalanceSheetReportView() {
   const shown = result && result.key === key ? result : null;
   const report = shown?.report;
   const dimension = dimensions.find(d => d.id === dimensionId);
-  const dimensionName = dimension?.name || dimensionId;
+  const dimensionName = dimension ? displayDimensionName(dimension) : dimensionId;
   // DIM-3: only a self-balancing label is expected to balance for each value
   const role = labelRole(dimension || {});
   const valueName = values.find(n => n.id === value)?.description || value;

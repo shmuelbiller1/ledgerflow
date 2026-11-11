@@ -403,7 +403,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
               </div>
 
               <div className="space-y-4">
-                <div id={`${formId}-new-type`} className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest px-1">Label type</div>
+                <div id={`${formId}-new-type`} className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest px-1">Project type</div>
                 <div role="group" aria-labelledby={`${formId}-new-type`} className="grid grid-cols-2 gap-3">
                   {[
                     { id: 'general', label: 'General', icon: FolderKanban },
@@ -523,7 +523,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
               </div>
 
               <div className="space-y-4">
-                <div id={`${formId}-edit-type`} className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest px-1">Label type</div>
+                <div id={`${formId}-edit-type`} className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest px-1">Project type</div>
                 <div role="group" aria-labelledby={`${formId}-edit-type`} className="grid grid-cols-2 gap-3">
                     {[
                       { id: 'general', label: 'General', icon: FolderKanban },

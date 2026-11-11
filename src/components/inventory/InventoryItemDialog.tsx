@@ -299,7 +299,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   <legend className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Stock levels per location</legend>
                   <input type="hidden" name="locationLevels" value={levelsJson} />
                   {locationNodes.length === 0 && (
-                    <p className="text-[10px] text-[var(--muted)]">No locations yet — add Location values under Settings → Labels &amp; Labels first.</p>
+                    <p className="text-[10px] text-[var(--muted)]">No locations yet — add Location values under Settings → Labels first.</p>
                   )}
                   {locationNodes.map(node => {
                     const problem = levelProblem(levelDrafts[node.id]?.min || '', levelDrafts[node.id]?.max || '');

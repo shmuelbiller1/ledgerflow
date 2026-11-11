@@ -25,21 +25,21 @@ export default function DocumentDefaultsEditor({ side, value, onChange, showTax 
     <p className="text-xs text-[var(--muted)]">Fill empty fields when selected. Anything already entered stays as it is. These are suggestions, not changes to existing documents.</p>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <label className="min-w-0 text-xs space-y-1">Default account
-        <select aria-label="Default account" className={field} value={value.accountId || ''} onChange={e => onChange({ ...value, accountId: e.target.value })}>
+        <select disabled={viewer} aria-label="Default account" className={field} value={value.accountId || ''} onChange={e => onChange({ ...value, accountId: e.target.value })}>
           <option value="">No default</option>
           {value.accountId && !choices.some(a => a.id === value.accountId) && <option value={value.accountId}>Unavailable account — choose another</option>}
           {choices.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </label>
       {showTax && <label className="min-w-0 text-xs space-y-1">Default tax
-        <select aria-label="Default tax" className={field} value={value.taxCodeId || ''} onChange={e => onChange({ ...value, taxCodeId: e.target.value })}>
+        <select disabled={viewer} aria-label="Default tax" className={field} value={value.taxCodeId || ''} onChange={e => onChange({ ...value, taxCodeId: e.target.value })}>
           <option value="">No default</option>
           {value.taxCodeId && !codes.some(t => t.id === value.taxCodeId) && <option value={value.taxCodeId}>Unavailable tax code — choose another</option>}
           {codes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </label>}
       {axes.filter(a => a.id !== 'category').map(axis => <label key={axis.id} className="min-w-0 text-xs space-y-1">Default {displayDimensionName(axis)}
-        <select aria-label={`Default ${displayDimensionName(axis)}`} className={field} value={value.dimensions?.[axis.id.toLowerCase()] || ''} onChange={e => onChange({ ...value, dimensions: { ...value.dimensions, [axis.id.toLowerCase()]: e.target.value } })}>
+        <select disabled={viewer} aria-label={`Default ${displayDimensionName(axis)}`} className={field} value={value.dimensions?.[axis.id.toLowerCase()] || ''} onChange={e => onChange({ ...value, dimensions: { ...value.dimensions, [axis.id.toLowerCase()]: e.target.value } })}>
           <option value="">No default</option>
           {value.dimensions?.[axis.id.toLowerCase()] && !nodes.some(n => n.dimensionId === axis.id && n.id === value.dimensions?.[axis.id.toLowerCase()] && n.status !== 'archived') && <option value={value.dimensions[axis.id.toLowerCase()]}>{value.dimensions[axis.id.toLowerCase()]}</option>}
           {nodes.filter(n => n.dimensionId === axis.id && n.status !== 'archived').map(n => <option key={`${id}-${n.id}`} value={n.id}>{n.description}</option>)}
