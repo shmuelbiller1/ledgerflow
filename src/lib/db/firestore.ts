@@ -16,6 +16,7 @@ import { recordRead } from './readCounter';
 import { getSupabase } from './client';
 import { changedSince, latestUpdate, mergeChanges } from './liveQuery';
 import type { LiveRow } from './liveQuery';
+import { guestSession, assertGuestSession, readGuestTable, queryGuestRows, guestRpc, subscribeGuestDatabase } from './guestDatabase';
 
 // Same shape as firebase's DocumentData: documents are free-form JSON whose fields the
 // screens read directly, so field values are deliberately untyped (as in Firebase).
@@ -75,7 +76,7 @@ export const arrayRemove = (...elements: unknown[]) => new FieldValue('arrayRemo
 
 export class CollectionReference<T = DocumentData> {
   readonly type = 'collection' as const;
-  constructor(readonly firestore: Firestore, readonly id: string) {}
+  constructor(readonly firestore: Firestore, readonly id: string, readonly guest = guestSession()) {}
   get path(): string { return this.id; }
   // phantom field so the generic parameter is used
   readonly _t?: T;
@@ -83,9 +84,9 @@ export class CollectionReference<T = DocumentData> {
 
 export class DocumentReference<T = DocumentData> {
   readonly type = 'document' as const;
-  constructor(readonly firestore: Firestore, readonly collectionId: string, readonly id: string) {}
+  constructor(readonly firestore: Firestore, readonly collectionId: string, readonly id: string, readonly guest = guestSession()) {}
   get path(): string { return `${this.collectionId}/${this.id}`; }
-  get parent(): CollectionReference<T> { return new CollectionReference<T>(this.firestore, this.collectionId); }
+  get parent(): CollectionReference<T> { return new CollectionReference<T>(this.firestore, this.collectionId, this.guest); }
   readonly _t?: T;
 }
 
@@ -100,6 +101,7 @@ export class Query<T = DocumentData> {
     readonly filters: Filter[] = [],
     readonly orders: Order[] = [],
     readonly limitCount?: number,
+    readonly guest = guestSession(),
   ) {}
   readonly _t?: T;
 }
@@ -129,7 +131,7 @@ export function collection(db: Firestore, path: string, ...segments: string[]): 
 
 export function doc(dbOrCollection: Firestore | CollectionReference, path?: string, ...segments: string[]): DocumentReference {
   if (dbOrCollection instanceof CollectionReference) {
-    return new DocumentReference(dbOrCollection.firestore, dbOrCollection.id, path || autoId());
+    return new DocumentReference(dbOrCollection.firestore, dbOrCollection.id, path || autoId(), dbOrCollection.guest);
   }
   const parts = splitPath(path || '', segments);
   if (parts.length !== 2) {
@@ -141,7 +143,7 @@ export function doc(dbOrCollection: Firestore | CollectionReference, path?: stri
 export function query<T = DocumentData>(base: CollectionReference<T> | Query<T>, ...constraints: QueryConstraint[]): Query<T> {
   const start = base instanceof Query
     ? base
-    : new Query<T>(base.firestore, base.id);
+    : new Query<T>(base.firestore, base.id, [], [], undefined, base.guest);
   const filters = [...start.filters];
   const orders = [...start.orders];
   let limitCount = start.limitCount;
@@ -150,7 +152,7 @@ export function query<T = DocumentData>(base: CollectionReference<T> | Query<T>,
     else if (c.kind === 'orderBy') orders.push(c.order);
     else limitCount = c.count;
   }
-  return new Query<T>(start.firestore, start.collectionId, filters, orders, limitCount);
+  return new Query<T>(start.firestore, start.collectionId, filters, orders, limitCount, start.guest);
 }
 
 const AUTO_ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -298,7 +300,14 @@ function notifyLocalWrite(tables: Iterable<string>, deleted: Array<{ table: stri
   }
 }
 
-async function rpc(db: Firestore, fn: string, args: Record<string, unknown>, path: string): Promise<void> {
+async function rpc(db: Firestore, fn: string, args: Record<string, unknown>, path: string, expected: object | null): Promise<void> {
+  if (expected || guestSession()) {
+    assertGuestSession(expected);
+    guestRpc(fn, args, expected!);
+    return;
+  }
+  const operations = fn === 'lf_batch' ? args.p_ops as Array<Record<string, unknown>> : [{ table: args.p_table, id: args.p_id, data: args.p_data ?? args.p_set }];
+  if (operations.some(op => (op.data as DocumentData | undefined)?.workspaceId === 'guest' || (op.table === 'workspaces' && op.id === 'guest'))) throw new FirestoreError('failed-precondition', 'The sample company is closed.');
   const { error } = await db.client().rpc(fn, args);
   if (error) throw toFirestoreError(error, path);
 }
@@ -371,6 +380,10 @@ interface Row { id: string; data: DocumentData; updated_at?: string }
 const PAGES_AT_ONCE = 4;
 
 async function fetchRows(q: Query): Promise<Row[]> {
+  if (q.guest || guestSession()) {
+    assertGuestSession(q.guest);
+    return queryGuestRows(q.collectionId, q.guest!, q.filters, q.orders, q.limitCount);
+  }
   const client = q.firestore.client();
   const max = q.limitCount ?? Number.POSITIVE_INFINITY;
   const page = async (from: number): Promise<Row[]> => {
@@ -411,6 +424,11 @@ async function fetchRows(q: Query): Promise<Row[]> {
 }
 
 export async function getDoc<T = DocumentData>(ref: DocumentReference<T>): Promise<DocumentSnapshot<T>> {
+  if (ref.guest || guestSession()) {
+    assertGuestSession(ref.guest);
+    const row = readGuestTable(ref.collectionId, ref.guest!).find(r => r.id === ref.id);
+    return new DocumentSnapshot<T>(ref, row?.data as T | undefined);
+  }
   const { data, error } = await ref.firestore.client()
     .from(ref.collectionId).select('id,data').eq('id', ref.id).maybeSingle();
   if (error) throw toFirestoreError(error, ref.path);
@@ -422,7 +440,7 @@ export async function getDocs<T = DocumentData>(q: Query<T> | CollectionReferenc
   const qq = q instanceof Query ? q : query(q);
   const rows = await fetchRows(qq as unknown as Query);
   return new QuerySnapshot<T>(qq, rows.map(r =>
-    new QueryDocumentSnapshot<T>(new DocumentReference<T>(qq.firestore, qq.collectionId, r.id), r.data as T)));
+    new QueryDocumentSnapshot<T>(new DocumentReference<T>(qq.firestore, qq.collectionId, r.id, qq.guest), r.data as T)));
 }
 
 // ---------------------------------------------------------------------------
@@ -440,9 +458,9 @@ export async function setDoc<T = DocumentData>(ref: DocumentReference<T>, data: 
         { op: 'set', table: ref.collectionId, id: ref.id, data: enc.data, merge },
         { op: 'update', table: ref.collectionId, id: ref.id, data: {}, unset: enc.unset },
       ],
-    }, ref.path);
+    }, ref.path, ref.guest);
   } else {
-    await rpc(ref.firestore, 'lf_set', { p_table: ref.collectionId, p_id: ref.id, p_data: enc.data, p_merge: merge }, ref.path);
+    await rpc(ref.firestore, 'lf_set', { p_table: ref.collectionId, p_id: ref.id, p_data: enc.data, p_merge: merge }, ref.path, ref.guest);
   }
   notifyLocalWrite([ref.collectionId]);
 }
@@ -452,18 +470,18 @@ export async function updateDoc<T = DocumentData>(ref: DocumentReference<T>, fie
   await rpc(ref.firestore, 'lf_update', {
     p_table: ref.collectionId, p_id: ref.id, p_set: enc.set, p_unset: enc.unset,
     p_inc: enc.inc, p_union: enc.union, p_remove: enc.remove,
-  }, ref.path);
+  }, ref.path, ref.guest);
   notifyLocalWrite([ref.collectionId]);
 }
 
 export async function addDoc<T = DocumentData>(coll: CollectionReference<T>, data: DocumentData): Promise<DocumentReference<T>> {
-  const ref = new DocumentReference<T>(coll.firestore, coll.id, autoId());
+  const ref = new DocumentReference<T>(coll.firestore, coll.id, autoId(), coll.guest);
   await setDoc(ref, data);
   return ref;
 }
 
 export async function deleteDoc<T = DocumentData>(ref: DocumentReference<T>): Promise<void> {
-  await rpc(ref.firestore, 'lf_delete', { p_table: ref.collectionId, p_id: ref.id }, ref.path);
+  await rpc(ref.firestore, 'lf_delete', { p_table: ref.collectionId, p_id: ref.id }, ref.path, ref.guest);
   notifyLocalWrite([ref.collectionId], [{ table: ref.collectionId, id: ref.id }]);
 }
 
@@ -471,9 +489,11 @@ type BatchOp = Record<string, unknown> & { table: string };
 
 export class WriteBatch {
   private ops: BatchOp[] = [];
+  private readonly guest = guestSession();
   constructor(private readonly db: Firestore) {}
 
   set(ref: DocumentReference, data: DocumentData, options?: SetOptions): WriteBatch {
+    this.checkReference(ref);
     const merge = Boolean(options?.merge || options?.mergeFields);
     const enc = encodeSet(data, merge);
     this.ops.push({ op: 'set', table: ref.collectionId, id: ref.id, data: enc.data, merge });
@@ -482,6 +502,7 @@ export class WriteBatch {
   }
 
   update(ref: DocumentReference, fieldOrData: string | DocumentData, ...rest: unknown[]): WriteBatch {
+    this.checkReference(ref);
     const enc = encodeUpdate(updateArgsFrom(fieldOrData, rest));
     this.ops.push({
       op: 'update', table: ref.collectionId, id: ref.id, data: enc.set, unset: enc.unset,
@@ -491,13 +512,18 @@ export class WriteBatch {
   }
 
   delete(ref: DocumentReference): WriteBatch {
+    this.checkReference(ref);
     this.ops.push({ op: 'delete', table: ref.collectionId, id: ref.id });
     return this;
   }
 
+  private checkReference(ref: DocumentReference): void {
+    if (ref.guest !== this.guest) throw new FirestoreError('failed-precondition', 'A sample-company reference cannot cross sessions.');
+  }
+
   async commit(): Promise<void> {
     if (this.ops.length === 0) return;
-    await rpc(this.db, 'lf_batch', { p_ops: this.ops }, 'batch');
+    await rpc(this.db, 'lf_batch', { p_ops: this.ops }, 'batch', this.guest);
     notifyLocalWrite(this.ops.map(o => o.table),
       this.ops.filter(o => o.op === 'delete').map(o => ({ table: o.table, id: String(o.id) })));
   }
@@ -597,6 +623,20 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
   const onNext = fnArgs[0] || observer?.next || (() => {});
   const onError = fnArgs[1] || observer?.error || ((err: unknown) => console.error('[db] snapshot listener failed', err));
 
+  if (target.guest || guestSession()) {
+    let active = true;
+    const publish = async () => {
+      try {
+        assertGuestSession(target.guest);
+        const snap = target instanceof DocumentReference ? await getDoc(target) : await getDocs(target);
+        if (active && target.guest === guestSession()) onNext(snap);
+      } catch (error) { if (active) onError(error); }
+    };
+    const unsubscribe = subscribeGuestDatabase(() => { void publish(); });
+    void publish();
+    return () => { active = false; unsubscribe(); };
+  }
+
   const db = target.firestore;
   const table = target instanceof DocumentReference ? target.collectionId
     : target instanceof Query ? target.collectionId : target.id;
@@ -619,7 +659,7 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
   const emitList = () => {
     if (!q) return;
     onNext(new QuerySnapshot(q, current.map(r =>
-      new QueryDocumentSnapshot(new DocumentReference(q.firestore, q.collectionId, r.id), r.data))));
+      new QueryDocumentSnapshot(new DocumentReference(q.firestore, q.collectionId, r.id, q.guest), r.data))));
   };
 
   // `floor`: a change cursor already processed. A reload reads the state after it, so the cursor never moves back to

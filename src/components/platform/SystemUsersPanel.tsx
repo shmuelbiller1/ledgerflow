@@ -17,7 +17,7 @@ export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel })
                       <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Platform User Ledger</h2>
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div role="region" aria-label="Scrollable system users" tabIndex={0} className="overflow-x-auto">
                     <table className="w-full text-left">
                       <caption className="sr-only">Platform users</caption>
                       <thead>

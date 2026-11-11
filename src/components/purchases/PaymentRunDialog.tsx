@@ -10,6 +10,9 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import { paymentPlan, type BulkDocument } from '../../lib/bulkDocuments';
 import { bankFileRows, billsDueBy, missingBankDetails } from '../../lib/paymentRun';
+import { computePlatformFeeQuote } from '../../lib/paymentVolumeFee';
+import { operationIdFor, workspaceScope } from '../../lib/serverAction';
+import { getIdToken } from '../../firebase';
 import { recordPayments } from '../../services/bulkDocumentActions';
 import type { Bill, Vendor } from '../../types';
 
@@ -29,6 +32,7 @@ function addDays(date: string, days: number): string {
  */
 export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: Bill[]; vendors: Vendor[]; onClose: () => void }) {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const workspacePlan = useAuthStore(s => s.getCurrentWorkspace()?.plan) || 'free';
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const accounts = useLedgerStore(s => s.accounts);
   const bankAccounts = useMemo(() => (accounts || []).filter(a => !a.isArchived && resolveAccountRole(a) === 'cash'), [accounts]);
@@ -48,6 +52,9 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
   const vendorById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors]);
   const bank = (vendorId: string) => vendorById.get(vendorId)?.bankDetails;
   const missing = missingBankDetails(payments, bank);
+  const missingConnect = payments.filter(
+    p => !((vendorById.get(p.partyId) as { stripeConnectAccountId?: string } | undefined)?.stripeConnectAccountId?.trim()),
+  );
   const paidCount = payments.reduce((n, p) => n + p.allocations.length, 0);
 
   const toggle = (id: string) => setLeft(prev => {
@@ -75,6 +82,68 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
       if (!failed.length) onClose();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const payoutFeeTotal = useMemo(
+    () => payments.reduce((sum, p) => sum + computePlatformFeeQuote(p.amountCents, workspacePlan, 'vendor_payout').platformFeeCents, 0),
+    [payments, workspacePlan],
+  );
+
+  const sendProcessorPayouts = async () => {
+    if (!cashAccountId || payments.length === 0 || saving || missing.length > 0 || missingConnect.length > 0) return;
+    const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
+    setSaving(true);
+    try {
+      const token = await getIdToken();
+      const payoutsPayload = payments.map(p => {
+        const key = JSON.stringify([workspaceId, cashAccountId, payDate, p.partyId, p.amountCents, p.allocations]);
+        const opId = operationIdFor(operationIds.current, key);
+        return {
+          vendorId: p.partyId,
+          vendorName: p.partyName,
+          amountCents: p.amountCents,
+          operationId: opId,
+          allocations: p.allocations.map(a => ({
+            documentId: a.documentId,
+            documentType: 'bill' as const,
+            amountCents: a.amountCents,
+          })),
+        };
+      });
+
+      const res = await fetch('/api/v1/payments/payout-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          workspaceId,
+          cashAccountId,
+          paymentDate: payDate,
+          payouts: payoutsPayload,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!scope.isCurrent()) return;
+      if (!res.ok) {
+        toast.error(body.message || body.error || 'Vendor payouts failed');
+        return;
+      }
+      const completedIds = new Set<string>((body.completed || []).map((c: { vendorId: string }) => c.vendorId));
+      const paidDocIds = payments
+        .filter(p => completedIds.has(p.partyId))
+        .flatMap(p => p.allocations.map(a => a.documentId));
+      if (paidDocIds.length > 0) {
+        setLeft(prev => new Set([...prev, ...paidDocIds]));
+        toast.success(
+          `${body.completed.length} vendor ACH payout${body.completed.length === 1 ? '' : 's'} sent (${formatCurrency(body.totalDisbursedCents || 0, currency)})`,
+        );
+      }
+      for (const f of (body.failed || []) as Array<{ vendorName: string; message: string }>) {
+        toast.error(`${f.vendorName}: ${f.message}`);
+      }
+      if (!body.failed?.length) onClose();
+    } finally {
+      if (scope.isCurrent()) setSaving(false);
     }
   };
 
@@ -132,6 +201,12 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
             </p>
           )}
 
+          {missingConnect.length > 0 && payments.length > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              Live processor payouts are disabled until {missingConnect.map(p => p.partyName).join(', ')} {missingConnect.length === 1 ? 'has' : 'have'} a connected payout account. Use <strong>Pay and download bank file</strong> to upload to online banking.
+            </p>
+          )}
+
           <p className="font-semibold text-[var(--text)]">
             {payments.length} payment{payments.length === 1 ? '' : 's'} to {payments.length} vendor{payments.length === 1 ? '' : 's'} for {paidCount} bill{paidCount === 1 ? '' : 's'}: {formatCurrency(total, currency)}
           </p>
@@ -139,6 +214,11 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
             <button type="button" onClick={() => downloadBankFile()} disabled={payments.length === 0}
               className="px-3 py-2 rounded-lg border border-[var(--line)] text-[var(--text)] disabled:opacity-50">
               Bank file only
+            </button>
+            <button type="button" onClick={() => void sendProcessorPayouts()}
+              disabled={payments.length === 0 || !cashAccountId || saving || missing.length > 0 || missingConnect.length > 0}
+              className="px-3 py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 font-semibold disabled:opacity-50">
+              {saving ? 'Sending…' : `Send bank payouts${payoutFeeTotal > 0 ? ` (${formatCurrency(payoutFeeTotal, 'USD')} fee)` : ' (included)'}`}
             </button>
             <button type="button" onClick={() => void pay(true)} disabled={payments.length === 0 || !cashAccountId || saving}
               className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50">

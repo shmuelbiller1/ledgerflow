@@ -1,3 +1,5 @@
+import { guestSession } from '../../lib/db/guestDatabase';
+import { replaceGuestCompany } from '../../lib/guestCompany';
 import React, { useState } from 'react';
 import { Globe2, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -60,6 +62,10 @@ export default function GuestCountrySamplePicker() {
     },
     displayName: string,
   ) => {
+    if (guestSession() && isGuest && !user) {
+      replaceGuestCompany(payload, displayName);
+      return;
+    }
     useLedgerStore.setState({
       accounts: payload.accounts,
       computedAccounts: payload.accounts,
@@ -85,6 +91,7 @@ export default function GuestCountrySamplePicker() {
 
   const handleLoadCountry = (country: DemoCountry) => {
     if (!sandboxAllowed) return;
+    try {
     const seeded = seedCountryDemoWorkspace(workspaceId, country);
     const meta = COUNTRY_META[country];
     applyPayload(seeded, language === 'he' ? meta.nameHe : meta.nameEn);
@@ -93,10 +100,12 @@ export default function GuestCountrySamplePicker() {
         ? `נטענה חברת הדמו: ${meta.nameHe} (${seeded.accounts.length} חשבונות, ${seeded.transactions.length} פקודות יומן).`
         : `Loaded ${meta.nameEn} (${seeded.accounts.length} accounts, ${seeded.transactions.length} journal entries across 12 months).`,
     );
+    } catch (error) { setStatusNote(`Could not load the sample: ${error instanceof Error ? error.message : String(error)}`); }
   };
 
   const handleReset = (mode: 'starter' | 'empty') => {
     if (!sandboxAllowed) return;
+    try {
     const reset = buildResetDemoWorkspace(workspaceId, mode);
     applyPayload(
       reset,
@@ -111,6 +120,7 @@ export default function GuestCountrySamplePicker() {
           ? 'סביבת הדמו נוקתה לספרים ריקים.'
           : 'Cleared guest sandbox to empty books.',
     );
+    } catch (error) { setStatusNote(`Could not reset the sample: ${error instanceof Error ? error.message : String(error)}`); }
   };
 
   return (
@@ -130,7 +140,7 @@ export default function GuestCountrySamplePicker() {
           <p className="text-sm text-[var(--muted)] mt-1">
             {language === 'he'
               ? 'נתונים סינתטיים בזיכרון בלבד להתנסות מלאה בדוחות, התאמות ומסים ללא התחברות וללא פגיעה בספרים אמיתיים.'
-              : 'In-memory synthetic 12-month books for exploring reports, statements, and tax previews safely without signing in.'}
+              : 'Browser-only synthetic 12-month books for exploring reports, statements, and tax previews safely without signing in.'}
           </p>
         </div>
 

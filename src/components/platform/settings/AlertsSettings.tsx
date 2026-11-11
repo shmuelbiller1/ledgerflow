@@ -1,3 +1,5 @@
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
+import { saveGuestAlerts } from '../../../lib/guestSettings';
 import React, { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import { toast } from 'sonner';
@@ -42,15 +44,24 @@ export default function AlertsSettings() {
     if (problem) { toast.error(problem); return; }
     setBusy(true);
     try {
-      const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/alerts`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(alerts),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The alerts could not be saved');
-      setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, alerts: data.alerts as AlertSettings } : w)));
+      const sampleSession = guestSession();
+      let savedAlerts: AlertSettings;
+      if (sampleSession) {
+        savedAlerts = saveGuestAlerts(workspace.id, alerts);
+      } else {
+        if (workspace.id === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
+        const token = await getIdToken().catch(() => null);
+        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/alerts`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(alerts),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'The alerts could not be saved');
+        savedAlerts = data.alerts as AlertSettings;
+      }
+      if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspace.id) return;
+      setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, alerts: savedAlerts } : w)));
       toast.success('Alerts saved');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -65,7 +76,7 @@ export default function AlertsSettings() {
     <section aria-labelledby="alerts-title" className="space-y-4">
       <div>
         <h2 id="alerts-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><BellRing className="w-5 h-5" aria-hidden="true" /> Alerts</h2>
-        <p className="text-sm text-[var(--muted)]">Checked every night. Owners and accountants are told in the bell, once for each thing.</p>
+        <p className="text-sm text-[var(--muted)]">{guestSession() ? 'Sample alert settings save in this browser tab. No nightly checks or notifications are sent.' : 'Checked every night. Owners and accountants are told in the bell, once for each thing.'}</p>
       </div>
 
       <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] divide-y divide-[var(--line)]">

@@ -77,7 +77,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
           <span className="text-[var(--text)] font-semibold">{currentWorkspace?.name || 'Main Ledger'}</span>
           <span className="text-[var(--faint)]">·</span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-            currentRole === 'owner' ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' :
+            currentRole === 'owner' ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20' :
             currentRole === 'accountant' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
             currentRole === 'bookkeeper' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
             'bg-slate-500/10 text-slate-700 dark:text-slate-400 border border-slate-500/20'

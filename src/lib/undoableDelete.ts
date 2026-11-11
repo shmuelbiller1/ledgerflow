@@ -1,3 +1,4 @@
+import { guestSession } from './db/guestDatabase';
 import { toast } from 'sonner';
 
 /**
@@ -28,7 +29,7 @@ export interface UndoableDelete {
   windowMs?: number;
 }
 
-const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; restore: () => void }>();
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; restore: () => void; sampleSession: object | null }>();
 
 export function isDeletePending(key: string): boolean {
   return pending.has(key);
@@ -36,10 +37,12 @@ export function isDeletePending(key: string): boolean {
 
 export function deleteWithUndo(d: UndoableDelete): void {
   if (pending.has(d.key)) return;
+  const sampleSession = guestSession();
   d.hide();
   const windowMs = d.windowMs ?? windowForTests ?? UNDO_WINDOW_MS;
   const timer = setTimeout(async () => {
     pending.delete(d.key);
+    if (sampleSession && guestSession() !== sampleSession) return;
     try {
       await d.commit();
     } catch (err) {
@@ -47,7 +50,7 @@ export function deleteWithUndo(d: UndoableDelete): void {
       toast.error(`${d.label} was not deleted: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, windowMs);
-  pending.set(d.key, { timer, restore: d.restore });
+  pending.set(d.key, { timer, restore: d.restore, sampleSession });
   toast(`${d.label} deleted`, {
     duration: windowMs,
     action: { label: 'Undo', onClick: () => undoDelete(d.key, d.label) },
@@ -59,6 +62,7 @@ export function undoDelete(key: string, label?: string): boolean {
   if (!entry) return false;
   clearTimeout(entry.timer);
   pending.delete(key);
+  if (entry.sampleSession && guestSession() !== entry.sampleSession) return false;
   entry.restore();
   if (label) toast.success(`${label} kept`);
   return true;

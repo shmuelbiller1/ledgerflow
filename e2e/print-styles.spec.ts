@@ -1,3 +1,5 @@
+import { mountJourney } from './support/journeyFixture';
+import { seedCountryDemoWorkspace } from '../src/lib/countryDemoWorkspace';
 import { test, expect, type Page } from '@playwright/test';
 import { seedDemoBooks } from './helpers/demoBooks';
 
@@ -173,24 +175,18 @@ test('A-273: printing an invoice document gives the loaded document alone, not t
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await signInAsGuest(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  // A-273: the guest has no token, so the document endpoint would refuse. Stub it with a small PDF
-  // carrying the invoice number and total (DEMO-US-001 is 1,650,000 cents in the demo seed), so the
-  // preview loads a real document and the printed output is checked against its bytes.
+  // PDF generation is a signed-in service, not a local sample operation. Exercise the real
+  // Sales/preview screens with an authenticated fixture and a worked, stubbed PDF response.
+  const books = seedCountryDemoWorkspace('print-invoice', 'US');
+  await mountJourney(page, { workspaceId: 'print-invoice', ledger: { ...books }, mounts: [{ module: '/src/components/sales/Sales.tsx' }] });
   const invoicePdf = pdfWithText(['Invoice DEMO-US-001', 'Total: $16,500.00']);
   await page.route('**/api/v1/documents/invoice/*/pdf*', route =>
     route.fulfill({ status: 200, contentType: 'application/pdf', body: invoicePdf }));
-  await page.goto('/');
-  await page.waitForSelector('text="Overview"', { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Sales', exact: true }).first().click();
-  await page.getByRole('button', { name: 'Invoices', exact: true }).first().click();
-  // a demo invoice (the guest workspace's own sample company)
-  await seedDemoBooks(page);
   const row = page.getByRole('row').filter({ hasText: 'DEMO-US-001' }).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
   // the row's own PDF-preview control opens the document preview
-  await row.getByRole('button').nth(2).click();
+  await row.getByRole('button', { name: 'Preview PDF', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: /Invoice DEMO-US-001/ });
   await expect(dialog).toBeVisible({ timeout: 30_000 });
 
