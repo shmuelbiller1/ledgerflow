@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
@@ -9,6 +10,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       localStorage.setItem('isGuest', 'true'); localStorage.setItem('has_seen_onboarding', 'true');
       localStorage.setItem('ledgerflow-cookie-consent', 'accepted'); localStorage.setItem('lf_theme', selectedTheme);
     }, theme);
+    await installSmallSample(page);
     await page.goto('/#dashboard');
     const overview = page.getByRole('region', { name: 'Dashboard at a glance', exact: true });
     await expect(overview.getByRole('link', { name: /^Cash .* report$/ })).toContainText('$3,000.00');

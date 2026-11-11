@@ -1,41 +1,75 @@
 name: Refresh visual baselines
-# Temporary diagnostics only; restore the original workflow after collecting failure excerpts.
+# Manual review workflow: captures updated images on the Linux Chromium used by CI.
+# It NEVER pushes to main. Candidate images go to a review branch `visual-baselines/<run id>`
+# (and the artifact); a reviewer opens the images there and merges the branch only after looking.
+permissions:
+  contents: write
 on:
   workflow_dispatch:
     inputs:
       screens:
-        description: 'Unused for temporary PR649 failure diagnostics'
+        description: 'Test-name filter, e.g. "pnl|balance-sheet"'
         required: true
-permissions:
-  actions: read
-  pull-requests: write
-  contents: read
 jobs:
   capture:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/arena/d5a40f00-ledgerflow'
-    env:
-      GH_TOKEN: ${{ github.token }}
+    timeout-minutes: 25
     steps:
-      - name: Publish unit failure excerpts from the linked CI run
-        shell: bash
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+      - run: node_modules/.bin/playwright install --with-deps chromium
+      - name: Generate candidate reference images
+        env:
+          # Read in the shell, never interpolated into the script text: the spec wraps this line in
+          # JavaScript template literals, so `${{ inputs.screens }}` pasted into the run block was
+          # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
+          SCREENS: ${{ inputs.screens }}
+        # `--update-snapshots` still runs every assertion before the screenshot, so a failing wait
+        # (a heading that was renamed, a store that never filled) aborts the capture and leaves the
+        # reviewer with no images. The JSON report is replayed into the step summary, because the raw
+        # job log is not always reachable from a reviewer's tools.
         run: |
-          python3 - <<'PY'
-          import json, re, subprocess
-          repo='shmuelbiller1/ledgerflow'
-          jobs=[130781536615,130781536630,130781536640,130781536663,130781536793,130781536824,130781544887,130781554490]
-          for job in jobs:
-              details=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/jobs/{job}'],text=True))
-              result=subprocess.run(['gh','run','view','43094991955','--repo',repo,'--job',str(job),'--log-failed'],capture_output=True,text=True)
-              lines=result.stdout.splitlines()
-              # The node spec reporter prints a final failure section; retain it plus coverage errors.
-              indexes=[i for i,line in enumerate(lines) if re.search(r'failing tests:|test at |coverage.*(threshold|does not meet)|ERR_TEST|AssertionError',line,re.I)]
-              selected=set()
-              for i in indexes:
-                  selected.update(range(max(0,i-2), min(len(lines),i+32)))
-              excerpt='\n'.join(re.sub(r'^.*?\d{4}-\d\d-\d\dT[\d:.]+Z\s*','',lines[i]) for i in sorted(selected))
-              if not excerpt: excerpt='\n'.join(lines[-90:]) or result.stderr
-              body=f'CI diagnostic — {details["name"]} (job {job}, run 43094991955)\n\n```text\n{excerpt[:14000]}\n```'
-              data=json.dumps({'body':body})
-              subprocess.run(['gh','api',f'repos/{repo}/issues/649/comments','--input','-'],input=data,text=True,check=True,stdout=subprocess.DEVNULL)
-          PY
+          set +e
+          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0 --reporter=list,json
+          status=$?
+          # The JSON reporter writes next to test-results/, not to the working directory.
+          report=$(find . -maxdepth 3 -name 'playwright-report.json' -newermt '-20 minutes' | head -1)
+          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" --summary "$GITHUB_STEP_SUMMARY"
+          exit $status
+      # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
+      # named a subset (the other screens legitimately still differ), which blocked the push of a
+      # correct candidate set; the reviewer still merges only after looking at the images.
+      - name: Check the captured reference set
+        env:
+          SCREENS: ${{ inputs.screens }}
+        run: node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: candidate-visual-baselines
+          path: |
+            e2e/__screenshots__/
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Push candidates to a review branch (never main)
+        if: success()
+        env:
+          BRANCH: visual-baselines/${{ github.run_id }}
+          # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
+          SCREENS: ${{ inputs.screens }}
+        run: |
+          git add e2e/__screenshots__
+          if git diff --cached --quiet; then echo "No image changed"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: candidate visual baselines (${SCREENS}) for review"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          echo "Review branch: $BRANCH" >> "$GITHUB_STEP_SUMMARY"

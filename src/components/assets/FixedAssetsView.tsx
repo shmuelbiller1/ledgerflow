@@ -200,7 +200,7 @@ export const FixedAssetsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6" id="fixed-assets-view">
+    <div className="w-full min-w-0 space-y-6 max-w-6xl mx-auto p-4 sm:p-6" id="fixed-assets-view">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this register" />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>

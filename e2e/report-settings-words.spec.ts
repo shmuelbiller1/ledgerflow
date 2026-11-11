@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 
 for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
@@ -9,6 +10,8 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
       localStorage.setItem('lf_theme', selectedTheme);
     }, theme);
+    // This assertion covers account-type navigation, not the sample year's project navigation.
+    await installSmallSample(page);
     for (const screen of ['pnl', 'balance-sheet', 'settings']) {
       await page.goto(screen === 'settings' ? '/#settings' : `/?report=${screen}&start=2026-09-01&end=2026-09-30#reports`);
       await expect(page.getByRole('heading', { name: screen === 'settings' ? 'Settings' : 'Reports', exact: true })).toBeVisible();
