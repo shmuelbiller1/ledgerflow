@@ -1,0 +1,42 @@
+closed: lockDate = 2026-09-30
+▶ A7-07 closed-period sweep across the server writers
+  ✔ setup: a September journal of 1,000.00, an October invoice, then September is closed (hard) (164.047928ms)
+refused  400  POST /transactions (one journal)
+refused  400  POST /transactions/bulk
+refused  409  POST /transactions/batch-create
+refused  409  POST /documents/invoices/:id/post (invoice dated in the month)
+refused  409  POST /documents/bills/:id/post (bill dated in the month)
+refused  400  POST /payments (payment dated in the month, for the October invoice)
+refused  400  PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry
+refused  400  PUT /transactions/:id (rewrite the September entry)
+refused  403  DELETE /transactions/:id on the September entry
+refused  400  POST /transactions/:id/reverse with the reversal dated in the month
+refused  400  POST /payments/credits/refund dated in the month
+{"operationId":"ws_a7_closed_af767979_rec:2026-09-12","error":"The period of 2026-09-12 is closed","level":"warn","time":"2026-11-11T17:48:07.381Z","msg":"recurring occurrence failed"}
+refused  409  daily recurring job, entry due 2026-09-12 (failed: The period of 2026-09-12 is closed)
+ACCEPTED 200  POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+  ✔ every writer, dated in the closed month, as a bookkeeper (113.199038ms)
+September in the ledger now: {"bank":100000,"sales":-100000,"acc_demo_bank_ws_a7_closed_af767979":300000,"acc_demo_rev_ws_a7_closed_af767979":-1500000,"acc_demo_exp_ws_a7_closed_af767979":1200000}
+writers that got through the closed month: POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+DEFECT A7-07: POST /workspaces/:id/seed posts entries into a hard-closed month
+  ✔ the closed month afterwards (2.496159ms)
+demo entries written: 2 (dates 2026-09-01, 2026-09-05); lines that point to no account of this workspace: 4 of 4
+demo invoice INV-DEMO-001: status sent, amount 500000; ledger entries for it: 0
+audit rows mentioning the seeding: 0; workspace.isDemoLoaded: undefined
+balance sheet route (2026-12-31): isBalanced=true, lines on unknown accounts=0, "Operating Bank Account" (demo) = 300000
+Data Health (high) [missing-account]: Entry Acme Enterprise Software Renewal uses a missing account
+Data Health (high) [missing-account]: Entry Acme Enterprise Software Renewal uses a missing account
+Data Health (high) [missing-account]: Entry AWS September Hosting Fee uses a missing account
+Data Health (high) [missing-account]: Entry AWS September Hosting Fee uses a missing account
+Data Health (medium) [control-balance]: Accounts receivable is $200.00, the open invoices add up to $5,200.00
+Data Health (medium) [control-balance]: Accounts payable is $0.00, the open bills add up to $1,200.00
+  ✔ what the demo-data route left in real books (41.024707ms)
+✔ A7-07 closed-period sweep across the server writers (1134.218332ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1334.0751
