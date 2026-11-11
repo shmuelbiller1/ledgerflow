@@ -13,7 +13,7 @@ export function useDocumentDefaults(documentId: string | undefined, isOpen: bool
   const nodes = useLedgerStore(s => s.dimensionNodes);
   const key = `${uid}:${workspaceId}:${documentId || 'new'}:${isOpen}`;
   const state = useRef({ key, taxEdited: false, fields: new Map<string, Set<string>>() });
-  useEffect(() => { state.current = { key, taxEdited: false, fields: new Map() }; }, [key]);
+  useEffect(() => { if (state.current.key !== key) state.current = { key, taxEdited: false, fields: new Map() }; }, [key]);
   const current = () => {
     if (state.current.key !== key) state.current = { key, taxEdited: false, fields: new Map() };
     return state.current;

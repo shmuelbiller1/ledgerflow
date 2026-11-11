@@ -107,7 +107,10 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;
     const hints = !initialInvoice.id ? documentDefaultsOf(safeCustomers.find(c => c.id === initialInvoice.customerId)) : {};
-    const defaultTax = !Object.hasOwn(initialInvoice, 'taxCodeId') && !Object.hasOwn(initialInvoice, 'taxRate') && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
+    const taxGiven = Object.hasOwn(initialInvoice, 'taxCodeId') || Object.hasOwn(initialInvoice, 'taxRate');
+    // a tax choice the caller made (including "no tax") is kept when the customer is picked again
+    if (taxGiven && !initialInvoice.id) defaults.markTax();
+    const defaultTax = !taxGiven && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
     setTermsInherited(Boolean(preset));
     setDueDateEdited(false);
     setInvoice(prev => (initialInvoice.id ? createInvoiceFormState(initialInvoice) : {

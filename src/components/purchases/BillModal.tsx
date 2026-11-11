@@ -133,7 +133,10 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     setFilledFrom(initialBill);
     const { splits: initialSplits, ...fields } = initialBill;
     const hints = !initialBill.id ? documentDefaultsOf(safeVendors.find(v => v.id === initialBill.vendorId)) : {};
-    const defaultTax = !Object.hasOwn(initialBill, 'taxCodeId') && purchaseCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
+    const taxGiven = Object.hasOwn(initialBill, 'taxCodeId');
+    // a tax choice the caller made (including "no tax") is kept when the vendor is picked again
+    if (taxGiven && !initialBill.id) defaults.markTax();
+    const defaultTax = !taxGiven && purchaseCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
     setBill(prev => ({ ...prev, ...defaultTax, ...fields }));
     const savedMemo = initialBill.metadata?.memo;
     setMemo(typeof savedMemo === 'string' ? savedMemo : '');

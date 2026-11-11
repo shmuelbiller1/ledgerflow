@@ -48,3 +48,10 @@ test('legacy Company name is a display adapter only, not a stored-key or custom-
   assert.equal(displayDimensionName({ id: 'world', name: 'חברה שלי' }), 'חברה שלי');
   assert.equal(displayDimensionName({ id: 'project', name: 'World / Entity' }), 'World / Entity');
 });
+
+test('an item never takes its tax from metadata: only its own default tax field counts', async () => {
+  const { itemDocumentDefaultsOf } = await import('../lib/documentDefaults');
+  const stale = { metadata: { documentDefaults: { accountId: 'rev', taxCodeId: 'old', dimensions: { project: 'P1' } } } };
+  assert.deepEqual(itemDocumentDefaultsOf(stale), { accountId: 'rev', dimensions: { project: 'P1' } });
+  assert.equal(itemDocumentDefaultsOf({ ...stale, defaultTaxCodeId: 'gst' }).taxCodeId, 'gst');
+});

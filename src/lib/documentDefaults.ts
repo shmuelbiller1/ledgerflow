@@ -22,6 +22,11 @@ export function documentDefaultsOf(record?: { metadata?: Record<string, unknown>
   const defaults = cleanDocumentDefaults(record?.metadata?.documentDefaults);
   return { ...defaults, ...(record?.defaultTaxCodeId ? { taxCodeId: record.defaultTaxCodeId } : {}) };
 }
+/** An item's tax default is its own `defaultTaxCodeId` field only: a tax code left in its metadata is never read. */
+export function itemDocumentDefaultsOf(record?: { metadata?: Record<string, unknown>; defaultTaxCodeId?: string } | null): DocumentDefaults {
+  const { taxCodeId: _metadataTax, ...defaults } = cleanDocumentDefaults(record?.metadata?.documentDefaults);
+  return { ...defaults, ...(record?.defaultTaxCodeId ? { taxCodeId: record.defaultTaxCodeId } : {}) };
+}
 export function defaultsMetadata(metadata: Record<string, unknown> | undefined, defaults: DocumentDefaults): Record<string, unknown> {
   const { documentDefaults: _old, ...rest } = metadata || {};
   const clean = cleanDocumentDefaults(defaults);

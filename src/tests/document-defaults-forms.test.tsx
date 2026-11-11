@@ -171,3 +171,13 @@ test('prefilled invoice lines, custom tax and explicit no-tax choices win over c
   assert.equal((screen.getByLabelText('Item / Description') as HTMLInputElement).value, 'My line');
   assert.match(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /Mine/);
 });
+
+test('a no-tax choice the caller gave stays when the customer or vendor is cleared and picked again', () => {
+  const view = render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={customers} accounts={accounts} initialInvoice={{ customerId: 'c', customerName: 'Client', taxCodeId: '', taxRate: 0 }} />);
+  change('Customer', ''); change('Customer', 'Client');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
+  view.unmount();
+  render(<BillModal isOpen onClose={() => {}} onSave={() => {}} vendors={vendors} accounts={accounts} initialBill={{ vendorId: 'v', taxCodeId: '' }} />);
+  change('Vendor', ''); change('Vendor', 'v');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
+});

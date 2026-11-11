@@ -1,4 +1,4 @@
-import { documentDefaultsOf, type DocumentDefaults } from '../../lib/documentDefaults';
+import { itemDocumentDefaultsOf, type DocumentDefaults } from '../../lib/documentDefaults';
 import { displayDimensionName } from '../../lib/dimensionUtils';
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
@@ -414,7 +414,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                       if (!isInvoiceLine(line)) return;
                       const text = event.target.value;
                       const item = findInventoryItem(inventoryItems, text);
-                      const hints = documentDefaultsOf(item);
+                      const hints = itemDocumentDefaultsOf(item);
                       const fillCode = taxCodeToFillFromItem(line.itemId, item ? { id: item.id, defaultTaxCodeId: hints.taxCodeId } : undefined, taxCodeIds);
                       const updated = setLineDescription(
                         line,
@@ -591,7 +591,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                     onChange={event => {
                       const itemId = event.target.value;
                       const item = inventoryItems.find(item => item.id === itemId);
-                      const defaults = documentDefaultsOf(item);
+                      const defaults = itemDocumentDefaultsOf(item);
                       updateAt(idx, current => fillDefaults({ ...current, itemId: itemId || undefined, ...(itemId ? {} : { quantity: undefined }) } as T, defaults));
                       if (itemId !== line.itemId && defaults.taxCodeId && taxCodeIds.includes(defaults.taxCodeId)) onTaxCodeFill?.(defaults.taxCodeId);
                     }}

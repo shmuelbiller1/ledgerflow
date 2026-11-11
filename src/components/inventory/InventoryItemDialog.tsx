@@ -1,5 +1,5 @@
 import DocumentDefaultsEditor from '../common/DocumentDefaultsEditor';
-import { documentDefaultsOf } from '../../lib/documentDefaults';
+import { itemDocumentDefaultsOf } from '../../lib/documentDefaults';
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -46,7 +46,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
   // A-19: the bundle's parts, held here and written into the form as JSON. The parent keys this
   // dialog by item id, so switching items gives fresh state without an effect.
   const itemDefaults = () => {
-    const { taxCodeId: _tax, ...hints } = documentDefaultsOf(editingItem);
+    const { taxCodeId: _tax, ...hints } = itemDocumentDefaultsOf(editingItem);
     return hints; // Tax has its own existing form field; never retain a hidden duplicate.
   };
   const [documentDefaults, setDocumentDefaults] = useState(itemDefaults);
