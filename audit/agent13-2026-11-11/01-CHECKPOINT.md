@@ -12,6 +12,27 @@
 5. **Accounting identities verified** on the sample year — double entry, independent net income vs P&L, trial balance, balance sheet at year end and mid-year, no orphaned lines. One probe bug (revenue typed `revenue` vs `income`) was caught and corrected before it was reported.
 6. **Checks** — types clean, ESLint 0 errors / 42 warnings (cap unchanged), production build passes, new tests 4/4 and 1/1, neighbouring close/fx suites 51/51.
 
+## Final results (end of session, 2026-11-11 ~18:05Z)
+
+**Full local unit suite completed** (`NODE_ENV=test SYSTEM_SALT=… tsx --test --test-force-exit src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts`), 17m30s wall clock:
+
+```
+# tests 4659
+# pass 4653
+# fail 1
+# skipped 5
+```
+
+The single failure is **A-229's cold-module-preload leg** (`src/tests/report-speed-12m.test.tsx:258`) — `Loading all 10 screen modules took 1521.74 ms (budget 1500 ms)`, 1.4 % over. An earlier run of the same leg on this host read 2,329 ms, and `CURRENT_WORK.md` already records it as a machine artefact on unmodified `main`; the ten screens it imports do not touch this branch's diff. Reported as a sandbox limit, **not** fixed by raising a budget and **not** evidence about the product.
+
+Everything else passed, including `report-speed-all-views.test.tsx` ("no report view regresses past its ceiling, and no fourth screen crosses the 1,000 ms target": ok), `close-checklist-statuses.test.ts` 4/4 and all close/FX neighbours.
+
+**Fork CI on `42b10bb` (PR #22) is fully green — 21/21 checks:** Unit tests 1-4/4, Unit tests in Pacific/Auckland 1-3/3, Unit tests in America/Los_Angeles 1-3/3, Browser shards 1-5/5, Lint/Typecheck/Database rules, Production build, Playwright E2E Smoke Suite, CodeQL ×2, CycloneDX SBOM. That is the first time this lane has had the DB/RLS and browser gates run on its own code, so they are now covered (locally they still skip: no Postgres, no browsers).
+
+**SonarQube Cloud is not green.** Its bot posted "The last analysis has failed" on PR #22. Unknown cause from here (sonarcloud.io is unreachable from this sandbox). The same message appears on upstream PR **#626**, the very commit this branch is based on; upstream #625 and #610 passed. So it is neither specific to this diff nor demonstrably harmless — **AI #1/owner: read the Sonar dashboard before merging.**
+
+Drive backup done and verified: folder `Ledgerflow Agent13 2026-11-11` (7 files, sizes re-listed after upload, MD5s in `02-HANDOFF.md`), plus the Agent #13 section for `MASTER_RECOVERY_INDEX.md` uploaded beside it as `…_MASTER_RECOVERY_INDEX_ADDENDUM.md` with a comment on the index file (the existing index was not rewritten).
+
 ## Nothing was changed in
 
 Money calculations, posting services, tax maths, `src/server/`, migrations, schema, test inputs/expected numbers, quality baselines, warning caps, dependencies or lockfile.
@@ -22,8 +43,8 @@ Money calculations, posting services, tax maths, `src/server/`, migrations, sche
 * **R-1 wording gap**: the queue lists "run P&L and balance sheet" as a checklist step; the screen links to Reports instead of forcing a tick. Owner/lead decision.
 * **AF13-007**: credit notes and vendor credits are outside the month-end posting check.
 * **AF13-006**: the sample fixture tags no entries by document, so the posting check cannot be exercised on it.
-* Standing sandbox failure: the A-229 cold module-preload leg (2,329 ms vs 1,500 ms) reproduces here; documented as a machine artefact in `CURRENT_WORK.md`, untouched.
-* Database/RLS/browser gates were **not** run: no local Postgres, and Playwright browsers are not installed in this sandbox.
+* Standing sandbox failure: the A-229 cold module-preload leg (2,329 ms, then 1,521.74 ms vs a 1,500 ms budget) — right on the boundary; documented as a machine artefact in `CURRENT_WORK.md`, untouched.
+* Database/RLS/browser gates could not run **locally** (no Postgres, no browsers), but the fork's CI ran them on `42b10bb` and they passed (Lint/Typecheck/Database rules, Browser shards 1-5/5, Playwright E2E).
 
 ## Next steps for the next session
 

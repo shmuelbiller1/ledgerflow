@@ -38,6 +38,12 @@ Everything needed to continue this lane without the original session. Read this 
 * The A-229 cold module-preload leg of `src/tests/report-speed-12m.test.tsx` is red here (2,329 ms vs a 1,500 ms budget) — recorded in `CURRENT_WORK.md` as a sandbox artefact on unmodified `main`.
 * `gh` can push to the fork, open fork PRs and open upstream issues, but cannot create PRs on the upstream repository (403).
 
+## Where the gates stand (read this before quoting anything)
+
+* **Fork CI on `42b10bb`: 21/21 green** — Unit tests 1-4/4 · timezone shards (Pacific/Auckland, America/Los_Angeles) 1-3/3 each · Browser shards 1-5/5 · Lint, Typecheck and Database rules · Production build · Playwright E2E Smoke Suite · CodeQL ×2 · CycloneDX SBOM. This is the first run in this lane that includes the DB/RLS and browser gates on its own code.
+* **Full local suite: 4,659 tests / 4,653 pass / 1 fail / 5 skipped, 17m30s.** The one failure is A-229's cold module preload, 1,521.74 ms against a 1,500 ms budget (see above; it read 2,329 ms in an earlier run on this host). Quote it as a sandbox limit with the number, never as "the suite is green".
+* **SonarQube Cloud: failed analysis message on PR #22**, cause unknown from this sandbox. Upstream PR #626 — the base commit — carries the identical message, while #625/#610 passed. Not attributable here, not proven harmless; AI #1/owner must read the dashboard.
+
 ## Drive backup (done 2026-11-11, verified)
 
 Folder: **`Ledgerflow Agent13 2026-11-11`** inside `Ledgerflow Agent Backups` — https://drive.google.com/drive/folders/1g5rDxBr0Vk-v8hewf52hscnQfmXryI7u (ID `1g5rDxBr0Vk-v8hewf52hscnQfmXryI7u`). Every file was re-listed afterwards and its size matches the local byte count; the local MD5s below let a later agent prove identity after download.
