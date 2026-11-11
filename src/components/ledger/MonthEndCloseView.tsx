@@ -83,7 +83,7 @@ export default function MonthEndCloseView() {
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
   const journalEntries = useLedgerStore(s => s.journalEntries);
   const assets = useLedgerStore(s => s.assets);
-  useLedgerCollections('assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'vendorCredits');
+  const { loading: collectionsLoading } = useLedgerCollections('assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'vendorCredits');
   const workspaces = useAuthStore(s => s.workspaces) || [];
   const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
@@ -364,13 +364,14 @@ export default function MonthEndCloseView() {
             ) : state === 'open' ? (
               <div className="space-y-2">
                 {!readiness.ready && <p className="text-sm text-[var(--muted)]">{readiness.reason}</p>}
+                {collectionsLoading && <p className="text-sm text-[var(--muted)]">Loading invoices, bills and credits before the month can be closed…</p>}
                 {isFutureMonth && <p className="text-sm text-[var(--muted)]">This month hasn't ended yet.</p>}
                 <div className="flex gap-3 flex-wrap">
-                  <button type="button" disabled={busy || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
+                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
                     className="px-4 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm font-semibold text-[var(--text)] disabled:opacity-50">
                     Soft close (accountants can still adjust)
                   </button>
-                  <button type="button" disabled={busy || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close {month}
                   </button>
@@ -386,7 +387,7 @@ export default function MonthEndCloseView() {
             ) : (
               <div className="space-y-3">
                 {state === 'soft' && (
-                  <button type="button" disabled={busy || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || collectionsLoading || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close for good
                   </button>

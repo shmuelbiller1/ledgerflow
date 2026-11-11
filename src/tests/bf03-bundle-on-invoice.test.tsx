@@ -10,10 +10,11 @@ import React, { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import DocumentLineEditor, { type InvoiceEditorLine } from '../components/common/DocumentLineEditor';
 import { bundleInvoiceLines } from '../lib/itemBundles';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
+import { useLedgerStore } from '../stores/useLedgerStore';
 import type { InventoryItem } from '../types';
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); });
 
 const items = [
   { id: 'widget', name: 'Widget', unitPriceCents: 1000, unitCostCents: 400, itemType: 'stock' },
@@ -34,15 +35,34 @@ test('BF-03: a bundle becomes its parts, priced and linked like typed items', ()
   assert.deepEqual(bundleInvoiceLines(items[0], 1, items, createLine), [], 'an ordinary item is not expanded');
 });
 
-test('BF-03: typing the bundle on an invoice line replaces that line with the parts', () => {
+function typeBundle(quantity: number, accountId = 'sales', loaded = true) {
   setComponentWorkspace('owner');
+  if (loaded) markComponentCollectionsLoaded('inventory');
   let latest: InvoiceEditorLine[] = [];
   function Harness() {
-    const [lines, setLines] = useState<InvoiceEditorLine[]>([{ ...createLine(), quantity: 3 }]);
+    const [lines, setLines] = useState<InvoiceEditorLine[]>([{ ...createLine(), quantity, accountId }]);
     latest = lines;
     return <DocumentLineEditor side="invoice" lines={lines} onChange={setLines} createLine={createLine} accounts={[]} currency="USD" date="2026-03-01" inventoryItems={items} />;
   }
   render(<Harness />);
   fireEvent.change(screen.getByLabelText(/Item \/ Description/i, { selector: '#inv-item-desc-0' }), { target: { value: 'Starter kit' } });
-  assert.deepEqual(latest.map(l => [l.itemId, l.quantity, l.amountCents]), [['widget', 3, 3000], ['cable', 6, 1500]]);
+  return latest;
+}
+
+test('BF-03: typing the bundle on an invoice line replaces that line with the parts', () => {
+  assert.deepEqual(typeBundle(3).map(l => [l.itemId, l.quantity, l.amountCents]), [['widget', 3, 3000], ['cable', 6, 1500]]);
+});
+
+test('BF-03 review: each part keeps the account the line was given', () => {
+  assert.deepEqual(typeBundle(1, 'services').map(l => [l.itemId, l.accountId]), [['widget', 'services'], ['cable', 'services']]);
+});
+
+test('BF-03 review: a count that is not a whole number of bundles, or an incomplete item list, leaves the line as it was', () => {
+  for (const quantity of [1.5, 0]) {
+    const lines = typeBundle(quantity);
+    assert.deepEqual(lines.map(l => [l.itemId, l.quantity, l.amountCents]), [[undefined, quantity, 0]], `quantity ${quantity}`);
+    cleanup();
+  }
+  useLedgerStore.setState({ truncatedCollections: { inventory: true } });
+  assert.deepEqual(typeBundle(2).map(l => l.itemId), [undefined], 'a capped inventory list');
 });

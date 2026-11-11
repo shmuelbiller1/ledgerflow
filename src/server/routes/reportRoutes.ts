@@ -67,11 +67,12 @@ export function reportCacheSize(): number {
 
 /**
  * L-123: `snapshot` is the balance snapshot the report reads (openingKey), so a stale or rebuilt one is never answered
- * from the cache. #645: the key is made from the parameters the report reads (`params`, after parsing), not the raw
- * query, so a parameter the report ignores (`?n=1`) cannot mint a new entry for the same answer. The user stays in it.
+ * from the cache. AUD-10: the cache is by URL, so a new URL (`&_read=…`) always reads fresh — callers rely on that.
+ * #645: the key also carries the parsed parameters the report reads (`params`), and `rememberReport` bounds the cache,
+ * so a burst of distinct URLs costs at most REPORT_CACHE_LIMIT entries. The user stays in it.
  */
 export function getCacheKey(req: express.Request, snapshot = 'none', params: object = {}): string {
-  const payload = JSON.stringify({ path: req.path, params, user: requestUser(req)?.uid, snapshot });
+  const payload = JSON.stringify({ path: req.path, query: req.query, params, user: requestUser(req)?.uid, snapshot });
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 

@@ -16,6 +16,8 @@ import { cn, formatCurrency } from '../../lib/utils';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { toast } from 'sonner';
 import type { ChartAccount, DimensionDefinition, EntityMetadata, InventoryItem } from '../../types';
 import { BudgetLeft } from './BudgetLeft';
 import { DimensionValueActions, InlineAddDimensionAxis } from './DimensionValueActions';
@@ -416,10 +418,28 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                       const text = event.target.value;
                       const item = findInventoryItem(inventoryItems, text);
                       const pricer = customerPricer(useAuthStore.getState().getCurrentWorkspace()?.priceLists, customerId);
-                      // BF-03: a bundle becomes its parts, each a line of its own (count: this line's quantity, at least 1)
-                      const parts = item && isBundle(item)
-                        ? bundleInvoiceLines(item, Math.max(1, Math.round(Number(line.quantity) || 1)), inventoryItems, () => createLine() as unknown as InvoiceEditorLine, pricer)
-                        : [];
+                      // BF-03: a bundle becomes its parts, each a line of its own, `count` bundles (this line's quantity)
+                      let parts: InvoiceEditorLine[] = [];
+                      if (item && isBundle(item)) {
+                        const count = Number(line.quantity);
+                        const auth = useAuthStore.getState();
+                        const listComplete = !useLedgerStore.getState().truncatedCollections?.inventory
+                          && ((auth.isGuest && !auth.user) || Boolean(useDataNeedsStore.getState().loaded.inventory));
+                        if (!Number.isInteger(count) || count < 1) {
+                          toast.error(`${item.name} is a bundle: set the quantity to a whole number of bundles (1 or more), then choose it again.`);
+                          return;
+                        }
+                        if (!listComplete) {
+                          toast.error(`${item.name} is a bundle, and the item list is not complete yet: choose it again once every item has loaded.`);
+                          return;
+                        }
+                        // each part keeps the account this line was given, as choosing a single item does
+                        const fresh = () => {
+                          const next = createLine() as unknown as InvoiceEditorLine;
+                          return line.accountId ? { ...next, accountId: line.accountId } : next;
+                        };
+                        parts = bundleInvoiceLines(item, count, inventoryItems, fresh, pricer);
+                      }
                       if (parts.length) {
                         onChange(prev => [...prev.slice(0, idx), ...(parts as unknown as T[]), ...prev.slice(idx + 1)]);
                         return;
