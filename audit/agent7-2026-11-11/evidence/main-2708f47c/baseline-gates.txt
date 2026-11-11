@@ -37,6 +37,7 @@ node scripts/code-atlas.mjs stats     -> sourceRevision 74b8318bfba0983ecba05bfb
 node scripts/code-atlas.mjs validate  -> ok: true, errors: [] (against that revision; needed two extra history fetches in this shallow clone)
 node scripts/code-atlas.mjs changes --check -> exit 1: 2590 source changes since that revision (added 1603, modified 909, renamed 66, deleted 12); all 18 workflow traces need review (finding A7-12)
 npx tsx scripts/bug-patterns.ts       -> client: swallowing-action 95, success-after-call 12, unchecked-write 2, write-in-loop 8, stale-async 79, silent-catch 50, effect-before-write 0; serverAndSql 16
+                                         (the run rewrites docs/BUG_PATTERNS.md; the committed copy says write-in-loop 10 and silent-catch 51. The file was restored, not committed.)
 node scripts/code-atlas.mjs unknowns / workflow FLOW-PERMISSIONS / FLOW-TAX / V1-04 -> NOT run (the traces are flagged stale by the check above)
 
 ## not run here
