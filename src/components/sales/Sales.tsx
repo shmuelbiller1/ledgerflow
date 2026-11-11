@@ -271,7 +271,7 @@ export default function Sales() {
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
       {loading && (invoices.length > 0 || customers.length > 0) && (
-        <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
+        <p role="status" className="text-xs text-[var(--muted)] px-1">{salesText('status.refreshing', 'Refreshing this screen…')}</p>
       )}
       {/* header: same shape as Purchases (title, one line, tabs and actions on the right) */}
       <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title={salesText('title', 'Sales')}
@@ -429,7 +429,7 @@ export default function Sales() {
                           className={cn("font-bold text-[var(--text)]", inv.status === 'overdue' && "text-rose-600")} />
                         {inv.status === 'pending' && (
                           <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 opacity-50">
-                            {differenceInDays(parseLocalDate(inv.dueDate), new Date())} T-Days Left
+                            {differenceInDays(parseLocalDate(inv.dueDate), new Date())} {salesText('status.daysLeft', 'T-Days Left')}
                           </span>
                         )}
                       </div>
@@ -445,14 +445,14 @@ export default function Sales() {
                         )}>
                           {salesText(`status.${inv.status}`, inv.status)}
                         </span>
-                        {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">Receipt</span>}
+                        {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">{salesText('status.receipt', 'Receipt')}</span>}
                         {(inv.writtenOffCents || 0) > 0 && (
-                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>{salesText('status.writtenOff', 'written off')} {formatCurrency(inv.writtenOffCents || 0)}</span>
                         )}
                       </div>
                       {inv.viewedAt && inv.status !== 'paid' && (
                         <div className="mt-1 text-center text-[10px] text-[var(--muted)]" title={inv.lastViewedAt ? `Last opened ${formatDate(inv.lastViewedAt.slice(0, 10))}${(inv.viewCount || 0) > 1 ? `, ${inv.viewCount} times` : ''}` : undefined}>
-                          Opened by the customer {formatDate(inv.viewedAt.slice(0, 10))}
+                          {salesText('status.openedByCustomer', 'Opened by the customer')} {formatDate(inv.viewedAt.slice(0, 10))}
                         </div>
                       )}
                       {inv.revenueSchedule && <div className="mt-1 text-center text-[10px] text-[var(--muted)]">{spreadProgress(inv.revenueSchedule, getLocalDateISO())}</div>}
@@ -461,8 +461,8 @@ export default function Sales() {
                         canDecide={canDecideApproval} onDecide={d => decideApproval(inv, d)} />
                       {inv.metadata?.cogsPending && (
                         <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-[var(--neg)]">
-                          <span title="The cost of the items sold was not recorded: add an Inventory and a Cost of Goods Sold account, then retry.">Cost not recorded</span>
-                          <button type="button" onClick={() => updateEntity('invoices', inv.id, {}, 'Invoice re-posted')} className="underline font-bold">Retry</button>
+                          <span title={salesText('help.costNotRecorded', 'The cost of the items sold was not recorded: add an Inventory and a Cost of Goods Sold account, then retry.')}>{salesText('status.costNotRecorded', 'Cost not recorded')}</span>
+                          <button type="button" onClick={() => updateEntity('invoices', inv.id, {}, 'Invoice re-posted')} className="underline font-bold">{salesText('action.retry', 'Retry')}</button>
                         </div>
                       )}
                     </td>
@@ -509,7 +509,7 @@ export default function Sales() {
                               className="px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                               aria-label={`Apply the estimate's deposit to invoice ${inv.number || ''}`.trim()}
                             >
-                              Apply deposit {formatCurrency(Math.min(deposit.unappliedCents, due), inv.currency)}
+                              {salesText('action.applyDeposit', 'Apply deposit')} {formatCurrency(Math.min(deposit.unappliedCents, due), inv.currency)}
                             </button>
                           );
                         })()}
@@ -522,7 +522,7 @@ export default function Sales() {
                             className="px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--text)] rounded-xl"
                             aria-label={`Undo the spread of invoice ${inv.number || ''}`.trim()}
                           >
-                            Undo spread
+                            {salesText('action.undoSpread', 'Undo spread')}
                           </button>
                         ) : (
                           <button type="button"
@@ -531,7 +531,7 @@ export default function Sales() {
                             title="Income earned over time (a subscription, a retainer): spread it over the months it covers"
                             aria-label={`Spread invoice ${inv.number || ''} over months`.replace('  ', ' ')}
                           >
-                            Spread
+                            {salesText('action.spread', 'Spread')}
                           </button>
                         ))}
                         {(inv.writtenOffCents || 0) > 0 && (
@@ -623,7 +623,7 @@ export default function Sales() {
                         onClick={() => setInvoiceLimit(n => n + 200)}
                         className="min-h-11 px-4 py-2 text-xs font-bold text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-xl hover:bg-[var(--ink)]/50 transition-all"
                       >
-                        Show more invoices ({visibleInvoices.length} of {filteredInvoices.length})
+                        {salesText('action.showMoreInvoices', 'Show more invoices')} ({visibleInvoices.length} {salesText('common.of', 'of')} {filteredInvoices.length})
                       </button>
                     </td>
                   </tr>
@@ -670,7 +670,7 @@ export default function Sales() {
                   <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.profile', 'Customer Profile')}</th>
                   <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.contact', 'Contact')}</th>
                   <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">{salesText('customer.table.receivable', 'Net Receivable')}</th>
-                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">{salesText('table.actions', 'Actions')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ledger-line/30">
@@ -699,7 +699,7 @@ export default function Sales() {
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
-                               {cust.noReminders ? 'No reminders' : 'Reminders on'}
+                               {cust.noReminders ? salesText('action.remindersOff', 'No reminders') : salesText('action.remindersOn', 'Reminders on')}
                             </button>
                           </div>
                        </div>
