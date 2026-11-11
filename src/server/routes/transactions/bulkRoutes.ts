@@ -87,7 +87,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
        const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
        // #112: only these fields can change in a batch; totals, dates, currency and identity go
        // through the full entry editor (PUT) or /recategorize, which check everything
-       const BATCH_FIELDS = new Set(['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category', 'dimensions.category', 'dimensions.project', 'isLocked', 'isFlagged', 'isTransfer', 'transferDetails', 'verification', 'notes', 'memo', 'updatedAt']);
+       const BATCH_FIELDS = new Set(['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category', 'dimensions.category', 'dimensions.project', 'isLocked', 'isFlagged', 'isReviewed', 'isCleared', 'reconciled', 'reconciledAt', 'isTransfer', 'transferDetails', 'verification', 'notes', 'memo', 'updatedAt']);
        if (updates.length > 2000) return res.status(400).json({ error: 'At most 2000 entries per batch' });
        const ids = updates.map((u: { id: unknown }) => String(u?.id ?? ''));
        if (ids.some(id => !id) || new Set(ids).size !== ids.length) return res.status(400).json({ error: 'Each entry once, with its id' });

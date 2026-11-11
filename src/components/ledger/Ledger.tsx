@@ -124,7 +124,7 @@ const Ledger = React.memo(() => {
   const { loading: transactionsLoading } = useLedgerCollections('transactions');
   const { handleAction: onAction } = useCommandDispatcher();
   const txActions = useTransactionActions();
-  const { addEntity, updateEntity } = useEntityOperations();
+  const { addEntity } = useEntityOperations();
 
   const onCompleteReconciliation = async (data: ReconciliationResult) => {
     try {
@@ -139,18 +139,8 @@ const Ledger = React.memo(() => {
         completedAt: data.timestamp || new Date().toISOString()
       };
       
-      // Save reconciliation record in Firestore and state
-      await addEntity('reconciliations', recRecord, 'Reconciliation record saved');
-
-      // Update all reconciled transactions status
-      const updates = (data.reconciledIds || []).map((id: string) => 
-        updateEntity('transactions', id, { 
-          status: 'reconciled', 
-          reconciled: true, 
-          reconciledAt: new Date().toISOString() 
-        })
-      );
-      await Promise.all(updates);
+      // Atomically persist reconciliation record and mark all reconciled transactions on the server
+      await addEntity('reconciliations', recRecord);
 
       toast.success(`Reconciliation finalized: ${(data.reconciledIds || []).length} transactions marked reconciled.`);
     } catch (err) {

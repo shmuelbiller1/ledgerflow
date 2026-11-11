@@ -14,6 +14,12 @@ import { exportWorkspaceBackup, restoreWorkspaceBackup, RestoreError } from "../
 import { authAdmin } from "../auth/supabaseAuth";
 import { NEW_WORKSPACE_MODULES } from '../../lib/modules';
 import { BRAND } from '../../config/brand';
+import { computeLedgerCloseAnchor, verifyAuditHashChain, type HashChainableAuditEntry } from '../../lib/auditHashChain';
+import { z } from 'zod';
+
+const AuditVerifyQuerySchema = z.object({
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -308,4 +314,42 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
       handleApiError(res, err);
     }
   });
+
+  /** Strategy 5: Verify cryptographic SHA-256 hash-chain integrity + ledger close anchor for a workspace. */
+  app.get(
+    "/api/v1/workspaces/:workspaceId/audit-chain/verify",
+    apiAuthenticate,
+    requireWorkspaceRole(["owner", "accountant"]),
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const { workspaceId } = req.params as Record<string, string>;
+        const parsedQuery = AuditVerifyQuerySchema.safeParse(req.query || {});
+        if (!parsedQuery.success) {
+          return sendError(res, "Invalid query parameters", 400);
+        }
+        const authReq = req as AuthenticatedRequest;
+        await authorizeWorkspace(authReq, workspaceId);
+
+        const db = getDb();
+        const [auditSnap, txSnap] = await Promise.all([
+          db.collection("auditLogs").where("workspaceId", "==", workspaceId).get(),
+          db.collection("transactions").where("workspaceId", "==", workspaceId).get(),
+        ]);
+
+        const logs = auditSnap.docs.map(d => ({ ...(d.data() as HashChainableAuditEntry), id: d.id }));
+        const verification = verifyAuditHashChain(logs);
+        const txs = txSnap.docs.map(d => ({ ...(d.data() as Record<string, unknown>), id: d.id })) as never[];
+        const ledgerAnchor = computeLedgerCloseAnchor(txs, parsedQuery.data.asOfDate);
+
+        res.json({
+          status: "success",
+          workspaceId,
+          auditChain: verification,
+          ledgerAnchor,
+        });
+      } catch (err) {
+        handleApiError(res, err);
+      }
+    },
+  );
 }

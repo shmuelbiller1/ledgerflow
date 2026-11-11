@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FileArchive, Download } from 'lucide-react';
+import { FileArchive, Download, ShieldCheck, ShieldAlert, Briefcase } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
@@ -7,6 +7,8 @@ import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useAccessReview } from '../../../hooks/useAccessReview';
 import { buildAuditEvidencePack, evidenceDay, evidencePackFileName } from '../../../lib/auditEvidencePack';
+import { verifyAuditHashChain, type HashChainableAuditEntry } from '../../../lib/auditHashChain';
+import { buildLenderReadyPackage, lenderPackageFileName } from '../../../lib/lenderReadyPackage';
 import { localDay } from '../../../lib/accessReview';
 import { buildStoredZip } from '../../../lib/zips';
 import { LoadingState } from '../../ui/LoadingState';
@@ -53,7 +55,11 @@ export default function AuditEvidencePackPanel() {
 
 function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const accounts = useLedgerStore(s => s.accounts || []);
+  const transactions = useLedgerStore(s => s.transactions || []);
   const invoices = useLedgerStore(s => s.invoices || []);
+  const bills = useLedgerStore(s => s.bills || []);
+  const reconciliations = useLedgerStore(s => s.reconciliations || []);
   const payRuns = useLedgerStore(s => s.payRuns || []);
   const auditLogs = useLedgerStore(s => s.auditLogs || []);
   const invoicesCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices));
@@ -67,6 +73,10 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
   const [notice, setNotice] = useState('');
 
   const invalidPeriod = !evidenceDay(from) || !evidenceDay(to) || from > to;
+  const chainStatus = useMemo(
+    () => verifyAuditHashChain(auditLogs as unknown as HashChainableAuditEntry[]),
+    [auditLogs],
+  );
 
   const files = useMemo(() => {
     if (!workspace || invalidPeriod) return [];
@@ -117,6 +127,50 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
     }
   };
 
+  const downloadLenderPack = () => {
+    setError(''); setNotice('');
+    try {
+      if (invalidPeriod) throw new Error('Choose a valid period: the first date must not be after the last.');
+      if (!workspace) throw new Error('Open a workspace first.');
+      const lender = buildLenderReadyPackage({
+        workspace: {
+          id: workspace.id,
+          name: workspace.name,
+          lockDate: workspace.lockDate,
+          softLockDate: workspace.softLockDate,
+          lockException: workspace.lockException,
+          requireTwoStep: workspace.requireTwoStep,
+          twoPersonRule: workspace.twoPersonRule,
+          payrollApproval: workspace.payrollApproval,
+          invoiceApproval: workspace.invoiceApproval,
+          currency: workspace.currency,
+        },
+        period: { from, to },
+        generatedAt: generatedAt(),
+        accounts,
+        transactions,
+        invoices,
+        bills,
+        reconciliations,
+        auditLogs: auditLogs as unknown as HashChainableAuditEntry[],
+      });
+      const zip = buildStoredZip(lender.files.map(file => ({ name: file.name, data: new TextEncoder().encode(file.text) })));
+      const name = lenderPackageFileName(workspace, { from, to });
+      const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice(`Downloaded ${name}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The lender package could not be built.');
+    }
+  };
+
   const busy = !failed && review.status !== 'error' && (loading || review.status === 'loading');
   const blocked = failed
     ? `The documents this pack needs could not be loaded: ${failed}`
@@ -148,6 +202,27 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
           className="min-h-11 px-4 border border-[var(--line)] rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
           <Download aria-hidden="true" size={14} /> Download .zip
         </button>
+        <button type="button" onClick={downloadLenderPack} disabled={invalidPeriod || busy || Boolean(blocked)}
+          className="min-h-11 px-4 border border-emerald-600/50 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
+          <Briefcase aria-hidden="true" size={14} /> Lender-ready package (.zip)
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--ink)]">
+        {chainStatus.valid ? (
+          <>
+            <ShieldCheck aria-hidden="true" size={15} className="text-emerald-500 shrink-0" />
+            <span className="text-[var(--text)] font-semibold">SHA-256 audit hash-chain verified</span>
+            <span className="text-[var(--muted)] font-mono truncate">
+              · {chainStatus.chainedCount} chained · head {chainStatus.headHash.slice(0, 12)}…
+            </span>
+          </>
+        ) : (
+          <>
+            <ShieldAlert aria-hidden="true" size={15} className="text-rose-500 shrink-0" />
+            <span className="text-rose-500 font-semibold">Audit chain tampered: {chainStatus.reason}</span>
+          </>
+        )}
       </div>
 
       {invalidPeriod && <p role="alert" className="text-sm text-rose-400">Choose a valid period: the first date must not be after the last.</p>}

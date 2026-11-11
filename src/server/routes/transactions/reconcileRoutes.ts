@@ -13,6 +13,7 @@ import { BankLineError, payFromBankLine, splitBankLine } from '../../services/ba
 import { BankRuleError, rerunBankRules } from '../../services/bankRuleService';
 import { z } from 'zod';
 import { writeServerAuditLog } from '../../services/auditLogService';
+import { ledgerWrite } from '../../services/ledgerDoor';
 import { assertPostingOpen } from '../../../lib/periodLock';
 import { errorMessage, requestUser } from '../../auth/requestUser';
 import type { ExternalBankLine } from './helpers';
@@ -502,6 +503,130 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       });
     } catch (e) {
       res.status(500).json({ error: errorMessage(e) });
+    }
+  });
+
+  const completeReconciliationSchema = z.object({
+    workspaceId: z.string().min(1),
+    accountId: z.string().min(1),
+    accountName: z.string().optional(),
+    statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'statementDate must be YYYY-MM-DD'),
+    statementBalanceCents: z.number().int(),
+    reconciledTransactionIds: z.array(z.string().min(1)).max(2000).default([]),
+    completedAt: z.string().optional(),
+  }).strict();
+
+  transactionRouter.post('/reconciliations/complete', async (req, res) => {
+    try {
+      const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+      if (!rawWorkspaceId) {
+        return res.status(400).json({ error: 'Missing workspaceId' });
+      }
+      const user = requestUser(req);
+      const db = getDb();
+      const preWsSnap = await db.collection('workspaces').doc(rawWorkspaceId).get();
+      if (!preWsSnap.exists) throw new BankLineError(404, 'Workspace not found');
+      const preWsData = preWsSnap.data() || {};
+      if (preWsData.uid !== user.uid && !(Array.isArray(preWsData.members) && preWsData.members.includes(user.uid)) && !user.admin) {
+        throw new BankLineError(403, 'Not a member');
+      }
+      const preRole = preWsData.uid === user.uid ? 'owner' : preWsData.roles?.[user.uid] || 'viewer';
+      if (!user.admin && !['owner', 'accountant', 'bookkeeper'].includes(preRole)) {
+        throw new BankLineError(403, 'Only owners, accountants and bookkeepers finalize reconciliations');
+      }
+
+      const parsed = completeReconciliationSchema.parse(req.body);
+      const reconciliation = await db.runTransaction(async (t) => {
+        const wsSnap = await t.get(db.collection('workspaces').doc(parsed.workspaceId));
+        if (!wsSnap.exists) throw new BankLineError(404, 'Workspace not found');
+        const wsData = wsSnap.data() || {};
+        if (wsData.uid !== user.uid && !(Array.isArray(wsData.members) && wsData.members.includes(user.uid)) && !user.admin) {
+          throw new BankLineError(403, 'Not a member');
+        }
+        const role = wsData.uid === user.uid ? 'owner' : wsData.roles?.[user.uid] || 'viewer';
+        if (!user.admin && !['owner', 'accountant', 'bookkeeper'].includes(role)) {
+          throw new BankLineError(403, 'Only owners, accountants and bookkeepers finalize reconciliations');
+        }
+        assertPostingOpen(parsed.statementDate, wsData as never, user.uid);
+
+        const accSnap = await t.get(db.collection('chartAccounts').doc(parsed.accountId));
+        if (!accSnap.exists || accSnap.data()?.workspaceId !== parsed.workspaceId) {
+          throw new BankLineError(400, 'Account does not belong to this workspace');
+        }
+
+        const uniqueTxIds = [...new Set(parsed.reconciledTransactionIds)];
+        const txRefs = uniqueTxIds.map(id => db.collection('transactions').doc(id));
+        const txSnaps = uniqueTxIds.length ? await t.getAll(...txRefs) : [];
+        const completedIso = parsed.completedAt || new Date().toISOString();
+
+        for (let i = 0; i < txSnaps.length; i++) {
+          const snap = txSnaps[i];
+          if (!snap.exists || snap.data()?.workspaceId !== parsed.workspaceId) {
+            throw new BankLineError(400, `Transaction ${uniqueTxIds[i]} does not belong to this workspace`);
+          }
+          const txData = snap.data() as Record<string, unknown>;
+          if (typeof txData.date === 'string' && txData.date) {
+            assertPostingOpen(txData.date, wsData as never, user.uid);
+          }
+        }
+
+        const recRef = db.collection('reconciliations').doc();
+        const recDoc = {
+          id: recRef.id,
+          uid: user.uid,
+          workspaceId: parsed.workspaceId,
+          accountId: parsed.accountId,
+          accountName: parsed.accountName || String(accSnap.data()?.name || 'Bank Account'),
+          statementDate: parsed.statementDate,
+          statementBalanceCents: parsed.statementBalanceCents,
+          reconciledTransactionIds: uniqueTxIds,
+          reconciledIds: uniqueTxIds,
+          reconciledCount: uniqueTxIds.length,
+          status: 'completed',
+          completedAt: completedIso,
+          createdAt: completedIso,
+        };
+        t.create(recRef, recDoc);
+
+        for (let i = 0; i < txSnaps.length; i++) {
+          const existing = txSnaps[i].data() as Record<string, unknown>;
+          await ledgerWrite(t, txRefs[i], {
+            ...existing,
+            id: uniqueTxIds[i],
+            workspaceId: parsed.workspaceId,
+            status: 'reconciled',
+            reconciled: true,
+            isCleared: true,
+            reconciledAt: completedIso,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+
+        return recDoc;
+      });
+
+      await writeServerAuditLog({
+        workspaceId: parsed.workspaceId,
+        uid: user.uid,
+        email: user.email || '',
+        action: 'RECONCILIATION_COMPLETED',
+        entityType: 'reconciliation',
+        entityId: reconciliation.id,
+        details: {
+          description: `Completed bank reconciliation for account ${reconciliation.accountId} as of ${reconciliation.statementDate}`,
+          accountId: reconciliation.accountId,
+          statementDate: reconciliation.statementDate,
+          statementBalanceCents: reconciliation.statementBalanceCents,
+          reconciledCount: reconciliation.reconciledCount,
+        },
+        severity: 'info',
+      });
+
+      res.status(201).json({ status: 'ok', reconciliation });
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ error: 'Invalid reconciliation payload', details: e.issues });
+      if (e instanceof BankLineError) return res.status(e.status).json({ error: e.message });
+      res.status(400).json({ error: errorMessage(e) });
     }
   });
 }

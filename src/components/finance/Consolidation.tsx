@@ -1,14 +1,20 @@
 import type { TransactionLine } from '../../types';
 import React, { useState, useMemo } from 'react';
-import { Layers, Download, BarChart3, TrendingUp, Globe } from 'lucide-react';
+import { Layers, Download, BarChart3, TrendingUp, Globe, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { IntercompanyEliminationEngine } from '../../lib/intercompanyElimination';
 import { isIncomeAccount } from '../../lib/accountUtils';
+import { buildSelfProvingEliminations } from '../../lib/selfBalancingDimensions';
+import { labelRoleFindings } from '../../lib/labelRoles';
+import { computeSharedTransactionIdentity } from '../../lib/algorithms/shared-transaction-identity';
 
 export default function Consolidation() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
+  const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
+  const workspaceId = currentWorkspace?.id || 'default';
   
   const summary = useMemo(() => {
     const incomeAccountIds = new Set(accounts.filter(a => isIncomeAccount(a)).map(a => a.id));
@@ -19,6 +25,19 @@ export default function Consolidation() {
 
     return IntercompanyEliminationEngine.generateConsolidatedSummary(transactions, isIncomeLine as (line: TransactionLine) => boolean, isExpenseLine as (line: TransactionLine) => boolean);
   }, [transactions, accounts]);
+
+  const selfProvingReport = useMemo(
+    () => buildSelfProvingEliminations([{ workspaceId, transactions }]),
+    [workspaceId, transactions],
+  );
+  const sharedIdentity = useMemo(
+    () => computeSharedTransactionIdentity(transactions),
+    [transactions],
+  );
+  const dimensionFindings = useMemo(
+    () => labelRoleFindings(transactions, currentWorkspace?.dimensions, accounts),
+    [transactions, currentWorkspace?.dimensions, accounts],
+  );
 
   const [activeTab, setActiveTab] = useState<'matrix' | 'adjustments'>('matrix');
 
@@ -108,6 +127,68 @@ export default function Consolidation() {
               </div>
             </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'adjustments' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-5 bg-[var(--surface)] border border-[var(--line)] rounded-2xl">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" aria-hidden="true" />
+                  Self-Proving Eliminations
+                </div>
+                <p className="text-2xl font-black mt-2 text-[var(--text)]">
+                  {selfProvingReport.selfProving ? 'Balanced (0 discrepancy)' : `${selfProvingReport.discrepancyCount} discrepancy`}
+                </p>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  {selfProvingReport.matchedCount} matched Due From / Due To pairs · {formatCurrency(selfProvingReport.totalEliminatedCents)} eliminated
+                </p>
+              </div>
+              <div className="p-5 bg-[var(--surface)] border border-[var(--line)] rounded-2xl">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
+                  <Globe className="w-4 h-4 text-indigo-500" aria-hidden="true" />
+                  Bilateral Identity Hashes
+                </div>
+                <p className="text-2xl font-black mt-2 text-[var(--text)]">
+                  {sharedIdentity.totalSharedCount}
+                </p>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  SHA-256 dual-perspective intercompany records
+                </p>
+              </div>
+              <div className="p-5 bg-[var(--surface)] border border-[var(--line)] rounded-2xl">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
+                  {dimensionFindings.length === 0 ? (
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" aria-hidden="true" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-500" aria-hidden="true" />
+                  )}
+                  Self-Balancing Dimensions
+                </div>
+                <p className="text-2xl font-black mt-2 text-[var(--text)]">
+                  {dimensionFindings.length === 0 ? 'All balanced' : `${dimensionFindings.length} open`}
+                </p>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  Each self-balancing fund, property, or entity nets to zero
+                </p>
+              </div>
+            </div>
+
+            {sharedIdentity.pairs.length > 0 && (
+              <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-5">
+                <h2 className="text-sm font-bold text-[var(--text)] mb-3">Shared-Identity Intercompany Ledger</h2>
+                <div className="space-y-2 text-xs font-mono">
+                  {sharedIdentity.pairs.slice(0, 8).map(pair => (
+                    <div key={pair.txId} className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[var(--ink)] border border-[var(--line)]">
+                      <span className="font-sans font-semibold text-[var(--text)]">{pair.sourceEntity} → {pair.targetEntity}</span>
+                      <span className="text-[var(--muted)]">{pair.hashSignature}</span>
+                      <span className="font-bold text-emerald-600">{formatCurrency(pair.amountCents)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

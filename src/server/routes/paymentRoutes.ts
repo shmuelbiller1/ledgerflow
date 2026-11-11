@@ -13,6 +13,7 @@ import { createDeposit, DepositError } from '../services/depositService';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { afterPaymentRecorded } from '../services/afterPayment';
 import { findPaymentType } from '../../lib/paymentTypes';
+import { computePlatformFeeQuote, summarizePaymentVolume } from '../../lib/paymentVolumeFee';
 
 export const paymentRouter = express.Router();
 
@@ -285,5 +286,163 @@ paymentRouter.post('/:paymentId/void', async (req, res) => {
     if (/Period Locked/i.test(message)) return res.status(409).json({ status: 'error', message });
     if (/not a member|Forbidden|Unauthorized/i.test(message)) return res.status(403).json({ status: 'error', message });
     res.status(400).json({ status: 'error', message });
+  }
+});
+
+const payoutRunItemSchema = z.object({
+  vendorId: z.string().min(1),
+  vendorName: z.string().min(1),
+  amountCents: z.number().int().positive(),
+  operationId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/),
+  allocations: z.array(z.object({
+    documentId: z.string().min(1),
+    documentType: z.literal('bill'),
+    amountCents: z.number().int().positive(),
+  })).min(1),
+}).strict();
+
+const payoutRunSchema = z.object({
+  workspaceId: z.string().min(1),
+  cashAccountId: z.string().min(1),
+  paymentDate: z.string().refine(isIsoDate, 'paymentDate must be YYYY-MM-DD').optional(),
+  payouts: z.array(payoutRunItemSchema).min(1).max(200),
+}).strict();
+
+/** Strategy 4: Processor-backed vendor ACH/bank payouts initiated directly from a payment run. */
+paymentRouter.post('/payout-run', async (req, res) => {
+  const authReq = req as unknown as Partial<AuthenticatedRequest>;
+  if (!authReq.user?.uid) return res.status(401).json({ status: 'error', message: 'Sign in required' });
+  const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+  if (!rawWorkspaceId) {
+    return res.status(400).json({ status: 'error', message: 'Invalid payout run payload: workspaceId required' });
+  }
+
+  try {
+    const db = getDb();
+    const { data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, authReq.user);
+    if (!authReq.user.admin) {
+      const userRole = await getWorkspaceUserRole(db, rawWorkspaceId, authReq.user.uid);
+      if (!['owner', 'accountant', 'bookkeeper'].includes(userRole)) {
+        return res.status(403).json({ status: 'error', message: 'Forbidden: requires owner, accountant, or bookkeeper role' });
+      }
+    }
+
+    const parsed = payoutRunSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid payout run payload', details: parsed.error.issues });
+    const { workspaceId, cashAccountId, paymentDate, payouts } = parsed.data;
+
+    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
+    const effectiveDate = paymentDate || getDateInTimezoneISO(new Date(), wsTimezone);
+    const payoutBatchId = `pob_${effectiveDate.replace(/-/g, '')}_${payouts[0].operationId.slice(-8)}`;
+    const plan = String(wsData?.plan || 'free');
+
+    const completed: Array<{
+      vendorId: string;
+      vendorName: string;
+      paymentId: string;
+      amountCents: number;
+      platformFeeCents: number;
+      payoutReference: string;
+    }> = [];
+    const failed: Array<{ vendorId: string; vendorName: string; message: string }> = [];
+    let totalDisbursedCents = 0;
+    let totalPlatformFeeCents = 0;
+
+    for (const item of payouts) {
+      try {
+        const feeQuote = computePlatformFeeQuote(item.amountCents, plan, 'vendor_payout');
+        const payoutReference = `ACH-${payoutBatchId}-${item.vendorId.slice(-6)}`;
+        const created = await createPaymentIdempotent(
+          db,
+          {
+            workspaceId,
+            uid: authReq.user.uid,
+            amountCents: item.amountCents,
+            paymentDate: effectiveDate,
+            cashAccountId,
+            paymentMethod: 'vendor_payout',
+            referenceNumber: payoutReference,
+            memo: `Processor ACH payout (${payoutBatchId})`,
+            vendorId: item.vendorId,
+            entityName: item.vendorName,
+            allocations: item.allocations,
+          },
+          item.operationId,
+        );
+        const paymentId = String((created as { paymentId?: string; id?: string }).paymentId || (created as { id?: string }).id || item.operationId);
+        completed.push({
+          vendorId: item.vendorId,
+          vendorName: item.vendorName,
+          paymentId,
+          amountCents: item.amountCents,
+          platformFeeCents: feeQuote.platformFeeCents,
+          payoutReference,
+        });
+        totalDisbursedCents += item.amountCents;
+        totalPlatformFeeCents += feeQuote.platformFeeCents;
+      } catch (itemErr) {
+        failed.push({
+          vendorId: item.vendorId,
+          vendorName: item.vendorName,
+          message: itemErr instanceof Error ? itemErr.message : String(itemErr),
+        });
+      }
+    }
+
+    if (completed.length > 0) {
+      await writeServerAuditLog({
+        workspaceId,
+        uid: authReq.user.uid,
+        email: authReq.user.email || '',
+        action: 'VENDOR_PAYOUT_RUN_EXECUTED',
+        entityType: 'payment',
+        entityId: payoutBatchId,
+        details: {
+          description: `Executed vendor ACH payout batch ${payoutBatchId} (${completed.length} sent)`,
+          payoutBatchId,
+          completedCount: completed.length,
+          failedCount: failed.length,
+          totalDisbursedCents,
+          totalPlatformFeeCents,
+        },
+        severity: 'info',
+      });
+    }
+
+    res.json({
+      status: 'success',
+      payoutBatchId,
+      completed,
+      failed,
+      totalDisbursedCents,
+      totalPlatformFeeCents,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not a member|Forbidden|Unauthorized/i.test(message)) return res.status(403).json({ status: 'error', message });
+    res.status(400).json({ status: 'error', message });
+  }
+});
+
+/** GET /api/v1/payments/volume-summary: monthly processed volume & platform fee revenue share. */
+paymentRouter.get('/volume-summary', async (req, res) => {
+  const authReq = req as unknown as Partial<AuthenticatedRequest>;
+  if (!authReq.user?.uid) return res.status(401).json({ status: 'error', message: 'Sign in required' });
+  const workspaceId = String(req.query.workspaceId || '');
+  const month = String(req.query.month || new Date().toISOString().slice(0, 7));
+  if (!workspaceId || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ status: 'error', message: 'workspaceId and YYYY-MM month are required' });
+  }
+  try {
+    const db = getDb();
+    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
+    const snap = await db.collection('payments').where('workspaceId', '==', workspaceId).get();
+    const rows = snap.docs.map(d => d.data() as Record<string, unknown>);
+    const summary = summarizePaymentVolume(rows as never, month, String(wsData?.plan || 'free'));
+    res.json({ status: 'success', summary });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not a member|Forbidden|Unauthorized/i.test(message)) return res.status(403).json({ status: 'error', message });
+    res.status(500).json({ status: 'error', message });
   }
 });

@@ -504,7 +504,6 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
         for (let i = 0; i < txList.length; i += BATCH_SIZE) {
           const chunk = txList.slice(i, i + BATCH_SIZE);
-          let posted = false;
 
           if (token) {
             try {
@@ -519,18 +518,15 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
                   workspaceId: currentWorkspaceId
                 })
               });
-              if (res.ok) {
-                posted = true;
+              if (!res.ok) {
+                const errPayload = await res.json().catch(() => ({}));
+                throw new Error(errPayload.error || errPayload.message || `Bulk transaction import failed (HTTP ${res.status})`);
               }
             } catch (postErr) {
-              console.warn('Bulk API write deferred to client fallback', postErr);
+              throw postErr instanceof Error ? postErr : new Error(String(postErr));
             }
-          }
-
-          if (!posted) {
-            for (const tx of chunk) {
-              await addEntity('transactions', tx);
-            }
+          } else {
+            throw new Error('Sign in required to import transactions through the validated ledger API.');
           }
         }
 

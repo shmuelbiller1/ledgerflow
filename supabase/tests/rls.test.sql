@@ -95,14 +95,14 @@ do $$ begin
   perform set_config('request.jwt.claims', '', true);
   update workspaces set data = data || '{"lockDate":"2026-01-31"}'::jsonb where id = 'ws1';
 end $$;
-select pg_temp.expect_denied('transaction in a locked period', 'u-book',
-  $$insert into transactions(id,data) values ('tx1', '{"workspaceId":"ws1","date":"2026-01-15","lines":[]}')$$);
-select pg_temp.expect_denied('transaction without a date while locked', 'u-book',
-  $$insert into transactions(id,data) values ('tx2', '{"workspaceId":"ws1","lines":[]}')$$);
-select pg_temp.expect_ok('transaction in an open period', 'u-book',
-  $$insert into transactions(id,data) values ('tx3', '{"workspaceId":"ws1","date":"2026-02-01","status":"draft","lines":[]}')$$);
-select pg_temp.expect_denied('move a transaction into a locked period', 'u-book',
-  $$select lf_update('transactions','tx3','{"date":"2026-01-10"}'::jsonb)$$);
+select pg_temp.expect_denied('dated document in a locked period', 'u-book',
+  $$insert into invoices(id,data) values ('inv-lock-1', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","amountCents":100}')$$);
+select pg_temp.expect_denied('dated document without a date while locked', 'u-book',
+  $$insert into invoices(id,data) values ('inv-lock-2', '{"workspaceId":"ws1","status":"draft","amountCents":100}')$$);
+select pg_temp.expect_ok('dated document in an open period', 'u-book',
+  $$insert into invoices(id,data) values ('inv-lock-3', '{"workspaceId":"ws1","date":"2026-02-01","status":"draft","amountCents":100}')$$);
+select pg_temp.expect_denied('move a dated document into a locked period', 'u-book',
+  $$select lf_update('invoices','inv-lock-3','{"date":"2026-01-10"}'::jsonb)$$);
 
 -- soft close (only owners/accountants post) and partial unlock, both set by the server
 do $$ begin
@@ -110,20 +110,20 @@ do $$ begin
   update workspaces set data = data || '{"softLockDate":"2026-02-28","lockException":{"fromDate":"2026-01-10","toDate":"2026-01-20"}}'::jsonb where id = 'ws1';
 end $$;
 select pg_temp.expect_denied('bookkeeper posts into a soft-closed month', 'u-book',
-  $$insert into transactions(id,data) values ('tx-soft-b', '{"workspaceId":"ws1","date":"2026-02-10","lines":[]}')$$);
+  $$insert into invoices(id,data) values ('inv-soft-b', '{"workspaceId":"ws1","date":"2026-02-10","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_ok('accountant posts an adjustment into a soft-closed month', 'u-acct',
-  $$insert into transactions(id,data) values ('tx-soft-a', '{"workspaceId":"ws1","date":"2026-02-10","status":"draft","lines":[]}')$$);
+  $$insert into invoices(id,data) values ('inv-soft-a', '{"workspaceId":"ws1","date":"2026-02-10","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_ok('bookkeeper posts inside the partial unlock', 'u-book',
-  $$insert into transactions(id,data) values ('tx-unl', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","lines":[]}')$$);
+  $$insert into invoices(id,data) values ('inv-unl', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_denied('bookkeeper posts outside the partial unlock', 'u-book',
-  $$insert into transactions(id,data) values ('tx-unl2', '{"workspaceId":"ws1","date":"2026-01-25","lines":[]}')$$);
+  $$insert into invoices(id,data) values ('inv-unl2', '{"workspaceId":"ws1","date":"2026-01-25","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_denied('owner removes the partial unlock from the browser', 'u-owner',
   $$select lf_update('workspaces','ws1','{}'::jsonb,'{lockException}')$$);
 select pg_temp.expect_denied('browser writes a close record', 'u-owner',
   $$insert into periods(id,data) values ('ws1_2026-01', '{"workspaceId":"ws1","periodId":"2026-01","status":"closed"}')$$);
 do $$ begin
   perform set_config('request.jwt.claims', '', true);
-  delete from transactions where id in ('tx-soft-a', 'tx-unl');
+  delete from invoices where id in ('inv-soft-a', 'inv-unl');
   update workspaces set data = data - 'softLockDate' - 'lockException' where id = 'ws1';
 end $$;
 
@@ -266,9 +266,9 @@ select pg_temp.expect_ok('unset a field', 'u-book', $$select lf_update('customer
 select pg_temp.expect_value('unset result', $$select data::text from customers where id='c2'$$,
   '{"name": "B", "address": {"zip": "75001"}, "workspaceId": "ws1"}');
 select pg_temp.expect_ok('increment twice', 'u-owner',
-  $$select lf_update('invoices','inv1','{}'::jsonb,'{}','{"amountPaidCents":250}'::jsonb);
-    select lf_update('invoices','inv1','{}'::jsonb,'{}','{"amountPaidCents":250}'::jsonb)$$);
-select pg_temp.expect_value('increment result', $$select data->>'amountPaidCents' from invoices where id='inv1'$$, '500');
+  $$select lf_update('invoices','inv1','{}'::jsonb,'{}','{"amountCents":250}'::jsonb);
+    select lf_update('invoices','inv1','{}'::jsonb,'{}','{"amountCents":250}'::jsonb)$$);
+select pg_temp.expect_value('increment result', $$select data->>'amountCents' from invoices where id='inv1'$$, '1500');
 select pg_temp.expect_ok('array union then remove', 'u-owner',
   $$select lf_update('workspaces','ws1','{}'::jsonb,'{}','{}'::jsonb,'{"members":["u-a","u-b"]}'::jsonb);
     select lf_update('workspaces','ws1','{}'::jsonb,'{}','{}'::jsonb,'{"members":["u-b","u-c"]}'::jsonb,'{"members":["u-a"]}'::jsonb)$$);
@@ -310,12 +310,13 @@ declare
   doc text;
 begin
   foreach t in array array[
-    'transactions','journalEntries','invoices','payments','bills','creditNotes','vendorCredits',
+    'invoices','bills','creditNotes','vendorCredits',
     'projects','estimates','inventory','recurring','budgets','autoRules','fixedAssets','assets',
     'taxRates','dimensionNodes','vendors','customers','rulePatterns','scenarios','loans',
-    'employees','partners','reconciliations','workspaceShards'
+    'employees','partners','workspaceShards'
   ] loop
-    doc := case when t = 'transactions' then '{"workspaceId":"ws1","date":"2026-02-15","status":"draft"}'
+    doc := case when t in ('invoices','bills','creditNotes','vendorCredits')
+                then '{"workspaceId":"ws1","date":"2026-02-15","status":"draft"}'
                 else '{"workspaceId":"ws1"}' end;
     if not pg_temp.try_as('u-book', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-' || t, doc)) then
       raise exception 'FAIL %: bookkeeper could not add a document', t;
@@ -347,10 +348,10 @@ declare
   t text;
 begin
   foreach t in array array[
-    'transactions', 'journalEntries', 'invoices', 'payments', 'bills', 'creditNotes', 'vendorCredits',
+    'invoices', 'bills', 'creditNotes', 'vendorCredits',
     'projects', 'estimates', 'inventory', 'recurring', 'budgets', 'autoRules', 'fixedAssets', 'assets',
     'taxRates', 'dimensionNodes', 'vendors', 'customers', 'rulePatterns', 'scenarios', 'loans',
-    'employees', 'partners', 'reconciliations', 'workspaceShards'
+    'employees', 'partners', 'workspaceShards'
   ] loop
     if pg_temp.try_as('u-book', format('select lf_update(%L, %L, %L::jsonb)', t, 'iso-' || t, '{"workspaceId":"ws2"}')) then
       raise exception 'FAIL %: writer moved an existing record into another workspace', t;
@@ -448,7 +449,7 @@ select pg_temp.expect_denied('change an account balance', 'u-acct', $$select lf_
 select pg_temp.expect_denied('change an opening balance', 'u-acct', $$select lf_update('chartAccounts','a2','{"openingBalanceCents":5}'::jsonb)$$);
 select pg_temp.expect_ok('posting without a lock date', 'u-out',
   $$insert into workspaces(id,data) values ('ws-open', '{"uid":"u-out","name":"Open"}');
-    insert into transactions(id,data) values ('tx-open', '{"workspaceId":"ws-open","date":"2020-01-01","lines":[]}')$$);
+    insert into invoices(id,data) values ('inv-open', '{"workspaceId":"ws-open","date":"2020-01-01","status":"draft","amountCents":100}')$$);
 
 -- Support tickets and messages
 select pg_temp.expect_ok('member opens a ticket', 'u-view',
@@ -660,8 +661,8 @@ select pg_temp.expect_denied('bookkeeper adds a balance snapshot from the browse
   $$insert into "periodBalances"(id,data) values ('ws1_2024-12-31', '{"workspaceId":"ws1","asOf":"2024-12-31","accounts":{}}')$$);
 select pg_temp.expect_denied('owner deletes a balance snapshot from the browser', 'u-owner', $$delete from "periodBalances" where id = 'ws1_2026-12-31'$$);
 select pg_temp.expect_value('the refused writes left it as it was', $q$select data->'accounts'->>'a1' from "periodBalances" where id = 'ws1_2026-12-31'$q$, '100');
-select pg_temp.expect_ok('bookkeeper posts an entry the snapshot covers', 'u-book',
-  $$insert into transactions(id,data) values ('tx-l123', '{"workspaceId":"ws1","date":"2026-06-01","lines":[]}')$$);
+select set_config('request.jwt.claims', '', true);
+insert into transactions(id, data) values ('tx-l123', '{"workspaceId":"ws1","date":"2026-06-01","lines":[{"accountId":"a1","amountCents":250},{"accountId":"a2","amountCents":-250}]}');
 select pg_temp.expect_value('that entry marked the snapshot stale', $q$select data->>'stale' from "periodBalances" where id = 'ws1_2026-12-31'$q$, 'true');
 
 -- stock closings (EG-7): written only by the server; members read
@@ -745,6 +746,77 @@ begin
        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'users'
      ) then
     raise exception 'FAIL D-47: users is not in supabase_realtime';
+  end if;
+end $$;
+
+-- Audit C-1 & C-2: core ledger tables (transactions, journalEntries, payments, reconciliations)
+-- are server-written and member-readable; browser writers cannot forge paid invoices/bills;
+-- and lf_enforce_balanced_ledger refuses unbalanced posted entries for ALL callers.
+do $$
+declare
+  t text;
+  srv_doc text;
+  unbalanced_failed boolean := false;
+  single_line_failed boolean := false;
+begin
+  foreach t in array array['transactions', 'journalEntries', 'payments', 'reconciliations'] loop
+    perform set_config('request.jwt.claims', '', true);
+    srv_doc := case when t in ('transactions', 'journalEntries')
+      then '{"workspaceId":"ws1","date":"2026-03-10","status":"completed","totalAmountCents":500,"lines":[{"accountId":"a1","amountCents":500},{"accountId":"a2","amountCents":-500}]}'
+      else '{"workspaceId":"ws1","date":"2026-03-10","status":"completed","amountCents":500}' end;
+    execute format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'c1-srv-' || t, srv_doc);
+    if pg_temp.count_rows('u-view', format('select count(*) from public.%I where id = %L', t, 'c1-srv-' || t)) <> 1 then
+      raise exception 'FAIL C-1 %: workspace viewer cannot read server-posted row', t;
+    end if;
+    if pg_temp.count_rows('u-out', format('select count(*) from public.%I where id = %L', t, 'c1-srv-' || t)) <> 0 then
+      raise exception 'FAIL C-1 %: outsider can read server-posted row', t;
+    end if;
+    if pg_temp.try_as('u-owner', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'c1-cli-' || t, srv_doc)) then
+      raise exception 'FAIL C-1 %: browser owner inserted directly into ledger table', t;
+    end if;
+    if pg_temp.try_as('u-owner', format('select lf_update(%L, %L, %L::jsonb)', t, 'c1-srv-' || t, '{"description":"forged"}')) then
+      raise exception 'FAIL C-1 %: browser owner updated ledger row via lf_update', t;
+    end if;
+    if pg_temp.try_as('u-owner', format('select lf_set(%L, %L, %L::jsonb)', t, 'c1-cli-set-' || t, srv_doc)) then
+      raise exception 'FAIL C-1 %: browser owner wrote ledger row via lf_set', t;
+    end if;
+    if pg_temp.try_as('u-owner', format('select lf_delete(%L, %L)', t, 'c1-srv-' || t)) then
+      raise exception 'FAIL C-1 %: browser owner deleted ledger row via lf_delete', t;
+    end if;
+  end loop;
+
+  -- Probe #5: browser cannot mark an invoice or bill paid or forge amountPaidCents
+  if pg_temp.try_as('u-owner', $$select lf_update('invoices', 'inv1', '{"status":"paid","amountPaidCents":1000}'::jsonb)$$) then
+    raise exception 'FAIL C-1: browser marked an invoice paid without a server payment';
+  end if;
+  if pg_temp.try_as('u-owner', $$insert into bills(id, data) values ('c1-forged-bill', '{"workspaceId":"ws1","date":"2026-03-10","status":"paid","amountCents":1000,"amountPaidCents":1000}')$$) then
+    raise exception 'FAIL C-1: browser inserted a pre-paid bill';
+  end if;
+
+  -- C-2: even server (postgres role) cannot insert an unbalanced or 1-line posted transaction
+  perform set_config('request.jwt.claims', '', true);
+  begin
+    insert into public."transactions" (id, data) values (
+      'c2-one-line',
+      '{"workspaceId":"ws1","date":"2026-03-10","status":"completed","lines":[{"accountId":"a1","amountCents":50000}]}'::jsonb
+    );
+  exception when others then
+    single_line_failed := true;
+  end;
+  if not single_line_failed then
+    raise exception 'FAIL C-2: database accepted a 1-line posted transaction';
+  end if;
+
+  begin
+    insert into public."transactions" (id, data) values (
+      'c2-unbalanced',
+      '{"workspaceId":"ws1","date":"2026-03-10","status":"completed","lines":[{"accountId":"a1","amountCents":500},{"accountId":"a2","amountCents":-499}]}'::jsonb
+    );
+  exception when others then
+    unbalanced_failed := true;
+  end;
+  if not unbalanced_failed then
+    raise exception 'FAIL C-2: database accepted an unbalanced posted transaction';
   end if;
 end $$;
 

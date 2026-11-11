@@ -7,6 +7,7 @@ import type { Firestore } from '../db/firestore';
 import { openable } from './workspaceGroupService';
 import { monthCloseState, workspaceRole, type PeriodLockSettings } from '../../lib/periodLock';
 import { monthBefore, sortPractice, type PracticeRow } from '../../lib/practice';
+import { computeCloseReadiness } from '../../lib/practiceAutomation';
 import type { LedgerHealth } from '../../lib/ledgerHealth';
 
 export async function practiceRows(db: Firestore, uid: string, today: string): Promise<PracticeRow[]> {
@@ -19,6 +20,17 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
     return new Map(rows.map(r => [String(r.id), Number(r.n)]));
   };
   const bankLines = await counts('bankLines', `data->>'status' = 'pending'`);
+  const totalBankLines = await counts('bankLines', 'true');
+  const noTouchBankLines = await counts(
+    'bankLines',
+    `coalesce(data->>'status', 'pending') <> 'pending'
+     and coalesce(data->>'humanEdited', 'false') <> 'true'
+     and (
+       jsonb_array_length(coalesce(data->'ruleIdsApplied', '[]'::jsonb)) > 0
+       or (data->'suggestion'->>'accountId') is not null
+       or coalesce(data->>'acceptedUnchanged', 'false') = 'true'
+     )`,
+  );
   const bankLogins = await counts('banks', `data->>'status' = 'login_required'`);
   const questions = await counts('clientQueries', `data->>'status' = 'open'`);
   const drafts = [await counts('transactions', `data->>'status' = 'draft'`), await counts('invoices', `data->>'status' = 'draft'`), await counts('bills', `data->>'status' = 'draft'`)];
@@ -51,14 +63,40 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
     const ws = (s.data() || {}) as PeriodLockSettings & { name?: string; currency?: string; ledgerHealth?: LedgerHealth };
     const health = ws.ledgerHealth?.checkedAt ? { serious: Number(ws.ledgerHealth.counts?.high) || 0, warnings: Number(ws.ledgerHealth.counts?.medium) || 0, checkedAt: String(ws.ledgerHealth.checkedAt) } : null;
     const id = s.id;
+    const pendingLines = bankLines.get(id) || 0;
+    const totalLines = totalBankLines.get(id) || 0;
+    const noTouchCount = noTouchBankLines.get(id) || 0;
+    const logins = bankLogins.get(id) || 0;
+    const openQuestions = questions.get(id) || 0;
+    const draftCount = drafts.reduce((sum, m) => sum + (m.get(id) || 0), 0);
+    const missingFiles = withoutFile.get(id) || 0;
+    const closed = ['hard', 'soft'].includes(monthCloseState(lastMonth, ws));
+    const readiness = computeCloseReadiness({
+      bankLines: pendingLines,
+      bankLogins: logins,
+      questions: openQuestions,
+      drafts: draftCount,
+      billsWithoutFile: missingFiles,
+      lastMonthClosed: closed,
+      health,
+    });
     return {
       workspaceId: id, name: String(ws.name || id), role: workspaceRole(ws, uid), currency: String(ws.currency || 'USD'), groups: groups.get(id) || [],
-      bankLines: bankLines.get(id) || 0, bankLogins: bankLogins.get(id) || 0, questions: questions.get(id) || 0,
-      drafts: drafts.reduce((sum, m) => sum + (m.get(id) || 0), 0),
-      billsWithoutFile: withoutFile.get(id) || 0,
-      lastMonth, lastMonthClosed: ['hard', 'soft'].includes(monthCloseState(lastMonth, ws)),
+      bankLines: pendingLines, bankLogins: logins, questions: openQuestions,
+      drafts: draftCount,
+      billsWithoutFile: missingFiles,
+      lastMonth, lastMonthClosed: closed,
       nextRecurring: next.get(id) || null,
       health,
+      noTouch: {
+        noTouchCount,
+        totalBankLines: totalLines,
+        ratePercent: totalLines > 0 ? Math.round((noTouchCount / totalLines) * 1000) / 10 : null,
+      },
+      closeReadiness: {
+        score: readiness.score,
+        grade: readiness.grade,
+      },
     };
   }));
 }
