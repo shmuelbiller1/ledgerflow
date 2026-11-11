@@ -11,50 +11,30 @@
  * ¥100,000 invoice at 0.0067 in a USD book: the receivable is ¥100,000 × $0.0067 = $670.00 =
  * 67,000 cents, so the aging row must be 67,000 too.
  *
+ * This probe FAILS on purpose while the defect is open (issue #641) and must be updated to expect
+ * 67,000 once it is fixed — that inversion is the acceptance test.
  * Run: NODE_ENV=test npx tsx --test audit/agent13-2026-11-11/probes/af13-008-fx-aging-vs-ledger.test.ts
  */
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { lineAmount } from '../../../src/lib/txFilters';
 import { computePartyAging } from '../../../src/lib/aging';
-import { makeChartAccount, makeInvoice } from '../../../src/tests/fixtures';
-import type { Transaction, Workspace } from '../../../src/types';
+import { makeInvoice } from '../../../src/tests/fixtures';
+import { startPostingHarness, type PostingHarness } from '../../../src/tests/helpers/postingHarness';
 
 describe('AF13-008 aging vs ledger for a 0-decimal document currency', () => {
-  const sent: Transaction[] = [];
-  const realFetch = globalThis.fetch;
-  let LedgerPostService: typeof import('../../../src/services/LedgerPostService').LedgerPostService;
-
-  before(async () => {
-    globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
-      sent.push(...(JSON.parse(String(init?.body || '{}')).transactions || []));
-      return new Response(JSON.stringify({ status: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as typeof fetch;
-    ({ LedgerPostService } = await import('../../../src/services/LedgerPostService'));
-  });
-  after(() => { globalThis.fetch = realFetch; });
-
-  const context = () => ({
-    lockDate: null, transactions: [], inventory: [],
-    workspaces: [{ id: 'w1', uid: 'u1', name: 'W', currency: 'USD' } as Workspace],
-    accounts: [
-      makeChartAccount({ id: 'ar', name: 'Accounts Receivable', type: 'asset', category: 'Receivables' }),
-      makeChartAccount({ id: 'cash', name: 'Checking', type: 'asset', category: 'Cash' }),
-      makeChartAccount({ id: 'rev', name: 'Sales', type: 'income', category: 'Revenue' }),
-    ],
-  });
+  let harness: PostingHarness;
+  before(async () => { harness = await startPostingHarness(); });
+  after(() => harness.restore());
 
   test('a JPY invoice posts 67,000 receivable cents but the aging shows 670', async () => {
-    sent.length = 0;
-    await LedgerPostService.postInvoiceLedger('inv-jpy', {
+    harness.reset();
+    await harness.service.postInvoiceLedger('inv-jpy', {
       number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
       date: '2026-03-10', dueDate: '2026-04-10',
       amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-    }, 'w1', 'u1', undefined, context());
+    }, 'w1', 'u1', undefined, harness.context());
 
-    const ledgerReceivable = sent[0].lines
-      .filter(l => l.accountId === 'ar')
-      .reduce((sum, l) => sum + lineAmount(l, sent[0]), 0);
+    const ledgerReceivable = harness.byAccount(harness.sent[0]).ar;
     assert.equal(ledgerReceivable, 67_000, 'the ledger receivable: ¥100,000 × 0.67 = 67,000 US cents');
 
     const aging = computePartyAging(

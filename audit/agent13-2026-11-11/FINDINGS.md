@@ -38,7 +38,7 @@ Severity uses the audit mission's scale (P0 stop-invitation … P3 later), with 
 * **Where:** `src/lib/closeChecklist.ts`, `isOld` (item `aging`).
 * **Defect:** only `paid`, `void` and `draft` were excluded. `cancelled` and `rejected` (both real `Invoice`/`Bill` statuses, and both excluded by `CLOSED_DOCUMENT_STATUSES` in `src/lib/txFilters.ts` and `NOT_POSTED` in `src/lib/postingCheck.ts`) counted as overdue after 60 days.
 * **Consequence:** a cancelled invoice permanently keeps "Old receivables and payables reviewed" open → the month cannot close without a manual sign-off for money nobody owes.
-* **Evidence:** `audit/agent13-2026-11-11/probes/af13-002-003-checklist-statuses.test.ts` (red before the fix: `aging.count === 3` for one genuinely open invoice plus a cancelled and a rejected one).
+* **Evidence:** the probe that was red before the fix (`aging.count === 3` for one genuinely open invoice plus a cancelled and a rejected one) is now the `AF13-002`/`AF13-003` cases of `src/tests/close-checklist-statuses.test.ts` — kept in `src/tests` rather than duplicated in `audit/`, which is where a regression test can actually stop a merge.
 * **Fix + test:** one shared `NOT_OWED_STATUSES` set (`paid, void, draft, rejected, cancelled`); regression in `src/tests/close-checklist-statuses.test.ts` (count 1, detail "1 invoice or bill more than 60 days overdue").
 
 ### AF13-003 — Bank lines marked `ignored` counted as "not matched yet" — **Low [Medium] — FIXED**
@@ -51,12 +51,12 @@ Severity uses the audit mission's scale (P0 stop-invitation … P3 later), with 
 
 ### AF13-004 — Three report screens take far longer than the one-second target, and the speed screen claimed more than it measures — **Medium [Medium] — measured; wording corrected; rendering not changed**
 
-* **Measurement:** `audit/agent13-2026-11-11/probes/r5-all-report-views-probe.ts` mounts **every** report/register view module in `src/components/{reporting,ledger,finance}` on the 12-month sample year (output: `r5-all-report-views-probe.output.txt`).
+* **Measurement:** `audit/agent13-2026-11-11/probes/r5-all-report-views-probe.ts` mounts **every** report/register view module in `src/components/{reporting,ledger,finance}` on the 12-month sample year: **170 modules are discovered and 161 are measured** — nine are helper modules with no component export, or views that need props the shared harness does not build (e.g. `PartyReportLayout`), and they are reported as such rather than dropped (output: `r5-all-report-views-probe.output.txt`). The probe and the test now share one harness, `src/tests/helpers/reportScreens.ts`, so their numbers cannot drift.
 
 | Scale (transactions) | Views measured | Over 1,000 ms | Slowest |
 |---|---|---|---|
-| 1 (1,238) | 170 | 3 | JournalSheetReportView 1,729 ms · PaymentsView 1,520 ms · GeneralLedgerView 1,446 ms |
-| 4 (4,880) | 170 | 7 | JournalSheetReportView 6,519 ms · PaymentsView 5,586 ms · GeneralLedgerView 4,884 ms · ExpiringLotsReportView 2,387 ms · AccountRegisterView 1,816 ms · TransactionsByCustomerView 1,194 ms · ItemRegisterReportView 1,148 ms |
+| 1 (1,238) | 161 of 170 found | 3 | JournalSheetReportView 1,729 ms · PaymentsView 1,520 ms · GeneralLedgerView 1,446 ms (re-run after the harness refactor: 1,840 / 1,482 / 1,470 ms — same three) |
+| 4 (4,880) | 161 of 170 found | 7 | JournalSheetReportView 6,519 ms · PaymentsView 5,586 ms · GeneralLedgerView 4,884 ms · ExpiringLotsReportView 2,387 ms · AccountRegisterView 1,816 ms · TransactionsByCustomerView 1,194 ms · ItemRegisterReportView 1,148 ms (re-run: 6,390 / 5,875 / 5,116 / 2,403 / 1,774 / 1,177 / 1,275 ms — same seven) |
 
 * **Cause is rendering, not arithmetic:** `audit/agent13-2026-11-11/probes/r5-compute-vs-render.ts` — `computeJournalSheet` 16.7 ms and `computeGeneralLedger` 17.3 ms for 4,880 entries. The screens render one card + table per entry (Journal Sheet) or one row per document with per-row document lookups (PaymentsView `documentLabel` does a linear `find` per allocation). The figures are correct; the open time is DOM work, and in jsdom that is several times a browser's.
 * **Not fixed, deliberately:** Journal Sheet and General Ledger are statement screens (AI #1's lane) and the Journal Sheet is part of the A-277 print loop, so capping or virtualising rows changes what a printed report contains unless print is handled. Recommended fix for AI #1/#9: window the rows (e.g. 100 entries per page with a "show all" control that expands for printing), and replace `documentLabel`'s per-row `find` with a `Map` built once — measurement first, figures untouched.
@@ -118,6 +118,19 @@ The `postings` item claims "Every invoice and bill is in the ledger once, with t
 | `npm test` (full suite, 18 files × 4 globs, `--test-force-exit`) | **4,659 tests: 4,653 pass, 1 fail, 5 skipped**, 17m30s. The **only** failure is the A-229 cold-module-preload leg above (1,521.74 ms vs 1,500 ms, 1.4 % over — it read 2,329 ms in an earlier run, i.e. this host is flaky there). Everything else, including `report-speed-all-views.test.tsx` and all close/FX suites, passed. DB/RLS suites skip without `LF_TEST_DATABASE_URL` |
 | **Fork CI on `42b10bb`** (GitHub Actions, fork `Chaim-Richard/ledgerflow`) | **all 21 checks green**: Unit tests 1-4/4 · Unit tests in Pacific/Auckland 1-3/3 · Unit tests in America/Los_Angeles 1-3/3 · Browser shards 1-5/5 · Lint, Typecheck and Database rules · Production build · Playwright E2E Smoke Suite · CodeQL ×2 · CycloneDX SBOM. SonarQube Cloud reports "The last analysis has failed" — see the note below |
 
-**SonarQube Cloud — not green, not attributable to this diff:** the bot commented "The last analysis has failed" on fork PR #22. I cannot reach sonarcloud.io from this sandbox to see why. The **same** message is on upstream PR #626 — the commit this branch is based on (`ec3ff49`, merged) — while upstream #625 and #610 passed the gate, so it is neither specific to this diff nor proven harmless. AI #1/owner should read the Sonar dashboard before merging; do not treat the other 21 green checks as covering it.
+**SonarQube Cloud — was failing, and it was this diff: fixed (see below).** The first reading of the bot's note was wrong and is corrected here. "The last analysis has failed" was an *analysis* error on the first run; the real gate result, visible on the check run and the API, was **Quality Gate failed on two conditions: 25.1 % Duplication on New Code (limit 3 %) and a D Reliability Rating on New Code**. Both were in this PR's own new files, not in the base commit:
+
+| Source | Duplicated lines | Cause |
+|---|---|---|
+| `probes/af13-001-minor-unit-repost-check.test.ts` | 29 | inline copy of the ledger-context fixture |
+| `probes/r5-all-report-views-probe.ts` | 43 | inline copy of the report-screen harness |
+| `src/tests/close-checklist-statuses.test.ts` | 49 | the same fixture, again |
+| `probes/af13-002-003-checklist-statuses.test.ts` | 22 | near-copy of the new `src/tests` test |
+| `src/tests/report-speed-all-views.test.tsx` | 43 | the same harness, again |
+| `probes/af13-008-fx-aging-vs-ledger.test.ts` | 13 | the same fixture, again |
+
+The single reliability issue was `typescript:S2871` in the r5 probe: `.sort()` without a comparator on strings. Fix in this branch: two shared harnesses (`src/tests/helpers/postingHarness.ts`, `src/tests/helpers/reportScreens.ts`), the audit probe and the two `src/tests` files now import them instead of copying the fixture, `sort()` compares with `localeCompare`, the redundant `af13-002-003` probe was deleted because `src/tests/close-checklist-statuses.test.ts` is the durable regression for the same two cases, and `probes/helpers/dom-probe.ts` is now a one-line import of `src/tests/helpers/dom`.
+
+**Lesson worth keeping when reading a Sonar result:** the bot's PR comment and the check run disagree. The comment said the *analysis* failed; the check run and `GET /api/issues/search` gave the failing conditions and the exact issue. The API is readable without a token for the public project: `https://sonarcloud.io/api/issues/search?componentKeys=<org>_ledgerflow&pullRequest=<n>&types=BUG&sinceLeakPeriod=true` and `https://sonarcloud.io/api/duplications/show?key=<component>&pullRequest=<n>`.
 
 **Standing local failure (not caused by this branch):** the A-229 subtest times the cold import of ten screen modules (Overview, Sales, Purchases, Banking, Reconcile, P&L, Balance Sheet, Trial Balance, Taxes, Settings) against a 1,500 ms budget and measured 2,329 ms in one run and 1,521.74 ms in the full-suite run here (it is right on the boundary, so this host is marginal). `CURRENT_WORK.md` records this exact leg as a sandbox/machine artefact on unmodified `main`; this branch's diff touches `src/lib/closeChecklist.ts`, `src/lib/postingCheck.ts`, one close view and one report view's text, none of which those ten screens import. It is reported, not "fixed" by raising a budget.

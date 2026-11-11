@@ -16,9 +16,9 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCloseChecklist, readyToClose } from '../lib/closeChecklist';
 import { findPostingMismatches } from '../lib/postingCheck';
-import { lineAmount } from '../lib/txFilters';
-import { makeBill, makeChartAccount, makeInvoice, makeTransaction } from './fixtures';
-import type { BankStatementLine, Transaction, Workspace } from '../types';
+import { makeBill, makeInvoice, makeTransaction } from './fixtures';
+import { startPostingHarness, type PostingHarness } from './helpers/postingHarness';
+import type { BankStatementLine, Transaction } from '../types';
 
 const MONTH = '2026-03';
 const posted = makeTransaction({
@@ -84,43 +84,19 @@ describe('Month-end close checklist counts only what is still open', () => {
 });
 
 describe('AF13-001: the repost check converts minor units exactly as the posting path does', () => {
-  const sent: Array<Transaction & { metadata?: Record<string, unknown> }> = [];
-  const realFetch = globalThis.fetch;
-  let LedgerPostService: typeof import('../services/LedgerPostService').LedgerPostService;
-
-  before(async () => {
-    globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
-      sent.push(...(JSON.parse(String(init?.body || '{}')).transactions || []));
-      return new Response(JSON.stringify({ status: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as typeof fetch;
-    ({ LedgerPostService } = await import('../services/LedgerPostService'));
-  });
-  after(() => { globalThis.fetch = realFetch; });
-
-  const context = () => ({
-    lockDate: null,
-    transactions: [],
-    inventory: [],
-    workspaces: [{ id: 'w1', uid: 'u1', name: 'W', currency: 'USD' } as Workspace],
-    accounts: [
-      makeChartAccount({ id: 'ar', name: 'Accounts Receivable', type: 'asset', category: 'Receivables' }),
-      makeChartAccount({ id: 'ap', name: 'Accounts Payable', type: 'liability', category: 'Payables' }),
-      makeChartAccount({ id: 'cash', name: 'Checking', type: 'asset', category: 'Cash' }),
-      makeChartAccount({ id: 'rev', name: 'Sales', type: 'income', category: 'Revenue' }),
-      makeChartAccount({ id: 'exp', name: 'Supplies', type: 'expense' }),
-    ],
-  });
-  const byAccount = (tx: Transaction) => Object.fromEntries(tx.lines.map(l => [l.accountId, lineAmount(l, tx)]));
+  let harness: PostingHarness;
+  before(async () => { harness = await startPostingHarness(); });
+  after(() => harness.restore());
 
   test('¥100,000 at 0.0067 posts 67,000 US cents and the checklist agrees (it used to say 670)', async () => {
-    sent.length = 0;
-    await LedgerPostService.postInvoiceLedger('inv-jpy', {
+    harness.reset();
+    await harness.service.postInvoiceLedger('inv-jpy', {
       number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
       date: '2026-03-10', dueDate: '2026-04-10',
       amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-    }, 'w1', 'u1', undefined, context());
-    const accrual = sent[0];
-    assert.equal(byAccount(accrual).ar, 67_000, 'the server posts ¥100,000 × 0.67 = 67,000 US cents');
+    }, 'w1', 'u1', undefined, harness.context());
+    const accrual = harness.sent[0];
+    assert.equal(harness.byAccount(accrual).ar, 67_000, 'the server posts ¥100,000 × 0.67 = 67,000 US cents');
 
     const input = {
       invoices: [makeInvoice({ id: 'inv-jpy', number: 'INV-JPY-1', amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent' as const, dueDate: '2026-04-10' })],
@@ -133,15 +109,15 @@ describe('AF13-001: the repost check converts minor units exactly as the posting
   });
 
   test('KWD (three decimals) converts by 10, in both directions, and a real difference is still found', async () => {
-    sent.length = 0;
-    await LedgerPostService.postInvoiceLedger('inv-kwd', {
+    harness.reset();
+    await harness.service.postInvoiceLedger('inv-kwd', {
       number: 'INV-KWD-1', customerId: 'c1', customerName: 'Kuwait Customer',
       date: '2026-03-11', dueDate: '2026-04-11',
       amountCents: 12_345, currency: 'KWD', exchangeRate: 3.25, status: 'sent',
-    }, 'w1', 'u1', undefined, context());
-    const accrual = sent[0];
+    }, 'w1', 'u1', undefined, harness.context());
+    const accrual = harness.sent[0];
     // 12.345 KWD × 3.25 = 40.12125 USD → 4,012 US cents (rounded, half away from zero)
-    assert.equal(byAccount(accrual).ar, 4_012);
+    assert.equal(harness.byAccount(accrual).ar, 4_012);
     const invoice = makeInvoice({ id: 'inv-kwd', number: 'INV-KWD-1', amountCents: 12_345, currency: 'KWD', exchangeRate: 3.25, status: 'sent' as const, dueDate: '2026-04-11' });
     assert.deepEqual(findPostingMismatches({ invoices: [invoice], bills: [], transactions: [accrual], baseCurrency: 'USD' }), []);
 
