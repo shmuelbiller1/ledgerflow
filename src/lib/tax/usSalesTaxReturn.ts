@@ -44,6 +44,8 @@ export interface UsSalesTaxReturn {
   /** the tax by part, as the invoices saved it ("Texas state sales tax", "Austin") */
   byJurisdiction: Array<{ name: string; taxCents: number }>;
   documentCount: number;
+  /** the invoices counted in this return (credit notes not included): the certificate check uses the same set */
+  invoiceIds: string[];
   /** this seller's US sales in the period with no state recorded: in no state's return until someone adds it */
   unplaced: { documentCount: number; netCents: number; taxCents: number; documents: Array<{ id: string; netCents: number; taxCents: number }> };
 }
@@ -63,7 +65,7 @@ export function usSalesTaxReturn(input: {
   const state = /^sales_tax:US-([A-Z0-9]{1,3})[:-]/.exec(input.registration)?.[1] || '';
   const out: UsSalesTaxReturn = {
     registration: input.registration, state, startDate: input.startDate, endDate: input.endDate,
-    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0,
+    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0, invoiceIds: [],
     unplaced: { documentCount: 0, netCents: 0, taxCents: 0, documents: [] },
   };
   const parts = new Map<string, number>();
@@ -102,6 +104,7 @@ export function usSalesTaxReturn(input: {
       out.taxCollectedCents += tax;
       for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate));
       out.documentCount++;
+      if (sign === 1) out.invoiceIds.push(String(doc.id));
     }
   };
   add(input.invoices, 1);
