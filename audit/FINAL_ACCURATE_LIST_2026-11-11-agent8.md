@@ -6,6 +6,24 @@
 **Session branch:** `arena/a675941f-ledgerflow`
 **Evidence:** [`agent8-2026-11-11/probe-output.txt`](agent8-2026-11-11/probe-output.txt) · probe [`function-audit/probes/af004-614-residual.ts`](function-audit/probes/af004-614-residual.ts)
 
+> ## ⚠ STATUS UPDATE — this document is pinned at `ec3ff49` and its three live defects are now FIXED
+>
+> Later the same day, upstream moved **29 commits** to `39b0012881fdc78edab2479fb62b0b632234aa82`. AI #1 fixed all
+> three findings within hours and this agent re-verified them by re-running the probes named in the issues:
+>
+> - **A8-1111-F1 and A8-1111-F2** (filed as [#627](https://github.com/shmuelbiller1/ledgerflow/issues/627)) → **FIXED by PR #635**, verified: probe cases R1b, R1c, R2b flipped DEFECT → OK with control R2c still counting 1, so the zero is not vacuous.
+> - **A8-1111-F3** (filed as [#628](https://github.com/shmuelbiller1/ledgerflow/issues/628)) → **FIXED by PR #635**, verified: R3a–R3d and the older probe's P1, P2, P7 all flipped DEFECT → OK. `world:us` under Israeli books now resolves to `{country:'US'}` with **no** VAT registrations.
+> - Also fixed the same day: [#629](https://github.com/shmuelbiller1/ledgerflow/issues/629) (`FxService` raw axios, no timeout) → **PR #634**, verified: no `axios` remains in `src/server/`, `safeFetch` with a host allowlist and a 10 s deadline, and `ratesOf` now refuses an unusable rates table.
+> - **All eleven cases of `af004-614-residual.ts` now pass**; it is the regression guard for #627/#628.
+>
+> **Still open:** AF-004-P6 (`composeFacts` verified-flag false negative, conservative) and A8-1111-F5 (stale
+> `itemReports.ts` docstring). **New this slice:** [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645)
+> (AF-007, `REPORT_CACHE` never evicts — P2).
+>
+> Read [`agent8-2026-11-11/ADDENDUM-39b0012-reverification.md`](agent8-2026-11-11/ADDENDUM-39b0012-reverification.md)
+> for the current state. Everything below remains accurate **as a record of pin `ec3ff49`** — do not quote its
+> defect rows as open.
+
 ---
 
 ## 1. What this slice was
