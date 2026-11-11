@@ -56,3 +56,76 @@
    compare sizes/hashes; write the Drive index file with ids.
 4. If time remains: reproduce #517/#519 (line-level entity label, seller profile), and add a
    registration-level version of the route matrix to the repo as the D-30 replacement.
+
+---
+
+## CHECKPOINT-02 (2026-11-10, ~04:37Z) — the sandbox was recycled, and what that proved
+
+Between two tool calls this session the workspace was torn down and rebuilt:
+
+* **`/home/user/lf-pin` — the pinned audit tree — was gone.**
+* **`/tmp` was gone**, taking every log (`pin-shard1.log`, `shard2.log`, `shard3.log`, `shard4.log`,
+  `pin-tsc*.log`, `pin-eslint-*.log`, `pin-build.log`) and the `format-patch` files with it.
+* **The local checkout was reset**: `git log` showed `e58fa00` again and the 15 audit commits were no
+  longer in the local history. **`node_modules` was gone too.**
+
+What survived, and why it matters:
+
+| Store | State after the recycle |
+|---|---|
+| `origin/arena/9bdf6e26-ledgerflow` on GitHub | **intact**, tip `8a423a05`, 15 commits — restored locally with `git fetch && git reset --hard origin/…` in one command |
+| Google Drive folder `1gXiKgFoNYDyHgVO2PEAtyNfPE-GO-rrD` | intact (29+ files, every findings/gates/handoff revision + probe + patch) |
+| `/tmp` scratch | **gone — do not rely on it for anything a later session needs** |
+
+**Lesson for every agent after this one:** the Arena workspace is *not* durable across a session, and
+`/tmp` is the least durable part of it. Anything worth keeping must be (a) committed **and pushed**,
+or (b) uploaded to Drive, *in that order of preference*. Logs quoted in `03-gates.md` are transcribed
+there for exactly this reason; they no longer exist as files.
+
+To re-establish the pin after a recycle:
+
+```sh
+mkdir -p /home/user/lf-pin && cd /home/user/ledgerflow
+git fetch upstream main
+git archive upstream/main | tar -x -C /home/user/lf-pin
+ln -s /home/user/ledgerflow/node_modules /home/user/lf-pin/node_modules   # after npm ci
+```
+
+(`lf-pin` has no `.git`, so `vercel-ignore-boundary` will fail there again — see `03-gates.md`.)
+
+### How to cut a backup patch that is actually complete
+
+The first backup patches this session were cut with `git format-patch -15 --stdout`, which counts
+**from `HEAD`** — so as the branch grew, the oldest commit (`1ef64361`, the one that *creates*
+`02-findings.md`) silently fell out of the series, and `git am` failed on patch 2 with
+`03-gates.md: does not exist in index`. **A patch that does not apply is not a backup.**
+
+The correct form names the range, then proves it:
+
+```sh
+cd /home/user/ledgerflow
+git format-patch e58fa00a..HEAD --stdout > /tmp/agent6-complete.patch   # 19 commits, 150,967 B
+
+# proof: am onto the base in a scratch repo and compare every audit file
+rm -rf /tmp/restore2 && mkdir /tmp/restore2 && cd /tmp/restore2 && git init -q .
+git -C /home/user/ledgerflow archive e58fa00a | tar -x
+git add -A && git -c user.name=v -c user.email=v@v commit -qm base
+git config user.name v && git config user.email v@v
+git am /tmp/agent6-complete.patch          # must print no error
+for f in audit/agent6-2026-11-10/*.md audit/agent6-2026-11-10/probes/*; do ... done   # 15/15 sha256 equal
+```
+
+Result on 2026-11-10: **`git am` exit 0, 8/8 docs and 7/7 probes byte-identical.** The restored
+*working tree* is not identical to `HEAD` as a git tree, because `git archive` drops `.github/`,
+`.husky/` and other dot-directories that are excluded from the snapshot; that is a property of the
+archive, not of the patch — compare the **audit files**, which is what the patch carries.
+
+### Recovery paths, all three tested (2026-11-10, after the recycle)
+
+| path | command | result |
+|---|---|---|
+| **GitHub (primary)** | `git clone --depth 1 --branch arena/9bdf6e26-ledgerflow https://github.com/Chaim-Richard/ledgerflow.git` | exit 0, tip `b59afc9`, all 15 audit files **byte-identical** to the working copy |
+| **Drive patch** | `git am 2026-11-10_…FINAL-23-commits-fa93999.patch` onto `e58fa00` | exit 0, 15/15 files byte-identical |
+| **Local `.git`** | — | **not a recovery path**: the sandbox reset it to `e58fa00` mid-session |
+
+So: push first, patch second, and never treat the workspace as the store.
