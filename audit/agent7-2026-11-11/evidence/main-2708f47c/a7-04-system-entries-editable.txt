@@ -1,26 +1,26 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04-system-entries-editable.test.ts
-# run: 2026-11-11T19:35:56Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:27:42Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 ▶ A7-04 system entries can be changed behind their documents
-  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (156.160051ms)
-PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"v7NiQB48LXyumEMtoDlD"}
+  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (165.27551ms)
+PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"DjowikWJPc4WHJVntMm0"}
 ledger now: {"ar":50000,"sales":-50000}
 invoice: status paid, paid 50000; payment: status posted, amount 50000
 DEFECT A7-04a: ledger A/R 500.00 and Bank 0.00, while the invoice is "paid" and the payment is "posted"
 Data Health after (a): (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (medium) [control-balance] Accounts receivable is $500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
-  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (78.436508ms)
-PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"4756f1e8-9e57-457a-b902-378f31d3cd27","data":{"id":"4756f1e8-9e57-457a-b902-378f31d3cd27
+  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (77.203432ms)
+PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"85deea99-4da0-46c0-a8d8-fe30320dcd92","data":{"id":"85deea99-4da0-46c0-a8d8-fe30320dcd92
 ledger now: {"ar":10000,"sales":-10000}; invoice amount 50000
 DEFECT A7-04b: Sales in the ledger 100.00, the invoice 500.00
 month-end posting check after (b): invoice INV-9: amount (document 50000, ledger 10000)
-  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (24.368258ms)
-POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"4756f1e8-9e57-457a-b902-378f31d3cd27","reversal":{"id":"rONeNKKzYTysqHEf0nho","uid":"bookke
+  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (21.209732ms)
+POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"85deea99-4da0-46c0-a8d8-fe30320dcd92","reversal":{"id":"KVWu8QFsV3CNgvn899h1","uid":"bookke
 ledger now: {}; invoice status paid, amount 50000
 DEFECT A7-04c: the ledger holds nothing for an invoice that is still issued and marked paid
 Data Health after (c): (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
 month-end posting check after (c): invoice INV-9: missing (document 50000, ledger 0)
 reports after (c): A/R ageing total 0; profit and loss income 0
-  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (58.407606ms)
+  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (64.15286ms)
 INV-10 posted: {"ar":20000,"sales":-20000}
 DELETE /transactions/<INV-10's entry> as a viewer -> 403 {"error":"Forbidden: changing the books requires the owner, accountant or bookkeeper role"}
 DELETE /transactions/<INV-10's entry> as a bookkeeper -> 403 {"status":"error","error":"Forbidden: Only draft documents can be deleted. Current status: completed. Posted documents must be voided, never
@@ -29,12 +29,12 @@ entry still in the ledger: true; invoice INV-10: status sent, amount 20000; ledg
 month-end posting check: invoice INV-9: missing (document 50000, ledger 0)
 audit rows TRANSACTION_DELETED: 0
 {"viewer":403,"bookkeeper":403,"owner":403,"stillThere":true}
-  ✔ control that holds: DELETE on a second invoice's entry is refused for a viewer, a bookkeeper and the owner (43.808286ms)
-audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [4756f1e8-9e57-457a-b902-378f31d3cd27]."}
-audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [v7NiQB48LXyumEMtoDlD]."}
+  ✔ control that holds: DELETE on a second invoice's entry is refused for a viewer, a bookkeeper and the owner (45.212436ms)
+audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [DjowikWJPc4WHJVntMm0]."}
+audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [85deea99-4da0-46c0-a8d8-fe30320dcd92]."}
 DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry no before/after values
-  ✔ what the audit trail kept of the two edits: the action, not what changed (4.71725ms)
-✔ A7-04 system entries can be changed behind their documents (1448.796662ms)
+  ✔ what the audit trail kept of the two edits: the action, not what changed (1.87084ms)
+✔ A7-04 system entries can be changed behind their documents (1423.047666ms)
 ℹ tests 6
 ℹ suites 1
 ℹ pass 6
@@ -42,4 +42,4 @@ DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry 
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1609.892082
+ℹ duration_ms 1553.531269

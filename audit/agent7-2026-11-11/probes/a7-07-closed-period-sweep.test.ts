@@ -137,16 +137,22 @@ describe('A7-07 closed-period sweep across the server writers', { skip: !DB_URL 
     const demoInvoices = (await b.db.collection('invoices').where('workspaceId', '==', b.ws).get()).docs.filter(d => d.data().number === 'INV-DEMO-001').length;
     console.log(`a second POST /workspaces/:id/seed -> ${again.status}; invoices numbered INV-DEMO-001 now: ${demoInvoices}`);
 
-    // what main does today (2ac666b); a tree that answers differently fails here, after everything above is printed
+    // what main does; a tree that answers differently fails here, after everything above is printed.
+    // Two exact sets: main up to 2ac666b, and main from 2708f47c (PR #647 merged: the demo accounts' ids match and one
+    // audit row is written; everything else is the same).
     const facts = {
       demoEntries: entries.length, linesOnNoAccount: orphanLines.length, invoiceStatus: invoices[0]?.status, invoiceEntries: invoiceEntries.length,
       auditRows: audit.length, markedAsDemo: ws.isDemoLoaded === true, reportOrphanedLines: bs.body.orphanedLines.length, demoBankOnBalanceSheet: demoBank?.[1],
       missingAccountFindings: health.filter(f => f.checkId === 'missing-account').length, resetStatus: reset.status, secondSeedStatus: again.status, demoInvoicesAfterSecond: demoInvoices,
     };
     console.log(JSON.stringify(facts));
-    assert.deepEqual(facts, {
+    const at2ac666b = {
       demoEntries: 2, linesOnNoAccount: 4, invoiceStatus: 'sent', invoiceEntries: 0, auditRows: 0, markedAsDemo: false, reportOrphanedLines: 0, demoBankOnBalanceSheet: 300_000,
       missingAccountFindings: 4, resetStatus: 409, secondSeedStatus: 200, demoInvoicesAfterSecond: 2,
-    });
+    };
+    const at2708f47c = { ...at2ac666b, linesOnNoAccount: 0, auditRows: 1, missingAccountFindings: 0 };
+    const idsMatch = facts.linesOnNoAccount === 0;
+    console.log(`behaviour: ${idsMatch ? 'main from 2708f47c (account ids match, one audit row)' : 'main up to 2ac666b (account ids do not match, no audit row)'}`);
+    assert.deepEqual(facts, idsMatch ? at2708f47c : at2ac666b);
   });
 });

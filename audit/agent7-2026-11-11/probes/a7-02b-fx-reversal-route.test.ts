@@ -4,7 +4,8 @@
  * Books in ILS. A bookkeeper records a manual journal in USD at 3.7 through POST /transactions, then uses
  * "Reverse & Correct" (POST /transactions/:id/reverse) on it.
  *
- *  (1) the rate written on the entry only (what the entry screen's "Currency Context" sends):
+ *  (1) the currency and the rate written on the entry only, lines in that currency, as an API caller or an import
+ *      would (the journal screen does NOT send this: it converts the lines itself, probe A7-02d):
  *      Bank 24.70 debit, two income lines of 12.35 credit. By hand: 24.70 × 3.7 = 91.39 ILS.
  *  (2) the rate written on every line, same amounts. By hand: 91.39 against 45.695 + 45.695, so one agora is
  *      settled by the server (settleHomeCurrency writes each line's home amount, `baseAmountCents`).
@@ -12,6 +13,10 @@
  *
  * Expected for a correct system: (1) is either valued at 3.7 or refused, never silently taken one for one;
  * (2) and (3) are accepted, and their reversals are accepted and bring every account back to 0.00.
+ *
+ * Two behaviours are recorded. Main up to 2ac666b: (2) and (3) are created, and "Reverse & Correct" is refused.
+ * Main from 2708f47c (PR #647 merged): (2) and (3) are refused when they are created, with the message that used to
+ * refuse the reversal of (3). The probe prints which one it met and asserts that one.
  *
  * Scope, so nothing is over-claimed. At this pin no screen and no server writer produces a line with a rate other
  * than 1 (searched src/ for exchangeRate on lines): invoices, bills, credits and payments are stored in the home
@@ -57,6 +62,14 @@ describe('A7-02b a journal at a foreign rate, through the routes', { skip: !DB_U
   test('(2) the rate on every line, one agora settled: valued at 3.7; "Reverse & Correct" is refused', async () => {
     const id = `${b.ws}_j2`;
     const posted = await b.send(b.BOOKKEEPER, 'POST', '/api/v1/transactions', { transaction: journal(id, 3.7) }, { 'x-operation-id': 'a7-02b-2' });
+    if (posted.status === 400) {
+      // main from 2708f47c: the validator writes the total in ILS (91.39), the ledger-door check compares it with the debit lines in USD (24.70)
+      console.log(`(2) POST /transactions -> 400 ${JSON.stringify(posted.body).slice(0, 200)}`);
+      assert.match(JSON.stringify(posted.body), /entry total \(9139\) does not match its lines \(2470\)/);
+      assert.deepEqual(named(b, await b.balances()), {}, 'nothing was posted');
+      console.log('(2) DEFECT A7-02 (main from 2708f47c): a journal with a rate on its lines is refused when it is created');
+      return;
+    }
     assert.equal(posted.status, 200, JSON.stringify(posted.body).slice(0, 300));
     const original = (await b.entries()).find(e => e.id === id)!;
     console.log(`(2) POST /transactions -> ${posted.status}; stored: ${stored(original)}`);
@@ -78,6 +91,12 @@ describe('A7-02b a journal at a foreign rate, through the routes', { skip: !DB_U
     const j = journal(id, 3.7);
     j.lines[0].amountCents = 1000; j.lines[1].amountCents = -500; j.lines[2].amountCents = -500; j.totalAmountCents = 1000;
     const posted = await b.send(b.BOOKKEEPER, 'POST', '/api/v1/transactions', { transaction: j }, { 'x-operation-id': 'a7-02b-3' });
+    if (posted.status === 400) {
+      console.log(`(3) POST /transactions -> 400 ${JSON.stringify(posted.body).slice(0, 200)}`);
+      assert.match(JSON.stringify(posted.body), /entry total \(3700\) does not match its lines \(1000\)/);
+      console.log('(3) DEFECT A7-02 (main from 2708f47c): a journal with a rate on its lines is refused when it is created, even with nothing to settle');
+      return;
+    }
     assert.equal(posted.status, 200, JSON.stringify(posted.body).slice(0, 300));
     const original = (await b.entries()).find(e => e.id === id)!;
     console.log(`(3) POST /transactions -> ${posted.status}; stored: ${stored(original)}, totalAmountCents ${original.totalAmountCents}`);

@@ -1,6 +1,6 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: node audit/agent7-2026-11-11/probes/run-sql.mjs audit/agent7-2026-11-11/probes/a7-06-residual-browser-writes.sql
-# run: 2026-11-11T19:35:50Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:27:34Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 step: 1 | what: insert an OPEN customer credit note of 9,000.00 (never issued, no entry) | outcome: ACCEPTED
 step: 2 | what: raise what is left on an existing credit note from 40.00 to 4,000.00 | outcome: refused: Settlement and posting fields on creditNotes are written only by the server ledger
 step: 3 | what: insert an OPEN vendor credit of 7,000.00 (never issued, no entry) | outcome: ACCEPTED
