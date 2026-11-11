@@ -14,7 +14,7 @@ test('accounting glossary: bilingual search and recovery from no matches', async
 
   const search = page.getByLabel('Search English or Hebrew');
   await search.fill('מלאי');
-  await expect(page.getByText('Inventory')).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Accounting glossary', exact: true }).getByText('Inventory', { exact: true })).toBeVisible();
   await search.fill('not-a-term');
   await expect(page.getByText('No glossary terms match your search')).toBeVisible();
   await page.getByRole('button', { name: 'Clear search' }).click();

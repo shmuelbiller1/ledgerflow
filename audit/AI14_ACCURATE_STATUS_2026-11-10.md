@@ -29,17 +29,18 @@ AI #1 merged these PRs and supplied the final #632 tax-default/caller-choice rev
 ### Verified
 
 - Pre-fix browser reproduction at 390/1280.
-- **71/71 local browser checks pass** (38 navigation/dialog/axe/keyboard/transaction/receipt checks; 33 phone/report-keyboard/PDF/print checks).
+- **74 local browser checks pass in selected clean runs** (38 navigation/dialog/axe/keyboard/transaction/receipt checks; 33 phone/report-keyboard/PDF/print checks; two Settings Pro-strip fixtures; one glossary search/recovery check).
 - **43/43 focused unit/registry/bookmark/index/guard checks pass.**
 - Final typecheck/build pass. Full lint: **0 errors / 42 existing warnings**; touched files: no warnings.
 - Initial CI `43057375651`: production build, lint/types/database rules, all four unit shards, all six timezone shards and the merged coverage gate pass.
-- Codex reviewed implementation commit `f3af389` with no findings. CodeRabbit was rate-limited, not successfully reviewed. SonarCloud and Vercel pass.
+- Codex initially found no issues, then found the temporary workflow target and Settings strip fixture. Both are fixed/answered. CodeRabbit was initially rate-limited, not successfully reviewed. SonarCloud and Vercel pass on earlier heads; final-head checks still required.
+- **40/40 CI-native visual captures and 40/40 verification reruns pass** in `43063622433`; candidates reviewed using representative images and all-40 pixel-region comparisons. Intentional sidebar/strip changes only; no financial expected values or screenshot tolerances changed. Capture workflow restored exactly to base, with normal per-run review-branch isolation.
 
-### Not yet verified / blocked
+### Not yet verified
 
-- All five initial browser CI shards failed at **Playwright installation**, before browser assertions ran; smoke aggregation failed as a consequence.
-- Manual visual capture `43057369787` failed at the same installation step. No new visual reference has been accepted, and no screenshot tolerance was raised.
-- Diagnostic capture `43059849751` confirms DNS failures resolving `archive.ubuntu.com`, `security.ubuntu.com` and `azure.archive.ubuntu.com` during dependency installation. Temporary workflow edits are restored byte-for-byte to the base; no net workflow or baseline change remains. Full browser CI and final reference review remain pending.
+- Initial browser CI/captures failed during Ubuntu mirror DNS resolution; diagnostics confirmed the cause. This outage cleared on subsequent runners.
+- CI `43061829439` ran all five browser shards: two pass; remaining failures are the now-fixed glossary/Settings fixtures and stale references. Final complete CI with those fixes/references remains pending.
+- Full local nonvisual attempt was **not green**: stopped at ten failures, with 136 passed, two interrupted and 479 not run, plus one out-of-test error. Includes startup waits/preview timeout/changing report cells/dialog Escape checks; the narrower follow-up is 17 passed / 3 guide failures, not a full-suite substitute. Local Chromium 153 differs from CI's native browser. Do not promote the selected clean runs above to a full-suite claim.
 
 Detailed evidence: `docs/verification/ai14-eu-f1-2026-11-11.md`.
 
