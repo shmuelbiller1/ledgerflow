@@ -1672,8 +1672,8 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 
 ## Integrity follow-up of 18 Oct (owner's request; independent AI examination at 507d3cc)
 
-- [~] INT-6 *(AI #9, PR open, ai9/INT-6: the pay link keys on invoice + amount due, the subscription checkout on workspace + plan + price + current subscription; test `int6-checkout-idempotency.test.ts` with a mocked Stripe)* Stripe Checkout session creation (publicInvoiceRoutes, billingRoutes) sends an idempotency key per invoice + amount, so a double click cannot open two payable sessions.
-- [~] INT-7 *(AI #9, PR #286: the rest above what is due is the customer's credit in Customer Deposits, flagged `refundReview`, with a notice; A/R never negative; test `int7-online-overpayment.test.ts`)* An online payment arriving for an invoice already paid in full is recorded as an overpayment (customer credit) and flagged for refund review — never silently applied twice. (From the owner's "exactly-once impossibility" exam, 18 Oct: we rely on Stripe Checkout + webhook event ids, which already avoids the impossible case.)
+- [x] INT-6 *(merged #284; ticked 11 Nov) (AI #9, PR open, ai9/INT-6: the pay link keys on invoice + amount due, the subscription checkout on workspace + plan + price + current subscription; test `int6-checkout-idempotency.test.ts` with a mocked Stripe)* Stripe Checkout session creation (publicInvoiceRoutes, billingRoutes) sends an idempotency key per invoice + amount, so a double click cannot open two payable sessions.
+- [x] INT-7 *(merged #286; ticked 11 Nov) (AI #9, PR #286: the rest above what is due is the customer's credit in Customer Deposits, flagged `refundReview`, with a notice; A/R never negative; test `int7-online-overpayment.test.ts`)* An online payment arriving for an invoice already paid in full is recorded as an overpayment (customer credit) and flagged for refund review — never silently applied twice. (From the owner's "exactly-once impossibility" exam, 18 Oct: we rely on Stripe Checkout + webhook event ids, which already avoids the impossible case.)
 
 
 ## AI #2 launch-readiness batch — 26 Oct 2026
