@@ -33,7 +33,9 @@ No money calculations, posting, tax, server, database/schema, or financial workf
 - `git diff --check`: passed.
 - Node 24.11.1 was obtained from npm under the excluded cache directory; repo `node_modules` was installed with `npm ci --ignore-scripts`. No tracked dependencies or lockfiles changed.
 - Full type check, ESLint and production build pass under Node 24.11.1. ESLint reports the existing 42 warnings at the configured cap; no changed file has warnings.
-- No branch CI or review exists yet. The current working branch was started from `ec3ff493`; upstream `main` has since advanced to `39b0012881fdc78edab2479fb62b0b632234aa82`. Before PR, reconcile this branch with the latest upstream base without switching branches, then re-run relevant checks.
+- The branch was rebased onto upstream `main` at `39b0012881fdc78edab2479fb62b0b632234aa82` without switching branches. Reviewed the overlapping `Dashboard.tsx` change: kept upstream's opening-balances setup, role gate, and SetupWizard key, and added the first-week checklist alongside them. The resulting feature diff is seven files / 441 insertions; no upstream feature edits were dropped.
+- After rebase, focused tests **8/8**, TypeScript, scoped ESLint (`--max-warnings 0`), and `git diff --check` passed. Full-suite/build results above were run before the rebase; no relevant implementation changed during conflict resolution other than retaining upstream dashboard code.
+- Commit `ccca363b` contains the feature on the fixed Arena branch. No push or PR exists yet; publish from this branch only after regenerating the recovery patch and the user-visible handoff is current.
 
 ## Remaining / handoff
 
