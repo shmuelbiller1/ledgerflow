@@ -45,14 +45,72 @@ OK     V3b outstandingBaseCents for the open USD invoice = 100000.
 
 That does not weaken the finding — a Kuwaiti or Jordanian books is a legitimate configuration and the direction is symmetric in the code — but it does mean the 0-decimal case is what a first tester would actually hit, and it is the one to write the golden test around.
 
+### 4. An escalation this run found: the damage is NOT confined to derived reports
+
+**Correction to a claim I made earlier in this same review, and to the framing in #641.** Both describe the damage as
+confined to derived reports, with the ledger correct. That is true of *invoice posting* (V1a/V2a: the real
+`postInvoiceLedger` puts exactly 67,000 cents on A/R) but it is **not true of the FX revaluation run, which posts**:
+
+- `fxRevaluation.ts:196` computes the booked value with `toBaseCents(openCents, bookedRate)` — the same un-adjusted
+  conversion as aging — and `:197` computes today's value with `Math.round(openCents * todayRate)`, also un-adjusted.
+- `fxRevaluationService.ts:286-287` then writes **that entry and its reversal into the ledger**
+  (`ledgerCreate` on `db.collection('transactions')`), inside a Firestore transaction with an audit-log write.
+- It is **reachable end to end**: `FxRevaluationPanel.tsx:101` calls `/api/v1/transactions/revaluation/{kind}` →
+  `periodRoutes.ts:39` → `revaluateForeignBalances`. A user can run a month-end revaluation from the UI today.
+
+Executed result (V5, same ¥100,000 at a booked 0.0067, today 0.0070):
+
+```
+DEFECT V5a planFxRevaluation reports bookedBaseCents = 670; the real posting put 67000 on A/R.
+DEFECT V5b deltaCents = 30 (today 700 - booked 670); the correct figure is 3000 cents = $30.00.
+OK     V5c 1 document valued, 0 unpriced, 0 skipped; 2 entry lines summing to 0 (balanced double entry),
+        netGainCents 30 = deltaCents, debitTotalCents 30.
+```
+
+So the run posts a **30-cent** FX gain where the true gain is **$30.00** — 100× too small — and both sides are wrong
+by the same factor, so they do **not** cancel. V5c is the control that makes this serious rather than merely wrong:
+the entry is **perfectly balanced double-entry**, no document is skipped, no rate is missing, and `netGainCents`
+agrees with the detail. **The run looks entirely healthy.** Nothing in its output would tell the operator or the
+auditor that the figure is off by two orders of magnitude, and it writes an audit-log entry saying it succeeded.
+
+Note also that `fxRevaluation.ts:20-22` carries a header comment asserting the opposite of what the code does:
+*"its booked value is `toBaseCents`, the same two rules the aging and the customer balances use, so this entry and
+the A/R report cannot disagree."* That reasoning is sound and the invariant it describes is real — but the invariant
+is that the revaluation agrees with the **reports**, and both disagree with the **ledger**. A comment that names the
+right invariant while pointing at the wrong reference side is worse than no comment, because it reads as a proof that
+this path was already checked.
+
 ### On severity
 
-I agree this is at the top of the register. By the audit mission's scale, *"silently wrong financial report/export"* is a **P0 stop-invitation** candidate, and the specific acceptance criterion the issue names — *"aging total = A/R control balance from the trial balance"* — **fails today** (670 ≠ 67,000). Two mitigating facts, recorded so the severity is not overstated: the **ledger itself is correct**, so no posted entry, trial balance or filed figure is wrong; and it needs a document currency whose minor units differ from the books'. The damage is confined to the derived reports — aging, customer/vendor stored balances, lifetime value, FX revaluation — which is still a screen a person reads and acts on, and still a reconciliation that cannot be made to tie.
+I agree this is at the top of the register, and V5 argues for **raising** it rather than leaving it where it is.
+By the audit mission's scale, *"silently wrong financial report/export"* is a **P0 stop-invitation** candidate;
+*"wrong posted ledger entry"* is squarely in that class too, and the acceptance criterion the issue names —
+*"aging total = A/R control balance from the trial balance"* — **fails today** (670 ≠ 67,000).
+
+Two facts still bound it, recorded so the severity is not overstated: **invoice, bill, credit-note and payment
+posting are correct** (V1a, V2a, and the ledger's own `bm04` test), so the opening balances and the trial balance
+are right; and it needs a document currency whose minor units differ from the books'. But the revaluation run is a
+**month-end close action that writes to the general ledger**, is reachable from the UI, produces a balanced and
+audit-logged entry, and is wrong by 10^(digits) — so a workspace holding JPY or KRW receivables that runs its
+month-end revaluation gets a wrong gain/loss **in the ledger**, not merely on a screen.
+
+If the revaluation is not intended to be live for the beta, that should be stated explicitly and gated, because the
+UI panel is present and the route is mounted.
 
 ### Suggested correction
 
 The issue's proposed signature is the right one. `convertMinorUnits` already exists (`currencyMinorUnits.ts:39`) and is already what the posting path uses, so this makes the reports call the same rule the ledger calls rather than adding a second one — the same shape as the fix AI #1 landed for #627 (extract one rule, use it in both consumers), which is worth noting because that drift is exactly how this happened.
 
-**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts`. V1b and V2b must flip to OK with **V1a, V2a, V3 and V3b unchanged** — the ledger figures and the control are already correct, so no existing expected number moves. `bm04-currency-minor-units.test.ts` must keep passing untouched.
+**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts`.
+**V1b, V2b, V5a and V5b must flip to OK** with **V1a, V2a, V3, V3b and V5c unchanged** — the ledger's invoice
+posting and every control are already correct, so no existing expected number moves. `bm04-currency-minor-units.test.ts`
+must keep passing untouched. V5c is worth keeping exactly as it is: it asserts the revaluation entry stays balanced
+double-entry, so a fix that corrects the magnitude while breaking the balance would be caught.
+
+One caution for whoever fixes this: `toBaseCents` has **41 call sites** (grep-verified, excluding tests), including
+`useEntityOperations.ts:73,82`, which writes the **stored** `balanceCents` on customer and vendor records. Correcting
+the helper changes those stored figures, so the fix needs a migration or a documented recompute plan for existing
+records — not only the helper and its call sites. That is a scope question for AI #1, recorded here because it is the
+reason this is not a one-line change.
 
 *Filed by Agent #8 as verification only. No production code changed; `toBaseCents`, `aging.ts` and `partyReports.ts` are untouched by this comment. `src/server/` and `src/lib/aging.ts` are AI #1's lane.*

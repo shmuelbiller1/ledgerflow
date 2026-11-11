@@ -173,6 +173,79 @@ console.log('=== V4: how far the un-adjusted conversion spreads (call sites of t
   );
 }
 
+
+
+
+// --------------------------------------------------------------------------------------------
+// V5: does the same divergence reach a POSTED entry? #641 frames the damage as confined to derived
+// reports, but `fxRevaluation.ts:196-197` converts with the same un-adjusted rate on BOTH sides,
+// and `fxRevaluationService.ts:286-287` writes the resulting entry and its reversal to the ledger.
+// If so, a revaluation run posts a wrong gain/loss — which is a posted figure, not a report.
+// --------------------------------------------------------------------------------------------
+console.log('');
+console.log('=== V5: the FX revaluation run — a POSTED entry, not a report ===');
+{
+  const { planFxRevaluation } = await import('../../../src/lib/fxRevaluation');
+  // ¥100,000 open, booked at 0.0067, today 0.0070. JPY has 0 decimals.
+  // The ledger already booked this receivable at 67,000 cents (V1a above, verified by the real posting).
+  const doc = {
+    id: 'inv-jpy', side: 'customer' as const, status: 'sent', number: 'INV-JP1', partyName: 'Customer',
+    currency: 'JPY', exchangeRate: 0.0067, amountCents: 100_000,
+    accountId: 'ar', accountName: 'Accounts Receivable', accountCurrency: 'USD',
+  } as never;
+  const plan = planFxRevaluation([doc], () => 0.0070, { id: 'fxgl', name: 'FX Gain/Loss', accountCurrency: 'USD' } as never, 'USD');
+  const d = plan.details[0];
+
+  // Independent arithmetic. Booked value = what the ledger actually posted = ¥100,000 x 0.67 = $670.00 = 67,000.
+  // Today value = ¥100,000 x 0.70 = $700.00 = 70,000. The real gain is 70,000 - 67,000 = 3,000 cents = $30.00.
+  const correctBooked = Math.round(100_000 * minorUnitRate(0.0067, 'JPY', 'USD'));
+  const correctToday = Math.round(100_000 * minorUnitRate(0.0070, 'JPY', 'USD'));
+  const correctDelta = correctToday - correctBooked;
+
+  report(
+    'V5a the revaluation reproduces what the ledger actually booked',
+    d?.bookedBaseCents === correctBooked,
+    `planFxRevaluation reports bookedBaseCents = ${d?.bookedBaseCents} for the ¥100,000 invoice; the real posting ` +
+      `(V1a) put ${correctBooked} cents on A/R, and hand arithmetic gives ¥100,000 x ${minorUnitRate(0.0067, 'JPY', 'USD')} = ${correctBooked}.`,
+    `bookedBaseCents is ${correctBooked / (d?.bookedBaseCents || 1)}x too small: fxRevaluation.ts:196 uses ` +
+      `toBaseCents(openCents, bookedRate) = round(openCents x rate), the same un-adjusted conversion as aging, so it ` +
+      `does not reproduce the value the ledger holds. Its own header comment (lines 20-22) claims the booked value ` +
+      `is "the same two rules the aging and the customer balances use, so this entry and the A/R report cannot ` +
+      `disagree" — that is true of the reports, but both are wrong against the ledger.`,
+  );
+
+  report(
+    'V5b the gain/loss it would POST is correct',
+    d?.deltaCents === correctDelta,
+    `deltaCents = ${d?.deltaCents} (today ${d?.todayBaseCents} - booked ${d?.bookedBaseCents}); the correct figure is ` +
+      `${correctDelta} cents (today ${correctToday} - booked ${correctBooked}), i.e. $${(correctDelta / 100).toFixed(2)}.`,
+    `the entry fxRevaluationService.ts:286-287 writes to the ledger would carry ${d?.deltaCents} cents instead of ` +
+      `${correctDelta} — ${correctDelta / (d?.deltaCents || 1)}x too small. Both sides are wrong (line 197 is ` +
+      `Math.round(openCents x todayRate), also un-adjusted), and they do NOT cancel: the booked side understates by ` +
+      `the same factor as the today side, so the difference is understated by that factor too. This escalates #641 ` +
+      `from "derived reports only" to "a posted entry": a revaluation run on a JPY or KRW receivable writes a wrong ` +
+      `gain/loss and a wrong reversal into the general ledger.`,
+  );
+
+  // `unpriced` is a string[], not a Set (fxRevaluation.ts:101), so this is .length — an earlier draft of this
+  // probe read `.size`, got undefined, and made this control print DEFECT for a probe bug rather than a code bug.
+  // A control that fails for the wrong reason is worse than no control: it hides whether the case is real.
+  const linesSum = plan.lines.reduce((sum, l) => sum + l.amountCents, 0);
+  report(
+    'V5c the plan really valued the document, and its entry is well formed (guards against a vacuous V5a/V5b)',
+    Boolean(d) && plan.unpriced.length === 0 && plan.skipped.length === 0 && plan.documentCount === 1
+      && plan.lines.length === 2 && linesSum === 0 && plan.netGainCents === d?.deltaCents,
+    `${plan.documentCount} document valued, ${plan.unpriced.length} unpriced, ${plan.skipped.length} skipped; ` +
+      `${plan.lines.length} entry lines summing to ${linesSum} (balanced double entry), netGainCents ` +
+      `${plan.netGainCents} = the detail's deltaCents, debitTotalCents ${plan.debitTotalCents}. So the wrong figures ` +
+      `above come from the CONVERSION, not from the document being filtered out, skipped for a missing rate, or an ` +
+      `unbalanced entry — the run looks entirely healthy, which is what makes it dangerous.`,
+    `this control failed, so V5a/V5b are not measuring a healthy-but-wrong run: ` +
+      `unpriced ${plan.unpriced.length}, skipped ${plan.skipped.length}, lines ${plan.lines.length}, ` +
+      `linesSum ${linesSum}, documentCount ${plan.documentCount}, netGainCents ${plan.netGainCents} vs deltaCents ${d?.deltaCents}.`,
+  );
+}
+
 console.log('');
 console.log(failures === 0
   ? 'all cases OK — #641 does not reproduce; the aging reconciles to the ledger'
