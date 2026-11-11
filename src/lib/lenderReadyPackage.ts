@@ -1,4 +1,4 @@
-import type { Bill, ChartAccount, Invoice, ReconciliationSession, Transaction } from '../types';
+import type { Bill, ChartAccount, Invoice, Payment, ReconciliationSession, Transaction } from '../types';
 import type { EvidenceFile, EvidencePeriod, EvidenceWorkspace } from './auditEvidencePack';
 import {
   computeLedgerCloseAnchor,
@@ -6,8 +6,9 @@ import {
   verifyAuditHashChain,
   type HashChainableAuditEntry,
 } from './auditHashChain';
+import { isIncomeAccount, resolveAccountRole } from './accountUtils';
 import { csvMoney, toCsv } from './csvExport';
-import { calculateAmountDue } from './documentMath';
+import { calculateAmountDue, depositAppliedCents } from './documentMath';
 import { isPostable, lineAmount } from './txFilters';
 import { trimChar } from './textShape';
 import { BRAND_NAME } from '../config/brand';
@@ -33,6 +34,7 @@ export interface LenderReadyPackageInput {
   transactions: readonly Transaction[];
   invoices: readonly Invoice[];
   bills: readonly Bill[];
+  payments?: readonly Payment[];
   reconciliations?: ReadonlyArray<ReconciliationSession | {
     accountId?: string;
     bankAccountId?: string;
@@ -88,6 +90,108 @@ function agingBucket(daysPastDue: number): 'Current' | '1-30 Days' | '31-60 Days
   return '90+ Days';
 }
 
+function classifyStatementSection(
+  acc: ChartAccount | undefined,
+  fallbackSignedAmt = 0,
+): 'revenue' | 'cogs' | 'expense' | 'asset' | 'liability' | 'equity' {
+  if (!acc) return fallbackSignedAmt < 0 ? 'revenue' : 'expense';
+  if (isIncomeAccount(acc)) return 'revenue';
+  const role = resolveAccountRole(acc);
+  if (role === 'revenue') return 'revenue';
+  if (role === 'cogs') return 'cogs';
+  if (role === 'expense') return 'expense';
+  if (role === 'liability' || role === 'ap') return 'liability';
+  if (role === 'equity') return 'equity';
+  if (role === 'asset' || role === 'cash' || role === 'ar' || role === 'inventory' || role === 'fx_rounding') {
+    return 'asset';
+  }
+  const rawType = String(acc.type || '').toLowerCase();
+  if (rawType === 'cost_of_goods' || rawType === 'cogs') return 'cogs';
+  if (rawType === 'expense') return 'expense';
+  if (rawType === 'liability') return 'liability';
+  if (rawType === 'equity') return 'equity';
+  return 'asset';
+}
+
+function reconstructDocumentOpenCentsAsOf(
+  doc: Invoice | Bill,
+  side: 'invoice' | 'bill',
+  cutoffDate: string,
+  generatedDay: string,
+  payments: readonly Payment[] | undefined,
+): number {
+  if (doc.status === 'draft' || doc.status === 'void' || (doc.status as string) === 'cancelled') return 0;
+  const docDate = String(doc.date || '').slice(0, 10);
+  if (docDate && docDate > cutoffDate) return 0;
+
+  const netObligationCents = Math.max(0, Math.trunc(doc.amountCents || 0) - depositAppliedCents(doc));
+  if (netObligationCents <= 0) return 0;
+
+  const currentPaidCents = Math.max(0, Math.trunc(doc.amountPaidCents || 0));
+  const paidAtDay = String(
+    (doc as { paidAt?: string; paidDate?: string }).paidAt ||
+      (doc as { paidDate?: string }).paidDate ||
+      '',
+  ).slice(0, 10);
+
+  if (payments === undefined) {
+    if (cutoffDate >= generatedDay || (currentPaidCents === 0 && doc.status !== 'paid')) {
+      return calculateAmountDue(doc);
+    }
+    if (paidAtDay) {
+      const settled = paidAtDay <= cutoffDate ? (doc.status === 'paid' ? Math.max(currentPaidCents, netObligationCents) : currentPaidCents) : 0;
+      return Math.max(0, netObligationCents - settled);
+    }
+    throw new Error(
+      `Historical ${side} aging as of ${cutoffDate} requires payment settlement history for ${doc.number || doc.id}.`,
+    );
+  }
+
+  let settledThroughCutoff = 0;
+  let settledAllTime = 0;
+  for (const p of payments) {
+    const pStatus = String((p as { status?: string }).status || 'completed');
+    if (pStatus === 'void' || pStatus === 'reversed' || pStatus === 'failed' || pStatus === 'draft') continue;
+    const pDay = String((p as { paymentDate?: string }).paymentDate || p.date || '').slice(0, 10);
+    let matchedCents = 0;
+    if (Array.isArray(p.allocations) && p.allocations.length > 0) {
+      for (const alloc of p.allocations) {
+        if (alloc.documentId === doc.id && (!alloc.documentType || alloc.documentType === side)) {
+          matchedCents += Math.max(0, Math.trunc(alloc.amountCents || 0));
+        }
+      }
+    } else {
+      const directId = side === 'invoice'
+        ? (p as { invoiceId?: string }).invoiceId
+        : (p as { billId?: string }).billId;
+      if (directId === doc.id) {
+        matchedCents += Math.max(0, Math.trunc(p.amountCents || 0));
+      }
+    }
+    if (matchedCents <= 0) continue;
+    settledAllTime += matchedCents;
+    if (pDay && pDay <= cutoffDate) {
+      settledThroughCutoff += matchedCents;
+    }
+  }
+
+  const effectiveTotalSettled = doc.status === 'paid' ? Math.max(currentPaidCents, netObligationCents) : currentPaidCents;
+  const unattributedSettled = Math.max(0, effectiveTotalSettled - settledAllTime);
+  if (unattributedSettled > 0) {
+    if (cutoffDate >= generatedDay) {
+      settledThroughCutoff += unattributedSettled;
+    } else if (paidAtDay) {
+      if (paidAtDay <= cutoffDate) settledThroughCutoff += unattributedSettled;
+    } else {
+      throw new Error(
+        `Historical ${side} aging as of ${cutoffDate} cannot date ${unattributedSettled} settled cents on ${doc.number || doc.id} without payment records.`,
+      );
+    }
+  }
+
+  return Math.max(0, netObligationCents - settledThroughCutoff);
+}
+
 export function buildLenderReadyPackage(
   input: LenderReadyPackageInput,
 ): { files: EvidenceFile[]; summary: LenderPackageSummary } {
@@ -121,8 +225,8 @@ export function buildLenderReadyPackage(
       cumulativeByAccount.set(accId, cum);
 
       const acc = accountById.get(accId);
-      const accType = acc?.type || (amt > 0 ? 'expense' : 'revenue');
-      const isPnl = accType === 'revenue' || accType === 'expense';
+      const section = classifyStatementSection(acc, amt);
+      const isPnl = section === 'revenue' || section === 'cogs' || section === 'expense';
 
       if (inPeriod) {
         const per = periodByAccount.get(accId) || { debits: 0, credits: 0, net: 0 };
@@ -187,19 +291,20 @@ export function buildLenderReadyPackage(
 
   for (const accId of periodAccountIds) {
     const acc = accountById.get(accId);
-    const accType = acc?.type || 'expense';
-    if (accType !== 'revenue' && accType !== 'expense') continue;
     const per = periodByAccount.get(accId)!;
-    if (accType === 'revenue') {
-      // Revenue is credit-normal (-net)
+    const section = classifyStatementSection(acc, per.net);
+    if (section !== 'revenue' && section !== 'cogs' && section !== 'expense') continue;
+    if (section === 'revenue') {
+      // Revenue / income is credit-normal (-net)
       const rev = -per.net;
       revenueCents += rev;
       isRows.push(['Revenue', acc?.code || '', acc?.name || accId, csvMoney(rev), currency]);
     } else {
-      // Expense is debit-normal (+net)
+      // Cost of Goods Sold and Expense are debit-normal (+net)
       const exp = per.net;
       expenseCents += exp;
-      isRows.push(['Expense', acc?.code || '', acc?.name || accId, csvMoney(exp), currency]);
+      const label = section === 'cogs' ? 'Cost of Goods Sold' : 'Expense';
+      isRows.push([label, acc?.code || '', acc?.name || accId, csvMoney(exp), currency]);
     }
   }
   const netIncomeCents = revenueCents - expenseCents;
@@ -215,14 +320,14 @@ export function buildLenderReadyPackage(
 
   for (const accId of sortedAccountIds) {
     const acc = accountById.get(accId);
-    const accType = acc?.type;
-    if (accType === 'revenue' || accType === 'expense') continue;
     const bal = cumulativeByAccount.get(accId)!;
-    if (accType === 'liability') {
+    const section = classifyStatementSection(acc, bal.net);
+    if (section === 'revenue' || section === 'cogs' || section === 'expense') continue;
+    if (section === 'liability') {
       const liab = -bal.net;
       totalLiabilitiesCents += liab;
       bsRows.push(['Liability', acc?.code || '', acc?.name || accId, csvMoney(liab), currency]);
-    } else if (accType === 'equity') {
+    } else if (section === 'equity') {
       const eq = -bal.net;
       statedEquityCents += eq;
       bsRows.push(['Equity', acc?.code || '', acc?.name || accId, csvMoney(eq), currency]);
@@ -244,17 +349,16 @@ export function buildLenderReadyPackage(
   bsRows.push(['Summary', '', 'Total Equity (incl. Retained Earnings)', csvMoney(totalEquityWithRetainedCents), currency]);
   bsRows.push(['Summary', '', 'Balance Check (Assets - Liabilities - Equity)', csvMoney(bsDifferenceCents), currency]);
 
-  // 04 — AR & AP Aging as of period.to
+  // 04 — AR & AP Aging reconstructed as of period.to
   const agingRows: string[][] = [];
   let openReceivablesCents = 0;
   let openPayablesCents = 0;
+  const generatedDay = String(input.generatedAt || '').slice(0, 10) || input.period.to;
 
   for (const inv of input.invoices) {
-    if (inv.status === 'draft' || inv.status === 'void' || inv.status === 'paid') continue;
-    const invDate = String(inv.date || '').slice(0, 10);
-    if (invDate && invDate > input.period.to) continue;
-    const dueCents = calculateAmountDue(inv);
+    const dueCents = reconstructDocumentOpenCentsAsOf(inv, 'invoice', input.period.to, generatedDay, input.payments);
     if (dueCents <= 0) continue;
+    const invDate = String(inv.date || '').slice(0, 10);
     openReceivablesCents += dueCents;
     const dueDay = String(inv.dueDate || inv.date || input.period.to).slice(0, 10);
     const pastDue = dayDiff(dueDay, input.period.to);
@@ -272,11 +376,9 @@ export function buildLenderReadyPackage(
   }
 
   for (const bill of input.bills) {
-    if (bill.status === 'draft' || bill.status === 'void' || bill.status === 'paid') continue;
-    const billDate = String(bill.date || '').slice(0, 10);
-    if (billDate && billDate > input.period.to) continue;
-    const dueCents = calculateAmountDue(bill);
+    const dueCents = reconstructDocumentOpenCentsAsOf(bill, 'bill', input.period.to, generatedDay, input.payments);
     if (dueCents <= 0) continue;
+    const billDate = String(bill.date || '').slice(0, 10);
     openPayablesCents += dueCents;
     const dueDay = String(bill.dueDate || bill.date || input.period.to).slice(0, 10);
     const pastDue = dayDiff(dueDay, input.period.to);

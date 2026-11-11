@@ -9,9 +9,13 @@ import { useAccessReview } from '../../../hooks/useAccessReview';
 import { buildAuditEvidencePack, evidenceDay, evidencePackFileName } from '../../../lib/auditEvidencePack';
 import { verifyAuditHashChain, type HashChainableAuditEntry } from '../../../lib/auditHashChain';
 import { buildLenderReadyPackage, lenderPackageFileName } from '../../../lib/lenderReadyPackage';
+import { verifiedBackupCollections } from '../../../lib/workspaceArchive';
+import { workspaceScope } from '../../../lib/serverAction';
+import { getIdToken } from '../../../firebase';
 import { localDay } from '../../../lib/accessReview';
 import { buildStoredZip } from '../../../lib/zips';
 import { LoadingState } from '../../ui/LoadingState';
+import type { Bill, ChartAccount, Invoice, Payment, ReconciliationSession, Transaction } from '../../../types';
 
 /**
  * Settings → Security → Audit evidence pack (BJ-02 / C-36). For a chosen period it downloads one
@@ -55,21 +59,17 @@ export default function AuditEvidencePackPanel() {
 
 function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const accounts = useLedgerStore(s => s.accounts || []);
-  const transactions = useLedgerStore(s => s.transactions || []);
   const invoices = useLedgerStore(s => s.invoices || []);
-  const bills = useLedgerStore(s => s.bills || []);
-  const reconciliations = useLedgerStore(s => s.reconciliations || []);
   const payRuns = useLedgerStore(s => s.payRuns || []);
   const auditLogs = useLedgerStore(s => s.auditLogs || []);
   const invoicesCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices));
   const payRunsCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.payRuns));
   const { loading } = useLedgerCollections('invoices', 'payRuns', 'auditLogs');
-  useLedgerCollections('bills', 'reconciliations');
   const failed = useDataNeedsStore(s => s.failed.invoices || s.failed.payRuns);
   const review = useAccessReview(workspaceId);
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(today);
+  const [lenderBusy, setLenderBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -128,11 +128,38 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
     }
   };
 
-  const downloadLenderPack = () => {
+  const downloadLenderPack = async () => {
+    if (lenderBusy) return;
     setError(''); setNotice('');
+    if (invalidPeriod) {
+      setError('Choose a valid period: the first date must not be after the last.');
+      return;
+    }
+    if (!workspace) {
+      setError('Open a workspace first.');
+      return;
+    }
+    const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
+    setLenderBusy(true);
     try {
-      if (invalidPeriod) throw new Error('Choose a valid period: the first date must not be after the last.');
-      if (!workspace) throw new Error('Open a workspace first.');
+      const token = await getIdToken();
+      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error('The authoritative server ledger could not be fetched. No partial lender package was built.');
+      }
+      const collections = await verifiedBackupCollections(await res.json(), workspace.id);
+      if (!scope.isCurrent()) return;
+
+      const serverAccounts = ((collections.chartAccounts || collections.accounts || []) as ChartAccount[]);
+      const serverTransactions = ((collections.transactions || []) as Transaction[]);
+      const serverInvoices = ((collections.invoices || []) as Invoice[]);
+      const serverBills = ((collections.bills || []) as Bill[]);
+      const serverPayments = ((collections.payments || []) as Payment[]);
+      const serverReconciliations = ((collections.reconciliations || []) as ReconciliationSession[]);
+      const serverAuditLogs = ((collections.auditLogs || []) as HashChainableAuditEntry[]);
+
       const lender = buildLenderReadyPackage({
         workspace: {
           id: workspace.id,
@@ -148,12 +175,13 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
         },
         period: { from, to },
         generatedAt: generatedAt(),
-        accounts,
-        transactions,
-        invoices,
-        bills,
-        reconciliations,
-        auditLogs: auditLogs as unknown as HashChainableAuditEntry[],
+        accounts: serverAccounts,
+        transactions: serverTransactions,
+        invoices: serverInvoices,
+        bills: serverBills,
+        payments: serverPayments,
+        reconciliations: serverReconciliations,
+        auditLogs: serverAuditLogs,
       });
       const zip = buildStoredZip(lender.files.map(file => ({ name: file.name, data: new TextEncoder().encode(file.text) })));
       const name = lenderPackageFileName(workspace, { from, to });
@@ -168,7 +196,11 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
       URL.revokeObjectURL(url);
       setNotice(`Downloaded ${name}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The lender package could not be built.');
+      if (scope.isCurrent()) {
+        setError(err instanceof Error ? err.message : 'The lender package could not be built.');
+      }
+    } finally {
+      if (scope.isCurrent()) setLenderBusy(false);
     }
   };
 
@@ -203,9 +235,9 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
           className="min-h-11 px-4 border border-[var(--line)] rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
           <Download aria-hidden="true" size={14} /> Download .zip
         </button>
-        <button type="button" onClick={downloadLenderPack} disabled={invalidPeriod || busy || Boolean(blocked)}
+        <button type="button" onClick={() => void downloadLenderPack()} disabled={invalidPeriod || busy || lenderBusy || Boolean(blocked)}
           className="min-h-11 px-4 border border-emerald-600/50 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
-          <Briefcase aria-hidden="true" size={14} /> Lender-ready package (.zip)
+          <Briefcase aria-hidden="true" size={14} /> {lenderBusy ? 'Fetching full ledger…' : 'Lender-ready package (.zip)'}
         </button>
       </div>
 

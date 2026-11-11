@@ -1,9 +1,11 @@
 import express from 'express';
 import { FieldValue } from '../../db/firestore';
 import { DoubleEntryValidator } from '../../../kernel/validation/DoubleEntryValidator';
-import type { Transaction } from '../../../types';
-import { getDb } from '../../db/firestore';
+import type { DimensionDefinition, DimensionNode, Transaction } from '../../../types';
+import { getDb, validateWorkspaceMember } from '../../db/firestore';
 import { LedgerPostingError } from '../../services/cogsStockService';
+import { ledgerWrite } from '../../services/ledgerDoor';
+import { migrateWorkspaceDimensionNodes } from '../../../lib/dimensionUtils';
 import { z } from 'zod';
 import { assertPostingOpen } from '../../../lib/periodLock';
 import { errorMessage, requestUser } from '../../auth/requestUser';
@@ -158,6 +160,72 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
          return res.status(403).json({ error: errorMessage(e) });
       }
       res.status(400).json({ error: errorMessage(e) }); 
+    }
+  });
+
+  // Atomic server-side dimension node migration over the complete workspace ledger (no 2,000-entry batch cap)
+  transactionRouter.post('/migrate-dimensions', async (req, res) => {
+    try {
+      const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+      if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' });
+      const user = requestUser(req);
+      const db = getDb();
+      const { data: wsData } = await validateWorkspaceMember(db, workspaceId, user);
+      if (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsData, user.uid))) {
+        return res.status(403).json({ error: 'Only owners, accountants and bookkeepers can migrate dimensions' });
+      }
+
+      const result = await db.runTransaction(async t => {
+        const wsSnap = await t.get(db.collection('workspaces').doc(workspaceId));
+        const wsNow = wsSnap.data();
+        if (!user.admin && (!wsNow || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) {
+          throw new Error('Only owners, accountants and bookkeepers can migrate dimensions');
+        }
+        const txSnap = await t.get(db.collection('transactions').where('workspaceId', '==', workspaceId));
+        const nodeSnap = await t.get(db.collection('dimensionNodes').where('workspaceId', '==', workspaceId));
+
+        const serverTxs = txSnap.docs.map(d => ({ ...(d.data() as Transaction), id: d.id }));
+        const origById = new Map(txSnap.docs.map(d => [d.id, d.data() as Record<string, unknown>]));
+        const serverNodes = nodeSnap.docs.map(d => d.data() as DimensionNode);
+        const dims = (Array.isArray(req.body?.dimensions) ? req.body.dimensions : wsNow?.dimensions || []) as DimensionDefinition[];
+
+        const { updatedTransactions, updatedNodes, migrationCount } = migrateWorkspaceDimensionNodes(
+          serverTxs,
+          serverNodes,
+          dims,
+        );
+
+        for (const node of updatedNodes) {
+          const docId = `${workspaceId}_${node.dimensionId}_${node.id}`;
+          t.set(db.collection('dimensionNodes').doc(docId), { ...node, workspaceId });
+        }
+
+        let updatedTransactionCount = 0;
+        for (const tx of updatedTransactions) {
+          if (!tx.id) continue;
+          const orig = origById.get(tx.id);
+          if (!orig || JSON.stringify(tx.lines) === JSON.stringify(orig.lines)) continue;
+          if (typeof orig.date === 'string' && orig.date) {
+            assertPostingOpen(orig.date, wsNow as never, user.uid);
+          }
+          await ledgerWrite(t, db.collection('transactions').doc(tx.id), {
+            ...orig,
+            lines: tx.lines,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          updatedTransactionCount += 1;
+        }
+
+        return { migrationCount, updatedTransactionCount, updatedNodeCount: updatedNodes.length };
+      });
+
+      res.json({ status: 'ok', ...result });
+    } catch (e) {
+      const msg = errorMessage(e);
+      if (/not a member|Forbidden|Unauthorized/i.test(msg)) {
+        return res.status(403).json({ error: msg });
+      }
+      res.status(400).json({ error: msg });
     }
   });
 }

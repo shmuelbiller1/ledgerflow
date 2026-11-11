@@ -12,6 +12,7 @@ import { runContinuousCloseCheck } from './algorithms/continuous-close';
 import { evaluateAmountExpression } from './amountExpression';
 import { calculateLateFee } from './paymentTerms';
 import { calculateAmountDue } from './documentMath';
+import { isPostable } from './txFilters';
 
 export interface BankLineForNoTouch {
   id: string;
@@ -67,9 +68,17 @@ export function computeNoTouchRate(
   let pendingCount = 0;
 
   for (const line of scoped) {
-    const status = String(line.status || 'pending');
+    const status = String(line.status || 'pending').toLowerCase();
     if (status === 'pending' && !line.matchedTransactionId) {
       pendingCount += 1;
+      continue;
+    }
+    if (status === 'ignored' || status === 'excluded' || status === 'dismissed') {
+      continue;
+    }
+
+    const linkedTx = line.matchedTransactionId ? txById.get(line.matchedTransactionId) : undefined;
+    if (!linkedTx || !isPostable(linkedTx)) {
       continue;
     }
 
@@ -78,10 +87,9 @@ export function computeNoTouchRate(
       Boolean(line.suggestion?.accountId) ||
       line.acceptedUnchanged === true;
 
-    const linkedTx = line.matchedTransactionId ? txById.get(line.matchedTransactionId) : undefined;
-    const verifMethod = String(linkedTx?.verification?.method || '');
+    const verifMethod = String(linkedTx.verification?.method || '');
     const txFromAuto =
-      Boolean((linkedTx?.metadata as Record<string, unknown> | undefined)?.autoPosted) ||
+      Boolean((linkedTx.metadata as Record<string, unknown> | undefined)?.autoPosted) ||
       verifMethod === 'rule' ||
       verifMethod === 'learned';
 

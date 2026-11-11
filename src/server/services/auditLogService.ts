@@ -2,7 +2,10 @@ import type { DocumentData, DocumentReference, Firestore } from '../db/firestore
 import { getDb } from '../db/firestore';
 import { computeAuditEntryHash, GENESIS_AUDIT_HASH } from '../../lib/auditHashChain';
 
-type AuditWriter = { set(ref: DocumentReference, data: DocumentData): unknown };
+type AuditWriter = {
+  set(ref: DocumentReference, data: DocumentData): unknown;
+  nextAuditChainHead?(workspaceId: string, genesisHash: string): Promise<AuditChainHead>;
+};
 
 export interface AuditLogEntryInput {
   workspaceId: string;
@@ -98,21 +101,66 @@ async function resolveNextChainHead(
   }
 }
 
+const workspaceAuditQueues = new Map<string, Promise<unknown>>();
+
+function serializeWorkspaceAudit<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = workspaceAuditQueues.get(workspaceId) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(fn);
+  workspaceAuditQueues.set(
+    workspaceId,
+    next.finally(() => {
+      if (workspaceAuditQueues.get(workspaceId) === next) {
+        workspaceAuditQueues.delete(workspaceId);
+      }
+    }),
+  );
+  return next;
+}
+
 export async function writeServerAuditLog(
   input: AuditLogEntryInput,
   options?: { db?: Firestore; tx?: AuditWriter }
 ): Promise<string> {
   const db = (options?.db || getDb()) as Firestore;
   const auditRef = db.collection('auditLogs').doc();
-  const chainHead = await resolveNextChainHead(db, input.workspaceId, Boolean(options?.tx));
-  const record = buildAuditLogRecord(input, auditRef.id, chainHead);
-  chainHeadsByWorkspace.set(input.workspaceId, { seq: chainHead.seq, prevHash: record.entryHash });
 
   if (options?.tx) {
-    options.tx.set(auditRef, record);
-  } else {
-    await auditRef.set(record);
+    const tx = options.tx;
+    if (typeof tx.nextAuditChainHead === 'function') {
+      const chainHead = await tx.nextAuditChainHead(input.workspaceId, GENESIS_AUDIT_HASH);
+      const record = buildAuditLogRecord(input, auditRef.id, chainHead);
+      tx.set(auditRef, record);
+      return auditRef.id;
+    }
+    return serializeWorkspaceAudit(input.workspaceId, async () => {
+      const cached = chainHeadsByWorkspace.get(input.workspaceId);
+      const chainHead = cached ? { seq: cached.seq + 1, prevHash: cached.prevHash } : { seq: 1, prevHash: GENESIS_AUDIT_HASH };
+      const record = buildAuditLogRecord(input, auditRef.id, chainHead);
+      chainHeadsByWorkspace.set(input.workspaceId, { seq: chainHead.seq, prevHash: record.entryHash });
+      tx.set(auditRef, record);
+      return auditRef.id;
+    });
   }
 
-  return auditRef.id;
+  return serializeWorkspaceAudit(input.workspaceId, async () => {
+    const maybeRunTx = (db as unknown as { runTransaction?: <R>(fn: (tx: AuditWriter) => Promise<R>) => Promise<R> }).runTransaction;
+    if (typeof maybeRunTx === 'function') {
+      await db.runTransaction(async tx => {
+        const writer = tx as unknown as AuditWriter;
+        const chainHead = typeof writer.nextAuditChainHead === 'function'
+          ? await writer.nextAuditChainHead(input.workspaceId, GENESIS_AUDIT_HASH)
+          : await resolveNextChainHead(db, input.workspaceId, true);
+        const record = buildAuditLogRecord(input, auditRef.id, chainHead);
+        writer.set(auditRef, record);
+      });
+      chainHeadsByWorkspace.delete(input.workspaceId);
+      return auditRef.id;
+    }
+
+    const chainHead = await resolveNextChainHead(db, input.workspaceId, false);
+    const record = buildAuditLogRecord(input, auditRef.id, chainHead);
+    await auditRef.set(record);
+    chainHeadsByWorkspace.set(input.workspaceId, { seq: chainHead.seq, prevHash: record.entryHash });
+    return auditRef.id;
+  });
 }

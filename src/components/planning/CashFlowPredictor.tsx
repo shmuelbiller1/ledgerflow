@@ -7,8 +7,10 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useServerActivity } from '../../hooks/useServerActivity';
+import { LoadingState } from '../ui/LoadingState';
 import { openingCutoff } from '../../lib/serverBalances';
 import { monthEnd, sumActivity } from '../../lib/periodActivity';
 import {
@@ -25,9 +27,12 @@ const monthRange = (date: string): [string, string] => {
 };
 
 export default function CashFlowPredictor() {
-  useLedgerCollections('bills', 'invoices', 'payments');
+  const { loading: collectionsLoading } = useLedgerCollections('bills', 'invoices', 'payments');
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
+  const computedAccounts = useLedgerStore(s => s.computedAccounts);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const failed = useDataNeedsStore(s => s.failed);
   const invoices = useLedgerStore(s => s.invoices || []);
   const bills = useLedgerStore(s => s.bills || []);
   const payments = useLedgerStore(s => s.payments || []);
@@ -39,9 +44,17 @@ export default function CashFlowPredictor() {
   const [hireSalaryDollars, setHireSalaryDollars] = useState(85000);
   const [hireStartWeek, setHireStartWeek] = useState(1);
 
+  const balancesReady = accounts.length === 0 || computedAccounts.length > 0;
+  const effectiveAccounts = computedAccounts.length > 0 ? computedAccounts : accounts;
+  const advisorLoadError = failed.invoices || failed.bills || failed.payments || '';
+  const cappedAdvisorSources = useMemo(
+    () => (['transactions', 'invoices', 'bills', 'payments'] as const).filter(k => Boolean(truncated?.[k])),
+    [truncated],
+  );
+
   const startingCashCents = useMemo(
-    () => accounts.filter(a => !a.isArchived && resolveAccountRole(a) === 'cash').reduce((sum, a) => sum + Math.trunc(a.balanceCents || 0), 0),
-    [accounts],
+    () => effectiveAccounts.filter(a => !a.isArchived && resolveAccountRole(a) === 'cash').reduce((sum, a) => sum + Math.trunc(a.balanceCents || 0), 0),
+    [effectiveAccounts],
   );
 
   const learnedCustomers = useMemo(
@@ -221,70 +234,86 @@ export default function CashFlowPredictor() {
 
         {activeTab === 'advisor' && (
           <div className="space-y-6">
-            {!hasAdvisorIncluded && (
-              <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-xs text-[var(--text)] flex items-center justify-between gap-4">
-                <span>
-                  <strong>Owner Advisor Preview:</strong> Included on Growth, Scale, and Firm plans (or via the $29/mo Owner Advisor add-on).
-                </span>
+            {advisorLoadError ? (
+              <div role="alert" className="p-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-xs text-[var(--text)]">
+                Could not load the documents required for cash runway and hiring analysis: {advisorLoadError}
               </div>
+            ) : (collectionsLoading || !balancesReady) ? (
+              <LoadingState what="invoices, bills, payments, and computed cash balances" />
+            ) : (
+              <>
+                {!hasAdvisorIncluded && (
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-xs text-[var(--text)] flex items-center justify-between gap-4">
+                    <span>
+                      <strong>Owner Advisor Preview:</strong> Included on Growth, Scale, and Firm plans (or via the $29/mo Owner Advisor add-on).
+                    </span>
+                  </div>
+                )}
+
+                {cappedAdvisorSources.length > 0 && (
+                  <div role="status" className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-xs text-[var(--text)]">
+                    <strong>Incomplete local window:</strong> Browser cache is capped for {cappedAdvisorSources.join(', ')}. Runway and customer payment speed reflect the loaded window only.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">Starting Bank Cash</p>
+                    <p className="text-2xl font-black mt-1 text-[var(--text)] tabular-nums">{formatCurrency(thirteenWeek.startingGrossCashCents)}</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Computed ledger cash balance before tax set-aside</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">13-Wk Lowest Spendable Cash</p>
+                    <p className={cn("text-2xl font-black mt-1 tabular-nums", thirteenWeek.lowestSpendableCashCents >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                      {formatCurrency(thirteenWeek.lowestSpendableCashCents)}
+                    </p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Week {thirteenWeek.lowestWeekNumber} ({thirteenWeek.lowestWeekStart}) after 20% tax reserve</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">Learned Customer Speed</p>
+                    <p className="text-2xl font-black mt-1 text-[var(--text)]">{learnedCustomers.profiles.size} customers</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Forecasts actual collection dates instead of invoice due dates</p>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--line)] space-y-4">
+                  <div>
+                    <h2 className="text-base font-black text-[var(--text)]">Can I Afford to Hire?</h2>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">{thirteenWeek.plainEnglishHeadline}</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className="block text-xs font-bold text-[var(--muted)]">
+                      Annual Base Salary (USD)
+                      <input
+                        type="number"
+                        min={0}
+                        step={5000}
+                        value={hireSalaryDollars}
+                        onChange={e => setHireSalaryDollars(Number(e.target.value) || 0)}
+                        className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
+                      />
+                    </label>
+                    <label className="block text-xs font-bold text-[var(--muted)]">
+                      Planned Start Week (1–13)
+                      <input
+                        type="number"
+                        min={1}
+                        max={13}
+                        value={hireStartWeek}
+                        onChange={e => setHireStartWeek(Math.min(13, Math.max(1, Number(e.target.value) || 1)))}
+                        className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
+                      />
+                    </label>
+                  </div>
+                  <div className="p-4 rounded-xl bg-[var(--ink)] border border-[var(--line)] space-y-1 text-sm">
+                    <p className="font-bold text-[var(--text)]">
+                      Fully-loaded employer cost (+18% payroll taxes &amp; benefits): {formatCurrency(hireWhatIf.fullyLoadedMonthlyCostCents)}/mo
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">{hireWhatIf.explanation}</p>
+                  </div>
+                </div>
+              </>
             )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
-                <p className="text-xs font-bold uppercase text-[var(--muted)]">Starting Bank Cash</p>
-                <p className="text-2xl font-black mt-1 text-[var(--text)] tabular-nums">{formatCurrency(thirteenWeek.startingGrossCashCents)}</p>
-                <p className="text-xs text-[var(--muted)] mt-1">Before estimated tax set-aside</p>
-              </div>
-              <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
-                <p className="text-xs font-bold uppercase text-[var(--muted)]">13-Wk Lowest Spendable Cash</p>
-                <p className={cn("text-2xl font-black mt-1 tabular-nums", thirteenWeek.lowestSpendableCashCents >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                  {formatCurrency(thirteenWeek.lowestSpendableCashCents)}
-                </p>
-                <p className="text-xs text-[var(--muted)] mt-1">Week {thirteenWeek.lowestWeekNumber} ({thirteenWeek.lowestWeekStart}) after 20% tax reserve</p>
-              </div>
-              <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
-                <p className="text-xs font-bold uppercase text-[var(--muted)]">Learned Customer Speed</p>
-                <p className="text-2xl font-black mt-1 text-[var(--text)]">{learnedCustomers.profiles.size} customers</p>
-                <p className="text-xs text-[var(--muted)] mt-1">Forecasts actual collection dates instead of invoice due dates</p>
-              </div>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--line)] space-y-4">
-              <div>
-                <h2 className="text-base font-black text-[var(--text)]">Can I Afford to Hire?</h2>
-                <p className="text-xs text-[var(--muted)] mt-0.5">{thirteenWeek.plainEnglishHeadline}</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="block text-xs font-bold text-[var(--muted)]">
-                  Annual Base Salary (USD)
-                  <input
-                    type="number"
-                    min={0}
-                    step={5000}
-                    value={hireSalaryDollars}
-                    onChange={e => setHireSalaryDollars(Number(e.target.value) || 0)}
-                    className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
-                  />
-                </label>
-                <label className="block text-xs font-bold text-[var(--muted)]">
-                  Planned Start Week (1–13)
-                  <input
-                    type="number"
-                    min={1}
-                    max={13}
-                    value={hireStartWeek}
-                    onChange={e => setHireStartWeek(Math.min(13, Math.max(1, Number(e.target.value) || 1)))}
-                    className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
-                  />
-                </label>
-              </div>
-              <div className="p-4 rounded-xl bg-[var(--ink)] border border-[var(--line)] space-y-1 text-sm">
-                <p className="font-bold text-[var(--text)]">
-                  Fully-loaded employer cost (+18% payroll taxes &amp; benefits): {formatCurrency(hireWhatIf.fullyLoadedMonthlyCostCents)}/mo
-                </p>
-                <p className="text-xs text-[var(--muted)]">{hireWhatIf.explanation}</p>
-              </div>
-            </div>
           </div>
         )}
       </div>

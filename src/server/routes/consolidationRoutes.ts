@@ -13,6 +13,8 @@ const eliminateBodySchema = z.object({
   workspaceId: z.string().min(1),
   entityWorkspaceIds: z.array(z.string().min(1)).min(1).max(50),
   asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'asOfDate must be YYYY-MM-DD').optional(),
+  reportingCurrency: z.string().min(3).max(8).optional(),
+  exchangeRates: z.record(z.string(), z.number().positive()).optional(),
 });
 
 /**
@@ -60,11 +62,17 @@ consolidationRouter.post('/eliminate', async (req, res) => {
     }
 
     const effectiveDate = parsed.data.asOfDate || new Date().toISOString().slice(0, 10);
+    const primaryCurrency = entityData[0]?.workspace?.currency || 'USD';
+    const translation = {
+      reportingCurrency: parsed.data.reportingCurrency || primaryCurrency,
+      exchangeRates: parsed.data.exchangeRates,
+    };
     const report = buildSelfProvingEliminations(
-      entityData.map(e => ({ workspaceId: e.workspace.id, transactions: e.transactions })),
+      entityData.map(e => ({ workspaceId: e.workspace.id, currency: e.workspace.currency, transactions: e.transactions })),
       effectiveDate,
+      translation,
     );
-    const closeStatus = computeMultiEntityCloseStatus(entityData, effectiveDate);
+    const closeStatus = computeMultiEntityCloseStatus(entityData, effectiveDate, translation);
 
     await writeServerAuditLog({
       workspaceId: primaryWorkspaceId,

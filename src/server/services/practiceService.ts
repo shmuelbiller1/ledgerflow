@@ -21,16 +21,32 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
   };
   const bankLines = await counts('bankLines', `data->>'status' = 'pending'`);
   const totalBankLines = await counts('bankLines', 'true');
-  const noTouchBankLines = await counts(
-    'bankLines',
-    `coalesce(data->>'status', 'pending') <> 'pending'
-     and coalesce(data->>'humanEdited', 'false') <> 'true'
-     and (
-       jsonb_array_length(coalesce(data->'ruleIdsApplied', '[]'::jsonb)) > 0
-       or (data->'suggestion'->>'accountId') is not null
-       or coalesce(data->>'acceptedUnchanged', 'false') = 'true'
-     )`,
-  );
+  const noTouchBankLines = new Map<string, number>();
+  if (existing.has('bankLines') && existing.has('transactions')) {
+    const { rows } = await db.pool.query(
+      `select b.workspace_id as id, count(*)::int as n
+         from public."bankLines" b
+        where b.workspace_id = any($1)
+          and coalesce(b.data->>'status', 'pending') in ('matched', 'reconciled', 'completed', 'posted')
+          and (b.data->>'matchedTransactionId') is not null
+          and coalesce(b.data->>'humanEdited', 'false') <> 'true'
+          and (
+            jsonb_array_length(coalesce(b.data->'ruleIdsApplied', '[]'::jsonb)) > 0
+            or (b.data->'suggestion'->>'accountId') is not null
+            or coalesce(b.data->>'acceptedUnchanged', 'false') = 'true'
+          )
+          and exists (
+            select 1 from public.transactions t
+             where t.workspace_id = b.workspace_id
+               and t.id = b.data->>'matchedTransactionId'
+               and coalesce(t.data->>'status', 'completed') not in ('draft', 'void', 'cancelled', 'reversed')
+               and coalesce(t.data->'metadata'->>'editedByHuman', 'false') <> 'true'
+          )
+        group by 1`,
+      [ids],
+    );
+    for (const r of rows) noTouchBankLines.set(String(r.id), Number(r.n));
+  }
   const bankLogins = await counts('banks', `data->>'status' = 'login_required'`);
   const questions = await counts('clientQueries', `data->>'status' = 'open'`);
   const drafts = [await counts('transactions', `data->>'status' = 'draft'`), await counts('invoices', `data->>'status' = 'draft'`), await counts('bills', `data->>'status' = 'draft'`)];

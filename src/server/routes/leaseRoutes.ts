@@ -3,7 +3,7 @@ import express from 'express';
 import { z } from 'zod';
 import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import { getDb, assertPeriodOpen } from '../db/firestore';
+import { getDb, assertPeriodOpen, validateWorkspaceMember } from '../db/firestore';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { mayPostEntries } from '../http/ledgerWriter';
 import { computePropertyRentRoll, reconcileSecurityDepositTrust } from '../../lib/verticalAccounting';
@@ -35,10 +35,11 @@ leaseRouter.post('/capitalize', async (req, res) => {
     const user = requestUser(req);
     const db = getDb();
 
-    // 1. Authorize workspace membership FIRST before checking idempotency (#82)
-    const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-    const wsData = wsDoc.data();
-    if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+    // 1. Authorize workspace membership & API-key workspace scope FIRST before checking idempotency (#82)
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, workspaceId, user));
+    } catch {
       return res.status(403).json({ error: 'Not a member' });
     }
     if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
@@ -155,9 +156,10 @@ leaseRouter.post('/trust-reconciliation', async (req, res) => {
     }
     const user = requestUser(req);
     const db = getDb();
-    const wsDoc = await db.collection('workspaces').doc(rawWorkspaceId).get();
-    const wsData = wsDoc.data();
-    if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
+    } catch {
       return res.status(403).json({ error: 'Not a member' });
     }
     if (!mayPostEntries(wsData, user)) {
@@ -203,9 +205,10 @@ leaseRouter.post('/rent-roll', async (req, res) => {
     }
     const user = requestUser(req);
     const db = getDb();
-    const wsDoc = await db.collection('workspaces').doc(rawWorkspaceId).get();
-    const wsData = wsDoc.data();
-    if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+    let wsData: Record<string, unknown> | undefined;
+    try {
+      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
+    } catch {
       return res.status(403).json({ error: 'Not a member' });
     }
     if (!mayPostEntries(wsData, user)) {

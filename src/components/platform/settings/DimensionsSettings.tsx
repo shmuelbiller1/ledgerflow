@@ -334,45 +334,22 @@ function DimensionsSettingsContent() {
         return;
       }
 
-      setDimensionNodes(updatedNodes);
-      setTransactions(updatedTransactions);
-
-      // Persist nodes
+      // Persist full workspace dimension migration atomically on the server before updating local caches
       if (db) {
-        const batch = writeBatch(db);
-        updatedNodes.forEach(node => {
-          const docId = `${currentWorkspaceId}_${node.dimensionId}_${node.id}`;
-          const nodeRef = doc(db, 'dimensionNodes', docId);
-          batch.set(nodeRef, {
-            ...node,
-            workspaceId: currentWorkspaceId
-          });
+        const token = await getIdToken();
+        const res = await fetch('/api/v1/transactions/migrate-dimensions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ workspaceId: currentWorkspaceId, dimensions }),
         });
-        await batch.commit();
-
-        // Atomically update modified transactions via validated server API (one transaction, up to 2000 entries)
-        const updates = updatedTransactions
-          .filter(tx => Boolean(tx.id))
-          .map(tx => ({ id: tx.id, data: { lines: tx.lines } }));
-        if (updates.length > 0) {
-          const token = await getIdToken();
-          const res = await fetch('/api/v1/transactions/batch', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              workspaceId: currentWorkspaceId,
-              updates,
-            }),
-          });
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            throw new Error(errBody.error || errBody.message || 'Failed to migrate transaction dimension labels');
-          }
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || errBody.message || 'Failed to migrate transaction dimension labels');
         }
       }
+
+      setDimensionNodes(updatedNodes);
+      setTransactions(updatedTransactions);
 
       // Update store slice
       storeSetDimensionNodes(updatedNodes);

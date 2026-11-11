@@ -192,15 +192,20 @@ export interface SelfProvingEliminationPair {
   sourceTxId: string;
   targetTxId: string | null;
   date: string;
+  sourceCurrency?: string;
+  targetCurrency?: string;
+  reportingCurrency?: string;
   dueFromCents: number;
   dueToCents: number;
   discrepancyCents: number;
-  status: 'matched_balanced' | 'unmatched_counterparty' | 'amount_mismatch';
+  status: 'matched_balanced' | 'unmatched_counterparty' | 'amount_mismatch' | 'unsupported_translation';
   eliminationLines: Array<{
     workspaceId: string;
     accountId: string;
     accountName: string;
     amountCents: number;
+    currency?: string;
+    reportingAmountCents?: number;
     memo: string;
   }>;
 }
@@ -212,28 +217,38 @@ export interface SelfProvingEliminationReport {
   totalDiscrepancyCents: number;
   matchedCount: number;
   discrepancyCount: number;
+  untranslatedCount?: number;
   pairs: SelfProvingEliminationPair[];
+}
+
+export interface IntercompanyTranslationOptions {
+  reportingCurrency?: string;
+  /** Explicit units of `reportingCurrency` per 1 unit of source/target currency (e.g. `{ USD: 1, ILS: 0.27027027 }`). */
+  exchangeRates?: Readonly<Record<string, number>>;
 }
 
 /**
  * Matches reciprocal intercompany entries across entity workspaces and proves whether all
  * Due From and Due To clearing lines cancel to zero (`selfProving === true`).
+ * Cross-currency pairs are translated into `reportingCurrency` using an explicit `exchangeRates`
+ * basis, or reported as `unsupported_translation` rather than subtracting incompatible minor units.
  */
 export function buildSelfProvingEliminations(
-  entityTransactions: ReadonlyArray<{ workspaceId: string; transactions: readonly Transaction[] }>,
+  entityTransactions: ReadonlyArray<{ workspaceId: string; currency?: string; transactions: readonly Transaction[] }>,
   asOfDate = '9999-12-31',
+  translation?: IntercompanyTranslationOptions,
 ): SelfProvingEliminationReport {
-  const txById = new Map<string, { workspaceId: string; tx: Transaction }>();
-  const intercompanyTxs: Array<{ workspaceId: string; tx: Transaction }> = [];
+  const txById = new Map<string, { workspaceId: string; bucketCurrency?: string; tx: Transaction }>();
+  const intercompanyTxs: Array<{ workspaceId: string; bucketCurrency?: string; tx: Transaction }> = [];
 
   for (const bucket of entityTransactions) {
     for (const tx of bucket.transactions) {
       if (!isPostable(tx)) continue;
       const day = String(tx.date || '').slice(0, 10);
       if (day && day > asOfDate) continue;
-      txById.set(tx.id, { workspaceId: bucket.workspaceId, tx });
+      txById.set(tx.id, { workspaceId: bucket.workspaceId, bucketCurrency: bucket.currency, tx });
       if (tx.metadata?.isIntercompany) {
-        intercompanyTxs.push({ workspaceId: bucket.workspaceId, tx });
+        intercompanyTxs.push({ workspaceId: bucket.workspaceId, bucketCurrency: bucket.currency, tx });
       }
     }
   }
@@ -252,6 +267,15 @@ export function buildSelfProvingEliminations(
     };
   };
 
+  const currencyOf = (entry: { bucketCurrency?: string; tx: Transaction }): string =>
+    String(entry.tx.currency || entry.bucketCurrency || 'USD').trim().toUpperCase();
+
+  const resolveRate = (ccy: string, repCcy: string): number | null => {
+    if (ccy === repCcy) return 1;
+    const raw = translation?.exchangeRates?.[ccy];
+    return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : null;
+  };
+
   for (const item of intercompanyTxs) {
     if (visited.has(item.tx.id)) continue;
     const meta = (item.tx.metadata || {}) as Record<string, unknown>;
@@ -266,27 +290,51 @@ export function buildSelfProvingEliminations(
 
     // Determine source (Due From > 0) vs target (Due To < 0)
     const isASource = aLine.amountCents >= 0;
-    const dueFromCents = isASource ? aLine.amountCents : (bLine ? Math.max(0, bLine.amountCents) : 0);
-    const dueToCents = isASource ? (bLine ? bLine.amountCents : 0) : aLine.amountCents;
+    const sourceEntry = isASource ? item : partner;
+    const targetEntry = isASource ? partner : item;
+    const sourceCurrency = sourceEntry ? currencyOf(sourceEntry) : currencyOf(item);
+    const targetCurrency = targetEntry ? currencyOf(targetEntry) : sourceCurrency;
+    const reportingCurrency = String(translation?.reportingCurrency || sourceCurrency).trim().toUpperCase();
 
-    // In balanced reciprocal books, dueFromCents + dueToCents === 0
-    const discrepancyCents = dueFromCents + dueToCents;
+    const nativeDueFromCents = isASource ? aLine.amountCents : (bLine ? Math.max(0, bLine.amountCents) : 0);
+    const nativeDueToCents = isASource ? (bLine ? bLine.amountCents : 0) : aLine.amountCents;
+
+    let dueFromCents = nativeDueFromCents;
+    let dueToCents = nativeDueToCents;
+    let discrepancyCents = 0;
     let status: SelfProvingEliminationPair['status'] = 'matched_balanced';
+
     if (!partner) {
       status = 'unmatched_counterparty';
-    } else if (discrepancyCents !== 0) {
-      status = 'amount_mismatch';
+      discrepancyCents = nativeDueFromCents + nativeDueToCents;
+    } else if (sourceCurrency === targetCurrency && sourceCurrency === reportingCurrency) {
+      discrepancyCents = nativeDueFromCents + nativeDueToCents;
+      if (discrepancyCents !== 0) status = 'amount_mismatch';
+    } else {
+      const sourceRate = resolveRate(sourceCurrency, reportingCurrency);
+      const targetRate = resolveRate(targetCurrency, reportingCurrency);
+      if (sourceRate === null || targetRate === null) {
+        status = 'unsupported_translation';
+      } else {
+        dueFromCents = Math.round(nativeDueFromCents * sourceRate);
+        dueToCents = Math.round(nativeDueToCents * targetRate);
+        discrepancyCents = dueFromCents + dueToCents;
+        if (discrepancyCents !== 0) status = 'amount_mismatch';
+      }
     }
 
     const eliminationLines: SelfProvingEliminationPair['eliminationLines'] = [];
-    if (partner && discrepancyCents === 0 && dueFromCents !== 0) {
-      // Reverse both clearing lines so consolidated Due From and Due To both become 0
+    if (partner && status === 'matched_balanced' && dueFromCents !== 0) {
+      const itemCcy = currencyOf(item);
+      const partnerCcy = currencyOf(partner);
       eliminationLines.push(
         {
           workspaceId: item.workspaceId,
           accountId: aLine.accountId,
           accountName: aLine.accountName,
           amountCents: -aLine.amountCents,
+          currency: itemCcy,
+          reportingAmountCents: isASource ? -dueFromCents : -dueToCents,
           memo: `Eliminate intercompany ${item.tx.id} ↔ ${partner.tx.id}`,
         },
         {
@@ -294,6 +342,8 @@ export function buildSelfProvingEliminations(
           accountId: bLine!.accountId,
           accountName: bLine!.accountName,
           amountCents: -bLine!.amountCents,
+          currency: partnerCcy,
+          reportingAmountCents: isASource ? -dueToCents : -dueFromCents,
           memo: `Eliminate intercompany ${partner.tx.id} ↔ ${item.tx.id}`,
         },
       );
@@ -314,6 +364,9 @@ export function buildSelfProvingEliminations(
       sourceTxId: isASource ? item.tx.id : (partner?.tx.id || item.tx.id),
       targetTxId: isASource ? (partner?.tx.id || null) : item.tx.id,
       date: String(item.tx.date || '').slice(0, 10),
+      sourceCurrency,
+      targetCurrency,
+      reportingCurrency,
       dueFromCents,
       dueToCents,
       discrepancyCents,
@@ -323,19 +376,23 @@ export function buildSelfProvingEliminations(
   }
 
   const matchedCount = pairs.filter(p => p.status === 'matched_balanced').length;
-  const discrepancyCount = pairs.length - matchedCount;
+  const untranslatedCount = pairs.filter(p => p.status === 'unsupported_translation').length;
+  const discrepancyCount = pairs.filter(p => p.status === 'unmatched_counterparty' || p.status === 'amount_mismatch').length;
   const totalEliminatedCents = pairs
     .filter(p => p.status === 'matched_balanced')
     .reduce((sum, p) => sum + Math.abs(p.dueFromCents), 0);
-  const totalDiscrepancyCents = pairs.reduce((sum, p) => sum + Math.abs(p.discrepancyCents), 0);
+  const totalDiscrepancyCents = pairs
+    .filter(p => p.status === 'unmatched_counterparty' || p.status === 'amount_mismatch')
+    .reduce((sum, p) => sum + Math.abs(p.discrepancyCents), 0);
 
   return {
     asOfDate,
-    selfProving: discrepancyCount === 0,
+    selfProving: discrepancyCount === 0 && untranslatedCount === 0,
     totalEliminatedCents,
     totalDiscrepancyCents,
     matchedCount,
     discrepancyCount,
+    untranslatedCount,
     pairs,
   };
 }
@@ -348,16 +405,19 @@ export interface MultiEntityCloseRow {
   periodClosed: boolean;
   unreviewedCount: number;
   intercompanyDiscrepancyCents: number;
+  untranslatedIntercompanyCount?: number;
   readyToConsolidate: boolean;
 }
 
 export function computeMultiEntityCloseStatus(
   entities: ReadonlyArray<{ workspace: Pick<Workspace, 'id' | 'name' | 'currency' | 'lockDate'>; transactions: readonly Transaction[] }>,
   periodEnd: string,
+  translation?: IntercompanyTranslationOptions,
 ): MultiEntityCloseRow[] {
   const elim = buildSelfProvingEliminations(
-    entities.map(e => ({ workspaceId: e.workspace.id, transactions: e.transactions })),
+    entities.map(e => ({ workspaceId: e.workspace.id, currency: e.workspace.currency, transactions: e.transactions })),
     periodEnd,
+    translation,
   );
 
   return entities.map(({ workspace, transactions }) => {
@@ -366,9 +426,13 @@ export function computeMultiEntityCloseStatus(
     const unreviewedCount = transactions.filter(
       tx => (tx.status === 'pending' || tx.status === 'draft') && String(tx.date || '').slice(0, 10) <= periodEnd,
     ).length;
-    const intercompanyDiscrepancyCents = elim.pairs
-      .filter(p => p.sourceWorkspaceId === workspace.id || p.targetWorkspaceId === workspace.id)
+    const relatedPairs = elim.pairs.filter(
+      p => p.sourceWorkspaceId === workspace.id || p.targetWorkspaceId === workspace.id,
+    );
+    const intercompanyDiscrepancyCents = relatedPairs
+      .filter(p => p.status === 'unmatched_counterparty' || p.status === 'amount_mismatch')
       .reduce((sum, p) => sum + Math.abs(p.discrepancyCents), 0);
+    const untranslatedIntercompanyCount = relatedPairs.filter(p => p.status === 'unsupported_translation').length;
 
     return {
       workspaceId: workspace.id,
@@ -378,7 +442,8 @@ export function computeMultiEntityCloseStatus(
       periodClosed,
       unreviewedCount,
       intercompanyDiscrepancyCents,
-      readyToConsolidate: unreviewedCount === 0 && intercompanyDiscrepancyCents === 0,
+      untranslatedIntercompanyCount,
+      readyToConsolidate: unreviewedCount === 0 && intercompanyDiscrepancyCents === 0 && untranslatedIntercompanyCount === 0,
     };
   });
 }

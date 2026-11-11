@@ -51,6 +51,7 @@ export interface PropertyRentRollSummary {
   potentialGrossMonthlyRentCents: number;
   vacancyLossMonthlyCents: number;
   totalDelinquentRentCents: number;
+  unallocatedDelinquentRentCents?: number;
   totalSecurityDepositsHeldCents: number;
   rows: RentRollUnitRow[];
 }
@@ -67,20 +68,58 @@ export function computePropertyRentRoll(
   invoices: readonly Invoice[],
   asOfDate: string,
 ): PropertyRentRollSummary {
-  const delinquentByCustomer = new Map<string, number>();
+  const unitsByTenant = new Map<string, LeaseUnitSpec[]>();
+  const unitIdSet = new Set<string>();
+  for (const unit of units) {
+    unitIdSet.add(unit.unitId);
+    if (unit.tenantId) {
+      const list = unitsByTenant.get(unit.tenantId) || [];
+      list.push(unit);
+      unitsByTenant.set(unit.tenantId, list);
+    }
+  }
+
+  const extractInvoiceUnitId = (inv: Invoice): string | null => {
+    const rec = inv as unknown as Record<string, unknown>;
+    const meta = (rec.metadata && typeof rec.metadata === 'object' ? rec.metadata : {}) as Record<string, unknown>;
+    const directUnit = String(rec.unitId || meta.unitId || '').trim();
+    if (directUnit && unitIdSet.has(directUnit)) return directUnit;
+
+    const directProp = String(rec.propertyId || meta.propertyId || '').trim();
+    if (directProp && inv.customerId) {
+      const propMatches = (unitsByTenant.get(inv.customerId) || []).filter(u => u.propertyId === directProp);
+      if (propMatches.length === 1) return propMatches[0].unitId;
+    }
+
+    if (inv.customerId) {
+      const tenantUnits = unitsByTenant.get(inv.customerId) || [];
+      if (tenantUnits.length === 1) return tenantUnits[0].unitId;
+    }
+    return null;
+  };
+
+  const delinquentByUnit = new Map<string, number>();
+  let unallocatedDelinquentRentCents = 0;
+
   for (const inv of invoices) {
     if (inv.status === 'draft' || inv.status === 'void' || inv.status === 'paid') continue;
     const dueDay = String(inv.dueDate || inv.date || '').slice(0, 10);
     if (!dueDay || dueDay >= asOfDate) continue;
     const due = calculateAmountDue(inv);
     if (due <= 0 || !inv.customerId) continue;
-    delinquentByCustomer.set(inv.customerId, (delinquentByCustomer.get(inv.customerId) || 0) + due);
+
+    const attributedUnitId = extractInvoiceUnitId(inv);
+    if (attributedUnitId) {
+      delinquentByUnit.set(attributedUnitId, (delinquentByUnit.get(attributedUnitId) || 0) + due);
+    } else if (unitsByTenant.has(inv.customerId)) {
+      unallocatedDelinquentRentCents += due;
+    }
   }
 
   let occupiedUnits = 0;
   let scheduledMonthlyRentCents = 0;
   let potentialGrossMonthlyRentCents = 0;
-  let totalDelinquentRentCents = 0;
+  let totalDelinquentRentCents = unallocatedDelinquentRentCents;
   let totalSecurityDepositsHeldCents = 0;
 
   const rows: RentRollUnitRow[] = units.map(unit => {
@@ -104,7 +143,7 @@ export function computePropertyRentRoll(
       }
     }
 
-    const delinquentRentCents = unit.tenantId ? (delinquentByCustomer.get(unit.tenantId) || 0) : 0;
+    const delinquentRentCents = delinquentByUnit.get(unit.unitId) || 0;
     totalDelinquentRentCents += delinquentRentCents;
 
     return {
@@ -136,6 +175,7 @@ export function computePropertyRentRoll(
     potentialGrossMonthlyRentCents,
     vacancyLossMonthlyCents: potentialGrossMonthlyRentCents - scheduledMonthlyRentCents,
     totalDelinquentRentCents,
+    unallocatedDelinquentRentCents,
     totalSecurityDepositsHeldCents,
     rows,
   };

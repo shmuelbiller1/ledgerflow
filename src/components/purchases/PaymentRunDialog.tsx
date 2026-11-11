@@ -52,6 +52,9 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
   const vendorById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors]);
   const bank = (vendorId: string) => vendorById.get(vendorId)?.bankDetails;
   const missing = missingBankDetails(payments, bank);
+  const missingConnect = payments.filter(
+    p => !((vendorById.get(p.partyId) as { stripeConnectAccountId?: string } | undefined)?.stripeConnectAccountId?.trim()),
+  );
   const paidCount = payments.reduce((n, p) => n + p.allocations.length, 0);
 
   const toggle = (id: string) => setLeft(prev => {
@@ -88,7 +91,7 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
   );
 
   const sendProcessorPayouts = async () => {
-    if (!cashAccountId || payments.length === 0 || saving || missing.length > 0) return;
+    if (!cashAccountId || payments.length === 0 || saving || missing.length > 0 || missingConnect.length > 0) return;
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     setSaving(true);
     try {
@@ -198,6 +201,12 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
             </p>
           )}
 
+          {missingConnect.length > 0 && payments.length > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              Live processor payouts are disabled until {missingConnect.map(p => p.partyName).join(', ')} {missingConnect.length === 1 ? 'has' : 'have'} a connected payout account. Use <strong>Pay and download bank file</strong> to upload to online banking.
+            </p>
+          )}
+
           <p className="font-semibold text-[var(--text)]">
             {payments.length} payment{payments.length === 1 ? '' : 's'} to {payments.length} vendor{payments.length === 1 ? '' : 's'} for {paidCount} bill{paidCount === 1 ? '' : 's'}: {formatCurrency(total, currency)}
           </p>
@@ -207,7 +216,7 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
               Bank file only
             </button>
             <button type="button" onClick={() => void sendProcessorPayouts()}
-              disabled={payments.length === 0 || !cashAccountId || saving || missing.length > 0}
+              disabled={payments.length === 0 || !cashAccountId || saving || missing.length > 0 || missingConnect.length > 0}
               className="px-3 py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-400 font-semibold disabled:opacity-50">
               {saving ? 'Sending…' : `Send bank payouts${payoutFeeTotal > 0 ? ` (${formatCurrency(payoutFeeTotal, 'USD')} fee)` : ' (included)'}`}
             </button>

@@ -195,10 +195,10 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
             }
           : {}),
       },
-      ...(connectDestination && feeQuote.platformFeeCents > 0
+      ...(connectDestination
         ? {
             payment_intent_data: {
-              application_fee_amount: feeQuote.platformFeeCents,
+              ...(feeQuote.platformFeeCents > 0 ? { application_fee_amount: feeQuote.platformFeeCents } : {}),
               transfer_data: { destination: connectDestination },
             },
           }

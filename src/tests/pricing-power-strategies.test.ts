@@ -569,3 +569,183 @@ describe('Strategy 6 — Learned Customer Days-to-Pay, 13-Week Tax-Safe Runway &
     assert.equal(overHire.safetyBufferBreached, true);
   });
 });
+
+describe('Review Regression Guards — Accounting, Currency & Cutoff Edge Cases', () => {
+  test('computeNoTouchRate excludes ignored bank lines even when rule suggestions exist', () => {
+    const ignoredLines = [
+      {
+        id: 'bl-ignored',
+        date: '2026-11-02',
+        status: 'ignored',
+        matchedTransactionId: null,
+        ruleIdsApplied: ['rule-1'],
+        suggestion: { accountId: 'acc_exp' },
+      },
+    ];
+    const metrics = computeNoTouchRate(ignoredLines, [], '2026-11');
+    assert.equal(metrics.noTouchCount, 0);
+    assert.equal(metrics.ratePercent, 0);
+  });
+
+  test('buildLenderReadyPackage classifies income and cost_of_goods accounts and reconstructs historical cutoff aging', () => {
+    const accounts = [
+      { id: 'ar', uid: 'u', workspaceId: 'ws', code: '1100', name: 'Accounts Receivable', type: 'asset', balanceCents: 0 },
+      { id: 'ap', uid: 'u', workspaceId: 'ws', code: '2000', name: 'Accounts Payable', type: 'liability', balanceCents: 0 },
+      { id: 'inc', uid: 'u', workspaceId: 'ws', code: '4000', name: 'Product Sales', type: 'income', balanceCents: 0 },
+      { id: 'cogs', uid: 'u', workspaceId: 'ws', code: '5000', name: 'Direct Materials', type: 'cost_of_goods', balanceCents: 0 },
+    ] as unknown as ChartAccount[];
+
+    const transactions: Transaction[] = [
+      {
+        id: 'tx-sale',
+        uid: 'u',
+        workspaceId: 'ws',
+        date: '2026-10-10',
+        description: 'October sale',
+        totalAmountCents: 10_000,
+        currency: 'USD',
+        status: 'completed',
+        type: 'actual',
+        lines: [
+          { accountId: 'ar', accountName: 'Accounts Receivable', amountCents: 10_000 },
+          { accountId: 'inc', accountName: 'Product Sales', amountCents: -10_000 },
+        ],
+      },
+      {
+        id: 'tx-cogs',
+        uid: 'u',
+        workspaceId: 'ws',
+        date: '2026-10-12',
+        description: 'October COGS',
+        totalAmountCents: 4_000,
+        currency: 'USD',
+        status: 'completed',
+        type: 'actual',
+        lines: [
+          { accountId: 'cogs', accountName: 'Direct Materials', amountCents: 4_000 },
+          { accountId: 'ap', accountName: 'Accounts Payable', amountCents: -4_000 },
+        ],
+      },
+    ];
+
+    // Paid in November, exported as of October 31 -> must still show $100 open receivable on Oct 31!
+    const octInvoice = {
+      id: 'inv-oct',
+      uid: 'u',
+      workspaceId: 'ws',
+      customerId: 'c1',
+      customerName: 'Acme Corp',
+      number: 'INV-OCT-1',
+      date: '2026-10-10',
+      dueDate: '2026-10-25',
+      amountCents: 10_000,
+      amountPaidCents: 10_000,
+      status: 'paid',
+    } as Invoice;
+
+    const novPayment = {
+      id: 'pay-nov',
+      uid: 'u',
+      workspaceId: 'ws',
+      paymentDate: '2026-11-05',
+      amountCents: 10_000,
+      paymentMethod: 'ach',
+      status: 'completed',
+      allocations: [{ documentId: 'inv-oct', documentType: 'invoice', amountCents: 10_000 }],
+    } as unknown as Payment;
+
+    const pkg = buildLenderReadyPackage({
+      workspace: { id: 'ws', name: 'Test Co', currency: 'USD' },
+      period: { from: '2026-10-01', to: '2026-10-31' },
+      generatedAt: '2026-11-11T12:00:00',
+      accounts,
+      transactions,
+      invoices: [octInvoice],
+      bills: [],
+      payments: [novPayment],
+      auditLogs: [],
+    });
+
+    assert.equal(pkg.summary.revenueCents, 10_000);
+    assert.equal(pkg.summary.expenseCents, 4_000);
+    assert.equal(pkg.summary.netIncomeCents, 6_000);
+    assert.equal(pkg.summary.totalAssetsCents, 10_000);
+    assert.equal(pkg.summary.totalLiabilitiesCents, 4_000);
+    assert.equal(pkg.summary.balancedBalanceSheet, true);
+    assert.equal(pkg.summary.openReceivablesCents, 10_000);
+  });
+
+  test('buildSelfProvingEliminations translates cross-currency pairs or flags unsupported_translation without fake discrepancies', () => {
+    const usdTx: Transaction = {
+      id: 'ic-usd',
+      uid: 'u',
+      workspaceId: 'ws-us',
+      date: '2026-10-15',
+      description: 'Transfer to IL Sub',
+      totalAmountCents: 10_000,
+      currency: 'USD',
+      exchangeRate: 1,
+      status: 'completed',
+      type: 'actual',
+      metadata: { isIntercompany: true, targetWorkspaceId: 'ws-il', targetTxId: 'ic-ils' },
+      lines: [
+        { accountId: 'ic_from', accountName: 'Intercompany Due From IL', amountCents: 10_000 },
+        { accountId: 'cash_us', accountName: 'Cash USD', amountCents: -10_000 },
+      ],
+    };
+    const ilsTx: Transaction = {
+      id: 'ic-ils',
+      uid: 'u',
+      workspaceId: 'ws-il',
+      date: '2026-10-15',
+      description: 'Receipt from US Parent',
+      totalAmountCents: 37_000,
+      currency: 'ILS',
+      exchangeRate: 1,
+      status: 'completed',
+      type: 'actual',
+      metadata: { isIntercompany: true, sourceWorkspaceId: 'ws-us', sourceTxId: 'ic-usd' },
+      lines: [
+        { accountId: 'cash_il', accountName: 'Cash ILS', amountCents: 37_000 },
+        { accountId: 'ic_to', accountName: 'Intercompany Due To US', amountCents: -37_000 },
+      ],
+    };
+
+    const withoutRate = buildSelfProvingEliminations(
+      [
+        { workspaceId: 'ws-us', currency: 'USD', transactions: [usdTx] },
+        { workspaceId: 'ws-il', currency: 'ILS', transactions: [ilsTx] },
+      ],
+      '2026-10-31',
+    );
+    assert.equal(withoutRate.pairs[0].status, 'unsupported_translation');
+    assert.equal(withoutRate.totalDiscrepancyCents, 0);
+
+    const withRate = buildSelfProvingEliminations(
+      [
+        { workspaceId: 'ws-us', currency: 'USD', transactions: [usdTx] },
+        { workspaceId: 'ws-il', currency: 'ILS', transactions: [ilsTx] },
+      ],
+      '2026-10-31',
+      { reportingCurrency: 'USD', exchangeRates: { USD: 1, ILS: 1 / 3.7 } },
+    );
+    assert.equal(withRate.pairs[0].status, 'matched_balanced');
+    assert.equal(withRate.totalDiscrepancyCents, 0);
+    assert.equal(withRate.selfProving, true);
+    assert.equal(withRate.pairs[0].eliminationLines.length, 2);
+  });
+
+  test('computePropertyRentRoll counts unallocated arrears once across multi-unit tenants', () => {
+    const units = [
+      { unitId: 'u1', propertyId: 'p1', propertyName: 'Tower', unitLabel: '1A', tenantId: 't-multi', tenantName: 'Multi LLC', monthlyRentCents: 200_000, securityDepositHeldCents: 200_000 },
+      { unitId: 'u2', propertyId: 'p1', propertyName: 'Tower', unitLabel: '1B', tenantId: 't-multi', tenantName: 'Multi LLC', monthlyRentCents: 250_000, securityDepositHeldCents: 250_000 },
+    ];
+    const overdueInvoices: Invoice[] = [
+      { id: 'inv-m1', uid: 'u', workspaceId: 'ws', customerId: 't-multi', number: 'RENT-1', date: '2026-10-01', dueDate: '2026-10-05', amountCents: 10_000, status: 'sent' } as Invoice,
+    ];
+    const roll = computePropertyRentRoll(units, overdueInvoices, '2026-11-01');
+    assert.equal(roll.totalDelinquentRentCents, 10_000);
+    assert.equal(roll.unallocatedDelinquentRentCents, 10_000);
+  });
+});
+

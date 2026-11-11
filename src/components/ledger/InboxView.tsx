@@ -8,6 +8,7 @@ import { getIdToken } from '../../firebase';
 import { HandOver } from '../collaboration/HandOver';
 import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
+import { resolveAccountRole } from '../../lib/accountUtils';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -147,6 +148,80 @@ export default function InboxView() {
     toast.success(`Filed ${updates.length} ${updates.length === 1 ? 'entry' : 'entries'}`);
   };
 
+  const handleCalibratedAutoPost = async () => {
+    if (!currentWorkspaceId || calibratedReady.length === 0) return;
+    const cashAcc = accounts.find(a => !a.isArchived && resolveAccountRole(a) === 'cash');
+    const updates: Array<{ id: string; data: Record<string, unknown> }> = [];
+    let skippedUnresolved = 0;
+
+    for (const item of calibratedReady) {
+      const targetAccId = item.calibration.suggestedAccountId;
+      const resolvedAcc = targetAccId ? accounts.find(a => a.id === targetAccId && !a.isArchived) : undefined;
+      if (!resolvedAcc) {
+        skippedUnresolved += 1;
+        continue;
+      }
+
+      let updatedLines = item.lines && item.lines.length > 0 ? item.lines.map(l => ({ ...l })) : [];
+      if (updatedLines.length === 0) {
+        if (!cashAcc || cashAcc.id === resolvedAcc.id) {
+          skippedUnresolved += 1;
+          continue;
+        }
+        const amt = item.totalAmountCents || 0;
+        updatedLines = [
+          { accountId: resolvedAcc.id, accountName: resolvedAcc.name, amountCents: amt, category: resolvedAcc.name },
+          { accountId: cashAcc.id, accountName: cashAcc.name, amountCents: -amt },
+        ];
+      } else {
+        const catLineIdx = updatedLines.findIndex(
+          l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || l.amountCents > 0,
+        );
+        const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
+        updatedLines[targetIdx] = {
+          ...updatedLines[targetIdx],
+          accountId: resolvedAcc.id,
+          accountName: resolvedAcc.name,
+          category: resolvedAcc.name,
+        };
+      }
+
+      updates.push({
+        id: item.id,
+        data: {
+          lines: updatedLines,
+          status: 'completed',
+          isReviewed: true,
+        },
+      });
+    }
+
+    if (updates.length === 0) {
+      toast.error('Cannot auto-post: calibrated accounts are missing or archived in the chart of accounts.');
+      return;
+    }
+
+    const token = await getIdToken();
+    const res = await fetch('/api/v1/transactions/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        workspaceId: currentWorkspaceId,
+        updates,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(body.error || body.message || 'Could not auto-post calibrated entries');
+      return;
+    }
+    const suffix = skippedUnresolved > 0 ? ` (${skippedUnresolved} skipped due to unresolved accounts)` : '';
+    toast.success(`Auto-posted ${updates.length} calibrated ${updates.length === 1 ? 'entry' : 'entries'}${suffix}`);
+  };
+
   const handleAutoFile = () => {
     inBackground(_handleCategorize(highConfidence.map(t => t.id), 'Auto-filed'));
   };
@@ -224,7 +299,7 @@ export default function InboxView() {
             {calibratedReady.length > 0 && (
               <button
                 type="button"
-                onClick={() => inBackground(_handleCategorize(calibratedReady.map(t => t.id), 'Calibrated Auto-Post'))}
+                onClick={() => inBackground(handleCalibratedAutoPost())}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
               >
                 Auto-post {calibratedReady.length} calibrated (≥99%)
