@@ -143,4 +143,23 @@ test('#613 review: the certificate check finds the seller the same way the retur
     { label: 'Certificate missing', count: 1 },
     { label: 'Certificate expired', count: 0 },
   ]);
+  // the return counts the same sale: 1 document, 400.00 exempt
+  const r = usSalesTaxReturn({ registration: 'sales_tax:US-TX:3200', profiles, order: ['world'], customers: dallas, startDate: '2026-07-01', endDate: '2026-09-30', invoices: [sale] });
+  assert.equal(r.documentCount, 1);
+  assert.equal(r.exemptSalesCents, 40000);
+});
+
+test('#644 review: the certificate check counts exactly the zero-tax sales the state returns count', () => {
+  const certs = (customersList: Array<{ id: string; metadata?: unknown }>, invoices: UsSalesDocument[]) =>
+    usQuarterJourney({ quarter: '2026-Q3', today: '2026-10-05', profiles, order: ['world'], customers: customersList, invoices, creditNotes: [] })
+      .steps.find(s => s.id === 'certificates')!;
+  const exempt = (id: string, customerId: string, extra: Partial<UsSalesDocument> = {}) => doc(id, customerId, 40000, 0, [], { taxTreatment: 'exempt', ...extra });
+  // an empty label on the first line falls back to the document's own Texas label
+  const dallas = [...customers, { id: 'dallas', metadata: { taxPlace: { country: 'US', state: 'TX' } } }];
+  assert.equal(certs(dallas, [exempt('e1', 'dallas', { items: [{ dimensions: {} }] })]).status, 'attention');
+  // a California sale by the Texas entity (permit in Texas only) is in no state return here, so needs no certificate here
+  assert.equal(certs(customers, [exempt('e2', 'la')]).status, 'not-applicable');
+  // a sale whose saved tax place is Texas counts, though the customer's place today has no state
+  const nostate = [...customers, { id: 'moved', metadata: { taxPlace: { country: 'US' } } }];
+  assert.equal(certs(nostate, [exempt('e3', 'moved', { metadata: { taxPlace: { country: 'US', state: 'TX' } } } as Partial<UsSalesDocument>)]).status, 'attention');
 });

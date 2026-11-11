@@ -43,7 +43,8 @@ export function documentEntityLabels(doc: { dimensions?: Record<string, string>;
   const firstLine = (lines: unknown) => {
     const line: unknown = Array.isArray(lines) ? lines[0] : undefined;
     const labels = line && typeof line === 'object' ? (line as { dimensions?: unknown }).dimensions : undefined;
-    return labels && typeof labels === 'object' ? labels as Record<string, string> : undefined;
+    // an empty label set is no label: the document's own labels then apply
+    return labels && typeof labels === 'object' && Object.keys(labels).length > 0 ? labels as Record<string, string> : undefined;
   };
   return firstLine(doc.items) || firstLine(doc.splits) || doc.dimensions;
 }
