@@ -33,7 +33,7 @@ export function saveGuestNumbering(workspaceId: string, type: NumberedDocument, 
   const session = scope(workspaceId);
   if (!Object.hasOwn(tables, type)) throw new Error('Choose a document type');
   if (typeof input.prefix !== 'string' || input.prefix.length > 20 || Array.from(input.prefix).some(character => character.charCodeAt(0) < 32)) throw new Error('Enter a prefix up to 20 characters');
-  if (!Number.isSafeInteger(input.nextNumber) || input.nextNumber < 1 || !Number.isInteger(input.padding) || input.padding < 1 || input.padding > 10) throw new Error('Enter a positive next number and 1–10 digits');
+  if (!Number.isSafeInteger(input.nextNumber) || input.nextNumber < 1 || input.nextNumber >= Number.MAX_SAFE_INTEGER || !Number.isInteger(input.padding) || input.padding < 1 || input.padding > 10) throw new Error('Enter a positive next number and 1–10 digits');
   const used = highest(type, input.prefix);
   if (input.nextNumber <= used) throw new Error(`That number is already used: start at ${used + 1} or higher`);
   writeGuestBatch([{ op: 'set', table: 'sampleCounters', id: type, data: { workspaceId, prefix: input.prefix, next: input.nextNumber, padding: input.padding } }], session);
@@ -43,6 +43,7 @@ export function allocateGuestNumber(workspaceId: string, type: NumberedDocument)
   const session = scope(workspaceId);
   const series = readGuestSeries(workspaceId, type);
   const next = Math.max(series.nextNumber, series.highestUsed + 1);
+  if (!Number.isSafeInteger(next) || next < 1 || !Number.isSafeInteger(next + 1)) throw new Error('The sample numbering series is exhausted. Choose a new prefix and starting number.');
   writeGuestBatch([{ op: 'set', table: 'sampleCounters', id: type, data: { workspaceId, prefix: series.prefix, padding: series.padding, next: next + 1 } }], session);
   return previewNumber(series.prefix, next, series.padding);
 }

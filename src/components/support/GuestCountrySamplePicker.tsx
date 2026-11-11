@@ -91,6 +91,7 @@ export default function GuestCountrySamplePicker() {
 
   const handleLoadCountry = (country: DemoCountry) => {
     if (!sandboxAllowed) return;
+    try {
     const seeded = seedCountryDemoWorkspace(workspaceId, country);
     const meta = COUNTRY_META[country];
     applyPayload(seeded, language === 'he' ? meta.nameHe : meta.nameEn);
@@ -99,10 +100,12 @@ export default function GuestCountrySamplePicker() {
         ? `נטענה חברת הדמו: ${meta.nameHe} (${seeded.accounts.length} חשבונות, ${seeded.transactions.length} פקודות יומן).`
         : `Loaded ${meta.nameEn} (${seeded.accounts.length} accounts, ${seeded.transactions.length} journal entries across 12 months).`,
     );
+    } catch (error) { setStatusNote(`Could not load the sample: ${error instanceof Error ? error.message : String(error)}`); }
   };
 
   const handleReset = (mode: 'starter' | 'empty') => {
     if (!sandboxAllowed) return;
+    try {
     const reset = buildResetDemoWorkspace(workspaceId, mode);
     applyPayload(
       reset,
@@ -117,6 +120,7 @@ export default function GuestCountrySamplePicker() {
           ? 'סביבת הדמו נוקתה לספרים ריקים.'
           : 'Cleared guest sandbox to empty books.',
     );
+    } catch (error) { setStatusNote(`Could not reset the sample: ${error instanceof Error ? error.message : String(error)}`); }
   };
 
   return (

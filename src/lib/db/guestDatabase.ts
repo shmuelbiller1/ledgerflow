@@ -18,8 +18,20 @@ export function startGuestDatabase(): void {
 export function endGuestDatabase(): void {
   session = null;
   tables = null;
-  if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(STORAGE_KEY);
   listeners.clear();
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(STORAGE_KEY);
+  } catch { /* Blocked storage must not prevent exit or sign-in. */ }
+}
+
+function isRecord(value: unknown): value is Data {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function validTables(value: unknown): value is GuestTables {
+  if (!isRecord(value) || !isRecord(value.workspaces) || !isRecord(value.workspaces[SAMPLE_WORKSPACE_ID]) || value.workspaces[SAMPLE_WORKSPACE_ID].id !== SAMPLE_WORKSPACE_ID) return false;
+  return Object.entries(value).every(([name, rows]) =>
+    !['__proto__', 'constructor', 'prototype'].includes(name) && isRecord(rows) &&
+    Object.entries(rows).every(([id, row]) => !['__proto__', 'constructor', 'prototype'].includes(id) && isRecord(row) && (row.workspaceId === undefined || row.workspaceId === SAMPLE_WORKSPACE_ID)));
 }
 
 export function initializeGuestDatabase(seed: GuestTables): void {
@@ -30,7 +42,7 @@ export function initializeGuestDatabase(seed: GuestTables): void {
     const saved = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEY) : null;
     if (saved) {
       const value = JSON.parse(saved);
-      if (value && typeof value === 'object' && value.workspaces?.[SAMPLE_WORKSPACE_ID]?.id === SAMPLE_WORKSPACE_ID) restored = value;
+      if (validTables(value)) restored = value;
     }
   } catch { /* A broken or outdated sample starts fresh, never falls through to a server. */ }
   tables = structuredClone(restored ?? seed);

@@ -43,7 +43,7 @@ export function replaceGuestCompany(records: { currency: string; accounts: Array
   for (const key of ['accounts', 'customers', 'vendors', 'invoices', 'bills', 'transactions'] as const) {
     for (const record of records[key]) operations.push({ op: 'set', table: key === 'accounts' ? 'chartAccounts' : key, id: record.id, data: { ...record, workspaceId: SAMPLE_WORKSPACE_ID } });
   }
-  operations.push({ op: 'set', table: 'workspaces', id: SAMPLE_WORKSPACE_ID, merge: true, data: { name, currency: records.currency, defaultCurrency: records.currency, dimensions: [], taxProfiles: {} } });
+  operations.push({ op: 'set', table: 'workspaces', id: SAMPLE_WORKSPACE_ID, data: { ...buildSampleBusinessYear({ workspaceId: SAMPLE_WORKSPACE_ID }).workspace, name, currency: records.currency, defaultCurrency: records.currency, dimensions: [], taxProfiles: {} } });
   writeGuestBatch(operations, session);
   publishGuestCompany();
 }

@@ -1,10 +1,14 @@
+import { mountJourney } from './support/journeyFixture';
+import { seedDemoWorkspace } from '../src/lib/demoWorkspaceSeeder';
 import { openTool } from './support/openTool';
 import { test, expect } from '@playwright/test';
 import { settleAnimations } from './support/a11yGate';
 
 test.describe('E2E Smoke Suite', () => {
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    // The receipt posting contract belongs to an authenticated fixture, not an anonymous sample.
+    if (testInfo.title.startsWith('6. Receipt Ingestion:')) return;
     // Seed guest session directly into localStorage so auth passes immediately without flaky transitions
     await page.addInitScript(() => {
       localStorage.setItem('isGuest', 'true');
@@ -74,6 +78,16 @@ test.describe('E2E Smoke Suite', () => {
   });
 
   test('6. Receipt Ingestion: Ingest 3-item + tax fixture receipt, assert created transaction total $20.00 and tax line exists', async ({ page }) => {
+    const books = seedDemoWorkspace('smoke-receipt');
+    await mountJourney(page, {
+      workspaceId: 'smoke-receipt', ledger: { ...books },
+      mounts: [{ module: '/src/components/forensics/Vault.tsx' }, { module: '/node_modules/.vite/deps/sonner.js', exportName: 'Toaster' }],
+    });
+    await page.evaluate(async () => {
+      const { auth } = await import('/src/firebase.ts');
+      const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
+      auth.currentUser = useAuthStore.getState().user;
+    });
     // Intercept AI extraction for parse-receipt
     await page.route('**/api/ai/process', async (route) => {
       const data = route.request().postDataJSON();
@@ -149,8 +163,8 @@ test.describe('E2E Smoke Suite', () => {
       }
     });
 
-    // Navigate to Documents in Vault
-    await openTool(page, 'Documents');
+    // The real Documents screen is mounted in the authenticated fixture above.
+    await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible();
 
     // Upload receipt file fixture
     const fileInput = page.locator('input[type="file"]');
@@ -178,8 +192,9 @@ test.describe('E2E Smoke Suite', () => {
     const injectBtn = page.locator('button:has-text("Inject & Sync Ledger")').first();
     await injectBtn.click();
 
-    // Wait for the ledger injection toast or completion
-    await expect(page.locator('text="Ledger injected and cryptographically linked!"')).toBeVisible({ timeout: 8000 });
+    // Confirm the accepted write and the completed screen transition rather than an expiring toast.
+    await expect.poll(() => interceptedTxPayload, { timeout: 8000 }).not.toBeNull();
+    await expect(page.locator('text="AI Extracted Geometry"')).toHaveCount(0);
 
     // Assert that the created transaction payload strictly satisfies accounting invariants:
     // (1) Total Amount Cents matches receipt total ($20.00 = 2000 cents)

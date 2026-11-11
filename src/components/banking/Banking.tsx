@@ -21,7 +21,9 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 
 export default function Banking() {
-  const canImport = hasRoleAtLeast(useCurrentRole(), 'bookkeeper');
+  const isGuest = useAuthStore(s => s.isGuest);
+  const role = useCurrentRole();
+  const canImport = !isGuest && hasRoleAtLeast(role, 'bookkeeper');
   const accounts = useLedgerStore(s => s.accounts).filter(a => 
     (a.type === 'asset' && a.subtype === 'bank') ||
     a.name.toLowerCase().includes('bank') ||

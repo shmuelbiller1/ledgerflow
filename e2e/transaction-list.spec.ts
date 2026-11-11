@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { openTool } from './support/openTool';
 import { test, expect, type Page } from '@playwright/test';
 
@@ -22,6 +23,7 @@ test.describe('Transaction list', () => {
       localStorage.setItem('isGuest', 'true');
       localStorage.setItem('has_seen_onboarding', 'true');
     });
+    await installSmallSample(page);
     await page.goto('/');
     await page.waitForSelector('text="Overview"', { timeout: 15000 });
     const cookies = page.getByRole('button', { name: 'Essential Only' });

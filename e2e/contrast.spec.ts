@@ -44,6 +44,7 @@ for (const theme of ['light', 'dark'] as const) {
         const failing = results.violations.reduce((n, v) => n + v.nodes.length, 0);
         const key = `${theme}:${view}`;
         console.log(`[contrast] ${key} ${failing}`);
+        if (failing > (baseline[key] ?? 0)) console.log(JSON.stringify(results.violations.map(v => v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })))));
         expect(failing, `${key}: text below the contrast minimum (baseline ${baseline[key] ?? 0})`).toBeLessThanOrEqual(baseline[key] ?? 0);
       });
     }
@@ -59,6 +60,7 @@ for (const theme of ['light', 'dark'] as const) {
           const failing = results.violations.reduce((n, v) => n + v.nodes.length, 0);
           const key = `dark:${screen.name}`;
           console.log(`[contrast] ${key} ${failing}`);
+        if (failing > (baseline[key] ?? 0)) console.log(JSON.stringify(results.violations.map(v => v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })))));
           expect(failing, `${key}: text below the contrast minimum (baseline ${baseline[key] ?? 0})`).toBeLessThanOrEqual(baseline[key] ?? 0);
         });
       }

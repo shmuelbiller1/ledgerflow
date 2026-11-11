@@ -71,6 +71,7 @@ export default function EstimatesView() {
   useLedgerCollections('payments', 'invoices');
   const dataHealth = useScreenDataHealth(['customers', 'estimates']);
   const role = useCurrentRole();
+  const isGuest = useAuthStore(s => s.isGuest);
   const canTakeDeposit = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
   const canWrite = canTakeDeposit;
   const [depositFor, setDepositFor] = useState<import("../../types").Estimate | null>(null);
@@ -454,9 +455,9 @@ export default function EstimatesView() {
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       {canTakeDeposit && !['converted', 'declined', 'expired'].includes(est.status) && (
-                        <button type="button" onClick={() => setDepositFor(est)}
+                        <button type="button" disabled={isGuest} title={isGuest ? 'Deposits need a signed-in workspace.' : undefined} onClick={() => { if (!isGuest) setDepositFor(est); }}
                           className="px-2.5 py-1 text-xs font-semibold border border-[var(--line)] text-[var(--text)] rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
-                          aria-label={`Take a deposit for estimate ${est.number || ''}`.trim()}>
+                          aria-label={`Deposit for estimate ${est.number || ''}`.trim()}>
                           Deposit
                         </button>
                       )}
@@ -467,7 +468,7 @@ export default function EstimatesView() {
                             aria-label={`Make estimate ${est.number || est.id} an order`} title="The customer said yes: invoice it in one go or in parts">
                             Order
                           </button>
-                          {currentWorkspaceId && <EstimateSignLink workspaceId={currentWorkspaceId} estimate={est} />}
+                          {currentWorkspaceId && !isGuest && <EstimateSignLink workspaceId={currentWorkspaceId} estimate={est} />}
                           <button type="button" onClick={() => void declineEstimate(est)}
                             className="px-2.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
                             aria-label={`Mark estimate ${est.number || est.id} declined`}>

@@ -1,7 +1,9 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 test('financial charts expose keyboard tables, legends and date brush at phone width', async ({ page }) => {
  await page.setViewportSize({width:390,height:850});
  await page.addInitScript(()=>{localStorage.setItem('isGuest','true');localStorage.setItem('has_seen_onboarding','true');});
+ await installSmallSample(page);
  await page.goto('/#charts');
  const chart=page.getByRole('region',{name:'Monthly Profitability & Mix',exact:true}); await expect(chart).toBeVisible();
  const table=chart.getByRole('button',{name:'Table',exact:true}); await table.focus(); await table.press('Enter'); await expect(chart.getByRole('table')).toBeVisible();
@@ -15,6 +17,7 @@ test('financial charts expose keyboard tables, legends and date brush at phone w
 test('intelligence radar and project matrix offer keyboard tables at phone width', async ({ page }) => {
  await page.setViewportSize({width:390,height:850});
  await page.addInitScript(()=>{localStorage.setItem('isGuest','true');localStorage.setItem('has_seen_onboarding','true');});
+ await installSmallSample(page);
  await page.goto('/#intelligence');
  const radar=page.getByRole('region',{name:'Metric distribution data',exact:true});
  await expect(radar).toBeVisible();

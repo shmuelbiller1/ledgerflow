@@ -94,14 +94,14 @@ export default function CashFlowPredictor() {
               )}>
                 {forecastData.riskLevel === 'low' ? <CheckCircle2 className="text-emerald-500" /> : <ShieldAlert className="text-amber-500" />}
                 <div>
-                  <h3 className="font-bold text-slate-900 capitalize">{forecastData.riskLevel} Risk Forecast</h3>
+                  <h2 className="font-bold text-slate-900 capitalize">{forecastData.riskLevel} Risk Forecast</h2>
                   <p className="text-xs text-slate-600 mt-1">{forecastData.insights[0]}</p>
                 </div>
               </div>
               <div className="p-4 rounded-2xl border bg-indigo-50 border-indigo-200 flex items-start gap-4">
                 <Zap className="text-indigo-500" />
                 <div>
-                  <h3 className="font-bold text-slate-900">Strategic Recommendation</h3>
+                  <h2 className="font-bold text-slate-900">Strategic Recommendation</h2>
                   <p className="text-xs text-slate-600 mt-1">{forecastData.recommendations[0]}</p>
                 </div>
               </div>

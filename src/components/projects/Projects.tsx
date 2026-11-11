@@ -127,7 +127,8 @@ function useProjectsModel() {
     setSaving(true);
     try {
       const createdAt = new Date().toISOString();
-      await onAdd({ ...newProject, uid: user?.uid || '', createdAt });
+      const ref = await onAdd({ ...newProject, uid: user?.uid || '', createdAt });
+      if (!ref) throw new Error('Project was not saved');
       setIsNewProjectModalOpen(false);
       setNewProject({
         name: '',

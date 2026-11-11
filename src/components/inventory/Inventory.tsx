@@ -88,6 +88,7 @@ import { deleteWithUndo, isDeletePending } from '../../lib/undoableDelete';
 import { BRAND_NAME } from '../../config/brand';
 export default function Inventory() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const isGuest = useAuthStore(s => s.isGuest);
   const uid = useAuthStore(s => workspaceActor(s)?.uid);
   const storeTransactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
@@ -108,7 +109,8 @@ export default function Inventory() {
   const role = useCurrentRole();
   const canChangeStock = role !== 'viewer';
   // ISS-130: revaluing changes book value, so owners and accountants (the server checks the same)
-  const canRevalue = role === 'owner' || role === 'accountant';
+  const canPostStock = canChangeStock && !isGuest;
+  const canRevalue = !isGuest && (role === 'owner' || role === 'accountant');
   // #259 review: a revaluation draft belongs to the workspace it was opened in; after a switch it is not shown
   const [revalueDraft, setRevalueDraft] = useState<{ item: InventoryItem; workspaceId: string | null } | null>(null);
   const revalueItem = revalueDraft && revalueDraft.workspaceId === workspaceId ? revalueDraft.item : null;
@@ -229,6 +231,7 @@ export default function Inventory() {
     };
 
     const openingQty = newItem.itemType === 'service' ? 0 : Number(formData.get('quantity')) || 0;
+    if (isGuest && openingQty !== 0) { toast.error('Opening stock needs a signed-in workspace. The item was not saved.'); return; }
     try {
       const ref = await addDoc(collection(db, 'inventory'), newItem);
       setIsAdding(false);
@@ -241,6 +244,7 @@ export default function Inventory() {
 
   /** Opening stock of a new item: DR Inventory, CR Opening Balance Equity, at the item's cost. */
   const recordOpeningStock = async (itemId: string, name: string, quantity: number) => {
+    if (isGuest) throw new Error('Opening stock needs a signed-in workspace.');
     const inventoryAcc = inventoryAccountsOf(accounts)[0];
     const equityAcc = defaultOffsetAccount(accounts, 'opening');
     if (!workspaceId || !inventoryAcc || !equityAcc) {
@@ -272,6 +276,7 @@ export default function Inventory() {
 
   /** Typing a new quantity in the list records a stock count, so the books follow (difference to the variance account). */
   const countItem = async (item: InventoryItem, counted: number) => {
+    if (isGuest) throw new Error('Stock counts need a signed-in workspace.');
     const inventoryAcc = inventoryAccountsOf(accounts)[0];
     const varianceAcc = defaultOffsetAccount(accounts, 'count');
     if (!workspaceId || !inventoryAcc || !varianceAcc) throw new Error('Add an Inventory account and a variance (or Cost of Goods Sold) account first');
@@ -328,7 +333,8 @@ export default function Inventory() {
                 </div>
              </div>
           </div>
-          <StockPolicySwitch />
+          {!isGuest && <StockPolicySwitch />}
+          {isGuest && <p className="text-sm text-[var(--muted)]">Items save locally. Opening stock, adjustments, counts and revaluations need a signed-in workspace.</p>}
         </div>
 
         <div className="flex flex-wrap items-center gap-8">
@@ -361,7 +367,7 @@ export default function Inventory() {
            {canChangeStock && items.length > 0 && (
              <button
                type="button"
-               onClick={() => setIsCounting(true)}
+               disabled={!canPostStock} onClick={() => { if (canPostStock) setIsCounting(true); }}
                className="px-8 py-4 rounded-[32px] font-black text-xs uppercase tracking-widest border-2 bg-[var(--surface)] text-[var(--text)] border-[var(--line)] hover:border-slate-800 flex items-center gap-3"
              >
                <ClipboardList aria-hidden="true" size={18} />
@@ -527,7 +533,7 @@ export default function Inventory() {
                 </td>
                 <td className="px-8 py-5">
                   <div className="flex items-center gap-2">
-                    <InlineEdit kind="number" value={item.quantityAtHand} label={`Quantity of ${item.name} (recorded as a stock count)`} canEdit={canChangeStock}
+                    <InlineEdit kind="number" value={item.quantityAtHand} label={`Quantity of ${item.name} (recorded as a stock count)`} canEdit={canPostStock}
                       validate={v => Number(v) >= 0 ? null : 'Stock cannot be below zero'} onSave={v => countItem(item, Number(v))}
                       className={cn("text-sm font-black font-mono", item.quantityAtHand <= item.reorderPoint ? "text-rose-600" : "text-[var(--text)]")} />
                     {item.quantityAtHand <= item.reorderPoint && (
@@ -682,7 +688,7 @@ export default function Inventory() {
                     )}
                     {canChangeStock && (
                       <button type="button" aria-label={`Adjust stock of ${item.name}`} title="Adjust stock"
-                        onClick={() => setAdjustItem(item)}
+                        disabled={!canPostStock} onClick={() => { if (canPostStock) setAdjustItem(item); }}
                         className="p-2 hover:bg-[var(--surface)] rounded-xl border border-transparent hover:border-[var(--line)] transition-all"
                       >
                         <SlidersHorizontal aria-hidden="true" size={14} className="text-[var(--muted)]" />
@@ -737,16 +743,16 @@ export default function Inventory() {
         </div>
       )}
 
-      <InventoryItemDialog key={editingItem?.id || 'new-item'} open={isAdding || !!editingItem} editingItem={editingItem} categories={categories} canChangeStock={canChangeStock} taxCodes={salesTaxCodes} allItems={items}
+      <InventoryItemDialog key={editingItem?.id || 'new-item'} open={isAdding || !!editingItem} editingItem={editingItem} categories={categories} canChangeStock={canChangeStock} taxCodes={salesTaxCodes} allItems={items} stockActionsAvailable={!isGuest}
         onClose={closeItemDialog} onSubmit={editingItem ? handleUpdate : handleAdd}
         onItemImageChange={itemId => setImageRefresh(current => ({ ...current, [itemId]: (current[itemId] || 0) + 1 }))}
-        onAdjust={it => { setEditingItem(null); setAdjustItem(it); }}
+        onAdjust={it => { if (canPostStock) { setEditingItem(null); setAdjustItem(it); } }}
         onRevalue={canRevalue ? it => setRevalueItem(it) : undefined} />
 
       {cogsItem && workspaceId && (
         <CogsDialog item={cogsItem} workspaceId={workspaceId} accounts={accounts} currency={baseCurrency} onClose={() => setCogsItem(null)} />
       )}
-      {adjustItem && workspaceId && (
+      {canPostStock && adjustItem && workspaceId && (
         <StockAdjustDialog item={adjustItem} workspaceId={workspaceId} accounts={accounts} currency={baseCurrency} onClose={() => setAdjustItem(null)} />
       )}
       {revalueItem && workspaceId && (
@@ -758,7 +764,7 @@ export default function Inventory() {
       {isManagingCategories && (
         <CategoryManagerDialog items={items} onClose={() => setIsManagingCategories(false)} />
       )}
-      {isCounting && workspaceId && (
+      {canPostStock && isCounting && workspaceId && (
         <StockCountDialog items={items} workspaceId={workspaceId} accounts={accounts} currency={baseCurrency} onClose={() => setIsCounting(false)} />
       )}
     </div>

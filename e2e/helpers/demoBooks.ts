@@ -7,13 +7,10 @@ import type { Page } from '@playwright/test';
 export async function seedDemoBooks(page: Page) {
   await page.evaluate(async () => {
     const { seedCountryDemoWorkspace } = await import('/src/lib/countryDemoWorkspace.ts');
-    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
+    const { replaceGuestCompany } = await import('/src/lib/guestCompany.ts');
     const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'ws-guest';
+    const workspaceId = useAuthStore.getState().currentWorkspaceId || 'guest';
     const data = seedCountryDemoWorkspace(workspaceId, 'US');
-    useLedgerStore.setState({
-      accounts: data.accounts, transactions: data.transactions, invoices: data.invoices,
-      bills: data.bills, customers: data.customers, vendors: data.vendors,
-    });
+    replaceGuestCompany(data, 'US sample');
   });
 }

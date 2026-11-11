@@ -18,7 +18,8 @@ export function saveGuestAlerts(workspaceId: string, alerts: AlertSettings): Ale
 }
 export function readGuestStages(workspaceId: string, kind: StageKind) {
   scope(workspaceId);
-  const sets = (guestRows('documents').find(row => row.id === `${workspaceId}_stageSets`)?.data.sets || {}) as StageSets;
+  const stored = guestRows('documents').find(row => row.id === `${workspaceId}_stageSets`)?.data.sets;
+  const sets = (stagesProblem(stored) ? {} : stored) as StageSets;
   const current: Record<string, string> = {};
   for (const row of guestRows('documents')) {
     const record = row.data.record as { type?: string; id?: string } | undefined;

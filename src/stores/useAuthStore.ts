@@ -79,9 +79,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   setIsGuest: (requested) => {
     const isGuest = requested && !get().user;
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("isGuest", isGuest ? "true" : "false");
-    }
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem("isGuest", isGuest ? "true" : "false");
+    } catch { /* Storage preferences must not block the in-memory auth transition. */ }
     if (isGuest && !get().user) {
       startGuestDatabase();
       get().setCurrentWorkspaceId(SAMPLE_WORKSPACE_ID);
@@ -137,13 +137,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   setWorkspaces: (workspaces) => set({ workspaces }),
   setCurrentWorkspaceId: (currentWorkspaceId) => {
-    if (typeof localStorage !== "undefined") {
-      if (currentWorkspaceId) {
-        localStorage.setItem('ledgerflow_current_workspace', currentWorkspaceId);
-      } else {
-        localStorage.removeItem('ledgerflow_current_workspace');
+    try {
+      if (typeof localStorage !== "undefined") {
+        if (currentWorkspaceId) {
+          localStorage.setItem('ledgerflow_current_workspace', currentWorkspaceId);
+        } else {
+          localStorage.removeItem('ledgerflow_current_workspace');
+        }
       }
-    }
+    } catch { /* A blocked remembered-workspace preference must not retain the old workspace. */ }
     
     // Clear ledger store data immediately to prevent ghosting between workspaces
     if (get().currentWorkspaceId !== currentWorkspaceId) {
