@@ -1685,7 +1685,7 @@ posting, tax maths, `src/server/`, schema, dependency or quality-baseline change
 *Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 - [~] **C-71** empty states everywhere: main lists and registered reports are covered; auxiliary settings/admin lists remain unaudited.
-- [~] **C-86** report scheduling: weekly/monthly schedules are stored and sent; an explicit day picker is still open.
+- [x] **C-86** report scheduling: weekly/monthly schedules are stored and sent; the day is chosen (weekly Monday–Sunday, monthly 1st–28th; AI #9, PR #665).
 - [~] **C-88** PDF consistency: Reports and report packs share their heading/cover; specialized server PDF routes remain separate.
 
 Review round (26 Oct): saved-view comparison/period restore, private query-key allowlisting, blocked-storage drafts, structural report-row detection, incomplete-history empty wording, exact formula-safe Excel headers, the ToolSandbox algorithm period, glossary Hebrew/search and the duplicate CF-06 row were corrected with focused tests. CI workflow `40424080429` refreshed and checked all 40 visual references; 18 intentional PNG changes were reviewed. Details in `docs/verification/ai2-launch-batch-2026-10-26.md` §5.
