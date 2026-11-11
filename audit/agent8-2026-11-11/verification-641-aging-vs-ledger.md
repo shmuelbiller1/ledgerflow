@@ -80,6 +80,60 @@ is that the revaluation agrees with the **reports**, and both disagree with the 
 right invariant while pointing at the wrong reference side is worse than no comment, because it reads as a proof that
 this path was already checked.
 
+### 5. A second escalation: the invoice approval LIMIT is bypassed (internal control, server-enforced)
+
+Filed separately as **[#648](https://github.com/shmuelbiller1/ledgerflow/issues/648)** — not because it is a
+different root cause (it is the same `toBaseCents`), but because it is a different *class* of consequence and because
+I cannot comment on #641 to record it there.
+
+`invoiceApproval.ts:127-135` decides whether an invoice needs approval from the same un-adjusted total:
+
+```ts
+export function invoiceTotalInWorkspaceCurrency(doc: ApprovalDoc): number {
+  return toBaseCents(doc.amountCents || 0, doc.exchangeRate);   // :128 — no minor-unit adjustment
+}
+export function needsApproval(doc: ApprovalDoc, settings: unknown): boolean {
+  …
+  return invoiceTotalInWorkspaceCurrency(doc) > thresholdCents;  // :135
+}
+```
+
+and that decision is enforced **server-side at two points**:
+
+- `invoiceApprovalGuard.ts:47` — `serverApproval` → `approvalForSave` → `needsApproval`, wired via
+  `ledgerBulkCommit.ts:2`. Its own docstring (`:15-16`) promises *"an invoice that starts going out over the limit
+  without a record gets one … so leaving the field out can't skip the rule."*
+- `documentEmailService.ts:96-103` — `holdsSending` → `approvalStatus` → `needsApproval`, the gate that refuses to
+  email an over-limit invoice to the customer without a signature.
+
+Executed — a **$500.00** limit (`thresholdCents: 50_000`) and a **¥100,000 invoice at 0.0067 = $670.00**:
+
+```
+DEFECT V6a invoiceTotalInWorkspaceCurrency = 670 cents; the real posting books 67000 cents ($670.00).
+DEFECT V6b needsApproval = false            (670 is not > 50000)
+DEFECT V6c approvalForSave = null           → saved with NO approval record
+DEFECT V6d holdsSending = false, approvalStatus = 'not_needed' → emailed to the customer, no signature
+OK     V6e control: the SAME $670.00 as a USD invoice is caught by every gate —
+       needsApproval true, holdsSending true, status 'awaiting', approvalForSave 'awaiting'
+OK     V6f control: with the document already sent, the gate reads 'not_needed' for BOTH currencies
+```
+
+**An over-limit invoice is saved without an approval record and sent to the customer with no signature, and the
+server-side guard that exists specifically to prevent that is what lets it through.** V6e isolates the cause: the only
+difference between the bypassed JPY invoice and the correctly-held USD invoice is the document currency's minor units
+— the threshold is configured correctly and the gates work.
+
+Two structural notes for the fix:
+
+- `ApprovalDoc` (`invoiceApproval.ts:77-84`) has **no `currency` field at all**, so this rule cannot make the
+  minor-unit adjustment without a signature change. The fix is not local to `toBaseCents`.
+- **V6f records a masking hazard so V6d is not over-read.** For a document already `sent`, `hasAlreadyGoneOut`
+  short-circuits `approvalStatus` to `'not_needed'` for *every* currency (BE-04 deliberately never reaches an invoice
+  back), so the bypass is currency-dependent only for a document that has **not yet gone out** — which is the case the
+  gate exists for. An earlier draft of my probe tested with `status: 'sent'` and measured nothing at all; **control
+  V6e is what caught it.** That is the second time in this audit that a control has caught a defect in the probe
+  rather than in the product, and it is the reason every case here has one.
+
 ### On severity
 
 I agree this is at the top of the register, and V5 argues for **raising** it rather than leaving it where it is.
@@ -101,8 +155,8 @@ UI panel is present and the route is mounted.
 
 The issue's proposed signature is the right one. `convertMinorUnits` already exists (`currencyMinorUnits.ts:39`) and is already what the posting path uses, so this makes the reports call the same rule the ledger calls rather than adding a second one — the same shape as the fix AI #1 landed for #627 (extract one rule, use it in both consumers), which is worth noting because that drift is exactly how this happened.
 
-**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts`.
-**V1b, V2b, V5a and V5b must flip to OK** with **V1a, V2a, V3, V3b and V5c unchanged** — the ledger's invoice
+**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts` (20 cases: 11 OK / 9 DEFECT).
+**V1b, V2b, V5a, V5b, V6a, V6b, V6c and V6d must flip to OK** with **V1a, V2a, V3, V3b, V5c, V6e and V6f unchanged** — the ledger's invoice
 posting and every control are already correct, so no existing expected number moves. `bm04-currency-minor-units.test.ts`
 must keep passing untouched. V5c is worth keeping exactly as it is: it asserts the revaluation entry stays balanced
 double-entry, so a fix that corrects the magnitude while breaking the balance would be caught.
