@@ -112,7 +112,7 @@ export async function openBooks(label: string, currency = 'USD'): Promise<Books>
       inventory: 'inventory', bankLines: 'bankLines', payments: 'payments', reconciliations: 'reconciliations', stockMoves: 'stockMoves', stockClosings: 'stockClosings', allocations: 'paymentAllocations' };
     const data: Record<string, unknown> = {};
     for (const [key, table] of Object.entries(sources)) data[key] = (await db.collection(table).where('workspaceId', '==', ws).get()).docs.map(d => ({ ...d.data(), id: d.id }));
-    const findings = runDataChecks({ ...(data as never), truncated: [], today, baseCurrency: currency });
+    const findings = runDataChecks({ ...data, truncated: [], today, baseCurrency: currency } as unknown as Parameters<typeof runDataChecks>[0]);
     return findings.map(f => ({ checkId: f.checkId, severity: f.severity, title: f.title }));
   };
   const asBrowser: Books['asBrowser'] = async (uid, sql, params = []) => {
