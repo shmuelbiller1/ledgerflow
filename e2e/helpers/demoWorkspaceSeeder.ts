@@ -1,4 +1,5 @@
-import { ChartAccount, Transaction, Customer, Vendor } from '../types';
+/** Sample books for the browser tests (moved from src/lib when the demo-seed route was removed, #656). */
+import { ChartAccount, Transaction, Customer, Vendor } from '../../src/types';
 
 export function seedDemoWorkspace(workspaceId: string) {
   const accounts: ChartAccount[] = [

@@ -4,9 +4,11 @@
  * them — so stock, cost and posting stay the parts' own, and a bundle is never a stock item.
  *
  * Stored on the item document as `bundleParts` (`[{ itemId, quantity }]`). This module is pure: it
- * validates a bundle and expands it into lines; the invoice screen calls `expandBundle` when a
- * bundle item is picked (a five-line hook-up in the invoice form, noted as AI #1's file).
+ * validates a bundle and expands it into lines; the invoice line editor (DocumentLineEditor) turns a picked bundle
+ * into its parts with `bundleInvoiceLines`.
  */
+
+import { applyInventoryItem, type InvoiceLineDraft, type ItemPricer } from './invoiceLines';
 
 export interface BundlePart {
   itemId: string;
@@ -114,3 +116,23 @@ export function bundlePartChoices<T extends BundlePartItem & BundleHost>(bundleI
 
 /** A bundle is not stocked: its parts are. The screen uses this to hide quantity and cost fields. */
 export const bundleKeepsNoStock = (item: BundleHost | null | undefined): boolean => isBundle(item);
+
+/**
+ * BF-03: the invoice lines a bundle becomes when it is picked on a line, `count` bundles at a time. Each part is
+ * filled the way a typed item is (`applyInventoryItem`: its price — the customer's, with a price list — its cost and
+ * its stock link), on a fresh line from `createLine`, so the parts post and move stock as themselves. A part that is
+ * no longer in the item list is left out (`expandBundle`). An empty answer means: not a bundle, keep the line.
+ */
+export function bundleInvoiceLines<L extends InvoiceLineDraft>(
+  bundle: BundleHost,
+  count: number,
+  items: Array<Parameters<typeof applyInventoryItem>[1] & BundlePartItem>,
+  createLine: () => L,
+  priceOf?: ItemPricer,
+): L[] {
+  const byId = new Map(items.map(i => [i.id, i]));
+  return expandBundle(bundle, count, items).flatMap(part => {
+    const item = byId.get(part.itemId);
+    return item ? [applyInventoryItem({ ...createLine(), quantity: part.quantity }, item, priceOf)] : [];
+  });
+}

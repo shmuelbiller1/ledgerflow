@@ -1,5 +1,5 @@
 import { mountJourney } from './support/journeyFixture';
-import { seedDemoWorkspace } from '../src/lib/demoWorkspaceSeeder';
+import { seedDemoWorkspace } from './helpers/demoWorkspaceSeeder';
 import { openTool } from './support/openTool';
 import { test, expect } from '@playwright/test';
 import { settleAnimations } from './support/a11yGate';
