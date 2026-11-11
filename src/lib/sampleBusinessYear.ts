@@ -139,9 +139,9 @@ export function buildSampleBusinessYear(options: SampleBusinessYearOptions = {})
     taxProfiles: {
       books: {
         name: 'Harbor & Olive Supply Co.',
-        place: { country: 'US', region: 'TX' },
+        place: { country: 'US', state: 'TX' },
         registrations: [
-          { kind: 'sales_tax', number: '32099887766', place: { country: 'US', region: 'TX' }, filing: 'quarterly' },
+          { kind: 'sales_tax', number: '32099887766', place: { country: 'US', state: 'TX' }, filing: 'quarterly' },
           { kind: 'vat', number: '514887766', place: { country: 'IL' }, filing: 'bimonthly' },
         ],
       },
@@ -211,7 +211,7 @@ export function buildSampleBusinessYear(options: SampleBusinessYearOptions = {})
       currency: 'USD', creditLimitCents: 2_500_000 + (idx % 6) * 750_000, taxId: taxNum,
       metadata: {
         territory: TERRITORIES[idx % TERRITORIES.length],
-        taxPlace: isIl ? { country: 'IL' } : { country: 'US', region: state },
+        taxPlace: isIl ? { country: 'IL' } : { country: 'US', state },
         vatNumber: taxNum, taxExempt: idx % 9 === 3,
       },
     } as unknown as Customer;
@@ -230,7 +230,7 @@ export function buildSampleBusinessYear(options: SampleBusinessYearOptions = {})
       address: missingAddress ? '' : isIl ? `${20 + idx} Histadrut Blvd, Haifa` : `${400 + idx * 11} Industrial Pkwy, TX 75201`,
       currency: 'USD', is1099Vendor: is1099, taxId: taxNum,
       metadata: {
-        is1099, taxPlace: isIl ? { country: 'IL' } : { country: 'US', region: 'TX' }, vatNumber: taxNum,
+        is1099, taxPlace: isIl ? { country: 'IL' } : { country: 'US', state: 'TX' }, vatNumber: taxNum,
         withholding: isIl ? { ratePercent: 5, number: `WH-2026-${idx + 1}`, expires: `${year}-12-31` } : undefined,
       },
     } as unknown as Vendor;
@@ -514,14 +514,14 @@ export function buildSampleBusinessYear(options: SampleBusinessYearOptions = {})
       const qtyService = 1 + (invIdx % 2);
       const invDate = dateYmd(year, m, 2 + (invIdx % 26));
       const dueDate = dateYmd(year, Math.min(11, m + 1), 2 + (invIdx % 25));
-      const custMeta = customer.metadata as { taxPlace?: { country?: string; region?: string }; taxExempt?: boolean };
+      const custMeta = customer.metadata as { taxPlace?: { country?: string; state?: string }; taxExempt?: boolean };
       const isIlBuyer = custMeta.taxPlace?.country === 'IL';
       const isExempt = Boolean(custMeta.taxExempt);
 
       const lineStockNet = qtyStock * stockItem.unitPriceCents;
       const lineServiceNet = qtyService * serviceItem.unitPriceCents;
       const subtotalCents = lineStockNet + lineServiceNet;
-      const taxRate = isExempt ? 0 : isIlBuyer ? 0.18 : custMeta.taxPlace?.region === 'TX' ? 0.0625 : 0;
+      const taxRate = isExempt ? 0 : isIlBuyer ? 0.18 : custMeta.taxPlace?.state === 'TX' ? 0.0625 : 0;
       const taxCents = Math.round(subtotalCents * taxRate);
       const grossCents = subtotalCents + taxCents;
       const cogsCents = qtyStock * stockItem.unitCostCents;

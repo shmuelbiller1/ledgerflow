@@ -1,4 +1,5 @@
 import { normalizeSearchText } from './textNormalization';
+import { unguardCsvCell } from './csv';
 import { isEmailShape } from './textShape';
 /**
  * Bulk import of records from a spreadsheet (K-01): customers, vendors, items and accounts.
@@ -263,7 +264,10 @@ export function identityKeys(kind: ImportKind, data: Record<string, unknown>): s
 }
 
 function readValue(field: ImportField, raw: string): { value?: ImportValue; error?: string; extra?: Record<string, string> } {
-  const text = raw.trim();
+  // J-1 (Agent #11): a file this app exported carries the CSV formula guard (a leading apostrophe
+  // before text a spreadsheet would run, e.g. a phone `+1 555 0100`). Reading it back must give the
+  // value that was exported, so the guard is removed here and nowhere else in the cell.
+  const text = unguardCsvCell(raw.trim());
   switch (field.type) {
     case 'text': return { value: clean(text, 200) };
     case 'longText': return { value: clean(text, 2000, true) };

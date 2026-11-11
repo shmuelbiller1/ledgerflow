@@ -26,7 +26,9 @@ function ScopedChartsDashboard() {
   });
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const partial = useLedgerStore(s => !!s.truncatedCollections.accounts || !!s.truncatedCollections.transactions);
+  const partial = useLedgerStore(
+    s => !!s.truncatedCollections.chartAccounts || !!s.truncatedCollections.accounts || !!s.truncatedCollections.transactions,
+  );
   const [timeRange, setTimeRange] = useState<'6m' | '12m'>('6m');
 
   // Compute monthly revenue, expenses, burn rate, and profit

@@ -2,6 +2,8 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { reportClientError } from '../../lib/errorTracker';
 import { isChunkLoadFailure, reloadOnceForNewVersion } from '../../lib/chunkReload';
+import { hasUnsavedDocumentWork } from '../../lib/pwaUpdateManager';
+import { safeConfirm } from '../../lib/utils';
 
 import { BRAND_NAME } from '../../config/brand';
 interface Props {
@@ -44,13 +46,26 @@ export class ViewErrorBoundary extends Component<Props, State> {
     }
   };
 
+  private handleReloadPage = (targetHash?: string) => {
+    if (hasUnsavedDocumentWork() && !safeConfirm('Reload now? Unsaved changes on this page may be lost.')) {
+      return;
+    }
+    if (targetHash) window.location.hash = targetHash;
+    window.location.reload();
+  };
+
   public render() {
     if (this.state.hasError) {
       if (isChunkLoadFailure(this.state.error)) {
+        const unsaved = hasUnsavedDocumentWork();
         return (
           <div role="status" className="p-8 max-w-xl mx-auto my-12 text-center space-y-4">
-            <p className="text-sm text-[var(--text)]">A new version of {BRAND_NAME} is available. Updating…</p>
-            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => window.location.reload()}>Reload now</button>
+            <p className="text-sm text-[var(--text)]">
+              {unsaved
+                ? `A new version of ${BRAND_NAME} is available. Save or close your open work, then reload.`
+                : `A new version of ${BRAND_NAME} is available. Updating…`}
+            </p>
+            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => this.handleReloadPage()}>Reload now</button>
           </div>
         );
       }
@@ -89,13 +104,13 @@ export class ViewErrorBoundary extends Component<Props, State> {
               <span>Retry Rendering</span>
             </button>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => this.handleReloadPage()}
               className="px-5 py-2.5 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--text)] font-bold text-xs rounded-xl border border-[var(--line)] transition-all"
             >
               Reload Page
             </button>
             <button
-              onClick={() => { window.location.hash = '#dashboard'; window.location.reload(); }}
+              onClick={() => this.handleReloadPage('#dashboard')}
               className="px-5 py-2.5 bg-[var(--surface)] hover:bg-[var(--ink)] text-[var(--muted)] hover:text-[var(--text)] font-semibold text-xs rounded-xl border border-[var(--line)] flex items-center gap-2 transition-all"
             >
               <LayoutDashboard size={14} />

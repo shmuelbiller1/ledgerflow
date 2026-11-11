@@ -14,6 +14,7 @@ import {
 } from '../../../lib/recordImport';
 import type { FieldMapping, ImportIssue, ImportKind } from '../../../lib/recordImport';
 import { downloadCsv } from '../../../lib/csvExport';
+import { importPreviewRows } from '../../../lib/importPreview';
 import { normalizeFreshBooksCsv } from '../../../lib/freshBooksImport';
 import { normalizeQuickBooksCsv } from '../../../lib/quickBooksCsvImport';
 import { normalizeXeroCsv } from '../../../lib/xeroChartContactsImport';
@@ -159,6 +160,13 @@ export default function ImportSettings() {
   const countProof = result && importCountSnapshot ? reconcileImportCounts({
     ...importCountSnapshot, created: result.created, skipped: result.skipped.length,
   }) : null;
+  const previewRows = useMemo(() => importPreviewRows(prepared.records, issues), [prepared, issues]);
+  // J-2: a refused row is explained once, in the preview. This list carries the rest of the file, so a
+  // problem after the first 20 rows is still reported (up to 200 of them, as before).
+  const issuesAfterPreview = useMemo(() => {
+    const shown = new Set(previewRows.map(row => row.row));
+    return issues.filter(issue => !shown.has(issue.row));
+  }, [issues, previewRows]);
   const ready = table.length > 1 && prepared.errors.length === 0 && prepared.records.length > 0 && !tooMany;
 
   // A-182: pre-import duplicate check against the records already in this workspace.
@@ -544,7 +552,7 @@ export default function ImportSettings() {
               />
             )}
 
-            {issues.length > 0 && (
+            {issuesAfterPreview.length > 0 && (
               <div className="max-h-64 overflow-auto border border-[var(--line)] rounded-xl">
                 <table className="w-full text-xs">
                   <caption className="sr-only">Rows with problems</caption>
@@ -552,7 +560,7 @@ export default function ImportSettings() {
                     <tr><th scope="col" className="text-left px-3 py-2">Row</th><th scope="col" className="text-left px-3 py-2">Problem</th></tr>
                   </thead>
                   <tbody>
-                    {issues.slice(0, 200).map(issue => (
+                    {issuesAfterPreview.slice(0, 200).map(issue => (
                       <tr key={`${issue.row}:${issue.field ?? ''}:${issue.message}`} className="border-t border-[var(--line)]">
                         <td className="px-3 py-1.5 font-mono">{issue.row}</td>
                         <td className="px-3 py-1.5 text-[var(--text)]"><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</td>
@@ -560,34 +568,60 @@ export default function ImportSettings() {
                     ))}
                   </tbody>
                 </table>
+                {issuesAfterPreview.length > 200 && (
+                  <p className="border-t border-[var(--line)] px-3 py-2 text-[10px] text-[var(--muted)]">
+                    Showing the first 200 of {issuesAfterPreview.length} rows with problems. Fix these and check again to see the rest.
+                  </p>
+                )}
               </div>
             )}
 
-            {prepared.records.length > 0 && (
-              <div className="overflow-auto border border-[var(--line)] rounded-xl">
-                <table className="w-full text-xs">
-                  <caption className="sr-only">First rows to import</caption>
-                  <thead className="bg-[var(--panel)] text-[var(--muted)]">
-                    <tr>
-                      <th scope="col" className="text-left px-3 py-2">Row</th>
-                      {definition.fields.filter(f => (mapping[f.key] ?? -1) >= 0).map(f => <th scope="col" key={f.key} className="text-left px-3 py-2">{f.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prepared.records.slice(0, 5).map(record => (
-                      <tr key={record.row} className="border-t border-[var(--line)]">
-                        <td className="px-3 py-1.5 font-mono">{record.row}</td>
-                        {definition.fields.filter(f => (mapping[f.key] ?? -1) >= 0).map(f => {
-                          const value = record.data[f.key];
-                          const shown = f.type === 'money' && typeof value === 'number' ? formatCurrency(value) : value === undefined ? '' : String(value);
-                          return <td key={f.key} className="px-3 py-1.5 text-[var(--text)]">{shown}</td>;
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {previewRows.length > 0 && (() => {
+              // J-2: only the columns the user matched, so the preview reads like the file they chose.
+              const shownFields = definition.fields.filter(f => (mapping[f.key] ?? -1) >= 0);
+              const refused = previewRows.filter(row => row.problems.length > 0).length;
+              return (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-[var(--text)]">
+                    First {previewRows.length} row{previewRows.length === 1 ? '' : 's'} as they will be saved
+                  </h4>
+                  <p className="text-[11px] text-[var(--muted)]">
+                    Nothing is written yet. A row marked <strong>Will be refused</strong> is not imported until the file is fixed,
+                    and its reason is shown in the row.
+                    {refused > 0 && <> <strong className="text-[var(--neg)]">{refused}</strong> of these {previewRows.length > 1 ? `${previewRows.length} shown` : 'shown'} will be refused.</>}
+                  </p>
+                  <div className="overflow-auto border border-[var(--line)] rounded-xl max-h-96">
+                    <table className="w-full text-xs">
+                      <caption className="sr-only">First rows to import</caption>
+                      <thead className="bg-[var(--panel)] text-[var(--muted)]">
+                        <tr>
+                          <th scope="col" className="text-left px-3 py-2">Row</th>
+                          {shownFields.map(f => <th scope="col" key={f.key} className="text-left px-3 py-2">{f.label}</th>)}
+                          <th scope="col" className="text-left px-3 py-2">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewRows.map(row => (
+                          <tr key={row.row} className={cn('border-t border-[var(--line)]', row.problems.length > 0 && 'bg-[var(--neg-soft,var(--panel))]')}>
+                            <td className="px-3 py-1.5 font-mono">{row.row}</td>
+                            {shownFields.map(f => {
+                              const value = row.values[f.key];
+                              const shown = f.type === 'money' && typeof value === 'number' ? formatCurrency(value) : value === undefined ? '' : String(value);
+                              return <td key={f.key} className="px-3 py-1.5 text-[var(--text)]">{shown}</td>;
+                            })}
+                            <td className="px-3 py-1.5">
+                              {row.problems.length === 0
+                                ? <span className="inline-flex items-center gap-1 text-[var(--pos)]"><CheckCircle2 size={12} aria-hidden="true" />Will be imported</span>
+                                : <span className="inline-flex items-start gap-1 text-[var(--neg)]"><AlertCircle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />Will be refused: {row.problems.join('; ')}</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
 
             {stockCents > 0 && (
               <div className="p-4 rounded-xl border border-[var(--line)] bg-[var(--panel)] space-y-2">
