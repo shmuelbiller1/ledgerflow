@@ -156,6 +156,7 @@ describe('no job is started from anywhere else', () => {
       'src/server/http/serveApp.ts', // port retry and shutdown deadline
       'src/server/jobs/standaloneScheduler.ts', // the registry's timer
       'src/server/routes/metricsAuditRoutes.ts', // simulated wait
+      'src/server/services/FxService.ts', // #629: one-shot deadline for stalled rate service, not a recurring job
       'src/server/utils/safeFetch.ts', // request time-out
     ]);
   });
