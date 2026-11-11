@@ -35,9 +35,11 @@ const pause = (ms: number, signal: AbortSignal) => new Promise<boolean>(resolve 
  * The invoice PDF, from the route the invoice screen itself uses (src/services/documentDownloads.ts).
  * The server makes only a few PDFs a minute; "too many requests" means wait and ask again, not "no PDF".
  */
-async function fetchInvoicePdf(workspaceId: string, documentId: string, token: string, signal: AbortSignal, onWait: () => void): Promise<Blob | null> {
+async function fetchInvoicePdf(workspaceId: string, documentId: string, getToken: () => Promise<string>, signal: AbortSignal, onWait: () => void): Promise<Blob | null> {
   const query = new URLSearchParams({ workspaceId });
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    // a fresh sign-in token for every request: a long archive can outlive the one it started with
+    const token = await getToken();
     const response = await fetch(
       `/api/v1/documents/invoice/${encodeURIComponent(documentId)}/pdf?${query.toString()}`,
       { headers: { Authorization: `Bearer ${token}` }, signal },
@@ -131,7 +133,7 @@ function YearEndArchiveExportBody() {
         if (controller.signal.aborted) return;
         const at = `Invoice PDF ${pdfs + failed.length + 1} of ${pdfTotal}`;
         setProgress(`${at}…`);
-        const blob = await fetchInvoicePdf(selectedId, file.documentId, token, controller.signal,
+        const blob = await fetchInvoicePdf(selectedId, file.documentId, () => user.getIdToken(), controller.signal,
           () => setProgress(`${at}: the server makes about 10 PDFs a minute, waiting to continue…`));
         if (!blob) { failed.push(file.documentNumber || file.documentId); continue; }
         // raw bytes: a PDF is binary and must not go through the text encoder
