@@ -9,10 +9,10 @@ export function collectionStamp(...collections: ReadonlyArray<ReadonlyArray<unkn
   return collections.map(list => {
     if (!Array.isArray(list) || list.length === 0) return '0';
     let hash = list.length;
-    for (let i = 0; i < list.length; i += Math.max(1, Math.floor(list.length / 64))) {
+    for (let i = 0; i < list.length; i++) {
       const row = list[i] as Record<string, unknown> | null;
       if (!row || typeof row !== 'object') continue;
-      const sig = `${row.id ?? ''}:${row.updatedAt ?? ''}:${row.status ?? ''}:${row.amountCents ?? row.totalAmountCents ?? ''}:${row.amountPaidCents ?? ''}`;
+      const sig = `${row.id ?? ''}:${row.updatedAt ?? ''}:${row.status ?? ''}:${row.amountCents ?? ''}:${row.totalAmountCents ?? ''}:${row.amountPaidCents ?? ''}`;
       for (let j = 0; j < sig.length; j++) {
         hash = ((hash * 31) + sig.charCodeAt(j)) | 0;
       }
