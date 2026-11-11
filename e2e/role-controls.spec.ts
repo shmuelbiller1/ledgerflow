@@ -1,19 +1,14 @@
+import { mountJourney } from './support/journeyFixture';
 import { test, expect } from '@playwright/test';
 
 test('disabled role controls refuse native Enter, Space and direct clicks', async ({ page }) => {
-  await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
-  await page.addInitScript(() => {
-    localStorage.setItem('isGuest', 'true');
-    localStorage.setItem('has_seen_onboarding', 'true');
-  });
-  await page.goto('/');
+  // A signed-in viewer must stay a viewer; full guest bootstrap can restore its sample owner.
+  await mountJourney(page, { workspaceId: 'role-controls', role: 'viewer', ledger: {}, mounts: [] });
   await page.evaluate(async () => {
     const reactPath = '/node_modules/.vite/deps/react.js';
     const domPath = '/node_modules/.vite/deps/react-dom_client.js';
     const gatePath = '/src/components/ui/RequireRole.tsx';
-    const authPath = '/src/stores/useAuthStore.ts';
-    const [{ default: React }, { default: { createRoot } }, { RequireRole }, { useAuthStore }] = await Promise.all([import(reactPath), import(domPath), import(gatePath), import(authPath)]);
-    useAuthStore.setState({ user: null, currentWorkspaceId: null, workspaces: [] });
+    const [{ default: React }, { default: { createRoot } }, { RequireRole }] = await Promise.all([import(reactPath), import(domPath), import(gatePath)]);
     const host = document.createElement('div');
     host.id = 'role-controls-probe';
     host.style.cssText = 'position:fixed;inset:0;z-index:999999;background:white;color:black;padding:24px';
