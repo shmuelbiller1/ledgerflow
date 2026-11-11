@@ -22,5 +22,5 @@ test('dimension labels persist with their stable ID and old-name alias, while vi
  assert.equal(writes[0].p_id, 'component-workspace_project_P1'); const fields = writes[0].p_set as Record<string, unknown>; assert.equal(fields.description, 'שלום New'); assert.deepEqual(fields.aliases, ['Original', 'ישן']); assert.equal('id' in fields, false);
  assert.equal(useLedgerStore.getState().dimensionNodes[0].description, 'שלום New');
  cleanup(); const viewer = setComponentWorkspace('viewer'); viewer.dimensions = workspace.dimensions; useAuthStore.setState({ workspaces: [viewer] }); render(<DimensionsSettings />);
- assert.equal(screen.queryByRole('button', { name: /^Edit (Label|Dimension name)/ }), null);
+ assert.equal(screen.queryByRole('button', { name: /^Edit (Label|Label name)/ }), null);
 });

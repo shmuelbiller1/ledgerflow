@@ -42,4 +42,15 @@
    - **`AF11-12` (`src/lib/tax/profile.ts`, upstream `#628`):** Guard `resolveSellerProfile` against inheriting `books.place` subfields and tax registrations across country boundaries.
    - **Agent #7 Server-Door Findings (`A7-01`..`A7-06`, upstream `#646`):** Enforce `ledgerDoor` across remaining direct server transaction routes and guard generic transaction edits on invoice/payment-backed entries.
 3. **Recovery Instructions (if reconstructing from Google Drive without GitHub):**
-   - Checkout `ec3ff49336c53eeed531a79ac32cc08d1574ec96` and apply Agent #11's format-patch from Drive folder `05 Code Changes and Recovery Patches` via `git am <patch-file>`.
+   - Checkout `ec3ff49336c53eeed531a79ac32cc08d1574ec96` and apply `2026-11-11_Agent11_ec3ff49_to_ac48bbb7d_recovery.patch`, **or** checkout upstream `39b0012881fdc78edab2479fb62b0b632234aa82` and apply `2026-11-11_Agent11_39b0012_diff_j9_and_audit_fixes.patch` from Drive folder `05 Code Changes and Recovery Patches`.
+
+---
+
+## 3. Upstream `main` (`39b0012`) Sync & `J-9` Completion Addendum (2026-11-11 UTC)
+
+During our verification run, upstream `shmuelbiller1/ledgerflow` `main` advanced 29 commits (`ec3ff49..39b0012881fdc78edab2479fb62b0b632234aa82`), merging PRs `#623` (`J-1, J-2, J-4, J-5, J-7, J-8`), `#633` (`chunkReload` + `IsraelVatReportView`), `#634` (`#629`), and `#635` (`#627` + `#628`, resolving `AF11-12` upstream), and adding queue item **`J-9`** in `docs/COORDINATION.md` (`af07ae8ac`). Per AI #1's rule (*"a fork PR that conflicts with `main` runs no checks; merge `main` into your branch before opening it"*), we merged upstream `39b0012` cleanly into `arena/d3fc43a9-ledgerflow`:
+- **Ticked `J-1, J-2, J-4, J-5, J-7, J-8` and implemented `J-9`** (`src/lib/yearEndArchive.ts`, `src/components/platform/settings/YearEndArchiveExport.tsx`, `src/tests/j8-year-end-archive.test.ts` `16/16`): year-end archive invoice PDFs now fetch in bounded 50-invoice batches via `POST /api/v1/documents/zip`, unpack in the browser via `readStoredZip`, keep the progress line, cancel/workspace-switch checks, 429 retry with fresh sign-in token, and `invoicePdfsMissing` manifest, verified with a 120-invoice 3-batch (`50/50/20`) test.
+- **Removed stray `.patch` file** (`audit/agent11/agent11-branch-e58fa00a-to-223362e2.patch`) that landed in `#623`.
+- **Preserved all unique Agent #11 fixes not on `39b0012`:** remaining 5 `truncatedCollections.chartAccounts` screens/checks (`AccountantExportPackView`, `IsraelMonthJourneyReportView` + `/tax-returns` HTTP error flag, `FinancialChartsDashboard`, `DashboardWidgets`, `dataChecks` `control-balance`) + `IsraelVatReportView` customer/vendor truncation, `ViewErrorBoundary` manual-reload `safeConfirm` guard, `documentLibrary.ts` Sonar-safe `byCodeUnit` sort, `mt940Parser.ts` (`AF11-07`), `camt053Parser.ts` (`AF11-08`), and `sampleBusinessYear.ts` (`AF11-09`).
+- **Post-merge gate re-check on `39b0012` merge:** `lint:types` (`0`), `lint:eslint` (`0` errors, `42/42` warnings), `check:layers` (`4/4`), `build` + `test:bundle` (`PASS`), `lint:rule-packs` + `check:tax-tables` (`PASS`), and 16 focused unit/component suites (`139/139 pass, 0 fail`).
+

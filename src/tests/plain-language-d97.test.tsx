@@ -8,11 +8,16 @@ import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ReconciliationWizard from '../components/ledger/ReconciliationWizard';
 import BankFeedImport from '../components/ledger/BankFeedImport';
 import ChartOfAccountsView from '../components/ledger/ChartOfAccountsView';
+import DimensionsSettings from '../components/platform/settings/DimensionsSettings';
+import TagsSettings from '../components/platform/settings/TagsSettings';
+import LabelProfitReportView from '../components/reporting/LabelProfitReportView';
+import LabelBalanceSheetReportView from '../components/reporting/LabelBalanceSheetReportView';
 import TemplateSelector from '../components/layout/TemplateSelector';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { makeChartAccount } from './fixtures';
@@ -31,6 +36,7 @@ const accounts = [
 const JARGON = [
   'Synapse', 'Cognitive', 'Invariant', 'Topology', 'Protocol Engaged', 'Blueprint',
   'Registry Unoccupied', 'Assert Match', 'Revert Verification', 'Abort Mission',
+  'Dimensions', 'Label Node', 'Dimension Axis', 'World / Entity', 'Dimensional Type',
   'NODES DETECTED', 'Import Vectors', 'Orphaned Nodes', 'Finalize Alignment',
   'Matching Protocol', 'Bank Feed Ingestion', 'Node ID', 'Total Aggregate',
 ];
@@ -202,4 +208,44 @@ describe('D-97 plain language at the action boundary (source guards)', () => {
     assert.equal(templateSelector.includes('Review and change every account'), false);
     assert.ok(templateSelector.includes('Review every account before applying it to your books.'));
   });
+});
+
+
+test('EU-E1 Labels and Tags explain their distinction without old feature jargon', () => {
+  const workspace = useAuthStore.getState().getCurrentWorkspace()!;
+  useAuthStore.setState({ workspaces: [{ ...workspace, dimensions: [{ id: 'world', name: 'World / Entity', isWorld: true }] }] });
+  useLedgerStore.setState({ dimensionNodes: [] });
+  render(<DimensionsSettings />);
+  assert.ok(screen.getByRole('heading', { name: 'Labels' }));
+  for (const word of JARGON) assert.ok(!document.body.textContent?.includes(word), word);
+  assert.ok(screen.getByText('Labels group line amounts in reports; tags help you find records.'));
+  cleanup();
+  render(<TagsSettings />);
+  assert.ok(screen.getByRole('heading', { name: 'Tags' }));
+  assert.ok(screen.getByText('Labels group line amounts in reports; tags help you find records.'));
+});
+
+test('label copy keeps search-wide and project classifications distinct', () => {
+  assert.match(source('../components/layout/CommandPalette.tsx'), /No results matched/);
+  assert.doesNotMatch(source('../components/projects/ProjectsView.tsx'), />Label type</);
+  for (const path of ['../components/inventory/InventoryItemDialog.tsx', '../components/reporting/DataQualityReportView.tsx']) {
+    assert.doesNotMatch(source(path), /Labels &amp; Labels/);
+  }
+});
+
+
+test('legacy company label uses its display name in report captions without rewriting storage', async () => {
+  const workspace = useAuthStore.getState().getCurrentWorkspace()!;
+  useAuthStore.setState({ workspaces: [{ ...workspace, dimensions: [{ id: 'world', name: 'World / Entity' }] }] });
+  useLedgerStore.setState({ dimensionNodes: [{ id: 'co', dimensionId: 'world', description: 'My company' }] });
+  const sheet = { assets: {}, liabilities: {}, equity: {}, totalAssets: 0, totalLiabilities: 0, totalEquity: 0, netIncome: 0, totalClaims: 0, isBalanced: true };
+  stubFetchWithBodies(200, { columns: [{ value: 'co', income: 0, cogs: 0, grossProfit: 0, expense: 0, netIncome: 0, accounts: {} }], total: { income: 0, cogs: 0, grossProfit: 0, expense: 0, netIncome: 0, accounts: {} }, rows: [], sheet, notLabelled: { lines: 0, openings: 0, sheet } });
+  const profit = render(<LabelProfitReportView />);
+  await waitFor(() => assert.match(document.querySelector('caption')?.textContent || '', /Each value of Company/));
+  assert.doesNotMatch(document.body.textContent || '', /World \/ Entity/);
+  profit.unmount();
+  render(<LabelBalanceSheetReportView />);
+  await waitFor(() => assert.match(document.querySelector('caption')?.textContent || '', /Company My company/));
+  assert.doesNotMatch(document.body.textContent || '', /World \/ Entity/);
+  assert.equal(useAuthStore.getState().getCurrentWorkspace()!.dimensions![0].name, 'World / Entity');
 });

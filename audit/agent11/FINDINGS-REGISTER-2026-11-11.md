@@ -110,17 +110,17 @@
   - `usFederalPayroll.ts` instead halved Table 1(a)'s `$7,500` residual to **`$3,750`** (`375_000` cents) while ALSO setting `standardDeductionAdjustmentCents: 0`! Every W-4 Step-2 Single employee in 2026 is taxed on **`$4,300/year` (`$8,050 - $3,750`) of tax-free wages**, overwithholding `$430`–`$1,591/year`! Table 1(a) 2026 thresholds (`$19,500`, `$55,900`, …) also diverge from IRS Pub. 15-T (`$19,900`, `$58,050`, …; see PR #569 review).
 - **Recommended Fix (for Tax Lane + Owner Sign-Off on Golden Test Update):** Replace `TABLES['2025']` and `TABLES['2026']` `standard` and `step2` arrays in `src/lib/tax/usFederalPayroll.ts` with verbatim IRS Pub. 15-T Automated Percentage Method tables and update `src/tests/us-federal-payroll-golden.test.ts` against hand-computed Pub. 15-T Worksheet 1A examples.
 
-### `AF11-12` (P1 Multi-Country Tax Attribution) — `resolveSellerProfile` Inherits `place` Subfields & `registrations` Across Countries (`#628`)
+### `AF11-12` (P1 Multi-Country Tax Attribution — **RESOLVED UPSTREAM in PR `#635` / `b5cd6374b`**) — `resolveSellerProfile` Inherited `place` Subfields & `registrations` Across Countries (`#628`)
 - **Location:** `src/lib/tax/profile.ts:96-99`.
-- **Proof & Impact:** `const place: TaxPlace = { ...books.place, ...chosen.place }` merges `books.place.state`, `city`, `district`, and `postalCode` into a child entity even when `chosen.place.country !== books.place.country` (e.g., an `IL` subsidiary under a `US-TX` parent inherits `state: 'TX'`), and concatenates `books.registrations` with `chosen.registrations` across countries. Corroborates Agent #8's upstream issue `#628`.
-- **Recommended Fix:** When `chosen.place?.country && chosen.place.country !== books.place?.country`, do not inherit sub-national `place` fields (`state`, `city`, `district`, `postalCode`) from `books.place`, and scope `registrations` inheritance per owner product decision in `#628`.
+- **Proof & Impact (at `ec3ff49`):** `const place: TaxPlace = { ...books.place, ...chosen.place }` merged `books.place.state`, `city`, `district`, and `postalCode` into a child entity even when `chosen.place.country !== books.place.country`, and concatenated `books.registrations` with `chosen.registrations` across countries. Corroborated Agent #8's upstream issue `#628`.
+- **Resolution Status:** Merged upstream by AI #1 in PR `#635` (`b5cd6374b`, `39b0012`) and synced onto `arena/d3fc43a9-ledgerflow` (verified 4/4 in `src/tests/tax-profile.test.ts` `#628` suite).
 
-### `AF11-13` (P2 Tax Filing & US Quarter Journey) — Per-Permit Filed Matching, `sales_tax` Server Return Kind (`F-08`), and Certificate Loop (`#627`)
-- **Location:** `src/components/reporting/UsQuarterJourneyReportView.tsx:46`, `src/lib/tax/usQuarterJourney.ts:321-337`, `src/server/services/taxReturnService.ts:62`.
+### `AF11-13` (P2 Tax Filing & US Quarter Journey) — Per-Permit Filed Matching & `sales_tax` Server Return Kind (`F-08`, Open); Certificate Loop (`#627`, Resolved Upstream in `#635`)
+- **Location:** `src/components/reporting/UsQuarterJourneyReportView.tsx:46`, `src/lib/usQuarterJourney.ts:321-337`, `src/server/services/taxReturnService.ts:62`.
 - **Proof & Impact:**
-  1. `UsQuarterJourneyReportView.tsx:46` strips `registration` when mapping `/tax-returns` into `filedPeriods`, so filing one state's return marks every US state permit in that quarter as filed (`F-08`).
-  2. `taxReturnService.ts:62` only accepts `kind === 'vat'`, blocking server-side recording of US `sales_tax` returns (`F-08`).
-  3. `usQuarterJourney.ts:321-337` reads current customer `metadata` and `doc.dimensions` instead of saved destination snapshots and `documentEntityLabels` (`#627`).
+  1. `UsQuarterJourneyReportView.tsx:46` strips `registration` when mapping `/tax-returns` into `filedPeriods`, so filing one state's return marks every US state permit in that quarter as filed (`F-08` — **still open**).
+  2. `taxReturnService.ts:62` only accepts `kind === 'vat'`, blocking server-side recording of US `sales_tax` returns (`F-08` — **still open**).
+  3. `usQuarterJourney.ts:321-337` read current customer `metadata` and `doc.dimensions` instead of saved destination snapshots and `documentEntityLabels` (`#627` — **resolved upstream in PR `#635` / `b5cd6374b`**, verified 3/3 in `src/tests/us-quarter-journey.test.ts`).
 
 ### `AF11-14` (P2 Authz Parity) — Co-Owners (`workspace.admins[uid] === true`) Downgraded to `'viewer'` in Server Helpers
 - **Location:** `src/server/middleware/periodLock.ts:35` (`workspaceRole`), `src/server/routes/workspaceRoutes.ts:71` (`getWorkspaceUserRole`), `src/server/routes/documentRoutes.ts:194`.

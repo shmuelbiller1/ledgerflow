@@ -9,14 +9,19 @@ import { settleAnimations } from './support/a11yGate';
 async function open(page: Page, group: string, screen: string) {
   const g = page.getByRole('button', { name: group, exact: true }).first();
   if (await g.isVisible()) await g.click();
+  const target = page.getByRole('button', { name: screen, exact: true }).first();
+  if (!await target.isVisible()) {
+    await page.getByText('Show all tools', { exact: true }).click();
+    await page.getByLabel('Find a tool').fill(screen);
+  }
   await page.getByRole('button', { name: screen, exact: true }).first().click();
 }
 
 const dialogs: Array<{ name: string; title: RegExp; show: (p: Page) => Promise<void> }> = [
-  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
-  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
-  { name: 'bill', title: /Record New Bill/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Record Bill/ }).first().click(); } },
-  { name: 'vendor', title: /Add Vendor/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Vendors/ }).first().click(); await p.getByRole('button', { name: /Add Vendor|New Vendor/ }).first().click(); } },
+  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Sales', 'Invoices'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
+  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Sales', 'Invoices'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
+  { name: 'bill', title: /Record New Bill/, show: async p => { await open(p, 'Purchases', 'Purchases'); await p.getByRole('button', { name: /Record Bill/ }).first().click(); } },
+  { name: 'vendor', title: /Add Vendor/, show: async p => { await open(p, 'Purchases', 'Purchases'); await p.getByRole('button', { name: /Vendors/ }).first().click(); await p.getByRole('button', { name: /Add Vendor|New Vendor/ }).first().click(); } },
   { name: 'credit note', title: /Credit Note/, show: async p => { await open(p, 'Transactions', 'Credit Notes & Vendor Credits'); await p.getByRole('button', { name: /New Credit Note/ }).first().click(); } },
 ];
 
@@ -136,7 +141,7 @@ test.describe('Dialogs', () => {
   }
 
   test('estimate form: no accessibility problems (E-16)', async ({ page }) => {
-    await open(page, 'Money In', 'Estimates & Quotes');
+    await open(page, 'Sales', 'Estimates & Quotes');
     await page.getByRole('button', { name: /New Estimate/ }).first().click();
     const form = page.locator('form', { hasText: 'Create New Quote / Estimate' });
     await expect(form).toBeVisible();

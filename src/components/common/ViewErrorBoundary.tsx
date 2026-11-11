@@ -1,7 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { reportClientError } from '../../lib/errorTracker';
-import { isChunkLoadFailure, reloadOnceForNewVersion } from '../../lib/chunkReload';
+import { isChunkLoadFailure, reloadForNewVersionUnlessUnsaved } from '../../lib/chunkReload';
 import { hasUnsavedDocumentWork } from '../../lib/pwaUpdateManager';
 import { safeConfirm } from '../../lib/utils';
 
@@ -19,6 +19,15 @@ interface State {
   errorRef?: string;
 }
 
+function confirmReloadWhenUnsaved(): boolean {
+  try {
+    if (!hasUnsavedDocumentWork()) return true;
+  } catch {
+    return true;
+  }
+  return safeConfirm('You have an open form or unsaved edits on screen. Reloading now will discard unsaved changes. Reload anyway?');
+}
+
 export class ViewErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
@@ -31,7 +40,7 @@ export class ViewErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // a new version went live while this tab was open: its old screen file is gone, so load the new version
-    if (isChunkLoadFailure(error) && reloadOnceForNewVersion()) return;
+    if (isChunkLoadFailure(error) && reloadForNewVersionUnlessUnsaved()) return;
     console.error(`[ViewErrorBoundary] Error captured in ${this.props.viewName || 'view'}:`, error, errorInfo);
     // a crash inside a screen is caught here, so the global error listener never sees it (L-14)
     reportClientError(error, { severity: 'error', componentStack: errorInfo.componentStack || undefined, metadata: { view: this.props.viewName || 'view' } })
@@ -46,26 +55,26 @@ export class ViewErrorBoundary extends Component<Props, State> {
     }
   };
 
-  private handleReloadPage = (targetHash?: string) => {
-    if (hasUnsavedDocumentWork() && !safeConfirm('Reload now? Unsaved changes on this page may be lost.')) {
-      return;
-    }
-    if (targetHash) window.location.hash = targetHash;
+  private handleReload = (goToDashboard = false) => {
+    if (!confirmReloadWhenUnsaved()) return;
+    if (goToDashboard) window.location.hash = '#dashboard';
     window.location.reload();
   };
 
   public render() {
     if (this.state.hasError) {
       if (isChunkLoadFailure(this.state.error)) {
-        const unsaved = hasUnsavedDocumentWork();
+        const unsaved = (() => {
+          try { return hasUnsavedDocumentWork(); } catch { return false; }
+        })();
         return (
           <div role="status" className="p-8 max-w-xl mx-auto my-12 text-center space-y-4">
             <p className="text-sm text-[var(--text)]">
               {unsaved
-                ? `A new version of ${BRAND_NAME} is available. Save or close your open work, then reload.`
+                ? `A new version of ${BRAND_NAME} is available. Automatic reload was paused so you can finish or copy any unsaved edits first.`
                 : `A new version of ${BRAND_NAME} is available. Updating…`}
             </p>
-            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => this.handleReloadPage()}>Reload now</button>
+            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => this.handleReload()}>Reload now</button>
           </div>
         );
       }
@@ -104,13 +113,13 @@ export class ViewErrorBoundary extends Component<Props, State> {
               <span>Retry Rendering</span>
             </button>
             <button
-              onClick={() => this.handleReloadPage()}
+              onClick={() => this.handleReload()}
               className="px-5 py-2.5 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--text)] font-bold text-xs rounded-xl border border-[var(--line)] transition-all"
             >
               Reload Page
             </button>
             <button
-              onClick={() => this.handleReloadPage('#dashboard')}
+              onClick={() => this.handleReload(true)}
               className="px-5 py-2.5 bg-[var(--surface)] hover:bg-[var(--ink)] text-[var(--muted)] hover:text-[var(--text)] font-semibold text-xs rounded-xl border border-[var(--line)] flex items-center gap-2 transition-all"
             >
               <LayoutDashboard size={14} />

@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../../lib/dimensionUtils';
 /**
  * Label roles (DIM-3) in Settings → Dimensions: for each label (Project, Location, Property…), whether it is only
  * informational, fully attributed (every line needs a value) or self-balancing (and each value balances in every
@@ -26,7 +27,7 @@ export function LabelRoles({ dimensions, onSaved }: { dimensions: DimensionDefin
   const save = async (axis: DimensionDefinition, next: LabelRole) => {
     if (!workspace) return;
     const saved = workspace.dimensions || DEFAULT_WORKSPACE_DIMENSIONS;
-    if (!saved.some(d => d.id === axis.id)) { setError(`Save the dimension registry first, then set the role of ${axis.name}.`); return; }
+    if (!saved.some(d => d.id === axis.id)) { setError(`Save the labels first, then set the role of ${displayDimensionName(axis)}.`); return; }
     setBusy(axis.id);
     setError('');
     try {
@@ -34,7 +35,7 @@ export function LabelRoles({ dimensions, onSaved }: { dimensions: DimensionDefin
       await updateDoc(doc(db, 'workspaces', workspace.id), { dimensions: updated });
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, dimensions: updated } : w)));
       onSaved(updated);
-      toast.success(`${axis.name} is now ${LABEL_ROLES[next].name.toLowerCase()}`);
+      toast.success(`${displayDimensionName(axis)} is now ${LABEL_ROLES[next].name.toLowerCase()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -52,9 +53,9 @@ export function LabelRoles({ dimensions, onSaved }: { dimensions: DimensionDefin
       <ul className="space-y-2">
         {axes.map(axis => (
           <li key={axis.id} className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="font-semibold text-[var(--text)] min-w-24"><bdi>{axis.name}</bdi></span>
+            <span className="font-semibold text-[var(--text)] min-w-24"><bdi>{displayDimensionName(axis)}</bdi></span>
             {canChange ? (
-              <select aria-label={`Role of ${axis.name}`} value={labelRole(axis)} disabled={busy === axis.id}
+              <select aria-label={`Role of ${displayDimensionName(axis)}`} value={labelRole(axis)} disabled={busy === axis.id}
                 onChange={e => { void save(axis, e.target.value as LabelRole); }}
                 className="px-2 py-1 bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)]">
                 {(Object.keys(LABEL_ROLES) as LabelRole[]).map(r => <option key={r} value={r}>{LABEL_ROLES[r].name}</option>)}

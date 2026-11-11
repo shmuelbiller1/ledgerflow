@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../lib/dimensionUtils';
 /**
  * Labels on one document line (BF-09): Project, Location, Property… on an invoice line or a bill
  * line, posted with that line's revenue or expense so reports by label include it. Folded away by
@@ -30,6 +31,7 @@ export function LineLabels({ value, onChange, onPatch, accountId, date, lineNumb
   const nodes = useLedgerStore(s => s.dimensionNodes || []);
   const accounts = useLedgerStore(s => s.accounts || []);
   const axes = dimensions.filter(d => d.id !== 'category');
+  const axisName = (key: string) => { const axis = axes.find(a => a.id.toLowerCase() === key); return axis ? displayDimensionName(axis) : key; };
   const labels = value || {};
   const labelsRef = useRef(labels);
   const onChangeRef = useRef(onChange);
@@ -65,7 +67,7 @@ export function LineLabels({ value, onChange, onPatch, accountId, date, lineNumb
       <button type="button" aria-expanded={shown} aria-controls={`${id}-labels`} onClick={() => setOpen(!open)}
         className="font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:underline">
         Labels<span className="sr-only"> for line {lineNumber}</span>
-        {set.length > 0 && <span className="font-normal">: {set.map(([k, v]) => `${axes.find(a => a.id.toLowerCase() === k)?.name || k} ${resolveDimensionLabel(nodes, k, v)}`).join(' · ')}</span>}
+        {set.length > 0 && <span className="font-normal">: {set.map(([k, v]) => `${axisName(k)} ${resolveDimensionLabel(nodes, k, v)}`).join(' · ')}</span>}
       </button>
       {warnings.length > 0 && <p role="status" className="text-amber-700 dark:text-amber-400">{warnings.join('; ')}</p>}
       {shown && (
@@ -78,13 +80,13 @@ export function LineLabels({ value, onChange, onPatch, accountId, date, lineNumb
               const currentValue = labels[axisKey] || '';
               return (
                 <div key={axis.id}>
-                  <label htmlFor={`${listId}-input`} className="block text-[var(--muted)]">{axis.name}<span className="sr-only"> for line {lineNumber}</span></label>
+                  <label htmlFor={`${listId}-input`} className="block text-[var(--muted)]">{displayDimensionName(axis)}<span className="sr-only"> for line {lineNumber}</span></label>
                   <input id={`${listId}-input`} list={listId} value={currentValue} onChange={e => change(axis.id, e.target.value)}
                     className="mt-0.5 w-full px-2 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)]" />
                   <datalist id={listId}>{known.map(n => <option key={n.id} value={n.id}>{n.description}</option>)}</datalist>
                   <DimensionValueActions
                     dimensionId={axis.id}
-                    dimensionName={axis.name}
+                    dimensionName={displayDimensionName(axis)}
                     value={currentValue}
                     lineNumber={lineNumber}
                     onSelectNode={node => change(axis.id, node.id)}

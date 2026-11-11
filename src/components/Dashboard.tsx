@@ -9,6 +9,8 @@ import { TaxReserveWidget } from './finance/TaxReserveWidget';
 import OnboardingView from './onboarding/OnboardingView';
 import FirstHourGuide from './onboarding/FirstHourGuide';
 import SetupWizard from './onboarding/SetupWizard';
+import OpeningBalancesSetup from './onboarding/OpeningBalancesSetup';
+import { useCurrentRole } from '../hooks/useCurrentRole';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { LoadingState } from './ui/LoadingState';
 import SavedViewsBar from './ui/SavedViewsBar';
@@ -29,6 +31,8 @@ export default function Dashboard() {
   const setQuickEntryOpen = useUIStore(s => s.setQuickEntryOpen);
   const setTemplateSelectorOpen = useUIStore(s => s.setTemplateSelectorOpen);
   const setActiveTab = useUIStore(s => s.setActiveTab);
+  const role = useCurrentRole();
+  const [openingFor, setOpeningFor] = useState<string | null>(null);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspaces = useAuthStore(s => s.workspaces);
 
@@ -98,7 +102,7 @@ export default function Dashboard() {
   }
 
   if ((needsSetup || setupStarted) && !setupClosed) {
-    return <SetupWizard onStarted={() => setSetupStartedFor(currentWorkspaceId)} onDone={() => setSetupClosedFor(currentWorkspaceId)} />;
+    return <SetupWizard key={currentWorkspaceId} onStarted={() => setSetupStartedFor(currentWorkspaceId)} onDone={() => setSetupClosedFor(currentWorkspaceId)} />;
   }
 
   // Only guest/demo books show the generic welcome screen. Signed-in workspaces use
@@ -122,6 +126,16 @@ export default function Dashboard() {
           </button>
         </PageHeader>
       </header>
+
+      {!isGuest && (role === 'owner' || role === 'accountant') && !currentWorkspace?.openingBalanceDate && (
+        <section className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-3" aria-labelledby="bring-in-numbers">
+          <h2 id="bring-in-numbers" className="font-semibold">Bring in last year's numbers</h2>
+          {openingFor === currentWorkspaceId ? <OpeningBalancesSetup key={currentWorkspaceId} onClose={() => setOpeningFor(null)} /> : <>
+            <p className="text-sm text-[var(--muted)]">Moving from previous books? Add what you owned and owed on your start date. Skip this if you are starting fresh.</p>
+            <button type="button" className="btn-tonal" onClick={() => setOpeningFor(currentWorkspaceId)}>Add opening balances</button>
+          </>}
+        </section>
+      )}
 
       <details className="group border border-[var(--line)] rounded-xl px-4 bg-[var(--surface)] open:pb-4">
         <summary className="min-h-11 flex items-center gap-2 cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide<span className="ml-auto text-xs font-normal text-[var(--muted)] group-open:hidden">Show</span><span className="ml-auto text-xs font-normal text-[var(--muted)] hidden group-open:inline">Hide</span></summary>

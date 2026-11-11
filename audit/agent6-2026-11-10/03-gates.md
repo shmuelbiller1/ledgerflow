@@ -16,6 +16,9 @@ this run, not a pass.
 | Browser (Playwright) | `npm run test:e2e` | **not run** — no browser binary / app server here |
 | Production build | `npm run build` | see below |
 
+> Lead's note (11 Nov): the rows above are from the session's earlier checkpoints (for example "8/8" probes and
+> the "not run" entries). Where a later section of this file gives a result for the same gate, the later one counts.
+
 Results are filled in as each long gate finishes; an empty cell means it had not finished when the
 session's last checkpoint was written.
 

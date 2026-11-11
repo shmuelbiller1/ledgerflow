@@ -20,12 +20,12 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import YearEndArchiveExport from '../components/platform/settings/YearEndArchiveExport';
-import { fetchInvoicePdf } from '../lib/yearEndArchive';
+import { fetchYearArchivePdfBatches, planYearArchive } from '../lib/yearEndArchive';
 import AccountantExportPackView from '../components/reporting/AccountantExportPackView';
 import IsraelVatReportView from '../components/reporting/IsraelVatReportView';
 import IsraelMonthJourneyReportView from '../components/reporting/IsraelMonthJourneyReportView';
 import { ViewErrorBoundary } from '../components/common/ViewErrorBoundary';
-import { reloadOnceForNewVersion } from '../lib/chunkReload';
+import { reloadForNewVersionUnlessUnsaved, reloadOnceForNewVersion } from '../lib/chunkReload';
 import { runDataChecks } from '../lib/dataChecks';
 import { parseMT940Statement } from '../lib/mt940Parser';
 import { parseCamt053Statement } from '../lib/camt053Parser';
@@ -65,22 +65,26 @@ describe('AF11-01 & AF11-02: YearEndArchiveExport stale-async & AbortSignal safe
     globalThis.fetch = originalFetch;
   });
 
-  test('fetchInvoicePdf forwards AbortSignal and rethrows AbortError instead of swallowing as failed PDF', async () => {
+  test('fetchYearArchivePdfBatches forwards AbortSignal and stops cleanly when aborted mid-request', async () => {
     const controller = new AbortController();
     let seenSignal: AbortSignal | null | undefined;
-    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-      seenSignal = init?.signal;
-      controller.abort();
-      const abortErr = new Error('The operation was aborted.');
-      abortErr.name = 'AbortError';
-      throw abortErr;
-    }) as typeof fetch;
+    const plan = planYearArchive({
+      invoices: [{ id: 'inv-1', number: 'INV-1', date: '2026-03-10', totalAmountCents: 1000 }],
+    }, { year: 2026 });
 
-    await assert.rejects(
-      () => fetchInvoicePdf('ws-1', 'inv-1', 'tok', controller.signal),
-      (err: unknown) => err instanceof Error && err.name === 'AbortError',
-    );
+    const outcome = await fetchYearArchivePdfBatches({
+      workspaceId: 'ws-1',
+      plan,
+      getToken: async () => 'tok',
+      signal: controller.signal,
+      fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seenSignal = init?.signal;
+        controller.abort();
+        return new Response(new Uint8Array(0), { status: 200 });
+      }) as typeof fetch,
+    });
     assert.equal(seenSignal, controller.signal);
+    assert.equal(outcome.aborted, true);
   });
 
   test('switching workspace during in-flight archive download aborts without triggering a stale ZIP click', async () => {
@@ -243,16 +247,17 @@ describe('AF11-06: chunk reload never discards unsaved accounting work', () => {
     sessionStorage.clear();
   });
 
-  test('reloadOnceForNewVersion refuses to reload when an open modal or dirty form is present', () => {
+  test('reloadForNewVersionUnlessUnsaved refuses to reload when an open modal or dirty form is present', () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
     let reloads = 0;
+    const doReload = () => reloadOnceForNewVersion(1_000_000, storage, () => { reloads += 1; });
 
-    assert.equal(reloadOnceForNewVersion(1_000_000, storage, () => { reloads += 1; }, () => true), false);
+    assert.equal(reloadForNewVersionUnlessUnsaved(() => true, doReload), false);
     assert.equal(reloads, 0);
-    assert.equal(store.has('lf_chunk_reload_at'), false, 'blocked reload does not burn the 60s cooldown');
+    assert.equal(store.has('ledgerflow_chunk_reload_at'), false, 'blocked reload does not burn the 60s cooldown');
 
-    assert.equal(reloadOnceForNewVersion(1_000_000, storage, () => { reloads += 1; }, () => false), true);
+    assert.equal(reloadForNewVersionUnlessUnsaved(() => false, doReload), true);
     assert.equal(reloads, 1);
   });
 
@@ -284,8 +289,8 @@ describe('AF11-06: chunk reload never discards unsaved accounting work', () => {
         </ViewErrorBoundary>,
       );
 
-      assert.match(document.body.textContent || '', /Save or close your open work, then reload/i);
-      assert.equal(sessionStorage.getItem('lf_chunk_reload_at'), null, 'did not auto-reload over open dialog');
+      assert.match(document.body.textContent || '', /Automatic reload was paused so you can finish or copy any unsaved edits first/i);
+      assert.equal(sessionStorage.getItem('ledgerflow_chunk_reload_at'), null, 'did not auto-reload over open dialog');
 
       fireEvent.click(screen.getByRole('button', { name: /Reload now/i }));
       assert.equal(confirmCalls, 1, 'manual reload prompts confirmation when unsaved work is open');

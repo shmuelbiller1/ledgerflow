@@ -83,6 +83,7 @@ for (const width of [640, 767, 1024]) {
       id: 'tagged-document', workspace_id: 'vault-tags', data: {
         workspaceId: 'vault-tags', uid: 'journey-user', name: 'Example receipt',
         createdAt: '2026-10-01T12:00:00Z', sizeBytes: 1024, type: 'application/pdf',
+        mimeType: 'application/pdf', fileUrl: 'data:application/pdf;base64,JVBERi0=', // a stored file, as an upload saves it
         tags: Array.from({ length: 12 }, (_, i) => `Long document category ${i + 1}`),
       },
     }] }));

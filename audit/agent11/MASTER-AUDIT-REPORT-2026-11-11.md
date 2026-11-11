@@ -119,3 +119,5 @@ Ported all 19 clean source/test files from Agent #11's unmerged commit `270014e6
 | `npm run build` + `npm run test:bundle` + `check:perf-budgets` | **PASS** | Vite client + PWA + `server.cjs` + `api.cjs` built; `16/16` bundle invariants pass |
 | `lint:rule-packs` + `check:tax-tables` + `npm audit --audit-level=high` | **PASS** | `584/0` rules, `1,163/0` tax rows, `0` high/critical CVEs |
 | Playwright E2E (Headless Chromium 153 + Live PostgreSQL 17.11) | **PASS** | **35 passed, 0 failed** across 11 E2E spec files |
+| Upstream `39b0012` Merge + **`J-9`** Re-Check | **PASS** | `lint:types` (`0`), `lint:eslint` (`0`/`42`), `check:layers` (`4/4`), `build` + `test:bundle`, `139/139` focused unit/DOM tests (`16/16` in `j8-year-end-archive.test.ts` incl. 120-invoice 3-batch `J-9` test); `AF11-12` (`#628`) confirmed resolved upstream in `#635` |
+

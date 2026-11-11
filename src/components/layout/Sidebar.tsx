@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, LogOut, Command, LayoutGrid, Layers, BarChart3, Settings, ShieldCheck, Compass, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { LogOut, Command, LayoutGrid, ShieldCheck, Compass, ArrowUpRight } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { AppTab } from '../../types';
 import { useUIStore } from '../../stores/useUIStore';
@@ -7,7 +7,9 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { Download } from 'lucide-react';
-import { NAV_GROUPS, APP_TABS } from '../../config/registry';
+import { APP_TABS, isTabVisible } from '../../config/registry';
+import { DAILY_TOOL_IDS, DAILY_TOOL_LABELS } from '../../config/businessNavigation';
+import AllToolsMenu from './AllToolsMenu';
 import BookmarksGroup from './BookmarksGroup';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 
@@ -25,23 +27,6 @@ interface SidebarProps {
   onNewWorkspace: () => void;
   onAction: (action: string) => void;
 }
-
-const GROUP_ICONS: Record<string, React.ElementType> = {
-  dashboard: LayoutGrid,
-  transactions: Layers,
-  reconcile: RefreshCw,
-  money_in: ArrowUpRight,
-  money_out: ArrowDownRight,
-  reports: BarChart3,
-  settings: Settings
-};
-
-const NAV_SECTIONS = [
-  { label: 'Daily work', groups: ['dashboard', 'transactions', 'reconcile'] },
-  { label: 'Sales and purchases', groups: ['money_in', 'money_out'] },
-  { label: 'Reports and settings', groups: ['reports', 'settings'] },
-];
-const ASSIGNED_GROUPS = new Set(NAV_SECTIONS.flatMap(section => section.groups));
 
 const SERIES_COLORS = [
   'var(--w-personal)',
@@ -77,8 +62,12 @@ const Sidebar = React.memo(({
   const computedAccounts = useLedgerStore(s => s.computedAccounts);
   const accounts = computedAccounts && computedAccounts.length > 0 ? computedAccounts : rawAccounts;
 
-  const currentTabDef = APP_TABS.find(t => t.id === activeTab);
-  const activeGroupId = currentTabDef?.groupId || 'dashboard';
+  const businessType = useAuthStore(s => s.getCurrentWorkspace()?.businessType);
+  const modules = useAuthStore(s => s.getCurrentWorkspace()?.modules);
+  const uid = useAuthStore(s => s.user?.uid || 'guest');
+  const visibility = { isOwner: isAdmin, isProMode: uiStore.isProMode, developerMode: uiStore.developerMode, modules, businessType };
+  const dailyTabs = DAILY_TOOL_IDS.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; });
+  const recommendations = uiStore.isProMode ? APP_TABS.filter(t => t.isAdvanced && isTabVisible(t, visibility)) : [];
 
   // D-92: the old "Worlds" box mixed two different things. It now says what it shows —
   // your projects when there are any, otherwise the balance of each account type — and it
@@ -153,43 +142,28 @@ const Sidebar = React.memo(({
       {/* Navigation Groups */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4 mt-1">
          <BookmarksGroup expanded={uiStore.isSidebarOpen} />
-         {NAV_SECTIONS.map((section, sectionIndex) => <section key={section.label} aria-label={section.label}>
-            {uiStore.isSidebarOpen && <h2 className="text-xs text-[var(--muted)] px-2 mb-2 font-semibold">{section.label}</h2>}
-            <div className="space-y-1">
-              {Object.entries(NAV_GROUPS).filter(([id]) => section.groups.includes(id) || (sectionIndex === NAV_SECTIONS.length - 1 && !ASSIGNED_GROUPS.has(id))).map(([groupId, groupLabel]) => {
-                 if (groupId === 'admin' && !isAdmin) return null;
-
-                 const Icon = GROUP_ICONS[groupId] || LayoutGrid;
-                 const isActive = activeGroupId === groupId;
-                 const firstTabInGroup = APP_TABS.find(t => t.groupId === groupId && (!t.isAdvanced || uiStore.isProMode));
-
-                 return (
-                   <button aria-label={groupLabel[uiStore.language as "en" | "he"] || groupLabel.en}
-                     key={groupId}
-                     aria-current={isActive ? 'page' : undefined}
-                     data-testid={`nav-${firstTabInGroup?.id || groupId}`}
-                     onClick={() => {
-                       if (firstTabInGroup) setActiveTab(firstTabInGroup.id as unknown as string);
-                     }}
-                     className={cn(
-                       "w-full min-h-11 min-w-11 flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all relative group overflow-hidden",
-                       isActive
-                         ? "text-[var(--text)] bg-[var(--brass-soft)] border border-[var(--brass-line)]"
-                         : "text-[var(--muted)] hover:bg-[var(--elevated)] hover:text-[var(--text)]"
-                     )}
-                     title={groupLabel[uiStore.language as 'en' | 'he'] || groupLabel.en}
-                   >
-                     <Icon aria-hidden="true" size={16} className={cn("shrink-0", isActive ? "text-[var(--brass)]" : "text-[var(--faint)] group-hover:text-[var(--text)]")} strokeWidth={isActive ? 2.5 : 2} />
-                     {uiStore.isSidebarOpen && (
-                       <span className="truncate">
-                         {groupLabel[uiStore.language as 'en' | 'he'] || groupLabel.en}
-                       </span>
-                     )}
-                   </button>
-                 );
-              })}
-            </div>
-         </section>)}
+         <nav aria-label="Daily tools" className="space-y-1">
+           {dailyTabs.map(tab => {
+             const Icon = tab.icon;
+             const label = DAILY_TOOL_LABELS[tab.id][uiStore.language] || DAILY_TOOL_LABELS[tab.id].en;
+             const isActive = activeTab === tab.id;
+             return <button type="button" key={tab.id} aria-label={label} title={label} data-testid={`nav-${tab.id}`} aria-current={isActive ? 'page' : undefined}
+               onClick={() => setActiveTab(tab.id)}
+               className={cn("w-full min-h-11 flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium border", isActive ? "text-[var(--text)] bg-[var(--brass-soft)] border-[var(--brass-line)]" : "text-[var(--muted)] border-transparent hover:bg-[var(--elevated)]")}>
+               <Icon aria-hidden="true" size={16} className="shrink-0" />
+               {uiStore.isSidebarOpen && <span>{label}</span>}
+             </button>;
+           })}
+         </nav>
+         {uiStore.isSidebarOpen && <>
+           <label className="flex items-center gap-2 min-h-11 px-2 text-xs"><input type="checkbox" checked={uiStore.isProMode} onChange={event => uiStore.setProMode(event.target.checked)} />Pro mode</label>
+           {recommendations.length > 0 && <nav aria-label="Recommended tools" className="space-y-1">
+             <p className="text-xs text-[var(--muted)] px-2">More tools for this business</p>
+             {recommendations.map(tab => <button key={tab.id} type="button" className="w-full min-h-11 rounded-lg px-3 text-start text-sm hover:bg-[var(--elevated)]" onClick={() => setActiveTab(tab.id)} aria-current={activeTab === tab.id ? 'page' : undefined}>{tab.label[uiStore.language] || tab.label.en}</button>)}
+           </nav>}
+           <AllToolsMenu key={`${uid}:${currentWorkspaceId}`} onSelect={setActiveTab} />
+         </>}
+         {!uiStore.isSidebarOpen && <button type="button" aria-label="Show all tools" title="Show all tools" className="min-h-11 w-full rounded-lg" onClick={() => uiStore.setSidebarOpen(true)}><LayoutGrid aria-hidden="true" size={16} /></button>}
 
          {/* D-92: projects or account-type balances, named and explained (the old "Worlds" box) */}
          {uiStore.isSidebarOpen && (

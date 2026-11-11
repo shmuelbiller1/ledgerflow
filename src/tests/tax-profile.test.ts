@@ -123,3 +123,49 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     assert.equal(audit.rows[0].n, 2);
   });
 });
+
+describe('#628: nothing tax-related is inherited across a country border', () => {
+  test('the US level of an Israeli holding company gets no Israeli city or VAT number', () => {
+    const us = resolveSellerProfile(profiles, { world: 'us' }, ['world', 'location']);
+    assert.equal(us.name, 'Acme US');
+    assert.deepEqual(us.place, { country: 'US' });
+    assert.equal(us.registrations, undefined);
+    assert.deepEqual(registrationsOn(us, 'vat', '2026-07-10'), []);
+    assert.equal(us.basis, 'accrual', 'the accounting basis still comes from the books');
+    assert.deepEqual(us.from, ['world:us', 'books']);
+    assert.deepEqual(us.otherCountry, ['books']);
+  });
+
+  test('a Texas LLC with no city of its own is not placed in Tel Aviv', () => {
+    const p: TaxProfiles = { books: profiles.books, labels: { 'world:us/texas': { place: { country: 'US', state: 'TX' } } } };
+    assert.deepEqual(resolveSellerProfile(p, { world: 'us/texas' }, ['world']).place, { country: 'US', state: 'TX' });
+  });
+
+  test('the mirror image: an Israeli branch of California books gets no California permit or state', () => {
+    const p: TaxProfiles = {
+      books: { name: 'Acme California LLC', place: { country: 'US', state: 'CA' }, advanceTaxRatePercent: 3,
+        registrations: [{ kind: 'sales_tax', number: 'CA-5555', place: { country: 'US', state: 'CA' } }] },
+      labels: { 'world:il': { name: 'Acme Israel branch', place: { country: 'IL' } } },
+    };
+    const il = resolveSellerProfile(p, { world: 'il' }, ['world']);
+    assert.deepEqual(il.place, { country: 'IL' });
+    assert.equal(il.registrations, undefined);
+    assert.equal(il.advanceTaxRatePercent, undefined);
+  });
+
+  test('inside one country everything inherits as before, and a level that names no country belongs to its parent’s', () => {
+    const eilat = resolveSellerProfile(profiles, { location: 'eilat' }, ['location']);
+    assert.deepEqual(eilat.place, { country: 'IL', city: 'Eilat', district: 'Eilat' });
+    assert.equal(eilat.registrations?.[0].number, '514000000');
+    assert.equal(eilat.otherCountry, undefined);
+    // a child of the US level that names no country is American: it takes the US level's place, not the books'
+    const p: TaxProfiles = { books: profiles.books, labels: { ...profiles.labels, 'world:us/remote': { name: 'Remote team' } } };
+    const remote = resolveSellerProfile(p, { world: 'us/remote' }, ['world']);
+    assert.deepEqual(remote.place, { country: 'US' });
+    assert.equal(remote.registrations, undefined);
+    // country codes compare without regard to case or spaces
+    const mixed: TaxProfiles = { books: { place: { country: 'il', city: 'Haifa' } }, labels: { 'world:x': { place: { country: ' IL ' } } } };
+    assert.equal(resolveSellerProfile(mixed, { world: 'x' }, ['world']).place?.city, 'Haifa');
+  });
+});
+

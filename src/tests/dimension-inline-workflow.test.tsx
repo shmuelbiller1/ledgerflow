@@ -323,8 +323,8 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     assert.match(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /Property 5 Ocean Blvd/);
 
     // Add a brand-new dimension ("Vehicle") inline without leaving the bill
-    fireEvent.click(screen.getByRole('button', { name: 'New dimension' }));
-    const newDimInput = screen.getByLabelText('New dimension name');
+    fireEvent.click(screen.getByRole('button', { name: 'New label' }));
+    const newDimInput = screen.getByLabelText('New label name');
     fireEvent.change(newDimInput, { target: { value: 'Vehicle' } });
     await act(async () => {
       fireEvent.keyDown(newDimInput, { key: 'Enter' });
@@ -348,7 +348,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     const view = render(<LineLabels value={{ property: 'New Spot' }} lineNumber={1} accountId="util" date="2026-05-10" onChange={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Labels for line 1/ }));
     assert.ok(screen.getByRole('button', { name: /Save “New Spot” as Property label/ }));
-    assert.equal(screen.queryByRole('button', { name: 'New dimension' }), null, 'bookkeeper cannot mutate workspaces.dimensions');
+    assert.equal(screen.queryByRole('button', { name: 'New label' }), null, 'bookkeeper cannot mutate workspaces.dimensions');
 
     view.unmount();
     const viewer = setComponentWorkspace('viewer');
@@ -357,7 +357,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     render(<LineLabels value={{ property: 'New Spot' }} lineNumber={1} accountId="util" date="2026-05-10" onChange={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Labels for line 1/ }));
     assert.equal(screen.queryByRole('button', { name: /Save “New Spot”/ }), null);
-    assert.equal(screen.queryByRole('button', { name: 'New dimension' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'New label' }), null);
   });
 
   test('JournalEntryModal offers datalist suggestions, creates new labels inline, and normalizes descriptions to node IDs on commit', async () => {
@@ -388,7 +388,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     );
 
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Accrual by property' } });
-    fireEvent.click(screen.getByLabelText('Show Dimensions'));
+    fireEvent.click(screen.getByLabelText('Show labels'));
 
     // Datalist options for registered nodes exist on Journal Entry dimension inputs
     assert.ok(document.querySelector('#je-dim-list-property-0 option[value="P5"]'));
@@ -521,7 +521,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
         onUpdate={() => {}}
       />,
     );
-    assert.equal(screen.queryByRole('button', { name: 'New dimension' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'New label' }), null);
     assert.equal(screen.queryByRole('button', { name: /Rename Property label/ }), null);
   });
 
@@ -581,7 +581,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
       target: { value: 'Café, Cafe\u0301, תל אביב, תֵּל אָבִיב' },
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Add Node to Property/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Add value to Property/ }));
     });
     await waitFor(() => {
       assert.ok(
@@ -612,10 +612,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     assert.equal(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P5')?.status, 'archived');
 
     // Add a new Dimension Axis -> persists immediately to workspaces with 'store' in p_set.dimensions
-    fireEvent.click(screen.getByRole('button', { name: /Add Dimension Axis/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add label/ }));
     fireEvent.change(screen.getByLabelText('Display Name'), { target: { value: 'Store' } });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Create Axis' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create label' }));
     });
     await waitFor(() => {
       assert.ok(rpcCalls.some(c => c.url.includes('lf_update') && c.body.p_table === 'workspaces'));
@@ -709,7 +709,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     });
     render(<JournalEntryModal isOpen onClose={() => {}} user={{ uid: 'test-user' } as never} accounts={accounts} workspaceId={wsId} />);
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Auto-label journal' } });
-    fireEvent.click(screen.getByLabelText('Show Dimensions'));
+    fireEvent.click(screen.getByLabelText('Show labels'));
     fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'util' } });
     fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '90' } });
     fireEvent.change(screen.getByLabelText('Property for line 1'), { target: { value: 'Tokyo Loft' } });

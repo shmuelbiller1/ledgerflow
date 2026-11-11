@@ -74,3 +74,16 @@ Executed 11 end-to-end Playwright specification files (**35 browser tests total 
 - `e2e/dashboard-widgets.spec.ts` (2/2 passed: desktop 1280px + mobile 390px)
 - `e2e/w10-backup-restore-reports.spec.ts` (2/2 passed: W10 backup -> mutate -> restore exact report figure invariance at 1280px & 390px)
 - `e2e/w4-bank-csv-import-reconcile.spec.ts` (1/1 passed: W4 bank CSV preview & line-by-line import)
+
+---
+
+## 5. Post-Merge Re-Verification After Syncing Upstream `main` (`39b0012`) + Implementing `J-9`
+
+After upstream `shmuelbiller1/ledgerflow` `main` advanced to `39b0012881fdc78edab2479fb62b0b632234aa82` (merging `#623`, `#633`, `#634`, `#635` and adding queue item **`J-9`**), `39b0012` was merged cleanly onto `arena/d3fc43a9-ledgerflow` alongside **`J-9`** (`POST /api/v1/documents/zip` bounded 50-invoice batches + `readStoredZip` + 120-invoice multi-batch test):
+- `npm run lint:types`: **PASS** (`0` errors)
+- `npm run lint:eslint`: **PASS** (`0` errors, `42` warnings)
+- `npm run check:layers`: **PASS** (`4/4`)
+- `npm run build` + `npm run test:bundle`: **PASS**
+- `npm run lint:rule-packs` + `npm run check:tax-tables`: **PASS**
+- 16 focused unit & component suites (`j1`, `j2`, `j5`, `j7`, `j8` [`16/16` incl. `J-9`], `chunk-reload`, `agent11-audit-remediations` [`11/11`], `data-checks`, `sample-business-year`, `tax-profile` [incl. `#628`], `us-quarter-journey` [incl. `#627`], `fx-no-invented-rates`, `business-menu`, `business-presets`, `document-defaults`): **139 pass, 0 fail**
+

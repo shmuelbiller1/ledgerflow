@@ -1,7 +1,7 @@
 /**
  * Required labels (Z-12): a workspace can say that entries on some accounts must carry a label,
  * e.g. "Property is required on Utilities" or "Project is required on Construction". The rule sits
- * on the label's own definition (`requiredOn` in Settings → Dimensions): the accounts, and the day it
+ * on the label's own definition (`requiredOn` in Settings → Labels): the accounts, and the day it
  * applies from, so older entries are not suddenly flagged. Nothing is required unless a rule is set,
  * so simple books see nothing new.
  *
@@ -117,7 +117,7 @@ export function refusedLabels(tx: Transaction, dimensions: DimensionDefinition[]
 /** What the server answers when it refuses: each label and account, and what to do. */
 export function refusedLabelsMessage(missing: MissingLabel[]): string {
   const what = missing.map(m => `${m.dimensionName} on ${m.accountName}`).join(', ');
-  return `This entry needs ${what} (a required label). Add it to the line, or ask an owner or accountant to change the rule in Settings → Dimensions → Required labels.`;
+  return `This entry needs ${what} (a required label). Add it to the line, or ask an owner or accountant to change the rule in Settings → Labels → Required labels.`;
 }
 
 /**

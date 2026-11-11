@@ -1,29 +1,28 @@
 /**
- * J-8 (Agent #11): Settings → Backup & Export → "Download everything for <year>".
+ * J-8 / J-9 (Agent #11): Settings → Backup & Export → "Download everything for <year>".
  *
  * A ZIP of that year's CSV exports plus the PDFs of that year's invoices, for a year-end hand-over to
  * an accountant. It is built only from exports that already exist: the checksum-verified server backup
  * (the same source as the workspace archive, never the browser cache), the shared CSV writer, the
- * existing invoice PDF route and the existing stored-ZIP writer. The plan — which files, which rows —
- * is computed by `planYearArchive` in src/lib/yearEndArchive.ts, so the file list can be tested without
- * a browser.
+ * existing `POST /api/v1/documents/zip` batch PDF route (J-9), `readStoredZip`, and `makeStoredZip`.
+ * The plan — which files, which rows — is computed by `planYearArchive` in src/lib/yearEndArchive.ts,
+ * so the file list can be tested without a browser.
  *
  * Honest limits, said on the screen: the plan is shown before anything downloads; a record with no date
- * is counted, not silently included; failed invoice PDFs are recorded in manifest.json; members, API keys,
- * bank connections and the audit trail are not in the server backup and so are not here either.
+ * is counted, not silently included; members, API keys, bank connections and the audit trail are not in
+ * the server backup and so are not here either.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Archive, Download, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
-import { BRAND } from '../../../config/brand';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getLocalDateISO } from '../../../lib/utils';
+import { BRAND } from '../../../config/brand';
 import { verifiedBackupCollections, makeStoredZip } from '../../../lib/workspaceArchive';
 import type { ZipEntry } from '../../../lib/workspaceArchive';
 import {
-  buildYearArchiveCsvEntries, fetchInvoicePdf, planYearArchive,
-  type YearArchiveFailedPdf, type YearArchivePlan,
+  buildYearArchiveCsvEntries, fetchYearArchivePdfBatches, planYearArchive, withPdfOutcome, type YearArchivePlan,
 } from '../../../lib/yearEndArchive';
 
 const thisYear = () => Number(getLocalDateISO().slice(0, 4));
@@ -41,6 +40,7 @@ function YearEndArchiveExportBody() {
   const [year, setYear] = useState(thisYear);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState('');
   const [plan, setPlan] = useState<YearArchivePlan | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pending = useRef(false);
@@ -48,10 +48,11 @@ function YearEndArchiveExportBody() {
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
-  const stillSameScope = (controller: AbortController, selectedId: string, userUid: string): boolean => {
-    if (controller.signal.aborted || abortRef.current !== controller) return false;
-    const current = useAuthStore.getState();
-    return current.currentWorkspaceId === selectedId && current.user?.uid === userUid;
+  const cancel = () => {
+    abortRef.current?.abort();
+    pending.current = false;
+    setBusy(false);
+    setProgress('');
   };
 
   /** Reads the verified backup and posts the plan, so the owner sees the file list before downloading. */
@@ -61,7 +62,11 @@ function YearEndArchiveExportBody() {
     const selectedId = auth.currentWorkspaceId;
     const user = auth.user;
     if (!selectedId || !user) return;
-    const requestedYear = year;
+    const startedUid = user.uid;
+    const stillSameScope = () => {
+      const live = useAuthStore.getState();
+      return !controller.signal.aborted && live.currentWorkspaceId === selectedId && live.user?.uid === startedUid;
+    };
     pending.current = true;
     setBusy(true);
     setError('');
@@ -69,26 +74,18 @@ function YearEndArchiveExportBody() {
     abortRef.current = controller;
     try {
       const token = await user.getIdToken();
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
       const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`, {
         headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
       });
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
       if (!response.ok) throw new Error('The server backup could not be read, so nothing was planned. No partial archive was made.');
-      const payload = await response.json();
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
-      const collections = await verifiedBackupCollections(payload, selectedId);
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
-      setPlan(planYearArchive(collections, { year: requestedYear }));
+      const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      if (!stillSameScope()) return;
+      setPlan(planYearArchive(collections, { year }));
     } catch (failure) {
-      if (stillSameScope(controller, selectedId, user.uid)) {
-        setError(failure instanceof Error ? failure.message : 'Could not plan the archive.');
-      }
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not plan the archive.');
     } finally {
-      if (abortRef.current === controller) {
-        pending.current = false;
-        if (!controller.signal.aborted) setBusy(false);
-      }
+      pending.current = false;
+      if (!controller.signal.aborted) setBusy(false);
     }
   };
 
@@ -98,7 +95,11 @@ function YearEndArchiveExportBody() {
     const selectedId = auth.currentWorkspaceId;
     const user = auth.user;
     if (!selectedId || !user) return;
-    const requestedYear = year;
+    const startedUid = user.uid;
+    const stillSameScope = () => {
+      const live = useAuthStore.getState();
+      return !controller.signal.aborted && live.currentWorkspaceId === selectedId && live.user?.uid === startedUid;
+    };
     pending.current = true;
     setBusy(true);
     setError('');
@@ -106,71 +107,51 @@ function YearEndArchiveExportBody() {
     abortRef.current = controller;
     try {
       const token = await user.getIdToken();
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
       const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`, {
         headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
       });
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
       if (!response.ok) throw new Error('The server backup could not be read. No incomplete archive was downloaded.');
-      const payload = await response.json();
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
-      const collections = await verifiedBackupCollections(payload, selectedId);
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
-      const current = planYearArchive(collections, { year: requestedYear });
+      const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      if (!stillSameScope()) return;
+      const current = planYearArchive(collections, { year });
+      let entries: ZipEntry[] = buildYearArchiveCsvEntries(collections, current);
 
-      // Fetch the invoices of the year first so manifest.json truthfully records written and failed PDFs.
-      const pdfEntries: ZipEntry[] = [];
-      const failedInvoicePdfs: YearArchiveFailedPdf[] = [];
-      for (const file of current.files) {
-        if (file.kind !== 'pdf' || !file.documentId) continue;
-        if (!stillSameScope(controller, selectedId, user.uid)) return;
-        const blob = await fetchInvoicePdf(selectedId, file.documentId, token, controller.signal);
-        if (!stillSameScope(controller, selectedId, user.uid)) return;
-        if (!blob) {
-          failedInvoicePdfs.push({
-            documentId: file.documentId,
-            documentNumber: file.documentNumber || file.documentId,
-            path: file.path,
-          });
-          continue;
-        }
-        const buffer = await blob.arrayBuffer();
-        if (!stillSameScope(controller, selectedId, user.uid)) return;
-        // raw bytes: a PDF is binary and must not go through the text encoder
-        pdfEntries.push({ path: file.path, bytes: new Uint8Array(buffer) });
-      }
-
-      if (!stillSameScope(controller, selectedId, user.uid)) return;
-      const csvAndManifestEntries = buildYearArchiveCsvEntries(collections, current, {
-        writtenPdfCount: pdfEntries.length,
-        failedInvoicePdfs,
+      // J-9: fetch the year's invoice PDFs in bounded batches via POST /api/v1/documents/zip and unpack with readStoredZip
+      const batchResult = await fetchYearArchivePdfBatches({
+        workspaceId: selectedId,
+        plan: current,
+        getToken: async () => {
+          const live = useAuthStore.getState();
+          if (live.currentWorkspaceId !== selectedId || live.user?.uid !== startedUid || !live.user) {
+            controller.abort();
+            return '';
+          }
+          return live.user.getIdToken();
+        },
+        signal: controller.signal,
+        onProgress: line => { if (stillSameScope()) setProgress(line); },
       });
-      const csvCount = csvAndManifestEntries.length - 1;
-      const entries: ZipEntry[] = [...csvAndManifestEntries, ...pdfEntries];
+
+      // cancelled, workspace changed, or screen closed while reading: download nothing
+      if (batchResult.aborted || !stillSameScope()) return;
+      entries.push(...batchResult.entries);
+      entries = withPdfOutcome(entries, current, batchResult.pdfCount, batchResult.missing);
 
       const blob = makeStoredZip(entries);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${BRAND.fileSlug}-${requestedYear}-archive-${selectedId.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`;
+      link.download = `${BRAND.fileSlug}-${year}-archive-${selectedId.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-      toast.success(
-        `Archived ${requestedYear}: ${csvCount} CSV file(s) and ${pdfEntries.length} invoice PDF(s).${
-          failedInvoicePdfs.length ? ` ${failedInvoicePdfs.length} invoice PDF(s) could not be made and are listed in manifest.json.` : ''
-        }`,
-      );
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(`Archived ${year}: ${entries.length - 1 - batchResult.pdfCount} CSV file(s) and ${batchResult.pdfCount} invoice PDF(s).${batchResult.missing.length ? ` ${batchResult.missing.length} invoice PDF(s) could not be made and are listed in manifest.json.` : ''}`);
     } catch (failure) {
-      if (stillSameScope(controller, selectedId, user.uid)) {
-        setError(failure instanceof Error ? failure.message : 'Could not build the archive.');
-      }
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not build the archive.');
     } finally {
-      if (abortRef.current === controller) {
-        pending.current = false;
-        if (!controller.signal.aborted) setBusy(false);
-      }
+      pending.current = false;
+      if (!controller.signal.aborted) { setBusy(false); setProgress(''); }
     }
   };
 
@@ -189,13 +170,7 @@ function YearEndArchiveExportBody() {
         <div className="space-y-1">
           <label htmlFor="year-archive-year" className="block text-xs font-semibold text-[var(--text)]">Year</label>
           <input id="year-archive-year" type="number" min={1900} max={2200} step={1} value={year}
-            onChange={event => {
-              abortRef.current?.abort();
-              pending.current = false;
-              setBusy(false);
-              setYear(Number(event.target.value));
-              setPlan(null);
-            }}
+            onChange={event => { setYear(Number(event.target.value)); setPlan(null); }}
             className="h-11 w-28 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 text-sm text-[var(--text)]" />
         </div>
         <button type="button" onClick={() => void preview()} disabled={!allowed || busy}
@@ -206,9 +181,16 @@ function YearEndArchiveExportBody() {
           className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-40">
           <Download size={16} aria-hidden="true" /> {busy ? 'Preparing…' : `Download everything for ${year}`}
         </button>
+        {busy && (
+          <button type="button" onClick={cancel}
+            className="flex min-h-11 items-center justify-center rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--text)]">
+            Cancel
+          </button>
+        )}
       </div>
 
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}
+      {progress && <p role="status" className="mb-3 text-xs text-[var(--muted)]">{progress}</p>}
 
       {plan && (
         <div className="space-y-2" aria-live="polite">

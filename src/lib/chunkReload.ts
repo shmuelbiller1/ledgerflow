@@ -1,31 +1,38 @@
-/**
- * After a deploy, an open tab still holds the old index.html and its chunk URLs; opening a lazy screen
- * then fails because that hashed .js file is gone. Reload once so the browser gets the new index,
- * remember in sessionStorage so a genuinely broken file cannot loop, and never auto-reload over an
- * open dialog or dirty form (`hasUnsavedDocumentWork`).
- */
 import { hasUnsavedDocumentWork } from './pwaUpdateManager';
-
-const KEY = 'lf_chunk_reload_at';
-const COOLDOWN_MS = 60_000;
+/**
+ * After a new version is deployed, a tab that is already open still asks for the previous version's
+ * screen files (e.g. /assets/Sales-<oldhash>.js), which no longer exist. The fix is a page reload, which
+ * loads the new version. Done automatically, at most once per 60 seconds, so a file that is truly
+ * broken shows the error instead of reloading in a loop.
+ */
+const KEY = 'ledgerflow_chunk_reload_at';
+const WINDOW_MS = 60_000;
 
 export function isChunkLoadFailure(error: unknown): boolean {
-  const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? '');
-  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk \S+ failed/i.test(msg);
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|error loading dynamically imported module|Unable to preload CSS/i.test(message);
 }
 
-export function reloadOnceForNewVersion(
-  now = Date.now(),
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null = typeof sessionStorage === 'undefined' ? null : sessionStorage,
-  reload: () => void = () => window.location.reload(),
-  hasUnsaved: () => boolean = () => hasUnsavedDocumentWork(),
-): boolean {
-  if (hasUnsaved()) return false;
+/** Reloads the page to pick up the new version; false (no reload) when one was just done. */
+export function reloadOnceForNewVersion(now: number = Date.now(), storage: Pick<Storage, 'getItem' | 'setItem'> | null = safeSession(), reload: () => void = () => window.location.reload()): boolean {
   try {
     const last = Number(storage?.getItem(KEY) || 0);
-    if (last && now - last < COOLDOWN_MS) return false;
+    if (last && now - last < WINDOW_MS) return false;
     storage?.setItem(KEY, String(now));
-  } catch { /* private mode without sessionStorage: still reload once */ }
+  } catch { /* storage blocked: still reload once */ }
   reload();
   return true;
+}
+
+/**
+ * The same reload, but never while the person has unsaved work on screen (an open invoice, a half-filled
+ * form): false then, so the caller shows its own error and the work stays.
+ */
+export function reloadForNewVersionUnlessUnsaved(hasUnsaved: () => boolean = hasUnsavedDocumentWork, reload: () => boolean = reloadOnceForNewVersion): boolean {
+  try { if (hasUnsaved()) return false; } catch { return false; /* cannot tell: keep the work */ }
+  return reload();
+}
+
+function safeSession(): Storage | null {
+  try { return typeof sessionStorage === 'undefined' ? null : sessionStorage; } catch { return null; }
 }
