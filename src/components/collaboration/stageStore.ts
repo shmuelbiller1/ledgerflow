@@ -36,7 +36,7 @@ export const useStageStore = create<StageState>((set, get) => ({
       if (!res.ok) return;
       const data = await res.json();
       set(s => ({ byKey: { ...s.byKey, [key]: { stages: Array.isArray(data.stages) ? data.stages : [], current: data.current || {} } } }));
-    })().catch(() => {});
+    })().catch((err) => { console.warn('[stageStore] Could not load workflow stages:', err); });
   },
   set: async (workspaceId, kind, id, stage) => {
     const sampleSession = guestSession();

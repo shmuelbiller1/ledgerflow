@@ -47,7 +47,7 @@ function useTransactionGridModel() {
   const txActions = useTransactionActions();
   const { updateEntity, deleteEntity } = useEntityOperations();
   const onUpdate = useCallback((id: string, updates: Partial<Transaction>) => txActions?.handleUpdateTransaction ? txActions.handleUpdateTransaction(id, updates) : updateEntity('transactions', id, updates), [txActions, updateEntity]);
-  const onVoid = useCallback((id: string) => deleteEntity('transactions', id), [deleteEntity]);
+  const onVoid = useCallback((id: string) => txActions?.handleVoidTransaction ? txActions.handleVoidTransaction(id) : deleteEntity('transactions', id), [txActions, deleteEntity]);
   const onNewEntry = () => { txActions.handleQuickAdd?.({}); onAction("quick-entry"); };
   const isProMode = useUIStore(s => s.isProMode);
   const isCompactMode = useUIStore(s => s.isCompactMode);

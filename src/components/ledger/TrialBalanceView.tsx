@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { isDebitNatureType } from '../../lib/accountUtils';
 import { ChartAccount } from '../../types';
-import { format, subMonths, endOfMonth, endOfQuarter, subQuarters, subYears, endOfYear } from 'date-fns';
+import { format } from 'date-fns/format';
+import { subMonths } from 'date-fns/subMonths';
+import { endOfMonth } from 'date-fns/endOfMonth';
+import { endOfQuarter } from 'date-fns/endOfQuarter';
+import { subQuarters } from 'date-fns/subQuarters';
+import { subYears } from 'date-fns/subYears';
+import { endOfYear } from 'date-fns/endOfYear';
 import { 
   Scale, CheckCircle2, AlertCircle, Activity, 
   ArrowUpDown, ArrowUp, ArrowDown, Download, 

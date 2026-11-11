@@ -1,6 +1,8 @@
 import React from 'react';
 import { Download, Search, LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
+import { ShowMoreRows } from '../common/ShowMoreRows';
+import { usePagedRows } from '../../hooks/usePagedRows';
 
 export interface ColumnDef<T> {
   key: string;
@@ -64,6 +66,8 @@ export function PartyReportLayout<T>({
   getRowId = (_, i) => String(i),
   sumKeys = [],
 }: PartyReportLayoutProps<T>) {
+  // R-5: a year of rows draws its first page at once; the footer totals and the export keep every row
+  const paged = usePagedRows(data, `${startDate || ''}|${endDate || ''}|${asOfDate || ''}|${searchTerm || ''}`);
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6">
       {/* Header */}
@@ -183,7 +187,7 @@ export function PartyReportLayout<T>({
                   </td>
                 </tr>
               ) : (
-                data.map((item, index) => {
+                paged.visible.map((item, index) => {
                   const rowKey = getRowId(item, index);
                   return (
                     <tr
@@ -223,6 +227,7 @@ export function PartyReportLayout<T>({
               </tfoot>
             )}
           </table>
+          <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="rows" onMore={paged.more} onAll={paged.all} />
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { COUNTED_SALES } from '../taxCodes';
 import { exemptionOn } from '../taxExemption';
-import { registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 import { documentEntityLabels } from './ilVatReturn';
 
 export interface UsSalesDocument extends TaxableDocument {
@@ -44,6 +44,8 @@ export interface UsSalesTaxReturn {
   /** the tax by part, as the invoices saved it ("Texas state sales tax", "Austin") */
   byJurisdiction: Array<{ name: string; taxCents: number }>;
   documentCount: number;
+  /** the invoices counted in this return (credit notes not included): the certificate check uses the same set */
+  invoiceIds: string[];
   /** this seller's US sales in the period with no state recorded: in no state's return until someone adds it */
   unplaced: { documentCount: number; netCents: number; taxCents: number; documents: Array<{ id: string; netCents: number; taxCents: number }> };
 }
@@ -63,7 +65,7 @@ export function usSalesTaxReturn(input: {
   const state = /^sales_tax:US-([A-Z0-9]{1,3})[:-]/.exec(input.registration)?.[1] || '';
   const out: UsSalesTaxReturn = {
     registration: input.registration, state, startDate: input.startDate, endDate: input.endDate,
-    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0,
+    grossSalesCents: 0, exemptSalesCents: 0, taxableSalesCents: 0, taxCollectedCents: 0, byJurisdiction: [], documentCount: 0, invoiceIds: [],
     unplaced: { documentCount: 0, netCents: 0, taxCents: 0, documents: [] },
   };
   const parts = new Map<string, number>();
@@ -78,7 +80,7 @@ export function usSalesTaxReturn(input: {
       const seller = resolveSellerProfile(input.profiles, documentEntityLabels(doc) || (invoice ? documentEntityLabels(invoice) : undefined), input.order);
       if (!registrationsOn(seller, 'sales_tax', date).some(r => registrationKey(r) === input.registration)) continue;
       const customer = doc.customerId ? customers.get(doc.customerId) : undefined;
-      const destination = usSaleDestination(doc, invoice, customer, seller.place?.state);
+      const destination = usSaleDestination(doc, invoice, customer, placeState(seller.place));
       if (destination.abroad) continue; // a sale abroad is in no state
       const buyerState = destination.state;
       if (!buyerState) {
@@ -102,6 +104,7 @@ export function usSalesTaxReturn(input: {
       out.taxCollectedCents += tax;
       for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate));
       out.documentCount++;
+      if (sign === 1) out.invoiceIds.push(String(doc.id));
     }
   };
   add(input.invoices, 1);
@@ -120,12 +123,15 @@ export function usSaleDestination(
   doc: UsSalesDocument, invoice: UsSalesDocument | undefined,
   customer: { metadata?: unknown } | undefined, sellerState: string | undefined,
 ): { abroad: boolean; state: string } {
-  const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => (d?.shippingAddress?.state ? { country: d.shippingAddress.country || 'US', state: d.shippingAddress.state } : undefined);
+  const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => {
+    const st = placeState(d?.shippingAddress);
+    return st ? { country: d?.shippingAddress?.country || 'US', state: st } : undefined;
+  };
   const recorded = [doc.metadata?.taxPlace, shipTo(doc), invoice?.metadata?.taxPlace, shipTo(invoice), (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace]
     .filter((p): p is TaxPlace => Boolean(p));
   const isAbroad = (p: TaxPlace) => String(p.country || '').toUpperCase() !== 'US';
-  const place = recorded.find(p => isAbroad(p) || p.state);
+  const place = recorded.find(p => isAbroad(p) || Boolean(placeState(p)));
   if (place && isAbroad(place)) return { abroad: true, state: '' };
-  return { abroad: false, state: String((place ? place.state : recorded.length ? '' : sellerState) || '').toUpperCase() };
+  return { abroad: false, state: String((place ? placeState(place) : recorded.length ? '' : sellerState) || '').toUpperCase() };
 }
 

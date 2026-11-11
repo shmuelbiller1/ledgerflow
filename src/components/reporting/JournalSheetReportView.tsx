@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import { ShowMoreRows } from '../common/ShowMoreRows';
+import { usePagedRows } from '../../hooks/usePagedRows';
 import { BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -20,6 +22,9 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
     [transactions, accounts, from, to]
   );
   const unbalancedCount = sheet.unbalanced.length;
+  // R-5: the first page draws at once; an unbalanced entry is always drawn, as the header counts it
+  const paged = usePagedRows(sheet.entries, `${from || ''}|${to || ''}`, e => !e.isBalanced);
+  const visible = paged.visible;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="journal-sheet-report">
@@ -56,7 +61,7 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
         </div>
       ) : (
         <div className="space-y-4">
-          {sheet.entries.map(entry => (
+          {visible.map(entry => (
             <div
               key={entry.id}
               className={cn('bg-[var(--panel)] rounded-2xl border p-5', entry.isBalanced ? 'border-[var(--line)]' : 'border-[var(--neg)]')}
@@ -106,6 +111,7 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
               </div>
             </div>
           ))}
+          <ShowMoreRows shown={visible.length} total={paged.total} noun="entries" onMore={paged.more} onAll={paged.all} />
         </div>
       )}
     </div>

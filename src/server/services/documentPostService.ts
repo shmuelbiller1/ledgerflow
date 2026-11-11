@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { itemsExceedTotal } from '../../lib/documentItemsCheck';
-import type { Firestore } from '../db/firestore';
+import { isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import type { RequestUser } from '../auth/requestUser';
 import { postInvoiceLedger } from '../../services/ledgerPost/invoicePosting';
 import { postBillLedger } from '../../services/ledgerPost/billPosting';
@@ -60,7 +60,7 @@ export async function postDocument(db: Firestore, user: RequestUser, input: Docu
     throw new BulkRefusal(403, { error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
   }
   const workspace = (await db.collection('workspaces').doc(workspaceId).get()).data();
-  if (!workspace || (workspace.uid !== user.uid && !(Array.isArray(workspace.members) && workspace.members.includes(user.uid)) && !user.admin)) {
+  if (!isWorkspaceMemberData(workspace, user, workspaceId)) {
     throw new BulkRefusal(403, { error: 'Not a member' });
   }
   // the same key again: the first answer (or 409 for another request under that key), decided by the commit
@@ -75,10 +75,11 @@ export async function postDocument(db: Firestore, user: RequestUser, input: Docu
   // second live posting of the same document is refused at commit (INT-2)
 
   const document: Record<string, unknown> = { ...(existing || {}), ...(action === 'delete' ? {} : input.data), id: docId, workspaceId };
+  const wsRecord = workspace || {};
   // the closing date with the server's own rule (a reopened day included), as the browser checked it before sending: a
   // save by the document's date; a delete by the date of each entry it reverses. The entries' dates are checked again at commit
-  const context: LedgerPostContext = await loadPostingContext(db, { workspaceId, uid: user.uid, collection, docId, document, workspace, lockChecked: true });
-  context.today = agreedPostingDay(context.today || todayIn(workspace.timezone as string | undefined), input.postingDay);
+  const context: LedgerPostContext = await loadPostingContext(db, { workspaceId, uid: user.uid, collection, docId, document, workspace: wsRecord, lockChecked: true });
+  context.today = agreedPostingDay(context.today || todayIn(wsRecord.timezone as string | undefined), input.postingDay);
   const key = DOCUMENT_ENTRY_KEY[collection];
   const dates = action === 'delete'
     ? (context.transactions || []).filter(tx => tx.metadata?.[key] === docId && isPostable(tx) && !tx.metadata?.isReversal).map(tx => String(tx.date))

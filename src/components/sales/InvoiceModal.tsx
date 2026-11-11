@@ -14,7 +14,7 @@ import { isIncomeAccount, isUndepositedFundsAccount, resolveAccountRole } from '
 import { X, Save, Download, Eye } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Invoice, Customer, ChartAccount } from '../../types';
-import { format } from 'date-fns';
+import { format } from 'date-fns/format';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';

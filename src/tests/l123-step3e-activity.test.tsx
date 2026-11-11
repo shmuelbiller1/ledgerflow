@@ -291,8 +291,11 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'L-123 step 3e', currency: 'USD', timezone: 'UTC', members: [OWNER] });
-    await db.pool.query(`insert into public."chartAccounts" (id, data) select a->>'id', a from jsonb_array_elements($1::jsonb) a`, [JSON.stringify(chart(ws))]);
-    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(entries(ws))]);
+    const { withCorruptFixtureAllowed } = await import('./helpers/balanceRouteHarness');
+    await withCorruptFixtureAllowed(db.pool, async client => {
+      await client.query(`insert into public."chartAccounts" (id, data) select a->>'id', a from jsonb_array_elements($1::jsonb) a`, [JSON.stringify(chart(ws))]);
+      await client.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(entries(ws))]);
+    });
   });
 
   after(async () => {

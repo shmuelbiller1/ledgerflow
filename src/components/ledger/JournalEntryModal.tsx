@@ -110,7 +110,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     if (!isOpen || !workspaceId) return;
     let live = true;
     // templates are a convenience: the form works the same without them
-    listJournalTemplates(workspaceId).then(list => { if (live) setTemplates(list); }).catch(() => {});
+    listJournalTemplates(workspaceId).then(list => { if (live) setTemplates(list); }).catch((err) => { console.warn('[JournalEntryModal] Journal templates unavailable:', err); });
     return () => { live = false; };
   }, [isOpen, workspaceId]);
 

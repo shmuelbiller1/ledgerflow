@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { ShowMoreRows } from '../common/ShowMoreRows';
+import { usePagedRows } from '../../hooks/usePagedRows';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -25,9 +27,14 @@ export default function ItemRegisterReportView() {
   const [itemId, setItemId] = useState('');
   const [from, setFrom] = useState(`${getLocalDateISO().slice(0, 4)}-01-01`);
   const [to, setTo] = useState(getLocalDateISO());
-  const nameOf = (id: string) => (items || []).find(i => i.id === id)?.name || '';
-  const rows = side === 'sales' ? salesRegister(invoices || [], nameOf, from, to, itemId) : purchaseRegister(bills || [], nameOf, from, to, itemId);
-  const totals = registerTotals(rows, home);
+  // R-5: one name lookup per line from a map (not a search of every item), and the register computed once per input
+  const rows = useMemo(() => {
+    const names = new Map((items || []).map(i => [i.id, i.name] as const));
+    const nameOf = (id: string) => names.get(id) || '';
+    return side === 'sales' ? salesRegister(invoices || [], nameOf, from, to, itemId) : purchaseRegister(bills || [], nameOf, from, to, itemId);
+  }, [side, items, invoices, bills, from, to, itemId]);
+  const totals = useMemo(() => registerTotals(rows, home), [rows, home]);
+  const paged = usePagedRows(rows, `${side}|${from}|${to}|${itemId}`);
 
   return (
     <section aria-labelledby="item-register-title" className="space-y-4">
@@ -66,7 +73,7 @@ export default function ItemRegisterReportView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
+              {paged.visible.map(r => (
                 <tr key={`${r.documentId}:${r.line}`} className="border-b border-[var(--line)]/50">
                   <td className="py-1 px-2 font-mono text-xs">{formatDate(r.date)}</td>
                   <td className="py-1 px-2">
@@ -93,6 +100,7 @@ export default function ItemRegisterReportView() {
               ))}
             </tfoot>
           </table>
+          <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lines" onMore={paged.more} onAll={paged.all} />
         </div>
       )}
     </section>

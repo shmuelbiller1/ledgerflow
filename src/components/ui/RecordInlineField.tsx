@@ -48,7 +48,7 @@ function ScopedRecordInlineField({ collection, record, documentId, field, label,
   const sameScope = scope?.uid === mountedScope?.uid && scope?.workspaceId === mountedScope?.workspaceId && scope?.sampleSession === mountedScope?.sampleSession;
   return <span className="inline-flex flex-col max-w-full" dir="auto">
     <InlineEdit value={before} label={label} kind={kind} options={options} display={display} placeholder={placeholder} canEdit={canEdit && role !== 'viewer' && sameScope && !saving} suggestions={suggestionsFrom<object>(records, item => inlineFieldValue(item as unknown as Record<string, unknown>, field))} onSave={save} reopenOnFailure={false} />
-    {retry && <span role="alert" className="text-xs text-[var(--negative)]">{retry.message} <bdi>{String(retry.value)}</bdi> <button type="button" disabled={saving || role === 'viewer' || !sameScope} onClick={() => { void save(retry.value).catch(() => {}); }} className="underline">Retry {label}</button> <button type="button" onClick={() => setRetry(undefined)} className="underline">Discard retry</button></span>}
+    {retry && <span role="alert" className="text-xs text-[var(--negative)]">{retry.message} <bdi>{String(retry.value)}</bdi> <button type="button" disabled={saving || role === 'viewer' || !sameScope} onClick={() => { void save(retry.value).catch((err) => { console.warn('[RecordInlineField] Retry failed:', err); }); }} className="underline">Retry {label}</button> <button type="button" onClick={() => setRetry(undefined)} className="underline">Discard retry</button></span>}
   </span>;
 }
 

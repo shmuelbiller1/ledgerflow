@@ -9,7 +9,7 @@
  */
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrationsSql, ruleArrays } from './helpers/migrations';
+import { documentTables, migrationsSql, ruleArrays } from './helpers/migrations';
 import { typesSource as readTypesSource } from './helpers/typesSource';
 
 const typesSource = readTypesSource();
@@ -52,6 +52,20 @@ const TABLES: Record<string, [string, string[]]> = {
   workspaces: ['Workspace', ['numberingSeries', 'retention', 'setupCompletedAt', 'openingBalanceDate', 'branding', 'scheduledReportsSent', 'closeSteps', 'ledgerHealth', 'alerts', 'alertsSent', 'payrollApproval', 'requireTwoStep', 'refuseNegativeStock', 'modules', 'goodsLeaveWith', 'allocationRules', 'priceLists', 'salesReps', 'twoPersonRule', 'roleDashboards', 'approvalDelegates', 'taxProfiles', 'brandingProfiles', 'expensePolicy', 'budgetControl']],
   notifications: ['AppNotification', []],
   purchaseOrders: ['PurchaseOrder', []],
+  invoices: ['Invoice', []],
+  bills: ['Bill', []],
+  estimates: ['Estimate', []],
+  inventory: ['InventoryItem', ['quantityAtHand', 'importBatchId']],
+  recurring: ['RecurringTransaction', []],
+  budgets: ['Budget', []],
+  autoRules: ['AutoRule', []],
+  fixedAssets: ['FixedAsset', []],
+  assets: ['FixedAsset', []],
+  taxRates: ['TaxRate', []],
+  dimensionNodes: ['DimensionNode', []],
+  vendors: ['Vendor', ['importBatchId']],
+  employees: ['Employee', []],
+  partners: ['Partner', []],
 };
 
 // The server saves invoices and bills through zod schemas that drop unknown fields (L-114: the
@@ -76,6 +90,10 @@ describe('Server schemas keep every field the app saves', () => {
 
 describe('Allowed fields match the app model', () => {
   const sql = migrationsSql();
+  test('every document table in public.lf_rules has an explicit allowed_keys allowlist (F-03)', () => {
+    const missing = documentTables(sql).filter(t => !ruleArrays(t, sql).hasExplicitAllowlist);
+    assert.deepEqual(missing, [], `Tables in lf_rules missing allowed_keys: ${missing.join(', ')}`);
+  });
   for (const [table, [model, serverOnly]] of Object.entries(TABLES)) {
     test(`${table}: every ${model} field can be saved`, () => {
       const { allowed } = ruleArrays(table, sql);

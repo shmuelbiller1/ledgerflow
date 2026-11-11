@@ -32,11 +32,11 @@ const populateUserAuth = async (req: express.Request, res: express.Response, nex
 
 invitePublicRouter.use(populateUserAuth);
 
-function sendError(res: express.Response, message: string, status: number = 500, details?: any) {
+function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
   res.status(status).json({
     status: 'error',
     message,
-    ...(details && { details })
+    ...(details ? { details } : {})
   });
 }
 
@@ -59,7 +59,7 @@ invitePublicRouter.get('/:token', async (req, res) => {
     }
 
     const doc = snap.docs[0];
-    const invite = doc.data() as any;
+    const invite = doc.data() as Parameters<typeof verifyInviteTokenSignature>[0] & { status?: string };
 
     if (invite.status !== 'pending') {
       return sendError(res, `Invite has already been ${invite.status}`, 400);
@@ -119,7 +119,7 @@ invitePublicRouter.post('/:token/accept', async (req, res) => {
     }
 
     const inviteDoc = snap.docs[0];
-    const invite = inviteDoc.data() as any;
+    const invite = inviteDoc.data() as Parameters<typeof verifyInviteTokenSignature>[0] & { status?: string };
 
     if (invite.status !== 'pending') {
       return sendError(res, `Invite is no longer pending (currently ${invite.status})`, 400);

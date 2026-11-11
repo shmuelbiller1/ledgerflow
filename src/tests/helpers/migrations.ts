@@ -43,22 +43,27 @@ export function tablesWithRules(sql = migrationsSql()): string[] {
  * A table's allowed keys and immutable keys: the first and second '{...}' arrays of its lf_rules
  * row, plus later migrations' `allowed_keys = allowed_keys || array[...]` (same for immutable_keys).
  */
-export function ruleArrays(table: string, sql = migrationsSql()): { allowed: string[]; immutable: string[] } {
+export function ruleArrays(table: string, sql = migrationsSql()): { allowed: string[]; immutable: string[]; hasExplicitAllowlist: boolean } {
   const row = sql.match(new RegExp(`\\(\\s*'${table}'\\s*,\\s*'\\{([^}]*)\\}'(?:\\s*,\\s*'\\{([^}]*)\\}')?`));
-  if (!row) return { allowed: [], immutable: [] };
   const split = (s?: string) => (s ? s.split(',').map(k => k.trim()).filter(Boolean) : []);
-  const allowed = split(row[1]);
-  const immutable = split(row[2]);
+  const allowed = row ? split(row[1]) : [];
+  const immutable = row ? split(row[2]) : [];
+  let hasExplicitAllowlist = Boolean(row);
   for (const update of sql.matchAll(/update public\.lf_rules\s+set([\s\S]*?)where table_name\s*=\s*'([A-Za-z_][A-Za-z0-9_]*)'/g)) {
     if (update[2] !== table) continue;
+    if (/allowed_keys\s*=\s*'\{\}'/.test(update[1])) {
+      hasExplicitAllowlist = true;
+    }
     const added = (column: string) => {
-      const m = update[1].match(new RegExp(`${column}\\s*=\\s*${column}\\s*\\|\\|\\s*array\\[([\\s\\S]*?)\\]`));
+      const m = update[1].match(new RegExp(`${column}\\s*=\\s*(?:coalesce\\(\\s*${column}\\s*,\\s*'\\{\\}'\\s*\\)|${column})\\s*\\|\\|\\s*array\\[([\\s\\S]*?)\\]`));
       return m ? quotedNames(m[1]) : [];
     };
-    allowed.push(...added('allowed_keys'));
+    const nextAllowed = added('allowed_keys');
+    if (nextAllowed.length > 0) hasExplicitAllowlist = true;
+    allowed.push(...nextAllowed);
     immutable.push(...added('immutable_keys'));
   }
-  return { allowed, immutable };
+  return { allowed, immutable, hasExplicitAllowlist };
 }
 
 /** True when an index covers (workspace_id, (data->>'field')) on the table. */

@@ -244,10 +244,9 @@ export interface InventoryValuation {
 }
 
 /**
- * Inventory Valuation (J-09): every item's quantity on hand at its cost, and the total compared with
- * the Inventory account in the books (posted entries only, lineAmount). Quantities are as of now:
- * items keep no movement history yet (W-02), so the books side follows `asOfDate` and the stock
- * side is today's.
+ * Inventory Valuation (J-09): every item's current quantity on hand at its unit cost, compared with
+ * the Inventory account balance in the books (posted entries only, lineAmount) up to `asOfDate`.
+ * For historical stock-movement reconstruction as of an earlier date, see `src/lib/inventoryAsOf.ts`.
  */
 export function computeInventoryValuation(
   items: Pick<InventoryItem, 'id' | 'name' | 'sku' | 'unitCostCents' | 'quantityAtHand' | 'reorderPoint' | 'category'>[],

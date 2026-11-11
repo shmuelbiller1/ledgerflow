@@ -183,13 +183,22 @@ describe('audit F1/F2: credit postings', { skip: !url }, () => {
         (error: { status?: number }) => error.status === 409);
       const ignored = reversal(`${ws}_ignored`, 'reversedTransactionId');
       await db.collection('transactions').doc(ignored.id).set({ ...ignored, status: 'draft' });
+      const otherWs = `${ws}_other`;
+      for (const l of ignored.lines) {
+        await db.collection('chartAccounts').doc(`${otherWs}_${l.accountId}`).set({ id: `${otherWs}_${l.accountId}`, workspaceId: otherWs, name: 'Other', code: '9999', type: 'asset' });
+      }
       const foreign = reversal(`${ws}_foreign`, 'reversedTransactionId');
-      await db.collection('transactions').doc(foreign.id).set({ ...foreign, workspaceId: `${ws}_other` });
+      await db.collection('transactions').doc(foreign.id).set({
+        ...foreign,
+        workspaceId: otherWs,
+        lines: foreign.lines.map(l => ({ ...l, accountId: `${otherWs}_${l.accountId}` })),
+      });
       try {
         await commit([reversal(`${ws}_valid`)]);
         assert.equal(netOn(await entriesOf(db, ws), `${ws}_ar`), 0);
       } finally {
         await db.collection('transactions').doc(foreign.id).delete();
+        await db.pool.query(`delete from public."chartAccounts" where workspace_id = $1`, [otherWs]);
       }
     });
   });

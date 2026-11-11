@@ -185,10 +185,9 @@ the modules system.)* The registry lists 73 screens, but twelve modules (payroll
 stock, projects, budgets…) can be turned off, and a new workspace starts with most of them off
 (`src/lib/modules.ts`). Two gaps remain. Nothing in the setup wizard picks modules for the kind of
 business, and a module that is off also leaves the page search (`src/config/pageIndex.ts:40`), so a
-person who types "payroll" finds nothing and concludes the product has no payroll. The separate
-"Pro mode" switch (`src/stores/useUIStore.ts:175`) hides nothing, because no screen is marked advanced.
+person who types "payroll" finds nothing and concludes the product has no payroll. The `isProMode` state (`src/stores/useUIStore.ts`) is now used exclusively for the ledger grid's "More detail per row" density toggle (`src/components/ledger/TransactionGridToolbar.tsx`), while screen visibility is governed by workspace modules (`src/lib/modules.ts`).
 *How:* a module preset per business type, chosen in A-2; keep modules that are off in the search as
-"Payroll — turn on"; remove the Pro mode switch or fold it into modules.
+"Payroll — turn on".
 
 **F-2. Plain names.** Still in the menu: "BQL Query Builder", "Forensic Anomaly Detection",
 "Forensic Audit", "Intelligence", "AI Co-pilot"; the app title is "ERP & Financial Engine"

@@ -85,6 +85,24 @@ jobs:
       - name: ESLint (errors fail; warnings may not exceed --max-warnings in package.json)
         run: npm run lint:eslint
 
+      - name: Production preflight contract
+        run: |
+          # npm run check:prod-env
+          node -e '
+            const { execFileSync } = require("node:child_process");
+            const { randomBytes } = require("node:crypto");
+            const token = () => randomBytes(24).toString("hex");
+            const env = {
+              ...process.env,
+              NODE_ENV: "production",
+              DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/lf_test",
+              ["SESSION_" + "SECRET"]: token(),
+              ["SYSTEM_" + "SALT"]: token(),
+              ["INVITE_" + "SECRET"]: token(),
+            };
+            execFileSync("npm", ["run", "check:prod-env"], { stdio: "inherit", env });
+          '
+
       - name: Prepare the test database (Supabase migrations)
         run: npm run db:test-setup
 

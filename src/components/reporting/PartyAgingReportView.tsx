@@ -1,6 +1,8 @@
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGING_BUCKETS, computePartyAging, daysOverdue, emptyAging, outstandingBaseCents, type AgingBucketKey, type PartyAgingRow } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
@@ -36,7 +38,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   useLedgerCollections('bills', 'customers', 'invoices', 'vendors');
   // N-12: the documents behind an aging row open themselves, add up to the row, and say when the list is partial
   const openRecord = useUIStore(s => s.openRecord);
-  const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills']));
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills'] || s.truncatedCollections?.[side === 'customer' ? 'customers' : 'vendors']));
 
   const parties = isCustomer ? rawCustomers : rawVendors;
   const documents = isCustomer ? rawInvoices : rawBills;
@@ -48,10 +51,18 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const [sortBy, setSortBy] = useState<'partyName' | AgingBucketKey | 'total'>('partyName');
   const today = getLocalDateISO();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const agingUrl = workspaceId ? `/api/v1/reports/party-aging?${new URLSearchParams({ workspaceId, side, asOfDate: today })}` : '';
+  const serverRows = useServerOperationalReport<PartyAgingRow[]>(
+    docsPartial && Boolean(workspaceId),
+    agingUrl,
+    `${workspaceId}:${side}:${today}:${collectionStamp(parties, documents)}`,
+    body => (Array.isArray(body.rows) ? (body.rows as PartyAgingRow[]) : undefined),
+  );
 
   // open documents with something still owed (src/lib/aging.ts, shared with the /aging API; L-159)
   const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side) > 0), [documents, side]);
-  const agingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
+  const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
+  const agingRows = serverRows || localAgingRows;
 
   // Search filter and Sorting
   const sortedAndFilteredRows = useMemo(() => {

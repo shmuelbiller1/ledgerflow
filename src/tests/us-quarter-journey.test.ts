@@ -402,8 +402,12 @@ test('#627: moving the customer does not change a past sale’s certificate chec
   assert.equal(certStep(saved, movedToTx, caProfiles).status, 'not-applicable', 'the customer moved; the sale did not');
   // the ship-to state decides when no place was saved
   assert.equal(certStep(sale({ shippingAddress: { state: 'CA' } } as Partial<UsSalesDocument>), movedToTx, caProfiles).status, 'not-applicable');
-  // with nothing saved on the sale, the customer's place today is the only record: Texas taxes digital goods
-  assert.equal(certStep(sale({}), movedToTx, caProfiles).figures.find(f => f.label === 'Certificate missing')!.count, 1);
+  // with nothing saved on the sale, the customer's place today is the only record: Texas. The books hold a
+  // California permit only, so no state return counts this Texas sale and no certificate is asked for here (#644)
+  assert.equal(certStep(sale({}), movedToTx, caProfiles).status, 'not-applicable');
+  // with a Texas permit too, the Texas return counts it, and Texas taxes digital goods: the certificate is missing
+  const caTx: TaxProfiles = { ...caProfiles, books: { ...caProfiles.books!, registrations: [...caProfiles.books!.registrations!, { kind: 'sales_tax', number: 'TX-1', place: { country: 'US', state: 'TX' } }] } };
+  assert.equal(certStep(sale({}), movedToTx, caTx).figures.find(f => f.label === 'Certificate missing')!.count, 1);
   // no place anywhere: over the counter at the seller's own state (California: exempt by product)
   assert.equal(certStep(sale({}), [], caProfiles).status, 'not-applicable');
 });

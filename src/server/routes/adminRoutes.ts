@@ -8,8 +8,7 @@ import { AdminUserUpdateSchema, AdminWorkspaceUpdateSchema, AdminGlobalConfigSch
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
 import { getDb } from "../db/firestore";
 import type { Transaction } from "../db/firestore";
-import { verifyIdToken, authAdmin } from "../auth/supabaseAuth";
-import type { DecodedIdToken } from "../auth/supabaseAuth";
+import { authAdmin } from "../auth/supabaseAuth";
 import { processAllRecurring } from "../services/recurringService";
 import { processErrorDigest } from "../services/errorDigestService";
 import { 
@@ -18,7 +17,7 @@ import {
   deriveScopedOperationKey,
   requestPayloadHash,
 } from "../utils/idempotency";
-import { isSystemJobAuthorized } from "../auth/systemJobAuth";
+import { requireSystemJobOrAdmin } from "../auth/systemJobAuth";
 import { registerGiveAccessRoutes } from "./giveAccessRoutes";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
@@ -335,29 +334,8 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
   });
 
   // Scheduled Recurring Processing Endpoint (Authenticated via Admin or System Secret)
-  app.post("/api/v1/system/recurring/process", async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/system/recurring/process", requireSystemJobOrAdmin, async (_req: express.Request, res: express.Response) => {
     try {
-      const cronSecret = process.env.CRON_SECRET;
-      const providedSecret = req.headers["x-cron-secret"] as string;
-      const authHeader = req.headers.authorization;
-
-      let decodedToken: DecodedIdToken | null = null;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.split("Bearer ")[1];
-        try {
-          decodedToken = await verifyIdToken(token);
-        } catch {
-          decodedToken = null;
-        }
-      }
-
-      if (!isSystemJobAuthorized(decodedToken, providedSecret, cronSecret)) {
-        return res.status(403).json({ 
-          status: "error", 
-          message: "Forbidden: Requires admin authorization or valid cron secret." 
-        });
-      }
-
       const result = await processAllRecurring();
       res.json({ status: "success", data: result });
     } catch (err) {
@@ -367,29 +345,8 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
   });
 
   // System Telemetry Error Digest Endpoint (Scheduled cron or admin manual trigger)
-  app.post("/api/v1/system/telemetry/errors/digest", async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/system/telemetry/errors/digest", requireSystemJobOrAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      const cronSecret = process.env.CRON_SECRET;
-      const providedSecret = req.headers["x-cron-secret"] as string;
-      const authHeader = req.headers.authorization;
-
-      let decodedToken: DecodedIdToken | null = null;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.split("Bearer ")[1];
-        try {
-          decodedToken = await verifyIdToken(token);
-        } catch {
-          decodedToken = null;
-        }
-      }
-
-      if (!isSystemJobAuthorized(decodedToken, providedSecret, cronSecret)) {
-        return res.status(403).json({ 
-          status: "error", 
-          message: "Forbidden: Requires admin authorization or valid cron secret." 
-        });
-      }
-
       const hoursBack = req.body?.hoursBack ? Number(req.body.hoursBack) : 24;
       const recipientEmail = req.body?.recipientEmail ? String(req.body.recipientEmail) : undefined;
       const forceSendZero = Boolean(req.body?.forceSendZero);
@@ -468,7 +425,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
     }
   });
 
-  app.post("/api/v1/admin/integrity/orphan-scan", authenticate, async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/admin/integrity/orphan-scan", authenticate, requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const authReq = req as AuthenticatedRequest;
       const workspaceId = (req.body.workspaceId as string) || (authReq.query?.workspaceId as string) || authReq.user?.developerWorkspaceId;

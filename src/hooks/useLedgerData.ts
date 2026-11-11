@@ -6,7 +6,6 @@ import {
   onSnapshot, 
   doc, 
   setDoc,
-  addDoc,
   limit,
   orderBy,
   getDocs
@@ -159,18 +158,17 @@ export function useLedgerData() {
   useEffect(() => {
     if (!userUid || !currentWorkspaceId) return;
 
-    // Login Audit
+    // Login Audit (server-authoritative: writes both loginAudits and workspace auditLogs USER_LOGIN)
     const sessionLoginKey = `login_logged_${currentWorkspaceId}_${userUid}`;
     if (!sessionStorage.getItem(sessionLoginKey)) {
       sessionStorage.setItem(sessionLoginKey, 'true');
-      void addDoc(collection(db, 'auditLogs'), {
-        action: 'USER_LOGIN',
-        details: { description: 'User authenticated and entered workspace session' },
-        severity: 'info',
-        uid: userUid,
-        userEmail: useAuthStore.getState().user?.email,
-        workspaceId: currentWorkspaceId,
-        timestamp: new Date().toISOString()
+      void getIdToken().then(token => {
+        if (!token) return;
+        return fetch('/api/v1/auth/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ event: 'login', workspaceId: currentWorkspaceId }),
+        });
       }).catch(err => console.error('Failed to write login audit:', err));
     }
 
@@ -378,7 +376,7 @@ function subscribeLedgerCollection(key: LedgerKey, workspaceId: string, onFailed
     useLedgerStore.getState().setEntriesClosedThrough(next);
     stop = subscribeLedgerQuery(key, workspaceId, next, onFailed);
   });
-  const recheck = setInterval(() => { void start().catch(() => {}); }, CLOSED_THROUGH_RECHECK_MS);
+  const recheck = setInterval(() => { void start().catch((err) => { console.warn('[useLedgerData] Closed-through recheck failed:', err); }); }, CLOSED_THROUGH_RECHECK_MS);
   void start().catch(err => {
     // a subscription that could not start is a failed load, with "Try again" in the data status bar
     if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
