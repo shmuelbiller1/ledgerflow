@@ -12,6 +12,7 @@ import DocumentLineEditor, { type InvoiceEditorLine } from '../components/common
 import { bundleInvoiceLines } from '../lib/itemBundles';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import type { InventoryItem } from '../types';
 
 afterEach(() => { cleanup(); useLedgerStore.setState({ truncatedCollections: {} }); });
@@ -65,4 +66,9 @@ test('BF-03 review: a count that is not a whole number of bundles, or an incompl
   }
   useLedgerStore.setState({ truncatedCollections: { inventory: true } });
   assert.deepEqual(typeBundle(2).map(l => l.itemId), [undefined], 'a capped inventory list');
+});
+
+test('BF-03 review: while the item list is still loading, the bundle line is left as it was', () => {
+  useDataNeedsStore.setState({ loaded: {} });
+  assert.deepEqual(typeBundle(2, 'sales', false).map(l => l.itemId), [undefined], 'inventory not loaded yet');
 });

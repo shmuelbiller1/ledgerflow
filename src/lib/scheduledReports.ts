@@ -30,6 +30,11 @@ export interface ScheduledReport {
   frequency: ReportFrequency;
   /** who gets it: up to 10 addresses */
   recipients: string[];
+  /**
+   * C-86: the day it is sent — weekly 1–7 (Monday–Sunday), monthly 1–28 (28 so every month has it). Unset is the
+   * first day (Monday, the 1st), as schedules saved before the choice existed are sent.
+   */
+  sendDay?: number;
 }
 
 export const MAX_SCHEDULES = 10;
@@ -39,6 +44,9 @@ export const MAX_RECIPIENTS = 10;
 export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
   if (!s.report || !Object.hasOwn(SCHEDULED_REPORTS, s.report)) return 'Choose a report';
   if (s.frequency !== 'weekly' && s.frequency !== 'monthly') return 'Choose weekly or monthly';
+  if (s.sendDay !== undefined && !(Number.isInteger(s.sendDay) && s.sendDay >= 1 && s.sendDay <= maxSendDay(s.frequency))) {
+    return s.frequency === 'weekly' ? 'Choose a day of the week' : 'Choose a day from 1 to 28';
+  }
   const recipients = s.recipients || [];
   if (!recipients.length) return 'Add at least one email address';
   if (recipients.length > MAX_RECIPIENTS) return `At most ${MAX_RECIPIENTS} addresses`;
@@ -76,6 +84,32 @@ export function lastFinishedPeriod(frequency: ReportFrequency, today: string): R
   const startDate = addToDateISO(thisMonday, { days: -7 });
   const endDate = addToDateISO(thisMonday, { days: -1 });
   return { key: `W:${startDate}`, startDate, endDate, label: `${startDate} – ${endDate}` };
+}
+
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+const maxSendDay = (frequency: ReportFrequency) => (frequency === 'weekly' ? 7 : 28);
+
+/** 1 = Monday … 7 = Sunday, from the civil date (2024-01-01 was a Monday). */
+function isoWeekday(day: string): number {
+  const days = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse('2024-01-01T00:00:00Z')) / 86_400_000);
+  return (((days % 7) + 7) % 7) + 1;
+}
+
+/**
+ * C-86: whether the daily run sends the last finished period on `today`: from the chosen day of this week or month
+ * on (a missed run sends it the next day; the period key keeps it to once).
+ */
+export function isSendDue(s: Pick<ScheduledReport, 'frequency' | 'sendDay'>, today: string): boolean {
+  const day = s.sendDay ?? 1;
+  return s.frequency === 'weekly' ? isoWeekday(today) >= day : Number(today.slice(8, 10)) >= day;
+}
+
+/** "every Tuesday", "on the 15th of each month". */
+export function sendDayLabel(s: Pick<ScheduledReport, 'frequency' | 'sendDay'>): string {
+  const day = s.sendDay ?? 1;
+  if (s.frequency === 'weekly') return `every ${WEEKDAYS[day - 1]}`;
+  const suffix = day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th';
+  return `on the ${day}${suffix} of each month`;
 }
 
 /** The table a report is sent as: rows of text and cents; `strong` rows are totals. */

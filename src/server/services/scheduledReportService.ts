@@ -5,7 +5,7 @@ import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
 import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
 import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
-  agingTable, balanceSheetTable, lastFinishedPeriod, profitAndLossTable, reportCsv, reportEmailHtml,
+  agingTable, balanceSheetTable, isSendDue, lastFinishedPeriod, profitAndLossTable, reportCsv, reportEmailHtml,
   scheduleParts, scheduleProblem, SCHEDULED_REPORTS, type ReportPeriod, type ReportTable, type ScheduledReport,
 } from '../../lib/scheduledReports';
 import type { ChartAccount, Customer, Invoice, Transaction } from '../../types';
@@ -191,7 +191,9 @@ export async function runWorkspaceSchedules(db: Firestore, workspaceId: string, 
   const schedules = Array.isArray(ws.scheduledReports) ? ws.scheduledReports : [];
   for (const schedule of schedules) {
     if (!schedule?.id || scheduleProblem(schedule)) continue;
-    const period = lastFinishedPeriod(schedule.frequency, today(ws, now));
+    const day = today(ws, now);
+    if (!isSendDue(schedule, day)) continue; // C-86: not yet this week's or month's day
+    const period = lastFinishedPeriod(schedule.frequency, day);
     if (ws.scheduledReportsSent?.[schedule.id] === period.key) continue;
     const claim = await claimDelivery(db, workspaceId, schedule.id, period.key, now);
     if (!claim) continue;
