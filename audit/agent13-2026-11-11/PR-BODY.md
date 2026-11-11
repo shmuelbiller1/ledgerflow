@@ -49,3 +49,16 @@ Independent arithmetic on the sample year: double entry (0 unbalanced of 1,238),
 `tsc` clean · ESLint **0 errors / 42 warnings** (cap unchanged) · `npm run build` pass · new tests **4/4** and **1/1** · close/fx neighbours **51/51** · the A-229 cold module-preload leg is red **in this sandbox** (2,329 ms vs 1,500 ms) exactly as `CURRENT_WORK.md` records for unmodified `main` (the ten screens it imports are untouched by this diff) · full unit suite result in the PR comments. No local Postgres, so DB/RLS and browser gates were not run.
 
 Evidence and register: [`audit/agent13-2026-11-11/FINDINGS.md`](audit/agent13-2026-11-11/FINDINGS.md) · checkpoint: `audit/agent13-2026-11-11/01-CHECKPOINT.md`.
+
+## Results (final, 11 Nov end of session)
+
+| Gate | Result |
+|---|---|
+| CI on `42b10bb` (this PR's head, then `587d024` docs-only) | **21/21 green** — Unit tests 1-4/4 · Pacific/Auckland 1-3/3 · America/Los_Angeles 1-3/3 · **Browser shards 1-5/5** · Lint, Typecheck and **Database rules** · Production build · Playwright E2E Smoke · CodeQL ×2 · CycloneDX SBOM |
+| Full local unit suite | **4,659 tests · 4,653 pass · 1 fail · 5 skipped** (17m30s) |
+| The one failure | A-229's cold-module-preload leg: **1,521.74 ms vs a 1,500 ms budget** (`report-speed-12m.test.tsx:258`). It read 2,329 ms in an earlier run on the same host, and `CURRENT_WORK.md` records this leg as a machine artefact on unmodified `main`; the ten screens it times do not import anything this PR changes. Not fixed by raising a budget. |
+| `tsc` / ESLint / build | 0 errors / 0 errors + **42 warnings** (cap unchanged) / pass |
+| New and neighbouring suites | `close-checklist-statuses` 4/4 · `report-speed-all-views` 1/1 · close/FX neighbours 51/51 · `af13-008` probe 1/1 |
+| **SonarQube Cloud** | **Not green** — "The last analysis has failed". Cause unknown from this sandbox (sonarcloud.io unreachable). The same message is on upstream #626, i.e. the base commit, while #625/#610 passed. **Owner/AI #1: read the dashboard before merging; the 21 green checks do not cover this.** |
+
+Nothing in this PR merges itself, and no money, posting, tax, `src/server/`, migration, schema, test-input, baseline or warning-cap file is touched. **AI #1 merges.**
