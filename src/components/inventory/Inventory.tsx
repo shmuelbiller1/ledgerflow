@@ -38,7 +38,8 @@ import {
   addDoc, 
   deleteDoc, 
   doc,
-  updateDoc
+  updateDoc,
+  deleteField
 } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { InventoryItem } from '../../types';
@@ -157,7 +158,6 @@ export default function Inventory() {
 
     const formData = new FormData(e.currentTarget);
     const updates: Partial<InventoryItem> = {
-      metadata: defaultsMetadata(editingItem.metadata, cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')))),
       name: formData.get('name') as string,
       sku: formData.get('sku') as string,
       description: formData.get('description') as string,
@@ -172,7 +172,7 @@ export default function Inventory() {
       // BF-01: an item with stock on hand stays a stock item
       itemType: formData.get('itemType') === 'service' && !editingItem.quantityAtHand ? 'service' : (editingItem.quantityAtHand ? editingItem.itemType || 'stock' : 'stock'),
       // A-7 (CA-16): the default tax code an invoice line for this item fills in
-      defaultTaxCodeId: (formData.get('defaultTaxCodeId') as string) || undefined,
+
       // A-30: the item tax category the state taxability table reads
       productTaxCategory: (formData.get('productTaxCategory') as string) || undefined,
       // A-19: the bundle's parts (empty = an ordinary item)
@@ -186,7 +186,13 @@ export default function Inventory() {
     };
 
     try {
-      await updateDoc(doc(db, 'inventory', editingItem.id), updates);
+      const defaults = cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')));
+      await updateDoc(doc(db, 'inventory', editingItem.id), {
+        ...updates,
+        // Atomic nested update: notes/images edited beside this form must not be replaced by its old metadata.
+        'metadata.documentDefaults': Object.keys(defaults).length ? defaults : deleteField(),
+        defaultTaxCodeId: String(formData.get('defaultTaxCodeId') || '') || deleteField(),
+      });
       setEditingItem(null);
       toast.success('Inventory item updated');
     } catch {

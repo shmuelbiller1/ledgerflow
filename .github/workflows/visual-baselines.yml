@@ -62,7 +62,7 @@ jobs:
       - name: Push candidates to a review branch (never main)
         if: success()
         env:
-          BRANCH: visual-baselines/${{ github.run_id }}
+          BRANCH: arena/d0525a93-ledgerflow
           # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
           SCREENS: ${{ inputs.screens }}
         run: |

@@ -26,6 +26,6 @@ export function useDocumentDefaults(documentId: string | undefined, isOpen: bool
     markTax: () => { current().taxEdited = true; },
     taxAvailable: () => !current().taxEdited && !documentId,
     fill: <L extends { id: string; accountId: string; dimensions?: Record<string, string> }>(line: L, defaults: DocumentDefaults): L =>
-      fillLineDefaults(line, availableDocumentDefaults(defaults, axes, nodes), accounts, current().fields.get(line.id)),
+      documentId ? line : fillLineDefaults(line, availableDocumentDefaults(defaults, axes, nodes), accounts, current().fields.get(line.id)),
   };
 }

@@ -45,7 +45,16 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
   const { dialogProps: itemDialogProps, titleId: itemTitleId } = useDialog(onClose, open);
   // A-19: the bundle's parts, held here and written into the form as JSON. The parent keys this
   // dialog by item id, so switching items gives fresh state without an effect.
-  const [documentDefaults, setDocumentDefaults] = useState(() => documentDefaultsOf(editingItem));
+  const itemDefaults = () => {
+    const { taxCodeId: _tax, ...hints } = documentDefaultsOf(editingItem);
+    return hints; // Tax has its own existing form field; never retain a hidden duplicate.
+  };
+  const [documentDefaults, setDocumentDefaults] = useState(itemDefaults);
+  const [defaultsSource, setDefaultsSource] = useState({ open, item: editingItem });
+  if (open !== defaultsSource.open || editingItem !== defaultsSource.item) {
+    setDefaultsSource({ open, item: editingItem });
+    setDocumentDefaults(itemDefaults());
+  }
   const [parts, setParts] = useState<BundlePart[]>(editingItem?.bundleParts || []);
   const [partToAdd, setPartToAdd] = useState('');
   const [partQuantity, setPartQuantity] = useState('1');

@@ -2,15 +2,17 @@ import './helpers/dom';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { stubFetchWithBodies } from './helpers/dom';
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { makeChartAccount, makeCustomer, makeVendor } from './fixtures';
+import { useDocumentDefaults } from '../hooks/useDocumentDefaults';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import InvoiceModal from '../components/sales/InvoiceModal';
 import BillModal from '../components/purchases/BillModal';
 import PartyModal, { type PartyFields } from '../components/common/PartyModal';
+import Inventory from '../components/inventory/Inventory';
 import InventoryItemDialog from '../components/inventory/InventoryItemDialog';
 import type { InventoryItem } from '../types';
 
@@ -53,8 +55,10 @@ test('party defaults fill empty invoice fields and new lines; preserve typed and
 test('existing invoice party selection does not introduce defaults or change its tax', () => {
   render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={customers} accounts={accounts} initialInvoice={{ id: 'saved', customerId: 'c', customerName: 'Client', items: [{ id: 'l', description: 'Original', quantity: 1, rateCents: 100, amountCents: 100, accountId: '' }] }} />);
   change('Customer', 'Client');
+  change('Item / Description', 'Service');
   assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, '');
   assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
+  assert.doesNotMatch(screen.getByRole('button', { name: /Labels for line 1/ }).textContent || '', /P1/);
 });
 test('service item fills defaults without linking stock or booking stock cost; saved labels travel on line', async () => {
   const saved: Array<{ items?: unknown[] }> = [];
@@ -101,5 +105,49 @@ test('inventory dialog submits account and labels as a form field; tax keeps its
   const form = screen.getByLabelText('Default account').closest('form')!;
   const hidden = form.querySelector<HTMLInputElement>('[name="documentDefaults"]')!;
   assert.equal(JSON.parse(hidden.value).accountId, 'exp');
+  assert.equal('taxCodeId' in JSON.parse(hidden.value), false, 'the existing tax field is the only item tax source');
   assert.ok(form.querySelector('[name="defaultTaxCodeId"]'));
+});
+
+
+test('inventory update writes only the defaults metadata path, preserving concurrently changed notes', async () => {
+  const originalFormData = globalThis.FormData;
+  globalThis.FormData = window.FormData;
+  try {
+  const calls = stubFetchWithBodies(200, [{ id: item.id, data: { ...item, metadata: { recordNotes: [{ text: 'New note' }] } } }]);
+  render(<Inventory />);
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Edit item Service' })));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item Service' }));
+  change('Default account', 'exp');
+  change('Default tax code', '');
+  await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Update Item' }).closest('form')!); });
+  await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
+  const body = calls.find(c => c.url.includes('lf_update'))!.body as { p_set: Record<string, unknown>; p_unset: string[] };
+  assert.deepEqual(body.p_set['metadata.documentDefaults'], { accountId: 'exp' });
+  assert.equal('metadata' in body.p_set, false, 'never replace notes with stale metadata');
+  assert.ok(body.p_unset.includes('defaultTaxCodeId'), 'explicitly clearing item tax removes its old field');
+  } finally { globalThis.FormData = originalFormData; }
+});
+test('cancelled item defaults do not leak to the next new item', () => {
+  const props = { editingItem: null, categories: [], canChangeStock: true, onClose: () => {}, onSubmit: () => {}, onAdjust: () => {} };
+  const { rerender } = render(<InventoryItemDialog {...props} open />);
+  change('Default account', 'exp');
+  rerender(<InventoryItemDialog {...props} open={false} />);
+  rerender(<InventoryItemDialog {...props} open />);
+  assert.equal((screen.getByLabelText('Default account') as HTMLSelectElement).value, '');
+});
+
+
+test('default edit markers reset on reopening and workspace identity changes', async () => {
+  const { result, rerender } = renderHook(({ open }) => useDocumentDefaults(undefined, open, accounts), { initialProps: { open: true } });
+  const line = { id: 'l', accountId: '' };
+  result.current.mark('l', 'account'); result.current.markTax();
+  assert.equal(result.current.taxAvailable(), false);
+  assert.equal(result.current.fill(line, { accountId: 'rev' }).accountId, '');
+  rerender({ open: false }); rerender({ open: true });
+  assert.equal(result.current.taxAvailable(), true);
+  assert.equal(result.current.fill(line, { accountId: 'rev' }).accountId, 'rev');
+  result.current.markTax();
+  await act(async () => { useAuthStore.setState({ currentWorkspaceId: 'different-workspace' }); });
+  assert.equal(result.current.taxAvailable(), true);
 });
