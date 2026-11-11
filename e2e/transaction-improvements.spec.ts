@@ -1,3 +1,4 @@
+import { openTool } from './support/openTool';
 import { test, expect } from '@playwright/test';
 
 test.describe('Transaction List Improvements Suite', () => {
@@ -25,8 +26,7 @@ test.describe('Transaction List Improvements Suite', () => {
 
   test('Filtered totals bar displays and updates upon filtering, and attachment badge renders on transaction with fileUrls', async ({ page }) => {
     // Navigate to Transactions screen
-    const txNav = page.locator('[data-testid="nav-transactions"]');
-    await txNav.first().click();
+    await openTool(page, 'Transactions');
 
     // Wait for the Transaction Grid and Filtered Totals bar
     const totalsBar = page.locator('[data-testid="filtered-totals-bar"]');
@@ -112,8 +112,7 @@ test.describe('Transaction List Improvements Suite', () => {
   });
 
   test('Tabular figures (tabular-nums) class is present on transaction amounts', async ({ page }) => {
-    const txNav = page.locator('[data-testid="nav-transactions"]');
-    await txNav.first().click();
+    await openTool(page, 'Transactions');
 
     await page.waitForSelector('[data-testid="filtered-totals-bar"]', { timeout: 15000 });
 
