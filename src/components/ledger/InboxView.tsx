@@ -1,32 +1,57 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare } from 'lucide-react';
+import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare, Layers, Calculator } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { getIdToken } from '../../firebase';
-import { toast } from 'sonner';
 import { HandOver } from '../collaboration/HandOver';
 import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
+import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import {
+  buildConnectedAlgorithmSignals,
+  evaluateCalibratedAutoPost,
+  groupSimilarUnreviewedLines,
+  tryEvaluateAmountInput,
+} from '../../lib/practiceAutomation';
 
 export default function InboxView() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   // BG-05: who has each entry, and "Give to…" (a task about it)
   const hand = useHandOvers();
   const entry = (t: { id: string; date: string; description?: string }) => ({ type: 'transaction' as const, id: t.id, label: `Entry ${t.date} · ${t.description || ''}`.trim() });
 
   const [showAllHighConfidence, setShowAllHighConfidence] = useState(false);
+  const [exprInput, setExprInput] = useState('');
+  const exprResult = useMemo(() => (exprInput.trim() ? tryEvaluateAmountInput(exprInput) : null), [exprInput]);
+
+  const historicalPosted = useMemo(
+    () => transactions.filter(t => t.status !== 'pending' && t.status !== 'draft' && t.status !== 'void'),
+    [transactions],
+  );
+
   const pendingTransactions = useMemo(() => 
     transactions.filter(t => !isPostable(t) && !t.deletedAt && (t.status === 'pending' || t.status === 'draft'))
       .map(t => {
-        // Compute confidence deterministically based on line categorization & metadata
         const line = t.lines[0];
+        const calibration = evaluateCalibratedAutoPost(
+          {
+            payee: t.payee,
+            description: t.description,
+            suggestedAccountId: line?.accountId,
+            suggestedAccountName: line?.accountName,
+          },
+          historicalPosted,
+        );
         let baseConfidence = line?.confidence;
         if (baseConfidence === undefined) {
-          if (line?.accountId && line.accountId !== 'uncategorized' && line.accountId !== 'unassigned') {
+          if (calibration.decision === 'auto_post') {
+            baseConfidence = 99;
+          } else if (line?.accountId && line.accountId !== 'uncategorized' && line.accountId !== 'unassigned') {
             baseConfidence = 92;
           } else if (line?.category && line.category !== 'Uncategorized') {
             baseConfidence = 75;
@@ -34,19 +59,28 @@ export default function InboxView() {
             baseConfidence = 45;
           }
         }
-        return { ...t, uiConfidence: baseConfidence };
+        return { ...t, uiConfidence: baseConfidence, calibration };
       })
       .sort((a, b) => b.uiConfidence - a.uiConfidence)
-  , [transactions]);
+  , [transactions, historicalPosted]);
 
-  useState<Set<string>>(new Set());
+  const similarClusters = useMemo(
+    () => groupSimilarUnreviewedLines(pendingTransactions, transactions).filter(c => c.count >= 2),
+    [pendingTransactions, transactions],
+  );
 
+  const connectedSignals = useMemo(
+    () => buildConnectedAlgorithmSignals({ transactions: historicalPosted }),
+    [historicalPosted],
+  );
+
+  const calibratedReady = pendingTransactions.filter(t => t.calibration.decision === 'auto_post');
   const highConfidence = pendingTransactions.filter(t => t.uiConfidence >= 90);
   const mediumConfidence = pendingTransactions.filter(t => t.uiConfidence >= 60 && t.uiConfidence < 90);
   const lowConfidence = pendingTransactions.filter(t => t.uiConfidence < 60);
 
   const _handleCategorize = async (transactionIds: string[], category: string, targetAccountId?: string) => {
-    // Find matching chart account
+    if (!currentWorkspaceId || transactionIds.length === 0) return;
     let resolvedAcc = accounts.find(a => a.id === targetAccountId);
     if (!resolvedAcc && category) {
       const lowerCat = category.toLowerCase();
@@ -56,9 +90,9 @@ export default function InboxView() {
       );
     }
     if (!resolvedAcc) {
-      // Fallback to first expense account or standard chart account
       resolvedAcc = accounts.find(a => a.type === 'expense') || accounts[0];
     }
+    if (!resolvedAcc) return;
 
     const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     for (const id of transactionIds) {
@@ -100,15 +134,94 @@ export default function InboxView() {
       },
       body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
     });
+    const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      toast.error(errBody?.error || errBody?.message || 'Could not file inbox entries');
-      throw new Error(errBody?.error || errBody?.message || 'Batch categorization failed');
+      toast.error(body.error || body.message || 'Could not save categorized entries');
+      return;
     }
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(
       useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
     );
+    toast.success(`Filed ${updates.length} ${updates.length === 1 ? 'entry' : 'entries'}`);
+  };
+
+  const handleCalibratedAutoPost = async () => {
+    if (!currentWorkspaceId || calibratedReady.length === 0) return;
+    const cashAcc = accounts.find(a => !a.isArchived && resolveAccountRole(a) === 'cash');
+    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
+    let skippedUnresolved = 0;
+
+    for (const item of calibratedReady) {
+      const targetAccId = item.calibration.suggestedAccountId;
+      const resolvedAcc = targetAccId ? accounts.find(a => a.id === targetAccId && !a.isArchived) : undefined;
+      if (!resolvedAcc) {
+        skippedUnresolved += 1;
+        continue;
+      }
+
+      let updatedLines = item.lines && item.lines.length > 0 ? item.lines.map(l => ({ ...l })) : [];
+      if (updatedLines.length === 0) {
+        if (!cashAcc || cashAcc.id === resolvedAcc.id) {
+          skippedUnresolved += 1;
+          continue;
+        }
+        const amt = item.totalAmountCents || 0;
+        updatedLines = [
+          { accountId: resolvedAcc.id, accountName: resolvedAcc.name, amountCents: amt, category: resolvedAcc.name },
+          { accountId: cashAcc.id, accountName: cashAcc.name, amountCents: -amt },
+        ];
+      } else {
+        const catLineIdx = updatedLines.findIndex(
+          l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, item) > 0,
+        );
+        const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
+        updatedLines[targetIdx] = {
+          ...updatedLines[targetIdx],
+          accountId: resolvedAcc.id,
+          accountName: resolvedAcc.name,
+          category: resolvedAcc.name,
+        };
+      }
+
+      updates.push({
+        id: item.id,
+        data: {
+          lines: updatedLines,
+          status: 'completed',
+          isReviewed: true,
+        },
+      });
+    }
+
+    if (updates.length === 0) {
+      toast.error('Cannot auto-post: calibrated accounts are missing or archived in the chart of accounts.');
+      return;
+    }
+
+    const token = await getIdToken();
+    const res = await fetch('/api/v1/transactions/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        workspaceId: currentWorkspaceId,
+        updates,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(body.error || body.message || 'Could not auto-post calibrated entries');
+      return;
+    }
+    const patchMap = new Map(updates.map(u => [u.id, u.data]));
+    useLedgerStore.getState().setTransactions(
+      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
+    );
+    const suffix = skippedUnresolved > 0 ? ` (${skippedUnresolved} skipped due to unresolved accounts)` : '';
+    toast.success(`Auto-posted ${updates.length} calibrated ${updates.length === 1 ? 'entry' : 'entries'}${suffix}`);
   };
 
   const handleAutoFile = () => {
@@ -146,15 +259,82 @@ export default function InboxView() {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-12">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-[var(--text)] tracking-tight flex items-center gap-3">
             <Zap className="text-[var(--brass)]" size={32} />
             AI Inbox
           </h1>
-          <p className="text-[var(--muted)] font-medium mt-1">Confidence-driven transaction categorization and inbox zero.</p>
+          <p className="text-[var(--muted)] font-medium mt-1">
+            Calibrated automatic posting (≥99% unchanged over ≥10 cases) and grouped review.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs">
+          <Calculator size={14} className="text-[var(--muted)]" aria-hidden="true" />
+          <label htmlFor="inbox-amount-expr" className="sr-only">Quick split calculator</label>
+          <input
+            id="inbox-amount-expr"
+            value={exprInput}
+            onChange={e => setExprInput(e.target.value)}
+            placeholder="Split math e.g. (120 + 45) / 3"
+            className="bg-transparent outline-none text-[var(--text)] w-44"
+          />
+          {exprResult && (
+            <span className="font-mono font-bold text-[var(--text)]">
+              {exprResult.ok ? `= ${formatCurrency(exprResult.cents)}` : 'Invalid'}
+            </span>
+          )}
         </div>
       </div>
+
+      {/* DECIDE ONCE, APPLY TO MANY (TF-IDF SIMILAR CLUSTERS) */}
+      {similarClusters.length > 0 && (
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--line)] p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <Layers size={18} className="text-indigo-600" aria-hidden="true" />
+              <div>
+                <h2 className="font-bold text-[var(--text)] text-sm">Decide once, apply to many ({similarClusters.length} merchant groups)</h2>
+                <p className="text-xs text-[var(--muted)]">Grouped by TF-IDF merchant token similarity so banking noise is ignored.</p>
+              </div>
+            </div>
+            {calibratedReady.length > 0 && (
+              <button
+                type="button"
+                onClick={() => inBackground(handleCalibratedAutoPost())}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+              >
+                Auto-post {calibratedReady.length} calibrated (≥99%)
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {similarClusters.slice(0, 4).map(cluster => (
+              <div key={cluster.clusterId} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-xs">
+                <div className="min-w-0">
+                  <p className="font-bold text-[var(--text)] truncate">{cluster.label}</p>
+                  <p className="text-[var(--muted)]">
+                    {cluster.count} similar lines · {formatCurrency(cluster.totalAbsAmountCents)}
+                    {cluster.suggestedCategory ? ` · ${cluster.suggestedCategory}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => inBackground(_handleCategorize(cluster.memberIds, cluster.suggestedCategory || 'Operating Expense'))}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] font-semibold text-[var(--text)] hover:border-indigo-500 shrink-0"
+                >
+                  Apply to all {cluster.count}
+                </button>
+              </div>
+            ))}
+          </div>
+          {connectedSignals.inducedRules.length > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              Suggested rule from verified history: &ldquo;{connectedSignals.inducedRules[0].condition}&rdquo; → {connectedSignals.inducedRules[0].targetAccount} ({Math.round(connectedSignals.inducedRules[0].confidence * 100)}% over {connectedSignals.inducedRules[0].support} entries)
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6">
         {/* HIGH CONFIDENCE */}

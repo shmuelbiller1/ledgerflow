@@ -14,6 +14,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { formatTzDate } from './helpers';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
 import { revaluationEntryLock } from '../../services/stockRevaluationService';
+import { computeIntercompanyIdentityHash } from '../../../lib/selfBalancingDimensions';
 
 /** Reversing an entry and intercompany transfers. Part of /api/v1/transactions (F-06), registered in the original order. */
 export function registerReverseRoutes(transactionRouter: express.Router): void {
@@ -358,20 +359,32 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
       // 3. Prepare Reciprocal Transactions
       const sourceTxId = db.collection('transactions').doc().id;
       const targetTxId = db.collection('transactions').doc().id;
+      const effectiveSourceDate = date || formatTzDate(new Date(), sourceWsData?.timezone);
+      const sharedIdentityHash = computeIntercompanyIdentityHash({
+        sourceWorkspaceId,
+        targetWorkspaceId,
+        sourceTxId,
+        targetTxId,
+        date: effectiveSourceDate,
+        sourceAmountCents: amountCents,
+        targetAmountCents: targetCents,
+        sourceCurrency,
+        targetCurrency,
+      });
 
       // SOURCE: Dr Intercompany Clearing / Cr Cash (Asset Transfer Out)
       const sourceTx: Record<string, unknown> = {
         id: sourceTxId,
         uid: user.uid,
         workspaceId: sourceWorkspaceId,
-        date: date || formatTzDate(new Date(), sourceWsData?.timezone),
+        date: effectiveSourceDate,
         description: description || `Intercompany Transfer to ${targetWsData.name}`,
         totalAmountCents: amountCents,
         currency: sourceWsData.currency || 'USD',
         exchangeRate: 1,
         status: 'completed',
         type: 'actual',
-        metadata: { isIntercompany: true, targetWorkspaceId, targetTxId },
+        metadata: { isIntercompany: true, targetWorkspaceId, targetTxId, sharedIdentityHash },
         lines: [
           {
             accountId: sourceClearing.id,
@@ -400,7 +413,7 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
         exchangeRate: 1,
         status: 'completed',
         type: 'actual',
-        metadata: { isIntercompany: true, sourceWorkspaceId, sourceTxId },
+        metadata: { isIntercompany: true, sourceWorkspaceId, sourceTxId, sharedIdentityHash },
         lines: [
           {
             accountId: targetAccountId || targetAccounts.find(a => a.type === 'expense' || a.type === 'asset')?.id,
@@ -467,7 +480,8 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
         status: 'ok',
         message: 'Intercompany reciprocal entries posted successfully',
         sourceTxId,
-        targetTxId
+        targetTxId,
+        sharedIdentityHash,
       });
     } catch (err) {
       res.status((err as { status?: number }).status || 500).json({ error: errorMessage(err) });

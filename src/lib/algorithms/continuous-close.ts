@@ -1,6 +1,7 @@
 import { AlgorithmDefinition } from './types';
 import { Transaction } from '../../types';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { computeLedgerCloseAnchor } from '../auditHashChain';
 
 export function runContinuousCloseCheck(transactions: readonly Transaction[]) {
   const totalCount = transactions.length;
@@ -23,8 +24,8 @@ export function runContinuousCloseCheck(transactions: readonly Transaction[]) {
   const balanced = totalDebitsCents === totalCreditsCents;
   const healthPercent = totalCount > 0 ? Math.round((postedCount / totalCount) * 100) : 100;
 
-  // Simple cryptographic hash simulation for night/day close anchor
-  const hashAnchor = `0x${Math.abs(transactions.reduce((acc, t) => acc ^ t.totalAmountCents, 0x1a2b3c4d)).toString(16).padStart(8, '0')}`;
+  const anchor = computeLedgerCloseAnchor(transactions);
+  const hashAnchor = anchor.shortAnchor;
 
   return {
     totalCount,
@@ -34,7 +35,8 @@ export function runContinuousCloseCheck(transactions: readonly Transaction[]) {
     totalCreditsCents,
     balanced,
     healthPercent,
-    hashAnchor
+    hashAnchor,
+    sha256Anchor: anchor.sha256,
   };
 }
 
