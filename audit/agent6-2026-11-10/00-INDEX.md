@@ -6,10 +6,27 @@ Branch: **`arena/9bdf6e26-ledgerflow`** on `Chaim-Richard/ledgerflow`, 12 commit
 the tip was `3f60e2dc` when the FINAL-13 patch was cut; the commits after it are documentation-only.)
 
 ## Where the code is
-* Branch: https://github.com/Chaim-Richard/ledgerflow/tree/arena/9bdf6e26-ledgerflow
-* **Open the PR with this one-click link** (the fork token is refused `createPullRequest`):
+* Branch: https://github.com/Chaim-Richard/ledgerflow/tree/arena/9bdf6e26-ledgerflow — 1 commit on top
+  of current `main`, 2 files, `audit/agent6-2026-11-10/` only.
+* **PR open (fork):** https://github.com/Chaim-Richard/ledgerflow/pull/20 — mergeable, no product code.
+* **PR toward the owner's repo** (a human must click; the token is refused `createPullRequest` there
+  with `Resource not accessible by integration`):
   https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:ledgerflow:arena/9bdf6e26-ledgerflow?expand=1
-* Paste the body from `PR-BODY.md`. Do **not** merge — Shmuel decides.
+  — verified to show the same **2 files**, 1 ahead / 0 behind. Paste the body from `PR-BODY.md`.
+* **Do not merge — Shmuel decides.**
+
+### The branch was rebased onto `main` on 11 Nov (why the history is 1 commit)
+
+The audit was originally 26 commits on top of `e58fa00a`, the Arena checkout this session started
+from. That commit is **not in upstream history** and has **no merge base with `main`**, so GitHub would
+have rendered a PR as "all ~2,400 files added". The branch now sits on `main` with the audit folder as
+one commit. The original 26-commit history is preserved at tag **`agent6-orphan-history`**
+(`b12b6b1`) on the fork — fetch it with `git fetch origin tag agent6-orphan-history`.
+
+**Six of the eight documents and all seven probes were already on `main`** before this PR: a later
+merge (#626, AI #14) brought them in. This PR adds the two that were not — the recovery checkpoint and
+a corrected index — so the reviewable delta is small on purpose. That is what the audit produced; it is
+not a measure of how much was done.
 
 ## Drive folder
 `LedgerFlow-Agent6-2026-11-10` — https://drive.google.com/drive/folders/1gXiKgFoNYDyHgVO2PEAtyNfPE-GO-rrD
