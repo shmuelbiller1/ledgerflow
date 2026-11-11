@@ -190,7 +190,7 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
   return <section aria-label="Record retention review" className="p-4 space-y-4 min-w-0">
     <h2>Record retention review</h2>
     <p className="text-sm text-[var(--muted)]">
-      This review uses the owner-specified IL, US and UK timetable below to identify records whose document-date anniversary after the stated calendar years has passed. Country is resolved from the books or the World/Entity Tax profile; missing dates, missing countries and countries without a period stay unclassified. The report is read-only: it does not delete records or authorize deletion, and its timetable is not legal advice.
+      This review uses the owner-specified IL, US and UK timetable below to identify records whose document-date anniversary after the stated calendar years has passed. Country is resolved from the books or the Company Tax profile; missing dates, missing countries and countries without a period stay unclassified. The report is read-only: it does not delete records or authorize deletion, and its timetable is not legal advice.
     </p>
     <p className="text-sm text-[var(--muted)]">
       Scope: invoices, bills (including expense claims), customer/vendor credits, estimates, purchase orders, and attached files linked to supported invoices, bills, estimates or purchase orders. Attached files inherit their source record date and entity; orphaned or unloaded sources are unclassified. This is separate from <code>Workspace.retention</code>, which controls server log and workspace-recovery retention.

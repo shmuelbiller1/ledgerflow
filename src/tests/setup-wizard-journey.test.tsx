@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import SetupWizard from '../components/onboarding/SetupWizard';
+import OpeningBalancesSetup from '../components/onboarding/OpeningBalancesSetup';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import type { Workspace } from '../types';
@@ -72,13 +73,14 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
 describe('A-234: set-up wizard saves every step and keeps the values', () => {
-  test('all four steps save, and re-opening the wizard shows what was saved', async () => {
+  test('setup and optional overview opening figures save, and re-opening the wizard shows what was saved', async () => {
     const server = keepTheWrites();
     let done = false;
     const { unmount } = render(<SetupWizard onStarted={() => {}} onDone={() => { done = true; }} />);
 
     // ---- Step 1, "Your business": the allowlisted workspace fields are written, not dropped
-    assert.ok(screen.getByRole('heading', { name: 'Your business' }));
+    assert.ok(screen.getByRole('heading', { name: 'What kind of business?' }));
+    fireEvent.click(screen.getByLabelText('Services', { exact: true }));
     fireEvent.change(screen.getByLabelText('Business name'), { target: { value: 'Northwind Ltd' } });
     fireEvent.change(screen.getByLabelText('Home currency'), { target: { value: 'GBP' } });
     fireEvent.change(screen.getByLabelText('Financial year starts in'), { target: { value: '4' } });
@@ -112,7 +114,13 @@ describe('A-234: set-up wizard saves every step and keeps the values', () => {
     assert.ok(templateWrite, 'the chart step was saved');
     assert.equal((templateWrite!.body as { templateId: string }).templateId, templateRadios[0].id.replace('tpl-', ''));
 
-    // ---- Step 3, "Opening balances": one call, the amounts in cents, the balance sentence after
+    // Setup finishes without requiring migration figures; the optional overview editor keeps the same API.
+    assert.ok(server.calls.some(c => c.url.endsWith('/setup-complete')));
+    assert.ok(screen.getByRole('heading', { name: 'Your books are set up' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Go to Overview' })); });
+    assert.ok(done);
+    unmount();
+    const opening = render(<OpeningBalancesSetup onClose={() => {}} />);
     assert.ok(screen.getByRole('heading', { name: 'Opening balances' }));
     fireEvent.change(screen.getByLabelText(/Checking/), { target: { value: '1000' } });
     fireEvent.change(screen.getByLabelText(/Bank Loan/), { target: { value: '300' } });
@@ -125,11 +133,7 @@ describe('A-234: set-up wizard saves every step and keeps the values', () => {
     assert.match(balances.date, /^\d{4}-\d{2}-01$/, 'the start date is the first day of a month');
     assert.match(document.body.textContent || '', /debits and credits are both £1,000\.00/, 'the done step repeats the figure it saved');
 
-    // ---- Step 4, "Done"
-    assert.ok(screen.getByRole('heading', { name: 'Your books are set up' }));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Go to the dashboard' })); });
-    assert.ok(done, 'the wizard hands the reader to the dashboard');
-    unmount();
+    opening.unmount();
 
     // ---- and a later visit reads the saved values back, not an empty form
     openWorkspace({ name: String(server.kept.name), currency: String(server.kept.currency), fiscalYearStartMonth: Number(server.kept.fiscalYearStartMonth) });

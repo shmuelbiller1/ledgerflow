@@ -3,8 +3,7 @@ import { mountJourney, remountJourney, captured } from './support/journeyFixture
 import { BUSINESS_TEMPLATES } from '../src/lib/businessTemplates';
 
 /**
- * A-234 browser leg: the set-up wizard (Your business → Chart of accounts → Opening balances →
- * Done) in a real browser, saving at every step, then re-opened on what the server kept.
+ * A-234 browser leg: the set-up wizard (Business type → Chart of accounts → Done, then optional opening balances) in a real browser, saving at every step, then re-opened on what the server kept.
  *
  * It guards the first-run save bug fixed on 27 Oct by migration
  * `20261027000000_server_fields_allowed`: the wizard's workspace write must carry every allowlisted
@@ -56,7 +55,8 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
   });
 
   // ---- Step 1, “Your business”
-  await expect(page.getByRole('heading', { name: 'Your business' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of business?' })).toBeVisible();
+  await page.getByLabel('Services', { exact: true }).check();
   await page.getByLabel('Business name').fill('Northwind Ltd');
   await page.getByLabel('Home currency').selectOption('GBP');
   await page.getByLabel('Financial year starts in').selectOption('4');
@@ -90,6 +90,11 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
   ).toBe(1);
   expect(requests.find((r) => r.url.endsWith('/apply-template'))?.body).toEqual({ templateId: template.id });
 
+  // Setup is complete before optional migration figures are requested.
+  await expect(page.getByRole('heading', { name: 'Your books are set up' })).toBeVisible();
+  await page.getByRole('button', { name: 'Go to Overview', exact: true }).click();
+  await expect.poll(() => captured(page, 'done')).toHaveLength(1);
+  await remountJourney(page, [{ module: '/src/components/onboarding/OpeningBalancesSetup.tsx', props: { onClose: '__fn:noop' } }]);
   // ---- Step 3, “Opening balances”: Checking 1,000.00 debit, Bank Loan 300.00 credit
   await expect(page.getByRole('heading', { name: 'Opening balances' })).toBeVisible();
   await page.getByLabel(/Checking/).fill('1000');
@@ -110,17 +115,13 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
   ]);
   expect(balancesRequest.date).toMatch(/^\d{4}-\d{2}-01$/);
 
-  // ---- Step 4, “Done”
-  await expect(page.getByRole('heading', { name: 'Your books are set up' })).toBeVisible();
   await expect(page.getByText(/debits and credits are both £1,000\.00/)).toBeVisible();
-  await page.getByRole('button', { name: 'Go to the dashboard', exact: true }).click();
-  await expect.poll(() => captured(page, 'done')).toHaveLength(1);
 
   // ---- Re-open the wizard fresh: it reads back what step 1 saved, not an empty form.
   await remountJourney(page, []);
   await expect(page.getByRole('heading', { name: 'Your books are set up' })).toHaveCount(0);
   await remountJourney(page, [WIZARD]);
-  await expect(page.getByRole('heading', { name: 'Your business' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of business?' })).toBeVisible();
   await expect(page.getByLabel('Business name')).toHaveValue('Northwind Ltd');
   await expect(page.getByLabel('Home currency')).toHaveValue('GBP');
   await expect(page.getByLabel('Financial year starts in')).toHaveValue('4');

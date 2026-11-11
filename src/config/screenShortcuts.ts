@@ -29,7 +29,7 @@ export const SCREEN_SHORTCUTS: ScreenShortcutGroup[] = [
     { keys: 'Escape', label: 'Close the command palette' },
   ] },
   { id: 'rules', title: 'Settings — Rules', shortcuts: [{ keys: 'Enter', label: 'Generate a rule from the focused AI rule prompt' }] },
-  { id: 'dimensions', title: 'Settings — Dimensions', shortcuts: [{ keys: 'Enter', label: 'Finish editing a node label or aliases (commits on blur)' }] },
+  { id: 'dimensions', title: 'Settings — Labels', shortcuts: [{ keys: 'Enter', label: 'Finish editing a node label or aliases (commits on blur)' }] },
   { id: 'saved-views', title: 'Saved views', shortcuts: [{ keys: 'Enter', label: 'Save the named view from the view-name field' }] },
   { id: 'tags', title: 'Tag fields', shortcuts: [
     { keys: 'Enter / comma', label: 'Add the typed tag' },
