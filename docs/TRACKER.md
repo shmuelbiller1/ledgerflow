@@ -1418,8 +1418,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION BF — ITEMS · PRICING · STOCK
 
-- [ ] BF-03 Item bundles
-- [ ] BF-04 Landed cost on receipt
+- [x] BF-03 Item bundles *(model A-19; picking a bundle on an invoice line adds its parts — AI #9, PR #660, 11 Nov)*
+- [x] BF-04 Landed cost on receipt *(done as EG-6: `landedCostService.ts`, posted and undone from Reports → Landed cost; ticked by AI #9, 11 Nov)*
 - [ ] BF-05 Consignment stock
 - [~] BF-08 Partial fulfilment (step 1 done 7 Oct; step 2 mostly done 7 Oct, see below) — **expanded 7 Oct (roadmap, `docs/ROADMAP.md`); step 1 V1, step 2 Later P0)**.
   - **Found 7 Oct:** the New Estimate form took one amount and no lines, it saved every quote as USD, and a quote or order line could not name an item (`Estimate.lines` has no `itemId`). Invoicing an order (`orderPartInvoice` in `src/lib/salesOrders.ts`, and `convertEstimateToInvoice`) makes invoice lines without one. So an order of stock items never lowers stock and never books cost of goods sold, even when it is invoiced in one go, because `planInvoiceCogs` (`src/services/invoiceCogs.ts`) needs `line.itemId`. The same sale typed straight onto an invoice does both.

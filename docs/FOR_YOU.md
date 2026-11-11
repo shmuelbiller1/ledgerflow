@@ -569,3 +569,12 @@ place, tax registrations and advance-tax settings must be entered on the entity 
 *What you may notice:* a foreign branch that relied on the books' registration now shows "Not set" there and drops out
 of that country's return until its own number is entered. Say if you would rather have the screen refuse to save such
 a branch instead.
+
+## 11 Nov — AI #9: one decision for you (issue #657, the ledger-door check)
+
+The automated check that counts places writing ledger entries "outside the door" says **0**, but it only sees one way
+of writing; following the code finds **18** direct writes in 14 files. Most go through the shared validator first and
+are fine; **3 have no shared check** (the demo-seed route — removed in PR #660 — the recurring job, and the payment
+entry). Making the check see them means **raising its baseline from 0**, which the rules leave to you.
+*Default I used:* nothing changed yet. When AI #1 has moved the recurring and payment writers through `ledgerWrite`,
+the check can be tightened at the true count. Say "raise the ledger-door baseline" if you want it done now instead.
