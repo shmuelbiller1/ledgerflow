@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect, type Page } from '@playwright/test';
 
 /**
@@ -13,6 +14,8 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 async function signInAsGuest(page: Page) {
+  // These print/empty-entity scenarios require books without labelled sample-year documents.
+  await installSmallSample(page, true);
   await page.addInitScript(() => {
     localStorage.setItem('isGuest', 'true');
     localStorage.setItem('has_seen_onboarding', 'true');

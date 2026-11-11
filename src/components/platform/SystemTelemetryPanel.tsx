@@ -360,7 +360,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                 </div>
               </div>
 
-              <div className="overflow-x-auto custom-scrollbar">
+              <div role="region" aria-label="Scrollable workspace ledger matrix" tabIndex={0} className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left text-xs">
                   <caption className="sr-only">Workspaces</caption>
                   <thead>

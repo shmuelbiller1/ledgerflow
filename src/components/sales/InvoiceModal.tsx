@@ -18,7 +18,7 @@ import { format } from 'date-fns/format';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
+import { nextDocumentNumber } from '../../services/documentNumbers';
 import AsyncButton from '../ui/AsyncButton';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
@@ -62,6 +62,7 @@ function createInvoiceFormState(initialInvoice?: Partial<Invoice>): Partial<Invo
 
 /** Modal form for creating or editing a customer invoice or sales receipt and its line-level dimension labels. */
 export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], accounts = [], initialInvoice, receipt = false }: InvoiceModalProps) {
+  const isGuest = useAuthStore(s => s.isGuest && !s.user);
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeCustomers = (Array.isArray(customers) ? customers : []).filter(c => !isArchivedParty(c) || c.id === initialInvoice?.customerId);
@@ -132,21 +133,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         try {
           const wsId = useAuthStore.getState().currentWorkspaceId;
           if (!wsId) return;
-          const token = await getIdToken().catch(() => '');
-          const res = await fetch(`/api/v1/workspaces/${wsId}/next-number`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ type: 'invoice' })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.number) {
-              setInvoice(prev => ({ ...prev, number: data.number }));
-            }
-          }
+          const number = await nextDocumentNumber(wsId, 'invoice');
+          setInvoice(prev => ({ ...prev, number }));
         } catch (e) {
           console.error('Failed to fetch next invoice number', e);
         }
@@ -622,7 +610,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none"
                   />{fieldError("inv-email-subject")}
                 </div>
-                {invoice.id ? (
+                {isGuest ? <p className="text-sm text-[var(--muted)]">Files are not saved in the sample company. Sign in to attach files.</p> : invoice.id ? (
                   <AttachmentsPanel target={{ collection: 'invoices', id: invoice.id, label: `Invoice ${invoice.number || ''}`.trim() }} />
                 ) : (
                   <div className="space-y-2">

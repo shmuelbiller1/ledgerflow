@@ -4,6 +4,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatDate } from '../../lib/utils';
 import { practiceWork, type PracticeRow } from '../../lib/practice';
+import { computeCloseReadiness, computeFirmNoTouchSummary } from '../../lib/practiceAutomation';
+import { PLAN_ADD_ON_PRICING } from '../../lib/plans';
 import type { PinnedPage } from '../../lib/pinnedPages';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 
@@ -36,6 +38,10 @@ export default function PracticeView() {
   }, []);
   const groups = useMemo(() => [...new Set((rows || []).flatMap(r => r.groups))].sort(byCodeUnit), [rows]);
   const shown = (rows || []).filter(r => (!group || r.groups.includes(group)) && (!find.trim() || r.name.toLocaleLowerCase().includes(find.trim().toLocaleLowerCase())));
+  const firmSummary = useMemo(() => computeFirmNoTouchSummary(shown.map(r => ({
+    noTouch: r.noTouch,
+    closeReadiness: r.closeReadiness ?? computeCloseReadiness(r),
+  }))), [shown]);
   const open = (r: PracticeRow, page: PinnedPage) => { setCurrentWorkspaceId(r.workspaceId); goToPage(page); };
   const count = (r: PracticeRow, n: number, label: string, page: PinnedPage) => (n > 0
     ? <button type="button" onClick={() => open(r, page)} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">{n}<span className="sr-only"> {label} in {r.name}: open</span></button>
@@ -43,9 +49,33 @@ export default function PracticeView() {
 
   return (
     <section aria-labelledby="practice-title" className="space-y-4 p-6">
-      <div>
-        <h1 id="practice-title" className="text-xl font-bold text-[var(--text)]">All my books</h1>
-        <p className="text-sm text-[var(--muted)]">Every set of books you can open, with what is waiting there, most work first. A number opens that workspace on that screen. Data Health is from the nightly check.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 id="practice-title" className="text-xl font-bold text-[var(--text)]">All my books</h1>
+          <p className="text-sm text-[var(--muted)]">Every set of books you can open, with what is waiting there, most work first. A number opens that workspace on that screen. Data Health is from the nightly check.</p>
+        </div>
+        {rows !== null && shown.length > 0 && (
+          <div className="flex flex-wrap gap-3 text-xs">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+              <span className="block text-[var(--muted)]">Firm no-touch rate</span>
+              <span className="font-mono font-bold text-sm text-[var(--text)]">
+                {firmSummary.firmNoTouchPercent !== null
+                  ? `${firmSummary.firmNoTouchPercent}% (${firmSummary.totalNoTouchLines}/${firmSummary.totalBankLines})`
+                  : 'No bank lines yet'}
+              </span>
+            </div>
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+              <span className="block text-[var(--muted)]">Avg close readiness</span>
+              <span className="font-mono font-bold text-sm text-[var(--text)]">{firmSummary.averageCloseReadiness}/100</span>
+            </div>
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+              <span className="block text-[var(--muted)]">Client books</span>
+              <span className="font-mono font-bold text-sm text-[var(--text)]">
+                {firmSummary.totalClients} (${PLAN_ADD_ON_PRICING.extraFirmClientMonthlyUsd}/mo extra)
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1 text-[var(--muted)]">Find
@@ -74,13 +104,17 @@ export default function PracticeView() {
                 <th scope="col" className="text-right font-semibold py-2 px-2">Drafts</th>
                 <th scope="col" className="text-right font-semibold py-2 px-2">Bills without a file</th>
                 <th scope="col" className="text-right font-semibold py-2 px-2">Data Health</th>
+                <th scope="col" className="text-right font-semibold py-2 px-2">No-touch</th>
+                <th scope="col" className="text-right font-semibold py-2 px-2">Close ready</th>
                 <th scope="col" className="text-left font-semibold py-2 px-2">Last month</th>
                 <th scope="col" className="text-left font-semibold py-2 px-2">Next recurring</th>
               </tr>
             </thead>
             <tbody>
-              {shown.length === 0 && <tr><td colSpan={9} className="py-3 text-[var(--muted)]">No books match.</td></tr>}
-              {shown.map(r => (
+              {shown.length === 0 && <tr><td colSpan={11} className="py-3 text-[var(--muted)]">No books match.</td></tr>}
+              {shown.map(r => {
+                const readiness = r.closeReadiness ?? computeCloseReadiness(r);
+                return (
                 <tr key={r.workspaceId} className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-left font-normal py-2">
                     <button type="button" onClick={() => open(r, { tab: 'dashboard' })} className="font-semibold text-[var(--text)] hover:underline"><bdi>{r.name}</bdi></button>
@@ -94,6 +128,20 @@ export default function PracticeView() {
                   <td className="text-right py-2 px-2" title={r.health ? `Checked ${formatDate(r.health.checkedAt.slice(0, 10))}; ${r.health.warnings} warning${r.health.warnings === 1 ? '' : 's'}` : 'Not checked yet'}>
                     {r.health ? count(r, r.health.serious, 'serious problems', { tab: 'data-health' }) : <span className="text-[var(--muted)]">—</span>}
                   </td>
+                  <td className="text-right py-2 px-2 font-mono text-xs">
+                    {r.noTouch && r.noTouch.ratePercent !== null ? (
+                      <span title={`${r.noTouch.noTouchCount} of ${r.noTouch.totalBankLines} bank lines posted from a rule or history without human edits`}>
+                        {r.noTouch.ratePercent}%
+                      </span>
+                    ) : (
+                      <span className="text-[var(--muted)]">—</span>
+                    )}
+                  </td>
+                  <td className="text-right py-2 px-2 font-mono text-xs">
+                    <span className={readiness.grade === 'ready' ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : readiness.grade === 'almost_ready' ? 'text-amber-700 dark:text-amber-400' : 'text-[var(--muted)]'}>
+                      {readiness.score}%
+                    </span>
+                  </td>
                   <td className="py-2 px-2">
                     {r.lastMonthClosed ? <span className="text-[var(--muted)]">{monthName(r.lastMonth)} closed</span>
                       : <button type="button" onClick={() => open(r, { tab: 'month-end-close' })} className="text-amber-700 dark:text-amber-400 hover:underline">{monthName(r.lastMonth)} open<span className="sr-only"> in {r.name}: close it</span></button>}
@@ -102,7 +150,8 @@ export default function PracticeView() {
                     {r.nextRecurring ? <button type="button" onClick={() => open(r, { tab: 'recurring' })} className="hover:underline">{formatDate(r.nextRecurring.date)}: <bdi>{r.nextRecurring.description}</bdi></button> : <span className="text-[var(--muted)]">—</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

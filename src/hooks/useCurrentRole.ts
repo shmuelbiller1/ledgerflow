@@ -1,3 +1,4 @@
+import { workspaceActor } from '../lib/guestActor';
 import { useAuthStore } from '../stores/useAuthStore';
 
 export type WorkspaceRole = 'owner' | 'accountant' | 'bookkeeper' | 'viewer';
@@ -34,7 +35,7 @@ export const ROLE_DESCRIPTIONS: Record<WorkspaceRole, { title: string; summary: 
 
 export function useCurrentRole(): WorkspaceRole {
   const currentWorkspace = useAuthStore(s => s.getCurrentWorkspace());
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(workspaceActor);
 
   if (!currentWorkspace || !user) return 'viewer';
   if (currentWorkspace.uid === user.uid) return 'owner';

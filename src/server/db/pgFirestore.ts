@@ -438,6 +438,47 @@ export class Transaction {
   async flush(): Promise<void> {
     await this.firestore.executeOps(this.ops, this.runner, this.state);
   }
+
+  /**
+   * Atomically serializes and reads the next audit hash-chain head for `workspaceId`
+   * on this transaction's checked-out PostgreSQL client (preserving EG-4 single-connection
+   * safety and accounting for any earlier buffered auditLogs writes in `this.ops`).
+   */
+  async nextAuditChainHead(workspaceId: string, genesisHash: string): Promise<{ seq: number; prevHash: string }> {
+    if (this.state.failure) throw this.state.failure;
+    try {
+      await this.runner.query('select pg_advisory_xact_lock(hashtext($1))', [`lf_audit_chain:${workspaceId}`]);
+      for (let i = this.ops.length - 1; i >= 0; i--) {
+        const op = this.ops[i];
+        if (op.ref.collectionId === 'auditLogs' && typeof op.params[1] === 'string') {
+          const parsed = JSON.parse(op.params[1]) as { workspaceId?: string; seq?: number; entryHash?: string };
+          if (parsed.workspaceId === workspaceId && typeof parsed.seq === 'number' && typeof parsed.entryHash === 'string') {
+            return { seq: parsed.seq + 1, prevHash: parsed.entryHash };
+          }
+        }
+      }
+      const reg = await this.runner.query<{ ok: boolean }>(`select to_regclass('public."auditLogs"') is not null as ok`, []);
+      if (!reg.rows[0]?.ok) return { seq: 1, prevHash: genesisHash };
+      const res = await this.runner.query<{ seq?: string; hash?: string }>(
+        `select data->>'seq' as seq, data->>'entryHash' as hash
+           from public."auditLogs"
+          where workspace_id = $1
+            and (data->>'seq') ~ '^[0-9]+$'
+            and jsonb_typeof(data->'entryHash') = 'string'
+          order by (data->>'seq')::int desc
+          limit 1`,
+        [workspaceId],
+      );
+      const top = res.rows[0];
+      if (top?.seq && top?.hash) {
+        return { seq: Number(top.seq) + 1, prevHash: top.hash };
+      }
+      return { seq: 1, prevHash: genesisHash };
+    } catch (err) {
+      this.state.failure = err;
+      throw err;
+    }
+  }
 }
 
 export interface TransactionOptions { maxAttempts?: number; readOnly?: boolean }

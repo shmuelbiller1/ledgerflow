@@ -12,7 +12,7 @@ export const INLINE_RECORD_FIELDS = {
 } as const;
 export type InlineRecordCollection = keyof typeof INLINE_RECORD_FIELDS;
 export interface InlineRecordTarget { collection: InlineRecordCollection; id: string }
-export interface InlineRecordSession { uid: string; workspaceId: string; writable: boolean }
+export interface InlineRecordSession { sampleSession?: object; uid: string; workspaceId: string; writable: boolean }
 export interface InlineRecordAdapter {
   session(): InlineRecordSession | null;
   read(target: InlineRecordTarget): Promise<Record<string, unknown> | undefined>;
@@ -46,7 +46,7 @@ export async function saveInlineRecordField(adapter: InlineRecordAdapter, target
   if (!session?.writable) throw new Error('Your workspace role cannot edit this record.');
   const record = await adapter.read(target);
   const current = adapter.session();
-  if (!current?.writable || current.uid !== session.uid || current.workspaceId !== session.workspaceId) throw new Error('Workspace or permissions changed. Reopen this record.');
+  if (!current?.writable || current.uid !== session.uid || current.workspaceId !== session.workspaceId || current.sampleSession !== session.sampleSession) throw new Error('Workspace or permissions changed. Reopen this record.');
   if (!record || record.workspaceId !== session.workspaceId) throw new Error('This record is unavailable in the current workspace.');
   if (target.collection === 'estimates' && record.status !== 'draft') throw new Error('Only draft estimates can be edited here.');
   const actual = inlineFieldValue(record, field);

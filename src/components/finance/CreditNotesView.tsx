@@ -193,20 +193,20 @@ export default function CreditNotesView() {
   const { dialogProps, titleId } = useDialog(() => setShowCreateModal(false), showCreateModal);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="w-full min-w-0 p-6 max-w-7xl mx-auto space-y-6">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <RotateCcw className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-start gap-2">
+            <RotateCcw className="w-6 h-6 shrink-0 text-indigo-600 dark:text-indigo-400" />
             Credit Notes & Vendor Credits
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Issue customer refunds and record supplier rebates without corrupting A/R and A/P aging buckets.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ApplyCreditsButton kind={activeTab} />
           {canEdit && <button type="button"
             onClick={() => setShowCreateModal(true)}
@@ -219,7 +219,7 @@ export default function CreditNotesView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-800">
+      <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-800">
         <button
           onClick={() => setActiveTab('customer')}
           className={`flex items-center gap-2 py-3 px-4 font-medium text-sm border-b-2 transition ${
@@ -261,7 +261,7 @@ export default function CreditNotesView() {
               onAction={() => setShowCreateModal(true)}
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Credit notes</caption>
                 <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">
@@ -355,7 +355,7 @@ export default function CreditNotesView() {
               onAction={() => setShowCreateModal(true)}
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Vendor credits</caption>
                 <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">

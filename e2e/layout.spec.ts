@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { settleAnimations } from './support/a11yGate';
@@ -25,6 +26,7 @@ test.describe('Layout at 1280 x 800', () => {
         localStorage.setItem('isGuest', 'true');
         localStorage.setItem('has_seen_onboarding', 'true');
       });
+      await installSmallSample(page);
       await page.goto(`/#${screen}`);
       const main = page.locator('#main-content');
       await main.waitFor({ timeout: 15000 });

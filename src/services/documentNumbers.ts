@@ -1,3 +1,5 @@
+import { allocateGuestNumber } from '../lib/guestNumbering';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { getIdToken } from '../firebase';
 
 export type NumberedDocument = 'invoice' | 'bill' | 'estimate' | 'creditNote' | 'vendorCredit' | 'payment';
@@ -7,6 +9,9 @@ export type NumberedDocument = 'invoice' | 'bill' | 'estimate' | 'creditNote' | 
  * transaction so two people never get the same one. Throws with the server's reason.
  */
 export async function nextDocumentNumber(workspaceId: string, type: NumberedDocument): Promise<string> {
+  const sampleSession = guestSession();
+  if (sampleSession) return allocateGuestNumber(workspaceId, type);
+  if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
   const token = await getIdToken().catch(() => '');
   const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/next-number`, {
     method: 'POST',

@@ -1,5 +1,6 @@
 import { AlgorithmDefinition } from './types';
 import { Transaction } from '../../types';
+import { canonicalJson, sha256Hex } from '../auditHashChain';
 
 export interface SharedTransactionPair {
   txId: string;
@@ -15,9 +16,11 @@ export function computeSharedTransactionIdentity(transactions: readonly Transact
   const sharedPairs: SharedTransactionPair[] = [];
   let eliminatedCents = 0;
 
-  transactions.forEach((tx, idx) => {
+  transactions.forEach((tx) => {
     const desc = (tx.description || '').toLowerCase();
-    const isInterEntity = desc.includes('transfer') || 
+    const meta = (tx.metadata || {}) as Record<string, unknown>;
+    const isInterEntity = Boolean(meta.isIntercompany) ||
+                          desc.includes('transfer') || 
                           desc.includes('inter') ||
                           tx.payee ||
                           tx.projectId;
@@ -25,7 +28,10 @@ export function computeSharedTransactionIdentity(transactions: readonly Transact
     if (isInterEntity) {
       const source = tx.lines[0]?.accountName || 'Primary Operating Account';
       const target = tx.payee || tx.lines[1]?.accountName || 'Counterparty Account';
-      const hash = `0x${Math.abs((tx.totalAmountCents * 31) ^ (idx * 17)).toString(16).padStart(8, '0')}`;
+      const fullSha = typeof meta.sharedIdentityHash === 'string'
+        ? meta.sharedIdentityHash
+        : sha256Hex(canonicalJson({ id: tx.id, date: tx.date, source, target, amountCents: tx.totalAmountCents }));
+      const hash = `sha256:${fullSha.slice(0, 16)}`;
       
       eliminatedCents += tx.totalAmountCents;
       sharedPairs.push({

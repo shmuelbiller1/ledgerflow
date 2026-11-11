@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../db/firestore';
 import { getTrustedAppUrl } from '../utils/urlHelper';
 import { calculateAmountDue, depositAppliedCents } from '../../lib/documentMath';
+import { computePlatformFeeQuote } from '../../lib/paymentVolumeFee';
 import { checkoutIdempotencyKey, checkoutParamsFingerprint, getStripe, isIdempotencyInFlight } from '../services/stripeService';
 import { publicPortalRouter } from './customerPortalRoutes';
 import { publicEstimateRouter } from './estimateSignRoutes';
@@ -140,9 +141,32 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
     // Use configured trusted application URL to prevent host-header poisoning (#85)
     const origin = getTrustedAppUrl(req);
 
+    let wsData: Record<string, unknown> | undefined;
+    if (typeof invoice.workspaceId === 'string' && invoice.workspaceId) {
+      try {
+        const wsSnap = await db.collection('workspaces').doc(invoice.workspaceId).get();
+        if (wsSnap?.exists) wsData = wsSnap.data();
+      } catch {
+        wsData = undefined;
+      }
+    }
+
+    const requestedRail = parsedBody.data.paymentMethod;
+    const paymentMethodTypes: Array<'card' | 'us_bank_account'> =
+      requestedRail === 'us_bank_account'
+        ? ['us_bank_account']
+        : requestedRail === 'card'
+          ? ['card']
+          : ['card', 'us_bank_account'];
+    const feeRail = requestedRail === 'us_bank_account' ? 'us_bank_account' : 'card';
+    const feeQuote = computePlatformFeeQuote(remainingBalance, String(wsData?.plan || 'free'), feeRail);
+    const connectDestination = typeof wsData?.stripeConnectAccountId === 'string' && wsData.stripeConnectAccountId.trim()
+      ? wsData.stripeConnectAccountId.trim()
+      : null;
+
     // INT-6: one key per invoice and amount still due — a double click gets the same session, not a second one
     const params = {
-      payment_method_types: ['card', 'us_bank_account'],
+      payment_method_types: paymentMethodTypes,
       line_items: [
         {
           price_data: {
@@ -163,14 +187,29 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
       metadata: {
         invoiceId: doc.id,
         workspaceId: invoice.workspaceId,
-        paymentToken: token
-      }
+        paymentToken: token,
+        ...(connectDestination
+          ? {
+              platformFeeCents: String(feeQuote.platformFeeCents),
+              platformFeeBps: String(feeQuote.platformFeeBps),
+              rail: feeRail,
+            }
+          : {}),
+      },
+      ...(connectDestination
+        ? {
+            payment_intent_data: {
+              ...(feeQuote.platformFeeCents > 0 ? { application_fee_amount: feeQuote.platformFeeCents } : {}),
+              transfer_data: { destination: connectDestination },
+            },
+          }
+        : {}),
     } satisfies Parameters<typeof stripe.checkout.sessions.create>[0];
     // the same parameters get the same key; changed ones (another amount, a renamed invoice) a new one
     const idempotencyKey = checkoutIdempotencyKey(doc.id, remainingBalance, token.slice(-16), checkoutParamsFingerprint(params));
     const session = await stripe.checkout.sessions.create(params, { idempotencyKey });
 
-    res.json({ url: session.url });
+    res.json({ url: session.url, ...(connectDestination ? { feeQuote } : {}) });
 
   } catch (err) {
     if (isIdempotencyInFlight(err)) return res.status(409).json({ error: 'This payment is already being opened. Wait a moment and try again.' });
