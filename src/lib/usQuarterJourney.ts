@@ -20,13 +20,12 @@
 import { COUNTED_SALES } from './taxCodes';
 import { exemptionOn } from './taxExemption';
 import {
-  registrationsOn, registrationKey, resolveSellerProfile,
+  registrationsOn, registrationKey,
   type FilingFrequency, type TaxProfiles,
 } from './tax/profile';
 import { filingCalendarRow, filingDueDate } from './tax/usFilingCalendar';
 import { nexusThreshold } from './tax/usNexus';
-import { usSalesTaxReturn, usSaleDestination, type UsSalesDocument } from './tax/usSalesTaxReturn';
-import { documentEntityLabels } from './tax/ilVatReturn';
+import { usSalesTaxReturn, type UsSalesDocument } from './tax/usSalesTaxReturn';
 import { NO_STATE_SALES_TAX, US_STATE_SALES_TAX } from './tax/usStateSalesTax';
 import { reviewUseTax, type UseTaxBill, type UseTaxItem, type UseTaxReview } from './tax/usUseTax';
 import { productTaxabilityRows } from './tax/usProductTaxability';
@@ -255,12 +254,14 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
   // AF-004 (#518): US sales with no state are in no return. A seller with two permits sees the same sale under both,
   // and two sellers have different ones, so the distinct documents are counted once each.
   const unplacedDocuments = new Map<string, number>();
+  const returnState = new Map<string, string>(); // invoice id → the state whose return counts it
   const returns: UsQuarterStateReturn[] = permits.map(permit => {
     const r = usSalesTaxReturn({
       registration: permit.registration, profiles, order, customers, startDate, endDate,
       invoices, creditNotes,
     });
     for (const d of r.unplaced.documents) unplacedDocuments.set(d.id, d.taxCents);
+    for (const id of r.invoiceIds) returnState.set(id, permit.state);
     const calendar = filingCalendarRow(permit.state);
     const dueDate = filingDueDate(permit.state, endDate);
     const nexus = nexusThreshold(permit.state, endDate);
@@ -325,13 +326,11 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
     if (!COUNTED_SALES.has(String(doc.status)) || date < startDate || date > endDate) continue;
     if (Number(doc.taxAmountCents || 0) !== 0) continue;
     if (doc.taxTreatment !== 'exempt' && doc.taxTreatment !== 'zero_rated') continue;
-    // the seller and the destination are read exactly as the state return reads them (#627)
-    const seller = resolveSellerProfile(profiles, documentEntityLabels(doc), order);
-    if (!registrationsOn(seller, 'sales_tax', date).some(r => r.place?.country === 'US')) continue;
+    // membership is the state return's own (seller, permit, saved destination): a sale counts here only when a
+    // state return counts it, in that return's state
+    const buyerState = returnState.get(String(doc.id));
+    if (!buyerState || exemptByProduct(doc, buyerState, date)) continue;
     const customer = doc.customerId ? customersById.get(doc.customerId) : undefined;
-    const destination = usSaleDestination(doc, undefined, customer, seller.place?.state);
-    const buyerState = destination.state;
-    if (destination.abroad || !buyerState || exemptByProduct(doc, buyerState, date)) continue;
     certificates.counted++;
     const found = exemptionOn(customer, date);
     if (!found) certificates.missing++;
