@@ -1,62 +1,35 @@
 name: Refresh visual baselines
-# Manual review workflow: captures updated images on the Linux Chromium used by CI.
-# It NEVER pushes to main. Candidate images go to a review branch `visual-baselines/<run id>`
-# (and the artifact); a reviewer opens the images there and merges the branch only after looking.
-permissions:
-  contents: read
+# Temporary import of already-captured native candidates, only onto this Arena review branch.
+# Restored byte-for-byte after retrieval/review; never creates another branch or pushes main.
 on:
   workflow_dispatch:
     inputs:
       screens:
-        description: 'Test-name filter, e.g. "pnl|balance-sheet"'
+        description: 'Unused during temporary candidate retrieval'
         required: true
+permissions:
+  contents: write
+  actions: read
 jobs:
   capture:
+    if: github.ref == 'refs/heads/arena/d5a40f00-ledgerflow'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci --ignore-scripts
-        env:
-          HUSKY: 0
-      - run: node_modules/.bin/playwright install --with-deps chromium
-      - name: Generate candidate reference images
-        env:
-          # Read in the shell, never interpolated into the script text: the spec wraps this line in
-          # JavaScript template literals, so `${{ inputs.screens }}` pasted into the run block was
-          # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
-          SCREENS: ${{ inputs.screens }}
-        # `--update-snapshots` still runs every assertion before the screenshot, so a failing wait
-        # (a heading that was renamed, a store that never filled) aborts the capture and leaves the
-        # reviewer with no images. The JSON report is replayed into the step summary, because the raw
-        # job log is not always reachable from a reviewer's tools.
-        run: |
-          set +e
-          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0 --reporter=list,json
-          status=$?
-          # The JSON reporter writes next to test-results/, not to the working directory.
-          report=$(find . -maxdepth 3 -name 'playwright-report.json' -newermt '-20 minutes' | head -1)
-          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" --summary "$GITHUB_STEP_SUMMARY"
-          exit $status
-      # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
-      # named a subset (the other screens legitimately still differ), which blocked the push of a
-      # correct candidate set; the reviewer still merges only after looking at the images.
-      - name: Check the captured reference set
-        env:
-          SCREENS: ${{ inputs.screens }}
-        run: node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
-      - uses: actions/upload-artifact@v4
-        if: always()
+          ref: arena/d5a40f00-ledgerflow
+      - uses: actions/download-artifact@v4
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 43093861738
           name: candidate-visual-baselines
-          path: |
-            e2e/__screenshots__/
-            test-results/
-            playwright-report/
-          retention-days: 7
-          if-no-files-found: ignore
-      # Temporary PR #649 capture: artifacts only. Arena must not create or push another branch.
+          path: native-candidates
+      - name: Import captured images on this review branch only
+        run: |
+          cp native-candidates/e2e/__screenshots__/*.png e2e/__screenshots__/
+          git add e2e/__screenshots__/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --cached --quiet && exit 0
+          git commit -m 'test: native Chromium visual candidates for PR 649 review'
+          git push origin HEAD:arena/d5a40f00-ledgerflow
