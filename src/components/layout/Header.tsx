@@ -1,7 +1,7 @@
 // Keep translations reachable for the structural module guard.
 import { t as _t } from '../../locales/i18n';
 import React from 'react';
-import { Menu, Search, Sun, Moon, Compass, ShieldCheck, HelpCircle, Bell, Users } from 'lucide-react';
+import { Menu, Search, Sun, Moon, Compass, ShieldCheck, HelpCircle, Bell, Users, Languages } from 'lucide-react';
 import QuickCreateMenu from './QuickCreateMenu';
 import { PinPageButton } from './PinnedPagesBar';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -31,6 +31,8 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
   const setCommandPaletteOpen = useUIStore(s => s.setCommandPaletteOpen);
   const theme = useUIStore(s => s.theme);
   const setTheme = useUIStore(s => s.setTheme);
+  const language = useUIStore(s => s.language);
+  const setLanguage = useUIStore(s => s.setLanguage);
   const currentRole = useCurrentRole();
   const collaborators = useCollaborators();
 
@@ -57,7 +59,6 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
 
 
-  useUIStore(s => s.language);
   const isAdmin = useAuthStore(state => state.isAdmin);
   const developerMode = useUIStore(state => state.developerMode);
   const setActiveTab = useUIStore(state => state.setActiveTab);
@@ -148,6 +149,18 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         </button>
 
         <PinPageButton />
+
+        <button
+          type="button"
+          onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
+          className="inline-flex min-h-11 items-center gap-1.5 px-2 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
+          title={language === 'en' ? 'Switch interface language to Hebrew' : 'Switch interface language to English'}
+          aria-label={language === 'en' ? 'Switch interface language to Hebrew' : 'Switch interface language to English'}
+          lang={language === 'en' ? 'he' : 'en'}
+        >
+          <Languages aria-hidden="true" size={16} />
+          <span className="hidden sm:inline">{language === 'en' ? 'עברית' : 'English'}</span>
+        </button>
 
         {/* Theme Toggle */}
         <button

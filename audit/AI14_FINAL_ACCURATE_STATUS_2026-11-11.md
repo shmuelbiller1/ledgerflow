@@ -33,7 +33,7 @@ Every item below remains open unless explicitly noted otherwise. No implementati
 
 | Area | Open items |
 |---|---|
-| Hebrew and phone receipts | **EU-G1** Hebrew screen translations (one screen per PR, Sales first); **EU-C4** phone receipt capture and draft attachment. |
+| Hebrew and phone receipts | **EU-G1 (in progress, not complete):** first Sales slice adds a persisted global English/Hebrew control, document RTL/LTR, and Hebrew/English strings for the Sales heading, primary tabs/actions, receivables summary, invoice table headings and invoice/customer empty states. Invoice/customer dialogs, customer detail, remaining Sales copy, and the untranslated-string guard are still open. **EU-C4** phone receipt capture and draft attachment remains open. |
 | Labels | **EU-E2** bulk label assignment and undo; **EU-E4** truthful report label filters; **EU-E5** label-aware budgets; **EU-E3** parent/child labels and reviewed migration; **EU-E6** label-value detail page; **EU-E8** promoted pivot; **EU-E9** label-aware import/API/export. |
 | Everyday speed | **EU-B6** confirmed natural-language entry with workspace currency and safe account selection; **EU-B3** recoverable form drafts; **EU-B5** undo for reversible actions; **EU-F2** plain-language names. |
 | Bank review/reconciliation | **EU-C1** explainable match reasons; **EU-C2** keyboard review; **EU-C3** rule creation during review; **EU-C5** reconciliation summary. |
@@ -44,4 +44,4 @@ This is the supplied backlog, not a statement that these are the only product de
 
 ## Next action and limitations
 
-Per the AI #14 queue order, EU-G1 is next after EU-A1's incomplete handoff; it must be done screen-by-screen, starting with Sales, with browser reproduction and an untranslated-string regression guard. This session made **no application-code, financial, server, database, or workflow change** and ran no local test suite. The repository checkout has no `node_modules`; only the merged PR's GitHub checks are reported above. This status reconciliation is pushed for review in [PR #663](https://github.com/shmuelbiller1/ledgerflow/pull/663); consult that PR for its current CI state.
+EU-G1 implementation has started on the assigned Sales screen in [PR #663](https://github.com/shmuelbiller1/ledgerflow/pull/663), but remains **incomplete** and is not marked done. The changed UI files pass `tsc`, touched-file ESLint, and 7/7 focused Node tests (language direction/persistence and Sales/Purchases screens). A two-width Playwright spec is added but was not run locally because no Playwright browser is installed; final GitHub CI on the updated head is still required. Dependencies were installed with `npm ci --ignore-scripts`; this sandbox uses Node 22.22.3 while the repository specifies Node 24.x. No financial, server, database, or workflow change was made. The rest of the listed backlog remains open.
