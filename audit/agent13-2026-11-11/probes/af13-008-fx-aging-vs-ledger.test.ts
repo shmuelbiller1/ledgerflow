@@ -18,8 +18,9 @@
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { computePartyAging } from '../../../src/lib/aging';
-import { makeInvoice } from '../../../src/tests/fixtures';
-import { startPostingHarness, type PostingHarness } from '../../../src/tests/helpers/postingHarness';
+import {
+  jpyInvoice, postJpyInvoice, startPostingHarness, type PostingHarness,
+} from '../../../src/tests/helpers/postingHarness';
 
 describe('AF13-008 aging vs ledger for a 0-decimal document currency', () => {
   let harness: PostingHarness;
@@ -27,23 +28,13 @@ describe('AF13-008 aging vs ledger for a 0-decimal document currency', () => {
   after(() => harness.restore());
 
   test('a JPY invoice posts 67,000 receivable cents but the aging shows 670', async () => {
-    harness.reset();
-    await harness.service.postInvoiceLedger('inv-jpy', {
-      number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
-      date: '2026-03-10', dueDate: '2026-04-10',
-      amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-    }, 'w1', 'u1', undefined, harness.context());
-
-    const ledgerReceivable = harness.byAccount(harness.sent[0]).ar;
+    const accrual = await postJpyInvoice(harness);
+    const ledgerReceivable = harness.byAccount(accrual).ar;
     assert.equal(ledgerReceivable, 67_000, 'the ledger receivable: ¥100,000 × 0.67 = 67,000 US cents');
 
     const aging = computePartyAging(
       [{ id: 'c1', name: 'Tokyo Customer' }],
-      [makeInvoice({
-        id: 'inv-jpy', number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
-        amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-        date: '2026-03-10', dueDate: '2026-04-10',
-      })],
+      [jpyInvoice()],
       'customer', '2026-03-31',
     );
 

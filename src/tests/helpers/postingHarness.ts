@@ -8,8 +8,8 @@
  * test is obvious at the call site.
  */
 import { lineAmount } from '../../lib/txFilters';
-import { makeChartAccount } from '../fixtures';
-import type { ChartAccount, InventoryItem, Transaction, Workspace } from '../../types';
+import { makeChartAccount, makeInvoice } from '../fixtures';
+import type { ChartAccount, InventoryItem, Invoice, Transaction, Workspace } from '../../types';
 
 /** id → name, type, category. Every posting case needs these five; add rows, do not fork the helper. */
 const CHART: ReadonlyArray<readonly [string, string, ChartAccount['type'], string?]> = [
@@ -75,4 +75,34 @@ export async function startPostingHarness(): Promise<PostingHarness> {
     reset: () => { sent.length = 0; },
     restore: () => { globalThis.fetch = realFetch; },
   };
+}
+
+/**
+ * The multi-currency case every "does the ledger agree with the report?" test needs: ¥100,000 at
+ * 0.0067 USD/JPY in a USD book. Independent expectation — ¥100,000 × $0.0067 = $670.00 — so the
+ * ledger must show 67,000 cents. A currency with no minor digits, which is where a hundredfold
+ * error comes from (`documentMinorRate` = rate × 10^(2 − 0)).
+ */
+export const JPY_INVOICE = {
+  number: 'INV-JPY-1',
+  customerId: 'c1',
+  customerName: 'Tokyo Customer',
+  date: '2026-03-10',
+  dueDate: '2026-04-10',
+  amountCents: 100_000,
+  currency: 'JPY',
+  exchangeRate: 0.0067,
+  status: 'sent' as const,
+};
+
+/** The document the ledger was posted from, for the read side (aging, repost check). */
+export function jpyInvoice(overrides: Partial<Invoice> = {}): Invoice {
+  return makeInvoice({ id: 'inv-jpy', ...JPY_INVOICE, ...overrides } as Partial<Invoice>);
+}
+
+/** Post that invoice for real and return the accrual entry the service sent. */
+export async function postJpyInvoice(harness: PostingHarness): Promise<PostedTransaction> {
+  harness.reset();
+  await harness.service.postInvoiceLedger('inv-jpy', { ...JPY_INVOICE }, 'w1', 'u1', undefined, harness.context());
+  return harness.sent[0];
 }

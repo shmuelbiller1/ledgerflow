@@ -18,9 +18,10 @@
  */
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeInvoice } from '../../../src/tests/fixtures';
 import { findPostingMismatches } from '../../../src/lib/postingCheck';
-import { startPostingHarness, type PostingHarness } from '../../../src/tests/helpers/postingHarness';
+import {
+  jpyInvoice, postJpyInvoice, startPostingHarness, type PostingHarness,
+} from '../../../src/tests/helpers/postingHarness';
 
 describe('AF13-001 repost check vs the real posting path for a 0-decimal document currency', () => {
   let harness: PostingHarness;
@@ -28,19 +29,12 @@ describe('AF13-001 repost check vs the real posting path for a 0-decimal documen
   after(() => harness.restore());
 
   test('¥100,000 at 0.0067 posts 67,000 cents, and the repost check no longer expects 670', async () => {
-    harness.reset();
-    await harness.service.postInvoiceLedger('inv-jpy', {
-      number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
-      date: '2026-03-10', dueDate: '2026-04-10',
-      amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-    }, 'w1', 'u1', undefined, harness.context());
-
-    const accrual = harness.sent[0];
+    const accrual = await postJpyInvoice(harness);
     assert.equal(harness.byAccount(accrual).ar, 67_000,
       'the server posts ¥100,000 × 0.67 (USD cents per yen) = 67,000 US cents');
 
     const issues = findPostingMismatches({
-      invoices: [makeInvoice({ id: 'inv-jpy', number: 'INV-JPY-1', amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent', dueDate: '2026-04-10' })],
+      invoices: [jpyInvoice()],
       bills: [],
       transactions: [accrual],
       baseCurrency: 'USD',

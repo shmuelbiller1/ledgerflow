@@ -17,7 +17,9 @@ import assert from 'node:assert/strict';
 import { buildCloseChecklist, readyToClose } from '../lib/closeChecklist';
 import { findPostingMismatches } from '../lib/postingCheck';
 import { makeBill, makeInvoice, makeTransaction } from './fixtures';
-import { startPostingHarness, type PostingHarness } from './helpers/postingHarness';
+import {
+  jpyInvoice, postJpyInvoice, startPostingHarness, type PostingHarness,
+} from './helpers/postingHarness';
 import type { BankStatementLine, Transaction } from '../types';
 
 const MONTH = '2026-03';
@@ -89,17 +91,11 @@ describe('AF13-001: the repost check converts minor units exactly as the posting
   after(() => harness.restore());
 
   test('¥100,000 at 0.0067 posts 67,000 US cents and the checklist agrees (it used to say 670)', async () => {
-    harness.reset();
-    await harness.service.postInvoiceLedger('inv-jpy', {
-      number: 'INV-JPY-1', customerId: 'c1', customerName: 'Tokyo Customer',
-      date: '2026-03-10', dueDate: '2026-04-10',
-      amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent',
-    }, 'w1', 'u1', undefined, harness.context());
-    const accrual = harness.sent[0];
+    const accrual = await postJpyInvoice(harness);
     assert.equal(harness.byAccount(accrual).ar, 67_000, 'the server posts ¥100,000 × 0.67 = 67,000 US cents');
 
     const input = {
-      invoices: [makeInvoice({ id: 'inv-jpy', number: 'INV-JPY-1', amountCents: 100_000, currency: 'JPY', exchangeRate: 0.0067, status: 'sent' as const, dueDate: '2026-04-10' })],
+      invoices: [jpyInvoice()],
       bills: [],
       transactions: [accrual],
     };
