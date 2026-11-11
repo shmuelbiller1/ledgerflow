@@ -428,7 +428,7 @@ test('F-45 W9 browser: close September 2026, a late posting is refused, reopen w
       truncatedCollections: {}, baseCurrency: 'USD',
     } as never);
     useDataNeedsStore.setState({
-      loaded: { accounts: true, bankLines: true, bills: true, invoices: true, transactions: true, journalEntries: true, customers: true, vendors: true, assets: true },
+      loaded: { accounts: true, bankLines: true, bills: true, invoices: true, transactions: true, journalEntries: true, customers: true, vendors: true, assets: true, creditNotes: true, vendorCredits: true },
       loadedWorkspaceId: workspaceId, failed: {},
     } as never);
     (createRoot(document.getElementById('root')!)).render(React.createElement(MonthEndClose));
