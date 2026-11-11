@@ -65,6 +65,7 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
   const invoicesCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices));
   const payRunsCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.payRuns));
   const { loading } = useLedgerCollections('invoices', 'payRuns', 'auditLogs');
+  useLedgerCollections('bills', 'reconciliations');
   const failed = useDataNeedsStore(s => s.failed.invoices || s.failed.payRuns);
   const review = useAccessReview(workspaceId);
   const [from, setFrom] = useState(monthStart);

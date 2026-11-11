@@ -97,8 +97,8 @@ do $$ begin
 end $$;
 select pg_temp.expect_denied('dated document in a locked period', 'u-book',
   $$insert into invoices(id,data) values ('inv-lock-1', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_denied('dated document without a date while locked', 'u-book',
-  $$insert into invoices(id,data) values ('inv-lock-2', '{"workspaceId":"ws1","status":"draft","amountCents":100}')$$);
+select pg_temp.expect_denied('dated document with an empty date while locked', 'u-book',
+  $$insert into invoices(id,data) values ('inv-lock-2', '{"workspaceId":"ws1","date":"","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_ok('dated document in an open period', 'u-book',
   $$insert into invoices(id,data) values ('inv-lock-3', '{"workspaceId":"ws1","date":"2026-02-01","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_denied('move a dated document into a locked period', 'u-book',

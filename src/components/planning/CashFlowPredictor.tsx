@@ -7,6 +7,7 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useServerActivity } from '../../hooks/useServerActivity';
 import { openingCutoff } from '../../lib/serverBalances';
 import { monthEnd, sumActivity } from '../../lib/periodActivity';
@@ -24,6 +25,7 @@ const monthRange = (date: string): [string, string] => {
 };
 
 export default function CashFlowPredictor() {
+  useLedgerCollections('bills', 'invoices', 'payments');
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const invoices = useLedgerStore(s => s.invoices || []);
