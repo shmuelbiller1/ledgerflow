@@ -8,7 +8,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  YEAR_ARCHIVE_COLLECTIONS, buildYearArchiveCsvEntries, planYearArchive, recordYear, safeFilePart, withPdfOutcome,
+  YEAR_ARCHIVE_COLLECTIONS, buildYearArchiveCsvEntries, pdfRetryDelayMs, planYearArchive, recordYear, safeFilePart, withPdfOutcome,
 } from '../lib/yearEndArchive';
 import { makeStoredZip, readStoredZip } from '../lib/workspaceArchive';
 
@@ -148,4 +148,12 @@ describe('review fixes on the year archive', () => {
     assert.equal(entries.filter(e => e.path === 'manifest.json').length, 1);
     assert.equal(plan.manifest.invoicePdfCount, 2, 'the plan itself is not changed');
   });
+});
+
+test('"too many requests" for a PDF means wait as long as the server says (bounded), then ask again', () => {
+  const headers = (values: Record<string, string>) => ({ get: (name: string) => values[name] ?? null });
+  assert.equal(pdfRetryDelayMs(headers({ 'RateLimit-Reset': '12' })), 13_000);
+  assert.equal(pdfRetryDelayMs(headers({ 'Retry-After': '30' })), 31_000);
+  assert.equal(pdfRetryDelayMs(headers({})), 61_000);
+  assert.equal(pdfRetryDelayMs(headers({ 'RateLimit-Reset': '9999' })), 65_000);
 });

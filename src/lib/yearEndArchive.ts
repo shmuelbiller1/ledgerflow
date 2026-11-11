@@ -175,3 +175,9 @@ export function withPdfOutcome(entries: readonly ZipEntry[], plan: YearArchivePl
   const manifest = { ...plan.manifest, invoicePdfCount: pdfCount, invoicePdfsMissing: [...missing] };
   return entries.map(entry => (entry.path === 'manifest.json' ? { path: entry.path, content: JSON.stringify(manifest, null, 2) } : entry));
 }
+
+/** How long the server asks to wait after "too many requests" (it makes only a few PDFs a minute), in ms. */
+export function pdfRetryDelayMs(headers: { get(name: string): string | null }): number {
+  const seconds = Number(headers.get('RateLimit-Reset') ?? headers.get('Retry-After'));
+  return Math.min(65, Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) + 1 : 61) * 1000;
+}

@@ -80,7 +80,9 @@ export default function Vault() {
     const q = query(collection(db, 'documents'), where('workspaceId', '==', workspaceId));
 
     return onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CloudDocument));
+      // the same collection also holds records that are not files (stages, time entries, watches): only stored files are listed
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CloudDocument))
+        .filter(row => typeof row.fileUrl === 'string' && row.fileUrl !== '');
       setDocuments(data);
       setLoadError('');
       setLoading(false);

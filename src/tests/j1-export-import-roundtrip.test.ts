@@ -47,7 +47,7 @@ describe('J-1 export → import round trip', () => {
   test('the export file is read back by the import with the same values it wrote', () => {
     const table = recordExportTable(customers);
     const cells = parseCsv(toCsv(table.headers, table.rows), ',');
-    const prepared = prepareImport('customers', applyMapping('customers', cells.slice(1), guessMapping('customers', cells[0])));
+    const prepared = prepareImport('customers', applyMapping('customers', cells.slice(1), guessMapping('customers', cells[0]), { csvGuarded: true }));
 
     assert.deepEqual(prepared.errors, [], 'every exported customer must be importable');
     assert.equal(prepared.records.length, customers.length);
@@ -69,7 +69,7 @@ describe('J-1 export → import round trip', () => {
     const cells = parseCsv(toCsv(table.headers, table.rows), ',');
     const header = cells[0];
     const mapping = guessMapping('customers', header);
-    const prepared = prepareImport('customers', applyMapping('customers', cells.slice(1), mapping));
+    const prepared = prepareImport('customers', applyMapping('customers', cells.slice(1), mapping, { csvGuarded: true }));
     for (const original of customers) {
       const row = prepared.records.find(record => record.data.name === original.name);
       assert.ok(row, `${original.name} must be in the import`);
@@ -100,4 +100,12 @@ describe('J-1 export → import round trip', () => {
       assert.equal(unguardCsvCell(written), value, `${value} must round-trip through the guard`);
     }
   });
+});
+
+test('a source that never had the CSV guard keeps an apostrophe before @ + - = as data', () => {
+  const rows = [["'@Home", 'a@x.test'], ['@Home', 'b@x.test']];
+  const mapping = guessMapping('customers', ['Name', 'Email']);
+  const prepared = prepareImport('customers', applyMapping('customers', rows, mapping));
+  assert.deepEqual(prepared.errors, []);
+  assert.deepEqual(prepared.records.map(record => record.data.name), ["'@Home", '@Home'], 'two different names stay two');
 });

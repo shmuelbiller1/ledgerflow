@@ -211,13 +211,18 @@ export function guessMapping(kind: ImportKind, header: string[]): FieldMapping {
   return mapping;
 }
 
-export function applyMapping(kind: ImportKind, dataRows: string[][], mapping: FieldMapping): ImportRow[] {
+/**
+ * `csvGuarded`: the rows come from a plain spreadsheet/CSV file, which may be this app's own export. Its
+ * formula guard (a leading apostrophe before `=`, `+`, `-`, `@`) is removed so the exported value comes back
+ * (J-1). Never set it for other sources (vCard, IIF, another product's format): there an apostrophe is data.
+ */
+export function applyMapping(kind: ImportKind, dataRows: string[][], mapping: FieldMapping, options: { csvGuarded?: boolean } = {}): ImportRow[] {
   const fields = IMPORT_DEFINITIONS[kind].fields;
   return dataRows.map(cells => {
     const row: ImportRow = {};
     for (const field of fields) {
       const index = mapping[field.key];
-      if (index !== undefined && index >= 0 && index < cells.length) row[field.key] = cells[index] ?? '';
+      if (index !== undefined && index >= 0 && index < cells.length) row[field.key] = options.csvGuarded ? unguardCsvCell((cells[index] ?? '').trim()) : cells[index] ?? '';
     }
     return row;
   });
@@ -264,10 +269,7 @@ export function identityKeys(kind: ImportKind, data: Record<string, unknown>): s
 }
 
 function readValue(field: ImportField, raw: string): { value?: ImportValue; error?: string; extra?: Record<string, string> } {
-  // J-1 (Agent #11): a file this app exported carries the CSV formula guard (a leading apostrophe
-  // before text a spreadsheet would run, e.g. a phone `+1 555 0100`). Reading it back must give the
-  // value that was exported, so the guard is removed here and nowhere else in the cell.
-  const text = unguardCsvCell(raw.trim());
+  const text = raw.trim();
   switch (field.type) {
     case 'text': return { value: clean(text, 200) };
     case 'longText': return { value: clean(text, 2000, true) };

@@ -147,7 +147,9 @@ export default function ImportSettings() {
 
   const definition = IMPORT_DEFINITIONS[kind];
   const columns = useMemo(() => (table[0] || []).map((name, position) => ({ name, position })), [table]);
-  const mappedRows = useMemo(() => applyMapping(kind, table.slice(1), mapping), [kind, table, mapping]);
+  // only a plain spreadsheet can be this app's own export, so only there is the CSV formula guard removed
+  const csvGuarded = !iif && !contactFile && source === 'generic';
+  const mappedRows = useMemo(() => applyMapping(kind, table.slice(1), mapping, { csvGuarded }), [kind, table, mapping, csvGuarded]);
   const contactCleanup = useMemo(() => cleanupContactImportRows(kind, mappedRows, phoneCountry, {
     acceptEmailSuggestions,
     acceptPhoneSuggestions,

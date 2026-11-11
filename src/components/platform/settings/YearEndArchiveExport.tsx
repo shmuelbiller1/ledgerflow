@@ -21,17 +21,33 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { BRAND } from '../../../config/brand';
 import { verifiedBackupCollections, makeStoredZip } from '../../../lib/workspaceArchive';
 import type { ZipEntry } from '../../../lib/workspaceArchive';
-import { buildYearArchiveCsvEntries, planYearArchive, withPdfOutcome, type YearArchivePlan } from '../../../lib/yearEndArchive';
+import { buildYearArchiveCsvEntries, pdfRetryDelayMs, planYearArchive, withPdfOutcome, type YearArchivePlan } from '../../../lib/yearEndArchive';
 
-/** The invoice PDF, from the route the invoice screen itself uses (src/services/documentDownloads.ts). */
-async function fetchInvoicePdf(workspaceId: string, documentId: string, token: string, signal: AbortSignal): Promise<Blob | null> {
+/** Waits, or returns false at once when the work is cancelled. */
+const pause = (ms: number, signal: AbortSignal) => new Promise<boolean>(resolve => {
+  if (signal.aborted) { resolve(false); return; }
+  const done = () => { clearTimeout(timer); resolve(false); };
+  const timer = setTimeout(() => { signal.removeEventListener('abort', done); resolve(true); }, ms);
+  signal.addEventListener('abort', done, { once: true });
+});
+
+/**
+ * The invoice PDF, from the route the invoice screen itself uses (src/services/documentDownloads.ts).
+ * The server makes only a few PDFs a minute; "too many requests" means wait and ask again, not "no PDF".
+ */
+async function fetchInvoicePdf(workspaceId: string, documentId: string, token: string, signal: AbortSignal, onWait: () => void): Promise<Blob | null> {
   const query = new URLSearchParams({ workspaceId });
-  const response = await fetch(
-    `/api/v1/documents/invoice/${encodeURIComponent(documentId)}/pdf?${query.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` }, signal },
-  );
-  if (!response.ok) return null;
-  return response.blob();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await fetch(
+      `/api/v1/documents/invoice/${encodeURIComponent(documentId)}/pdf?${query.toString()}`,
+      { headers: { Authorization: `Bearer ${token}` }, signal },
+    );
+    if (response.ok) return response.blob();
+    if (response.status !== 429) return null;
+    onWait();
+    if (!(await pause(pdfRetryDelayMs(response.headers), signal))) return null;
+  }
+  return null;
 }
 
 const thisYear = () => Number(getLocalDateISO().slice(0, 4));
@@ -49,6 +65,7 @@ function YearEndArchiveExportBody() {
   const [year, setYear] = useState(thisYear);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState('');
   const [plan, setPlan] = useState<YearArchivePlan | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pending = useRef(false);
@@ -108,10 +125,14 @@ function YearEndArchiveExportBody() {
       // the invoices of the year, as the same PDF the invoice screen prints
       let pdfs = 0;
       const failed: string[] = [];
+      const pdfTotal = current.files.filter(file => file.kind === 'pdf' && file.documentId).length;
       for (const file of current.files) {
         if (file.kind !== 'pdf' || !file.documentId) continue;
         if (controller.signal.aborted) return;
-        const blob = await fetchInvoicePdf(selectedId, file.documentId, token, controller.signal);
+        const at = `Invoice PDF ${pdfs + failed.length + 1} of ${pdfTotal}`;
+        setProgress(`${at}…`);
+        const blob = await fetchInvoicePdf(selectedId, file.documentId, token, controller.signal,
+          () => setProgress(`${at}: the server makes about 10 PDFs a minute, waiting to continue…`));
         if (!blob) { failed.push(file.documentNumber || file.documentId); continue; }
         // raw bytes: a PDF is binary and must not go through the text encoder
         const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -137,7 +158,7 @@ function YearEndArchiveExportBody() {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not build the archive.');
     } finally {
       pending.current = false;
-      if (!controller.signal.aborted) setBusy(false);
+      if (!controller.signal.aborted) { setBusy(false); setProgress(''); }
     }
   };
 
@@ -170,6 +191,7 @@ function YearEndArchiveExportBody() {
       </div>
 
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}
+      {progress && <p role="status" className="mb-3 text-xs text-[var(--muted)]">{progress}</p>}
 
       {plan && (
         <div className="space-y-2" aria-live="polite">
