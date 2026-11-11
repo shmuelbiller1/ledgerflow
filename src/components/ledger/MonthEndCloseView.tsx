@@ -69,15 +69,21 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+
+// #643: the four document kinds the posting check covers, where each is saved (saving re-posts it) and what it is called
+const MISMATCH_COLLECTION = { invoice: 'invoices', bill: 'bills', 'credit-note': 'creditNotes', 'vendor-credit': 'vendorCredits' } as const;
+const MISMATCH_LABEL = { invoice: 'Invoice', bill: 'Bill', 'credit-note': 'Credit note', 'vendor-credit': 'Vendor credit' } as const;
 export default function MonthEndCloseView() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const bankLines = useLedgerStore(s => s.bankLines);
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
+  const creditNotes = useLedgerStore(s => s.creditNotes);
+  const vendorCredits = useLedgerStore(s => s.vendorCredits);
   const journalEntries = useLedgerStore(s => s.journalEntries);
   const assets = useLedgerStore(s => s.assets);
-  useLedgerCollections('assets', 'bankLines', 'bills', 'invoices');
+  const { loading: collectionsLoading } = useLedgerCollections('assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'vendorCredits');
   const workspaces = useAuthStore(s => s.workspaces) || [];
   const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
@@ -105,9 +111,9 @@ export default function MonthEndCloseView() {
   }, [workspaceId, month]);
 
   const items = useMemo(() => buildCloseChecklist({
-    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], journalEntries: journalEntries || [], assets: assets || [],
-  }), [month, transactions, bankLines, invoices, bills, journalEntries, assets]);
-  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], transactions: transactions || [] }, monthEnd(month)), [invoices, bills, transactions, month]);
+    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], journalEntries: journalEntries || [], assets: assets || [],
+  }), [month, transactions, bankLines, invoices, bills, creditNotes, vendorCredits, journalEntries, assets]);
+  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], transactions: transactions || [] }, monthEnd(month)), [invoices, bills, creditNotes, vendorCredits, transactions, month]);
   const stepItems = useMemo(() => closeStepItems(workspace?.closeSteps, month, workspace?.fiscalYearStartMonth || 1), [workspace?.closeSteps, workspace?.fiscalYearStartMonth, month]);
   const signOffs = period?.signOffs || {};
   const readiness = readyToClose([...items, ...stepItems], signOffs);
@@ -173,10 +179,10 @@ export default function MonthEndCloseView() {
     let done = 0;
     for (const m of items) {
       try {
-        await updateEntity(m.kind === 'invoice' ? 'invoices' : 'bills', m.id, {});
+        await updateEntity(MISMATCH_COLLECTION[m.kind], m.id, {});
         done++;
       } catch (err) {
-        toast.error(`${m.kind === 'invoice' ? 'Invoice' : 'Bill'} ${m.number}: ${err instanceof Error ? err.message : 'could not be reposted'}`);
+        toast.error(`${MISMATCH_LABEL[m.kind]} ${m.number}: ${err instanceof Error ? err.message : 'could not be reposted'}`);
       }
     }
     setBusy(false);
@@ -331,7 +337,7 @@ export default function MonthEndCloseView() {
                 {mismatches.slice(0, 50).map(m => (
                   <li key={`${m.kind}:${m.id}`} className="py-2 flex items-center justify-between gap-3">
                     <span className="text-[var(--text)]">
-                      {m.kind === 'invoice' ? 'Invoice' : 'Bill'} {m.number}{m.party ? ` · ${m.party}` : ''}
+                      {MISMATCH_LABEL[m.kind]} {m.number}{m.party ? ` · ${m.party}` : ''}
                       <span className="block text-xs text-[var(--muted)]">{m.detail}{m.issue === 'amount' ? ` (document ${formatCurrency(m.expectedCents)}, ledger ${formatCurrency(m.postedCents)})` : ''}</span>
                     </span>
                     {canSign && (
@@ -358,13 +364,14 @@ export default function MonthEndCloseView() {
             ) : state === 'open' ? (
               <div className="space-y-2">
                 {!readiness.ready && <p className="text-sm text-[var(--muted)]">{readiness.reason}</p>}
+                {collectionsLoading && <p className="text-sm text-[var(--muted)]">Loading invoices, bills and credits before the month can be closed…</p>}
                 {isFutureMonth && <p className="text-sm text-[var(--muted)]">This month hasn't ended yet.</p>}
                 <div className="flex gap-3 flex-wrap">
-                  <button type="button" disabled={busy || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
+                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
                     className="px-4 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm font-semibold text-[var(--text)] disabled:opacity-50">
                     Soft close (accountants can still adjust)
                   </button>
-                  <button type="button" disabled={busy || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close {month}
                   </button>
@@ -380,7 +387,7 @@ export default function MonthEndCloseView() {
             ) : (
               <div className="space-y-3">
                 {state === 'soft' && (
-                  <button type="button" disabled={busy || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || collectionsLoading || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close for good
                   </button>

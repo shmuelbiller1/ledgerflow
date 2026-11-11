@@ -4,7 +4,7 @@
  * or blocks the close (drafts dated in the month would be stuck once it closes; an unbalanced
  * trial balance means the books are wrong). The server refuses a close with drafts in it too.
  */
-import type { Bill, FixedAsset, Invoice, Transaction } from '../types';
+import type { Bill, CreditNote, FixedAsset, Invoice, Transaction, VendorCredit } from '../types';
 import { isPostable, lineAmount } from './txFilters';
 import { addDaysYMD } from './fiscalCalendar';
 import { monthEnd } from './periodLock';
@@ -20,7 +20,7 @@ export const CLOSE_CHECKLIST_ITEMS = [
   { id: 'anomalies', title: 'Flagged transactions reviewed' },
   { id: 'aging', title: 'Old receivables and payables reviewed' },
   { id: 'depreciation', title: 'Depreciation posted' },
-  { id: 'postings', title: 'Invoices and bills match the ledger' },
+  { id: 'postings', title: 'Invoices, bills and credits match the ledger' },
 ] as const;
 
 export type CloseItemId = typeof CLOSE_CHECKLIST_ITEMS[number]['id'];
@@ -44,6 +44,9 @@ export interface CloseChecklistInput {
   bankLines: Array<{ date?: string; status?: string; matchedTransactionId?: string | null }>;
   invoices: Invoice[];
   bills: Bill[];
+  /** #643: checked against the ledger like invoices and bills */
+  creditNotes?: CreditNote[];
+  vendorCredits?: VendorCredit[];
   journalEntries?: DatedDoc[];
   assets?: FixedAsset[];
 }
@@ -105,16 +108,18 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
       detail: undepreciated ? `${plural(undepreciated, 'fixed asset')} not depreciated through this month yet (Fixed Asset Register → Post depreciation).` : 'Fixed assets are depreciated through this month.' },
     { id: 'postings', title: title('postings'), count: mismatches.length,
       status: mismatches.length ? 'attention' : 'done',
-      detail: mismatches.length ? `${plural(mismatches.length, 'document')} whose ledger entry is missing, doubled or wrong. Repost them below.` : 'Every invoice and bill is in the ledger once, with the right amount.' },
+      detail: mismatches.length ? `${plural(mismatches.length, 'document')} whose ledger entry is missing, doubled or wrong. Repost them below.` : 'Every invoice, bill, credit note and vendor credit is in the ledger once, with the right amount.' },
   ];
 }
 
-/** Invoices and bills dated through `end` whose ledger entry doesn't match (src/lib/postingCheck.ts). */
-export function postingMismatchesThrough(input: Pick<CloseChecklistInput, 'invoices' | 'bills' | 'transactions'>, end: string): PostingMismatch[] {
+/** Invoices, bills, credit notes and vendor credits dated through `end` whose ledger entry doesn't match (src/lib/postingCheck.ts). */
+export function postingMismatchesThrough(input: Pick<CloseChecklistInput, 'invoices' | 'bills' | 'creditNotes' | 'vendorCredits' | 'transactions'>, end: string): PostingMismatch[] {
   const through = <T extends { date?: string }>(docs: T[]) => docs.filter(d => !d.date || d.date.slice(0, 10) <= end);
   return findPostingMismatches({
     invoices: through(input.invoices),
     bills: through(input.bills),
+    creditNotes: through(input.creditNotes || []),
+    vendorCredits: through(input.vendorCredits || []),
     transactions: input.transactions,
   });
 }

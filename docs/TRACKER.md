@@ -1418,8 +1418,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION BF — ITEMS · PRICING · STOCK
 
-- [ ] BF-03 Item bundles
-- [ ] BF-04 Landed cost on receipt
+- [x] BF-03 Item bundles *(model A-19; picking a bundle on an invoice line adds its parts — AI #9, PR #660, 11 Nov)*
+- [x] BF-04 Landed cost on receipt *(done as EG-6: `landedCostService.ts`, posted and undone from Reports → Landed cost; ticked by AI #9, 11 Nov)*
 - [ ] BF-05 Consignment stock
 - [~] BF-08 Partial fulfilment (step 1 done 7 Oct; step 2 mostly done 7 Oct, see below) — **expanded 7 Oct (roadmap, `docs/ROADMAP.md`); step 1 V1, step 2 Later P0)**.
   - **Found 7 Oct:** the New Estimate form took one amount and no lines, it saved every quote as USD, and a quote or order line could not name an item (`Estimate.lines` has no `itemId`). Invoicing an order (`orderPartInvoice` in `src/lib/salesOrders.ts`, and `convertEstimateToInvoice`) makes invoice lines without one. So an order of stock items never lowers stock and never books cost of goods sold, even when it is invoiced in one go, because `planInvoiceCogs` (`src/services/invoiceCogs.ts`) needs `line.itemId`. The same sale typed straight onto an invoice does both.
@@ -1661,7 +1661,7 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 - [x] ISS-130 *(AI #9, merged #259; DB change applied by the owner 21 Oct; issue closed 10 Nov)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
 *Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
-- [~] CON-2 *(→ AI #9 from 20 Oct; PR open, ai9/CON-2)* US nexus watch (138) on a screen from posted invoices, for the supported states.
+- [x] CON-2 *(AI #9; merged with review #241; ticked 11 Nov)* US nexus watch (138) on a screen from posted invoices, for the supported states.
 - [ ] DIM-2 *(→ AI #9 from 20 Oct)* Stock moves keep where an item came from (vendor/bill/receipt line) and where it went (customer, project, label) — with issue #132 / P2-36.
 
 ## Audit of 18 Oct (audit/VERIFIED_BUG_REPORT.md) — AI #1 fixes these, each with the test the report names
@@ -1672,8 +1672,8 @@ Each is fixed with the acceptance test its section names. Server, posting, resto
 
 ## Integrity follow-up of 18 Oct (owner's request; independent AI examination at 507d3cc)
 
-- [~] INT-6 *(AI #9, PR open, ai9/INT-6: the pay link keys on invoice + amount due, the subscription checkout on workspace + plan + price + current subscription; test `int6-checkout-idempotency.test.ts` with a mocked Stripe)* Stripe Checkout session creation (publicInvoiceRoutes, billingRoutes) sends an idempotency key per invoice + amount, so a double click cannot open two payable sessions.
-- [~] INT-7 *(AI #9, PR #286: the rest above what is due is the customer's credit in Customer Deposits, flagged `refundReview`, with a notice; A/R never negative; test `int7-online-overpayment.test.ts`)* An online payment arriving for an invoice already paid in full is recorded as an overpayment (customer credit) and flagged for refund review — never silently applied twice. (From the owner's "exactly-once impossibility" exam, 18 Oct: we rely on Stripe Checkout + webhook event ids, which already avoids the impossible case.)
+- [x] INT-6 *(merged #284; ticked 11 Nov) (AI #9, PR open, ai9/INT-6: the pay link keys on invoice + amount due, the subscription checkout on workspace + plan + price + current subscription; test `int6-checkout-idempotency.test.ts` with a mocked Stripe)* Stripe Checkout session creation (publicInvoiceRoutes, billingRoutes) sends an idempotency key per invoice + amount, so a double click cannot open two payable sessions.
+- [x] INT-7 *(merged #286; ticked 11 Nov) (AI #9, PR #286: the rest above what is due is the customer's credit in Customer Deposits, flagged `refundReview`, with a notice; A/R never negative; test `int7-online-overpayment.test.ts`)* An online payment arriving for an invoice already paid in full is recorded as an overpayment (customer credit) and flagged for refund review — never silently applied twice. (From the owner's "exactly-once impossibility" exam, 18 Oct: we rely on Stripe Checkout + webhook event ids, which already avoids the impossible case.)
 
 
 ## AI #2 launch-readiness batch — 26 Oct 2026
@@ -1685,7 +1685,7 @@ posting, tax maths, `src/server/`, schema, dependency or quality-baseline change
 *Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 - [~] **C-71** empty states everywhere: main lists and registered reports are covered; auxiliary settings/admin lists remain unaudited.
-- [~] **C-86** report scheduling: weekly/monthly schedules are stored and sent; an explicit day picker is still open.
+- [x] **C-86** report scheduling: weekly/monthly schedules are stored and sent; the day is chosen (weekly Monday–Sunday, monthly 1st–28th; AI #9, PR #665).
 - [~] **C-88** PDF consistency: Reports and report packs share their heading/cover; specialized server PDF routes remain separate.
 
 Review round (26 Oct): saved-view comparison/period restore, private query-key allowlisting, blocked-storage drafts, structural report-row detection, incomplete-history empty wording, exact formula-safe Excel headers, the ToolSandbox algorithm period, glossary Hebrew/search and the duplicate CF-06 row were corrected with focused tests. CI workflow `40424080429` refreshed and checked all 40 visual references; 18 intentional PNG changes were reviewed. Details in `docs/verification/ai2-launch-batch-2026-10-26.md` §5.

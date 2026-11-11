@@ -463,7 +463,8 @@ const TransactionRow = React.memo(({
                   className="p-1 text-[var(--muted)] hover:text-rose-600 rounded transition-all"
                   variant="ghost"
                   size="icon"
-                  disabled={tx.type === 'reversal' || !!tx.reversalEventId}
+                  disabled={tx.type === 'reversal' || !!tx.reversalEventId || isDocumentEntry(tx)}
+                  title={isDocumentEntry(tx) ? 'Change this entry through its document' : 'Reverse transaction'}
                 >
                   <RotateCcw aria-hidden="true" size={14} />
                 </AsyncButton>

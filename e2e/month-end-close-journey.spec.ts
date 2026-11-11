@@ -105,7 +105,7 @@ async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; reques
       accounts, bankLines, transactions, invoices, bills, journalEntries, assets: [], truncatedCollections: {}, baseCurrency: 'USD',
     });
     useDataNeedsStore.setState({
-      loaded: { assets: true, bankLines: true, bills: true, invoices: true, transactions: true, accounts: true, journalEntries: true, customers: true, vendors: true },
+      loaded: { assets: true, bankLines: true, bills: true, invoices: true, transactions: true, accounts: true, journalEntries: true, customers: true, vendors: true, creditNotes: true, vendorCredits: true },
       loadedWorkspaceId: workspaceId, failed: {},
     });
 

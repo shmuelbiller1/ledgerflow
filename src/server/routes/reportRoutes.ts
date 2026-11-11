@@ -44,13 +44,35 @@ function withProvenance<T extends object>(data: T, cachedAt?: number): T & { pro
   return { ...data, provenance: serverProvenance(cachedAt) };
 }
 
-function remember(key: string, data: object) {
-  REPORT_CACHE.set(key, { data, expiry: Date.now() + CACHE_TTL_MS, at: Date.now() });
+/**
+ * #645: the cache is bounded, like the other in-process caches here (supabaseAuth.ts, cspViolations.ts). When it is
+ * full, the entries the TTL has already expired are dropped; if it is still full, it starts again empty. An expired
+ * entry is never served either way (the read checks `expiry`).
+ */
+export const REPORT_CACHE_LIMIT = 500;
+
+export function rememberReport(key: string, data: object, now = Date.now()) {
+  if (REPORT_CACHE.size >= REPORT_CACHE_LIMIT) {
+    for (const [k, v] of REPORT_CACHE) if (v.expiry <= now) REPORT_CACHE.delete(k);
+    if (REPORT_CACHE.size >= REPORT_CACHE_LIMIT) REPORT_CACHE.clear();
+  }
+  REPORT_CACHE.set(key, { data, expiry: now + CACHE_TTL_MS, at: now });
+}
+const remember = (key: string, data: object) => rememberReport(key, data);
+
+/** The number of cached report answers (for the #645 test). */
+export function reportCacheSize(): number {
+  return REPORT_CACHE.size;
 }
 
-/** L-123: `snapshot` is the balance snapshot the report reads (openingKey), so a stale or rebuilt one is never answered from the cache. */
-export function getCacheKey(req: express.Request, snapshot = 'none'): string {
-  const payload = JSON.stringify({ path: req.path, query: req.query, body: req.body, user: requestUser(req)?.uid, snapshot });
+/**
+ * L-123: `snapshot` is the balance snapshot the report reads (openingKey), so a stale or rebuilt one is never answered
+ * from the cache. AUD-10: the cache is by URL, so a new URL (`&_read=…`) always reads fresh — callers rely on that.
+ * #645: the key also carries the parsed parameters the report reads (`params`), and `rememberReport` bounds the cache,
+ * so a burst of distinct URLs costs at most REPORT_CACHE_LIMIT entries. The user stays in it.
+ */
+export function getCacheKey(req: express.Request, snapshot = 'none', params: object = {}): string {
+  const payload = JSON.stringify({ path: req.path, query: req.query, params, user: requestUser(req)?.uid, snapshot });
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
@@ -111,7 +133,7 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
   try {
     // AF-015: membership first, so someone removed from the workspace is not served its cached figures
     await authorizeWorkspace(authReq, workspaceId);
-    const cacheKey = getCacheKey(req);
+    const cacheKey = getCacheKey(req, 'none', { workspaceId, startDate, endDate, basis: req.query.basis === 'cash' ? 'cash' : 'accrual' });
     const cached = REPORT_CACHE.get(cacheKey);
     if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
     // N-08: on cash basis, invoices and bills count when paid (cashBasis.ts): their postings may be
@@ -144,7 +166,7 @@ reportRouter.get("/balance-sheet", async (req, res) => {
     const cash = req.query.basis === 'cash';
     // L-123: the cache key carries the snapshot read, checked only once the person may see the workspace
     await authorizeWorkspace(authReq, workspaceId);
-    const cacheKey = getCacheKey(req, cash ? 'none' : await openingKey(getDb(), workspaceId, endDate));
+    const cacheKey = getCacheKey(req, cash ? 'none' : await openingKey(getDb(), workspaceId, endDate), { workspaceId, endDate, basis: cash ? 'cash' : 'accrual' });
     const cached = REPORT_CACHE.get(cacheKey);
     if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
     if (!cash && endDate) {

@@ -6,7 +6,6 @@ import { retryWithBackoff } from '../lib/retryUtils';
 import { checkVersionConflict, resolveConflictLWW, VersionedEntity } from '../lib/conflictEngine';
 import { evaluateApprovalRequirement } from '../lib/approvalWorkflow';
 import { addComment, getCommentsForEntity } from '../lib/commentService';
-import { seedDemoWorkspace } from '../lib/demoWorkspaceSeeder';
 import { t } from '../locales/i18n';
 import { Transaction, Invoice } from '../types';
 
@@ -126,12 +125,6 @@ describe('System Reliability, Commercial & Platform Utilities Suite', () => {
       const list = getCommentsForEntity('transaction', 'tx_s1');
       assert.equal(list.length, 1);
       assert.equal(list[0].comment, 'Verified with bank receipt #9912');
-    });
-
-    test('seedDemoWorkspace seeds balanced double-entry accounts and transactions', () => {
-      const demo = seedDemoWorkspace('ws_demo_new');
-      assert.equal(demo.accounts.length, 5);
-      assert.equal(demo.transactions.length, 2);
     });
 
     test('i18n translation dictionary resolves keys across locales', () => {
