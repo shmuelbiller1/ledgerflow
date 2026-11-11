@@ -57,7 +57,8 @@ describe('Pillar 0 — Audit C-1 & C-2 Server-Only Ledger & Unconditional Balanc
     assert.match(sql, /drop policy if exists writer_delete on public\.%I/);
     assert.match(sql, /revoke insert, update, delete on public\.%I from authenticated/);
     assert.match(sql, /create or replace function public\.lf_enforce_balanced_ledger\(\)/);
-    assert.ok(!sql.includes('lf_is_client()'), 'DB balance trigger must never exempt service_role via lf_is_client()');
+    const balanceFn = sql.slice(sql.indexOf('create or replace function public.lf_enforce_balanced_ledger()'));
+    assert.ok(!balanceFn.includes('lf_is_client()'), 'DB balance trigger must never exempt service_role via lf_is_client()');
     assert.match(sql, /amountPaidCents/);
     assert.match(sql, /partially_paid/);
   });

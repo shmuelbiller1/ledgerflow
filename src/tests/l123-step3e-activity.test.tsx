@@ -292,7 +292,13 @@ describe('L-123 step 3e: GET /api/v1/balances/activity', { skip: !url && 'LF_TES
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'L-123 step 3e', currency: 'USD', timezone: 'UTC', members: [OWNER] });
     await db.pool.query(`insert into public."chartAccounts" (id, data) select a->>'id', a from jsonb_array_elements($1::jsonb) a`, [JSON.stringify(chart(ws))]);
-    await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(entries(ws))]);
+    // E3 is intentionally a legacy pre-trigger 1-line unbalanced entry so activityByMonth proves unbalanced=1 reporting
+    await db.pool.query('alter table public."transactions" disable trigger lf_balanced_ledger');
+    try {
+      await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(entries(ws))]);
+    } finally {
+      await db.pool.query('alter table public."transactions" enable trigger lf_balanced_ledger');
+    }
   });
 
   after(async () => {

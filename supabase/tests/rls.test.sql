@@ -786,10 +786,10 @@ begin
   end loop;
 
   -- Probe #5: browser cannot mark an invoice or bill paid or forge amountPaidCents
-  if pg_temp.try_as('u-owner', $$select lf_update('invoices', 'inv1', '{"status":"paid","amountPaidCents":1000}'::jsonb)$$) then
+  if pg_temp.try_as('u-owner', $stmt$select lf_update('invoices', 'inv1', '{"status":"paid","amountPaidCents":1000}'::jsonb)$stmt$) then
     raise exception 'FAIL C-1: browser marked an invoice paid without a server payment';
   end if;
-  if pg_temp.try_as('u-owner', $$insert into bills(id, data) values ('c1-forged-bill', '{"workspaceId":"ws1","date":"2026-03-10","status":"paid","amountCents":1000,"amountPaidCents":1000}')$$) then
+  if pg_temp.try_as('u-owner', $stmt$insert into bills(id, data) values ('c1-forged-bill', '{"workspaceId":"ws1","date":"2026-03-10","status":"paid","amountCents":1000,"amountPaidCents":1000}')$stmt$) then
     raise exception 'FAIL C-1: browser inserted a pre-paid bill';
   end if;
 

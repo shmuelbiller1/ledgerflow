@@ -24,6 +24,8 @@ export interface AuditChainHead {
   prevHash: string;
 }
 
+const chainHeadsByWorkspace = new Map<string, AuditChainHead>();
+
 export function buildAuditLogRecord(
   input: AuditLogEntryInput,
   id: string,
@@ -57,23 +59,39 @@ export function buildAuditLogRecord(
   };
 }
 
-async function resolveNextChainHead(db: Firestore, workspaceId: string): Promise<AuditChainHead> {
+async function resolveNextChainHead(
+  db: Firestore,
+  workspaceId: string,
+  hasOpenTx: boolean,
+): Promise<AuditChainHead> {
+  const cached = chainHeadsByWorkspace.get(workspaceId);
+  if (cached) {
+    return { seq: cached.seq + 1, prevHash: cached.prevHash };
+  }
+  // Never acquire a second pool connection while a transaction `tx` already holds one (EG-4).
+  if (hasOpenTx) {
+    return { seq: 1, prevHash: GENESIS_AUDIT_HASH };
+  }
   try {
-    const col = db.collection('auditLogs');
-    if (!col || typeof col.where !== 'function') {
+    const pool = (db as unknown as { pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<{ seq?: string; hash?: string }> }> } }).pool;
+    if (pool && typeof pool.query === 'function') {
+      const res = await pool.query(
+        `select data->>'seq' as seq, data->>'entryHash' as hash
+           from public."auditLogs"
+          where workspace_id = $1
+            and (data->>'seq') ~ '^[0-9]+$'
+            and jsonb_typeof(data->'entryHash') = 'string'
+          order by (data->>'seq')::int desc
+          limit 1`,
+        [workspaceId],
+      );
+      const top = res.rows[0];
+      if (top?.seq && top?.hash) {
+        return { seq: Number(top.seq) + 1, prevHash: top.hash };
+      }
       return { seq: 1, prevHash: GENESIS_AUDIT_HASH };
     }
-    const snap = await col.where('workspaceId', '==', workspaceId).get();
-    let maxSeq = 0;
-    let headHash = GENESIS_AUDIT_HASH;
-    for (const doc of snap.docs || []) {
-      const d = doc.data() || {};
-      if (typeof d.seq === 'number' && typeof d.entryHash === 'string' && d.seq > maxSeq) {
-        maxSeq = d.seq;
-        headHash = d.entryHash;
-      }
-    }
-    return { seq: maxSeq + 1, prevHash: headHash };
+    return { seq: 1, prevHash: GENESIS_AUDIT_HASH };
   } catch {
     return { seq: 1, prevHash: GENESIS_AUDIT_HASH };
   }
@@ -85,8 +103,9 @@ export async function writeServerAuditLog(
 ): Promise<string> {
   const db = (options?.db || getDb()) as Firestore;
   const auditRef = db.collection('auditLogs').doc();
-  const chainHead = await resolveNextChainHead(db, input.workspaceId);
+  const chainHead = await resolveNextChainHead(db, input.workspaceId, Boolean(options?.tx));
   const record = buildAuditLogRecord(input, auditRef.id, chainHead);
+  chainHeadsByWorkspace.set(input.workspaceId, { seq: chainHead.seq, prevHash: record.entryHash });
 
   if (options?.tx) {
     options.tx.set(auditRef, record);
