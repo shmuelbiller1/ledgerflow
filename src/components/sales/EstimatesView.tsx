@@ -1,3 +1,4 @@
+import { workspaceActor } from '../../lib/guestActor';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { EstimateSignLink, EstimateSignedNote } from './EstimateSignLink';
 import { dueMilestones } from '../../lib/milestones';
@@ -7,7 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { Plus, ArrowRight, FileText, Eye, Download, Paperclip } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import { toast } from 'sonner';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
@@ -49,7 +50,7 @@ const STAGE_STYLE: Record<OrderStage, string> = {
 };
 
 export default function EstimatesView() {
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(workspaceActor);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const [filesFor, setFilesFor] = useState<{ workspaceId: string; key: string } | null>(null);
   const filesWorkspaceId = currentWorkspaceId || '';
@@ -162,16 +163,7 @@ export default function EstimatesView() {
   /** The next invoice number from the server; no made-up number (a random one could repeat an existing invoice's). */
   const nextInvoiceNumber = async (): Promise<string | undefined> => {
     try {
-      const token = await getIdToken().catch(() => '');
-      const res = await fetch(`/api/v1/workspaces/${currentWorkspaceId}/next-number`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ type: 'invoice' })
-      });
-      if (res.ok) return (await res.json()).number;
+      return await nextDocumentNumber(currentWorkspaceId || '', 'invoice');
     } catch (e) {
       console.error('Failed to fetch next invoice number', e);
     }

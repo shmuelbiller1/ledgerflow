@@ -1,3 +1,4 @@
+import { workspaceActor } from '../../lib/guestActor';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { useDialog } from '../../hooks/useDialog';
 import { isPostable, lineAmount } from '../../lib/txFilters';
@@ -38,21 +39,18 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 
 export default function BudgetManager() {
   const formId = useId();
-  const user = useAuthStore((s) => s.user);
-  const isGuest = useAuthStore((s) => s.isGuest);
+  const user = useAuthStore(workspaceActor);
   // the open workspace lives in the auth store (reading it from the ledger store always gave nothing)
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const budgets = useLedgerStore((s) => s.budgets);
-  const setBudgets = useLedgerStore((s) => s.setBudgets);
   const transactions = useLedgerStore((s) => s.transactions);
   const accounts = useLedgerStore((s) => s.accounts);
   const { loading } = useLedgerCollections('budgets');
   const dataHealth = useScreenDataHealth(['budgets']);
   // A signed-in viewer reads budgets; adding or editing one is a write (CodeRabbit #440).
-  // A guest owns their local sandbox, so guests keep the write affordances exactly as before
-  // (useCurrentRole resolves a guest to 'viewer' — there is no workspace row to read a role from).
+  // The local sample actor owns only the isolated sample workspace.
   const budgetRole = useCurrentRole();
-  const canWriteBudget = isGuest || budgetRole !== 'viewer';
+  const canWriteBudget = budgetRole !== 'viewer';
   const [isAdding, setIsAdding] = useState(false);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setIsAdding(false), isAdding);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -70,38 +68,13 @@ export default function BudgetManager() {
       toast.error('Viewers cannot change budgets');
       return;
     }
-    const workspaceId = currentWorkspaceId || (isGuest ? 'default' : null);
+    const workspaceId = currentWorkspaceId;
     if (!workspaceId) {
       toast.error('Workspace context missing');
       return;
     }
     try {
-      if (isGuest || !user) {
-        if (editingBudget) {
-          setBudgets(budgets.map(b => b.id === editingBudget ? {
-            ...b,
-            targetId: newBudget.targetId,
-            amountCents: newBudget.amountCents,
-            period: newBudget.period as Budget['period'],
-          } : b));
-          toast.success('Objective Updated');
-        } else {
-          setBudgets([
-            ...budgets,
-            {
-              id: `b_${Date.now()}`,
-              workspaceId,
-              uid: user?.uid || 'guest',
-              targetId: newBudget.targetId,
-              targetType: newBudget.targetType,
-              amountCents: newBudget.amountCents,
-              period: newBudget.period as Budget['period'],
-              createdAt: new Date().toISOString(),
-            } as Budget,
-          ]);
-          toast.success('Objective Synchronized');
-        }
-      } else if (editingBudget) {
+      if (editingBudget) {
         await updateDoc(doc(db, 'budgets', editingBudget), {
           targetId: newBudget.targetId,
           amountCents: newBudget.amountCents,
@@ -251,11 +224,7 @@ export default function BudgetManager() {
                         return;
                       }
                       if (await safeConfirm('Delete budget?')) {
-                        if (isGuest || !user) {
-                          setBudgets(budgets.filter(item => item.id !== b.id));
-                        } else {
-                          await deleteDoc(doc(db, 'budgets', b.id));
-                        }
+                        await deleteDoc(doc(db, 'budgets', b.id));
                         toast.success('Budget deleted');
                       }
                     }}

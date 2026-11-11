@@ -1,3 +1,5 @@
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
+import { readGuestNumbering, saveGuestNumbering } from '../../../lib/guestNumbering';
 import { useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { Hash } from 'lucide-react';
@@ -12,6 +14,11 @@ interface SeriesView { type: NumberedType; prefix: string; nextNumber: number; p
 const LABELS: Record<NumberedType, string> = { invoice: 'Invoices', bill: 'Bills', estimate: 'Estimates', creditNote: 'Credit notes', vendorCredit: 'Vendor credits', payment: 'Payments' };
 
 async function api(workspaceId: string, path: string, init?: RequestInit) {
+  if (guestSession()) {
+    if (!init || init.method !== 'PUT') return { series: readGuestNumbering(workspaceId) };
+    return { series: saveGuestNumbering(workspaceId, path.slice(1) as NumberedType, JSON.parse(String(init.body))) };
+  }
+  if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
   const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/numbering${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
@@ -33,7 +40,9 @@ function SeriesRow({ series, workspaceId, onSaved }: { series: SeriesView; works
   const save = async () => {
     setSaving(true);
     try {
+      const sampleSession = guestSession();
       const data = await api(workspaceId, `/${series.type}`, { method: 'PUT', body: JSON.stringify({ prefix, nextNumber: Number(next), padding: Number(padding) }) });
+      if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       onSaved(data.series);
       toast.success(`${LABELS[series.type]}: the next number is ${data.series.next}`);
     } catch (err) {

@@ -4,6 +4,9 @@ import { Workspace, User as UserProfile } from '../types';
 import { useLedgerStore } from './useLedgerStore';
 import { useSavedViewsStore } from './useSavedViewsStore';
 import { registerBrowserWorkspacePrefs } from '../lib/workspacePrefs';
+import { startGuestDatabase, endGuestDatabase, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+
+if (typeof localStorage !== 'undefined' && localStorage.getItem('isGuest') === 'true') startGuestDatabase();
 
 export const isSystemAdminEmail = (_email?: string | null): boolean => {
   return false;
@@ -52,6 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentProjectId: null,
 
   setUser: (user) => {
+    if (user && get().isGuest) get().setIsGuest(false);
     // AUD-13: another account (or none) is a new identity: what the previous one could see goes with it, and an answer
     // still on its way for the previous one is dropped (the uid checks below)
     const before = get().user?.uid ?? null;
@@ -73,11 +77,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     }
   },
-  setIsGuest: (isGuest) => {
+  setIsGuest: (requested) => {
+    const isGuest = requested && !get().user;
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("isGuest", isGuest ? "true" : "false");
     }
-    set({ isGuest });
+    if (isGuest && !get().user) {
+      startGuestDatabase();
+      get().setCurrentWorkspaceId(SAMPLE_WORKSPACE_ID);
+      set({ isGuest, workspaces: [], currentProjectId: null });
+    } else {
+      endGuestDatabase();
+      if (get().isGuest && !get().user) {
+        get().setCurrentWorkspaceId(null);
+        useLedgerStore.getState().resetStore();
+        set({ workspaces: [], currentProjectId: null });
+      }
+      set({ isGuest: false });
+    }
   },
   setIsAdmin: (isAdmin) => set({ isAdmin }),
   checkTokenAdminClaim: async () => {
@@ -196,6 +213,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return workspaces.find(w => w.id === currentWorkspaceId);
   }
 }));
+
+// Defensive lifecycle boundary for external store hydration (including browser fixtures).
+// A real identity or an exited guest must never leave the local transport active.
+useAuthStore.subscribe((state, previous) => {
+  if ((previous.isGuest && !state.isGuest) || (state.user && state.user !== previous.user)) endGuestDatabase();
+});
 
 registerBrowserWorkspacePrefs(() => {
   const state = useAuthStore.getState();

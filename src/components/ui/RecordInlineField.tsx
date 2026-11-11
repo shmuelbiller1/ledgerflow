@@ -33,7 +33,7 @@ function ScopedRecordInlineField({ collection, record, documentId, field, label,
     }
       const changes = await saveInlineRecordField(adapter, { collection, id: documentId || record.id }, field, before, value);
       const current = adapter.session();
-      if (!current || current.uid !== session?.uid || current.workspaceId !== session?.workspaceId) throw new Error('Workspace changed. Reopen the saved record.');
+      if (!current || current.uid !== session?.uid || current.workspaceId !== session?.workspaceId || current.sampleSession !== session?.sampleSession) throw new Error('Workspace changed. Reopen the saved record.');
       // Patch only the changed cache field; never replace a newer record with the rendered snapshot.
       useLedgerStore.setState(state => ({ [collection]: state[collection].map(item => {
         if (item.id !== record.id || collection === 'dimensionNodes' && 'dimensionId' in item && 'dimensionId' in record && item.dimensionId !== record.dimensionId) return item;
@@ -45,7 +45,7 @@ function ScopedRecordInlineField({ collection, record, documentId, field, label,
     finally { pending.delete(key); setSaving(false); }
   };
   const scope = adapter.session();
-  const sameScope = scope?.uid === mountedScope?.uid && scope?.workspaceId === mountedScope?.workspaceId;
+  const sameScope = scope?.uid === mountedScope?.uid && scope?.workspaceId === mountedScope?.workspaceId && scope?.sampleSession === mountedScope?.sampleSession;
   return <span className="inline-flex flex-col max-w-full" dir="auto">
     <InlineEdit value={before} label={label} kind={kind} options={options} display={display} placeholder={placeholder} canEdit={canEdit && role !== 'viewer' && sameScope && !saving} suggestions={suggestionsFrom<object>(records, item => inlineFieldValue(item as unknown as Record<string, unknown>, field))} onSave={save} reopenOnFailure={false} />
     {retry && <span role="alert" className="text-xs text-[var(--negative)]">{retry.message} <bdi>{String(retry.value)}</bdi> <button type="button" disabled={saving || role === 'viewer' || !sameScope} onClick={() => { void save(retry.value).catch(() => {}); }} className="underline">Retry {label}</button> <button type="button" onClick={() => setRetry(undefined)} className="underline">Discard retry</button></span>}

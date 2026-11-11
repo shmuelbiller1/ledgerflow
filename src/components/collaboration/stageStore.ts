@@ -1,3 +1,5 @@
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
+import { moveGuestStage, readGuestStages } from '../../lib/guestSettings';
 import { create } from 'zustand';
 import { getIdToken } from '../../firebase';
 import type { StageKind } from '../../lib/stages';
@@ -21,6 +23,12 @@ export const useStageStore = create<StageState>((set, get) => ({
   asked: {},
   load: (workspaceId, kind) => {
     const key = keyOf(workspaceId, kind);
+    if (guestSession()) {
+      const loaded = readGuestStages(workspaceId, kind);
+      set(s => ({ asked: { ...s.asked, [key]: true }, byKey: { ...s.byKey, [key]: { stages: loaded.stages, current: loaded.current } } }));
+      return;
+    }
+    if (workspaceId === SAMPLE_WORKSPACE_ID) return;
     if (get().asked[key]) return;
     set(s => ({ asked: { ...s.asked, [key]: true } }));
     (async () => {
@@ -31,9 +39,16 @@ export const useStageStore = create<StageState>((set, get) => ({
     })().catch(() => {});
   },
   set: async (workspaceId, kind, id, stage) => {
-    const res = await fetch(url(workspaceId), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ kind, id, stage }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'The stage was not saved');
+    const sampleSession = guestSession();
+    if (sampleSession) {
+      moveGuestStage(workspaceId, kind, id, stage);
+    } else {
+      if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
+      const res = await fetch(url(workspaceId), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ kind, id, stage }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'The stage was not saved');
+    }
+    if (guestSession() !== sampleSession) return;
     const key = keyOf(workspaceId, kind);
     set(s => {
       const loaded = s.byKey[key] || { stages: [], current: {} };

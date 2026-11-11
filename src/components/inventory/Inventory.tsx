@@ -1,3 +1,4 @@
+import { workspaceActor } from '../../lib/guestActor';
 import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
@@ -87,7 +88,7 @@ import { deleteWithUndo, isDeletePending } from '../../lib/undoableDelete';
 import { BRAND_NAME } from '../../config/brand';
 export default function Inventory() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
-  const uid = useAuthStore(s => s.user?.uid);
+  const uid = useAuthStore(s => workspaceActor(s)?.uid);
   const storeTransactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const [items, setItems] = useState<InventoryItem[]>([]);

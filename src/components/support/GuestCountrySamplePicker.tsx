@@ -1,3 +1,5 @@
+import { guestSession } from '../../lib/db/guestDatabase';
+import { replaceGuestCompany } from '../../lib/guestCompany';
 import React, { useState } from 'react';
 import { Globe2, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -60,6 +62,10 @@ export default function GuestCountrySamplePicker() {
     },
     displayName: string,
   ) => {
+    if (guestSession() && isGuest && !user) {
+      replaceGuestCompany(payload, displayName);
+      return;
+    }
     useLedgerStore.setState({
       accounts: payload.accounts,
       computedAccounts: payload.accounts,
@@ -130,7 +136,7 @@ export default function GuestCountrySamplePicker() {
           <p className="text-sm text-[var(--muted)] mt-1">
             {language === 'he'
               ? 'נתונים סינתטיים בזיכרון בלבד להתנסות מלאה בדוחות, התאמות ומסים ללא התחברות וללא פגיעה בספרים אמיתיים.'
-              : 'In-memory synthetic 12-month books for exploring reports, statements, and tax previews safely without signing in.'}
+              : 'Browser-only synthetic 12-month books for exploring reports, statements, and tax previews safely without signing in.'}
           </p>
         </div>
 

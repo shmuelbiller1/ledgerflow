@@ -5,7 +5,8 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
+import { saveWorkspacePriceLists } from '../../../services/workspacePriceLists';
+import { guestSession } from '../../../lib/db/guestDatabase';
 import { formatCurrency } from '../../../lib/utils';
 import { listCurrency, priceListsProblem, type PriceList } from '../../../lib/priceLists';
 
@@ -54,12 +55,10 @@ export default function PriceListsSettings() {
   const save = async (next: Array<ReturnType<typeof fromDraft> | PriceList>, done: string) => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/price-lists`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ lists: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'The price lists were not saved');
-      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, priceLists: data.lists } : w)));
+      const sampleSession = guestSession();
+      const lists = await saveWorkspacePriceLists(workspace.id, next);
+      if (useAuthStore.getState().currentWorkspaceId !== workspace.id || guestSession() !== sampleSession) return;
+      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, priceLists: lists } : w)));
       toast.success(done);
       setEditing(null);
     } catch (err) {

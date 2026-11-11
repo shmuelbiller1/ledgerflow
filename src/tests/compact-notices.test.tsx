@@ -26,26 +26,15 @@ test("notices follow the book, guest session, dismissal and real backup-completi
       screen.getByTestId("compact-ledger-notices").textContent,
       "Backup due",
     );
-    await act(async () => useAuthStore.setState({ user: null, isGuest: true }));
-    assert.equal(
-      screen.getByTestId("compact-ledger-notices").textContent,
-      "Demo data · Backup due",
-    );
     fireEvent.click(screen.getByRole("button", { name: "Dismiss notices" }));
     assert.equal(container.textContent, "");
-    await act(async () =>
-      useAuthStore.setState({ currentWorkspaceId: "notice-second" }),
-    );
-    assert.equal(
-      screen.getByTestId("compact-ledger-notices").textContent,
-      "Demo data · Backup due",
-    );
-    await act(async () => recordBackupCompleted("notice-second"));
-    assert.equal(
-      screen.getByTestId("compact-ledger-notices").textContent,
-      "Demo data",
-    );
-    assert.equal(screen.queryByRole("button", { name: "Export backup" }), null);
+    await act(async () => useAuthStore.setState({ user: null, isGuest: true }));
+    assert.match(screen.getByRole('status', { name: 'Sample company' }).textContent || '', /Sample company — sign up to keep your own/);
+    assert.equal(screen.queryByRole('button', { name: 'Export backup' }), null, 'sample data never asks for a real backup');
+    assert.equal(screen.queryByRole('button', { name: 'Dismiss notices' }), null, 'the sample identity stays visible');
+    await act(async () => useAuthStore.setState({ currentWorkspaceId: 'notice-second' }));
+    await act(async () => recordBackupCompleted('notice-second'));
+    assert.ok(screen.getByRole('status', { name: 'Sample company' }));
     await act(async () =>
       useAuthStore.setState({ user: signedInUser, isGuest: false }),
     );
