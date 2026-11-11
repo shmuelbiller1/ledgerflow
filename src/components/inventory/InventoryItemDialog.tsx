@@ -1,3 +1,5 @@
+import DocumentDefaultsEditor from '../common/DocumentDefaultsEditor';
+import { documentDefaultsOf } from '../../lib/documentDefaults';
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -43,6 +45,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
   const { dialogProps: itemDialogProps, titleId: itemTitleId } = useDialog(onClose, open);
   // A-19: the bundle's parts, held here and written into the form as JSON. The parent keys this
   // dialog by item id, so switching items gives fresh state without an effect.
+  const [documentDefaults, setDocumentDefaults] = useState(() => documentDefaultsOf(editingItem));
   const [parts, setParts] = useState<BundlePart[]>(editingItem?.bundleParts || []);
   const [partToAdd, setPartToAdd] = useState('');
   const [partQuantity, setPartQuantity] = useState('1');
@@ -226,6 +229,10 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   </select>
                   <p className="text-[10px] text-[var(--muted)]">Which kind of thing this is, so a state's taxability table (Reports → Tax) can treat it correctly. It never changes a price or a posting.</p>
                 </div>
+                <div className="md:col-span-2">
+                  <DocumentDefaultsEditor side="item" value={documentDefaults} onChange={setDocumentDefaults} showTax={false} />
+                  <input type="hidden" name="documentDefaults" value={JSON.stringify(documentDefaults)} />
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <span id="inv-bundle-label" className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Bundle parts</span>
                   <input type="hidden" name="bundleParts" value={JSON.stringify(parts)} />
@@ -283,7 +290,7 @@ export default function InventoryItemDialog({ open, editingItem, categories, tax
                   <legend className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Stock levels per location</legend>
                   <input type="hidden" name="locationLevels" value={levelsJson} />
                   {locationNodes.length === 0 && (
-                    <p className="text-[10px] text-[var(--muted)]">No locations yet — add Location values under Settings → Dimensions &amp; Labels first.</p>
+                    <p className="text-[10px] text-[var(--muted)]">No locations yet — add Location values under Settings → Labels &amp; Labels first.</p>
                   )}
                   {locationNodes.map(node => {
                     const problem = levelProblem(levelDrafts[node.id]?.min || '', levelDrafts[node.id]?.max || '');

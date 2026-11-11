@@ -220,7 +220,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
 
   const settingsTabs = [
     { label: 'Rules & Automation', componentName: 'RulesSettingsView' },
-    { label: 'Dimensions & Labels', componentName: 'DimensionsView' },
+    { label: 'Labels', componentName: 'DimensionsView' },
     { label: 'Appearance & Display', componentName: 'AppearanceSettingsView' },
     { label: 'Team & Invites', componentName: 'TeamView' },
     { label: 'Billing & Plan', componentName: 'BillingView' },

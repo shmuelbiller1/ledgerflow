@@ -1,3 +1,5 @@
+import { useDocumentDefaults } from '../../hooks/useDocumentDefaults';
+import { documentDefaultsOf } from '../../lib/documentDefaults';
 import DocumentMoreOptions from '../common/DocumentMoreOptions';
 import { hasInvoiceOptions } from '../../lib/documentOptions';
 import { useDialog } from '../../hooks/useDialog';
@@ -64,6 +66,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeCustomers = (Array.isArray(customers) ? customers : []).filter(c => !isArchivedParty(c) || c.id === initialInvoice?.customerId);
   const safeAccounts = Array.isArray(accounts) ? accounts.filter(a => isIncomeAccount(a)) : [];
+  const defaults = useDocumentDefaults(initialInvoice?.id, isOpen, safeAccounts);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const inventoryItems = useLedgerStore(s => s.inventory || []);
@@ -337,7 +340,10 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                       : !editingExisting && termsInherited ? { paymentTerms: undefined, ...(dueDateEdited ? {} : { dueDate: invoice.date || '' }) } : {};
                     if (!editingExisting) setTermsInherited(Boolean(terms));
                     if (terms) setDueDateEdited(false);
-                    setInvoice({ ...invoice, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
+                    const hints = documentDefaultsOf(cust);
+                    if (!editingExisting && cust) setItems(prev => prev.map(line => defaults.fill(line, hints)));
+                    const defaultTax = defaults.taxAvailable() && !invoice.taxCodeId && !invoice.taxRate && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
+                    setInvoice({ ...invoice, ...defaultTax, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
                   className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
@@ -379,7 +385,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               side="invoice"
               lines={items}
               onChange={setItems}
-              createLine={() => ({ id: crypto.randomUUID(), description: '', quantity: 1, rateCents: 0, amountCents: 0, accountId: '' })}
+              createLine={() => defaults.fill({ id: crypto.randomUUID(), description: '', quantity: 1, rateCents: 0, amountCents: 0, accountId: '' }, !editingExisting ? documentDefaultsOf(safeCustomers.find(c => c.id === invoice.customerId)) : {})}
+              fillDefaults={defaults.fill}
+              onFieldEdit={defaults.mark}
               accounts={safeAccounts}
               currency={currency}
               date={invoice.date || ''}
@@ -387,7 +395,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               fieldErrors={fieldErrors}
               customerId={invoice.customerId}
               taxCodeIds={salesCodes.map(code => code.id)}
-              onTaxCodeFill={taxCodeId => setInvoice(prev => ({ ...prev, taxCodeId, taxRate: 0 }))}
+              onTaxCodeFill={taxCodeId => { if (defaults.taxAvailable()) setInvoice(prev => prev.taxCodeId || prev.taxRate ? prev : { ...prev, taxCodeId, taxRate: 0 }); }}
               repeatAction={lastForCustomer && linesEmpty ? (
                 <button type="button" onClick={repeatLast}
                   className="ml-auto mr-2 px-3 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider border border-[var(--line)] text-[var(--text)] hover:border-[var(--brass-line)]">
@@ -402,7 +410,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 <label htmlFor="inv-tax-code" className="micro-label">Tax</label>
                 <select id="inv-tax-code" aria-invalid={Boolean(fieldErrors["inv-tax-code"])} aria-describedby={fieldErrors["inv-tax-code"] ? 'inv-tax-code-error' : undefined}
                   value={taxChoice}
-                  onChange={(e) => setInvoice({ ...invoice, taxCodeId: e.target.value === 'custom' || e.target.value === '' ? undefined : e.target.value, taxRate: e.target.value === 'custom' ? (invoice.taxRate || 0) : 0 })}
+                  onChange={(e) => { defaults.markTax(); setInvoice({ ...invoice, taxCodeId: e.target.value === 'custom' || e.target.value === '' ? undefined : e.target.value, taxRate: e.target.value === 'custom' ? (invoice.taxRate || 0) : 0 }); }}
                   className="w-full px-4 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
                 >
                   <option value="">No tax</option>
@@ -419,7 +427,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 )}
                 {fieldError('inv-custom-tax-rate')}
                 {salesCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
-                <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 })} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
+                <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => { defaults.markTax(); setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 }); }} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { defaults.markTax(); const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
             </div>
             <div className="space-y-2 flex flex-col justify-end pb-3">
               <label htmlFor="inv-tax-inclusive" className="flex items-center gap-2 cursor-pointer">

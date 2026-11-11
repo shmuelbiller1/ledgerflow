@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../lib/dimensionUtils';
 import React, { useEffect, useState } from 'react';
 import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -58,12 +59,12 @@ export default function LabelBalanceSheetReportView() {
     <section aria-labelledby="bs-by-label-title" className="space-y-4">
       <h2 id="bs-by-label-title" className="text-lg font-bold text-[var(--text)]">Balance sheet by label</h2>
       {dimensions.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No labels yet: add one (Property, Project, Location…) in Settings → Dimensions & Labels, and put it on lines.</p>
+        <p className="text-sm text-[var(--muted)]">No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.</p>
       ) : (
         <div className="flex flex-wrap items-end gap-3 text-sm">
           <label className="flex flex-col gap-1 text-[var(--muted)]">Label
             <select value={dimensionId} onChange={e => setPickedDimension(e.target.value)} className={field}>
-              {dimensions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {dimensions.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[var(--muted)]">Value
@@ -106,7 +107,7 @@ export default function LabelBalanceSheetReportView() {
             ? <p className="mt-1 text-xs text-[var(--muted)]">Assets = liabilities + equity for <bdi>{valueName}</bdi>.</p>
             : role === 'self-balancing'
               ? <p role="alert" className="mt-1 text-xs text-rose-600">This sheet does not balance by {formatCurrency(report.sheet.totalAssets - report.sheet.totalClaims, currency)}, and {dimensionName} is self-balancing: some entries label one side with <bdi>{valueName}</bdi> and not the other (they are listed in Data Health).</p>
-              : <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-400">This sheet does not balance by {formatCurrency(report.sheet.totalAssets - report.sheet.totalClaims, currency)}: some entries label one side with <bdi>{valueName}</bdi> and not the other. {dimensionName} is {LABEL_ROLES[role].name.toLowerCase()}, so that is allowed; make it self-balancing in Settings → Dimensions to have it checked.</p>}
+              : <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-400">This sheet does not balance by {formatCurrency(report.sheet.totalAssets - report.sheet.totalClaims, currency)}: some entries label one side with <bdi>{valueName}</bdi> and not the other. {dimensionName} is {LABEL_ROLES[role].name.toLowerCase()}, so that is allowed; make it self-balancing in Settings → Labels to have it checked.</p>}
           {(report.notLabelled.lines > 0 || report.notLabelled.openings > 0) && (
             <p className="text-xs text-[var(--muted)]">{report.notLabelled.lines} lines with no {dimensionName} and {report.notLabelled.openings} opening balances are in “Not labelled”.</p>
           )}

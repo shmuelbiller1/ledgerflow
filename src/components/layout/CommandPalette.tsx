@@ -513,7 +513,7 @@ const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? []
               ) : query.length > 0 ? (
                 <div className="p-16 text-center text-gray-500">
                   <Tags aria-hidden="true" size={48} className="mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-bold text-gray-900">No dimensions matched</p>
+                  <p className="text-lg font-bold text-gray-900">No labels matched</p>
                   <p className="text-sm font-medium mt-1">Try searching by tags, units, categories, or dollar amounts.</p>
                 </div>
               ) : (

@@ -1,3 +1,5 @@
+import { useDocumentDefaults } from '../../hooks/useDocumentDefaults';
+import { documentDefaultsOf, vendorHistoryDefaults } from '../../lib/documentDefaults';
 import DocumentMoreOptions from '../common/DocumentMoreOptions';
 import { hasBillOptions } from '../../lib/documentOptions';
 import { useDialog } from '../../hooks/useDialog';
@@ -6,7 +8,7 @@ import { documentCurrencies } from '../../lib/exchangeRates';
 import { latestDocumentFor } from '../../lib/repeatDocument';
 import { isArchivedParty } from '../../lib/contacts';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Save, CreditCard, Sparkles } from 'lucide-react';
+import { X, Save, CreditCard } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Bill, Vendor, ChartAccount } from '../../types';
 import { format } from 'date-fns';
@@ -57,10 +59,9 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   const safeVendors = (Array.isArray(vendors) ? vendors : []).filter(c => !isArchivedParty(c) || c.id === initialBill?.vendorId);
   const safeAccounts = Array.isArray(accounts) ? accounts.filter(a => a?.type === 'expense' || a?.type === 'cost_of_goods' || a?.type === 'asset') : [];
 
+  const defaults = useDocumentDefaults(initialBill?.id, isOpen, safeAccounts);
   const storeBills = useLedgerStore(s => s.bills) || [];
-  const storeTransactions = useLedgerStore(s => s.transactions) || [];
   useLedgerCollections('bills');
-  const [autofillNotice, setAutofillNotice] = useState<string | null>(null);
 
   const [bill, setBill] = useState<Partial<Bill>>(() => ({
     number: `BILL-${Date.now().toString().slice(-6)}`,
@@ -158,6 +159,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   const lastForVendor = !editingExisting && bill.vendorId
     ? latestDocumentFor(storeBills, b => b.vendorId === bill.vendorId, b => b.splits) : null;
   // (picking the vendor may already fill the first line's account and description, not its amount)
+  const historyHints = !editingExisting && bill.vendorId ? vendorHistoryDefaults(storeBills, bill.vendorId) : null;
   const splitsEmpty = splits.every(sp => !sp.amountCents);
   const repeatLast = () => {
     if (!lastForVendor?.splits) return;
@@ -185,51 +187,12 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
       const currencyChange = vendorCurrency && vendorCurrency !== (prev.currency || workspaceCurrency) ? { currency: vendorCurrency, exchangeRate: 1 } : {};
       return { ...prev, vendorId, vendorName: vend?.name, ...currencyChange };
     });
-    setAutofillNotice(null);
 
-    if (!vendorId) return;
+    if (!vend || editingExisting) return;
+    const hints = documentDefaultsOf(vend);
+    setSplits(prev => prev.map(line => defaults.fill(line, hints)));
+    if (defaults.taxAvailable() && purchaseCodes.some(c => c.id === hints.taxCodeId)) setBill(prev => prev.taxCodeId ? prev : { ...prev, taxCodeId: hints.taxCodeId });
 
-    // Look for last used account for this vendor from previous bills
-    let foundAccountId = '';
-    let foundDesc = '';
-
-    const prevBill = storeBills.find(b => b.vendorId === vendorId && b.splits && b.splits.length > 0 && b.splits[0].accountId);
-    if (prevBill && prevBill.splits?.[0]?.accountId) {
-      foundAccountId = prevBill.splits[0].accountId;
-      foundDesc = prevBill.splits[0].description || '';
-    } else {
-      // Look in transaction history
-      const prevTx = storeTransactions.find(t =>
-        ((('vendorId' in t && t.vendorId === vendorId) || t.metadata?.vendorId === vendorId) || (vend && t.description?.toLowerCase().includes(vend.name.toLowerCase()))) &&
-        t.lines && t.lines.length > 0
-      );
-      if (prevTx && prevTx.lines) {
-        const matchingLine = prevTx.lines.find(l => accounts.some(a => a.id === l.accountId && (a.type === 'expense' || a.type === 'cost_of_goods'))) || prevTx.lines[0];
-        if (matchingLine) {
-          foundAccountId = matchingLine.accountId;
-          foundDesc = prevTx.description || '';
-        }
-      }
-    }
-
-    if (foundAccountId) {
-      const targetAcc = accounts.find(a => a.id === foundAccountId);
-      setSplits(prev => {
-        const next = [...prev];
-        if (next.length > 0) {
-          next[0] = {
-            ...next[0],
-            accountId: foundAccountId,
-            description: next[0].description || foundDesc || `${vend?.name || 'Vendor'} expense`
-          };
-        }
-        return next;
-      });
-      if (targetAcc) {
-        setAutofillNotice(`Auto-filled account: ${targetAcc.name}`);
-        toast.info(`⚡ Auto-filled account "${targetAcc.name}" from previous ${vend?.name || 'vendor'} history.`);
-      }
-    }
   };
 
   /** Validates bill fields, stock quantities, and approval thresholds, normalizes line labels, and submits to `onSave`. */
@@ -380,11 +343,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label htmlFor="bill-vendor" className="micro-label">Vendor</label>
-                {autofillNotice && (
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200">
-                    <Sparkles size={10} /> Auto-filled
-                  </span>
-                )}
+
               </div>
               <select
                 id="bill-vendor"
@@ -437,11 +396,19 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
                 </button>
               </div>
             )}
+            {historyHints && <div className="rounded-xl border border-[var(--line)] p-3 text-xs space-y-2">
+              <p>Three latest loaded bills agree on {safeAccounts.find(a => a.id === historyHints.accountId)?.name || 'labels'}{historyHints.dimensions ? `; labels: ${Object.entries(historyHints.dimensions).map(([key, value]) => `${key}: ${value}`).join(', ')}` : ''}. This is a suggestion from loaded records, not a full-history check. Anything already entered stays as it is.</p>
+              <button type="button" className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold" onClick={() => setSplits(prev => prev.map(line => defaults.fill(line, historyHints)))}>Use suggested account and labels</button>
+            </div>}
             <DocumentLineEditor
               side="bill"
               lines={splits}
               onChange={setSplits}
-              createLine={() => ({ id: crypto.randomUUID(), amountCents: 0, accountId: '', description: '' })}
+              createLine={() => defaults.fill({ id: crypto.randomUUID(), amountCents: 0, accountId: '', description: '' }, !editingExisting ? documentDefaultsOf(safeVendors.find(v => v.id === bill.vendorId)) : {})}
+              fillDefaults={defaults.fill}
+              onFieldEdit={defaults.mark}
+              taxCodeIds={purchaseCodes.map(code => code.id)}
+              onTaxCodeFill={taxCodeId => { if (defaults.taxAvailable()) setBill(prev => prev.taxCodeId ? prev : { ...prev, taxCodeId }); }}
               accounts={safeAccounts}
               currency={billCurrency}
               workspaceCurrency={workspaceCurrency}
@@ -462,7 +429,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
               <label htmlFor="bill-tax-code" className="micro-label">Tax</label>
-              <select id="bill-tax-code" value={bill.taxCodeId || ''} onChange={(e) => setBill({ ...bill, taxCodeId: e.target.value || undefined })}
+              <select id="bill-tax-code" value={bill.taxCodeId || ''} onChange={(e) => { defaults.markTax(); setBill({ ...bill, taxCodeId: e.target.value || undefined }); }}
                 className="w-full px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] outline-none font-bold">
                 <option value="">No tax</option>
                 {purchaseCodes.map(c => <option key={c.id} value={c.id}>{c.name}{c.treatment !== 'standard' ? ` (${TAX_TREATMENTS[c.treatment]})` : ''}</option>)}

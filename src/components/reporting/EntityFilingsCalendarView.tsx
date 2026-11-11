@@ -66,7 +66,7 @@ export default function EntityFilingsCalendarView() {
       <p className="text-sm text-[var(--muted)]">
         For the books and each entity label value, the filings its <i>facts</i> require this year (entity-period rules on <b>31 Dec {year}</b>). Each answer keeps its evidence trail: what is due and why, what is blocked because a fact is only declared, and what is undecided because facts conflict. <b>Read-only; pure.</b> Uses <code>composeFacts</code> + <code>filingPack</code> entity-period rules; no posting, no verification of a registration, no filing.
       </p>
-      <p className="text-xs text-[var(--muted)]">As of {today}. Sources carry the official page URL and the pack status (<code>calculation</code> today). The workspace’s tax profiles and dimension labels are the only inputs; a label without a profile inherits the books.</p>
+      <p className="text-xs text-[var(--muted)]">As of {today}. Sources carry the official page URL and the pack status (<code>calculation</code> today). The workspace’s tax profiles and labels are the only inputs; a label without a profile inherits the books.</p>
     </div>
 
     <div className="flex flex-wrap gap-3 items-end p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">

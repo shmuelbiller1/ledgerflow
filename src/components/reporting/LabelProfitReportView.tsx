@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../lib/dimensionUtils';
 import React, { useEffect, useState } from 'react';
 import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -67,12 +68,12 @@ export default function LabelProfitReportView() {
     <section aria-labelledby="by-label-title" className="space-y-4">
       <h2 id="by-label-title" className="text-lg font-bold text-[var(--text)]">Profit by label</h2>
       {dimensions.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No labels yet: add one (Property, Project, Location…) in Settings → Dimensions & Labels, and put it on lines.</p>
+        <p className="text-sm text-[var(--muted)]">No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.</p>
       ) : (
         <div className="flex flex-wrap items-end gap-3 text-sm">
           <label className="flex flex-col gap-1 text-[var(--muted)]">Label
             <select value={dimensionId} onChange={e => setPicked(e.target.value)} className={field}>
-              {dimensions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {dimensions.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} /></label>

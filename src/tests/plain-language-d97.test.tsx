@@ -12,7 +12,10 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ReconciliationWizard from '../components/ledger/ReconciliationWizard';
 import BankFeedImport from '../components/ledger/BankFeedImport';
 import ChartOfAccountsView from '../components/ledger/ChartOfAccountsView';
+import DimensionsSettings from '../components/platform/settings/DimensionsSettings';
+import TagsSettings from '../components/platform/settings/TagsSettings';
 import TemplateSelector from '../components/layout/TemplateSelector';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { makeChartAccount } from './fixtures';
@@ -31,6 +34,7 @@ const accounts = [
 const JARGON = [
   'Synapse', 'Cognitive', 'Invariant', 'Topology', 'Protocol Engaged', 'Blueprint',
   'Registry Unoccupied', 'Assert Match', 'Revert Verification', 'Abort Mission',
+  'Dimensions', 'Label Node', 'Dimension Axis', 'World / Entity', 'Dimensional Type',
   'NODES DETECTED', 'Import Vectors', 'Orphaned Nodes', 'Finalize Alignment',
   'Matching Protocol', 'Bank Feed Ingestion', 'Node ID', 'Total Aggregate',
 ];
@@ -202,4 +206,19 @@ describe('D-97 plain language at the action boundary (source guards)', () => {
     assert.equal(templateSelector.includes('Review and change every account'), false);
     assert.ok(templateSelector.includes('Review every account before applying it to your books.'));
   });
+});
+
+
+test('EU-E1 Labels and Tags explain their distinction without old feature jargon', () => {
+  const workspace = useAuthStore.getState().getCurrentWorkspace()!;
+  useAuthStore.setState({ workspaces: [{ ...workspace, dimensions: [{ id: 'world', name: 'World / Entity', isWorld: true }] }] });
+  useLedgerStore.setState({ dimensionNodes: [] });
+  render(<DimensionsSettings />);
+  assert.ok(screen.getByRole('heading', { name: 'Labels' }));
+  for (const word of JARGON) assert.ok(!document.body.textContent?.includes(word), word);
+  assert.ok(screen.getByText('Labels group line amounts in reports; tags help you find records.'));
+  cleanup();
+  render(<TagsSettings />);
+  assert.ok(screen.getByRole('heading', { name: 'Tags' }));
+  assert.ok(screen.getByText('Labels group line amounts in reports; tags help you find records.'));
 });

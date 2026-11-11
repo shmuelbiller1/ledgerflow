@@ -114,7 +114,7 @@ export default function CategoryWhyPopover({ description, accountName, className
             {debugInfo.dimensions && Object.keys(debugInfo.dimensions).length > 0 && (
               <div className="space-y-1">
                 <div className="text-[9px] uppercase tracking-wider text-[var(--muted)] font-bold">
-                  Extracted Dimensions
+                  Extracted Labels
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(debugInfo.dimensions).map(([k, v]) => (

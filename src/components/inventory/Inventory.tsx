@@ -1,3 +1,4 @@
+import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
 import { ConfirmButton } from '../ui/ConfirmButton';
@@ -156,6 +157,7 @@ export default function Inventory() {
 
     const formData = new FormData(e.currentTarget);
     const updates: Partial<InventoryItem> = {
+      metadata: defaultsMetadata(editingItem.metadata, cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')))),
       name: formData.get('name') as string,
       sku: formData.get('sku') as string,
       description: formData.get('description') as string,
@@ -197,6 +199,7 @@ export default function Inventory() {
     const formData = new FormData(e.currentTarget);
     
     const newItem: Omit<InventoryItem, 'id'> = {
+      metadata: defaultsMetadata(undefined, cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')))),
       uid: uid || "",
       workspaceId: workspaceId || "",
       name: formData.get('name') as string,

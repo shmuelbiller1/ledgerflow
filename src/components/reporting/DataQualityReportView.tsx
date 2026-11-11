@@ -220,7 +220,7 @@ export function DataQualityReportPanel({
           <h3 className="font-semibold text-sm">Entries missing required labels ({labelRows.length})</h3>
           {report.activeLabelRules.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              No required-label rules are configured yet. Mark a label required on account types under Settings → Dimensions &amp; Labels.
+              No required-label rules are configured yet. Mark a label required on account types under Settings → Labels &amp; Labels.
             </p>
           ) : labelRows.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">Every posted entry meets all active required-label rules.</p>
