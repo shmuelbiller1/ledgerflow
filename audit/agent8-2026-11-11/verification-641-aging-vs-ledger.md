@@ -134,6 +134,73 @@ Two structural notes for the fix:
   V6e is what caught it.** That is the second time in this audit that a control has caught a defect in the probe
   rather than in the product, and it is the reason every case here has one.
 
+### 6. A class-level sweep found two more sites — filed as [#651](https://github.com/shmuelbiller1/ledgerflow/issues/651)
+
+#641 lists the 14 files that call `toBaseCents`. A sweep for **inline** `Math.round(amount * rate)` found two more
+sites that never call the helper — so **correcting `toBaseCents` will not fix them**. Both were executed.
+
+**V7 — sales-rep commission, 100× too small.** `salesReps.ts:153,161` converts a payment's allocation with the raw
+`p.exchangeRate`. A ¥100,000 invoice ($670.00 at 0.0067) paid in full, rep at 10%:
+
+```
+DEFECT V7a commissionLines returned 67 cents; 10% of $670.00 = 6700 cents ($67.00).
+OK     V7b control: the SAME $670.00 as a USD payment returns 6700 cents over 1 line.
+```
+
+Reached from `CommissionReportView.tsx:6,28`. `CommissionPayment` (`salesReps.ts:75-82`) has **no `currency` field**
+— the same structural gap as `ApprovalDoc` in #648.
+
+**V8 — cash-basis revenue recognition, and this one is worse in kind** because the two sides of a division are in
+different units. `cashBasis.ts:107` takes a **payment document's** raw rate; `:114` divides by `owed`, which `:85`
+explicitly normalises to base cents because the accrual is a **posted** transaction:
+
+```
+DEFECT V8a cashBasisEntries recognised 670 cents of revenue for a ¥100,000 invoice PAID IN FULL;
+       correct is 67000 cents ($670.00) — only 1.0% recognised. share = 670/67000 = 0.0100 instead of 1.
+OK     V8b control: the SAME $670.00 as a USD invoice paid in full recognises 67000 of 67000 (share 1).
+```
+
+The accrual used is a **real posted entry** built by the capture seam, whose metadata (`type: 'invoice-accrual'` +
+`invoiceId`, `invoicePosting.ts:180-182`) is exactly what `cashBasis.ts:44` keys on — the production data shape, not a
+stand-in. **Every fully-paid foreign invoice whose currency has fewer decimals than the books' recognises ~1% of its
+revenue**, and cash-basis figures feed tax. The intent is visible in the type: `CashBasisPayment.exchangeRate` is
+documented at `:33-34` as *"document currency → base"* — the **adjusted** rate (0.67) — while a payment document
+stores the **FX** rate (0.0067).
+
+### Sites checked and CLEARED — do not re-investigate
+
+Three more inline conversions are **harmless**, because they operate on **posted transactions** and `inBaseCurrency`
+(`postingCore.ts:137-140`) already stamps `exchangeRate: 1` on the transaction *and every line* after converting,
+moving the document's rate to `metadata.documentExchangeRate`. Their `rate` is therefore 1 and the multiply is a no-op:
+
+| Site | Why cleared |
+|---|---|
+| `kernel/ledger/LedgerEngine.ts:290` | iterates `transactions` filtered by `isPostable` (`:279`) |
+| `lib/algorithms/pareto-analysis.ts:46,59` | `rate = tx.exchangeRate \|\| 1` on `isPostable` transactions (`:29`) |
+| `lib/algorithms/tax-set-aside.ts:17-18` | `rate = t.exchangeRate \|\| 1` on `isPostable` transactions (`:14`) |
+
+Also cleared, because it *looks* like this class but is not: `lib/tax/ilImportServices.ts:164`
+`Math.round(bill.amountCents * dated.rate)` — `dated.rate` is `rateOn(IL_VAT_STANDARD, date)`, a **VAT** rate, not an
+FX rate, and `:152` already excludes bills whose currency differs from the books'.
+
+**Suspected but NOT verified** (recorded so they are checked in the same fix, not claimed as defects):
+`components/common/SpreadDialog.tsx:64-65` (a document's `amountCents × exchangeRate`, K-16 revenue spread) and
+`components/ledger/JournalEntryModal.tsx:263,314` (`× appliedRate` on manual journal lines). Both have the same shape
+and both act on documents rather than posted entries.
+
+### One root cause, three issues, three different fixes
+
+| Issue | Files | Fixed by correcting `toBaseCents`? |
+|---|---|---|
+| #641 (Agent #13) | `toBaseCents` + its 14 caller files | — (the helper itself) |
+| #648 (Agent #8) | `fxRevaluation.ts`, `invoiceApproval.ts` — callers of the helper | **Yes**, plus a currency field on `ApprovalDoc` |
+| #651 (Agent #8) | `salesReps.ts`, `cashBasis.ts` — **inline**, never call the helper | **No** |
+
+The right shape is the one already used for #627 and already present in `paymentService.ts:385-386`: one named rule
+(`minorUnitRate` / `convertMinorUnits`, `currencyMinorUnits.ts:32-42`) that every conversion calls, rather than three.
+**A guard worth adding:** a lint rule or test failing on `* exchangeRate` outside `currencyMinorUnits.ts` — this class
+has now been found in four independent places.
+
 ### On severity
 
 I agree this is at the top of the register, and V5 argues for **raising** it rather than leaving it where it is.
@@ -155,8 +222,8 @@ UI panel is present and the route is mounted.
 
 The issue's proposed signature is the right one. `convertMinorUnits` already exists (`currencyMinorUnits.ts:39`) and is already what the posting path uses, so this makes the reports call the same rule the ledger calls rather than adding a second one — the same shape as the fix AI #1 landed for #627 (extract one rule, use it in both consumers), which is worth noting because that drift is exactly how this happened.
 
-**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts` (20 cases: 11 OK / 9 DEFECT).
-**V1b, V2b, V5a, V5b, V6a, V6b, V6c and V6d must flip to OK** with **V1a, V2a, V3, V3b, V5c, V6e and V6f unchanged** — the ledger's invoice
+**Acceptance test, now runnable from `main`:** `NODE_ENV=test npx tsx audit/function-audit/probes/af008-641-aging-vs-ledger.ts` (21 cases: 10 OK / 11 DEFECT).
+**V1b, V2b, V5a, V5b, V6a, V6b, V6c and V6d must flip to OK** with **V1a, V2a, V3, V3b, V5c, V6e, V6f, V7b and V8b unchanged** — the ledger's invoice
 posting and every control are already correct, so no existing expected number moves. `bm04-currency-minor-units.test.ts`
 must keep passing untouched. V5c is worth keeping exactly as it is: it asserts the revaluation entry stays balanced
 double-entry, so a fix that corrects the magnitude while breaking the balance would be caught.

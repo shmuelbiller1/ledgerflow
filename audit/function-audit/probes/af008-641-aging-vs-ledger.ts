@@ -370,6 +370,142 @@ console.log('=== V6: the invoice approval limit — an internal control, enforce
   );
 }
 
+// --------------------------------------------------------------------------------------------
+// V7: a NEW defect outside #641's blast radius. #641 lists 14 files that call toBaseCents; this is
+// not one of them. salesReps.ts inlines the same un-adjusted conversion on a PAYMENT's rate:
+//   :153  const rate = typeof p.exchangeRate === 'number' && p.exchangeRate > 0 ? p.exchangeRate : 1;
+//   :161  const paidCents = Math.round(a.amountCents * rate);
+// The repository already states the correct rule for this very data, in the server's own payment
+// path, and names it:
+//   paymentService.ts:385-386
+//   // BM-04: minor units of the payment's currency -> minor units of the books' (¥ has none, KWD three)
+//   const baseAmountCents = Math.round(amountCents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency));
+// Same document, same exchangeRate field, two different rules — one of them named and commented.
+// --------------------------------------------------------------------------------------------
+console.log('');
+console.log('=== V7: sales-rep commission — NOT in #641\'s blast radius, and it contradicts BM-04 ===');
+{
+  const { commissionLines } = await import('../../../src/lib/salesReps');
+  const reps = [{ id: 'r1', name: 'Rep', commissionPercent: 10, customerIds: ['c1'] }] as never;
+  const inv = (id: string, currency: string, amountCents: number) => ({
+    id, workspaceId: WS, number: id, customerId: 'c1', customerName: 'Customer', status: 'sent',
+    date: '2026-10-22', currency, amountCents, taxAmountCents: 0,
+    items: [{ id: 'l1', description: 'Licence', quantity: 1, rateCents: amountCents, amountCents }],
+  } as unknown as Invoice);
+  const pay = (id: string, exchangeRate: number, amountCents: number, documentId: string) => ({
+    id, status: 'posted', paymentDate: '2026-11-05', exchangeRate,
+    allocations: [{ documentId, documentType: 'invoice', amountCents }],
+  });
+
+  // A ¥100,000 invoice ($670.00 at 0.0067) paid in full, rep on 10%.
+  // Independent arithmetic: commission = 10% of $670.00 = $67.00 = 6,700 cents.
+  const jpyLines = commissionLines(reps, [inv('inv-jpy', 'JPY', 100_000)], [pay('p-jpy', 0.0067, 100_000, 'inv-jpy')], '2026-11-01', '2026-11-30');
+  const jpyCommission = jpyLines.reduce((sum, l) => sum + (l.commissionCents || 0), 0);
+  const correct = 6_700;
+
+  report(
+    'V7a a 10% commission on a $670.00 sale is $67.00',
+    jpyCommission === correct,
+    `commissionLines for a ¥100,000 invoice paid in full at 0.0067, rep at 10%: ${jpyCommission} cents ` +
+      `(${jpyLines.length} line(s)); hand arithmetic 10% of $670.00 = ${correct} cents.`,
+    `commission is ${correct / (jpyCommission || 1)}x too small. salesReps.ts:161 converts the allocation with ` +
+      `Math.round(a.amountCents * rate) using the payment's raw exchangeRate (:153), so paidCents = ` +
+      `round(100000 x 0.0067) = ${Math.round(100_000 * 0.0067)} instead of round(100000 x ` +
+      `${minorUnitRate(0.0067, 'JPY', 'USD')}) = ${Math.round(100_000 * minorUnitRate(0.0067, 'JPY', 'USD'))}. ` +
+      `The repository already names the correct rule for this exact field at paymentService.ts:385-386 ` +
+      `("BM-04: minor units of the payment's currency -> minor units of the books' (¥ has none, KWD three)") and ` +
+      `uses minorUnitRate there. **This file is not in #641's list of 14** — it inlines the conversion instead of ` +
+      `calling toBaseCents, so fixing the helper will not fix it.`,
+  );
+
+  // Control: the same $670.00 as a USD payment. rate 1 needs no adjustment, so commission must be right.
+  const usdLines = commissionLines(reps, [inv('inv-usd', 'USD', 67_000)], [pay('p-usd', 1, 67_000, 'inv-usd')], '2026-11-01', '2026-11-30');
+  const usdCommission = usdLines.reduce((sum, l) => sum + (l.commissionCents || 0), 0);
+  report(
+    'V7b control: the SAME $670.00 as a USD payment earns the correct commission',
+    usdCommission === correct && usdLines.length === 1,
+    `USD payment of 67,000 cents at rate 1, rep at 10%: ${usdCommission} cents over ${usdLines.length} line — ` +
+      `the rep, the customer match, the 10% rate, the date window and the allocation all work, and the commission ` +
+      `arithmetic is right. So V7a's 67 cents is caused by the currency's minor units alone, not by a commission ` +
+      `feature that is off, unmatched or zero for everyone.`,
+    `the control failed (USD commission ${usdCommission} over ${usdLines.length} lines), so V7a does not isolate ` +
+      `the currency as the cause.`,
+  );
+}
+
+// --------------------------------------------------------------------------------------------
+// V8: a second NEW defect outside #641's blast radius, and worse in kind than V7 because it MIXES
+// units inside one ratio. cashBasis.ts:107 takes a PAYMENT document's exchangeRate raw, and :114
+// divides by `owed`, which comes from accrual lines explicitly normalised to base cents (:85 sets
+// exchangeRate: 1 on every line, and the accrual is a POSTED transaction). So the numerator is an
+// un-adjusted document-currency conversion and the denominator is base currency — the two sides of
+// the division are not in the same units at all. `share` is what decides how much of an invoice's
+// revenue is recognised on the cash-basis report when it is paid.
+// The accrual used here is a REAL posted entry built by the capture seam in V1, whose metadata
+// (type 'invoice-accrual' + invoiceId, invoicePosting.ts:180-182) is exactly what cashBasis.ts:44
+// keys on, so this is the production data shape, not a stand-in.
+// --------------------------------------------------------------------------------------------
+console.log('');
+console.log('=== V8: cash-basis revenue recognition — a ratio whose two sides are in different units ===');
+{
+  const { cashBasisEntries } = await import('../../../src/server/reports/cashBasis');
+
+  // Build the accrual with the real posting, so it is a genuine posted entry in base cents.
+  const c = context();
+  const inv = invoice('inv-jpy-cb', 'JPY', 0.0067, 100_000);
+  await postInvoiceLedger(inv.id!, inv, WS, 'u1', { collection: 'invoices', docId: inv.id!, action: 'create' }, c);
+  const accrual = (c.capture ?? [])[0]?.txs[0] as never;
+
+  // The same ¥100,000 paid in full: the allocation is in the PAYMENT's own minor units.
+  const payment = {
+    id: 'p-jpy', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 0.0067,
+    allocations: [{ documentId: 'inv-jpy-cb', documentType: 'invoice' as const, amountCents: 100_000 }],
+  };
+
+  const out = cashBasisEntries(accounts, [accrual as never], [payment]);
+  const paidEntry = out.entries.find(e => String(e.id).endsWith(':paid:p-jpy'));
+  const recognised = (paidEntry?.lines || []).reduce((sum, l) => sum + Math.abs(l.amountCents || 0), 0);
+  // Fully paid, so the whole $670.00 of revenue must be recognised: 67,000 cents.
+  const correct = 67_000;
+
+  report(
+    'V8a an invoice paid IN FULL recognises all of its revenue on the cash-basis report',
+    recognised === correct,
+    `cashBasisEntries recognised ${recognised} cents of revenue for a ¥100,000 invoice paid in full ` +
+      `(${out.entries.length} entries, ${out.leftOut} left out); the correct figure is ${correct} cents ($670.00).`,
+    `only ${((recognised / correct) * 100).toFixed(1)}% of the revenue is recognised. cashBasis.ts:114 computes ` +
+      `share = min(1, (a.amountCents * rate) / owed) where the numerator is round(100000 x 0.0067) = ` +
+      `${Math.round(100_000 * 0.0067)} (un-adjusted) and the denominator is the accrual's A/R in BASE cents = ` +
+      `${correct}. So share = ${(Math.round(100_000 * 0.0067) / correct).toFixed(4)} instead of 1. **The two sides ` +
+      `of the division are in different units** — unlike V7, this is not a consistent scaling that a later step ` +
+      `could undo; it silently truncates the recognised revenue of every fully-paid foreign invoice whose currency ` +
+      `has fewer decimals than the books'. Cash-basis figures feed tax, and ` +
+      `CashBasisPayment.exchangeRate is documented at :33-34 as "document currency → base", which is the adjusted ` +
+      `rate (0.67), while a payment document stores the FX rate (0.0067).`,
+  );
+
+  // Control: the same $670.00 as a USD invoice paid in full.
+  const c2 = context();
+  const invUsd = invoice('inv-usd-cb', 'USD', 1, 67_000);
+  await postInvoiceLedger(invUsd.id!, invUsd, WS, 'u1', { collection: 'invoices', docId: invUsd.id!, action: 'create' }, c2);
+  const accrualUsd = (c2.capture ?? [])[0]?.txs[0] as never;
+  const outUsd = cashBasisEntries(accounts, [accrualUsd as never], [{
+    id: 'p-usd', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 1,
+    allocations: [{ documentId: 'inv-usd-cb', documentType: 'invoice' as const, amountCents: 67_000 }],
+  }]);
+  const paidUsd = outUsd.entries.find(e => String(e.id).endsWith(':paid:p-usd'));
+  const recognisedUsd = (paidUsd?.lines || []).reduce((sum, l) => sum + Math.abs(l.amountCents || 0), 0);
+  report(
+    'V8b control: the SAME $670.00 as a USD invoice paid in full recognises 100% of its revenue',
+    recognisedUsd === correct && Boolean(paidUsd),
+    `USD: recognised ${recognisedUsd} cents of ${correct} — the accrual is found, the allocation matches, the entry ` +
+      `is produced and share is 1. So V8a's ${recognised} cents is caused by the currency's minor units alone, not ` +
+      `by a cash-basis report that recognises nothing, cannot match an allocation, or never emits a :paid: entry.`,
+    `the control failed (recognised ${recognisedUsd}, entry ${paidUsd ? 'found' : 'MISSING'}), so V8a does not ` +
+      `isolate the currency as the cause.`,
+  );
+}
+
 console.log('');
 console.log(failures === 0
   ? 'all cases OK — #641 does not reproduce; the aging reconciles to the ledger'
