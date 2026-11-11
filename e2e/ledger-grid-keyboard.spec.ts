@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 
 /**
@@ -20,6 +21,7 @@ test('ledger grid: arrows move the announced highlight, Tab leaves, Escape clear
     localStorage.setItem('has_seen_onboarding', 'true');
     localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
   });
+  await installSmallSample(page);
   await page.goto('/#transactions');
   await expect(page.getByRole('heading', { name: 'Journal Entries', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(async () => {

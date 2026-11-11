@@ -8,7 +8,7 @@ export const RECORD_DETAIL_FIELDS = {
 export type DetailKind = keyof typeof RECORD_DETAIL_FIELDS;
 export interface DetailTarget { kind: DetailKind; id: string }
 export type DetailData = Record<string, unknown>;
-export interface DetailSession { uid: string; workspaceId: string; writable: boolean }
+export interface DetailSession { sampleSession?: object; uid: string; workspaceId: string; writable: boolean }
 export interface DetailAdapter {
   session(): DetailSession | null;
   guardProjectRename?(target: DetailTarget, oldName: string): void;
@@ -17,7 +17,7 @@ export interface DetailAdapter {
 }
 function guard(adapter: DetailAdapter, session: DetailSession, write: boolean) {
   const current = adapter.session();
-  if (!current || current.uid !== session.uid || current.workspaceId !== session.workspaceId) throw new Error('Workspace or signed-in user changed. Reopen this record.');
+  if (!current || current.uid !== session.uid || current.workspaceId !== session.workspaceId || current.sampleSession !== session.sampleSession) throw new Error('Workspace or signed-in user changed. Reopen this record.');
   if (write && !current.writable) throw new Error('Your current workspace role cannot edit this record.');
 }
 export async function loadRecordDetails(adapter: DetailAdapter, target: DetailTarget): Promise<DetailData> {

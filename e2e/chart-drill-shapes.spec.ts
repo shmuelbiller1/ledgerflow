@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 test.setTimeout(60000);
 
@@ -8,6 +9,7 @@ for (const width of [1280,390]) test(`account icicle zoom and report-period drag
     localStorage.setItem('has_seen_onboarding','true');
     localStorage.setItem('ledgerflow-cookie-consent','accepted');
   });
+  await installSmallSample(page);
   await page.goto('/#charts');
   await page.getByRole('heading',{name:'Executive Financial Visualizer',exact:true}).waitFor({state:'visible',timeout:20000});
   const mix=page.getByRole('region',{name:'Monthly Profitability & Mix',exact:true});

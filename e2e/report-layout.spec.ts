@@ -1,3 +1,4 @@
+import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 
 for (const width of [390, 1024, 1280]) for (const theme of ['light', 'dark']) {
@@ -7,6 +8,7 @@ for (const width of [390, 1024, 1280]) for (const theme of ['light', 'dark']) {
       localStorage.setItem('isGuest', 'true'); localStorage.setItem('has_seen_onboarding', 'true');
       localStorage.setItem('ledgerflow-cookie-consent', 'accepted'); localStorage.setItem('lf_theme', selectedTheme);
     }, theme);
+    await installSmallSample(page);
     for (const report of ['pnl', 'balance-sheet']) {
       await page.goto(`/?report=${report}&start=2026-09-01&end=2026-09-30&cmp=none#reports`);
       const header = page.getByRole('region', { name: 'Report filters', exact: true });
@@ -46,12 +48,14 @@ for (const width of [390, 1024, 1280]) for (const theme of ['light', 'dark']) {
         await page.evaluate(async name => {
           const modulePath = '/src/stores/useLedgerStore.ts';
           const { useLedgerStore } = await import(/* @vite-ignore */ modulePath) as typeof import('../src/stores/useLedgerStore');
-          const state = useLedgerStore.getState(), accountId = state.accounts.find(account => account.type === 'asset')!.id;
-          useLedgerStore.setState({
+          const { replaceGuestCompany } = await import('/src/lib/guestCompany.ts');
+          const state = useLedgerStore.getState(), accountId = state.accounts.find(account => account.type === 'asset' && account.category === 'Cash')!.id;
+          replaceGuestCompany({
+            currency: 'USD', customers: state.customers, vendors: state.vendors, invoices: state.invoices, bills: state.bills,
             accounts: state.accounts.map(account => ({ ...account, name: account.id === accountId ? name : account.name })),
             transactions: state.transactions.map(transaction => ({ ...transaction, totalAmountCents: transaction.totalAmountCents * 1000000,
               lines: transaction.lines.map(line => ({ ...line, amountCents: Number(line.amountCents) * 1000000, accountName: line.accountId === accountId ? name : line.accountName })) })),
-          });
+          }, 'Sample company');
         }, longName);
         const name = page.getByTitle(longName, { exact: true });
         await expect(name).toBeVisible();

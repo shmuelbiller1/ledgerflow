@@ -5,7 +5,8 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useDataNeedsStore } from '../../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
+import { saveWorkspacePriceLists } from '../../../services/workspacePriceLists';
+import { guestReady, guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
 import { downloadCsv } from '../../../lib/csvExport';
 import ReportTableScroll from '../../reporting/ReportTableScroll';
 import {
@@ -21,13 +22,14 @@ const PROBLEM_CSV_HEADERS = ['Record', 'Problem'];
  * (bad rows are named by their record number and left out), then a preview shows what changes —
  * never saving before the import is confirmed — and after saving, Undo restores the lists as they
  * were. Saving uses the same server path and the same list rules as Settings → Price lists, so a
- * customer is still on one list per currency. Owners and accountants import; guests have no server.
+ * customer is still on one list per currency. Owners and accountants import; the sample company saves locally.
  */
 export default function PriceListImportView() {
   useLedgerCollections('inventory');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const isGuest = useAuthStore(s => s.isGuest);
+  const localSample = isGuest && workspace?.id === SAMPLE_WORKSPACE_ID && guestReady();
   const items = useLedgerStore(s => s.inventory) || [];
   const failed = useDataNeedsStore(s => s.failed);
   const role = useCurrentRole();
@@ -68,14 +70,12 @@ export default function PriceListImportView() {
     const workspaceWroteTo = workspace.id;
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceWroteTo)}/price-lists`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ lists: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'The price lists were not saved');
+      const sampleSession = guestSession();
+      const lists = await saveWorkspacePriceLists(workspaceWroteTo, next);
+      if (guestSession() !== sampleSession) return;
       // A workspace change while the save was in flight never gets the old answer applied to it.
       if (useAuthStore.getState().currentWorkspaceId !== workspaceWroteTo) return;
-      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspaceWroteTo ? { ...w, priceLists: data.lists } : w)));
+      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspaceWroteTo ? { ...w, priceLists: lists } : w)));
       toast.success(done);
       if (undo) setUndoPlan(undo);
       if (undo) setRead(null); else setUndoPlan(null);
@@ -99,7 +99,7 @@ export default function PriceListImportView() {
     </p>
 
     {!canChange && <p className="text-sm text-[var(--muted)]">Importing price lists takes an owner or accountant.</p>}
-    {isGuest && <p className="text-sm text-[var(--muted)]">A guest workspace has no server, so the import can be read and previewed but not saved.</p>}
+    {isGuest && <p className="text-sm text-[var(--muted)]">{localSample ? "Imports save only in this browser tab’s sample company. Leaving the demo discards them." : "A guest workspace has no server, so the import can be read and previewed but not saved."}</p>}
     {failed.inventory && <p role="alert" className="text-sm text-[var(--muted)]">The items failed to load, so SKUs cannot be matched now.</p>}
 
     <div className="space-y-2">
@@ -164,7 +164,7 @@ export default function PriceListImportView() {
               </tbody>
             </table>
           </ReportTableScroll>
-          <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={busy || !canChange || isGuest}
+          <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={busy || !canChange || (isGuest && !localSample)}
             onClick={() => plan && save(plan.lists, `Price lists imported: ${plan.pricesSet} price(s) set${plan.createdLists ? `, ${plan.createdLists} list(s) created` : ''}. Undo is available on this screen.`, plan)}>
             {busy ? 'Saving…' : 'Save the import'}</button>
         </>}
@@ -172,7 +172,7 @@ export default function PriceListImportView() {
 
     {undoPlan && <div className="border rounded p-3 border-[var(--line)] space-y-2">
       <p className="text-sm">The import saved {undoPlan.pricesSet} price(s){undoPlan.createdLists ? ` and created ${undoPlan.createdLists} list(s)` : ''}. Undo restores the price lists as they were before it.</p>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={busy || !canChange || isGuest}
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={busy || !canChange || (isGuest && !localSample)}
         onClick={() => save(undoPlan.previous, 'The import was undone; the price lists are as they were.')}>
         {busy ? 'Saving…' : 'Undo the import'}</button>
     </div>}

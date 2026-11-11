@@ -1,3 +1,5 @@
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
+import { readGuestStages, saveGuestStages } from '../../../lib/guestSettings';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getIdToken } from '../../../firebase';
@@ -26,6 +28,8 @@ export default function StagesSettings() {
     if (!workspaceId) return;
     let live = true;
     (async () => {
+      if (guestSession()) return readGuestStages(workspaceId, 'bill').sets;
+      if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
       const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages?kind=bill`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
       return res.ok ? ((await res.json()).sets || {}) as StageSets : {};
     })().then(sets => { if (live) setText({ invoice: (sets.invoice || []).join('\n'), bill: (sets.bill || []).join('\n') }); }).catch(() => { if (live) setText({ invoice: '', bill: '' }); });
@@ -38,9 +42,17 @@ export default function StagesSettings() {
   const save = async () => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages/sets`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ sets }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The stages were not saved');
+      const sampleSession = guestSession();
+      if (sampleSession) {
+        if (!sets) throw new Error('Enter stages first');
+        saveGuestStages(workspaceId, sets);
+      } else {
+        if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
+        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages/sets`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ sets }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'The stages were not saved');
+      }
+      if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       resetStages();
       toast.success('Stages saved');
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }

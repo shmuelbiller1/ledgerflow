@@ -1,3 +1,5 @@
+import { workspaceActor } from './guestActor';
+import { guestSession } from './db/guestDatabase';
 import { doc, getDoc, deleteDoc, setDoc } from './db/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -7,12 +9,13 @@ import { toast } from 'sonner';
 export async function deleteProjectWithUndo(id: string) {
   const initial = useAuthStore.getState();
   const workspaceId = initial.currentWorkspaceId;
-  const uid = initial.user?.uid;
+  const uid = workspaceActor(initial)?.uid;
+  const sampleSession = guestSession();
   function allowed() {
     const state = useAuthStore.getState();
     const workspace = state.workspaces.find(w => w.id === workspaceId);
     const role = uid && workspace?.roles?.[uid];
-    return Boolean(uid && workspaceId && state.user?.uid === uid && state.currentWorkspaceId === workspaceId && (workspace?.uid === uid || role === 'owner' || role === 'accountant' || role === 'bookkeeper'));
+    return Boolean(uid && workspaceId && workspaceActor(state)?.uid === uid && guestSession() === sampleSession && state.currentWorkspaceId === workspaceId && (workspace?.uid === uid || role === 'owner' || role === 'accountant' || role === 'bookkeeper'));
   }
   if (!allowed()) throw new Error('This workspace is read-only.');
   const ref = doc(db, 'projects', id);

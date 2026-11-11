@@ -1,3 +1,4 @@
+import { workspaceActor } from '../../lib/guestActor';
 import { deleteProjectWithUndo } from '../../lib/projectUndo';
 import { useDialog } from '../../hooks/useDialog';
 import { useState, useMemo, useId } from 'react';
@@ -62,11 +63,8 @@ const isProjectTx = (t: Transaction, p: Project) => {
 
 function useProjectsModel() {
   const formId = useId();
-  const user = useAuthStore(s => s.user);
-  const isGuest = useAuthStore(s => s.isGuest);
-  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const user = useAuthStore(workspaceActor);
   const projects = useLedgerStore(s => s.projects);
-  const setProjects = useLedgerStore(s => s.setProjects);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const bills = useLedgerStore(s => s.bills);
@@ -77,17 +75,9 @@ function useProjectsModel() {
   const { addEntity, updateEntity } = useEntityOperations();
   const onAdd = (data: Partial<Project>) => addEntity('projects', data);
   const onUpdate = async (id: string, data: Partial<Project>) => {
-    if (isGuest || !user) {
-      setProjects(projects.map(p => (p.id === id ? { ...p, ...data } : p)));
-      return;
-    }
     return updateEntity('projects', id, data);
   };
   const onDelete = async (id: string) => {
-    if (isGuest || !user) {
-      setProjects(projects.filter(p => p.id !== id));
-      return;
-    }
     return deleteProjectWithUndo(id);
   };
   const [searchTerm, setSearchTerm] = useState('');
@@ -137,30 +127,8 @@ function useProjectsModel() {
     setSaving(true);
     try {
       const createdAt = new Date().toISOString();
-      if (isGuest || !user) {
-        setProjects([
-          ...projects,
-          {
-            ...newProject,
-            id: `proj_${Date.now()}`,
-            workspaceId: currentWorkspaceId || 'default',
-            uid: user?.uid || 'guest',
-            name: newProject.name,
-            description: newProject.description || '',
-            type: newProject.type || 'general',
-            status: newProject.status || 'active',
-            budgetCents: newProject.budgetCents || 0,
-            dimensions: newProject.dimensions || [],
-            createdAt,
-          } as Project,
-        ]);
-      } else {
-        await onAdd({
-          ...newProject,
-          uid: user?.uid || "",
-          createdAt
-        });
-      }
+      const ref = await onAdd({ ...newProject, uid: user?.uid || '', createdAt });
+      if (!ref) throw new Error('Project was not saved');
       setIsNewProjectModalOpen(false);
       setNewProject({
         name: '',

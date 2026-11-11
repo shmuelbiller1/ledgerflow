@@ -1,3 +1,6 @@
+import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { withSamplePosting } from '../lib/guestPosting';
+import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
 import { collection, updateDoc, deleteDoc, doc, setDoc, query, where, getDocs, getDoc } from '../lib/db/firestore';
 import { learnedPatternId } from '../lib/learnedPatterns';
@@ -47,7 +50,7 @@ async function savedRecord<T>(path: StoredDocumentPath, id: string): Promise<T |
 }
 
 export function useEntityOperations() {
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(workspaceActor);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const role = useCurrentRole();
   const analyticalPatternCache = useLedgerStore(s => s.analyticalPatternCache);
@@ -56,9 +59,11 @@ export function useEntityOperations() {
    * Recalculate and update durable balanceCents for a customer or vendor entity
    * Queries authoritative Firestore data scoped to this entity rather than relying on truncated UI cache.
    */
-  const syncEntityBalance = async (entityType: 'customers' | 'vendors', entityId: string) => {
+  const syncEntityBalance = async (entityType: 'customers' | 'vendors', entityId: string, sampleSession: object | null) => {
     if (!entityId || !currentWorkspaceId) return;
     try {
+      if (sampleSession) assertGuestSession(sampleSession);
+      const entityRef = doc(db, entityType, entityId);
       let balanceCents = 0;
 
       if (entityType === 'customers') {
@@ -82,7 +87,7 @@ export function useEntityOperations() {
         balanceCents = vendorBills.reduce((sum, b) => sum + toBaseCents(calculateAmountDue(b), b.exchangeRate), 0);
       }
 
-      await updateDoc(doc(db, entityType, entityId), {
+      await updateDoc(entityRef, {
         balanceCents,
         updatedAt: new Date().toISOString()
       });
@@ -152,6 +157,7 @@ export function useEntityOperations() {
 
   const addEntity = async <T extends object>(path: string, data: T & EntityInput, successMsg?: string) => {
     if (!user || !currentWorkspaceId) return;
+    const sampleSession = guestSession();
     try {
       const docId = doc(collection(db, path)).id;
       const finalData = {
@@ -165,20 +171,20 @@ export function useEntityOperations() {
       };
 
       if (path === 'invoices') {
-        const posted = await LedgerPostService.postInvoiceLedger(docId, finalData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
+        const posted = await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postInvoiceLedger(docId, finalData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
         if (posted.cogsPendingReason) toast.warning(posted.cogsPendingReason);
         if (finalData.customerId) {
-          void syncEntityBalance('customers', finalData.customerId);
+          void syncEntityBalance('customers', finalData.customerId, sampleSession);
         }
       } else if (path === 'bills') {
-        await LedgerPostService.postBillLedger(docId, finalData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postBillLedger(docId, finalData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
         if (finalData.vendorId) {
-          void syncEntityBalance('vendors', finalData.vendorId);
+          void syncEntityBalance('vendors', finalData.vendorId, sampleSession);
         }
       } else if (path === 'creditNotes') {
-        await LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
       } else if (path === 'vendorCredits') {
-        await LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
       } else if (path === 'transactions') {
         const token = await getIdToken();
         const res = await fetch('/api/v1/transactions', {
@@ -225,6 +231,10 @@ export function useEntityOperations() {
   // is posted, so the server sees an issued invoice; the send is logged there.
   const sendInvoiceEmail = async (id: string, invoiceData: InvoiceForEmail) => {
     if (!currentWorkspaceId) return false;
+    if (currentWorkspaceId === SAMPLE_WORKSPACE_ID || useAuthStore.getState().isGuest) {
+      toast.info('Saved in the sample company. Demo invoices are not emailed.');
+      return false;
+    }
     // BE-04: an invoice nobody has signed off yet stays inside, whoever saved it
     if (holdsSending(invoiceData, useAuthStore.getState().getCurrentWorkspace()?.invoiceApproval)) {
       toast.info('The invoice was saved. It is not emailed yet: it is over the approval limit (Settings → Emails & Reminders), so it waits for an owner or an accountant to approve it in the invoice list.');
@@ -267,6 +277,7 @@ export function useEntityOperations() {
   };
 
   const updateEntity = async <T extends object>(path: string, id: string, updates: T & EntityInput, successMsg?: string) => {
+    const sampleSession = guestSession();
     try {
       const { forceSend, ...changes } = updates || {};
       const finalData = {
@@ -285,28 +296,28 @@ export function useEntityOperations() {
       if (path === 'invoices' && user && currentWorkspaceId) {
         const existingInvoice = previousInvoice || {};
         const mergedData = { ...existingInvoice, ...finalData };
-        const posted = await LedgerPostService.postInvoiceLedger(id, mergedData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
+        const posted = await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postInvoiceLedger(id, mergedData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
         if (posted.cogsPendingReason) toast.warning(posted.cogsPendingReason);
         const targetCustId = mergedData.customerId || finalData.customerId;
         if (targetCustId) {
-          void syncEntityBalance('customers', targetCustId);
+          void syncEntityBalance('customers', targetCustId, sampleSession);
         }
       } else if (path === 'bills' && user && currentWorkspaceId) {
         const existingBill = (await savedRecord<Bill>('bills', id)) || {};
         const mergedData = { ...existingBill, ...finalData };
-        await LedgerPostService.postBillLedger(id, mergedData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postBillLedger(id, mergedData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
         const targetVendId = mergedData.vendorId || finalData.vendorId;
         if (targetVendId) {
-          void syncEntityBalance('vendors', targetVendId);
+          void syncEntityBalance('vendors', targetVendId, sampleSession);
         }
       } else if (path === 'creditNotes' && user && currentWorkspaceId) {
         const existing = (await savedRecord<CreditNote>('creditNotes', id)) || {};
         const mergedData = { ...existing, ...finalData };
-        await LedgerPostService.postCreditNoteLedger(id, mergedData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postCreditNoteLedger(id, mergedData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
       } else if (path === 'vendorCredits' && user && currentWorkspaceId) {
         const existing = (await savedRecord<VendorCredit>('vendorCredits', id)) || {};
         const mergedData = { ...existing, ...finalData };
-        await LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
       } else if (path === 'transactions' && currentWorkspaceId) {
         const token = await getIdToken();
         const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
@@ -333,23 +344,24 @@ export function useEntityOperations() {
   };
 
   const deleteEntity = async (path: string, id: string, successMsg?: string) => {
+    const sampleSession = guestSession();
     try {
       if (path === 'invoices' && currentWorkspaceId) {
         const existingInvoice = await savedRecord<Invoice>('invoices', id);
-        await LedgerPostService.deletePostings(id, 'invoiceId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'invoiceId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         if (existingInvoice?.customerId) {
-          void syncEntityBalance('customers', existingInvoice.customerId);
+          void syncEntityBalance('customers', existingInvoice.customerId, sampleSession);
         }
       } else if (path === 'bills' && currentWorkspaceId) {
         const existingBill = await savedRecord<Bill>('bills', id);
-        await LedgerPostService.deletePostings(id, 'billId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'billId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         if (existingBill?.vendorId) {
-          void syncEntityBalance('vendors', existingBill.vendorId);
+          void syncEntityBalance('vendors', existingBill.vendorId, sampleSession);
         }
       } else if (path === 'creditNotes' && currentWorkspaceId) {
-        await LedgerPostService.deletePostings(id, 'creditNoteId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'creditNoteId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
       } else if (path === 'vendorCredits' && currentWorkspaceId) {
-        await LedgerPostService.deletePostings(id, 'vendorCreditId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
+        await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'vendorCreditId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
       } else if (path === 'transactions' && currentWorkspaceId) {
         const token = await getIdToken();
         const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`, {

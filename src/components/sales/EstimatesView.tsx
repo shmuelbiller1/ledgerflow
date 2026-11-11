@@ -1,3 +1,4 @@
+import { workspaceActor } from '../../lib/guestActor';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { EstimateSignLink, EstimateSignedNote } from './EstimateSignLink';
 import { dueMilestones } from '../../lib/milestones';
@@ -7,7 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { Plus, ArrowRight, FileText, Eye, Download, Paperclip } from 'lucide-react';
 import { collection, addDoc, doc, updateDoc } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import { toast } from 'sonner';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
@@ -49,7 +50,7 @@ const STAGE_STYLE: Record<OrderStage, string> = {
 };
 
 export default function EstimatesView() {
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(workspaceActor);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const [filesFor, setFilesFor] = useState<{ workspaceId: string; key: string } | null>(null);
   const filesWorkspaceId = currentWorkspaceId || '';
@@ -70,6 +71,7 @@ export default function EstimatesView() {
   useLedgerCollections('payments', 'invoices');
   const dataHealth = useScreenDataHealth(['customers', 'estimates']);
   const role = useCurrentRole();
+  const isGuest = useAuthStore(s => s.isGuest);
   const canTakeDeposit = role === 'owner' || role === 'accountant' || role === 'bookkeeper';
   const canWrite = canTakeDeposit;
   const [depositFor, setDepositFor] = useState<import("../../types").Estimate | null>(null);
@@ -162,16 +164,7 @@ export default function EstimatesView() {
   /** The next invoice number from the server; no made-up number (a random one could repeat an existing invoice's). */
   const nextInvoiceNumber = async (): Promise<string | undefined> => {
     try {
-      const token = await getIdToken().catch(() => '');
-      const res = await fetch(`/api/v1/workspaces/${currentWorkspaceId}/next-number`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ type: 'invoice' })
-      });
-      if (res.ok) return (await res.json()).number;
+      return await nextDocumentNumber(currentWorkspaceId || '', 'invoice');
     } catch (e) {
       console.error('Failed to fetch next invoice number', e);
     }
@@ -259,14 +252,14 @@ export default function EstimatesView() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 p-6 space-y-6 max-w-7xl mx-auto">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
             <FileText className="w-6 h-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Estimates & Quotes</h1>
             <p className="text-xs text-[var(--muted)] dark:text-slate-400">
               Create proposals, track client approvals, and convert quotes directly into invoices
@@ -384,7 +377,7 @@ export default function EstimatesView() {
       )}
 
       {/* Estimates Table */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+      <div role="region" aria-label="Estimates table" tabIndex={0} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-900 shadow-2xs">
         {loading ? <LoadingState what="estimates" /> : estimates.length === 0 ? (
           <EmptyState
             title="No estimates yet"
@@ -462,7 +455,7 @@ export default function EstimatesView() {
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       {canTakeDeposit && !['converted', 'declined', 'expired'].includes(est.status) && (
-                        <button type="button" onClick={() => setDepositFor(est)}
+                        <button type="button" disabled={isGuest} title={isGuest ? 'Deposits need a signed-in workspace.' : undefined} onClick={() => { if (!isGuest) setDepositFor(est); }}
                           className="px-2.5 py-1 text-xs font-semibold border border-[var(--line)] text-[var(--text)] rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
                           aria-label={`Take a deposit for estimate ${est.number || ''}`.trim()}>
                           Deposit
@@ -475,7 +468,7 @@ export default function EstimatesView() {
                             aria-label={`Make estimate ${est.number || est.id} an order`} title="The customer said yes: invoice it in one go or in parts">
                             Order
                           </button>
-                          {currentWorkspaceId && <EstimateSignLink workspaceId={currentWorkspaceId} estimate={est} />}
+                          {currentWorkspaceId && !isGuest && <EstimateSignLink workspaceId={currentWorkspaceId} estimate={est} />}
                           <button type="button" onClick={() => void declineEstimate(est)}
                             className="px-2.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
                             aria-label={`Mark estimate ${est.number || est.id} declined`}>

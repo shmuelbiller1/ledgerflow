@@ -22,8 +22,8 @@ export default function FirstHourGuide() {
     <section aria-label="First-hour bookkeeping guide" className="space-y-4 text-left">
       {isGuest ? (
         <div role="note" className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4 space-y-3">
-          <p className="text-sm font-semibold text-[var(--text)]">Guest preview — sign in before starting your books</p>
-          <p className="text-sm text-[var(--muted)]">You can browse these screens in guest mode, but you cannot save a chart of accounts, customers, invoices, bills, payments or bank imports. To make records that persist, sign in and set up your workspace first.</p>
+          <p className="text-sm font-semibold text-[var(--text)]">Try bookkeeping in the sample company</p>
+          <p className="text-sm text-[var(--muted)]">Try creating invoices, contacts and other local sample records. Saved sample records stay in this browser tab after a refresh; leaving the demo discards them. Server-only tools and file attachments still need sign-in.</p>
           <button type="button" onClick={signIn} className="min-h-11 px-4 py-2 rounded-lg border border-[var(--line)] font-semibold text-sm focus-visible:outline-2 focus-visible:outline-[var(--brass)]">Sign in to start bookkeeping</button>
         </div>
       ) : (
@@ -38,7 +38,7 @@ export default function FirstHourGuide() {
           </li>
         ))}
       </ol>
-      <p className="text-sm text-[var(--muted)]">{isGuest ? 'These links preview screens only; they cannot save guest records. Sign in to use a real workspace.' : 'Cannot save? Check the message beside the field and your workspace role. If data did not load, use Data Status to retry.'} Unverified tax filing and live bank payments are not part of this walkthrough.</p>
+      <p className="text-sm text-[var(--muted)]">{isGuest ? 'Sample records are practice only, not your real books.' : 'Cannot save? Check the message beside the field and your workspace role. If data did not load, use Data Status to retry.'} Unverified tax filing and live bank payments are not part of this walkthrough.</p>
       <button type="button" onClick={() => goToPage({ tab: 'help' })} className="min-h-11 px-3 py-2 rounded-lg border border-[var(--line)] text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">Open help and guide</button>
     </section>
   );
