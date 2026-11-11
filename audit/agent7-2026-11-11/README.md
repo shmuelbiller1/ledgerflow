@@ -1,6 +1,6 @@
 # AI #7 — independent audit report, 11 November 2026
 
-Issue #150 · format of `docs/INDEPENDENT_AUDIT_AGENT.md` · review only: **no application, schema, migration or test-suite code was changed.** Everything this audit added is in this folder.
+Issue #150 · format of `docs/INDEPENDENT_AUDIT_AGENT.md` · review only: **no application, schema, migration or test-suite code was changed.** Everything this audit added is in this folder, plus one message appended to `docs/COORDINATION.md`.
 
 **Pin:** upstream `shmuelbiller1/ledgerflow` `main` `2708f47cb40711e57032bf6d3d4acc9f10f1061d` (PR #647 and PR #655 merged, 11 Nov 2026 19:33 UTC). Earlier pins of the same session: `ec3ff49`, `39b0012`, `2ac666b`.
 
@@ -51,11 +51,11 @@ The one failing test is `report-speed-12m` (A-229), a wall-clock budget: 1,633�
 | Server files among them | about 14 | 246 | 6% |
 | Routes exercised with real requests | 18 (14 writes, 4 reports) | about 309 | 6% |
 | Migrations read in full | 2 | 54 | 4% |
-| Functions examined | about 30 | not counted | — |
+| Functions and handlers examined | 33 (listed in `SCORECARD.md`) | not counted | — |
 
 There is no function count because the tool that should supply it is out of date: the Code Atlas describes the tree of 16 October (finding A7-12). No function-by-function pass (Pass A of the instructions) was attempted beyond this slice.
 
-**Also run:** the recurring-entry job; 17 database statements as a signed-in browser session; the app's own Data Health checks and month-end posting check after every finding; the probes against two pull requests at five heads (PR #640 at `4c65103e`, `e3367a9e`, `f4e0b111`; PR #647 at `720fc6d1`, `c2835545`) and against both migrations together; other agents' probes (Agent #6, function audit) before and after PR #647.
+**Also run:** the recurring-entry job; 17 database statements as a signed-in browser session; the app's own Data Health checks after each ledger finding, and its month-end posting check where a document was involved; the probes against two pull requests at five heads (PR #640 at `4c65103e`, `e3367a9e`, `f4e0b111`; PR #647 at `720fc6d1`, `c2835545`) and against both migrations together; other agents' probes (Agent #6, function audit) before and after PR #647.
 
 **Unknowns** are listed in section 7.
 
@@ -67,7 +67,7 @@ Every row was executed at `2708f47c`; the screens were read in source, not run i
 
 | # | Issue | Sev. | What happens | Shortest reproduction |
 |---|---|---|---|---|
-| 1 | #662 | P1 — fix first | The ledger list's "Reverse transaction" button un-posts any entry in an open month, including an invoice's or a payment's; nothing is reversed, the document is not told. "Undo" answers 200 and the entry stays out of the books. Made reachable by PR #647. | `probes/a7-04g-ledger-list-void-button.test.ts` |
+| 1 | #662 | P1 — fix first | The ledger list's "Reverse transaction" button takes an entry in an open month out of the books — also an invoice's or a payment's; nothing is reversed, the document is not told. "Undo" answers 200 and the entry stays out of the books. Made reachable by PR #647. | `probes/a7-04g-ledger-list-void-button.test.ts` |
 | 2 | #662 | P1 | `{ partialUpdate: { exchangeRate: 100 } }` turns a payment of 500.00 into 50,000.00 in every report; its lines and total still read 500.00; the trial balance still balances. | `probes/a7-04e-rate-by-partial-update.test.ts` |
 | 3 | #662 | P1 | A posted entry is deleted in two requests (status to draft, then delete), although a single delete is refused. | `probes/a7-04f-unpost-then-delete.test.ts` |
 | 4 | #652 | P1 | A bookkeeper voids, rewrites or reverses the entry of an invoice or a payment through the generic routes; the rewrite is offered by the "Edit Transaction Details" window. Audit rows carry no before and after. | `probes/a7-04-system-entries-editable.test.ts` |
@@ -106,7 +106,7 @@ Each capability was walked from the request to the reports and back. "Breaks at"
 
 ## 4. Beta readiness matrix
 
-Status words are those of `docs/FIRST_TESTERS_GATE.md`. "Unverified" means no real execution was shown — by me or, as far as I found, by anyone. I did not review other agents' evidence for gates outside my slice.
+Status words are those of `docs/FIRST_TESTERS_GATE.md`. "Unverified" here means that I produced no real execution for the row; the gate file itself records no row as passed. I did not review other agents' evidence for gates outside my slice.
 
 | Gate | Promise | Status | Basis |
 |---|---|---|---|
@@ -142,7 +142,7 @@ Five shared rules, each of which closes a family of the findings above without r
 2. **One server-side "belongs to a document" check**, the same predicate the browser has (`isDocumentEntry`), in `PUT`, `DELETE` and `…/reverse` for entries. Closes row 4 and the document half of row 1.
 3. **Money documents are issued by the server only**, as payments already are: the database refuses a browser insert or status change of an open or issued credit, invoice or bill, and the server applies only a credit that has a posted entry. Closes row 5 and the rest of #646.
 4. **One meaning for a rate.** Store the home-currency amount on every line at posting time and have every reader — reports, the database trigger, Data Health — use only that. Closes rows 2 and 6 and makes row 7 a one-line settlement.
-5. **A ledger gate that sees the writes.** Move the three unchecked writers through `ledgerWrite`, then teach the scanner to follow one assignment (60 lines, in `probes/a7-01-…`). Closes rows 8 and 9 and keeps 1–4 from coming back through a new writer.
+5. **A ledger gate that sees the writes.** Move the three unchecked writers through the validator, the period check and `ledgerWrite`, then teach the scanner to follow one assignment (60 lines, in `probes/a7-01-…`). Closes row 9, puts the recurring job (row 6) and the seed route (row 8) under the shared checks, and keeps a new writer from skipping them.
 
 ---
 
@@ -203,6 +203,7 @@ Five shared rules, each of which closes a family of the findings above without r
 | What each probe printed | `evidence/main-2708f47c/` (this pin); files directly under `evidence/` are the pin `2ac666b`; `pr640-*`, `pr647-*` are the pull-request heads |
 | Text of every issue filed | `issues/` (00 = #646, 01 = #650, 02 = #652, 03 = #653, 04 = #654, 05 = #656, 06 = #657, 07 = #661, 08 = #662) |
 | Branch | `arena/a91ccf77-ledgerflow` on the fork `Chaim-Richard/ledgerflow` |
+| Pull request | [fork PR #27](https://github.com/Chaim-Richard/ledgerflow/pull/27) — opening one upstream is refused for this integration. Its base is the fork's old `main`, so read the true difference at [this compare link](https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:ledgerflow:arena/a91ccf77-ledgerflow) |
 
 **To reproduce everything:** Node 24, a disposable PostgreSQL 17 database in `LF_TEST_DATABASE_URL` (UTF-8), `npm ci --ignore-scripts`, `npm run db:test-setup`, then `bash audit/agent7-2026-11-11/probes/run-all.sh`. Each probe's header gives its own command and what a correct system would answer. The probes assert today's behaviour; with the expectations turned round they are the regression tests.
 
