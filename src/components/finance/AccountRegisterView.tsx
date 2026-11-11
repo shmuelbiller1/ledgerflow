@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { usePagedRows } from '../../hooks/usePagedRows';
+import { ShowMoreRows } from '../common/ShowMoreRows';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { Transaction } from '../../types';
 import { isExpenseAccount, isPostable, lineAmount, transactionDate } from '../../lib/txFilters';
@@ -144,6 +146,8 @@ export const AccountRegisterView: React.FC = () => {
 
     return list;
   }, [entries, registerCalculation, unclearedOnly, searchQuery]);
+  // #642: a busy account draws its first page of lines at once (printing draws them all)
+  const paged = usePagedRows(displayedEntries, `${selectedAccount?.id || ''}|${unclearedOnly}|${searchQuery}`);
 
   // Cleared / not cleared is saved through the server (CA-04); it used to change only this screen
   // and was gone after a reload. Marking cleared asks for the day the bank cleared it.
@@ -298,7 +302,7 @@ export const AccountRegisterView: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              displayedEntries.map(entry => (
+              paged.visible.map(entry => (
                 <React.Fragment key={entry.id}>
                 <tr
                   className={cn(
@@ -363,6 +367,7 @@ export const AccountRegisterView: React.FC = () => {
             )}
           </tbody>
         </table>
+        <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lines" onMore={paged.more} onAll={paged.all} />
       </div>
     </div>
   );

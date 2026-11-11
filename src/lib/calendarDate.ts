@@ -212,6 +212,28 @@ export function workspaceYearMonth(timezone?: string): { year: number; month: nu
  * Parses a YYYY-MM-DD string into a timezone-midnight Date object in an explicit timezone
  * (or system timezone / UTC when omitted).
  */
+// One formatter per timezone: building an Intl.DateTimeFormat costs far more than using one, and parsing every date of
+// a year of entries rebuilt it thousands of times. A formatter is immutable, so sharing it changes no result; an
+// unknown timezone still throws here, as before, and is not cached.
+const OFFSET_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+function offsetFormatter(tz: string): Intl.DateTimeFormat {
+  let formatter = OFFSET_FORMATTERS.get(tz);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    });
+    OFFSET_FORMATTERS.set(tz, formatter);
+  }
+  return formatter;
+}
+
 export function parseDateInTimezone(s: string, timezone?: string): Date {
   if (!s) return new Date();
   let parts: number[] = [];
@@ -231,16 +253,7 @@ export function parseDateInTimezone(s: string, timezone?: string): Date {
     const tz = (typeof timezone === 'string' && timezone.trim()) ? timezone.trim() : resolvedSystemTimezone();
 
     try {
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz,
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        second: 'numeric',
-        hour12: false,
-      });
+      const formatter = offsetFormatter(tz);
 
       const utcDateStr = `${y}-${pad2(m)}-${pad2(d)}T00:00:00Z`;
       const tempDate = new Date(utcDateStr);
