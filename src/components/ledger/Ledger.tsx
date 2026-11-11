@@ -241,6 +241,8 @@ const Ledger = React.memo(() => {
               date: (newAccount.asOfDate || format(new Date(), 'yyyy-MM-dd')).slice(0, 10),
               description: `Opening balance for ${newAccount.name}`,
               totalAmountCents: Math.abs(signedAmt),
+              currency: useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD',
+              exchangeRate: 1,
               status: 'completed',
               type: 'journal',
               lines: [

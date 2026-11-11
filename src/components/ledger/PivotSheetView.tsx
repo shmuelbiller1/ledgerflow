@@ -22,7 +22,7 @@ export function PivotSheetView({ transactions, isEmbedded, accounts, activeDimen
              </div>
              <div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-tight leading-none">Spreadsheet Pivot Matrix</h2>
-                <p className="text-[9.5px] text-[var(--muted)] font-mono tracking-tight mt-1">Cross-tabulation & Dimension Aggregator</p>
+                <p className="text-[9.5px] text-[var(--muted)] font-mono tracking-tight mt-1">Compare labels</p>
              </div>
           </div>
           

@@ -92,14 +92,16 @@ export async function executeIdempotent<T>(
     workspaceId: string;
     operationType: string;
     payloadHash?: string;
+    legacyKey?: string;
+    db?: ReturnType<typeof getDb>;
   },
   transactionHandler: (t: FirestoreTransaction) => Promise<T>
 ): Promise<T> {
-  const db = getDb();
+  const db = metadata.db ?? getDb();
   const keyRef = db.collection('idempotencyKeys').doc(scopedOperationId);
 
   return await db.runTransaction(async (t) => {
-    // 1. Read idempotency record (must happen before any writes)
+    // 1. Read idempotency record (and optional pre-upgrade legacy key) before any writes
     const doc = await t.get(keyRef);
 
     if (doc.exists) {
@@ -114,6 +116,16 @@ export async function executeIdempotent<T>(
         // Allow retry if stuck in pending for > 5 minutes
         if (now - createdAt < 5 * 60 * 1000) {
           throw Object.assign(new Error(`Operation ${scopedOperationId} is currently in progress.`), { status: 409 });
+        }
+      }
+    }
+
+    if (metadata.legacyKey && metadata.legacyKey !== scopedOperationId) {
+      const legacySnap = await t.get(db.collection('idempotencyKeys').doc(metadata.legacyKey));
+      if (legacySnap.exists) {
+        const legacyData = legacySnap.data() as Record<string, unknown> | undefined;
+        if (legacyData && ('response' in legacyData || legacyData.status === 'success')) {
+          return (legacyData.response ?? legacyData.result) as T;
         }
       }
     }
@@ -140,3 +152,34 @@ export async function executeIdempotent<T>(
     return result;
   });
 }
+
+export async function runOptionalIdempotent<T>(
+  options: {
+    workspaceId: string;
+    operationType: string;
+    rawOperationId: string | undefined;
+    legacyPrefix?: string;
+    actor: string;
+    payload: unknown;
+    db?: ReturnType<typeof getDb>;
+  },
+  transactionHandler: Parameters<typeof executeIdempotent<T>>[2],
+): Promise<T> {
+  const db = options.db ?? getDb();
+  if (!options.rawOperationId) {
+    return db.runTransaction(transactionHandler);
+  }
+  return executeIdempotent(
+    deriveScopedOperationKey(options.workspaceId, options.operationType, options.rawOperationId),
+    {
+      actor: options.actor,
+      workspaceId: options.workspaceId,
+      operationType: options.operationType,
+      payloadHash: requestPayloadHash(options.payload),
+      db,
+      ...(options.legacyPrefix ? { legacyKey: `${options.workspaceId}_${options.legacyPrefix}_${options.rawOperationId}` } : {}),
+    },
+    transactionHandler,
+  );
+}
+

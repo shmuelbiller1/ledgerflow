@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import SetupWizard from '../components/onboarding/SetupWizard';
+import OpeningBalancesSetup from '../components/onboarding/OpeningBalancesSetup';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import type { Workspace } from '../types';
@@ -32,14 +33,8 @@ describe('Setup wizard', () => {
 
   test('opening balances: live balance check, then one call with the amounts in cents', async () => {
     const calls = stubFetchWithBodies(200, { status: 'success', debitsCents: 100000, equityCents: 70000 });
-    let started = false;
     let done = false;
-    render(<SetupWizard onStarted={() => { started = true; }} onDone={() => { done = true; }} />);
-
-    await act(async () => { fireEvent.click(screen.getByText('Next')); });
-    assert.ok(screen.getByText('Keep my accounts'));
-    await act(async () => { fireEvent.click(screen.getByText('Next')); });
-    assert.equal(calls.length, 0, 'nothing changed in step 1, existing accounts kept: no calls');
+    render(<OpeningBalancesSetup onClose={() => { done = true; }} />);
 
     assert.equal(screen.queryByLabelText(/Accounts Receivable/), null, 'receivables come from invoices');
     fireEvent.change(screen.getByLabelText(/Checking/), { target: { value: '1000' } });
@@ -53,12 +48,11 @@ describe('Setup wizard', () => {
     const body = calls[0].body as { date: string; balances: Array<{ accountId: string; amountCents: number }> };
     assert.deepEqual(body.balances, [{ accountId: 'cash', amountCents: 100000 }, { accountId: 'loan', amountCents: 30000 }]);
     assert.match(body.date, /^\d{4}-\d{2}-01$/);
-    assert.ok(started);
     assert.ok(screen.getByText(/debits and credits are both \$1,000\.00/));
 
-    await act(async () => { fireEvent.click(screen.getByText('Go to the dashboard')); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Done' })); });
     assert.ok(done);
-    assert.ok(useAuthStore.getState().workspaces[0].setupCompletedAt);
+    assert.ok(useAuthStore.getState().workspaces[0].openingBalanceDate);
   });
 
   test('skip: marks the setup done on the server', async () => {
@@ -66,7 +60,7 @@ describe('Setup wizard', () => {
     render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
     await act(async () => { fireEvent.click(screen.getByText('Skip setup')); });
     assert.match(calls[0].url, /\/w1\/setup-complete$/);
-    assert.ok(screen.getByText('You start from zero; the trial balance balances.'));
+    assert.ok(screen.getByText(/Your starter settings are ready/));
   });
 
   test('viewers are told to ask an owner or accountant', () => {

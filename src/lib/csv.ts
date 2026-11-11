@@ -81,6 +81,25 @@ function readCsv(input: string, delimiter: string): { rows: string[][]; unclosed
 }
 
 /**
+ * J-1 (Agent #11): undoes the formula guard on a cell that came back through our own export.
+ *
+ * `sanitizeCsvCell` writes a leading apostrophe before text a spreadsheet would run as a formula
+ * (`=`, `+`, `-`, `@`, tab, carriage return) and leaves a plain number such as `-1,000.00` alone.
+ * Reading our own file back, that apostrophe is a guard, not part of the data: a phone number
+ * `+1 555 0100` or a note `-call first` must return unchanged, or exporting customers and
+ * importing them again silently changes them. Only a cell whose text after the apostrophe would
+ * really have been guarded is changed, so a name that genuinely starts with an apostrophe
+ * (`'Round Table') is kept exactly as typed.
+ */
+export function unguardCsvCell(value: string): string {
+  if (!value.startsWith("'")) return value;
+  const rest = value.slice(1);
+  if (!rest || !/^[=+\-@\t\r]/.test(rest)) return value; // a real leading apostrophe
+  const isSafeNumber = /^-?\$?\s*\d{1,3}(,?\d{3})*(\.\d+)?$/.test(rest);
+  return isSafeNumber ? value : rest;
+}
+
+/**
  * Sanitizes a string value against CSV/Formula injection attacks.
  * Prevents execution of spreadsheet formulas starting with =, +, -, @, \t, \r
  */

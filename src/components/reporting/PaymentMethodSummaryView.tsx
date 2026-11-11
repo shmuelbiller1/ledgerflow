@@ -1,9 +1,9 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useMemo} from 'react';
 import {useLedgerStore} from '../../stores/useLedgerStore';
 import {useAuthStore} from '../../stores/useAuthStore';
 import {useDataNeedsStore} from '../../stores/useDataNeedsStore';
 import {useLedgerCollections} from '../../hooks/useLedgerCollections';
-import {getIdToken} from '../../firebase';
+import {useServerOperationalReport,collectionStamp} from '../../hooks/useServerOperationalReport';
 import {paymentMethodSummary} from '../../lib/paymentMethodSummary';
 import {validCustomReportPeriod} from '../../lib/reportCustomPeriod';
 import {formatCurrency} from '../../lib/utils';
@@ -15,24 +15,13 @@ export default function PaymentMethodSummaryView({startDate='',endDate='',compar
  const {loading}=useLedgerCollections('customers','payments');
  const valid=validCustomReportPeriod({startDate,endDate}),compared=validCustomReportPeriod({startDate:compareStartDate,endDate:compareEndDate});
  const isTruncated=Boolean(truncated.customers||truncated.payments);
- const serverKey=`${workspace}:${startDate}:${endDate}:${compareStartDate}:${compareEndDate}`;
- const [serverState,setServerState]=useState<{key:string;rows:ReturnType<typeof paymentMethodSummary>;previousRows:ReturnType<typeof paymentMethodSummary>}|null>(null);
- useEffect(()=>{
-  let cancelled=false;
-  if(!isTruncated||!valid||!workspace||typeof fetch!=='function')return;
-  void (async()=>{
-   try{
-    const token=await getIdToken();
-    const q=new URLSearchParams({workspaceId:workspace,startDate,endDate,...(compared?{compareStartDate,compareEndDate}:{})});
-    const res=await fetch(`/api/v1/reports/payment-methods?${q}`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
-    if(!res.ok||cancelled)return;
-    const body=await res.json();
-    if(!cancelled&&Array.isArray(body?.rows))setServerState({key:serverKey,rows:body.rows,previousRows:Array.isArray(body.previousRows)?body.previousRows:[]});
-   }catch{/* best-effort: retain provisional local summary */}
-  })();
-  return()=>{cancelled=true;};
- },[isTruncated,valid,compared,workspace,startDate,endDate,compareStartDate,compareEndDate,serverKey]);
- const serverSummary=(isTruncated&&valid&&serverState?.key===serverKey)?serverState:null;
+ const pmUrl=workspace&&valid?`/api/v1/reports/payment-methods?${new URLSearchParams({workspaceId:workspace,startDate,endDate,...(compared?{compareStartDate,compareEndDate}:{})})}`:'';
+ const serverSummary=useServerOperationalReport<{rows:ReturnType<typeof paymentMethodSummary>;previousRows:ReturnType<typeof paymentMethodSummary>}>(
+  isTruncated&&valid&&Boolean(workspace),
+  pmUrl,
+  `${workspace}:${startDate}:${endDate}:${compareStartDate}:${compareEndDate}:${collectionStamp(customers,payments)}`,
+  body=>Array.isArray(body.rows)?{rows:body.rows as ReturnType<typeof paymentMethodSummary>,previousRows:Array.isArray(body.previousRows)?(body.previousRows as ReturnType<typeof paymentMethodSummary>):[]}:undefined,
+ );
  const scoped=useMemo(()=>({customers:customers.filter(row=>!workspace||row.workspaceId===workspace),payments:payments.filter(row=>!workspace||row.workspaceId===workspace)}),[customers,payments,workspace]);
  const localRows=useMemo(()=>valid&&!loading?paymentMethodSummary(scoped.customers,scoped.payments,{startDate,endDate}):[],[scoped,valid,loading,startDate,endDate]);
  const rows=serverSummary?.rows||localRows;

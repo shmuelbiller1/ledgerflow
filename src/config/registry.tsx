@@ -1,3 +1,4 @@
+import { navigationFor } from './businessNavigation';
 /*
  * REGISTRY MAP - HOW TO MODIFY:
  * ---------------------------------
@@ -42,6 +43,7 @@ for (const path of Object.keys(pluginModules)) {
     );
 
     dynamicTabs.push({
+      ...navigationFor(fileName),
       id: fileName,
       label: { en: formattedName, he: formattedName },
       icon: Layers,
@@ -121,7 +123,9 @@ export interface AppTabDefinition {
   icon: LucideIcon;
   groupId?: string;
   requiresOwner?: boolean;
-  isAdvanced?: boolean;
+  isAdvanced: boolean;
+  /** Presentation recommendations, never an access policy. */
+  businessTypes: string[];
   /** Demo screen on made-up data: only with the developer switch on (FOR_YOU 11). */
   developerOnly?: boolean;
 }
@@ -180,7 +184,7 @@ export const APP_TABS: AppTabDefinition[] = withScreenHelp<Omit<AppTabDefinition
   { id: 'pricing', label: { en: 'Pricing & Plans', he: 'תמחור ומסלולים' }, icon: Zap, groupId: 'settings' },
   { id: 'api-hub', label: { en: 'API Platform', he: 'ממשק API' }, icon: TerminalIcon, groupId: 'settings' },
   { id: 'system-command-center', label: { en: 'Admin Panel', he: 'ניהול' }, icon: Building, groupId: 'settings', requiresOwner: true, developerOnly: true }
-], 'main');
+].map(tab => ({ ...tab, ...navigationFor(tab.id) })), 'main');
 
 export const NAV_GROUPS: Record<string, Record<string, string>> = {
   dashboard: { en: 'Dashboard', he: 'לוח בקרה' },
@@ -607,7 +611,7 @@ export const REPORT_TABS_REGISTRY = withScreenHelp([
 
 export const SETTINGS_TABS_REGISTRY = withScreenHelp([
   { id: 'rules', label: { en: 'Rules & Automation', he: 'חוקים ואוטומציה' }, componentName: 'RulesSettingsView', icon: SlidersHorizontal },
-  { id: 'dimensions', label: { en: 'Dimensions & Labels', he: 'ממדים ותגיות' }, componentName: 'DimensionsView', icon: Tag },
+  { id: 'dimensions', label: { en: 'Labels', he: 'ממדים ותגיות' }, componentName: 'DimensionsView', icon: Tag },
   { id: 'tax-profiles', label: { en: 'Tax profiles', he: 'פרופילי מס' }, componentName: 'TaxProfilesSettingsView', icon: Receipt },
   { id: 'appearance', label: { en: 'Appearance & Display', he: 'מראה ותצוגה' }, componentName: 'AppearanceSettingsView', icon: Sliders },
   { id: 'team', label: { en: 'Team & Invites', he: 'צוות והרשאות' }, componentName: 'TeamView', icon: Users },

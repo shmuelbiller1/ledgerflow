@@ -1,7 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { reportClientError } from '../../lib/errorTracker';
-import { isChunkLoadFailure, reloadOnceForNewVersion } from '../../lib/chunkReload';
+import { isChunkLoadFailure, reloadForNewVersionUnlessUnsaved } from '../../lib/chunkReload';
 
 import { BRAND_NAME } from '../../config/brand';
 interface Props {
@@ -29,7 +29,7 @@ export class ViewErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // a new version went live while this tab was open: its old screen file is gone, so load the new version
-    if (isChunkLoadFailure(error) && reloadOnceForNewVersion()) return;
+    if (isChunkLoadFailure(error) && reloadForNewVersionUnlessUnsaved()) return;
     console.error(`[ViewErrorBoundary] Error captured in ${this.props.viewName || 'view'}:`, error, errorInfo);
     // a crash inside a screen is caught here, so the global error listener never sees it (L-14)
     reportClientError(error, { severity: 'error', componentStack: errorInfo.componentStack || undefined, metadata: { view: this.props.viewName || 'view' } })

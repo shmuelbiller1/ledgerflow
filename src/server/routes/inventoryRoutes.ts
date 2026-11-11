@@ -21,7 +21,7 @@ import { registerStockClosingRoutes } from './stockClosingRoutes';
 import type { Estimate, Transaction as LedgerTransaction } from '../../types';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
-import { deriveScopedOperationKey, executeIdempotent, extractCanonicalOperationId, requestPayloadHash } from '../utils/idempotency';
+import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
 
 /** Who may change stock or record its cost (viewers read only). */
 const STOCK_ROLES = ['owner', 'accountant', 'bookkeeper'];
@@ -178,18 +178,17 @@ inventoryRouter.post('/cogs', requireWorkspaceRole(STOCK_ROLES), async (req, res
       return responsePayload;
     };
 
-    const resultResponse = rawOpId
-      ? await executeIdempotent(
-          deriveScopedOperationKey(workspaceId, 'INVENTORY_COGS', rawOpId),
-          {
-            actor: user.uid,
-            workspaceId,
-            operationType: 'INVENTORY_COGS',
-            payloadHash: requestPayloadHash({ workspaceId, itemId, quantitySold, inventoryAccountId, cogsAccountId, date: txDate }),
-          },
-          performCommit,
-        )
-      : await db.runTransaction(performCommit);
+    const resultResponse = await runOptionalIdempotent(
+      {
+        workspaceId,
+        operationType: 'INVENTORY_COGS',
+        rawOperationId: rawOpId,
+        legacyPrefix: 'inv',
+        actor: user.uid,
+        payload: { workspaceId, itemId, quantitySold, inventoryAccountId, cogsAccountId, date: txDate },
+      },
+      performCommit,
+    );
 
     res.json(resultResponse);
   } catch (e) {

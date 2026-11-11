@@ -1,4 +1,5 @@
 import { normalizeSearchText } from './textNormalization';
+import { unguardCsvCell } from './csv';
 import { isEmailShape } from './textShape';
 /**
  * Bulk import of records from a spreadsheet (K-01): customers, vendors, items and accounts.
@@ -210,13 +211,18 @@ export function guessMapping(kind: ImportKind, header: string[]): FieldMapping {
   return mapping;
 }
 
-export function applyMapping(kind: ImportKind, dataRows: string[][], mapping: FieldMapping): ImportRow[] {
+/**
+ * `csvGuarded`: the rows come from a plain spreadsheet/CSV file, which may be this app's own export. Its
+ * formula guard (a leading apostrophe before `=`, `+`, `-`, `@`) is removed so the exported value comes back
+ * (J-1). Never set it for other sources (vCard, IIF, another product's format): there an apostrophe is data.
+ */
+export function applyMapping(kind: ImportKind, dataRows: string[][], mapping: FieldMapping, options: { csvGuarded?: boolean } = {}): ImportRow[] {
   const fields = IMPORT_DEFINITIONS[kind].fields;
   return dataRows.map(cells => {
     const row: ImportRow = {};
     for (const field of fields) {
       const index = mapping[field.key];
-      if (index !== undefined && index >= 0 && index < cells.length) row[field.key] = cells[index] ?? '';
+      if (index !== undefined && index >= 0 && index < cells.length) row[field.key] = options.csvGuarded ? unguardCsvCell((cells[index] ?? '').trim()) : cells[index] ?? '';
     }
     return row;
   });

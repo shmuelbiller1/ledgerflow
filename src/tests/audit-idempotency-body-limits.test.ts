@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import { applyJsonBodyParser, isLargeJsonRoute } from '../server/http/securityMiddleware';
+import { applyJsonBodyParser, isIngestJsonRoute, isLargeJsonRoute } from '../server/http/securityMiddleware';
 import { recordAuthEvent } from '../server/services/authAuditService';
 import type { Firestore } from '../server/db/firestore';
 
@@ -15,8 +15,8 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
       'src/server/routes/revenueRoutes.ts',
     ]) {
       const src = fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
-      assert.match(src, /\bexecuteIdempotent\s*\(/, `${rel} must delegate to executeIdempotent`);
-      assert.match(src, /\brequestPayloadHash\s*\(/, `${rel} must bind requests via requestPayloadHash`);
+      assert.match(src, /\b(?:executeIdempotent|runOptionalIdempotent)\s*\(/, `${rel} must delegate to executeIdempotent/runOptionalIdempotent`);
+      assert.match(src, /\b(?:requestPayloadHash|runOptionalIdempotent)\s*\(/, `${rel} must bind requests via requestPayloadHash`);
       assert.match(src, /\bledgerCreate\s*\(/, `${rel} must write ledger entries through ledgerCreate`);
       assert.match(src, /\bwriteServerAuditLog\s*\(/, `${rel} must emit server audit trail records`);
       assert.doesNotMatch(src, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, `${rel} must not replay unhashed handwritten records`);
@@ -116,10 +116,14 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     assert.equal(isLargeJsonRoute('POST', '/api/v1/workspaces/ws_123/import-records'), true);
     assert.equal(isLargeJsonRoute('POST', '/api/v1/transactions'), false);
     assert.equal(isLargeJsonRoute('GET', '/api/v1/workspaces/ws_123/restore'), false);
+    assert.equal(isIngestJsonRoute('POST', '/api/ai/process'), true);
+    assert.equal(isIngestJsonRoute('POST', '/api/v1/ai/process'), true);
+    assert.equal(isIngestJsonRoute('GET', '/api/ai/process'), false);
 
     const app = express();
     applyJsonBodyParser(app);
     app.post('/api/v1/transactions', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
+    app.post('/api/ai/process', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
     app.post('/api/v1/transactions/bulk', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
 
     const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
@@ -138,6 +142,13 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
       });
       assert.equal(rejected.status, 413, 'Ordinary route must reject >1MB JSON payload with 413');
 
+      const ingestAccepted = await fetch(`${base}/api/ai/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: overOneMb,
+      });
+      assert.equal(ingestAccepted.status, 200, 'AI receipt/PDF ingestion route must accept bounded >1MB payload');
+
       const accepted = await fetch(`${base}/api/v1/transactions/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,5 +158,70 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
+  });
+
+  it('F-10: runOptionalIdempotent replays pre-upgrade legacy idempotencyKeys without re-executing handler', async () => {
+    const { runOptionalIdempotent } = await import('../server/utils/idempotency');
+    const store = new Map<string, Record<string, unknown>>([
+      ['ws_legacy_rev_op-legacy-1', { response: { status: 'completed', transactionIds: ['tx-legacy-1'] } }],
+    ]);
+    const mockDb = {
+      collection: () => ({
+        doc: (id: string) => ({ id }),
+      }),
+      runTransaction: async <R>(fn: (tx: unknown) => Promise<R>): Promise<R> => fn({
+        get: async (ref: { id: string }) => ({
+          exists: store.has(ref.id),
+          data: () => store.get(ref.id),
+        }),
+        set: (ref: { id: string }, data: Record<string, unknown>) => {
+          store.set(ref.id, data);
+        },
+      }),
+    } as unknown as Firestore;
+
+    let calls = 0;
+    const replayed = await runOptionalIdempotent(
+      {
+        workspaceId: 'ws_legacy',
+        operationType: 'REVENUE_RECOGNIZE',
+        rawOperationId: 'op-legacy-1',
+        legacyPrefix: 'rev',
+        actor: 'u1',
+        payload: { amountCents: 5000 },
+        db: mockDb,
+      },
+      async () => {
+        calls += 1;
+        return { status: 'completed', transactionIds: ['tx-new'] };
+      },
+    );
+    assert.equal(calls, 0, 'Pre-existing legacy idempotency record must short-circuit handler');
+    assert.deepEqual(replayed, { status: 'completed', transactionIds: ['tx-legacy-1'] });
+  });
+
+  it('F-06 (S-12): buildAuditLogRecord links tamper-evident SHA-256 chainHash values and detects mutations', async () => {
+    const { buildAuditLogRecord, verifyAuditHashChain, AUDIT_CHAIN_GENESIS } = await import('../server/services/auditLogService');
+    const r1 = buildAuditLogRecord({
+      workspaceId: 'ws-chain',
+      uid: 'u1',
+      action: 'TRANSACTION_CREATED',
+      entityType: 'transaction',
+      entityId: 'tx-1',
+      details: { description: 'First entry' },
+      timestamp: '2026-11-11T10:00:00.000Z',
+    }, 'aud-1', AUDIT_CHAIN_GENESIS);
+    const r2 = buildAuditLogRecord({
+      workspaceId: 'ws-chain',
+      uid: 'u1',
+      action: 'TRANSACTION_UPDATED',
+      entityType: 'transaction',
+      entityId: 'tx-1',
+      details: { description: 'Second entry' },
+      timestamp: '2026-11-11T10:05:00.000Z',
+    }, 'aud-2', r1.chainHash);
+
+    assert.deepEqual(verifyAuditHashChain([r1, r2]), { valid: true });
+    assert.deepEqual(verifyAuditHashChain([r1, { ...r2, action: 'TAMPERED' }]), { valid: false, brokenAtId: 'aud-2' });
   });
 });

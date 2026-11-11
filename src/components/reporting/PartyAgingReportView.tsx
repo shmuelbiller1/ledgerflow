@@ -1,8 +1,8 @@
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGING_BUCKETS, computePartyAging, daysOverdue, emptyAging, outstandingBaseCents, type AgingBucketKey, type PartyAgingRow } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
@@ -40,7 +40,6 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const openRecord = useUIStore(s => s.openRecord);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills'] || s.truncatedCollections?.[side === 'customer' ? 'customers' : 'vendors']));
-  const [serverState, setServerState] = useState<{ key: string; rows: PartyAgingRow[] } | null>(null);
 
   const parties = isCustomer ? rawCustomers : rawVendors;
   const documents = isCustomer ? rawInvoices : rawBills;
@@ -52,32 +51,18 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const [sortBy, setSortBy] = useState<'partyName' | AgingBucketKey | 'total'>('partyName');
   const today = getLocalDateISO();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const serverKey = `${workspaceId}:${side}:${today}`;
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!docsPartial || !workspaceId || typeof fetch !== 'function') return;
-    void (async () => {
-      try {
-        const token = await getIdToken();
-        const q = new URLSearchParams({ workspaceId, side, asOfDate: today });
-        const res = await fetch(`/api/v1/reports/party-aging?${q}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled && Array.isArray(body?.rows)) setServerState({ key: serverKey, rows: body.rows as PartyAgingRow[] });
-      } catch {
-        // best-effort: retain provisional browser rows if server report cannot be loaded
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [docsPartial, workspaceId, side, today, serverKey]);
+  const agingUrl = workspaceId ? `/api/v1/reports/party-aging?${new URLSearchParams({ workspaceId, side, asOfDate: today })}` : '';
+  const serverRows = useServerOperationalReport<PartyAgingRow[]>(
+    docsPartial && Boolean(workspaceId),
+    agingUrl,
+    `${workspaceId}:${side}:${today}:${collectionStamp(parties, documents)}`,
+    body => (Array.isArray(body.rows) ? (body.rows as PartyAgingRow[]) : undefined),
+  );
 
   // open documents with something still owed (src/lib/aging.ts, shared with the /aging API; L-159)
   const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side) > 0), [documents, side]);
   const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
-  const agingRows = (docsPartial && serverState?.key === serverKey) ? serverState.rows : localAgingRows;
+  const agingRows = serverRows || localAgingRows;
 
   // Search filter and Sorting
   const sortedAndFilteredRows = useMemo(() => {

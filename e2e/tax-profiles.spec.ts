@@ -30,8 +30,11 @@ test('phone tax profiles preserve Hebrew drafts on refusal, save by keyboard and
   });
   const profile=page.getByRole('combobox',{name:'Profile',exact:true});await profile.selectOption('world:entity/branch');
   await expect(page.getByText('Inherited from').filter({has:page.locator('bdi', {hasText:'world:entity'})})).toHaveCount(3);
-  await expect(page.locator('dd').filter({hasText:'ירושלים'})).toContainText('the books');
+  // #628: US branch must not inherit a city from the Israeli books.
+  const city=page.getByText('City',{exact:true}).locator('..').locator('dd');
+  await expect(city).toHaveText('Not set');
   await profile.selectOption('books');
+  await expect(city).toContainText('ירושלים');
   const edit=page.getByRole('button',{name:'Edit this profile'});await edit.focus();await edit.press('Enter');
   await page.getByLabel('Profile name').fill('ספרים Edited');
   await page.getByLabel('Registration city').fill('תל אביב');

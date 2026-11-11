@@ -5,9 +5,26 @@
 import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import type { PoolClient } from 'pg';
 import type { Firestore } from '../../server/db/pgFirestore';
 
 export const OWNER = 'owner-1';
+
+export async function withCorruptFixtureAllowed<T>(pool: Firestore['pool'], fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT set_config('lf.allow_corrupt_fixture', 'on', true)`);
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 
 export function balanceRouteHarness(wsPrefix: string, name: string) {
   const ws = `${wsPrefix}_${crypto.randomBytes(4).toString('hex')}`;
@@ -37,20 +54,11 @@ export function balanceRouteHarness(wsPrefix: string, name: string) {
       base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       await db.collection('workspaces').doc(ws).set({ uid: OWNER, name, currency: 'USD', timezone: 'UTC', members: [OWNER], ...workspace });
       tables = [...Object.keys(rows), 'workspaces'];
-      const client = await db.pool.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(`SELECT set_config('lf.allow_corrupt_fixture', 'on', true)`);
+      await withCorruptFixtureAllowed(db.pool, async client => {
         for (const [table, list] of Object.entries(rows)) {
           await client.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(list)]);
         }
-        await client.query('COMMIT');
-      } catch (e) {
-        await client.query('ROLLBACK');
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
     async stop() {
       server?.close();

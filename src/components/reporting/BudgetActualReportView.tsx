@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { computeBudgetActual, type SavedBudget } from '../../lib/budgetActual';
 import { splitReportPeriods } from '../../lib/reportColumns';
 import { collection, getDocs, query, where } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import type { ChartAccount, Transaction } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
@@ -27,14 +28,19 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
   const to = endDate || `${selectedYear}-12-31`;
   const key = JSON.stringify([workspaceId, user?.uid, from, to]);
   const [history, setHistory] = useState<History | null>(null);
-  const [serverPeriods, setServerPeriods] = useState<{ key: string; budgets: SavedBudget[]; report: ReturnType<typeof computeBudgetActual> } | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<{key: string; message: string} | null>(null);
   const [selection, setSelection] = usePageSyncedState(key, '', '');
   const [mode, setMode] = useState<'total' | 'months'>('total');
   const [drill, setDrill] = useState<{ key: string; name: string; transactions: Transaction[]; explain?: ExplainRequest } | null>(null);
   const current = history?.key === key ? history : null;
-  const activeServer = serverPeriods?.key === `${key}:${mode}:${selection}` ? serverPeriods : null;
+  const baUrl = workspaceId ? `/api/v1/reports/budget-actual-periods?${new URLSearchParams({ workspaceId, startDate: from, endDate: to, mode, ...(selection ? { budgetId: selection } : {}) })}` : '';
+  const activeServer = useServerOperationalReport<{ budgets: SavedBudget[]; report: ReturnType<typeof computeBudgetActual> }>(
+    truncatedTx && !current && !guest && Boolean(workspaceId),
+    baUrl,
+    `${key}:${mode}:${selection}:${collectionStamp(cachedBudgets, cachedAccounts, cachedTransactions)}`,
+    body => ('report' in body ? { budgets: Array.isArray(body.budgets) ? (body.budgets as SavedBudget[]) : cachedBudgets, report: body.report as ReturnType<typeof computeBudgetActual> } : undefined),
+  );
   const budgets = current?.budgets || activeServer?.budgets || cachedBudgets;
   const accounts = current?.accounts || cachedAccounts;
   const transactions = current?.transactions || cachedTransactions;
@@ -42,22 +48,6 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
   const periods = useMemo(() => splitReportPeriods(from, to, mode), [from, to, mode]);
   const localReport = useMemo(() => budget ? computeBudgetActual(budget, accounts, transactions, periods) : null, [budget, accounts, transactions, periods]);
   const report = (!current && activeServer) ? activeServer.report : localReport;
-  useEffect(() => {
-    let cancelled = false;
-    if (!truncatedTx || current || guest || !workspaceId || typeof fetch !== 'function') return;
-    const serverKey = `${key}:${mode}:${selection}`;
-    void (async () => {
-      try {
-        const token = await getIdToken();
-        const q = new URLSearchParams({ workspaceId, startDate: from, endDate: to, mode, ...(selection ? { budgetId: selection } : {}) });
-        const res = await fetch(`/api/v1/reports/budget-actual-periods?${q}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled && body && 'report' in body) setServerPeriods({ key: serverKey, budgets: Array.isArray(body.budgets) ? body.budgets : cachedBudgets, report: body.report });
-      } catch { /* best-effort: retain provisional figures */ }
-    })();
-    return () => { cancelled = true; };
-  }, [truncatedTx, current, guest, workspaceId, key, from, to, mode, selection, cachedBudgets]);
   const pending = useRef(false);
   async function load() {
     if (!workspaceId || pending.current) return;

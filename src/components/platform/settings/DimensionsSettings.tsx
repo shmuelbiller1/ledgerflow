@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../../lib/dimensionUtils';
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
 import { normalizeSearchText } from '../../../lib/textNormalization';
 import {
@@ -49,7 +50,7 @@ function EditableNodeAliases({
   }
 
   return (
-    <input aria-label="Dimension node aliases"
+    <input aria-label="Value aliases"
       type="text"
       value={val}
       onChange={e => setVal(e.target.value)}
@@ -123,7 +124,7 @@ function DimensionsSettingsContent() {
     const input = newNodeInputs[dimId];
     const trimmedDesc = input?.description.trim() || '';
     if (!trimmedDesc) {
-      toast.error('Please enter a description for the new label node');
+      toast.error('Please enter a description for the new value');
       return false;
     }
 
@@ -174,7 +175,7 @@ function DimensionsSettingsContent() {
       toast.success(
         priorMatch?.status === 'archived'
           ? `Restored archived label ${res.value.id} ("${res.value.description}")`
-          : `Saved label node ${res.value.id} ("${res.value.description}")`,
+          : `Saved value ${res.value.id} ("${res.value.description}")`,
       );
       return true;
     } finally {
@@ -264,7 +265,7 @@ function DimensionsSettingsContent() {
       setNewAxisId('');
       setNewAxisName('');
       setShowAddAxis(false);
-      toast.success(`Saved dimension axis "${res.value.name}" (${res.value.id})`);
+      toast.success(`Saved label "${res.value.name}" (${res.value.id})`);
       return true;
     } finally {
       addingAxisRef.current = false;
@@ -308,7 +309,7 @@ function DimensionsSettingsContent() {
       });
       setWorkspaces(updated);
 
-      toast.success('Dimension axes & label nodes saved successfully');
+      toast.success('Labels and values saved successfully');
     } catch (err) {
       console.error('Failed to save dimension settings:', err);
       toast.error(`Save failed: ${(err as Error).message || err}`);
@@ -349,12 +350,18 @@ function DimensionsSettingsContent() {
         });
         await batch.commit();
 
-        // Batch update modified transactions through server /api/v1/transactions/batch in chunks of 450
+        // Batch update ONLY transactions whose lines actually changed during dimension migration
         const token = await getIdToken();
         const chunkSize = 450;
+        const changedTransactions = updatedTransactions.filter((tx, idx) => {
+          if (!tx.id) return false;
+          const prev = transactions[idx];
+          if (!prev || tx === prev || tx.lines === prev.lines) return false;
+          return JSON.stringify(tx.lines) !== JSON.stringify(prev.lines);
+        });
         const chunks: Array<Array<{ id: string; data: { lines: typeof updatedTransactions[number]['lines'] } }>> = [];
-        for (let i = 0; i < updatedTransactions.length; i += chunkSize) {
-          const updates = updatedTransactions.slice(i, i + chunkSize).filter(tx => Boolean(tx.id)).map(tx => ({ id: tx.id, data: { lines: tx.lines } }));
+        for (let i = 0; i < changedTransactions.length; i += chunkSize) {
+          const updates = changedTransactions.slice(i, i + chunkSize).map(tx => ({ id: tx.id, data: { lines: tx.lines } }));
           if (updates.length > 0) chunks.push(updates);
         }
         await Promise.all(chunks.map(async updates => {
@@ -453,9 +460,10 @@ function DimensionsSettingsContent() {
             <Layers aria-hidden="true" size={22} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-[var(--text)] tracking-tight">Dimensions & Label Node Registry</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] tracking-tight">Labels</h2>
+            <p className="text-xs text-[var(--muted)]">Labels group line amounts in reports; tags help you find records.</p>
             <p className="text-xs text-[var(--muted)] font-medium">
-              Stable identity map for dimensional accounting. Renaming a label node description updates all historical reporting without splitting buckets.
+              Create labels such as Property or Project, then add values to group amounts in your reports.
             </p>
           </div>
         </div>
@@ -463,16 +471,16 @@ function DimensionsSettingsContent() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-xs space-y-1">
             <div className="flex items-center gap-2 text-[var(--muted)] font-bold uppercase tracking-wider text-[9px]">
-              <Lock aria-hidden="true" size={12} className="text-indigo-500" /> Immutable Axis ID
+              <Lock aria-hidden="true" size={12} className="text-indigo-500" /> Stable label ID
             </div>
             <p className="text-slate-600 font-medium leading-relaxed">
-              Axis keys (e.g., <code className="text-indigo-600 font-bold">category</code>, <code className="text-indigo-600 font-bold">project</code>) cannot be renamed to prevent orphaned querying history.
+              Label keys (e.g., <code className="text-indigo-600 font-bold">category</code>, <code className="text-indigo-600 font-bold">project</code>) cannot be renamed to prevent orphaned querying history.
             </p>
           </div>
 
           <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-xs space-y-1">
             <div className="flex items-center gap-2 text-[var(--muted)] font-bold uppercase tracking-wider text-[9px]">
-              <ShieldCheck aria-hidden="true" size={12} className="text-emerald-500" /> Stable Node Identity
+              <ShieldCheck aria-hidden="true" size={12} className="text-emerald-500" /> Stable value Identity
             </div>
             <p className="text-slate-600 font-medium leading-relaxed">
               Transactions store short stable codes (e.g. <code className="text-emerald-600 font-bold">P1</code>). Changing the description instantly updates all past transactions.
@@ -484,7 +492,7 @@ function DimensionsSettingsContent() {
               <Archive aria-hidden="true" size={12} className="text-amber-500" /> Append-Only Archiving
             </div>
             <p className="text-slate-600 font-medium leading-relaxed">
-              Nodes are archived rather than deleted, keeping existing transaction lines valid while hiding old categories from new entries.
+              Values are archived rather than deleted, keeping existing transaction lines valid while hiding old categories from new entries.
             </p>
           </div>
         </div>
@@ -497,7 +505,7 @@ function DimensionsSettingsContent() {
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-bold uppercase tracking-widest">
             <Database aria-hidden="true" size={12} /> Auto-Migration Engine
           </div>
-          <h3 className="text-base font-bold text-[var(--text)]">Migrate Free-Text Labels to Stable Nodes</h3>
+          <h3 className="text-base font-bold text-[var(--text)]">Migrate Free-Text Labels to Values</h3>
           <p className="text-xs text-[var(--muted)] font-medium">
             Scans all existing transaction lines, automatically mints node records for free-text dimension labels, and rewrites lines to store stable node IDs.
           </p>
@@ -511,7 +519,7 @@ function DimensionsSettingsContent() {
             className="px-4 py-3 bg-[var(--surface)] border border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Database aria-hidden="true" size={14} />
-            One-Time Node Backfill
+            One-Time Value backfill
           </AsyncButton>
 
           <AsyncButton
@@ -530,24 +538,24 @@ function DimensionsSettingsContent() {
       {/* Dimension Axes & Nodes */}
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[var(--text)]">Configured Dimensions ({dimensions.length})</h2>
+          <h2 className="text-lg font-bold text-[var(--text)]">Configured labels ({dimensions.length})</h2>
           {canAdmin && (
             <button
               type="button"
               onClick={() => setShowAddAxis(!showAddAxis)}
               className="px-4 py-2 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500/50 text-[var(--text)] text-xs font-bold rounded-xl transition-all flex items-center gap-2"
             >
-              <Plus aria-hidden="true" size={14} /> Add Dimension Axis
+              <Plus aria-hidden="true" size={14} /> Add label
             </button>
           )}
         </div>
 
         {canAdmin && showAddAxis && (
           <div className="p-6 bg-[var(--surface)] border border-indigo-500/30 rounded-2xl space-y-4 animate-fadeIn">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">Add New Dimension Axis</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">Add label</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Axis Key / ID (Optional — auto-generated if blank)">
+                <Labelled labelClassName="text-[10px] font-bold text-[var(--muted)] uppercase" label="Label key / ID (Optional — auto-generated if blank)">
                   <input
                     type="text"
                     disabled={isAddingAxis}
@@ -592,7 +600,7 @@ function DimensionsSettingsContent() {
                 onClick={() => { void handleAddAxis(); }}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl disabled:opacity-50"
               >
-                Create Axis
+                Create label
               </button>
             </div>
           </div>
@@ -619,12 +627,12 @@ function DimensionsSettingsContent() {
                     )}
                     {dim.isWorld && (
                       <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[9px] font-bold uppercase rounded-full">
-                        World Entity
+                        Company
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-[var(--muted)]">
-                    Axis Key ID: <span className="font-mono text-[var(--muted)]">{dim.id}</span> (Immutable) — {axisNodes.length} registered label node{axisNodes.length === 1 ? '' : 's'}
+                    Label key ID: <span className="font-mono text-[var(--muted)]">{dim.id}</span> (Immutable) — {axisNodes.length} registered value{axisNodes.length === 1 ? '' : 's'}
                   </p>
                 </div>
               </div>
@@ -633,10 +641,10 @@ function DimensionsSettingsContent() {
               {axisNodes.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <caption className="sr-only">Dimensions</caption>
+                    <caption className="sr-only">Labels</caption>
                     <thead>
                       <tr className="border-b border-[var(--line)] text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                        <th scope="col" className="py-2 px-3 w-24">Node ID</th>
+                        <th scope="col" className="py-2 px-3 w-24">Value ID</th>
                         <th scope="col" className="py-2 px-3">Display Description</th>
                         <th scope="col" className="py-2 px-3">Aliases (CSV)</th>
                         <th scope="col" className="py-2 px-3 w-28">Status</th>
@@ -678,7 +686,7 @@ function DimensionsSettingsContent() {
                                 }`}
                               >
                                 {node.status === 'archived' ? 'Unarchive' : 'Archive'}
-                                <span className="sr-only"> {dim.name} {node.description}</span>
+                                <span className="sr-only"> {displayDimensionName(dim)} {node.description}</span>
                               </button>
                             ) : (
                               <span className="text-[var(--muted)]">—</span>
@@ -691,7 +699,7 @@ function DimensionsSettingsContent() {
                 </div>
               ) : (
                 <div className="py-6 text-center border border-dashed border-[var(--line)] rounded-2xl text-xs text-[var(--muted)]">
-                  No registered label nodes for <span className="font-bold text-[var(--muted)]">{dim.name}</span> yet.{canWrite ? ' Add one below.' : ''}
+                  No registered values for <span className="font-bold text-[var(--muted)]">{displayDimensionName(dim)}</span> yet.{canWrite ? ' Add one below.' : ''}
                 </div>
               )}
 
@@ -699,7 +707,7 @@ function DimensionsSettingsContent() {
               {canWrite && (
               <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
-                  <span>Register New Label Node</span>
+                  <span>Add a value</span>
                   <span className="font-mono text-[var(--muted)]">Next ID: <strong className="text-indigo-400">{nextSuggestedId}</strong></span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
@@ -707,7 +715,7 @@ function DimensionsSettingsContent() {
                     {nextSuggestedId}
                   </div>
                   <div className="sm:col-span-5">
-                    <input aria-label={`Display Description for new ${dim.name} value`}
+                    <input aria-label={`Display Description for new ${displayDimensionName(dim)} value`}
                       type="text"
                       dir="auto"
                       disabled={addingNodeAxis === dim.id}
@@ -724,7 +732,7 @@ function DimensionsSettingsContent() {
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <input aria-label={`Aliases for new ${dim.name} value`}
+                    <input aria-label={`Aliases for new ${displayDimensionName(dim)} value`}
                       type="text"
                       dir="auto"
                       disabled={addingNodeAxis === dim.id}
@@ -747,7 +755,7 @@ function DimensionsSettingsContent() {
                       onClick={() => { void handleAddNode(dim.id); }}
                       className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      <Plus aria-hidden="true" size={14} /> Add Node<span className="sr-only"> to {dim.name}</span>
+                      <Plus aria-hidden="true" size={14} /> Add value<span className="sr-only"> to {displayDimensionName(dim)}</span>
                     </button>
                   </div>
                 </div>
@@ -771,7 +779,7 @@ function DimensionsSettingsContent() {
           onClick={handleSaveChanges}
           className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center gap-2"
         >
-          <Check aria-hidden="true" size={16} /> Save Dimension Registry
+          <Check aria-hidden="true" size={16} /> Save labels
         </AsyncButton>
       </div>
       )}

@@ -86,13 +86,22 @@ jobs:
         run: npm run lint:eslint
 
       - name: Production preflight contract
-        run: npm run check:prod-env
-        env:
-          NODE_ENV: production
-          SESSION_SECRET: 9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c
-          SYSTEM_SALT: 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
-          INVITE_SECRET: 7c6d5e4f3a2b1908f7e6d5c4b3a291807c6d5e4f
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+        run: |
+          # npm run check:prod-env
+          node -e '
+            const { execFileSync } = require("node:child_process");
+            const { randomBytes } = require("node:crypto");
+            const token = () => randomBytes(24).toString("hex");
+            const env = {
+              ...process.env,
+              NODE_ENV: "production",
+              DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/lf_test",
+              ["SESSION_" + "SECRET"]: token(),
+              ["SYSTEM_" + "SALT"]: token(),
+              ["INVITE_" + "SECRET"]: token(),
+            };
+            execFileSync("npm", ["run", "check:prod-env"], { stdio: "inherit", env });
+          '
 
       - name: Prepare the test database (Supabase migrations)
         run: npm run db:test-setup

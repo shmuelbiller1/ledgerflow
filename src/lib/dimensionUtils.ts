@@ -4,11 +4,16 @@ import { bracketDimensions } from './textShape';
 
 export const DEFAULT_WORKSPACE_DIMENSIONS: DimensionDefinition[] = [
   { id: 'category', name: 'Category', systemDefault: true, sortOrder: 0 },
-  { id: 'world', name: 'World / Entity', isWorld: true, sortOrder: 1 },
+  { id: 'world', name: 'Company', isWorld: true, sortOrder: 1 },
   { id: 'class', name: 'Class', sortOrder: 2 },
   { id: 'location', name: 'Location', sortOrder: 3 },
   { id: 'project', name: 'Project', sortOrder: 4 }
 ];
+
+/** Display legacy built-in names without changing stored IDs or custom names. */
+export function displayDimensionName(axis: Pick<DimensionDefinition, 'id' | 'name'>): string {
+  return axis.id === 'world' && axis.name === 'World / Entity' ? 'Company' : axis.name;
+}
 
 /**
  * Suggests the next short code for a dimension (e.g. 'P6' for 'property') based on existing nodes.

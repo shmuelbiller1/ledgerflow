@@ -1,3 +1,5 @@
+import { itemDocumentDefaultsOf, type DocumentDefaults } from '../../lib/documentDefaults';
+import { displayDimensionName } from '../../lib/dimensionUtils';
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { amountStep, minorToMajor } from '../../lib/currencyMinorUnits';
@@ -79,6 +81,8 @@ interface DocumentLineEditorProps<T extends DocumentEditorLine> {
   customerId?: string;
   taxCodeIds?: string[];
   onTaxCodeFill?: (taxCodeId: string) => void;
+  fillDefaults?: (line: T, defaults: DocumentDefaults) => T;
+  onFieldEdit?: (lineId: string, field: string) => void;
   /** Bill-only budget conversion and duplicate-document exclusion. */
   workspaceCurrency?: string;
   exchangeRate?: number;
@@ -115,6 +119,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
   customerId,
   taxCodeIds = [],
   onTaxCodeFill,
+  fillDefaults = line => line,
+  onFieldEdit,
   workspaceCurrency = currency,
   exchangeRate = 1,
   documentId,
@@ -166,7 +172,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                 onChange={e => onShowDimensionsChange?.(e.target.checked)}
                 className="rounded border-[var(--line)] text-[var(--brass)] focus:ring-[var(--brass)]"
               />
-              <span className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest">Show Dimensions</span>
+              <span className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest">Show labels</span>
             </label>
             <InlineAddDimensionAxis onAdded={() => onShowDimensionsChange?.(true)} />
             <button
@@ -188,7 +194,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                 <th scope="col" className="p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]">Account</th>
                 {dimensionsShown && activeDimensions.map(dim => (
                   <th scope="col" key={dim.id} className={cn('p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]', dim.isWorld && 'text-[var(--brass)]')}>
-                    {dim.name}
+                    {displayDimensionName(dim)}
                   </th>
                 ))}
                 <th scope="col" className="p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px] text-right w-32">Debit</th>
@@ -268,10 +274,10 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                             <input
                               id={`je-dim-${dim.id}-${idx}`}
                               list={listId}
-                              aria-label={`${dim.name} for line ${idx + 1}`}
+                              aria-label={`${displayDimensionName(dim)} for line ${idx + 1}`}
                               value={dimValue}
                               onChange={e => setJournalDim(e.target.value)}
-                              placeholder={`Select ${dim.name}...`}
+                              placeholder={`Select ${displayDimensionName(dim)}...`}
                               className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] font-bold min-w-[120px] text-[var(--text)]"
                             />
                             <datalist id={listId}>
@@ -281,7 +287,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                             </datalist>
                             <DimensionValueActions
                               dimensionId={dim.id}
-                              dimensionName={dim.name}
+                              dimensionName={displayDimensionName(dim)}
                               value={dimValue}
                               lineNumber={idx + 1}
                               onSelectNode={node => setJournalDim(node.id, true)}
@@ -407,14 +413,16 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                     onChange={event => {
                       if (!isInvoiceLine(line)) return;
                       const text = event.target.value;
-                      const fillCode = taxCodeToFillFromItem(line.itemId, findInventoryItem(inventoryItems, text), taxCodeIds);
+                      const item = findInventoryItem(inventoryItems, text);
+                      const hints = itemDocumentDefaultsOf(item);
+                      const fillCode = taxCodeToFillFromItem(line.itemId, item ? { id: item.id, defaultTaxCodeId: hints.taxCodeId } : undefined, taxCodeIds);
                       const updated = setLineDescription(
                         line,
                         text,
                         inventoryItems,
                         customerPricer(useAuthStore.getState().getCurrentWorkspace()?.priceLists, customerId),
                       );
-                      updateAt(idx, current => ({ ...current, ...updated }) as T);
+                      updateAt(idx, current => fillDefaults({ ...current, ...updated } as T, hints));
                       if (fillCode) onTaxCodeFill?.(fillCode);
                     }}
                     placeholder="Service or Product"
@@ -500,6 +508,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                     value={accounts.find(account => account.id === line.accountId)?.name || line.accountId || ''}
                     onChange={event => {
                       const account = accounts.find(candidate => candidate.name === event.target.value || candidate.id === event.target.value);
+                      onFieldEdit?.(line.id, 'account');
                       updateAt(idx, current => ({ ...current, accountId: account ? account.id : event.target.value }) as T);
                     }}
                     placeholder="Type or select account"
@@ -517,7 +526,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                     aria-invalid={Boolean(fieldErrors[`bill-split-acc-${idx}`])}
                     aria-describedby={fieldErrors[`bill-split-acc-${idx}`] ? `bill-split-acc-${idx}-error` : undefined}
                     value={line.accountId}
-                    onChange={event => updateAt(idx, current => ({ ...current, accountId: event.target.value }) as T)}
+                    onChange={event => { onFieldEdit?.(line.id, 'account'); updateAt(idx, current => ({ ...current, accountId: event.target.value }) as T); }}
                     className="w-full min-h-11 px-4 py-2 bg-[var(--surface)] border border-[var(--line)] rounded-xl outline-none focus:ring-2 focus:ring-zinc-900"
                   >
                     <option value="">Select Account</option>
@@ -579,11 +588,13 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                   <select
                     aria-label={`Stock item on line ${idx + 1}`}
                     value={line.itemId || ''}
-                    onChange={event => updateAt(idx, current => ({
-                      ...current,
-                      itemId: event.target.value || undefined,
-                      ...(event.target.value ? {} : { quantity: undefined }),
-                    }) as T)}
+                    onChange={event => {
+                      const itemId = event.target.value;
+                      const item = inventoryItems.find(item => item.id === itemId);
+                      const defaults = itemDocumentDefaultsOf(item);
+                      updateAt(idx, current => fillDefaults({ ...current, itemId: itemId || undefined, ...(itemId ? {} : { quantity: undefined }) } as T, defaults));
+                      if (itemId !== line.itemId && defaults.taxCodeId && taxCodeIds.includes(defaults.taxCodeId)) onTaxCodeFill?.(defaults.taxCodeId);
+                    }}
                     className="w-full sm:w-auto min-h-11 px-3 py-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-xl"
                   >
                     <option value="">None</option>
@@ -633,7 +644,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                 accountId={line.accountId}
                 date={date}
                 onChange={dimensions => updateAt(idx, current => ({ ...current, dimensions }) as T, line.id)}
-                onPatch={(dimId, text) =>
+                onPatch={(dimId, text) => {
+                  onFieldEdit?.(line.id, `label:${dimId.toLowerCase()}`);
                   updateAt(
                     idx,
                     current => {
@@ -644,8 +656,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                       return { ...current, dimensions: nextDims } as T;
                     },
                     line.id,
-                  )
-                }
+                  );
+                }}
               />
             </div>
 

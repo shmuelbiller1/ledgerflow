@@ -7,7 +7,7 @@ import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { mayPostEntries } from '../http/ledgerWriter';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
-import { deriveScopedOperationKey, executeIdempotent, extractCanonicalOperationId, requestPayloadHash } from '../utils/idempotency';
+import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
 
 const CapitalizeLeaseSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -119,18 +119,10 @@ leaseRouter.post('/capitalize', async (req, res) => {
       return responsePayload;
     };
 
-    const resultResponse = rawOpId
-      ? await executeIdempotent(
-          deriveScopedOperationKey(workspaceId, 'LEASE_CAPITALIZE', rawOpId),
-          {
-            actor: explicitOpId ? user.uid : '',
-            workspaceId,
-            operationType: 'LEASE_CAPITALIZE',
-            payloadHash: requestPayloadHash(parseResult.data),
-          },
-          performCommit,
-        )
-      : await db.runTransaction(performCommit);
+    const resultResponse = await runOptionalIdempotent(
+      { workspaceId, operationType: 'LEASE_CAPITALIZE', rawOperationId: rawOpId, legacyPrefix: 'lease', actor: explicitOpId ? user.uid : '', payload: parseResult.data },
+      performCommit,
+    );
 
     res.json(resultResponse);
   } catch (e) {

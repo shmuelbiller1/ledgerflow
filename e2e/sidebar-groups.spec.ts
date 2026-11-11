@@ -15,20 +15,15 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     if (width < 1024) await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click();
     const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
-    for (const [section, labels] of [
-      ['Daily work', ['Dashboard', 'Transactions', 'Reconcile']],
-      ['Sales and purchases', ['Money In', 'Money Out']],
-      ['Reports and settings', ['Reports', 'Settings']],
-    ] as const) {
-      const group = nav.getByRole('region', { name: section, exact: true });
-      await expect(group.getByRole('button')).toHaveCount(labels.length);
-      for (const label of labels) {
-        const button = group.getByRole('button', { name: label, exact: true });
-        await expect(button).toHaveAttribute('title', label);
-        expect(Number((await button.boundingBox())!.height.toFixed(3))).toBeGreaterThanOrEqual(44);
-      }
+    const daily = nav.getByRole('navigation', { name: 'Daily tools', exact: true });
+    const labels = ['Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings'];
+    await expect(daily.getByRole('button')).toHaveCount(labels.length);
+    for (const label of labels) {
+      const button = daily.getByRole('button', { name: label, exact: true });
+      await expect(button).toHaveAttribute('title', label);
+      expect(Number((await button.boundingBox())!.height.toFixed(3))).toBeGreaterThanOrEqual(44);
     }
-    await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(daily.getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page');
     // D-92 named the box after what it shows and explained the figure; the old "Account totals"
     // heading and its unexplained "sum of absolute balances" line are gone.
     await expect(nav.getByRole('heading', { name: 'Balances by account type', exact: true })).toHaveCount(1);
@@ -40,7 +35,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     // The existing page IDs and labels remain usable by pointer, keyboard and page pins.
     const sales = nav.getByTestId('nav-sales'); await sales.focus(); await sales.press('Enter');
     await expect(page).toHaveURL(/#sales$/);
-    await expect(nav.getByRole('button', { name: 'Money In', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('button', { name: 'Sales', exact: true })).toHaveAttribute('aria-current', 'page');
     const search = nav.getByRole('button', { name: 'Search pages', exact: true });
     await expect(search).toHaveAttribute('title', 'Search pages (Ctrl/⌘+K)');
     await search.focus(); await search.press('Enter');

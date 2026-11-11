@@ -78,20 +78,9 @@ export function usSalesTaxReturn(input: {
       const seller = resolveSellerProfile(input.profiles, documentEntityLabels(doc) || (invoice ? documentEntityLabels(invoice) : undefined), input.order);
       if (!registrationsOn(seller, 'sales_tax', date).some(r => registrationKey(r) === input.registration)) continue;
       const customer = doc.customerId ? customers.get(doc.customerId) : undefined;
-      // every place recorded for the sale, most specific first; one that names a state (or a country abroad) decides.
-      // A US place with no state is incomplete: it is passed over, so adding the state to the customer or the ship-to
-      // places a sale whose saved snapshot never had one.
-      const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => {
-        const st = placeState(d?.shippingAddress);
-        return st ? { country: d?.shippingAddress?.country || 'US', state: st } : undefined;
-      };
-      const recorded = [doc.metadata?.taxPlace, shipTo(doc), invoice?.metadata?.taxPlace, shipTo(invoice), (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace]
-        .filter((p): p is TaxPlace => Boolean(p));
-      const abroad = (p: TaxPlace) => String(p.country || '').toUpperCase() !== 'US';
-      const place = recorded.find(p => abroad(p) || Boolean(placeState(p)));
-      if (place && abroad(place)) continue; // a sale abroad is in no state
-      // no place recorded anywhere: an over-the-counter sale at the seller's own place
-      const buyerState = place ? placeState(place) : recorded.length ? '' : placeState(seller.place);
+      const destination = usSaleDestination(doc, invoice, customer, placeState(seller.place));
+      if (destination.abroad) continue; // a sale abroad is in no state
+      const buyerState = destination.state;
       if (!buyerState) {
         const unplacedFigures = taxReturnDocument(doc);
         const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate);
@@ -120,3 +109,26 @@ export function usSalesTaxReturn(input: {
   out.byJurisdiction = [...parts].map(([name, taxCents]) => ({ name, taxCents })).sort((a, b) => a.name.localeCompare(b.name));
   return out;
 }
+/**
+ * Where a US sale was delivered: the one rule shared by the state return and the quarter journey (#627).
+ * Every place recorded for the sale, most specific first: its own saved tax place, its ship-to, then (a credit
+ * note) its invoice's, and only then the customer's place today. One that names a state (or a country abroad)
+ * decides; a US place with no state is incomplete and passed over. With no place recorded anywhere it is an
+ * over-the-counter sale at the seller's own state. `state` is '' when the sale cannot be placed.
+ */
+export function usSaleDestination(
+  doc: UsSalesDocument, invoice: UsSalesDocument | undefined,
+  customer: { metadata?: unknown } | undefined, sellerState: string | undefined,
+): { abroad: boolean; state: string } {
+  const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => {
+    const st = placeState(d?.shippingAddress);
+    return st ? { country: d?.shippingAddress?.country || 'US', state: st } : undefined;
+  };
+  const recorded = [doc.metadata?.taxPlace, shipTo(doc), invoice?.metadata?.taxPlace, shipTo(invoice), (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace]
+    .filter((p): p is TaxPlace => Boolean(p));
+  const isAbroad = (p: TaxPlace) => String(p.country || '').toUpperCase() !== 'US';
+  const place = recorded.find(p => isAbroad(p) || Boolean(placeState(p)));
+  if (place && isAbroad(place)) return { abroad: true, state: '' };
+  return { abroad: false, state: String((place ? placeState(place) : recorded.length ? '' : sellerState) || '').toUpperCase() };
+}
+

@@ -8,21 +8,11 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { doc, updateDoc } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
-import { isOpeningBalanceEquity, openingBalanceAccounts, openingEntry } from '../../lib/openingBalances';
-import { formatCurrency, getLocalDateISO, monthBoundsISO } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
-import { TruthEngine } from '../../modules/integrity/TruthEngine';
-import type { ChartAccount } from '../../types';
 
-import { BRAND_NAME } from '../../config/brand';
-/**
- * First-run setup (L-19, BO-03): the business's basics, a chart of accounts, and the opening
- * balances, posted as one entry that balances by construction (the difference goes to Opening
- * Balance Equity), so the books start with a balanced trial balance. "Start from zero" skips the
- * balances. Owners and accountants; others are told to ask one.
- */
-
-const STEPS = ['Your business', 'Chart of accounts', 'Opening balances', 'Done'] as const;
+import { BUSINESS_PRESETS, presetForBusiness, presetDimensions } from '../../lib/businessPresets';
+/** Business type selects optional starter accounts and labels; opening figures live on Overview. */
+const STEPS = ['Your business', 'Chart of accounts', 'Done'] as const;
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD', 'CHF', 'JPY', 'INR'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -36,17 +26,6 @@ function supportedTimeZones(): string[] {
 
 function timeZones(current: string): string[] {
   return [...new Set([current, 'UTC', ...supportedTimeZones()])];
-}
-
-/** The entry the balances would post, or null while one can't be built. */
-function previewEntry(...args: [ChartAccount[], Array<{ accountId: string; amountCents: number }>, ChartAccount | undefined]) {
-  const [accounts, balances, equity] = args;
-  if (!equity) return null;
-  try {
-    return openingEntry(accounts, balances, equity);
-  } catch {
-    return null;
-  }
 }
 
 interface Props {
@@ -71,17 +50,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   const [currency, setCurrency] = useState(workspace?.currency || 'USD');
   const [timezone, setTimezone] = useState(workspace?.timezone || deviceZone);
   const [fiscalStart, setFiscalStart] = useState(workspace?.fiscalYearStartMonth || 1);
-  const [templateId, setTemplateId] = useState('');
-  const [startDate, setStartDate] = useState(() => monthBoundsISO(getLocalDateISO()).start);
-  const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [posted, setPosted] = useState<{ debitsCents: number; equityCents: number } | null>(null);
-
-  const eligible = useMemo(() => openingBalanceAccounts(accounts), [accounts]);
-  const equity = accounts.find(a => isOpeningBalanceEquity(a) && !a.isArchived);
-  const balances = eligible.map(a => ({ accountId: a.id, amountCents: TruthEngine.parseAmountToCentsOrZero(amounts[a.id] || '0') }));
-  const preview = previewEntry(accounts, balances, equity);
-  const money = (cents: number) => formatCurrency(cents, currency);
-
+  const [businessType, setBusinessType] = useState(() => presetForBusiness(workspace?.businessType)?.id || '');
+  const [templateId, setTemplateId] = useState(() => accounts.length ? '' : (presetForBusiness(workspace?.businessType)?.id || ''));
   if (!workspace) return null;
   if (role !== 'owner' && role !== 'accountant') {
     return (
@@ -116,8 +86,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   };
 
   const saveBusiness = () => run(async () => {
-    const fields = { name: name.trim() || workspace.name, currency, timezone, fiscalYearStartMonth: fiscalStart, fiscalYearStartDay: 1 };
-    const changed = fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
+    const fields = { businessType, dimensions: presetDimensions(workspace.dimensions, businessType), name: name.trim() || workspace.name, currency, timezone, fiscalYearStartMonth: fiscalStart, fiscalYearStartDay: 1 };
+    const changed = businessType !== workspace.businessType || JSON.stringify(fields.dimensions) !== JSON.stringify(workspace.dimensions) || fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
       || fiscalStart !== (workspace.fiscalYearStartMonth || 1);
     if (changed) {
       await updateDoc(doc(db, 'workspaces', workspace.id), { ...fields, updatedAt: new Date().toISOString() });
@@ -128,20 +98,19 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   });
 
   const applyChart = () => run(async () => {
-    if (templateId) await call('apply-template', { templateId });
+    if (templateId) {
+      await call('apply-template', { templateId });
+      if (templateId !== businessType) await updateDoc(doc(db, 'workspaces', workspace.id), { businessType });
+      const store = useAuthStore.getState();
+      store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, businessType } : w));
+    }
+    await call('setup-complete');
     setStep(2);
-  });
-
-  const recordBalances = () => run(async () => {
-    const result = await call('opening-balances', { date: startDate, balances: balances.filter(b => b.amountCents !== 0) });
-    setPosted({ debitsCents: result.debitsCents || 0, equityCents: result.equityCents || 0 });
-    setStep(3);
   });
 
   const startFromZero = () => run(async () => {
     await call('setup-complete');
-    setPosted({ debitsCents: 0, equityCents: 0 });
-    setStep(3);
+    setStep(2);
   });
 
   const finish = (tab?: string) => {
@@ -169,7 +138,15 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
 
         {step === 0 && (
           <section className="space-y-4" aria-labelledby="setup-business">
-            <h2 id="setup-business" className="text-lg font-semibold">Your business</h2>
+            <h2 id="setup-business" className="text-lg font-semibold">What kind of business?</h2>
+            <fieldset className="grid gap-2 sm:grid-cols-2">
+              <legend className="text-sm text-[var(--muted)] mb-3">Choose a starting point. You can change the accounts and labels later.</legend>
+              {BUSINESS_PRESETS.map(preset => <label key={preset.id} className="flex items-center gap-3 min-h-11 p-3 rounded-lg border border-[var(--line)]">
+                <input type="radio" name="business-type" checked={businessType === preset.id} onChange={() => { setBusinessType(preset.id); setTemplateId(preset.id); }} />
+                {preset.name}
+              </label>)}
+            </fieldset>
+            <p className="text-sm text-[var(--muted)]">Suggested labels: {BUSINESS_PRESETS.find(p => p.id === businessType)?.labels.map(d => d.name).join(' and ') || 'None'}. Existing labels stay unchanged. Fund is self-balancing for a new non-profit label.</p>
             <div className="space-y-1">
               <label htmlFor="setup-name" className="micro-label">Business name</label>
               <input id="setup-name" className={field} value={name} onChange={e => setName(e.target.value)} />
@@ -196,8 +173,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
             </div>
             <p className="text-xs text-[var(--muted)]">The home currency can&apos;t be changed once there are entries.</p>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal" onClick={startFromZero} disabled={busy}>Skip setup</button>
-              <button type="button" className="btn-primary" onClick={saveBusiness} disabled={busy}>{busy ? 'Saving…' : 'Next'}</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={startFromZero} disabled={busy}>Skip setup</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={saveBusiness} disabled={busy || !businessType}>{busy ? 'Saving…' : 'Next'}</button>
             </div>
           </section>
         )}
@@ -227,8 +204,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
               ))}
             </fieldset>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal" onClick={() => setStep(0)} disabled={busy}>Back</button>
-              <button type="button" className="btn-primary" onClick={applyChart} disabled={busy || (!templateId && accounts.length === 0)}>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => setStep(0)} disabled={busy}>Back</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={applyChart} disabled={busy || (!templateId && accounts.length === 0)}>
                 {busy ? 'Applying…' : 'Next'}
               </button>
             </div>
@@ -236,67 +213,15 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
         )}
 
         {step === 2 && (
-          <section className="space-y-4" aria-labelledby="setup-opening">
-            <h2 id="setup-opening" className="text-lg font-semibold">Opening balances</h2>
-            <p className="text-sm text-[var(--muted)]">
-              What the business had and owed on the day you start using {BRAND_NAME} (from your last balance sheet or bank statements).
-              Customers&apos; and vendors&apos; unpaid amounts are added as invoices and bills instead, so you know who owes what.
-            </p>
-            <div className="space-y-1">
-              <label htmlFor="setup-start" className="micro-label">Start date</label>
-              <input id="setup-start" type="date" className={`${field} sm:w-48`} value={startDate} onChange={e => setStartDate(e.target.value)} />
-            </div>
-            {!equity ? (
-              <p className="text-sm text-[var(--neg)]">Add an &quot;Opening Balance Equity&quot; account to the chart of accounts first, or start from zero.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <caption className="sr-only">Opening balance per account</caption>
-                <thead>
-                  <tr className="text-left text-xs text-[var(--muted)]"><th scope="col" className="py-1">Account</th><th scope="col" className="py-1 text-right">Balance ({currency})</th></tr>
-                </thead>
-                <tbody>
-                  {eligible.map(a => (
-                    <tr key={a.id} className="border-t border-[var(--line)]">
-                      <td className="py-1.5"><label htmlFor={`ob-${a.id}`}>{a.code ? `${a.code} · ` : ''}{a.name}</label></td>
-                      <td className="py-1.5 text-right">
-                        <input id={`ob-${a.id}`} type="number" step="0.01" inputMode="decimal" className={`${field} w-36 text-right font-mono`}
-                          value={amounts[a.id] || ''} placeholder="0.00" onChange={e => setAmounts({ ...amounts, [a.id]: e.target.value })} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {preview && preview.lines.length > 0 && (
-              <p className="text-sm tabular-nums" aria-live="polite">
-                Debits {money(preview.debitsCents)} = credits {money(preview.creditsCents)}.{' '}
-                {preview.equityCents !== 0 && <>{money(Math.abs(preview.equityCents))} goes to {equity?.name} {preview.equityCents > 0 ? '(what the business is worth)' : '(it owes more than it has)'}.</>}
-              </p>
-            )}
-            <div className="flex flex-wrap justify-between gap-2">
-              <button type="button" className="btn-tonal" onClick={() => setStep(1)} disabled={busy}>Back</button>
-              <div className="flex gap-2">
-                <button type="button" className="btn-tonal" onClick={startFromZero} disabled={busy}>Start from zero</button>
-                <button type="button" className="btn-primary" onClick={recordBalances} disabled={busy || !equity || !preview || preview.lines.length === 0}>
-                  {busy ? 'Recording…' : 'Record opening balances'}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {step === 3 && (
           <section className="space-y-4" aria-labelledby="setup-done">
             <h2 id="setup-done" className="text-lg font-semibold flex items-center gap-2"><CheckCircle2 className="text-[var(--pos)]" aria-hidden="true" /> Your books are set up</h2>
             <p className="text-sm text-[var(--muted)]">
-              {posted && posted.debitsCents > 0
-                ? `Opening balances recorded on ${startDate}: debits and credits are both ${money(posted.debitsCents)}, so the trial balance balances.`
-                : 'You start from zero; the trial balance balances.'}
+              Your starter settings are ready. If you have previous books, use “Bring in last year's numbers” on Overview when you are ready.
             </p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn-primary" onClick={() => finish('sales')}>Create the first invoice</button>
-              <button type="button" className="btn-tonal" onClick={() => finish('banking')}>Connect or import a bank account</button>
-              <button type="button" className="btn-tonal" onClick={() => finish()}>Go to the dashboard</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={() => finish('sales')}>Create the first invoice</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish('banking')}>Connect or import a bank account</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish()}>Go to Overview</button>
             </div>
           </section>
         )}

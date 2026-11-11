@@ -215,6 +215,7 @@ test('M-1: capped browser collections upgrade Aging, Contact Balance, Payment Me
     },
   });
 
+  let partyBalanceCalls = 0;
   const origFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = String(input);
@@ -230,6 +231,7 @@ test('M-1: capped browser collections upgrade Aging, Contact Balance, Payment Me
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (url.includes('/api/v1/reports/party-balances')) {
+      partyBalanceCalls += 1;
       return new Response(JSON.stringify({
         contactRows: [{
           key: 'c-server',
@@ -278,6 +280,18 @@ test('M-1: capped browser collections upgrade Aging, Contact Balance, Payment Me
       render(<ContactBalanceSummaryView asOfDate="2026-03-01" />);
     });
     await waitFor(() => assert.ok(screen.getByText('Server Balance Contact')));
+
+    // Mutating a subscribed invoice must invalidate requestKey and refetch updated server rows
+    const beforeCalls = partyBalanceCalls;
+    await act(async () => {
+      useLedgerStore.setState({
+        invoices: [{
+          id: 'inv-mutated', workspaceId: 'ws-component', customerId: 'cust-1', customerName: 'Server Balance Contact',
+          amountCents: 12000, amountPaidCents: 12000, status: 'paid', issueDate: '2026-02-01', dueDate: '2026-03-01',
+        } as never],
+      });
+    });
+    await waitFor(() => assert.ok(partyBalanceCalls > beforeCalls, 'Store mutation must refetch server operational report'));
     cleanup();
 
     await act(async () => {

@@ -44,7 +44,7 @@ test.describe('Keyboard', () => {
       await target.focus();
       await page.keyboard.press('Enter');
     };
-    await press('Money In');
+    await press('Sales');
     await press('Invoices');
     await page.getByRole('button', { name: /Add Invoice/ }).first().focus();
     await page.keyboard.press('Enter');
@@ -366,7 +366,7 @@ test.describe('Keyboard', () => {
     };
 
     // 1. Navigate to Sales → Customers & Clients and create a customer via keyboard
-    await pressButton('Money In');
+    await pressButton('Sales');
     await pressButton('Invoices');
     await pressButton('Customers');
     const newCustomerInput = page.getByLabel('New customer name');

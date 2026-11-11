@@ -603,9 +603,11 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
 
         for (const snap of txSnaps) {
           ledgerMark(t, snap.ref, {
+            status: 'reconciled',
             reconciled: true,
             isReconciled: true,
             isCleared: true,
+            clearedAt: completedAt,
             reconciledAt: completedAt,
             updatedAt: FieldValue.serverTimestamp(),
           });

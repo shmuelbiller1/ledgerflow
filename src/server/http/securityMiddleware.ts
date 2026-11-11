@@ -69,7 +69,7 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
   app.use(requestContext());
 }
 
-/** Explicit bulk import and backup-restore routes allowed up to 50 MB JSON; all other routes cap at 1 MB (M-8). */
+/** Explicit bulk import and backup-restore routes allowed up to 50 MB JSON; file-ingestion AI routes cap at 15 MB; all other routes cap at 1 MB (M-8). */
 export const LARGE_JSON_ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/api\/v1\/workspaces\/[^/]+\/restore\/?$/,
   /^\/api\/v1\/workspaces\/[^/]+\/import-records\/?$/,
@@ -78,17 +78,32 @@ export const LARGE_JSON_ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/api\/v1\/transactions\/(?:bulk|batch|batch-create)\/?$/,
 ];
 
+export const INGEST_JSON_ROUTE_PATTERNS: readonly RegExp[] = [
+  /^\/api\/(?:v1\/)?ai\/(?:process|receipt|parse|vision|ocr)(?:\/|$)/,
+  /^\/api\/(?:v1\/)?workspaces\/[^/]+\/documents(?:\/|$)/,
+];
+
 export function isLargeJsonRoute(method: string, pathOnly: string): boolean {
   if (method !== "POST" && method !== "PUT") return false;
   return LARGE_JSON_ROUTE_PATTERNS.some((pattern) => pattern.test(pathOnly));
 }
 
+export function isIngestJsonRoute(method: string, pathOnly: string): boolean {
+  if (method !== "POST" && method !== "PUT") return false;
+  return INGEST_JSON_ROUTE_PATTERNS.some((pattern) => pattern.test(pathOnly));
+}
+
 export function applyJsonBodyParser(app: express.Express): void {
   const defaultJson = express.json({ limit: "1mb" });
+  const ingestJson = express.json({ limit: "15mb" });
   const bulkJson = express.json({ limit: "50mb" });
   app.use((req, res, next) => {
     const pathOnly = (req.originalUrl || req.url || "").split("?")[0];
-    const parser = isLargeJsonRoute(req.method, pathOnly) ? bulkJson : defaultJson;
+    const parser = isLargeJsonRoute(req.method, pathOnly)
+      ? bulkJson
+      : isIngestJsonRoute(req.method, pathOnly)
+        ? ingestJson
+        : defaultJson;
     parser(req, res, (err) => {
       if (err) return next(err);
       req.body ??= {};

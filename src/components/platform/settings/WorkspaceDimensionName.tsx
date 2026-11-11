@@ -1,3 +1,4 @@
+import { displayDimensionName } from '../../../lib/dimensionUtils';
 import React, { useRef, useState } from 'react';
 import { suggestionsFrom } from '../../../lib/inlineEdit';
 import InlineEdit from '../../ui/InlineEdit';
@@ -28,7 +29,7 @@ function ScopedDimensionName({ axis, onSaved }: { axis: DimensionDefinition; onS
   } catch (error) { setFailure({ value: String(value), message: error instanceof Error ? error.message : String(error) }); throw error; }
   finally { busy.current = false; setSaving(false); }
  };
- return <span className="inline-flex flex-col"><InlineEdit value={axis.name} suggestions={suggestionsFrom(names || [], dimension => dimension.name)} label={`Dimension name ${axis.id}`} canEdit={role !== 'viewer' && !saving} onSave={save} validate={value => String(value).trim() ? null : 'Display name is required'} />{failure && <span role="alert">{failure.message} <bdi>{failure.value}</bdi> <button type="button" disabled={saving || role === 'viewer'} onClick={() => { void save(failure.value).catch((err) => { console.warn('[WorkspaceDimensionName] Retry failed:', err); }); }}>Retry name</button></span>}</span>;
+ return <span className="inline-flex flex-col"><InlineEdit value={displayDimensionName(axis)} suggestions={suggestionsFrom(names || [], dimension => dimension.name)} label={`Label name ${axis.id}`} canEdit={role !== 'viewer' && !saving} onSave={save} validate={value => String(value).trim() ? null : 'Display name is required'} />{failure && <span role="alert">{failure.message} <bdi>{failure.value}</bdi> <button type="button" disabled={saving || role === 'viewer'} onClick={() => { void save(failure.value).catch((err) => { console.warn('[WorkspaceDimensionName] Retry failed:', err); }); }}>Retry name</button></span>}</span>;
 }
 export function WorkspaceDimensionName(props: React.ComponentProps<typeof ScopedDimensionName>) {
  const uid = useAuthStore(state => state.user?.uid), workspace = useAuthStore(state => state.currentWorkspaceId);

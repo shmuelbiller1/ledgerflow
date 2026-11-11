@@ -7,7 +7,7 @@ import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { mayPostEntries } from '../http/ledgerWriter';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
-import { deriveScopedOperationKey, executeIdempotent, extractCanonicalOperationId, requestPayloadHash } from '../utils/idempotency';
+import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
 
 const RecognizeRevenueSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -121,18 +121,10 @@ revenueRouter.post('/recognize', async (req, res) => {
       return responsePayload;
     };
 
-    const resultResponse = rawOpId
-      ? await executeIdempotent(
-          deriveScopedOperationKey(workspaceId, 'REVENUE_RECOGNIZE', rawOpId),
-          {
-            actor: explicitOpId ? user.uid : '',
-            workspaceId,
-            operationType: 'REVENUE_RECOGNIZE',
-            payloadHash: requestPayloadHash(parseResult.data),
-          },
-          performCommit,
-        )
-      : await db.runTransaction(performCommit);
+    const resultResponse = await runOptionalIdempotent(
+      { workspaceId, operationType: 'REVENUE_RECOGNIZE', rawOperationId: rawOpId, legacyPrefix: 'rev', actor: explicitOpId ? user.uid : '', payload: parseResult.data },
+      performCommit,
+    );
 
     res.json(resultResponse);
   } catch (e) {

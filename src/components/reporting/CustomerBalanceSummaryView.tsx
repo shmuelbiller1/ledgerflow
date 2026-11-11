@@ -1,9 +1,9 @@
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Users, Mail, Phone } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeCustomerBalanceSummary, CustomerBalanceSummaryRow } from '../../server/reports/partyReports';
@@ -21,30 +21,13 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const [serverState, setServerState] = useState<{ key: string; rows: CustomerBalanceSummaryRow[] } | null>(null);
   const isTruncated = Boolean(truncated.customers || truncated.invoices || truncated.payments || truncated.creditNotes);
-  const serverKey = `${workspaceId}:${asOfDate}`;
-  // Follow the Reports page period when it gives one
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!isTruncated || !workspaceId || typeof fetch !== 'function') return;
-    void (async () => {
-      try {
-        const token = await getIdToken();
-        const q = new URLSearchParams({ workspaceId, asOfDate });
-        const res = await fetch(`/api/v1/reports/party-balances?${q}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled && Array.isArray(body?.customerRows)) setServerState({ key: serverKey, rows: body.customerRows as CustomerBalanceSummaryRow[] });
-      } catch {
-        // best-effort: retain provisional browser rows if server report cannot be loaded
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [isTruncated, workspaceId, asOfDate, serverKey]);
+  const serverRows = useServerOperationalReport<CustomerBalanceSummaryRow[]>(
+    isTruncated && Boolean(workspaceId),
+    workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
+    `${workspaceId}:${asOfDate}:${collectionStamp(customers, invoices, payments, creditNotes)}`,
+    body => (Array.isArray(body.customerRows) ? (body.customerRows as CustomerBalanceSummaryRow[]) : undefined),
+  );
 
   const localCustomerRows = useMemo<CustomerBalanceSummaryRow[]>(() => {
     return computeCustomerBalanceSummary(
@@ -55,7 +38,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       asOfDate
     );
   }, [customers, invoices, payments, creditNotes, asOfDate]);
-  const customerRows = (isTruncated && serverState?.key === serverKey) ? serverState.rows : localCustomerRows;
+  const customerRows = serverRows || localCustomerRows;
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return customerRows;
