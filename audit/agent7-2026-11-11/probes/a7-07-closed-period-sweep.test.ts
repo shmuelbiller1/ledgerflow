@@ -22,8 +22,16 @@ import { isPostable, lineAmount } from '../../../src/lib/txFilters';
 
 describe('A7-07 closed-period sweep across the server writers', { skip: !DB_URL && 'LF_TEST_DATABASE_URL not set' }, () => {
   let b: Books;
-  const results: Array<{ writer: string; status: number; refused: boolean }> = [];
-  const note = (writer: string, status: number) => { results.push({ writer, status, refused: status >= 400 }); console.log(`${status >= 400 ? 'refused ' : 'ACCEPTED'} ${status}  ${writer}`); };
+  const results: Array<{ writer: string; status: number; refused: boolean; byLock: boolean; reason: string }> = [];
+  /** records the answer and WHY it was refused: only a refusal that names the closed period counts as the lock working */
+  const note = (writer: string, res: { status: number; body?: unknown } | number, why?: string) => {
+    const status = typeof res === 'number' ? res : res.status;
+    const body = typeof res === 'number' ? {} : (res.body || {}) as { error?: unknown; message?: unknown };
+    const reason = why ?? String(typeof body.error === 'string' ? body.error : typeof body.message === 'string' ? body.message : JSON.stringify(body)).slice(0, 150);
+    const byLock = status >= 400 && /closed|locked|lock date|period/i.test(reason);
+    results.push({ writer, status, refused: status >= 400, byLock, reason });
+    console.log(`${status >= 400 ? (byLock ? 'refused, period lock ' : 'refused, OTHER REASON') : 'ACCEPTED             '} ${status}  ${writer}${status >= 400 ? `\n        "${reason}"` : ''}`);
+  };
   const september = async () => {
     const out: Record<string, number> = {};
     for (const t of (await b.entries()).filter(e => isPostable(e) && String(e.date).startsWith('2026-09'))) for (const l of t.lines || []) out[l.accountId] = (out[l.accountId] || 0) + lineAmount(l, t);
@@ -42,39 +50,51 @@ describe('A7-07 closed-period sweep across the server writers', { skip: !DB_URL 
     const inv = { id: `${b.ws}_inv_oct`, workspaceId: b.ws, number: 'INV-OCT', customerName: 'Acme', customerId: `${b.ws}_c1`, date: '2026-10-05', dueDate: '2026-11-04', status: 'sent', currency: 'USD', amountCents: 20_000,
       items: [{ id: 'l1', description: 'Work', quantity: 1, rateCents: 20_000, amountCents: 20_000 }] };
     assert.equal((await b.send(b.OWNER, 'POST', `/api/v1/documents/invoices/${inv.id}/post`, { workspaceId: b.ws, action: 'create', data: inv }, { 'idempotency-key': 'a7-07-inv' })).status, 200);
+    // control: with a DRAFT dated in September, the close itself is refused
+    const draft = { ...journal(`${b.ws}_sep_draft`, '2026-09-11', 300), status: 'draft' };
+    await b.db.collection('transactions').doc(draft.id).set(draft as never);
+    const withDraft = await b.send(b.OWNER, 'POST', `/api/v1/workspaces/${b.ws}/periods/2026-09/close`, { mode: 'hard' });
+    console.log(`control: closing September while a draft is dated in it -> ${withDraft.status} "${String(withDraft.body?.message || withDraft.body?.error).slice(0, 90)}"`);
+    assert.equal(withDraft.status >= 400, true);
+    assert.match(String(withDraft.body?.message || withDraft.body?.error), /draft/);
+    await b.db.collection('transactions').doc(draft.id).delete();
     const closed = await b.send(b.OWNER, 'POST', `/api/v1/workspaces/${b.ws}/periods/2026-09/close`, { mode: 'hard' });
     assert.equal(closed.status, 200, JSON.stringify(closed.body));
     const ws = (await b.db.collection('workspaces').doc(b.ws).get()).data()!;
     console.log(`closed: lockDate = ${ws.lockDate}`);
     assert.equal(ws.lockDate, '2026-09-30');
     assert.deepEqual(await september(), { bank: 100_000, sales: -100_000 });
+    // fixture for the DELETE check only: a draft dated in the closed month, put back through the data layer (the
+    // close route would not have allowed it to be there; a draft may be deleted, a posted entry never may)
+    await b.db.collection('transactions').doc(draft.id).set(draft as never);
   });
 
   test('every writer, dated in the closed month, as a bookkeeper', async () => {
     const B = b.BOOKKEEPER;
-    note('POST /transactions (one journal)', (await b.send(B, 'POST', '/api/v1/transactions', { transaction: journal(`${b.ws}_a`, '2026-09-15', 5_000) }, { 'x-operation-id': 'a7-07-a' })).status);
-    note('POST /transactions/bulk', (await b.send(B, 'POST', '/api/v1/transactions/bulk', { workspaceId: b.ws, transactions: [journal(`${b.ws}_b`, '2026-09-15', 5_000)] })).status);
-    note('POST /transactions/batch-create', (await b.send(B, 'POST', '/api/v1/transactions/batch-create', { workspaceId: b.ws, transactions: [journal(`${b.ws}_c`, '2026-09-15', 5_000)] }, { 'x-operation-id': 'a7-07-c' })).status);
+    note('POST /transactions (one journal)', await b.send(B, 'POST', '/api/v1/transactions', { transaction: journal(`${b.ws}_a`, '2026-09-15', 5_000) }, { 'x-operation-id': 'a7-07-a' }));
+    note('POST /transactions/bulk', await b.send(B, 'POST', '/api/v1/transactions/bulk', { workspaceId: b.ws, transactions: [journal(`${b.ws}_b`, '2026-09-15', 5_000)] }));
+    note('POST /transactions/batch-create', await b.send(B, 'POST', '/api/v1/transactions/batch-create', { workspaceId: b.ws, transactions: [journal(`${b.ws}_c`, '2026-09-15', 5_000)] }, { 'x-operation-id': 'a7-07-c' }));
     const inv = { id: `${b.ws}_inv_sep`, workspaceId: b.ws, number: 'INV-SEP', customerName: 'Acme', customerId: `${b.ws}_c1`, date: '2026-09-20', status: 'sent', currency: 'USD', amountCents: 7_000, items: [{ id: 'l1', description: 'x', quantity: 1, rateCents: 7_000, amountCents: 7_000 }] };
-    note('POST /documents/invoices/:id/post (invoice dated in the month)', (await b.send(B, 'POST', `/api/v1/documents/invoices/${inv.id}/post`, { workspaceId: b.ws, action: 'create', data: inv }, { 'idempotency-key': 'a7-07-d' })).status);
+    note('POST /documents/invoices/:id/post (invoice dated in the month)', await b.send(B, 'POST', `/api/v1/documents/invoices/${inv.id}/post`, { workspaceId: b.ws, action: 'create', data: inv }, { 'idempotency-key': 'a7-07-d' }));
     const bill = { id: `${b.ws}_bill_sep`, workspaceId: b.ws, number: 'B-SEP', vendorName: 'Paper Co', vendorId: 'v1', date: '2026-09-20', status: 'approved', currency: 'USD', amountCents: 3_000, splits: [{ accountId: b.acct.supplies, amountCents: 3_000, description: 'x' }] };
-    note('POST /documents/bills/:id/post (bill dated in the month)', (await b.send(B, 'POST', `/api/v1/documents/bills/${bill.id}/post`, { workspaceId: b.ws, action: 'create', data: bill }, { 'idempotency-key': 'a7-07-e' })).status);
-    note('POST /payments (payment dated in the month, for the October invoice)', (await b.send(B, 'POST', '/api/v1/payments', { workspaceId: b.ws, amountCents: 1_000, paymentDate: '2026-09-25', cashAccountId: b.acct.bank, customerId: `${b.ws}_c1` }, { 'x-operation-id': 'a7-07-f' })).status);
-    note('PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry', (await b.send(B, 'PUT', `/api/v1/transactions/${b.ws}_sep`, { workspaceId: b.ws, partialUpdate: { status: 'void' } })).status);
-    note('PUT /transactions/:id (rewrite the September entry)', (await b.send(B, 'PUT', `/api/v1/transactions/${b.ws}_sep`, { transaction: journal(`${b.ws}_sep`, '2026-09-10', 1) })).status);
-    note('DELETE /transactions/:id on the September entry', (await b.send(B, 'DELETE', `/api/v1/transactions/${b.ws}_sep?workspaceId=${b.ws}`)).status);
-    note('POST /transactions/:id/reverse with the reversal dated in the month', (await b.send(B, 'POST', `/api/v1/transactions/${b.ws}_sep/reverse`, { workspaceId: b.ws, reversalDate: '2026-09-28', reason: 'probe' })).status);
+    note('POST /documents/bills/:id/post (bill dated in the month)', await b.send(B, 'POST', `/api/v1/documents/bills/${bill.id}/post`, { workspaceId: b.ws, action: 'create', data: bill }, { 'idempotency-key': 'a7-07-e' }));
+    note('POST /payments (payment dated in the month, for the October invoice)', await b.send(B, 'POST', '/api/v1/payments', { workspaceId: b.ws, amountCents: 1_000, paymentDate: '2026-09-25', cashAccountId: b.acct.bank, customerId: `${b.ws}_c1` }, { 'x-operation-id': 'a7-07-f' }));
+    note('PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry', await b.send(B, 'PUT', `/api/v1/transactions/${b.ws}_sep`, { workspaceId: b.ws, partialUpdate: { status: 'void' } }));
+    note('PUT /transactions/:id (rewrite the September entry)', await b.send(B, 'PUT', `/api/v1/transactions/${b.ws}_sep`, { transaction: journal(`${b.ws}_sep`, '2026-09-10', 1) }));
+    note('DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached)', await b.send(B, 'DELETE', `/api/v1/transactions/${b.ws}_sep?workspaceId=${b.ws}`));
+    note('DELETE /transactions/:id on a September DRAFT', await b.send(B, 'DELETE', `/api/v1/transactions/${b.ws}_sep_draft?workspaceId=${b.ws}`));
+    note('POST /transactions/:id/reverse with the reversal dated in the month', await b.send(B, 'POST', `/api/v1/transactions/${b.ws}_sep/reverse`, { workspaceId: b.ws, reversalDate: '2026-09-28', reason: 'probe' }));
     await b.db.collection('creditNotes').doc(`${b.ws}_cn`).set({ id: `${b.ws}_cn`, workspaceId: b.ws, number: 'CN-1', customerId: `${b.ws}_c1`, status: 'open', date: '2026-10-06', amountCents: 500, remainingCents: 500, currency: 'USD' } as never);
-    note('POST /payments/credits/refund dated in the month', (await b.send(B, 'POST', '/api/v1/payments/credits/refund', { workspaceId: b.ws, kind: 'customer', creditId: `${b.ws}_cn`, amountCents: 500, cashAccountId: b.acct.bank, date: '2026-09-29' })).status);
+    note('POST /payments/credits/refund dated in the month', await b.send(B, 'POST', '/api/v1/payments/credits/refund', { workspaceId: b.ws, kind: 'customer', creditId: `${b.ws}_cn`, amountCents: 500, cashAccountId: b.acct.bank, date: '2026-09-29' }));
     // the daily recurring job, with an entry schedule due inside the closed month
     await b.db.collection('recurring').doc(`${b.ws}_rec`).set({ id: `${b.ws}_rec`, workspaceId: b.ws, uid: b.BOOKKEEPER, isActive: true, description: 'Monthly accrual', frequency: 'monthly', nextOccurrence: '2026-09-12', createdAt: '2026-08-01T00:00:00Z', amountCents: 2_000,
       template: { currency: 'USD', lines: [{ accountId: b.acct.supplies, amountCents: 2_000 }, { accountId: b.acct.bank, amountCents: -2_000 }] } } as never);
     const { processRecurring } = await import('../../../src/server/services/recurringService');
     const job = await processRecurring(b.db as never, '2026-09-12');
     const mine = job.details.filter(d => d.operationId.startsWith(`${b.ws}_rec`));
-    note(`daily recurring job, entry due 2026-09-12 (${mine.map(d => `${d.status}${d.error ? `: ${d.error}` : ''}`).join('; ')})`, mine.some(d => d.status === 'success') ? 200 : 409);
+    note('daily recurring job, entry due 2026-09-12', mine.some(d => d.status === 'success') ? 200 : 409, mine.map(d => `${d.status}${d.error ? `: ${d.error}` : ''}`).join('; '));
     // the demo-data route: POST /workspaces/:id/seed writes two entries dated 2026-09-01 and 2026-09-05
-    note('POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)', (await b.send(B, 'POST', `/api/v1/workspaces/${b.ws}/seed`, {})).status);
+    note('POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)', await b.send(B, 'POST', `/api/v1/workspaces/${b.ws}/seed`, {}));
   });
 
   test('the closed month afterwards', async () => {
@@ -86,6 +106,10 @@ describe('A7-07 closed-period sweep across the server writers', { skip: !DB_URL 
     assert.deepEqual(through, ['POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)']);
     assert.notDeepEqual(now, { bank: 100_000, sales: -100_000 });
     console.log('DEFECT A7-07: POST /workspaces/:id/seed posts entries into a hard-closed month');
+    const otherReason = results.filter(r => r.refused && !r.byLock).map(r => r.writer);
+    console.log(`refused by the period lock: ${results.filter(r => r.byLock).length} of ${results.length} writers; refused for another reason: ${otherReason.length} (${otherReason.join(' | ') || 'none'})`);
+    assert.deepEqual(otherReason, ['DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached)']);
+    assert.equal((await b.entries()).some(e => e.id === `${b.ws}_sep_draft`), true, 'the September draft is still there');
   });
 
   test('what the demo-data route left in real books', async () => {
@@ -103,14 +127,26 @@ describe('A7-07 closed-period sweep across the server writers', { skip: !DB_URL 
     const bs = await b.send(b.OWNER, 'GET', `/api/v1/reports/balance-sheet?workspaceId=${b.ws}&endDate=2026-12-31`);
     const demoBank = Object.entries(bs.body.assets as Record<string, number>).find(([id]) => id.startsWith('acc_demo_bank'));
     console.log(`balance sheet route (2026-12-31): isBalanced=${bs.body.isBalanced}, lines on unknown accounts=${bs.body.orphanedLines.length}, "Operating Bank Account" (demo) = ${demoBank?.[1]}`);
-    assert.equal(bs.body.orphanedLines.length, 0);
-    assert.equal(demoBank?.[1], 300_000, 'the report shows 3,000.00 in a bank account that Data Health says does not exist');
-    for (const f of (await b.dataHealth()).filter(x => ['missing-account', 'control-balance', 'unbalanced'].includes(x.checkId))) console.log(`Data Health (${f.severity}) [${f.checkId}]: ${f.title}`);
-    assert.equal(entries.length, 2);
-    assert.equal(orphanLines.length, 4, 'every line of the two demo entries points to an account id that does not exist');
-    assert.equal(invoices[0]?.status, 'sent');
-    assert.equal(invoiceEntries.length, 0, 'an issued invoice of 5,000.00 with nothing in the ledger');
-    assert.equal(audit.length, 0);
-    assert.notEqual(ws.isDemoLoaded, true, 'the workspace is not marked as holding demo data, so "clear demo data" will refuse');
+    const health = (await b.dataHealth()).filter(x => ['missing-account', 'control-balance', 'unbalanced'].includes(x.checkId));
+    for (const f of health) console.log(`Data Health (${f.severity}) [${f.checkId}]: ${f.title}`);
+    // can the owner take it out again in one step? ("clear demo data": POST /transactions/reset)
+    const reset = await b.send(b.OWNER, 'POST', '/api/v1/transactions/reset', { workspaceId: b.ws, confirmReset: true });
+    console.log(`POST /transactions/reset (owner, confirmReset) -> ${reset.status} ${JSON.stringify(reset.body).slice(0, 120)}`);
+    // and a second call
+    const again = await b.send(b.BOOKKEEPER, 'POST', `/api/v1/workspaces/${b.ws}/seed`, {});
+    const demoInvoices = (await b.db.collection('invoices').where('workspaceId', '==', b.ws).get()).docs.filter(d => d.data().number === 'INV-DEMO-001').length;
+    console.log(`a second POST /workspaces/:id/seed -> ${again.status}; invoices numbered INV-DEMO-001 now: ${demoInvoices}`);
+
+    // what main does today (2ac666b); a tree that answers differently fails here, after everything above is printed
+    const facts = {
+      demoEntries: entries.length, linesOnNoAccount: orphanLines.length, invoiceStatus: invoices[0]?.status, invoiceEntries: invoiceEntries.length,
+      auditRows: audit.length, markedAsDemo: ws.isDemoLoaded === true, reportOrphanedLines: bs.body.orphanedLines.length, demoBankOnBalanceSheet: demoBank?.[1],
+      missingAccountFindings: health.filter(f => f.checkId === 'missing-account').length, resetStatus: reset.status, secondSeedStatus: again.status, demoInvoicesAfterSecond: demoInvoices,
+    };
+    console.log(JSON.stringify(facts));
+    assert.deepEqual(facts, {
+      demoEntries: 2, linesOnNoAccount: 4, invoiceStatus: 'sent', invoiceEntries: 0, auditRows: 0, markedAsDemo: false, reportOrphanedLines: 0, demoBankOnBalanceSheet: 300_000,
+      missingAccountFindings: 4, resetStatus: 409, secondSeedStatus: 200, demoInvoicesAfterSecond: 2,
+    });
   });
 });

@@ -21,6 +21,13 @@ describe('A7-04 system entries can be changed behind their documents', { skip: !
   let b: Books;
   const invoiceId = () => `${b.ws}_inv9`;
   let accrualId = '', paymentEntryId = '', paymentId = '';
+  /** the app's own month-end "Repost check" (lib/postingCheck.ts, CA-03), over what is stored now */
+  const postingCheck = async () => {
+    const { findPostingMismatches } = await import('../../../src/lib/postingCheck');
+    const invoices = (await b.db.collection('invoices').where('workspaceId', '==', b.ws).get()).docs.map(d => ({ ...d.data(), id: d.id }));
+    const found = findPostingMismatches({ invoices: invoices as never, bills: [], transactions: (await b.entries()) as never });
+    return found.length ? found.map(m => `${m.kind} ${m.number}: ${m.issue} (document ${m.expectedCents}, ledger ${m.postedCents})`).join(' | ') : 'nothing found';
+  };
   before(async () => { b = await openBooks('sysedit'); });
   after(async () => { await b.close(); await b.db.terminate(); });
 
@@ -53,6 +60,9 @@ describe('A7-04 system entries can be changed behind their documents', { skip: !
     assert.deepEqual(balances, { ar: 50_000, sales: -50_000 });
     assert.equal(invoice.status, 'paid');
     assert.equal(payment.status, 'posted');
+    // does the app's own nightly check notice?
+    const health = await b.dataHealth();
+    console.log(`Data Health after (a): ${health.length ? health.map(f => `(${f.severity}) [${f.checkId}] ${f.title}`).join(' | ') : 'none'}`);
   });
 
   test('a bookkeeper rewrites the invoice\'s entry to 100.00 with the generic route: the invoice still says 500.00', async () => {
@@ -70,6 +80,7 @@ describe('A7-04 system entries can be changed behind their documents', { skip: !
     console.log('DEFECT A7-04b: Sales in the ledger 100.00, the invoice 500.00');
     assert.equal(balances.sales, -10_000);
     assert.equal(invoice.amountCents, 50_000);
+    console.log(`month-end posting check after (b): ${await postingCheck()}`);
   });
 
   test('"Reverse & Correct" on the invoice\'s entry is accepted too: the invoice stays issued with nothing in the ledger', async () => {
@@ -82,6 +93,37 @@ describe('A7-04 system entries can be changed behind their documents', { skip: !
     console.log('DEFECT A7-04c: the ledger holds nothing for an invoice that is still issued and marked paid');
     assert.deepEqual(balances, {});
     assert.equal(invoice.status, 'paid');
+    const health = await b.dataHealth();
+    console.log(`Data Health after (c): ${health.length ? health.map(f => `(${f.severity}) [${f.checkId}] ${f.title}`).join(' | ') : 'none'}`);
+    console.log(`month-end posting check after (c): ${await postingCheck()}`);
+    const ageing = await b.send(b.OWNER, 'GET', `/api/v1/reports/aging?workspaceId=${b.ws}&type=ar`);
+    const pl = await b.send(b.OWNER, 'GET', `/api/v1/reports/pl?workspaceId=${b.ws}&startDate=2026-01-01&endDate=2026-12-31`);
+    console.log(`reports after (c): A/R ageing total ${ageing.body.total ?? ageing.body.summary?.total}; profit and loss income ${pl.body.income?.total}`);
+  });
+
+  test('control that holds: DELETE on a second invoice\'s entry is refused for a viewer, a bookkeeper and the owner', async () => {
+    const id2 = `${b.ws}_inv10`;
+    const data = { id: id2, workspaceId: b.ws, number: 'INV-10', customerName: 'Acme', customerId: `${b.ws}_c1`, date: '2026-08-05', dueDate: '2026-09-04', status: 'sent', currency: 'USD',
+      amountCents: 20_000, items: [{ id: 'l1', description: 'Work', quantity: 1, rateCents: 20_000, amountCents: 20_000 }] };
+    const posted = await b.send(b.OWNER, 'POST', `/api/v1/documents/invoices/${id2}/post`, { workspaceId: b.ws, action: 'create', data }, { 'idempotency-key': 'a7-04-inv10' });
+    assert.equal(posted.status, 200, JSON.stringify(posted.body).slice(0, 200));
+    const entry = (await b.entries()).find(e => (e.metadata as { invoiceId?: string } | undefined)?.invoiceId === id2)!;
+    const before = named(b, await b.balances());
+    console.log(`INV-10 posted: ${JSON.stringify(before)}`);
+    const asViewer = await b.send(b.VIEWER, 'DELETE', `/api/v1/transactions/${entry.id}?workspaceId=${b.ws}`);
+    console.log(`DELETE /transactions/<INV-10's entry> as a viewer -> ${asViewer.status} ${JSON.stringify(asViewer.body).slice(0, 140)}`);
+    const asBookkeeper = await b.send(b.BOOKKEEPER, 'DELETE', `/api/v1/transactions/${entry.id}?workspaceId=${b.ws}`);
+    console.log(`DELETE /transactions/<INV-10's entry> as a bookkeeper -> ${asBookkeeper.status} ${JSON.stringify(asBookkeeper.body).slice(0, 140)}`);
+    const asOwner = asBookkeeper.status === 200 ? null : await b.send(b.OWNER, 'DELETE', `/api/v1/transactions/${entry.id}?workspaceId=${b.ws}`);
+    if (asOwner) console.log(`DELETE /transactions/<INV-10's entry> as the owner -> ${asOwner.status} ${JSON.stringify(asOwner.body).slice(0, 140)}`);
+    const stillThere = (await b.entries()).some(e => e.id === entry.id);
+    const invoice = (await b.db.collection('invoices').doc(id2).get()).data()!;
+    console.log(`entry still in the ledger: ${stillThere}; invoice INV-10: status ${invoice.status}, amount ${invoice.amountCents}; ledger now: ${JSON.stringify(named(b, await b.balances()))}`);
+    console.log(`month-end posting check: ${await postingCheck()}`);
+    const deleted = (await b.db.collection('auditLogs').where('workspaceId', '==', b.ws).get()).docs.map(d => d.data()).filter(l => l.action === 'TRANSACTION_DELETED');
+    console.log(`audit rows TRANSACTION_DELETED: ${deleted.length}${deleted[0] ? `; keeps a copy of what was deleted: ${Boolean((deleted[0].details as { deleted?: unknown }).deleted)}` : ''}`);
+    console.log(JSON.stringify({ viewer: asViewer.status, bookkeeper: asBookkeeper.status, owner: asOwner?.status ?? null, stillThere }));
+    assert.deepEqual([asViewer.status, asBookkeeper.status, asOwner?.status, stillThere], [403, 403, 403, true], 'a posted entry is never deleted');
   });
 
   test('what the audit trail kept of the two edits: the action, not what changed', async () => {

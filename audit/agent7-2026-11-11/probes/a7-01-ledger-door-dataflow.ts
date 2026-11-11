@@ -105,3 +105,26 @@ console.log(`  written as validated: ${by('validator')}   generic partial update
 for (const h of hits.sort((a, b) => a.guard.localeCompare(b.guard) || a.file.localeCompare(b.file) || a.line - b.line)) {
   console.log(`  [${h.guard.padEnd(9)}] ${h.file}:${h.line}  via ${h.via}  ${h.call}`);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Second table (used by A7-07): does each file that writes ledger entries mention a closed-period check at all?
+// File level only: a mention does not prove that every path is checked (the dynamic sweep, probe a7-07, does that for
+// 14 writers). A file with NONE writes entries with no closed-period check anywhere in it.
+const LOCK = /\b(assertPostingOpen|postingLock|assertStillOpen|requireOpenPeriod|assertPeriodOpen|validateAndPrepare)\b/g;
+const rows: Array<{ file: string; door: number; direct: number; locks: string }> = [];
+for (const sf of program.getSourceFiles()) {
+  const rel = path.relative(root, sf.fileName).split(path.sep).join('/');
+  if (!rel.startsWith('src/server/') || rel.endsWith('/services/ledgerDoor.ts')) continue;
+  const text = sf.getFullText();
+  const door = (text.match(/\bledger(Write|Create|Mark)\s*\(/g) || []).length;
+  const direct = hits.filter(h => h.file === rel).length;
+  if (door + direct === 0) continue;
+  const counts = new Map<string, number>();
+  for (const m of text.matchAll(LOCK)) counts.set(m[1], (counts.get(m[1]) || 0) + 1);
+  rows.push({ file: rel, door, direct, locks: [...counts].map(([k, v]) => `${k}×${v}`).join(' ') });
+}
+const none = rows.filter(r => !r.locks);
+console.log(`\nfiles under src/server that write ledger entries: ${rows.length}; with no closed-period check mentioned anywhere in the file: ${none.length}`);
+for (const r of rows.sort((a, b) => Number(Boolean(a.locks)) - Number(Boolean(b.locks)) || a.file.localeCompare(b.file))) {
+  console.log(`  ${r.locks ? 'mentions a check' : 'NONE            '}  ${r.file}  (through the door ${r.door}, direct ${r.direct})${r.locks ? `  ${r.locks}` : ''}`);
+}
