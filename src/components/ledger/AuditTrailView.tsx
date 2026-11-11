@@ -7,6 +7,8 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 import { cn, getLocalDateISO } from '../../lib/utils';
 import { auditDescription, auditTime } from '../../lib/auditFormat';
 import { downloadCsv } from '../../lib/csvExport';
+import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 
 interface AuditTrailViewProps {
   auditLogs: AuditLog[];
@@ -58,9 +60,11 @@ const Row = ({ index, style, data }: { index: number, style: React.CSSProperties
 };
 
 const AuditTrailView = React.memo(({ auditLogs = [] }: AuditTrailViewProps) => {
+  useLedgerCollections('auditLogs');
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('ALL');
   const [actionFilter, setActionFilter] = useState('ALL');
+  const auditTruncated = useLedgerStore(s => Boolean(s.truncatedCollections?.auditLogs));
 
   // Extract unique users and actions for filter dropdowns
   const uniqueUsers = useMemo(() => {
@@ -113,6 +117,11 @@ const AuditTrailView = React.memo(({ auditLogs = [] }: AuditTrailViewProps) => {
         <div>
           <h2 className="text-lg font-black text-[var(--text)] uppercase tracking-tight">Audit Trail Matrix</h2>
           <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-0.5">Immutable cryptographic record of system directives</p>
+          {auditTruncated && (
+            <p role="status" className="text-[11px] font-semibold text-amber-400 mt-1">
+              Loaded audit trail is capped in the browser; CSV export includes only loaded entries. Download an Audit Evidence Pack in Settings for the full server archive.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button

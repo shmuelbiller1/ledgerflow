@@ -42,7 +42,7 @@ export function getPlaidClient(): PlaidClientLike {
   return plaidClient;
 }
 
-type AuthedRequest = express.Request & { user: { uid: string; admin?: boolean; developerWorkspaceId?: string } };
+type AuthedRequest = express.Request & { user: { uid: string; email?: string; admin?: boolean; developerWorkspaceId?: string } };
 
 function plaidErrorCode(err: unknown): string | undefined {
   return (err as { response?: { data?: { error_code?: string } } })?.response?.data?.error_code;
@@ -109,6 +109,18 @@ plaidRouter.post("/exchange_public_token", ledgerWriters, async (req, res) => {
       status: 'active',
       createdAt: new Date().toISOString(),
     });
+    await writeServerAuditLog({
+      workspaceId,
+      uid: user.uid,
+      email: user.email,
+      action: 'BANK_CONNECTED',
+      entityType: 'bank',
+      entityId: ref.id,
+      details: {
+        description: `Connected bank feed${institutionName ? ` (${institutionName})` : ''}`,
+        institutionName: institutionName || '',
+      },
+    }, { db: getDb() });
     // AU-1 (Codex on #458): Plaid sends SYNC_UPDATES_AVAILABLE only after the item's first /transactions/sync,
     // so start it now; a failure here leaves the connection saved and the next Sync picks it up
     // CodeRabbit on #458: say whether the first sync ran, so the screen can ask for a Sync when it did not
@@ -142,6 +154,15 @@ plaidRouter.post("/reconnected", ledgerWriters, async (req, res) => {
     const bank = (await ref.get()).data();
     if (!bank || bank.workspaceId !== workspaceId) return sendError(res, "Bank connection not found", 404);
     await ref.update({ status: 'active', updatedAt: new Date().toISOString() });
+    await writeServerAuditLog({
+      workspaceId,
+      uid: (req as AuthedRequest).user.uid,
+      email: (req as AuthedRequest).user.email,
+      action: 'BANK_RECONNECTED',
+      entityType: 'bank',
+      entityId: bankId,
+      details: { description: `Reconnected bank feed (${bank.institutionName || bankId})` },
+    }, { db: getDb() });
     // AU-1 (Codex on #458): Link update mode ignores `webhook`, so register it on the item directly
     // CodeRabbit on #458: a failed registration is said in the answer, not only logged
     let webhookRegistered: boolean | undefined;

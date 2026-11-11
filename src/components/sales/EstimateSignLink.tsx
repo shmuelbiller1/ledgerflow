@@ -22,8 +22,9 @@ export function EstimateSignLink({ workspaceId, estimate }: { workspaceId: strin
       if (!res.ok) throw new Error(body.message || 'The signing link could not be made');
       const url = `${window.location.origin}/e/${body.token}`;
       setLink(url);
-      await navigator.clipboard?.writeText(url).catch(() => {});
-      toast.success('Signing link copied: send it to the customer');
+      let copied = true;
+      await navigator.clipboard?.writeText(url).catch(() => { copied = false; });
+      toast.success(copied ? 'Signing link copied: send it to the customer' : 'Signing link ready: copy it below and send it to the customer');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {

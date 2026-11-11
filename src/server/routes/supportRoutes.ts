@@ -1,7 +1,7 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
-import { getDb } from '../db/firestore';
+import { getDb, isWorkspaceMemberData } from '../db/firestore';
 import { SupportMessage, SupportTicket } from '../../types';
 import { sendSupportNotification } from '../services/emailService';
 import { writeServerAuditLog } from '../services/auditLogService';
@@ -57,7 +57,7 @@ supportRouter.post('/tickets/:id/messages', async (req, res) => {
         // User must be a member of the workspace or ticket owner or platform admin
         const wsDoc = await t.get(db.collection('workspaces').doc(ticketData.workspaceId));
         const isOwner = ticketData.uid === user.uid;
-        const isMember = wsDoc.exists && (wsDoc.data()?.uid === user.uid || wsDoc.data()?.members?.includes(user.uid) || wsDoc.data()?.admins?.[user.uid]);
+        const isMember = wsDoc.exists && isWorkspaceMemberData(wsDoc.data(), user, ticketData.workspaceId);
         if (!isAdminUser && !isOwner && !isMember) {
           throw new Error('Forbidden: Access denied to this workspace');
         }

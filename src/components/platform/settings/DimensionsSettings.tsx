@@ -18,7 +18,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { doc, updateDoc, writeBatch } from '../../../lib/db/firestore';
-import { db } from '../../../firebase';
+import { db, getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { 
@@ -350,23 +350,31 @@ function DimensionsSettingsContent() {
         });
         await batch.commit();
 
-        // Batch update modified transactions in chunks of 450
+        // Batch update ONLY transactions whose lines actually changed during dimension migration
+        const token = await getIdToken();
         const chunkSize = 450;
-        for (let i = 0; i < updatedTransactions.length; i += chunkSize) {
-          const chunk = updatedTransactions.slice(i, i + chunkSize);
-          const tBatch = writeBatch(db);
-          let batchHasWrites = false;
-          chunk.forEach(tx => {
-            if (tx.id) {
-              const txRef = doc(db, 'transactions', tx.id);
-              tBatch.update(txRef, { lines: tx.lines });
-              batchHasWrites = true;
-            }
-          });
-          if (batchHasWrites) {
-            await tBatch.commit();
-          }
+        const changedTransactions = updatedTransactions.filter((tx, idx) => {
+          if (!tx.id) return false;
+          const prev = transactions[idx];
+          if (!prev || tx === prev || tx.lines === prev.lines) return false;
+          return JSON.stringify(tx.lines) !== JSON.stringify(prev.lines);
+        });
+        const chunks: Array<Array<{ id: string; data: { lines: typeof updatedTransactions[number]['lines'] } }>> = [];
+        for (let i = 0; i < changedTransactions.length; i += chunkSize) {
+          const updates = changedTransactions.slice(i, i + chunkSize).map(tx => ({ id: tx.id, data: { lines: tx.lines } }));
+          if (updates.length > 0) chunks.push(updates);
         }
+        await Promise.all(chunks.map(async updates => {
+          const res = await fetch('/api/v1/transactions/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
+          });
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody?.error || errBody?.message || 'Failed to migrate transaction dimensions');
+          }
+        }));
       }
 
       // Update store slice

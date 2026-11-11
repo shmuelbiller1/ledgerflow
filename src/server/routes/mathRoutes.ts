@@ -14,12 +14,12 @@ import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 export const mathRouter = express.Router();
 
-function sendError(res: express.Response, message: string, status: number = 500, details?: any) {
+function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
   console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, logSafeDetail(details));
   res.status(status).json({
     status: "error",
     message,
-    ...(details && { details })
+    ...(details ? { details } : {})
   });
 }
 
@@ -142,7 +142,7 @@ mathRouter.post("/kpi", async (req: express.Request, res: express.Response) => {
       totalLiabilitiesCents, totalEquityCents
     } = parsed.data;
     
-    const result: any = { success: true };
+    const result: Record<string, unknown> = { success: true };
     
     if (netProfitCents !== undefined && investmentCostCents !== undefined) {
       result.roiPercentage = TruthEngine.calculateROI(netProfitCents, investmentCostCents);
@@ -184,11 +184,11 @@ mathRouter.post("/temporal", async (req: express.Request, res: express.Response)
     let calculatedAmountCents = 0;
     
     if (type === 'tax') {
-      calculatedAmountCents = TruthEngine.evaluateHistoricalTaxLiability(amountCents, timeSeries as any, targetDate);
-      effectiveValue = TruthEngine.resolveEffectiveValue(timeSeries as any, targetDate);
+      calculatedAmountCents = TruthEngine.evaluateHistoricalTaxLiability(amountCents, timeSeries as never, targetDate);
+      effectiveValue = TruthEngine.resolveEffectiveValue(timeSeries as never, targetDate);
     } else if (type === 'currency') {
-      calculatedAmountCents = TruthEngine.evaluateHistoricalConversion(amountCents, timeSeries as any, targetDate);
-      effectiveValue = TruthEngine.resolveEffectiveValue(timeSeries as any, targetDate);
+      calculatedAmountCents = TruthEngine.evaluateHistoricalConversion(amountCents, timeSeries as never, targetDate);
+      effectiveValue = TruthEngine.resolveEffectiveValue(timeSeries as never, targetDate);
     }
     
     res.json({
@@ -211,7 +211,7 @@ mathRouter.post("/valuation", async (req: express.Request, res: express.Response
       return sendError(res, "Validation failed", 400, parsed.error.issues);
     }
     
-    const result: any = { success: true };
+    const result: Record<string, unknown> = { success: true };
     const { 
       equityCents, debtCents, costOfEquity, costOfDebt, taxRate,
       forecastedFCFF, wacc, terminalGrowthRate,

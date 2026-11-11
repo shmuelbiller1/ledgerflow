@@ -35,6 +35,32 @@ jobs:
           HUSKY: '0'
           NODE_ENV: development
           npm_config_production: 'false'
+      - name: Scan tracked source for accidental private keys or live secret tokens
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import fs from 'node:fs';
+          const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+          const skip = /^(src\/tests\/|e2e\/|audit\/|docs\/|supabase-config\.json$)/;
+          const patterns = [
+            ['PEM private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
+            ['Stripe live secret key', /\bsk_live_[0-9a-zA-Z]{24,}\b/],
+            ['GitHub personal access token', /\bghp_[0-9a-zA-Z]{36,}\b/],
+            ['Supabase service-role JWT', /\bsbp_[0-9a-f]{40,}\b/],
+          ];
+          const hits = [];
+          for (const file of tracked) {
+            if (skip.test(file) || !fs.existsSync(file) || fs.statSync(file).size > 2_000_000) continue;
+            const text = fs.readFileSync(file, 'utf8');
+            for (const [label, rx] of patterns) {
+              if (rx.test(text)) hits.push(`${file}: ${label}`);
+            }
+          }
+          if (hits.length) {
+            console.error('Potential secret detected in tracked files:\n' + hits.join('\n'));
+            process.exit(1);
+          }
+          NODE
       - name: Generate CycloneDX software bill of materials
         run: npm sbom --sbom-format=cyclonedx > sbom.json
       - name: Check inventory and record license metadata

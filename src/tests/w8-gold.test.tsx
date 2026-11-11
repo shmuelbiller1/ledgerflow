@@ -300,10 +300,17 @@ describe('W8 with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
       ['New York state sales tax', 4, 80_000, 3_200, 0, 3_200],
       ['Texas state sales tax', 6.25, 200_000, 12_500, 0, 12_500],
     ]);
-    // the return is filed for the quarter: the kept copy has the same boxes
-    const filed = await send('POST', `/api/v1/workspaces/${ws}/tax-returns`, { ...Q3, reference: '2026-Q3' });
-    assert.equal(filed.status, 200, JSON.stringify(filed.body));
-    assert.deepEqual(filed.body.return.boxes, r.boxes);
+    // F-08: with three US state permits, each state's return is filed per permit registration
+    for (const permit of usQuarterPermits(PROFILES, Q3.endDate)) {
+      const filed = await send('POST', `/api/v1/workspaces/${ws}/tax-returns`, {
+        ...Q3,
+        registration: permit.registration,
+        reference: `2026-Q3-${permit.state}`,
+      });
+      assert.equal(filed.status, 200, JSON.stringify(filed.body));
+      assert.equal(filed.body.return.kind, 'sales_tax');
+      assert.equal(filed.body.return.jurisdiction, permit.state);
+    }
   });
 
   test('use tax, TX, Q3: UT-1 taxable 120,000 → 7,500, groceries 30,000 exempt; 430,000 of service lines left for a person', async () => {
@@ -342,7 +349,12 @@ describe('W8 with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
       quarter: '2026-Q3', today: '2026-10-21', currency: 'USD', profiles: PROFILES, order: ['world'],
       customers: await customers(), invoices: await salesDocs(), bills: await all('bills') as never, items: await items(),
       vendors: await all('vendors') as never, payments: await all('payments') as never, useTaxState: 'TX',
-      filedPeriods: filed.body.returns.map((x: { startDate: string; endDate: string }) => ({ startDate: x.startDate, endDate: x.endDate })),
+      filedPeriods: filed.body.returns.map((x: { startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax' }) => ({
+        startDate: x.startDate,
+        endDate: x.endDate,
+        ...(x.registration ? { registration: x.registration } : {}),
+        ...(x.kind ? { kind: x.kind } : {}),
+      })),
     });
     const step = (stepId: string) => journey.steps.find(s => s.id === stepId)!;
     assert.deepEqual(step('state-returns').returns.map(r => [r.state, r.grossSalesCents, r.exemptSalesCents, r.taxableSalesCents, r.taxCollectedCents, r.dueDate, r.filed, r.nexusThresholdCents, r.nexusSalesReached]), [

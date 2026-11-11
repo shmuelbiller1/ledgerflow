@@ -303,7 +303,17 @@ describe('L-123 step 2: the server reports read balancesAsOf', { skip: !url && '
       assert.equal(await opening.openingBefore(db, ws, accounts, '2026-03-31', { gross: true }), null);
       assert.ok(await opening.openingBefore(db, ws, accounts, '2026-03-31'), 'a net opening is still read');
       for (const [path, q] of queries(ws, '2026-03-31', [['project', 'A']])) assert.equal(await report(path, q), await beforeJson(ws, path, q), `old snapshot: ${path}`);
-      await entry('orphan', '2025-03-01', [['gone', 700], ['cash', -700]]);
+      {
+        const { withCorruptFixtureAllowed } = await import('./helpers/balanceRouteHarness');
+        await withCorruptFixtureAllowed(db.pool, client => client.query(
+          `INSERT INTO public.transactions (id, data) VALUES ($1, $2::jsonb)`,
+          [id('orphan'), JSON.stringify({
+            workspaceId: ws, uid: 'owner-1', date: '2025-03-01', description: 'orphan', status: 'completed',
+            totalAmountCents: 700, currency: 'USD',
+            lines: [{ accountId: id('gone'), amountCents: 700 }, { accountId: id('cash'), amountCents: -700 }],
+          })],
+        ));
+      }
       await svc.buildSnapshot(db, ws, '2025-12-31', 'test');
       assert.equal(await opening.openingBefore(db, ws, accounts, '2026-03-31', { gross: true }), null);
       const bs = await report('balance-sheet', { workspaceId: ws, endDate: '2026-02-28' });

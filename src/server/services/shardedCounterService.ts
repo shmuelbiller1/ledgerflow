@@ -1,7 +1,7 @@
-import { FieldValue } from "../db/firestore";
+import { FieldValue, type Firestore, type QueryDocumentSnapshot } from "../db/firestore";
 
 export async function incrementShardedCounter(
-  db: any, 
+  db: Firestore, 
   workspaceId: string, 
   metric: 'totalQueriesThisMonth' | 'computeCreditBalance', 
   value: number
@@ -23,7 +23,7 @@ export async function incrementShardedCounter(
 }
 
 export async function getShardedCounterValue(
-  db: any, 
+  db: Firestore, 
   workspaceId: string, 
   metric: 'totalQueriesThisMonth' | 'computeCreditBalance', 
   baseline: number
@@ -35,7 +35,7 @@ export async function getShardedCounterValue(
       .get();
     
     let shardSum = 0;
-    snapshot.forEach((doc: any) => {
+    snapshot.forEach((doc: QueryDocumentSnapshot) => {
       shardSum += (doc.data()?.value || 0);
     });
     

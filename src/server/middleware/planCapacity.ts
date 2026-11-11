@@ -10,7 +10,7 @@ export const PLAN_LIMITS: Record<string, { transactions: number; seats: number }
   ['sandbox', { transactions: planFor('sandbox').limits.transactions, seats: planFor('sandbox').limits.seats }] as const,
 ]);
 
-export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storage', dbOverride?: any) {
+export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storage', dbOverride?: unknown) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
       const workspaceId =
@@ -24,7 +24,7 @@ export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storag
         return res.status(400).json({ status: 'error', message: 'Missing workspaceId parameter' });
       }
 
-      const db = dbOverride || getDb();
+      const db = (dbOverride as Firestore | undefined) || getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
       if (!wsDoc.exists) {
         return res.status(404).json({ status: 'error', message: 'Workspace not found' });
@@ -43,8 +43,9 @@ export function requirePlanCapacity(resource: 'transactions' | 'seats' | 'storag
         const txQuery = db.collection('transactions').where('workspaceId', '==', workspaceId);
         
         let txCount = 0;
-        if (typeof (txQuery as any).count === 'function') {
-          const countSnap = await (txQuery as any).count().get();
+        const countable = txQuery as unknown as { count?: () => { get: () => Promise<{ data: (() => { count?: number } | undefined) | { count?: number } }> } };
+        if (typeof countable.count === 'function') {
+          const countSnap = await countable.count().get();
           txCount = typeof countSnap.data === 'function' ? (countSnap.data()?.count ?? 0) : (countSnap.data?.count ?? 0);
         } else {
           // Fallback for test mocks lacking native count aggregation

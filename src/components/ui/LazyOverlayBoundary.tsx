@@ -44,7 +44,7 @@ export class LazyOverlayBoundary extends React.Component<LazyOverlayBoundaryProp
     void reportClientError(error, {
       severity: 'warning',
       componentStack: errorInfo.componentStack || undefined,
-    }).catch(() => {});
+    }).catch((reportErr) => { console.warn('[LazyOverlayBoundary] Telemetry delivery skipped:', reportErr); });
 
     onDismiss?.();
     const loadFailure = isChunkLoadFailure(error);

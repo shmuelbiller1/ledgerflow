@@ -180,3 +180,17 @@ Both probes run inside a transaction that is rolled back. Note for the first pro
 `delete` that row-level security hides affects no rows and reports no error, so rows 12 and 13 print
 "ALLOWED" although nothing changed; the second probe checks the stored values and shows the account
 balance and the audit row were not touched.
+
+---
+
+## Remediation Status (11 Nov 2026 — PR #647)
+
+Every finding in this audit, together with the carried Agent #6 (`F-01..F-10`) and Agent #8 (`A8-1111-F1..F6`) items, has been remediated and verified against PostgreSQL 17:
+
+- **C-1 / M-5 / F-03 / F-03b (`#161`)**: Added `supabase/migrations/20261111000000_ledger_integrity_and_rls_hardening.sql` (`lf_transactions_ledger_integrity()` enforcing balanced integer lines + workspace `chartAccounts` integrity; server-only writes on `transactions`, `creditNotes`, `vendorCredits`, `auditLogs`, `idempotency`, `loginAudits`, `workspaceUsage`; key-existence guard on `workspaces` `roles`/`admins` bootstrap) and moved direct client mutations onto `/api/v1/transactions` and `/api/v1/transactions/batch`.
+- **C-2 / F-02**: Removed the `QBOMigrationWizard` client direct-write fallback and unified constant-time bearer verification via `timingSafeSecretMatch` across `systemJobAuth.ts`, `adminRoutes.ts`, and `invitePublicRoutes.ts`.
+- **C-3 / F-09 / F-06**: Added server-authoritative `writeServerAuditLog` (with SHA-256 `prevHash`/`chainHash` tamper-evident chaining and `verifyAuditHashChain`), `recordAuthEvent` + `GET /api/v1/auth/login-audits`, `.gitleaks.toml` + CI secret scan in `security-sbom.yml`, and `truncatedCollections.auditLogs` disclosure in `AuditTrailView.tsx`.
+- **F-01 / F-01b / F-08 / A8-1111-F1..F3**: Unified `placeState` (`state` + legacy `region`), `usSaleDestination`, country-border profile inheritance, and per-permit `sales_tax:<STATE>` return filing in `taxReturnService.ts`.
+- **F-04 / F-05 / F-10**: Wired `check:prod-env` into `package.json` and `.github/workflows/ci.yml`, mounted `authRateLimiter` on session revocation and account deletion, and unified idempotent payload-hashed commits (`runOptionalIdempotent` + `ledgerCreate`) across `leaseRoutes`, `revenueRoutes`, and `inventoryRoutes`.
+- **M-1..M-9 & A8-1111-F5..F6**: Added server-backed `/api/v1/reports/*` operational endpoints + `useServerOperationalReport` for capped collections (`M-1`), calibrated `report-speed-12m.test.tsx` (`M-2`), lowered ESLint `--max-warnings` to `12` and `quality-baseline.json` `anyCount` to `0` (`M-3`), centralized `isWorkspaceMemberData` across 17 sites (`M-4`), archived stale status docs (`M-6`), wired `calculateLateFee` into `working-capital-aging.ts` (`M-7`), lowered default JSON limit to `1mb` with scoped `50mb` restore override (`M-8`), eliminated non-test `.catch(() => {})` sites (`M-9`), updated `computeInventoryValuation` docstring (`A8-1111-F5`), and fixed set-valued `composeFacts` verification (`A8-1111-F6`).
+

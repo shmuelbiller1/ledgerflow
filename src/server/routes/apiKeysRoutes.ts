@@ -8,6 +8,7 @@ import { SecurityService } from "../../services/securityService";
 import { getDb, FieldValue } from "../db/firestore";
 import { apiKeyLimit } from "../middleware/rateLimiters";
 import { openApiDocument } from "../openapi";
+import { writeServerAuditLog } from "../services/auditLogService";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -73,6 +74,19 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
 
       const db = getDb();
       await db.collection("apiKeys").doc(keyId).set(keyPayload);
+      await writeServerAuditLog({
+        workspaceId,
+        uid: userId,
+        email: authReq.user.email,
+        action: 'API_KEY_PROVISIONED',
+        entityType: 'api_key',
+        entityId: keyId,
+        details: {
+          description: `Provisioned API key "${keyPayload.name}"`,
+          scopes: keyPayload.scopes,
+          expiresAt: keyPayload.expiresAt,
+        },
+      }, { db });
 
       // Return full token signature once
       const fullKeySecret = `${keyId}.${randomSecret}`;
@@ -121,6 +135,19 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
       }
 
       await db.collection("apiKeys").doc(keyId).delete();
+      if (workspaceId) {
+        await writeServerAuditLog({
+          workspaceId,
+          uid: authReq.user.uid,
+          email: authReq.user.email,
+          action: 'API_KEY_REVOKED',
+          entityType: 'api_key',
+          entityId: keyId,
+          details: {
+            description: `Revoked API key "${keyData?.name || keyId}"`,
+          },
+        }, { db });
+      }
       res.json({ status: "success", message: "API key revoked successfully." });
     } catch (err) {
       handleApiError(res, err);

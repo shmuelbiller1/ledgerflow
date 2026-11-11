@@ -17,7 +17,7 @@
 import { COUNTED_SALES } from '../taxCodes';
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { nexusWatch, type NexusWatchResult } from './usNexus';
-import { registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+import { placeState, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 
 /** The states whose tables LedgerFlow has checked (AI #1, 20 Oct); the same list as the invoice suggestion's. */
 export const US_NEXUS_SUPPORTED_STATES = ['TX', 'CA', 'NY', 'WA', 'CO'] as const;
@@ -127,12 +127,17 @@ export function usNexusWatch(input: {
       if (!window) continue;
       // a credit note follows its invoice: the same destination and the same selling entity
       const invoice = sign === -1 && doc.invoiceId ? invoicesById.get(doc.invoiceId) : undefined;
-      const placeOf = (d: NexusSaleDocument | undefined) => d && (d.metadata?.taxPlace || (d.shippingAddress?.state ? { country: d.shippingAddress.country || 'US', state: d.shippingAddress.state } : undefined));
+      const placeOf = (d: NexusSaleDocument | undefined) => {
+        if (!d) return undefined;
+        if (d.metadata?.taxPlace) return d.metadata.taxPlace;
+        const st = placeState(d.shippingAddress);
+        return st ? { country: d.shippingAddress?.country || 'US', state: st } : undefined;
+      };
       // the sale's own destination first (its tax place, then its ship-to), then the customer's place
       const customerPlace = ((doc.customerId ? customers.get(doc.customerId) : undefined)?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace;
       const place = placeOf(doc) || placeOf(invoice) || customerPlace;
       if (place && String(place.country || '').toUpperCase() !== 'US') continue; // a sale abroad is in no state
-      const state = String(place?.state || '').toUpperCase();
+      const state = placeState(place);
       if (!state) { if (sign === 1) unplacedDocuments++; continue; }
       const own = sellerLabels(doc);
       const labels = own === undefined && invoice ? sellerLabels(invoice) : own;
@@ -142,7 +147,7 @@ export function usNexusWatch(input: {
       const key = `${entity}|${state}`;
       const row = totals.get(key) || {
         entity, ...(seller.name ? { entityName: seller.name } : {}), state,
-        permit: registrationsOn(seller, 'sales_tax', asOf).some(r => r.place.state === state),
+        permit: registrationsOn(seller, 'sales_tax', asOf).some(r => placeState(r.place) === state),
         thisYear: { salesCents: 0, orders: 0 }, lastYear: { salesCents: 0, orders: 0 },
       };
       // credit notes lower the sales of the year they fall in; they are not sales, so the count is unchanged

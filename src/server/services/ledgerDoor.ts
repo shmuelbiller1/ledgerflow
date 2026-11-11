@@ -63,7 +63,10 @@ export function ledgerCreate(t: Creatable, ref: unknown, entry: Record<string, u
 }
 
 /** The header fields a posted entry may change after posting; amounts and lines never change in place. */
-export const LEDGER_MARK_FIELDS = new Set(['status', 'voidedReason', 'voidedAt', 'reversalEventId', 'updatedAt']);
+export const LEDGER_MARK_FIELDS = new Set([
+  'status', 'voidedReason', 'voidedAt', 'reversalEventId', 'updatedAt',
+  'isReconciled', 'reconciled', 'reconciledAt', 'isCleared', 'clearanceDate', 'clearedAt',
+]);
 
 interface Updatable { update(ref: unknown, data: Record<string, unknown>): unknown }
 

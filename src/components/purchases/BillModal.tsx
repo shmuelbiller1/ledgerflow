@@ -11,7 +11,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Save, CreditCard } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Bill, Vendor, ChartAccount } from '../../types';
-import { format } from 'date-fns';
+import { format } from 'date-fns/format';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { applyRule, suggestRule } from '../../lib/allocationRules';

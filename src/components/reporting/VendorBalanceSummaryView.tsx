@@ -2,6 +2,8 @@ import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { Building, Mail, Phone } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../server/reports/partyReports';
@@ -14,12 +16,20 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   useLedgerCollections('bills', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  // Follow the Reports page period when it gives one
+  const isTruncated = Boolean(truncated.vendors || truncated.bills || truncated.payments || truncated.vendorCredits);
+  const serverRows = useServerOperationalReport<VendorBalanceSummaryRow[]>(
+    isTruncated && Boolean(workspaceId),
+    workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
+    `${workspaceId}:${asOfDate}:${collectionStamp(vendors, bills, payments, vendorCredits)}`,
+    body => (Array.isArray(body.vendorRows) ? (body.vendorRows as VendorBalanceSummaryRow[]) : undefined),
+  );
 
-  const vendorRows = useMemo<VendorBalanceSummaryRow[]>(() => {
+  const localVendorRows = useMemo<VendorBalanceSummaryRow[]>(() => {
     return computeVendorBalanceSummary(
       vendors,
       bills,
@@ -28,6 +38,7 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
       asOfDate
     );
   }, [vendors, bills, payments, vendorCredits, asOfDate]);
+  const vendorRows = serverRows || localVendorRows;
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return vendorRows;

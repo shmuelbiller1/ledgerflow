@@ -65,8 +65,12 @@ describe('Client queries (database)', { skip: !url && 'LF_TEST_DATABASE_URL not 
       roles: { 'acct-1': 'accountant', 'book-1': 'bookkeeper', 'book-2': 'bookkeeper', 'view-1': 'viewer' },
     });
     await db.collection('workspaces').doc(other).set({ uid: 'owner-2', name: 'Other', members: ['owner-2'] });
-    await db.collection('transactions').doc(id('amazon')).set({ workspaceId: ws, uid: 'book-1', date: '2026-09-14', description: 'Amazon', totalAmountCents: 34000, currency: 'USD', lines: [], status: 'posted' });
-    await db.collection('transactions').doc(id('theirs')).set({ workspaceId: other, uid: 'owner-2', date: '2026-09-14', description: 'Not yours', totalAmountCents: 100, currency: 'USD', lines: [], status: 'posted' });
+    await db.collection('chartAccounts').doc(id('cash')).set({ id: id('cash'), workspaceId: ws, name: 'Bank', code: '1010', type: 'asset' });
+    await db.collection('chartAccounts').doc(id('exp')).set({ id: id('exp'), workspaceId: ws, name: 'Supplies', code: '5010', type: 'expense' });
+    await db.collection('chartAccounts').doc(`${other}_cash`).set({ id: `${other}_cash`, workspaceId: other, name: 'Bank', code: '1010', type: 'asset' });
+    await db.collection('chartAccounts').doc(`${other}_exp`).set({ id: `${other}_exp`, workspaceId: other, name: 'Supplies', code: '5010', type: 'expense' });
+    await db.collection('transactions').doc(id('amazon')).set({ workspaceId: ws, uid: 'book-1', date: '2026-09-14', description: 'Amazon', totalAmountCents: 34000, currency: 'USD', lines: [{ accountId: id('cash'), amountCents: -34000 }, { accountId: id('exp'), amountCents: 34000 }], status: 'posted' });
+    await db.collection('transactions').doc(id('theirs')).set({ workspaceId: other, uid: 'owner-2', date: '2026-09-14', description: 'Not yours', totalAmountCents: 100, currency: 'USD', lines: [{ accountId: `${other}_cash`, amountCents: -100 }, { accountId: `${other}_exp`, amountCents: 100 }], status: 'posted' });
     const express = (await import('express')).default;
     const { workspaceRouter } = await import('../server/routes/workspaceRoutes');
     const app = express();
@@ -80,7 +84,7 @@ describe('Client queries (database)', { skip: !url && 'LF_TEST_DATABASE_URL not 
   after(async () => {
     server?.close();
     for (const w of [ws, other]) {
-      for (const table of ['clientQueries', 'notifications', 'transactions', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [w]);
+      for (const table of ['clientQueries', 'notifications', 'transactions', 'chartAccounts', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [w]);
     }
     await db.terminate();
   });

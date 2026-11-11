@@ -117,7 +117,8 @@ export function composeFacts(sources: FactSources | null | undefined, dimensions
     const stated = all.filter(f => f.attribute === attribute);
     if (SET_ATTRIBUTES.has(attribute)) {
       const unique = stated.filter((f, i) => stated.findIndex(g => g.value === f.value) === i);
-      facts[attribute] = { attribute, values: unique.map(f => f.value), from: unique.map(f => f.from), verified: unique.every(isVerified) };
+      const verified = unique.every(f => stated.some(g => g.value === f.value && isVerified(g)));
+      facts[attribute] = { attribute, values: unique.map(f => f.value), from: unique.map(f => f.from), verified };
       continue;
     }
     const fromLabels = stated.filter(f => f.from !== 'books');

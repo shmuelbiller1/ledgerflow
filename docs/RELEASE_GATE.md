@@ -3,6 +3,7 @@
 The decision to invite testers or customers follows **this table**, not the number of open issues.
 Zero bugs is not the bar; the supported workflows working correctly is. The lead keeps it current
 (LEAD_RUNBOOK step 8) and every AI updates its row when it finishes work on that workflow.
+*(Canonical status index: workflow readiness lives here; per-feature test evidence lives in [`CAPABILITIES.md`](CAPABILITIES.md); historical status snapshots live under [`archive/`](archive/).)*
 
 ## Bug categories
 

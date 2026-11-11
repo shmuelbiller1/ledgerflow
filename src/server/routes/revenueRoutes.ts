@@ -1,11 +1,13 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
-import { FieldValue } from '../db/firestore';
+import { FieldValue, getDb, assertPeriodOpen, isWorkspaceMemberData } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import { getDb, assertPeriodOpen } from '../db/firestore';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { mayPostEntries } from '../http/ledgerWriter';
+import { ledgerCreate } from '../services/ledgerDoor';
+import { writeServerAuditLog } from '../services/auditLogService';
+import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
 
 const RecognizeRevenueSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -37,28 +39,22 @@ revenueRouter.post('/recognize', async (req, res) => {
     // 1. Authorize workspace membership FIRST before checking idempotency (#82)
     const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
     const wsData = wsDoc.data();
-    if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+    if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, workspaceId)) {
       return res.status(403).json({ error: 'Not a member' });
     }
     if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
 
-    // 2. Check idempotency record AFTER authorization (#82)
-    const idempotencyKey = (req.headers['idempotency-key'] as string) || (contractId && periodId ? `${contractId}_${periodId}` : undefined);
-    if (idempotencyKey) {
-      const idempDoc = await db.collection('idempotencyKeys').doc(`${workspaceId}_rev_${idempotencyKey}`).get();
-      if (idempDoc.exists) {
-        return res.json(idempDoc.data()?.response);
-      }
-    }
+    const explicitOpId = extractCanonicalOperationId(req);
+    const rawOpId = explicitOpId || (contractId && periodId ? `${contractId}_${periodId}` : undefined);
 
     const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
     const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
 
-    // 3. Validate period lock
+    // 2. Validate period lock
     await assertPeriodOpen(db, workspaceId, txDate, user.uid);
 
     const tx = {
-      id: db.collection("transactions").doc().id,
+      id: db.collection('transactions').doc().id,
       workspaceId,
       uid: user.uid,
       date: txDate,
@@ -73,19 +69,19 @@ revenueRouter.post('/recognize', async (req, res) => {
         {
           id: 'line-1',
           accountId: deferredAccountId,
-          amountCents: amountCents, // Debit Liability
+          amountCents: amountCents,
           description: 'Recognized revenue - reducing liability'
         },
         {
           id: 'line-2',
           accountId: revenueAccountId,
-          amountCents: -amountCents, // Credit Revenue
+          amountCents: -amountCents,
           description: 'Recognized revenue - increasing income'
         }
       ]
     };
 
-    // 4. Validate through canonical validator (#102-R)
+    // 3. Validate through canonical validator (#102-R)
     const validatedTx = await TransactionValidator.validateAndPrepare(tx, {
       workspaceId,
       user: { uid: user.uid, admin: user.admin },
@@ -93,38 +89,49 @@ revenueRouter.post('/recognize', async (req, res) => {
     });
 
     const responsePayload = {
-      status: 'ok',
+      status: 'ok' as const,
       message: 'Revenue recognized successfully (ASC 606 compliance).',
       transactionId: validatedTx.id
     };
 
-    let resultResponse = responsePayload;
-
-    await db.runTransaction(async (t: any) => {
-      if (idempotencyKey) {
-        const idempRef = db.collection('idempotencyKeys').doc(`${workspaceId}_rev_${idempotencyKey}`);
-        const idempSnap = await t.get(idempRef);
-        if (idempSnap.exists) {
-          resultResponse = idempSnap.data()?.response || responsePayload;
-          return;
-        }
+    const performCommit = async (t: Parameters<Parameters<typeof db.runTransaction>[0]>[0]) => {
+      const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
+      if (!isWorkspaceMemberData(wsNow, user, workspaceId) || !mayPostEntries(wsNow, user)) {
+        throw Object.assign(new Error('Only owners, accountants and bookkeepers post entries'), { status: 403 });
       }
-
       const txRef = db.collection('transactions').doc(validatedTx.id);
-      t.set(txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      await writeServerAuditLog({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: 'REVENUE_RECOGNIZED',
+        entityType: 'transaction',
+        entityId: validatedTx.id,
+        details: {
+          description: `Recognized revenue for contract ${contractId || 'Unknown'} (${amountCents} cents) on ${txDate}`,
+          contractId: contractId || null,
+          periodId: periodId || null,
+          amountCents,
+          deferredAccountId,
+          revenueAccountId,
+          date: txDate,
+        },
+      }, { db, tx: t });
+      return responsePayload;
+    };
 
-      if (idempotencyKey) {
-        const idempRef = db.collection('idempotencyKeys').doc(`${workspaceId}_rev_${idempotencyKey}`);
-        t.set(idempRef, {
-          response: responsePayload,
-          timestamp: new Date().toISOString(),
-          workspaceId
-        });
-      }
-    });
+    const resultResponse = await runOptionalIdempotent(
+      { workspaceId, operationType: 'REVENUE_RECOGNIZE', rawOperationId: rawOpId, legacyPrefix: 'rev', actor: explicitOpId ? user.uid : '', payload: parseResult.data },
+      performCommit,
+    );
 
     res.json(resultResponse);
   } catch (e) {
-    res.status(errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400).json({ error: errorMessage(e) });
+    const explicitStatus = (e as { status?: number })?.status;
+    const status = typeof explicitStatus === 'number'
+      ? explicitStatus
+      : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
+    res.status(status).json({ error: errorMessage(e) });
   }
 });

@@ -10,7 +10,7 @@ import { parseLocalDate, cn, formatCurrency, getLocalDateISO, safeConfirm, forma
 import { getIdToken } from '../../firebase';
 import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays } from 'date-fns/differenceInDays';
 import { motion } from 'motion/react';
 import InvoiceModal from './InvoiceModal';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';

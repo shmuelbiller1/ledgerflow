@@ -58,8 +58,8 @@ export default function UsQuarterJourneyReportView() {
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const { loading } = useLedgerCollections('invoices', 'creditNotes', 'bills', 'customers', 'vendors', 'payments', 'inventory');
   const [quarterText, setQuarterText] = useState(() => quarterOfDate(getLocalDateISO()));
-  // the returns the server has recorded for this workspace, so "recorded as filed" is a fact, not a guess
-  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string }> | null>(null);
+  // the returns the server has recorded for this workspace, matched by registration and kind (F-08)
+  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax' }> | null>(null);
   const currency = workspace?.currency || 'USD';
   useEffect(() => {
     let cancelled = false;
@@ -71,9 +71,14 @@ export default function UsQuarterJourneyReportView() {
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string }>)
+        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string; kind?: 'vat' | 'sales_tax' }>)
           .filter(r => typeof r.startDate === 'string' && typeof r.endDate === 'string')
-          .map(r => ({ startDate: r.startDate!, endDate: r.endDate! })));
+          .map(r => ({
+            startDate: r.startDate!,
+            endDate: r.endDate!,
+            ...(typeof r.registration === 'string' && r.registration ? { registration: r.registration } : {}),
+            ...(r.kind === 'vat' || r.kind === 'sales_tax' ? { kind: r.kind } : {}),
+          })));
       } catch { if (!cancelled) setFiledPeriods([]); }
     };
     void load();
@@ -196,7 +201,7 @@ function StateReturnTable({ returns, currency }: { returns: UsQuarter['steps'][n
           <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.taxCollectedCents, currency)}</td>
           <td className="py-1 px-2">{r.byJurisdiction.map(part => `${part.name} ${formatCurrency(part.taxCents, currency)}`).join(', ') || '—'}</td>
           <td className="py-1 px-2 whitespace-nowrap">{r.dueDate || 'not in the planning calendar'}{r.dueNote ? <div className="text-xs text-[var(--muted)]">{r.dueNote}</div> : null}</td>
-          <td className="py-1 px-2">{r.filed ? 'Yes' : 'Not recorded here'}</td>
+          <td className="py-1 px-2">{r.filed ? 'Yes' : r.recordedForDates ? 'Period record only (not per state)' : 'Not recorded here'}</td>
         </tr>)}
       </tbody>
     </table>

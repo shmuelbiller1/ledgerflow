@@ -38,7 +38,7 @@ export default function EntryLinks({ transactionId }: { transactionId: string })
   useEffect(() => {
     if (!workspaceId || !uid) return;
     let live = true;
-    call(workspaceId, `?transactionId=${encodeURIComponent(transactionId)}`).then(data => { if (live) setLinks(data.links || []); }).catch(() => {});
+    call(workspaceId, `?transactionId=${encodeURIComponent(transactionId)}`).then(data => { if (live) setLinks(data.links || []); }).catch((err) => { console.warn('[EntryLinks] Could not load entry links:', err); });
     return () => { live = false; };
   }, [workspaceId, uid, transactionId]);
 
