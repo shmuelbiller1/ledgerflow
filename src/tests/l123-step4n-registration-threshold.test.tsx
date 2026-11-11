@@ -27,9 +27,13 @@ const asOf = '2026-12-31';
 const taxProfiles = { labels: { 'world:E1': { name: 'Israel entity', place: { country: 'IL' } } } };
 const dimensions = [{ id: 'world', name: 'World / Entity', isWorld: true }, { id: 'activity', name: 'Activity' }];
 const sales = (ws: string) => makeChartAccount({ id: `${ws}_sales`, workspaceId: ws, name: 'Sales', type: 'revenue', category: 'Income' });
+const cash = (ws: string) => makeChartAccount({ id: `${ws}_cash`, workspaceId: ws, name: 'Cash', type: 'asset', category: 'Cash' });
 const sale = (ws: string, id: string, date: string, cents: number) => makeTransaction({
   id: `${ws}_${id}`, workspaceId: ws, date, totalAmountCents: cents, status: 'completed',
-  lines: [{ accountId: `${ws}_sales`, amountCents: -cents, dimensions: { world: 'E1', activity: 'OSEK' } }],
+  lines: [
+    { accountId: `${ws}_cash`, amountCents: cents, dimensions: { world: 'E1', activity: 'OSEK' } },
+    { accountId: `${ws}_sales`, amountCents: -cents, dimensions: { world: 'E1', activity: 'OSEK' } },
+  ],
 }) as Transaction;
 const entries = (ws: string) => [sale(ws, 'S0', '2025-06-01', 5_000_000), sale(ws, 'S1', '2026-03-01', 12_000_000), sale(ws, 'S2', '2026-12-31', 283_300)];
 const nodes = (ws: string): DimensionNode[] => [
@@ -83,7 +87,7 @@ describe('L-123 step 4n: GET /api/v1/balances/registration-threshold', { skip: !
   const api = balanceRouteHarness('ws_l123q', 'L-123 step 4n');
   const ws = api.ws;
   const get = (q: Record<string, string>, uid?: string) => api.get<{ report: RegistrationThresholdWatch; entriesRead: number }>('registration-threshold', { workspaceId: ws, ...q }, uid);
-  before(() => api.start({ chartAccounts: [sales(ws)], transactions: entries(ws), dimensionNodes: nodes(ws) }, { currency: 'ILS', dimensions, taxProfiles }));
+  before(() => api.start({ chartAccounts: [sales(ws), cash(ws)], transactions: entries(ws), dimensionNodes: nodes(ws) }, { currency: 'ILS', dimensions, taxProfiles }));
   after(() => api.stop());
 
   test('every entry from the window start: the same comparison as every sale; the window is required; members only', async () => {

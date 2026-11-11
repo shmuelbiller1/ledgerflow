@@ -1,14 +1,24 @@
 import { resolveAccountRole } from '../../lib/accountUtils';
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Activity, BarChart, Zap, Calendar, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { cn, formatCurrency } from '../../lib/utils';
+import { TrendingUp, Activity, BarChart, Zap, Calendar, ShieldAlert, CheckCircle2, UserPlus } from 'lucide-react';
+import { cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { StrategicEngine } from '../../services/strategicEngine';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useServerActivity } from '../../hooks/useServerActivity';
+import { LoadingState } from '../ui/LoadingState';
 import { openingCutoff } from '../../lib/serverBalances';
 import { monthEnd, sumActivity } from '../../lib/periodActivity';
+import {
+  computeThirteenWeekTaxSafeRunway,
+  evaluateHiringAffordability,
+  learnCustomerPaymentProfiles,
+} from '../../lib/ownerAdvisor';
+import { planFor } from '../../lib/plans';
 
 /** The first and last day of the month `date` falls in. */
 const monthRange = (date: string): [string, string] => {
@@ -17,10 +27,64 @@ const monthRange = (date: string): [string, string] => {
 };
 
 export default function CashFlowPredictor() {
+  const { loading: collectionsLoading } = useLedgerCollections('bills', 'invoices', 'payments');
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
+  const computedAccounts = useLedgerStore(s => s.computedAccounts);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const failed = useDataNeedsStore(s => s.failed);
+  const invoices = useLedgerStore(s => s.invoices || []);
+  const bills = useLedgerStore(s => s.bills || []);
+  const payments = useLedgerStore(s => s.payments || []);
+  const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const planLimits = planFor(workspace?.plan).limits;
+  const hasAdvisorIncluded = planLimits.ownerAdvisorIncluded || Boolean((workspace as unknown as { ownerAdvisorAddon?: boolean } | undefined)?.ownerAdvisorAddon);
 
-  const [activeTab, setActiveTab] = useState<'forecast' | 'trends'>('forecast');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'trends' | 'advisor'>('forecast');
+  const [hireSalaryDollars, setHireSalaryDollars] = useState(85000);
+  const [hireStartWeek, setHireStartWeek] = useState(1);
+
+  const balancesReady = accounts.length === 0 || computedAccounts.length > 0;
+  const effectiveAccounts = computedAccounts.length > 0 ? computedAccounts : accounts;
+  const advisorLoadError = failed.invoices || failed.bills || failed.payments || '';
+  const cappedAdvisorSources = useMemo(
+    () => (['transactions', 'invoices', 'bills', 'payments'] as const).filter(k => Boolean(truncated?.[k])),
+    [truncated],
+  );
+
+  const startingCashCents = useMemo(
+    () => effectiveAccounts.filter(a => !a.isArchived && resolveAccountRole(a) === 'cash').reduce((sum, a) => sum + Math.trunc(a.balanceCents || 0), 0),
+    [effectiveAccounts],
+  );
+
+  const learnedCustomers = useMemo(
+    () => learnCustomerPaymentProfiles(invoices, payments),
+    [invoices, payments],
+  );
+
+  const thirteenWeek = useMemo(
+    () =>
+      computeThirteenWeekTaxSafeRunway({
+        startingCashCents,
+        startDate: getLocalDateISO(),
+        openInvoices: invoices,
+        openBills: bills,
+        payments,
+        estimatedIncomeTaxReserveBps: 2000,
+      }),
+    [startingCashCents, invoices, bills, payments],
+  );
+
+  const hireWhatIf = useMemo(
+    () =>
+      evaluateHiringAffordability({
+        runway: thirteenWeek,
+        annualBaseSalaryCents: Math.max(0, Math.round(hireSalaryDollars * 100)),
+        payrollBurdenBps: 1800,
+        startWeekNumber: hireStartWeek,
+      }),
+    [thirteenWeek, hireSalaryDollars, hireStartWeek],
+  );
   
   const forecastData = useMemo(() => {
     return StrategicEngine.getForecast(transactions.filter(isPostable), accounts);
@@ -67,14 +131,15 @@ export default function CashFlowPredictor() {
       </div>
 
       <div className="flex-1 overflow-auto p-8">
-        <div className="flex p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 mb-6 w-max">
+        <div className="flex flex-wrap p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 mb-6 w-max">
           {[
             { id: 'forecast', label: 'Predictive Forecast (6-Mo)', icon: Activity },
-            { id: 'trends', label: 'Historical Trend', icon: BarChart }
+            { id: 'trends', label: 'Historical Trend', icon: BarChart },
+            { id: 'advisor', label: 'Owner Advisor (13-Wk & Hire)', icon: UserPlus },
           ].map(tab => (
              <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as unknown as React.SetStateAction<"forecast" | "trends">)}
+                onClick={() => setActiveTab(tab.id as 'forecast' | 'trends' | 'advisor')}
                 className={cn(
                    "px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
                    activeTab === tab.id ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-[var(--ink)]"
@@ -165,6 +230,91 @@ export default function CashFlowPredictor() {
                 })}
              </div>
            </div>
+        )}
+
+        {activeTab === 'advisor' && (
+          <div className="space-y-6">
+            {advisorLoadError ? (
+              <div role="alert" className="p-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-xs text-[var(--text)]">
+                Could not load the documents required for cash runway and hiring analysis: {advisorLoadError}
+              </div>
+            ) : (collectionsLoading || !balancesReady) ? (
+              <LoadingState what="invoices, bills, payments, and computed cash balances" />
+            ) : (
+              <>
+                {!hasAdvisorIncluded && (
+                  <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-xs text-[var(--text)] flex items-center justify-between gap-4">
+                    <span>
+                      <strong>Owner Advisor Preview:</strong> Included on Growth, Scale, and Firm plans (or via the $29/mo Owner Advisor add-on).
+                    </span>
+                  </div>
+                )}
+
+                {cappedAdvisorSources.length > 0 && (
+                  <div role="status" className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-xs text-[var(--text)]">
+                    <strong>Incomplete local window:</strong> Browser cache is capped for {cappedAdvisorSources.join(', ')}. Runway and customer payment speed reflect the loaded window only.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">Starting Bank Cash</p>
+                    <p className="text-2xl font-black mt-1 text-[var(--text)] tabular-nums">{formatCurrency(thirteenWeek.startingGrossCashCents)}</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Computed ledger cash balance before tax set-aside</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">13-Wk Lowest Spendable Cash</p>
+                    <p className={cn("text-2xl font-black mt-1 tabular-nums", thirteenWeek.lowestSpendableCashCents >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                      {formatCurrency(thirteenWeek.lowestSpendableCashCents)}
+                    </p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Week {thirteenWeek.lowestWeekNumber} ({thirteenWeek.lowestWeekStart}) after 20% tax reserve</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-[var(--surface)] border border-[var(--line)]">
+                    <p className="text-xs font-bold uppercase text-[var(--muted)]">Learned Customer Speed</p>
+                    <p className="text-2xl font-black mt-1 text-[var(--text)]">{learnedCustomers.profiles.size} customers</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">Forecasts actual collection dates instead of invoice due dates</p>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--line)] space-y-4">
+                  <div>
+                    <h2 className="text-base font-black text-[var(--text)]">Can I Afford to Hire?</h2>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">{thirteenWeek.plainEnglishHeadline}</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className="block text-xs font-bold text-[var(--muted)]">
+                      Annual Base Salary (USD)
+                      <input
+                        type="number"
+                        min={0}
+                        step={5000}
+                        value={hireSalaryDollars}
+                        onChange={e => setHireSalaryDollars(Number(e.target.value) || 0)}
+                        className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
+                      />
+                    </label>
+                    <label className="block text-xs font-bold text-[var(--muted)]">
+                      Planned Start Week (1–13)
+                      <input
+                        type="number"
+                        min={1}
+                        max={13}
+                        value={hireStartWeek}
+                        onChange={e => setHireStartWeek(Math.min(13, Math.max(1, Number(e.target.value) || 1)))}
+                        className="mt-1 block w-full px-3 py-2 rounded-xl bg-[var(--ink)] border border-[var(--line)] text-sm font-mono text-[var(--text)]"
+                      />
+                    </label>
+                  </div>
+                  <div className="p-4 rounded-xl bg-[var(--ink)] border border-[var(--line)] space-y-1 text-sm">
+                    <p className="font-bold text-[var(--text)]">
+                      Fully-loaded employer cost (+18% payroll taxes &amp; benefits): {formatCurrency(hireWhatIf.fullyLoadedMonthlyCostCents)}/mo
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">{hireWhatIf.explanation}</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

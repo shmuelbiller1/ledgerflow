@@ -246,6 +246,10 @@ export interface AuditLog {
   entityId: string;
   details: AuditLogDetails;
   timestamp: string;
+  seq?: number;
+  prevHash?: string;
+  entryHash?: string;
+  chainAlgo?: 'sha256';
 }
 
 export interface WorkspaceInvite {

@@ -5,7 +5,8 @@ export type FeatureFlag =
   | 'mt940_import'
   | 'ai_receipt_matching'
   | 'xero_migration'
-  | 'forensic_hash_chaining';
+  | 'forensic_hash_chaining'
+  | 'owner_advisor_addon';
 
 export interface FeatureFlagConfig {
   enabled: boolean;
@@ -33,7 +34,8 @@ const DEFAULT_FLAGS: Record<FeatureFlag, FeatureFlagConfig> = {
   mt940_import: { enabled: true, minTier: 'pro' },
   ai_receipt_matching: { enabled: true, minTier: 'starter' },
   xero_migration: { enabled: true, minTier: 'starter' },
-  forensic_hash_chaining: { enabled: true, minTier: 'enterprise' }
+  forensic_hash_chaining: { enabled: true, minTier: 'enterprise' },
+  owner_advisor_addon: { enabled: true, minTier: 'pro' }
 };
 
 export function isFeatureEnabled(flag: FeatureFlag, userTier: 'starter' | 'pro' | 'enterprise' = 'pro'): boolean {

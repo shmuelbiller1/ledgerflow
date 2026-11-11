@@ -373,7 +373,11 @@ export function useEntityOperations() {
           throw new Error(errBody?.message || errBody?.error || 'Transaction deletion refused by server');
         }
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
-        throw new Error(`Direct browser deletion on ${path} is disabled; use the server ledger API.`);
+        throw new Error(
+          path === 'reconciliations'
+            ? 'Completed reconciliations cannot be deleted directly from the browser.'
+            : `Direct browser deletion on ${path} is disabled; use the server ledger API.`,
+        );
       } else {
         await deleteDoc(doc(db, path, id));
       }
