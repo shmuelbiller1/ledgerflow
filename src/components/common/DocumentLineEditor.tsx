@@ -1,4 +1,5 @@
 import { itemDocumentDefaultsOf, type DocumentDefaults } from '../../lib/documentDefaults';
+import { bundleInvoiceLines, isBundle } from '../../lib/itemBundles';
 import { displayDimensionName } from '../../lib/dimensionUtils';
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
@@ -414,13 +415,22 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                       if (!isInvoiceLine(line)) return;
                       const text = event.target.value;
                       const item = findInventoryItem(inventoryItems, text);
+                      const pricer = customerPricer(useAuthStore.getState().getCurrentWorkspace()?.priceLists, customerId);
+                      // BF-03: a bundle becomes its parts, each a line of its own (count: this line's quantity, at least 1)
+                      const parts = item && isBundle(item)
+                        ? bundleInvoiceLines(item, Math.max(1, Math.round(Number(line.quantity) || 1)), inventoryItems, () => createLine() as unknown as InvoiceEditorLine, pricer)
+                        : [];
+                      if (parts.length) {
+                        onChange(prev => [...prev.slice(0, idx), ...(parts as unknown as T[]), ...prev.slice(idx + 1)]);
+                        return;
+                      }
                       const hints = itemDocumentDefaultsOf(item);
                       const fillCode = taxCodeToFillFromItem(line.itemId, item ? { id: item.id, defaultTaxCodeId: hints.taxCodeId } : undefined, taxCodeIds);
                       const updated = setLineDescription(
                         line,
                         text,
                         inventoryItems,
-                        customerPricer(useAuthStore.getState().getCurrentWorkspace()?.priceLists, customerId),
+                        pricer,
                       );
                       updateAt(idx, current => fillDefaults({ ...current, ...updated } as T, hints));
                       if (fillCode) onTaxCodeFill?.(fillCode);
