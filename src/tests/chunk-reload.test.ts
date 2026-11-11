@@ -17,3 +17,16 @@ test('reloads once, then not again within a minute (no reload loop)', () => {
   assert.equal(reloadOnceForNewVersion(1_070_000, storage, () => reloads++), true);
   assert.equal(reloads, 2);
 });
+
+test('no automatic reload while there is unsaved work on screen', async () => {
+  const { reloadForNewVersionUnlessUnsaved } = await import('../lib/chunkReload');
+  let reloads = 0;
+  const reload = () => { reloads += 1; return true; };
+  assert.equal(reloadForNewVersionUnlessUnsaved(() => true, reload), false);
+  assert.equal(reloads, 0);
+  assert.equal(reloadForNewVersionUnlessUnsaved(() => false, reload), true);
+  assert.equal(reloads, 1);
+  // a check that fails is treated as "there may be unsaved work"
+  assert.equal(reloadForNewVersionUnlessUnsaved(() => { throw new Error('x'); }, reload), false);
+  assert.equal(reloads, 1);
+});
