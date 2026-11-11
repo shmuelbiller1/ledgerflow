@@ -230,11 +230,11 @@ describe('Dimension inline concurrency, uncached IDs, and archived-node preserva
     }) as typeof fetch;
 
     render(<DimensionsSettings />);
-    fireEvent.click(screen.getByRole('button', { name: /Add Dimension Axis/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add label/ }));
     const nameInput = screen.getByLabelText('Display Name') as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: 'Property' } });
 
-    const createBtn = screen.getByRole('button', { name: 'Create Axis' }) as HTMLButtonElement;
+    const createBtn = screen.getByRole('button', { name: 'Create label' }) as HTMLButtonElement;
     fireEvent.click(createBtn);
 
     await waitFor(() => assert.equal(createBtn.disabled, true));

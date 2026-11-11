@@ -11,7 +11,7 @@ import AxeBuilder from '@axe-core/playwright';
  * successful sign-up (the auth provider is not under test here).
  *
  * Test 1 drives the real SetupWizard: business details → chart template →
- * opening balances → done, and the "Create the first invoice" handoff.
+ * done and the "Create the first invoice" handoff, then the optional opening-balance editor.
  * Test 2 drives the real InvoiceModal for the first invoice (worked figures below)
  * and then the customer statement report for that invoice.
  *
@@ -76,7 +76,7 @@ async function expectNoSeriousAxe(page: Page, selector: string, attachName: stri
   expect(serious, JSON.stringify(serious.map(v => ({ id: v.id, nodes: v.nodes.length })))).toEqual([]);
 }
 
-test('G-24 W1: setup wizard — business → chart template → opening balances → done, then first invoice', async ({ page }, testInfo) => {
+test('G-24 W1: setup wizard — business → chart template → done, then optional opening balances and first invoice', async ({ page }, testInfo) => {
   test.setTimeout(120000);
   await page.setViewportSize({ width: 390, height: 844 });
   const { errors } = await shell(page);
@@ -113,7 +113,9 @@ test('G-24 W1: setup wizard — business → chart template → opening balances
     useLedgerStore.setState({ accounts, transactions: [], bankLines: [], invoices: [], bills: [], truncatedCollections: {}, baseCurrency: 'USD' } as never);
     useDataNeedsStore.setState({ loaded: { accounts: true }, loadedWorkspaceId: workspaceId, failed: {} } as never);
     (window as unknown as { __wizardDone: boolean }).__wizardDone = false;
-    createRoot(document.getElementById('root')!).render(
+    const root = createRoot(document.getElementById('root')!);
+    (window as unknown as { __setupRoot: typeof root }).__setupRoot = root;
+    root.render(
       React.createElement(SetupWizard, {
         onStarted: () => {},
         onDone: () => { (window as unknown as { __wizardDone: boolean }).__wizardDone = true; },
@@ -123,7 +125,8 @@ test('G-24 W1: setup wizard — business → chart template → opening balances
 
   // Step 1 of 4 — company details: pre-filled, editable, Next moves on.
   await expect(page.getByRole('heading', { name: 'Set up your books' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your business' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of business?' })).toBeVisible();
+  await page.getByLabel('Services', { exact: true }).check();
   await expect(page.locator('#setup-name')).toHaveValue('Hour One Books');
   await expect(page.locator('#setup-currency')).toHaveValue('USD');
   await page.getByRole('button', { name: 'Next', exact: true }).click();
@@ -137,6 +140,21 @@ test('G-24 W1: setup wizard — business → chart template → opening balances
   expect(applyCall?.method).toBe('POST');
   expect((applyCall?.body as { templateId?: string } | null)?.templateId).toBe('creative');
 
+  await expect(page.getByRole('heading', { name: 'Your books are set up' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create the first invoice' }).click();
+  await expect.poll(async () => page.evaluate(() => (window as unknown as { __wizardDone: boolean }).__wizardDone)).toBe(true);
+  const tab = await page.evaluate(async () => (await import('/src/stores/useUIStore.ts')).useUIStore.getState().activeTab);
+  expect(tab).toBe('sales');
+
+  // Migration figures are optional after setup, using the original endpoint and worked figures.
+  await page.evaluate(async () => {
+    const [{ default: React }, { default: OpeningBalancesSetup }] = await Promise.all([
+      import('/node_modules/.vite/deps/react.js'), import('/src/components/onboarding/OpeningBalancesSetup.tsx'),
+    ]);
+    (window as unknown as { __setupRoot: { render: (el: unknown) => void } }).__setupRoot.render(
+      React.createElement('main', null, React.createElement(OpeningBalancesSetup, { onClose: () => {} })),
+    );
+  });
   // Step 3 of 4 — opening balances: the balance previews balanced before recording.
   await expect(page.getByRole('heading', { name: 'Opening balances' })).toBeVisible();
   await page.locator('#ob-bank-1000').fill('5000');
@@ -146,13 +164,7 @@ test('G-24 W1: setup wizard — business → chart template → opening balances
   expect(balancesCall?.method).toBe('POST');
   expect((balancesCall?.body as { balances?: unknown } | null)?.balances).toEqual([{ accountId: 'bank-1000', amountCents: 500000 }]);
 
-  // Step 4 of 4 — done: the books balance, and the first-invoice handoff is primary.
-  await expect(page.getByRole('heading', { name: 'Your books are set up' })).toBeVisible();
   await expect(page.getByText(/debits and credits are both \$5,000\.00/)).toBeVisible();
-  await page.getByRole('button', { name: 'Create the first invoice' }).click();
-  await expect.poll(async () => page.evaluate(() => (window as unknown as { __wizardDone: boolean }).__wizardDone)).toBe(true);
-  const tab = await page.evaluate(async () => (await import('/src/stores/useUIStore.ts')).useUIStore.getState().activeTab);
-  expect(tab).toBe('sales');
 
   await expectFits(page, 'main', 'setup wizard');
   await expectNoSeriousAxe(page, 'main', 'w1-wizard-axe', testInfo);

@@ -209,7 +209,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
     "sales-by-territory":
       "Group issued invoice item amounts by their Location dimension, including an explicit Unassigned bucket. Each line uses its invoice's stored exchange rate to the workspace base currency; opening balances and non-issued invoices are excluded, and document-wide tax is not allocated. Check the period and invoice-history completeness before relying on the totals.",
     "record-retention-review":
-      "Use the owner-specified IL seven-year, US seven-year and UK six-year periods to identify documents whose date plus the specified calendar years has passed. Country comes from the books or World/Entity Tax profile; missing dates or countries and unsupported countries remain unclassified. This is not legal advice or deletion authorization, and Workspace.retention is a separate server log and recovery setting.",
+      "Use the owner-specified IL seven-year, US seven-year and UK six-year periods to identify documents whose date plus the specified calendar years has passed. Country comes from the books or Company Tax profile; missing dates or countries and unsupported countries remain unclassified. This is not legal advice or deletion authorization, and Workspace.retention is a separate server log and recovery setting.",
     "milestone-billing":
       "Every sales order that keeps a milestone schedule, with what is invoiced, what is left and the next milestone to bill. The amounts are cumulative shares of the order total so cents never drift, and the percentage of the order no milestone covers shows as unscheduled. An order records its customer and not a project, so orders are listed by customer. Read-only: invoicing a milestone stays on the order screen and nothing is posted.",
     "reorder-suggestions":
@@ -389,7 +389,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
     rules:
       "Manage classification and automation rules. Inspect conditions, test matches and use the existing save or apply workflow. Review proposed matches before applying changes.",
     dimensions:
-      "Manage workspace axes and labels. Edit supported names or add label nodes. Stable IDs remain unchanged and previous names can remain aliases.",
+      "Manage workspace labels. Edit supported names or add values. Stable IDs remain unchanged and previous names can remain aliases.",
     appearance:
       "Choose display preferences. Adjust the available theme and density controls. These preferences change presentation rather than posted records.",
     team: "Manage workspace members and invitations. Owners can use the existing invite, role and removal workflow. Only an owner can change workspace membership.",
