@@ -4,7 +4,7 @@ import { FieldValue } from '../../db/firestore';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { TransactionTemplates } from '../../../kernel/templates/TransactionTemplates';
 import type { Transaction } from '../../../types';
-import { getDb, assertWorkspaceAccess } from '../../db/firestore';
+import { getDb, assertWorkspaceAccess, isWorkspaceMemberData } from '../../db/firestore';
 import type { DocumentData } from '../../db/firestore';
 import { getAbsoluteTotal } from '../../../lib/txFilters';
 import { LedgerPostingError, prepareStockMoves } from '../../services/cogsStockService';
@@ -60,7 +60,7 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
           throw new HttpError('Workspace not found', 404);
         }
         const wsData = wsDoc.data();
-        if (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin) {
+        if (!isWorkspaceMemberData(wsData, user, targetWsId)) {
           throw new HttpError('Not a member', 403);
         }
 
@@ -432,6 +432,36 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
       await ledgerWrite(batch, db.collection('transactions').doc(targetTxId), { ...validTarget, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     
       await batch.commit();
+      await Promise.all([
+        writeServerAuditLog({
+          workspaceId: sourceWorkspaceId,
+          uid: user.uid,
+          email: user.email,
+          action: 'INTERCOMPANY_TRANSFER_POSTED',
+          entityType: 'transaction',
+          entityId: sourceTxId,
+          details: {
+            description: `Posted intercompany transfer out to ${targetWsData.name}`,
+            targetWorkspaceId,
+            targetTxId,
+            amountCents,
+          },
+        }, { db }),
+        writeServerAuditLog({
+          workspaceId: targetWorkspaceId,
+          uid: user.uid,
+          email: user.email,
+          action: 'INTERCOMPANY_TRANSFER_POSTED',
+          entityType: 'transaction',
+          entityId: targetTxId,
+          details: {
+            description: `Posted intercompany receipt from ${sourceWsData.name}`,
+            sourceWorkspaceId,
+            sourceTxId,
+            amountCents: targetCents,
+          },
+        }, { db }),
+      ]);
 
       res.json({
         status: 'ok',

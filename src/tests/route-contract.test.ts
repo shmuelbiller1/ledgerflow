@@ -50,6 +50,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
     const knownRoutePrefixes = [
       '/api/ai',
       '/api/v1/ai',
+      '/api/v1/auth',
       '/api/health',
       '/api/upload-bank-csv',
       '/api/v1/transactions',

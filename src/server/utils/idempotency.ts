@@ -12,7 +12,7 @@ export interface IdempotencyRecord {
   updatedAt?: string;
   status: 'pending' | 'success' | 'failed';
   payloadHash?: string;
-  result?: any;
+  result?: unknown;
   error?: string;
   expiresAt: string;
 }
@@ -62,7 +62,7 @@ export function deriveScopedOperationKey(workspaceId: string, operationType: str
  * 3. req.body.operationId
  * 4. req.query.operationId
  */
-export function extractCanonicalOperationId(req: any): string | undefined {
+export function extractCanonicalOperationId(req: { headers?: Record<string, unknown>; body?: Record<string, unknown>; query?: Record<string, unknown> } | null | undefined): string | undefined {
   if (!req) return undefined;
   const headerOpId = req.headers?.['x-operation-id'] || req.headers?.['idempotency-key'];
   if (typeof headerOpId === 'string' && headerOpId.trim()) return headerOpId.trim();
@@ -92,14 +92,16 @@ export async function executeIdempotent<T>(
     workspaceId: string;
     operationType: string;
     payloadHash?: string;
+    legacyKey?: string;
+    db?: ReturnType<typeof getDb>;
   },
   transactionHandler: (t: FirestoreTransaction) => Promise<T>
 ): Promise<T> {
-  const db = getDb();
+  const db = metadata.db ?? getDb();
   const keyRef = db.collection('idempotencyKeys').doc(scopedOperationId);
 
   return await db.runTransaction(async (t) => {
-    // 1. Read idempotency record (must happen before any writes)
+    // 1. Read idempotency record (and optional pre-upgrade legacy key) before any writes
     const doc = await t.get(keyRef);
 
     if (doc.exists) {
@@ -113,9 +115,17 @@ export async function executeIdempotent<T>(
         const now = Date.now();
         // Allow retry if stuck in pending for > 5 minutes
         if (now - createdAt < 5 * 60 * 1000) {
-          const err = new Error(`Operation ${scopedOperationId} is currently in progress.`);
-          (err as any).status = 409;
-          throw err;
+          throw Object.assign(new Error(`Operation ${scopedOperationId} is currently in progress.`), { status: 409 });
+        }
+      }
+    }
+
+    if (metadata.legacyKey && metadata.legacyKey !== scopedOperationId) {
+      const legacySnap = await t.get(db.collection('idempotencyKeys').doc(metadata.legacyKey));
+      if (legacySnap.exists) {
+        const legacyData = legacySnap.data() as Record<string, unknown> | undefined;
+        if (legacyData && ('response' in legacyData || legacyData.status === 'success')) {
+          return (legacyData.response ?? legacyData.result) as T;
         }
       }
     }
@@ -142,3 +152,34 @@ export async function executeIdempotent<T>(
     return result;
   });
 }
+
+export async function runOptionalIdempotent<T>(
+  options: {
+    workspaceId: string;
+    operationType: string;
+    rawOperationId: string | undefined;
+    legacyPrefix?: string;
+    actor: string;
+    payload: unknown;
+    db?: ReturnType<typeof getDb>;
+  },
+  transactionHandler: Parameters<typeof executeIdempotent<T>>[2],
+): Promise<T> {
+  const db = options.db ?? getDb();
+  if (!options.rawOperationId) {
+    return db.runTransaction(transactionHandler);
+  }
+  return executeIdempotent(
+    deriveScopedOperationKey(options.workspaceId, options.operationType, options.rawOperationId),
+    {
+      actor: options.actor,
+      workspaceId: options.workspaceId,
+      operationType: options.operationType,
+      payloadHash: requestPayloadHash(options.payload),
+      db,
+      ...(options.legacyPrefix ? { legacyKey: `${options.workspaceId}_${options.legacyPrefix}_${options.rawOperationId}` } : {}),
+    },
+    transactionHandler,
+  );
+}
+

@@ -11,6 +11,7 @@ import { ChartAccountSchema, BankMappingRequestSchema } from "../../schemas";
 import { BayesianClassifier } from "../../lib/algorithms";
 import { isPostable, lineAmount } from "../../lib/txFilters";
 import { getDb } from "../db/firestore";
+import { writeServerAuditLog } from "../services/auditLogService";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -98,6 +99,19 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
       };
 
       await db.collection("projects").doc(newId).set(newProject);
+      await writeServerAuditLog({
+        workspaceId,
+        uid: authReq.user?.uid || 'api_user',
+        email: authReq.user?.email,
+        action: 'PROJECT_CREATED',
+        entityType: 'project',
+        entityId: newId,
+        details: {
+          description: `Created project "${name}"`,
+          code: newProject.code,
+          budgetLimitCents: newProject.budgetLimitCents,
+        },
+      }, { db });
 
       res.status(201).json({
         status: "success",
@@ -169,6 +183,19 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
       };
 
       await db.collection("chartAccounts").doc(newId).set(newAccount);
+      await writeServerAuditLog({
+        workspaceId,
+        uid: authReq.user?.uid || 'api_user',
+        email: authReq.user?.email,
+        action: 'ACCOUNT_CREATED',
+        entityType: 'chart_account',
+        entityId: newId,
+        details: {
+          description: `Created chart account "${name}" (${type})`,
+          code: newAccount.code,
+          type,
+        },
+      }, { db });
 
       res.status(201).json({
         status: "success",

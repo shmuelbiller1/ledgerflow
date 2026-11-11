@@ -7,6 +7,7 @@ import { checkoutIdempotencyKey, checkoutParamsFingerprint, getStripe, isIdempot
 import { getTrustedAppUrl } from "../utils/urlHelper.ts";
 import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
 import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService.ts";
+import { writeServerAuditLog } from "../services/auditLogService.ts";
 
 import { BRAND_NAME } from '../../config/brand';
 export const billingRouter = express.Router();
@@ -161,6 +162,15 @@ billingRouter.post("/verify-session", async (req: express.Request, res: express.
         stripeSubscriptionId: session.subscription || null,
         lastUpgradedAt: new Date().toISOString()
       }, { merge: true });
+      await writeServerAuditLog({
+        workspaceId,
+        uid: requestUser(req).uid,
+        email: requestUser(req).email,
+        action: 'WORKSPACE_PLAN_UPGRADED',
+        entityType: 'workspace',
+        entityId: workspaceId,
+        details: { description: `Upgraded workspace plan to ${targetPlan}`, plan: targetPlan, sessionId: session.id },
+      }, { db });
       return res.json({ status: "success", plan: targetPlan });
     } else {
        return res.status(400).json({ status: "incomplete", message: "Session not paid or metadata mismatch" });
@@ -176,11 +186,11 @@ billingRouter.get("/status", async (req: express.Request, res: express.Response)
     const workspaceId = (req.query.workspaceId as string);
     if (!workspaceId) return res.status(400).json({ status: "error", message: "Missing workspaceId" });
 
-    const wsData: any = (await authorizeWorkspace(requestUser(req), workspaceId)) || {};
+    const wsData: Record<string, number | string | boolean | undefined> = ((await authorizeWorkspace(requestUser(req), workspaceId)) || {}) as Record<string, number | string | boolean | undefined>;
 
     const db = getDb();
-    const baselineQueries = wsData.totalQueriesThisMonth || 0;
-    const baselineCredit = wsData.computeCreditBalance !== undefined ? wsData.computeCreditBalance : 100000;
+    const baselineQueries = Number(wsData.totalQueriesThisMonth || 0);
+    const baselineCredit = wsData.computeCreditBalance !== undefined ? Number(wsData.computeCreditBalance) : 100000;
 
     const shardedQueries = await getShardedCounterValue(db, workspaceId, 'totalQueriesThisMonth', baselineQueries);
     const shardedCredit = await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', baselineCredit);
@@ -188,17 +198,17 @@ billingRouter.get("/status", async (req: express.Request, res: express.Response)
     // Populate secure default development limits if missing to maintain continuous operations
     const statusData = {
       workspaceId,
-      plan: wsData.plan || 'sandbox',
-      billingCycle: wsData.billingCycle || 'free',
-      concurrentUserLimit: wsData.concurrentUserLimit || 50,
-      activeUserCount: wsData.activeUserCount || 1,
-      seatCount: wsData.seatCount || 1,
-      maxSeats: wsData.maxSeats || 3,
+      plan: String(wsData.plan || 'sandbox'),
+      billingCycle: String(wsData.billingCycle || 'free'),
+      concurrentUserLimit: Number(wsData.concurrentUserLimit || 50),
+      activeUserCount: Number(wsData.activeUserCount || 1),
+      seatCount: Number(wsData.seatCount || 1),
+      maxSeats: Number(wsData.maxSeats || 3),
       totalQueriesThisMonth: shardedQueries,
-      computeHardnessScore: wsData.computeHardnessScore || 0,
+      computeHardnessScore: Number(wsData.computeHardnessScore || 0),
       computeCreditBalance: Math.max(0, shardedCredit), // 100k compute units default
-      apiQuotaTotalCentsUsed: wsData.apiQuotaTotalCentsUsed || 0,
-      apiQuotaMonthlyLimitCents: wsData.apiQuotaMonthlyLimitCents || 0, // Sandbox has no real dollar limits, just credit limits
+      apiQuotaTotalCentsUsed: Number(wsData.apiQuotaTotalCentsUsed || 0),
+      apiQuotaMonthlyLimitCents: Number(wsData.apiQuotaMonthlyLimitCents || 0), // Sandbox has no real dollar limits, just credit limits
     };
 
     res.json(statusData);
@@ -216,7 +226,7 @@ billingRouter.post("/record-compute", async (req: express.Request, res: express.
     }
 
     const user = requestUser(req);
-    const wsData: any = (await authorizeWorkspace(user, workspaceId)) || {};
+    const wsData = ((await authorizeWorkspace(user, workspaceId)) || {}) as Record<string, number | undefined>;
 
     const sanitizedWeight = Math.max(1, Math.min(1000, Math.floor(Math.abs(Number(weightScore) || 10))));
     const sanitizedExecutionTime = Math.max(1, Math.min(60000, Math.floor(Math.abs(Number(executionTimeMs) || 50))));

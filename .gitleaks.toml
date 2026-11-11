@@ -1,0 +1,14 @@
+title = "LedgerFlow Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public Supabase anon config and deterministic test fixtures"
+paths = [
+  '''^supabase-config\.json$''',
+  '''^src/tests/''',
+  '''^e2e/''',
+  '''^audit/''',
+  '''^docs/''',
+]

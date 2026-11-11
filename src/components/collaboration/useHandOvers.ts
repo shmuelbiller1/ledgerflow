@@ -20,7 +20,7 @@ export function useHandOvers() {
     (async () => {
       const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
       return res.ok ? await res.json() : {};
-    })().then(data => { if (live) { setTasks(Array.isArray(data.tasks) ? data.tasks : []); setPeople(Array.isArray(data.people) ? data.people : []); } }).catch(() => {});
+    })().then(data => { if (live) { setTasks(Array.isArray(data.tasks) ? data.tasks : []); setPeople(Array.isArray(data.people) ? data.people : []); } }).catch((err) => { console.warn('[useHandOvers] Could not load handover tasks:', err); });
     return () => { live = false; };
   }, [workspaceId]);
   const holder = (record: RecordRef) => tasks.find(t => t.kind === TASK_KIND && t.status === 'open' && t.record?.type === record.type && t.record.id === record.id);

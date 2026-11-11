@@ -156,10 +156,10 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
         displayName: "Developer Key Client",
         developerWorkspaceId: workspaceIdPattern,
         apiKeyName: docData?.name || "Production Integration Key",
-        firebase: { sign_in_provider: "custom" },
+        firebase: { sign_in_provider: "custom", identities: {} },
         usedApiKeyId: keyId,
         apiKeyRateLimit: apiKeyLimit(docData?.rateLimitPerMinute)
-      } as any;
+      } as unknown as AuthUser;
 
       // Background metrics update (does not block original request response)
       try {
@@ -191,8 +191,8 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
       if (!decodedToken.email_verified && !isAnonymous) {
         return res.status(403).json({ status: "error", message: "Access Denied: Please verify your email protocol." });
       }
-      if ((decodedToken as any).admin === true || (decodedToken as any).role === 'admin') {
-        (decodedToken as any).admin = true;
+      if (decodedToken.admin === true || decodedToken.role === 'admin') {
+        decodedToken.admin = true;
       }
       (req as AuthenticatedRequest).user = decodedToken;
       return next();

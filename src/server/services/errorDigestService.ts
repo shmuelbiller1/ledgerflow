@@ -1,5 +1,5 @@
 import { errorMessage } from '../auth/requestUser';
-import { getDb } from '../db/firestore';
+import { getDb, type DocumentData, type Firestore, type QueryDocumentSnapshot } from '../db/firestore';
 import { sendErrorDigestEmail, ErrorGroupSummary } from './emailService';
 import { sha256Sync } from '../../lib/algorithms';
 
@@ -7,7 +7,7 @@ export interface ProcessErrorDigestOptions {
   hoursBack?: number;
   recipientEmail?: string;
   forceSendZero?: boolean;
-  dbOverride?: any;
+  dbOverride?: unknown;
 }
 
 export interface ProcessErrorDigestResult {
@@ -73,7 +73,7 @@ export function generateErrorFingerprint(source: string, message: string, stack?
  * Pure aggregation function: groups raw telemetry documents by normalized signature fingerprint,
  * orders by frequency descending, and preserves worst-case severity and timestamps.
  */
-export function aggregateErrorSignatures(rawDocs: any[]): {
+export function aggregateErrorSignatures(rawDocs: DocumentData[]): {
   groups: ErrorGroupSummary[];
   totalErrors: number;
   uniqueErrors: number;
@@ -130,14 +130,14 @@ export async function processErrorDigest(options?: ProcessErrorDigestOptions): P
   const cutoffTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
   const recipient = options?.recipientEmail || process.env.ADMIN_ALERT_EMAIL || process.env.EMAIL_FROM || 'admin@ledgerflow.app';
 
-  const db = options?.dbOverride || getDb();
+  const db = (options?.dbOverride as Firestore | undefined) || getDb();
   
   try {
     const snap = await db.collection('errorLogs')
       .where('createdAt', '>=', cutoffTime)
       .get();
 
-    const rawDocs = snap.docs.map((d: any) => d.data());
+    const rawDocs = snap.docs.map((d: QueryDocumentSnapshot) => d.data());
 
     if (rawDocs.length === 0) {
       if (options?.forceSendZero) {

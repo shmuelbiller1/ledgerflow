@@ -3,7 +3,39 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
+function splitTopLevel(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of s) {
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    if (ch === ')' || ch === ']' || ch === '}') depth--;
+    if (ch === ',' && depth === 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+function parseAppRegistration(line: string): { verb: string; routeExpr: string; middleware: string[] } | null {
+  const m = /^app\.(get|post|put|patch|delete)\(\s*(\[[^\]]*\]|"[^"]*"|'[^']*')\s*,([\s\S]*)$/.exec(line.trim());
+  if (!m) return null;
+  const middleware: string[] = [];
+  for (const part of splitTopLevel(m[3])) {
+    const p = part.trim();
+    if (/^(async\s*)?\(?\s*(req|_req)\b\s*[:,)]/.test(p) || /^(async\s*)?\(\s*req\b/.test(p)) break;
+    const name = /^([A-Za-z_$][\w$]*)/.exec(p)?.[1];
+    if (name) middleware.push(name);
+    else break;
+  }
+  return { verb: m[1].toUpperCase(), routeExpr: m[2], middleware };
+}
+
+describe('Route Policy Coverage Suite (D-30 / F-02: Per-Registration & Tenant Wall Security)', () => {
   const serverPath = path.join(process.cwd(), 'server.ts');
   const workspaceRoutesPath = path.join(process.cwd(), 'src/server/routes/workspaceRoutes.ts');
   const routesDir = path.join(process.cwd(), 'src/server/routes');
@@ -11,7 +43,6 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
   it('server.ts mounts all /api/v1 data endpoints behind apiAuthenticate or authenticate middleware', () => {
     const serverContent = fs.readFileSync(serverPath, 'utf8');
 
-    // Endpoints that must have an authenticated router mount in server.ts
     const protectedPrefixes = [
       '/api/v1/reports',
       '/api/v1/workspaces',
@@ -35,7 +66,6 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
     for (const prefix of protectedPrefixes) {
       assert.ok(serverContent.includes(prefix), `server.ts must contain registration for protected prefix ${prefix}`);
 
-      // Find the router-mounting lines
       const routerMountLines = serverContent
         .split('\n')
         .filter(
@@ -87,7 +117,70 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
     }
   });
 
-  it('every route file in src/server/routes/ is guarded internally, mounted via a verified guarded router, or explicitly allowlisted as public', () => {
+  it('inspects every individual app.<verb>(...) registration across src/server/routes/ and server.ts (F-02)', () => {
+    // Documented public/webhook/telemetry ingest routes registered directly on `app`
+    const PUBLIC_APP_ROUTES = new Set([
+      'GET "/api/v1/openapi.json"',
+      'GET "/api/v1/public/registration-status"',
+      "POST '/api/webhook/plaid'",
+      "POST '/api/webhook/stripe'",
+      'POST "/api/v1/telemetry/errors"',
+      'POST CSP_REPORT_PATH',
+    ]);
+
+    const filesToCheck = [
+      serverPath,
+      ...fs
+        .readdirSync(routesDir)
+        .filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+        .map(f => path.join(routesDir, f)),
+    ];
+
+    let inspectedCount = 0;
+    const unguarded: string[] = [];
+    const missingAdminGuard: string[] = [];
+
+    for (const filePath of filesToCheck) {
+      const rel = path.relative(process.cwd(), filePath).replace(/\\/g, '/');
+      const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+      lines.forEach((line, idx) => {
+        const reg = parseAppRegistration(line);
+        if (!reg) return;
+        inspectedCount++;
+        const key = `${reg.verb} ${reg.routeExpr}`;
+        if (PUBLIC_APP_ROUTES.has(key)) return;
+
+        const hasAuthMiddleware =
+          reg.middleware.includes('authenticate') ||
+          reg.middleware.includes('apiAuthenticate') ||
+          reg.middleware.includes('requireSystemJobOrAdmin');
+
+        if (!hasAuthMiddleware) {
+          unguarded.push(`${rel}:${idx + 1}: ${key} [middleware: ${reg.middleware.join(', ') || 'none'}]`);
+        }
+
+        if (/\/api\/v1\/admin\//.test(reg.routeExpr)) {
+          if (!reg.middleware.includes('authenticate') || !reg.middleware.includes('requireAdmin')) {
+            missingAdminGuard.push(`${rel}:${idx + 1}: ${key} [middleware: ${reg.middleware.join(', ') || 'none'}]`);
+          }
+        }
+      });
+    }
+
+    assert.ok(inspectedCount >= 45, `Expected at least 45 direct app.<verb> registrations, inspected ${inspectedCount}`);
+    assert.deepEqual(
+      unguarded,
+      [],
+      `Direct app.<verb> registrations missing auth middleware:\n${unguarded.join('\n')}`,
+    );
+    assert.deepEqual(
+      missingAdminGuard,
+      [],
+      `/api/v1/admin/* registrations missing authenticate + requireAdmin:\n${missingAdminGuard.join('\n')}`,
+    );
+  });
+
+  it('every router file in src/server/routes/ is mounted via a verified guarded router or explicitly allowlisted as public', () => {
     const routeFiles = fs
       .readdirSync(routesDir)
       .filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'));
@@ -95,24 +188,24 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
     const wsContent = fs.readFileSync(workspaceRoutesPath, 'utf8');
     const serverContent = fs.readFileSync(serverPath, 'utf8');
 
-    // Public / webhook / health files allowlist with explicit security rationale
     const publicAllowlist = new Set([
-      'cspReportRoutes.ts', // Browser Content Security Policy reporting (public ingest)
-      'telemetryRoutes.ts', // Client-side error telemetry ingest fallback
-      'statusRoutes.ts', // System health check /api/health and /api/v1/public/status
-      'registrationStatusRoutes.ts', // Public signup availability check
-      'stripeWebhookRoutes.ts', // Stripe webhook with raw payload signature check
-      'plaidWebhookRoutes.ts', // Plaid webhook with event verification
-      'invitePublicRoutes.ts', // Public team invite accept / preview flow
-      'customerPortalRoutes.ts', // Public customer portal with cryptographic token
-      'publicInvoiceRoutes.ts', // Public invoice payment with signed token
-      'estimateSignRoutes.ts', // Public estimate approval with signed token
-      'authRoutes.ts', // Public login, register, passkey, session auth endpoints
-      'webhookRoutes.ts', // Raw webhook body registration utility
-      'apiStatusRoutes.ts', // Public API status summary
+      'cspReportRoutes.ts',
+      'telemetryRoutes.ts',
+      'statusRoutes.ts',
+      'registrationStatusRoutes.ts',
+      'stripeWebhookRoutes.ts',
+      'plaidWebhookRoutes.ts',
+      'invitePublicRoutes.ts',
+      'customerPortalRoutes.ts',
+      'publicInvoiceRoutes.ts',
+      'estimateSignRoutes.ts',
+      'emailRoutes.ts', // emailWebhookRouter verifies provider token; emailRouter is mounted in workspaceRoutes
+      'cronRoutes.ts', // verifies CRON_SECRET on every job invocation
+      'aiRoutes.ts', // verifies Bearer token + validateWorkspaceMember internally
+      'webhookRoutes.ts',
+      'apiStatusRoutes.ts',
     ]);
 
-    // Parse all explicit router mounts across workspaceRoutes and server.ts
     const wsMounts = wsContent
       .split('\n')
       .filter(l => l.includes('workspaceRouter.use(') || l.includes('requireWorkspaceRole(') || l.includes('mountTeamRoutes'));
@@ -121,8 +214,6 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
       .split('\n')
       .filter(l => l.includes('app.use(') || l.includes('register'));
 
-    // Nested sub-routers explicitly mounted in guarded parent routers:
-    // e.g. payRunRoutes -> payrollImportRoutes (mounted under payRunRouter, which workspaceRoutes mounts under requireWorkspaceRole(['owner', 'accountant']))
     const nestedGuardedMounts: Record<string, { parentFile: string; mountCheck: string }> = {
       'payrollImportRoutes.ts': {
         parentFile: 'payRunRoutes.ts',
@@ -132,6 +223,30 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
         parentFile: 'statusRoutes.ts',
         mountCheck: "statusRouter.use('/v1/schedule', apiAuthenticate, scheduleRouter)",
       },
+      'giveAccessRoutes.ts': {
+        parentFile: 'adminRoutes.ts',
+        mountCheck: 'registerGiveAccessRoutes(app)',
+      },
+      'documentPostRoutes.ts': {
+        parentFile: 'documentRoutes.ts',
+        mountCheck: 'documentRouter.use(documentPostRouter)',
+      },
+      'operationalReportRoutes.ts': {
+        parentFile: 'reportRoutes.ts',
+        mountCheck: 'reportRouter.use(operationalReportRouter)',
+      },
+      'landedCostRoutes.ts': {
+        parentFile: 'inventoryRoutes.ts',
+        mountCheck: "inventoryRouter.use('/landed-cost', landedCostRouter)",
+      },
+      'stockClosingRoutes.ts': {
+        parentFile: 'inventoryRoutes.ts',
+        mountCheck: 'registerStockClosingRoutes(inventoryRouter)',
+      },
+      'taskRoutes.ts': {
+        parentFile: 'workspaceRoutes.ts',
+        mountCheck: 'mountTeamRoutes(',
+      },
     };
 
     for (const file of routeFiles) {
@@ -140,82 +255,51 @@ describe('Route Policy Coverage Suite (D-30: Tenant Wall Security)', () => {
       const filePath = path.join(routesDir, file);
       const content = fs.readFileSync(filePath, 'utf8');
 
-      // Check if file has internal auth guards or service-layer verification
-      const hasInternalGuard =
-        content.includes('validateWorkspaceMember') ||
-        content.includes('requireWorkspaceRole') ||
-        content.includes('requireLedgerWriter') ||
-        content.includes('getUserFromAuthHeader') ||
-        content.includes('verifyApiKey') ||
-        content.includes('apiKeyAuth') ||
-        content.includes('roleInWorkspace') ||
-        content.includes('verifySession') ||
-        content.includes('authenticate') ||
-        content.includes('apiAuthenticate') ||
-        content.includes('authorizeWorkspace') ||
-        content.includes('isCronRequest') ||
-        content.includes('CRON_SECRET') ||
-        content.includes('requireAdmin') ||
-        content.includes('requireSystemAdmin');
+      const exportedRouters = [...content.matchAll(/export const (\w+Router)\s*=/g)].map(m => m[1]);
+      const exportedRegistrars = [...content.matchAll(/export function ((?:register|mount)\w+Routes)\s*\(/g)].map(m => m[1]);
 
-      // Collect all exported symbols (routers and mounting functions)
-      const exportedSymbols: string[] = [];
-      for (const m of content.matchAll(/export const (\w+Router)\s*=/g)) {
-        exportedSymbols.push(m[1]);
-      }
-      for (const m of content.matchAll(/export function ((?:register|mount)\w+Routes)\s*\(/g)) {
-        exportedSymbols.push(m[1]);
+      let isGuarded = false;
+
+      // Direct app registrars are verified registration-by-registration in the F-02 test above
+      if (exportedRegistrars.length > 0 && exportedRouters.length === 0) {
+        const mountedInServerOrWs = exportedRegistrars.some(
+          sym => serverMounts.some(l => l.includes(sym)) || wsMounts.some(l => l.includes(sym)),
+        );
+        const mountedNested = Boolean(nestedGuardedMounts[file]);
+        isGuarded = mountedInServerOrWs || mountedNested;
       }
 
-      let isMountedWithGuard = false;
-
-      for (const symbol of exportedSymbols) {
-        // Mounted in workspaceRoutes with role guard?
+      for (const symbol of exportedRouters) {
         const inWs = wsMounts.some(
           l => l.includes(symbol) && (l.includes('requireWorkspaceRole') || l.includes('ROLES') || l.includes('mountTeamRoutes')),
         );
-        // Mounted in server.ts with auth?
         const inServer = serverMounts.some(l => l.includes(symbol) && (l.includes('apiAuthenticate') || l.includes('authenticate')));
         if (inWs || inServer) {
-          isMountedWithGuard = true;
+          isGuarded = true;
           break;
         }
       }
 
-      // Check nested guarded mounts
-      if (!isMountedWithGuard && nestedGuardedMounts[file]) {
+      if (!isGuarded && nestedGuardedMounts[file]) {
         const { parentFile, mountCheck } = nestedGuardedMounts[file];
         const parentContent = fs.readFileSync(path.join(routesDir, parentFile), 'utf8');
-        const isMountedInParent = parentContent.includes(mountCheck);
-        const parentRouterMatch = parentContent.match(/export const (\w+Router)\s*=/);
-        const parentRouterSymbol = parentRouterMatch?.[1];
-        const parentIsGuardedInWs =
-          parentRouterSymbol &&
-          wsMounts.some(l => l.includes(parentRouterSymbol) && (l.includes('requireWorkspaceRole') || l.includes('ROLES')));
-        const parentIsGuardedInServer =
-          parentRouterSymbol &&
-          serverMounts.some(l => l.includes(parentRouterSymbol));
-        isMountedWithGuard = Boolean(isMountedInParent && (parentIsGuardedInWs || parentIsGuardedInServer));
+        isGuarded = parentContent.includes(mountCheck);
       }
 
       assert.ok(
-        hasInternalGuard || isMountedWithGuard,
-        `Route file ${file} lacks internal auth guards and is not mounted with verified middleware in workspaceRoutes, server.ts, or a guarded parent router`,
+        isGuarded,
+        `Router file ${file} is not mounted with verified auth middleware in workspaceRoutes, server.ts, or a guarded parent router`,
       );
     }
   });
 
-  it('rejects an unmounted and unguarded route file missing from publicAllowlist (negative test fixture)', () => {
-    const unmountedRouteCode = `
-      import express from 'express';
-      export const rogueRouter = express.Router();
-      rogueRouter.get('/secrets', (req, res) => res.json({ secret: 'leaked' }));
-    `;
-    const routerMatch = unmountedRouteCode.match(/export const (\w+Router)\s*=/);
-    const symbol = routerMatch?.[1];
-    const wsContent = fs.readFileSync(workspaceRoutesPath, 'utf8');
-    const isMounted = symbol ? wsContent.includes(symbol) : false;
-    const hasGuard = unmountedRouteCode.includes('requireWorkspaceRole') || unmountedRouteCode.includes('apiAuthenticate');
-    assert.equal(isMounted || hasGuard, false, 'Negative fixture must be detected as unguarded and unmounted');
+  it('rejects an unguarded app.<verb> registration (negative test fixture)', () => {
+    const parsed = parseAppRegistration('app.post("/api/v1/admin/integrity/orphan-scan", authenticate, async (req, res) => {');
+    assert.ok(parsed);
+    assert.equal(
+      parsed.middleware.includes('authenticate') && parsed.middleware.includes('requireAdmin'),
+      false,
+      'Missing requireAdmin on an /api/v1/admin/* route must be flagged',
+    );
   });
 });

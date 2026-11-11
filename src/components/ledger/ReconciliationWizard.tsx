@@ -90,6 +90,8 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
     return (transactions || []).filter(t => 
       isPostable(t) &&
       t.status !== 'reconciled' &&
+      !t.reconciled &&
+      !t.isReconciled &&
       !t.clearedAt &&
       isTransactionInDateRange(t, undefined, statementDate) &&
       t.lines?.some(l => l.accountId === account.id || l.accountName === account.name) && 

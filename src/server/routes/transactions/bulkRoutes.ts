@@ -1,8 +1,7 @@
 import express from 'express';
-import { FieldValue } from '../../db/firestore';
+import { FieldValue, getDb, isWorkspaceMemberData } from '../../db/firestore';
 import { DoubleEntryValidator } from '../../../kernel/validation/DoubleEntryValidator';
 import type { Transaction } from '../../../types';
-import { getDb } from '../../db/firestore';
 import { LedgerPostingError } from '../../services/cogsStockService';
 import { z } from 'zod';
 import { assertPostingOpen } from '../../../lib/periodLock';
@@ -12,6 +11,7 @@ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLe
 import { MAX_RECATEGORIZE, RecategorizeError, recategorize } from '../../services/recategorizeService';
 import { workspaceRole } from '../../../lib/periodLock';
 import { BulkRefusal, commitLedgerBulk } from '../../services/ledgerBulkCommit';
+import { writeServerAuditLog } from '../../services/auditLogService';
 
 
 const SERVER_POSTED: Record<string, string> = { invoices: 'Invoices', bills: 'Bills', creditNotes: 'Credit notes', vendorCredits: 'Vendor credits' };
@@ -79,7 +79,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
        }
 
        const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-       if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) return res.status(403).json({ error: 'Not a member' });
+       if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) return res.status(403).json({ error: 'Not a member' });
 
        const wsData = wsDoc.data();
        // writers only: a viewer is a member too
@@ -87,7 +87,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
        const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
        // #112: only these fields can change in a batch; totals, dates, currency and identity go
        // through the full entry editor (PUT) or /recategorize, which check everything
-       const BATCH_FIELDS = new Set(['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category', 'dimensions.category', 'dimensions.project', 'isLocked', 'isFlagged', 'isTransfer', 'transferDetails', 'verification', 'notes', 'memo', 'updatedAt']);
+       const BATCH_FIELDS = new Set(['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category', 'dimensions.category', 'dimensions.project', 'isLocked', 'isFlagged', 'isReviewed', 'reconciled', 'isReconciled', 'reconciledAt', 'isTransfer', 'transferDetails', 'verification', 'notes', 'memo', 'updatedAt']);
        if (updates.length > 2000) return res.status(400).json({ error: 'At most 2000 entries per batch' });
        const ids = updates.map((u: { id: unknown }) => String(u?.id ?? ''));
        if (ids.some(id => !id) || new Set(ids).size !== ids.length) return res.status(400).json({ error: 'Each entry once, with its id' });
@@ -101,7 +101,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
        const conflict = await db.runTransaction(async (t) => {
          // AUD-08: the workspace (closing date, role) as it is at commit, not as it was read before
          const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
-         if (!user.admin && (!wsNow || !(wsNow.uid === user.uid || (Array.isArray(wsNow.members) && wsNow.members.includes(user.uid))) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) throw new Error('Only owners, accountants and bookkeepers change entries');
+         if (!user.admin && (!wsNow || !isWorkspaceMemberData(wsNow, user, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) throw new Error('Only owners, accountants and bookkeepers change entries');
          const txRefs = ids.map(id => db.collection('transactions').doc(id));
          const txDocs = await Promise.all(txRefs.map(r => t.get(r)));
          const accountIds = new Set<string>();
@@ -141,6 +141,18 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
            writes.push({ ref: txDoc.ref, data: { ...updateData, updatedAt: FieldValue.serverTimestamp() } });
          }
          for (const w of writes) t.update(w.ref, w.data);
+         await writeServerAuditLog({
+           workspaceId,
+           uid: user.uid,
+           email: user.email,
+           action: 'TRANSACTIONS_BATCH_UPDATED',
+           entityType: 'transaction',
+           entityId: ids[0] || 'batch',
+           details: {
+             description: `Updated ${writes.length} transaction(s) in batch`,
+             count: writes.length,
+           },
+         }, { db, tx: t });
          return null;
        });
        if (conflict) {

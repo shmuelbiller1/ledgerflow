@@ -30,7 +30,9 @@ describe('Marking entries cleared (database)', { skip: !url && 'LF_TEST_DATABASE
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'Clr', currency: 'USD', members: ['owner-1', 'view-1', 'book-1'], roles: { 'view-1': 'viewer', 'book-1': 'bookkeeper' } });
-    await db.collection('transactions').doc(id('tx')).set({ workspaceId: ws, date: '2026-05-03', description: 'Cheque 1042', totalAmountCents: 5000, status: 'completed', type: 'actual', lines: [{ accountId: 'bank', amountCents: -5000 }, { accountId: 'rent', amountCents: 5000 }] });
+    await db.collection('chartAccounts').doc(id('bank')).set({ id: id('bank'), workspaceId: ws, name: 'Bank', code: '1010', type: 'asset', currency: 'USD' });
+    await db.collection('chartAccounts').doc(id('rent')).set({ id: id('rent'), workspaceId: ws, name: 'Rent', code: '5010', type: 'expense', currency: 'USD' });
+    await db.collection('transactions').doc(id('tx')).set({ workspaceId: ws, date: '2026-05-03', description: 'Cheque 1042', totalAmountCents: 5000, status: 'completed', type: 'actual', lines: [{ accountId: id('bank'), amountCents: -5000 }, { accountId: id('rent'), amountCents: 5000 }] });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
@@ -42,7 +44,7 @@ describe('Marking entries cleared (database)', { skip: !url && 'LF_TEST_DATABASE
 
   after(async () => {
     server?.close();
-    for (const table of ['transactions', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
+    for (const table of ['transactions', 'chartAccounts', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     await db.terminate();
   });
 

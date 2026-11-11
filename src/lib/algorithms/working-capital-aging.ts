@@ -1,6 +1,7 @@
 import { calculateAmountDue } from '../documentMath';
+import { calculateLateFee } from '../paymentTerms';
 import { toBaseCents } from '../../server/reports/partyReports';
-import { parseLocalDate } from '../../lib/utils';
+import { getLocalDateISO, parseLocalDate } from '../../lib/utils';
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { resolveAccountRole } from '../accountUtils';
 import { isPostable, lineAmount, isOpenInvoice, isOpenBill } from '../../lib/txFilters';
@@ -19,8 +20,10 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
     let arPending = 0;
     let apPending = 0;
     let arOverdue = 0;
+    let estimatedLateFeesCents = 0;
     const thresholdDays = inputs.lateThresholdDays ?? 30;
     const now = new Date().getTime();
+    const todayIso = ctx.asOfDate || getLocalDateISO();
     const chartData = [
        { Bucket: 'Current', AR: 0, AP: 0 },
        { Bucket: '1-30 Days Late', AR: 0, AP: 0 },
@@ -42,6 +45,9 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
 
         arPending += amount;
         if (daysOverdue > thresholdDays) arOverdue += amount;
+        if (dueDateStr && amount > 0) {
+          estimatedLateFeesCents += calculateLateFee(amount, dueDateStr, todayIso).lateFeeCents;
+        }
 
         if (daysOverdue <= 0) chartData[0].AR += (amount / 100);
         else if (daysOverdue <= 30) chartData[1].AR += (amount / 100);
@@ -190,6 +196,7 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
       insights: [
         `There is $${(arPending / 100).toLocaleString()} tied up in unpaid customer invoices (AR) and $${(apPending / 100).toLocaleString()} outstanding in supplier bills (AP).`,
         arOverdue > 0 ? `WARNING: $${(arOverdue / 100).toLocaleString()} of Accounts Receivable is significantly overdue (> ${inputs.lateThresholdDays} days past due date). Immediate collection efforts recommended.` : 'Receivables collection is healthy with no severely overdue invoices.',
+        ...(estimatedLateFeesCents > 0 ? [`Contractual late-fee benchmark (18% APR + $25 flat per overdue invoice): $${(estimatedLateFeesCents / 100).toLocaleString()}.`] : []),
         netPending < 0 ? 'Short-term liquidity crunch: Pending payables exceed pending receivables.' : 'Working capital structure is positive.'
       ]
     };

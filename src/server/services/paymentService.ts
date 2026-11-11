@@ -17,7 +17,7 @@ const SYSTEM_ACTOR = 'system';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
-import type { DocumentReference, Firestore, Transaction } from '../db/firestore';
+import type { DocumentData, DocumentReference, Firestore, Transaction } from '../db/firestore';
 import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
 import { allocateCents, spreadLabels, type LineAccountWeight } from '../../kernel/templates/TransactionTemplates';
 
@@ -60,8 +60,9 @@ interface PaymentAuthorization {
   platformAdmin?: boolean;
 }
 
-export async function createPaymentAtomic(db: any, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
-  return db.runTransaction((tx: unknown) => createPaymentInTransaction(db, tx, payload, authorization));
+export async function createPaymentAtomic(rawDb: unknown, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
+  const db = rawDb as Firestore;
+  return db.runTransaction((tx) => createPaymentInTransaction(db, tx, payload, authorization));
 }
 
 /**
@@ -149,7 +150,9 @@ function payeeLabels<T extends { accountId: string; amountCents: number }>(weigh
   return spreadLabels(lines as never, all) as unknown as T[];
 }
 
-export async function createPaymentInTransaction(db: any, tx: any, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
+export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
+  const db = rawDb as Firestore;
+  const tx = rawTx as Transaction;
   const {
     workspaceId,
     uid,
@@ -223,7 +226,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
       throw new Error('Each invoice or bill may appear only once in a payment');
     }
 
-    const docUpdates: Array<{ ref: { id?: string; [k: string]: unknown }; updates: Record<string, unknown> }> = [];
+    const docUpdates: Array<{ ref: unknown; updates: Record<string, unknown> }> = [];
     let totalAllocatedCents = 0;
     // A payment is in the currency of the documents it pays (all the same one); the ledger gets
     // it converted at the documents' rate, like the documents themselves (L-105).
@@ -302,7 +305,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
     const chartAccounts = async (): Promise<ChartAccount[]> => {
       if (!chartCache) {
         const chart = await tx.get(db.collection('chartAccounts').where('workspaceId', '==', workspaceId));
-        chartCache = chart.docs.map((d: { id: string; data: () => ChartAccount }) => ({ ...d.data(), id: d.id }));
+        chartCache = chart.docs.map((d) => ({ ...(d.data() as ChartAccount), id: d.id }));
       }
       return chartCache as ChartAccount[];
     };
@@ -484,7 +487,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
 
     // 6. Stage writes
     for (const update of docUpdates) {
-      tx.update(update.ref, update.updates);
+      tx.update(update.ref as Parameters<Transaction['update']>[0], update.updates);
     }
     tx.set(paymentRef, paymentData);
     tx.set(ledgerTxRef, ledgerTxData);
@@ -519,7 +522,7 @@ export async function createPaymentInTransaction(db: any, tx: any, payload: Crea
       }
     }, { db, tx });
 
-    return { paymentId, transactionId: ledgerTxRef.id, payment: paymentData, ledgerTransaction: ledgerTxData };
+    return { paymentId, transactionId: ledgerTxRef.id, payment: paymentData as DocumentData, ledgerTransaction: ledgerTxData as DocumentData };
   }
 }
 

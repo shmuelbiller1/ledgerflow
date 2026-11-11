@@ -18,7 +18,7 @@
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { COUNTED_SALES } from '../taxCodes';
 import { exemptionOn } from '../taxExemption';
-import { registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 import { documentEntityLabels } from './ilVatReturn';
 
 export interface UsSalesDocument extends TaxableDocument {
@@ -80,7 +80,7 @@ export function usSalesTaxReturn(input: {
       const seller = resolveSellerProfile(input.profiles, documentEntityLabels(doc) || (invoice ? documentEntityLabels(invoice) : undefined), input.order);
       if (!registrationsOn(seller, 'sales_tax', date).some(r => registrationKey(r) === input.registration)) continue;
       const customer = doc.customerId ? customers.get(doc.customerId) : undefined;
-      const destination = usSaleDestination(doc, invoice, customer, seller.place?.state);
+      const destination = usSaleDestination(doc, invoice, customer, placeState(seller.place));
       if (destination.abroad) continue; // a sale abroad is in no state
       const buyerState = destination.state;
       if (!buyerState) {
@@ -123,12 +123,15 @@ export function usSaleDestination(
   doc: UsSalesDocument, invoice: UsSalesDocument | undefined,
   customer: { metadata?: unknown } | undefined, sellerState: string | undefined,
 ): { abroad: boolean; state: string } {
-  const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => (d?.shippingAddress?.state ? { country: d.shippingAddress.country || 'US', state: d.shippingAddress.state } : undefined);
+  const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => {
+    const st = placeState(d?.shippingAddress);
+    return st ? { country: d?.shippingAddress?.country || 'US', state: st } : undefined;
+  };
   const recorded = [doc.metadata?.taxPlace, shipTo(doc), invoice?.metadata?.taxPlace, shipTo(invoice), (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace]
     .filter((p): p is TaxPlace => Boolean(p));
   const isAbroad = (p: TaxPlace) => String(p.country || '').toUpperCase() !== 'US';
-  const place = recorded.find(p => isAbroad(p) || p.state);
+  const place = recorded.find(p => isAbroad(p) || Boolean(placeState(p)));
   if (place && isAbroad(place)) return { abroad: true, state: '' };
-  return { abroad: false, state: String((place ? place.state : recorded.length ? '' : sellerState) || '').toUpperCase() };
+  return { abroad: false, state: String((place ? placeState(place) : recorded.length ? '' : sellerState) || '').toUpperCase() };
 }
 

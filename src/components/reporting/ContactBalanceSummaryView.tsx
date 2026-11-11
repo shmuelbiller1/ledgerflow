@@ -3,6 +3,8 @@ import { Contact } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -23,14 +25,27 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const payments = useLedgerStore(s => s.payments);
   const creditNotes = useLedgerStore(s => s.creditNotes);
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   useLedgerCollections('bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
+  const isTruncated = Boolean(
+    truncated.customers || truncated.vendors || truncated.invoices || truncated.bills ||
+    truncated.payments || truncated.creditNotes || truncated.vendorCredits
+  );
+  const serverRows = useServerOperationalReport<ContactBalanceSummaryRow[]>(
+    isTruncated && Boolean(workspaceId),
+    workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
+    `${workspaceId}:${asOfDate}:${collectionStamp(customers, vendors, invoices, bills, payments, creditNotes, vendorCredits)}`,
+    body => (Array.isArray(body.contactRows) ? (body.contactRows as ContactBalanceSummaryRow[]) : undefined),
+  );
 
-  const rows = useMemo(() => computeContactBalanceSummary(
+  const localRows = useMemo(() => computeContactBalanceSummary(
     computeCustomerBalanceSummary(customers, invoices, payments, creditNotes, asOfDate),
     computeVendorBalanceSummary(vendors, bills, payments, vendorCredits, asOfDate),
   ), [customers, vendors, invoices, bills, payments, creditNotes, vendorCredits, asOfDate]);
+  const rows = serverRows || localRows;
 
   const shown = useMemo(() => {
     const term = searchTerm.trim().toLocaleLowerCase();

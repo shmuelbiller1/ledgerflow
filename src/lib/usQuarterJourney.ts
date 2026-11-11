@@ -20,7 +20,7 @@
 import { COUNTED_SALES } from './taxCodes';
 import { exemptionOn } from './taxExemption';
 import {
-  registrationsOn, registrationKey,
+  placeState, registrationsOn, registrationKey,
   type FilingFrequency, type TaxProfiles,
 } from './tax/profile';
 import { filingCalendarRow, filingDueDate } from './tax/usFilingCalendar';
@@ -70,6 +70,8 @@ export interface UsQuarterStateReturn {
   dueNote?: string;
   /** the caller recorded this return (or the whole quarter) as filed */
   filed: boolean;
+  /** true when a whole-workspace return covers the period but multiple permits exist so the state is ambiguous */
+  recordedForDates?: boolean;
   /** the state's economic-nexus sales threshold in force at the quarter end, when it has one */
   nexusThresholdCents: number | null;
   /** the quarter's gross sales into the state reach that threshold (the sales test only) */
@@ -153,9 +155,10 @@ export interface UsQuarterInput {
   filedReturns?: string[];
   /**
    * Filed returns the server keeps for this workspace (the same record the return screen lists):
-   * a return recorded for exactly this period counts as filed, whichever permit it was for.
+   * a return recorded for this registration counts for its own permit; an unscoped whole-workspace
+   * return counts only when the workspace holds a single US sales-tax permit (F-08, CON-4b).
    */
-  filedPeriods?: Array<{ startDate: string; endDate: string }>;
+  filedPeriods?: Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax' }>;
   /** the state the use-tax review is run for; defaults to the first permit state of the quarter */
   useTaxState?: string;
 }
@@ -208,7 +211,7 @@ export function usQuarterPermits(profiles: TaxProfiles | null | undefined, endDa
       const key = registrationKey(registration);
       if (seen.has(key)) continue;
       seen.add(key);
-      const state = String(registration.place.state || '').toUpperCase();
+      const state = placeState(registration.place);
       out.push({
         registration: key, permitNumber: registration.number, state, stateName: stateNameOf(state), from,
         ...(registration.filing ? { filing: registration.filing as FilingFrequency } : {}),
@@ -281,7 +284,15 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
       ...(dueDate ? { dueDate } : {}),
       ...(calendar?.note ? { dueNote: calendar.note } : {}),
       filed: filed.has(permit.registration) || filed.has(quarterKey)
-        || (input.filedPeriods || []).some(f => f.startDate === startDate && f.endDate === endDate),
+        || (input.filedPeriods || []).some(f =>
+          f.startDate === startDate && f.endDate === endDate
+          && f.kind !== 'vat'
+          && !(f.registration && !f.registration.startsWith('sales_tax:'))
+          && (f.registration ? f.registration === permit.registration : permits.length === 1),
+        ),
+      recordedForDates: (input.filedPeriods || []).some(f =>
+        f.startDate === startDate && f.endDate === endDate && !f.registration && f.kind !== 'vat' && permits.length > 1,
+      ),
       nexusThresholdCents: threshold,
       // the state's own wording: New York's "more than" is not reached at exactly the threshold
       nexusSalesReached: threshold !== null && (nexus?.strict ? r.grossSalesCents > threshold : r.grossSalesCents >= threshold),
