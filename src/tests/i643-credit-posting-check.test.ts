@@ -10,12 +10,12 @@ import { findPostingMismatches } from '../lib/postingCheck';
 import { buildCloseChecklist } from '../lib/closeChecklist';
 import type { CreditNote, Transaction, VendorCredit } from '../types';
 
-const cnEntry = (id: string, cn: string, cents: number) => ({ id, workspaceId: 'w', date: '2026-03-10', status: 'posted', description: 'CN',
-  metadata: { creditNoteId: cn, type: 'credit-note-issuance' },
-  lines: [{ accountId: 'returns', amountCents: cents }, { accountId: 'ar', amountCents: -cents }] }) as unknown as Transaction;
-const vcEntry = (id: string, vc: string, cents: number) => ({ id, workspaceId: 'w', date: '2026-03-10', status: 'posted', description: 'VC',
-  metadata: { vendorCreditId: vc, type: 'vendor-credit-issuance' },
-  lines: [{ accountId: 'ap', amountCents: cents }, { accountId: 'expense', amountCents: -cents }] }) as unknown as Transaction;
+// one issuance entry: the credit note's AR credit (key creditNoteId) or the vendor credit's AP debit (key vendorCreditId)
+const entry = (kind: 'cn' | 'vc', id: string, doc: string, cents: number) => ({ id, workspaceId: 'w', date: '2026-03-10', status: 'posted', description: kind,
+  metadata: kind === 'cn' ? { creditNoteId: doc, type: 'credit-note-issuance' } : { vendorCreditId: doc, type: 'vendor-credit-issuance' },
+  lines: kind === 'cn' ? [{ accountId: 'returns', amountCents: cents }, { accountId: 'ar', amountCents: -cents }] : [{ accountId: 'ap', amountCents: cents }, { accountId: 'expense', amountCents: -cents }] }) as unknown as Transaction;
+const cnEntry = (id: string, doc: string, cents: number) => entry('cn', id, doc, cents);
+const vcEntry = (id: string, doc: string, cents: number) => entry('vc', id, doc, cents);
 const cn = (id: string, status = 'open', amountCents = 12000) => ({ id, number: id, customerName: 'Acme', status, amountCents, date: '2026-03-10' }) as unknown as CreditNote;
 const vc = (id: string, status = 'open', amountCents = 8000) => ({ id, number: id, vendorName: 'Supply Co', status, amountCents, date: '2026-03-10' }) as unknown as VendorCredit;
 
