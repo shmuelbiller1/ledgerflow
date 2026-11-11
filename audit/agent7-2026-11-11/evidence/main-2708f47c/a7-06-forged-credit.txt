@@ -1,22 +1,22 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-06-forged-credit.test.ts
-# run: 2026-11-11T20:43:52Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:51:42Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 ▶ A7-06 a credit note forged from the browser is applied and refunded by the server
-  ✔ setup: invoice 500.00 issued through the server (127.788651ms)
+  ✔ setup: invoice 500.00 issued through the server (104.875908ms)
 browser insert into creditNotes: ACCEPTED
 POST /payments/credits/apply -> 200 {"status":"success","data":{"creditRemainingCents":0,"documentAmountDueCents":0}}
 invoice INV-1: status paid, paid 50000 of 50000
 A/R ageing report total: 0; ledger: {"ar":50000,"sales":-50000}
 DEFECT A7-06a: invoice "paid" by a credit that was never issued; ledger A/R still 500.00, ageing 0.00
-  ✔ the bookkeeper's browser inserts an open credit note of 500.00; the server applies it and the invoice is "paid" (41.395742ms)
-POST /payments/credits/refund -> 200 {"status":"success","data":{"transactionId":"YuftcbGKHwxH8rZeOZaX","creditRemainingCents":0}}
-ledger: {"ar":80000,"sales":-50000,"bank":-30000}
+  ✔ the bookkeeper's browser inserts an open credit note of 500.00; the server applies it and the invoice is "paid" (33.940192ms)
+POST /payments/credits/refund -> 200 {"status":"success","data":{"transactionId":"IV0HQ7MpcNo8o8foyhEc","creditRemainingCents":0}}
+ledger: {"ar":80000,"bank":-30000,"sales":-50000}
 DEFECT A7-06b: the bank is credited 300.00 (a refund) against a credit note that was never issued
-  ✔ a second forged credit of 300.00 is refunded from the bank by the server: Bank -300.00 (26.223975ms)
+  ✔ a second forged credit of 300.00 is refunded from the bank by the server: Bank -300.00 (24.139877ms)
 Data Health (medium) [control-balance]: Accounts receivable is $800.00, the open invoices add up to $0.00
 Data Health (low) [empty-invoice]: Invoice INV-1: 1 line(s) have no income account (posted to the default one)
-  ✔ what the app's own Data Health checks say afterwards (35.387687ms)
-✔ A7-06 a credit note forged from the browser is applied and refunded by the server (1212.601037ms)
+  ✔ what the app's own Data Health checks say afterwards (29.131327ms)
+✔ A7-06 a credit note forged from the browser is applied and refunded by the server (984.644046ms)
 ℹ tests 4
 ℹ suites 1
 ℹ pass 4
@@ -24,4 +24,4 @@ Data Health (low) [empty-invoice]: Invoice INV-1: 1 line(s) have no income accou
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1361.780475
+ℹ duration_ms 1104.096467

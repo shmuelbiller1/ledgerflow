@@ -12,7 +12,9 @@ Review only. No application, schema, migration or test-suite code was changed by
 
 | ID | Issue | Severity | Finding | At `2708f47c` |
 |---|---|---|---|---|
-| A7-04 | [#652](https://github.com/shmuelbiller1/ledgerflow/issues/652) | **P1** | A bookkeeper voids, rewrites or reverses the ledger entry of an invoice or a payment; the document is not told | Open, unchanged |
+| A7-04 g, h | [#662](https://github.com/shmuelbiller1/ledgerflow/issues/662) | **P1 — fix first** | The ledger list's "Reverse transaction" button un-posts the entry of an invoice or a payment; "Undo" answers 200 and does not restore it | **New with PR #647** |
+| A7-04 a–d | [#652](https://github.com/shmuelbiller1/ledgerflow/issues/652) | **P1** | A bookkeeper voids, rewrites or reverses the ledger entry of an invoice or a payment; the document is not told | Open, unchanged |
+| A7-04 e, f | [#662](https://github.com/shmuelbiller1/ledgerflow/issues/662) | **P1** | One header field multiplies a payment's entry by any rate; a posted entry is deleted in two requests | Open (same at `2ac666b`) |
 | A7-06 | [#646](https://github.com/shmuelbiller1/ledgerflow/issues/646) | **P1** | A credit note that was never issued is applied to an invoice and refunded from the bank | Partly closed; the core is open |
 | A7-02 / A7-08 | [#654](https://github.com/shmuelbiller1/ledgerflow/issues/654) | P2 | Entries at a foreign rate: refused, valued one for one, or posted 0.01 out of balance, depending on the door | Changed, not closed |
 | A7-03 | [#653](https://github.com/shmuelbiller1/ledgerflow/issues/653) | P2 | A foreign invoice paid in instalments leaves −0.01 in Accounts Receivable for good | Open, unchanged |
@@ -27,27 +29,39 @@ Status of every issue after the merge is also in [#661](https://github.com/shmue
 
 ---
 
-## A7-04 — entries of invoices and payments can be changed behind the document · P1 · #652
+## A7-04 — posted entries can be changed, un-posted and deleted through the generic entry routes · P1 · #652, #662
 
-**What happens.** Invoice INV-9 for 500.00, paid in full: Bank +500.00, Accounts Receivable 0.00, Sales −500.00. Then, as a bookkeeper:
+Setup for every row: invoice INV-9 for 500.00, paid in full — Bank +500.00, Accounts Receivable 0.00, Sales −500.00. Each request is sent as a bookkeeper.
 
-| Request | Answer | Ledger | Documents |
-|---|---|---|---|
-| `PUT /api/v1/transactions/<payment's entry>` `{ partialUpdate: { status: "void" } }` | 200 | A/R 500.00, Bank 0.00 | invoice `paid`, payment `posted` |
-| `PUT /api/v1/transactions/<invoice's entry>`, lines rewritten to 100.00 | 200 | Sales 100.00 | invoice still 500.00 |
-| `POST /api/v1/transactions/<invoice's entry>/reverse` | 200 | nothing left | invoice still issued and `paid` |
+| | Request | Answer | Ledger afterwards | Documents |
+|---|---|---|---|---|
+| a | `PUT /api/v1/transactions/<payment's entry>` `{ partialUpdate: { status: "void" } }` | 200 | A/R 500.00, Bank 0.00 | invoice `paid`, payment `posted` |
+| b | `PUT /api/v1/transactions/<invoice's entry>`, lines rewritten to 100.00 | 200 | Sales 100.00 | invoice still 500.00 |
+| c | `POST /api/v1/transactions/<invoice's entry>/reverse` | 200 | nothing left | invoice still issued and `paid` |
+| e | `PUT … <payment's entry>` `{ partialUpdate: { exchangeRate: 100 } }` | 200 | Bank 49,930.00 (was 430.00: these books also hold a hand journal of 70.00), A/R −49,500.00; the entry's lines and total still read 500.00; the trial balance still balances | unchanged |
+| f | `{ partialUpdate: { status: "draft" } }`, then `DELETE /api/v1/transactions/:id` | 200, 200 | the entry is gone (a hand journal, and a payment's entry) | invoice `paid`, payment `posted` |
+| g | `{ partialUpdate: { status: "failed", deletedAt } }` — **what the ledger list's "Reverse transaction" button sends** | 200 | the entry stops counting; no reversing entry is added | unchanged |
+| h | the toast's "Undo" after g: a full `PUT` with the entry as it was | 200 | **unchanged** — `status` is `completed` again, `deletedAt` is still set, the entry stays out of every report | unchanged |
 
-The audit rows for the first two say only "Full update on transaction ref [id]" — no before, no after — and are written after the database transaction commits (`crudRoutes.ts`, partial update at `:307`, full update at `:370`).
+d. The audit rows for a, b, e and g say only "Partial update / Full update on transaction ref [id]" — no before, no after — and are written after the database transaction commits (`crudRoutes.ts:310-320`, `:373-383`).
 
-**Expected.** Each refused (409) with a pointer to the document, as `revaluationEntryLock` already does for stock-revaluation entries.
+**Mechanism.** The partial-update branch (`crudRoutes.ts:260-323`) refuses six fields (`lines`, `amountCents`, `totalAmountCents`, `date`, `workspaceId`, `uid`) and writes every other field as sent, without the validator, on any entry in an open period that is not already certified or void; it accepts eleven statuses, `draft` and `failed` among them. The allow-list that the code already has for marking a posted entry (`LEDGER_MARK_FIELDS`, `ledgerDoor.ts:66`) is not used here. For e: reports value a line with its own rate, else the entry's (`lineAmount`, `txFilters.ts:90-96`), and `paymentService.ts:493` stores no rate on the payment entry's lines. For h: `deletedAt` is not in the schema, so the full update drops it from the payload and the stored value survives the merge.
 
-**Reachable by clicking (read in source, not run in a browser).** The rule exists only in the browser, and only for the inline cells of a ledger row (`TransactionRow.tsx:135`, `:146`). The "Edit Transaction Details" button on the same row (`:422`) opens `TransactionEditModal` for any entry in an open period; its save (`TransactionEditModal.tsx:156-249`) checks the period, the description, the accounts and that the lines sum to zero, then sends the second request above.
+**Reachable by clicking (read in source, not run in a browser).**
+- g and h need no hand-made request. Every row of the ledger list in an open period shows the "Reverse transaction" button (`TransactionRow.tsx:461-469`), disabled only for a reversal or an entry already reversed. Up to `2ac666b` it sent `DELETE`, which the server refuses for a posted entry; PR #647 rewired it to `handleVoidTransaction` (`TransactionGrid.tsx:50`, pinned by `ledger-integrity-slice3.test.ts:30`).
+- b: the "Edit Transaction Details" button on the same row (`TransactionRow.tsx:422`) opens `TransactionEditModal` for any entry in an open period; its save (`TransactionEditModal.tsx:156-249`) checks the period, the description, the accounts and that the lines sum to zero, not where the entry came from.
+- The rule "change it through the document" exists only in the browser and only for the inline cells (`TransactionRow.tsx:135`, `:146`).
+- a, c, e, f need a signed-in writer to send a request the screens do not send.
 
-**Controls that hold.** `DELETE` of a posted entry is 403 for every role. Edits must balance and stay out of closed months. Data Health reports the void as *high* "Payment … has no entry in the ledger"; the month-end posting check reports the rewrite as an amount difference and the reversal as missing, and "Repost" repairs them.
+**Expected.** A posted entry changes in place only through the listed mark fields and along allowed status changes (`completed → draft` and `completed → failed` are not among them); taking it out of the books is a reversing entry; an entry that belongs to a document is changed through the document (409 with a pointer, as `revaluationEntryLock` does for stock-revaluation entries); "Undo" restores or says it could not.
 
-**Direction (AI #1).** One server-side predicate equal to the client's `isDocumentEntry`, checked in `PUT /transactions/:id` (both branches) and `POST /transactions/:id/reverse`; before and after values in the audit row, inside the same transaction.
+**Controls that hold.** Edits must balance and stay out of closed months. A single `DELETE` of a posted entry is 403 for every role — but f gets round it in two requests. The `TRANSACTION_DELETED` audit row keeps a copy of what was deleted.
 
-**Acceptance test.** `probes/a7-04-system-entries-editable.test.ts` with the three expectations turned round (409, balances unchanged).
+**What notices afterwards.** Data Health reports a payment whose entry is void, un-posted or deleted as *high* "Payment … has no entry in the ledger", and e only as a *medium* difference between Accounts Receivable and the open invoices, with no finding that names the entry. The month-end posting check reports b as an amount difference and c and g (invoice) as missing; it does not cover payments. Nothing notices a hand journal that was un-posted or deleted.
+
+**Direction (AI #1).** In the partial-update branch use the existing allow-list (`ledgerMark`) plus the non-ledger marks the screens use; add one server-side predicate equal to the client's `isDocumentEntry` to `PUT /transactions/:id` (both branches) and `POST /transactions/:id/reverse`; make the list's button post a reversal for a hand entry and point to the document otherwise; write before and after values in the audit row inside the same transaction; store a rate on the payment entry's lines or stop `lineAmount` falling back to the entry's rate for an entry in the books' currency.
+
+**Acceptance tests.** `probes/a7-04-system-entries-editable.test.ts` (a–d), `a7-04e-rate-by-partial-update.test.ts`, `a7-04f-unpost-then-delete.test.ts`, `a7-04g-ledger-list-void-button.test.ts`, each with its expectations turned round (refused, balances unchanged).
 
 ---
 
@@ -76,7 +90,7 @@ Data Health afterwards: *medium* "Accounts receivable is $800.00, the open invoi
 
 **Expected.** The server applies or refunds only a credit that has its own posted ledger entry; the database refuses a browser insert of an issued or open money document and a change to the total or status of an issued one.
 
-**Scope.** Needs a signed-in writer of that workspace sending a request the screens do not send. It is that member's own books that become wrong; other workspaces are not reachable this way (viewer and outsider inserts are refused in the same probe).
+**Scope.** Needs a signed-in writer of that workspace sending a request the screens do not send. It is that member's own books that become wrong; the database rules test (`supabase/tests/rls.test.sql`, passing at this pin) covers that viewers and outsiders cannot write these tables.
 
 **Direction (AI #1).** In `creditService`, require the credit's posted entry before applying or refunding. In the database, extend the settlement guard to inserts and to `amountCents` / `status` of issued documents, or move issue and void behind server routes as was done for payments.
 
@@ -165,7 +179,7 @@ Runs 43089086556 and 43089753807 on `2708f47c` failed at "Propose change in a re
 
 ## A7-12 — the Code Atlas describes the tree of 16 October · P3, tooling · reported here only
 
-`node scripts/code-atlas.mjs stats` at `2708f47c`: source revision `74b8318bfba0983ecba05bfbe4c41494ff57a36e` (16 Oct 2026), 2,141 files, 126 annotated, 54 manually inspected. `validate` passes against that revision. `changes --check` exits 1: 2,590 source changes since (1,603 added, 909 modified, 66 renamed, 12 deleted) and all 18 workflow traces flagged for review. `main` has 3,641 tracked files. `docs/INDEPENDENT_AUDIT_AGENT.md` tells the auditor to build the capability map from these traces; they predate 19 of the 54 migrations. The atlas workflow last ran in CI on 16 October.
+`node scripts/code-atlas.mjs stats` at `2708f47c`: source revision `74b8318bfba0983ecba05bfbe4c41494ff57a36e` (16 Oct 2026), 2,141 files, 126 annotated, 54 manually inspected. `validate` passes against that revision. `changes --check` exits 1: 2,590 source changes since (1,603 added, 909 modified, 66 renamed, 12 deleted) and all 18 workflow traces flagged for review. `main` has 3,641 tracked files. `docs/INDEPENDENT_AUDIT_AGENT.md` tells the auditor to build the capability map from these traces; they predate 19 of the 54 migrations. The atlas workflow has run once in CI, on 16 October, and failed.
 
 ---
 
@@ -179,4 +193,4 @@ Runs 43089086556 and 43089753807 on `2708f47c` failed at "Propose change in a re
 - Twelve of fourteen writers refuse a date in a hard-closed month, each naming the period; a thirteenth is refused by the never-delete rule (A7-07 probe).
 - A plain invoice, its payment, and the trial balance, balance sheet, profit and loss and A/R ageing routes agree with figures worked by hand (`probes/a7-10-smoke.test.ts`).
 - The journal screen's foreign-currency payload posts, is valued as worked by hand and reverses exactly (`probes/a7-02d-fx-journal-screen-shape.test.ts`), before and after PR #647.
-- A reversal of a document entry at rate 1 is exact (A7-04 probe).
+- A reversal of a document entry at rate 1 is exact, arithmetically (A7-04 probe, row c — that it is allowed at all is the finding).

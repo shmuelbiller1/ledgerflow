@@ -115,14 +115,24 @@ describe('A7-02b a journal at a foreign rate, through the routes', { skip: !DB_U
 
   test('how often a journal at a foreign rate carries a settled home amount (refusal of case 2; all the others get the refusal of case 3)', async () => {
     const { settleHomeCurrency } = await import('../../../src/lib/txFilters');
+    let all = 0, notBalanced = 0, largestMove = 0;
     for (const rate of [1.1, 1.25, 3.7, 3.65, 0.85, 1.0842, 3.652]) {
       let settled = 0, total = 0;
       for (let a = 1; a <= 5000; a += 7) for (let c = 1; c <= 5000; c += 11) {
         const t = { exchangeRate: rate, lines: [{ accountId: 'x', amountCents: a + c, exchangeRate: rate }, { accountId: 'y', amountCents: -a, exchangeRate: rate }, { accountId: 'z', amountCents: -c, exchangeRate: rate }] };
+        const lineByLine = t.lines.map(l => Math.round(l.amountCents * rate));
         settleHomeCurrency(t as never);
-        total++; if (t.lines.some(l => Number.isInteger((l as { baseAmountCents?: number }).baseAmountCents))) settled++;
+        const home = t.lines.map(l => lineAmount(l as never, t as never));
+        if (home.reduce((sum, x) => sum + x, 0) !== 0) notBalanced++;
+        largestMove = Math.max(largestMove, ...home.map((h, i) => Math.abs(h - lineByLine[i])));
+        total++; all++; if (t.lines.some(l => Number.isInteger((l as { baseAmountCents?: number }).baseAmountCents))) settled++;
       }
       console.log(`rate ${rate}: ${settled} of ${total} three-line journals (${(100 * settled / total).toFixed(1)}%) carry a settled home amount`);
     }
+    // control: settleHomeCurrency itself is in order — after it, every one of these journals balances in the home
+    // currency, and no line moved by more than one cent from its own conversion
+    console.log(`settleHomeCurrency over ${all} journals: not balanced in the home currency afterwards ${notBalanced}; largest change to one line ${largestMove} cent(s)`);
+    assert.equal(notBalanced, 0);
+    assert.equal(largestMove, 1);
   });
 });

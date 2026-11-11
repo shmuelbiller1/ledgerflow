@@ -1,0 +1,43 @@
+# what: the repository's own gates, run unchanged on a clean checkout of upstream main 2708f47cb40711e57032bf6d3d4acc9f10f1061d (git worktree, no audit files in it)
+# where: Arena sandbox, 2 CPUs, about 3.9 GB RAM; Node v24.22.2; PostgreSQL 17.11 (disposable local, UTF8, database lf_gate with main's 54 migrations)
+# when: 2026-11-11 19:35-20:40 UTC, one gate after the other (the sandbox was paused for about 40 minutes during unit shard 1, which is why its elapsed time is long)
+
+gate (npm run …)                 exit   seconds   result
+lint:types                         0      55        0 errors
+lint:eslint (--max-warnings 12)    0      94        2 problems (0 errors, 2 warnings)
+test:shard (TEST_SHARD=1/4)        1      2870      tests 1440, pass 1439, fail 1, skipped 0
+test:shard (TEST_SHARD=2/4)        0      264       tests 1350, pass 1350, fail 0, skipped 0
+test:shard (TEST_SHARD=3/4)        0      272       tests 1393, pass 1393, fail 0, skipped 0
+test:shard (TEST_SHARD=4/4)        0      279       tests 1379, pass 1379, fail 0, skipped 0
+build                              0      35        built
+test:rules                         0      1         ALL RLS TESTS PASSED
+
+unit + database suite, four shards together: 5562 tests, 5561 pass, 1 fail, 0 skipped
+
+## the one failing test (shard 1)
+test at src/tests/report-speed-12m.test.tsx:168:3
+✖ A-229: scale=3 (~3,600-transaction) sample business year computes every report module under 500 ms, and the 10 busiest screens mount under 1,500 ms on a ~5,000-entry (scale=4) year (2112.327749ms)
+  AssertionError [ERR_ASSERTION]: Loading all 10 screen modules took 2018.06 ms (budget 1500 ms)
+Reading: a wall-clock budget (1,500 ms to load ten screen modules) on a 2-CPU sandbox. Run alone twice afterwards on the idle sandbox: 1,746 ms and 1,633 ms.
+The same test failed the same way here on main ec3ff49 and 2ac666b, and upstream CI passes it at 2708f47c (CI run 43088267799: success).
+Environment, not a defect; the budget was not touched.
+
+## ESLint warnings at this pin (2)
+src/server/auth/supabaseAuth.ts
+  21:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+src/server/db/pg/values.ts
+  7:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+## upstream CI on the same commit (gh run list --branch main)
+CI 43088267799: success · CodeQL security scanning 43088267893: success · Dependency SBOM evidence 43088267778: success
+ESLint warning ratchet 43089086556, 43089753807: FAILURE at the step 'Propose change in a reviewable PR' (finding A7-11)
+
+## other tooling named in docs/INDEPENDENT_AUDIT_AGENT.md, run at this pin
+node scripts/code-atlas.mjs stats     -> sourceRevision 74b8318bfba0983ecba05bfbe4c41494ff57a36e (2026-10-16), inventory 2141, reviewerAnnotated 126, manuallyInspected 54, unknownRelationships 82
+node scripts/code-atlas.mjs validate  -> ok: true, errors: [] (against that revision; needed two extra history fetches in this shallow clone)
+node scripts/code-atlas.mjs changes --check -> exit 1: 2590 source changes since that revision (added 1603, modified 909, renamed 66, deleted 12); all 18 workflow traces need review (finding A7-12)
+npx tsx scripts/bug-patterns.ts       -> client: swallowing-action 95, success-after-call 12, unchecked-write 2, write-in-loop 8, stale-async 79, silent-catch 50, effect-before-write 0; serverAndSql 16
+node scripts/code-atlas.mjs unknowns / workflow FLOW-PERMISSIONS / FLOW-TAX / V1-04 -> NOT run (the traces are flagged stale by the check above)
+
+## not run here
+Playwright / browser suites (no Chromium in this sandbox); visual baselines; nightly stability; npm audit.

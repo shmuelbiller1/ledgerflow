@@ -1,6 +1,6 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: npx tsx audit/agent7-2026-11-11/probes/a7-01-ledger-door-dataflow.ts
-# run: 2026-11-11T20:43:33Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:51:24Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 shipped scanner (scripts/bug-patterns.ts, AU-6): 0 direct ledger writes  (ledger-door-baseline.json: 0)
 this probe (one step of data flow):              14 direct ledger writes in 11 files
   written as validated: 4   generic partial update: 1   mark-only updates: 6   UNGUARDED: 3

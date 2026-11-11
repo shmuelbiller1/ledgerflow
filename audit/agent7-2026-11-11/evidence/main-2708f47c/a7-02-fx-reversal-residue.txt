@@ -1,6 +1,6 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: npx tsx audit/agent7-2026-11-11/probes/a7-02-fx-reversal-residue.ts
-# run: 2026-11-11T20:43:35Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:51:26Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 Example 1 — two revenue lines of 150.00 and a receivable of 300.00, rate 1.11
   entry (foreign cents) [300,-150,-150] at rate 1.11
   original in home currency: [334,-167,-167] (sum 0)
