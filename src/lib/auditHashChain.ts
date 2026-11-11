@@ -116,7 +116,7 @@ export function canonicalJson(value: unknown): string {
     const record = value as Record<string, unknown>;
     const keys = Object.keys(record)
       .filter(k => record[k] !== undefined)
-      .sort();
+      .sort((a, b) => a.localeCompare(b, 'en'));
     return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalJson(record[k])}`).join(',')}}`;
   }
   return JSON.stringify(String(value));

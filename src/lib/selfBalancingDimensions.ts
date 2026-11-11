@@ -270,7 +270,7 @@ export function buildSelfProvingEliminations(
     const dueToCents = isASource ? (bLine ? bLine.amountCents : 0) : aLine.amountCents;
 
     // In balanced reciprocal books, dueFromCents + dueToCents === 0
-    const discrepancyCents = partner ? dueFromCents + dueToCents : dueFromCents + dueToCents;
+    const discrepancyCents = dueFromCents + dueToCents;
     let status: SelfProvingEliminationPair['status'] = 'matched_balanced';
     if (!partner) {
       status = 'unmatched_counterparty';
@@ -307,7 +307,7 @@ export function buildSelfProvingEliminations(
           : null;
 
     pairs.push({
-      pairKey: partner ? [item.tx.id, partner.tx.id].sort().join(':') : item.tx.id,
+      pairKey: partner ? [item.tx.id, partner.tx.id].sort((a, b) => a.localeCompare(b, 'en')).join(':') : item.tx.id,
       sharedIdentityHash: sharedHash,
       sourceWorkspaceId: isASource ? item.workspaceId : (partner?.workspaceId || String(meta.sourceWorkspaceId || '')),
       targetWorkspaceId: isASource ? (partner?.workspaceId || String(meta.targetWorkspaceId || '')) : item.workspaceId,

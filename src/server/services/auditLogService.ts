@@ -29,8 +29,9 @@ const chainHeadsByWorkspace = new Map<string, AuditChainHead>();
 export function buildAuditLogRecord(
   input: AuditLogEntryInput,
   id: string,
-  chain: AuditChainHead = { seq: 1, prevHash: GENESIS_AUDIT_HASH },
+  chain?: AuditChainHead,
 ) {
+  const head = chain ?? { seq: 1, prevHash: GENESIS_AUDIT_HASH };
   const timestamp = input.timestamp || new Date().toISOString();
   const email = input.email || '';
   const base = {
@@ -49,11 +50,11 @@ export function buildAuditLogRecord(
     severity: input.severity || 'info',
     timestamp,
   };
-  const entryHash = computeAuditEntryHash(base, chain.seq, chain.prevHash);
+  const entryHash = computeAuditEntryHash(base, head.seq, head.prevHash);
   return {
     ...base,
-    seq: chain.seq,
-    prevHash: chain.prevHash,
+    seq: head.seq,
+    prevHash: head.prevHash,
     entryHash,
     chainAlgo: 'sha256' as const,
   };
