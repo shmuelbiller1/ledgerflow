@@ -23,21 +23,7 @@ jobs:
       - run: npm ci --ignore-scripts
         env:
           HUSKY: 0
-      - name: Install Playwright with surfaced diagnostics
-        run: |
-          set +e
-          node_modules/.bin/playwright install --with-deps chromium > "$RUNNER_TEMP/browser-install.log" 2>&1
-          status=$?
-          tail -60 "$RUNNER_TEMP/browser-install.log"
-          if [ "$status" -ne 0 ]; then
-            python3 - <<'PYTHON'
-          import os
-          lines = open(os.environ['RUNNER_TEMP'] + '/browser-install.log').read().splitlines()
-          message = '\n'.join(lines[-55:])
-          print('::error title=Browser installation failure::' + message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
-          PYTHON
-          fi
-          exit "$status"
+      - run: node_modules/.bin/playwright install --with-deps chromium
       - name: Generate candidate reference images
         env:
           # Read in the shell, never interpolated into the script text: the spec wraps this line in
@@ -76,7 +62,7 @@ jobs:
       - name: Push candidates to a review branch (never main)
         if: success()
         env:
-          BRANCH: arena/4eb1082b-ledgerflow
+          BRANCH: visual-baselines/${{ github.run_id }}
           # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
           SCREENS: ${{ inputs.screens }}
         run: |
