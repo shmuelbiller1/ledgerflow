@@ -3,6 +3,9 @@
  * the books, or to a label value (an entity, a location, a branch, or another label). It says where that
  * organisation sits and what it is registered for. A label value without its own profile, or without
  * some field, inherits from its parent value (`homes/maui` → `homes`), then from the books.
+ * Inheritance stops at a country border (#628): a level in another country gives its name and accounting
+ * basis only, never its place, registrations or advance-tax settings, so one country's tax number or
+ * city never lands on another country's entity.
  *
  * An invoice line's seller profile comes from the line's labels; with the buyer's place, the item's
  * tax code and any exemption certificate it decides the tax (the rate tables plug in later). Each
@@ -70,6 +73,8 @@ export function nodeAncestry(nodeId: string): string[] {
 export interface ResolvedProfile extends TaxProfile {
   /** where each field came from, nearest first: label keys, then 'books' */
   from: string[];
+  /** levels in another country than this entity: their place, registrations and advance-tax settings were not inherited */
+  otherCountry?: string[];
 }
 
 /**
@@ -78,6 +83,8 @@ export interface ResolvedProfile extends TaxProfile {
  * missing fields come from its parents and then the books. Registrations are not merged across
  * levels: the nearest level that lists any is the one that counts (a Texas LLC files its own
  * returns, not the parent's).
+ * The entity's country is the nearest level's that names one. A farther level in a different country
+ * (its own, or the one it inherits) passes down only its name and accounting basis.
  */
 export function resolveSellerProfile(profiles: TaxProfiles | null | undefined, dimensions: Record<string, string> | null | undefined, order: string[]): ResolvedProfile {
   const chain: Array<[string, TaxProfile]> = [];
@@ -90,9 +97,14 @@ export function resolveSellerProfile(profiles: TaxProfiles | null | undefined, d
   }
   if (profiles?.books) chain.push(['books', profiles.books]);
   const out: ResolvedProfile = { from: chain.map(([key]) => key) };
-  for (const [, profile] of chain) {
+  // each level's country: its own, else the one it would itself inherit from the next level out
+  const countries: Array<string | undefined> = [];
+  for (let i = chain.length - 1; i >= 0; i--) countries[i] = chain[i][1].place?.country?.trim().toUpperCase() || countries[i + 1];
+  const home = countries[0];
+  for (const [i, [key, profile]] of chain.entries()) {
     if (out.name === undefined && profile.name) out.name = profile.name;
     if (out.basis === undefined && profile.basis) out.basis = profile.basis;
+    if (home && countries[i] && countries[i] !== home) { (out.otherCountry ??= []).push(key); continue; }
     if (out.advanceTaxRatePercent === undefined && profile.advanceTaxRatePercent !== undefined) out.advanceTaxRatePercent = profile.advanceTaxRatePercent;
     if (out.advanceTaxFrequency === undefined && profile.advanceTaxFrequency !== undefined) out.advanceTaxFrequency = profile.advanceTaxFrequency;
     if (out.registrations === undefined && profile.registrations?.length) out.registrations = profile.registrations;
