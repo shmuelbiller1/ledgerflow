@@ -20,14 +20,16 @@ export function detectRecurrences(transactions: readonly Transaction[], minOccur
     for (const [vendor, txs] of Object.entries(groups)) {
         if (txs.length < minOccurrences) continue; // Respect minOccurrences parameter
         
-        // Sort by date
-        txs.sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
+        // Sort by date (each date parsed once: parsing in the comparator made a year of entries take seconds)
+        const times = new Map(txs.map(t => [t, parseLocalDate(t.date).getTime()]));
+        const timeOf = (t: Transaction) => times.get(t) ?? 0;
+        txs.sort((a, b) => timeOf(a) - timeOf(b));
         
         // Calculate intervals in days
         const intervals = [];
         const amounts = [];
         for (let i = 1; i < txs.length; i++) {
-            const diffTime = Math.abs(parseLocalDate(txs[i].date).getTime() - parseLocalDate(txs[i-1].date).getTime());
+            const diffTime = Math.abs(timeOf(txs[i]) - timeOf(txs[i-1]));
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             intervals.push(diffDays);
             amounts.push(Math.abs(txs[i].totalAmountCents));
