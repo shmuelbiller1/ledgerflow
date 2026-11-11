@@ -44,4 +44,4 @@ This is the supplied backlog, not a statement that these are the only product de
 
 ## Next action and limitations
 
-Per the AI #14 queue order, EU-G1 is next after EU-A1's incomplete handoff; it must be done screen-by-screen, starting with Sales, with browser reproduction and an untranslated-string regression guard. This session made **no application-code, financial, server, database, or workflow change** and ran no local test suite. The repository checkout has no `node_modules`; only the merged PR's GitHub checks are reported above. No new PR is associated with the current branch.
+Per the AI #14 queue order, EU-G1 is next after EU-A1's incomplete handoff; it must be done screen-by-screen, starting with Sales, with browser reproduction and an untranslated-string regression guard. This session made **no application-code, financial, server, database, or workflow change** and ran no local test suite. The repository checkout has no `node_modules`; only the merged PR's GitHub checks are reported above. This status reconciliation is pushed for review in [PR #663](https://github.com/shmuelbiller1/ledgerflow/pull/663); consult that PR for its current CI state.
