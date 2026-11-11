@@ -6,6 +6,8 @@
  * on hand is not known and is never computed here. Read-only.
  */
 import React, { useMemo, useState } from 'react';
+import { ShowMoreRows } from '../common/ShowMoreRows';
+import { usePagedRows } from '../../hooks/usePagedRows';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
@@ -98,6 +100,8 @@ export default function ExpiringLotsReportView({ purchaseOrders: purchaseOrdersP
       && (!term || `${r.itemName} ${r.lotNumber}`.toLocaleLowerCase().includes(term)));
   }, [rows, status, search]);
 
+  // R-5: the first page of lots draws at once; counts and the CSV keep using every lot
+  const paged = usePagedRows(visible, `${status}|${search}|${warnDays}`);
   const counts = useMemo(() => {
     const by: Record<LotExpiryStatus, number> = { expired: 0, expiring: 0, ok: 0, 'no-date': 0, 'sale-only': 0 };
     for (const r of rows) by[r.status] += 1;
@@ -169,7 +173,7 @@ export default function ExpiringLotsReportView({ purchaseOrders: purchaseOrdersP
                 <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
             </thead>
             <tbody>
-              {visible.map(row => (
+              {paged.visible.map(row => (
                 <tr key={`${row.itemId}:${row.lotNumber}`} className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.itemName}</bdi></th>
                   <td className="py-1 px-2"><bdi>{row.lotNumber}</bdi></td>
@@ -187,6 +191,7 @@ export default function ExpiringLotsReportView({ purchaseOrders: purchaseOrdersP
               ))}
             </tbody>
           </table>
+          <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lots" onMore={paged.more} onAll={paged.all} />
         </ReportTableScroll>
       )}
     </section>
