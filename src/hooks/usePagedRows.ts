@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 /**
  * R-5: a long report list draws its first page at once and the rest on request, so a year of thousands of rows
@@ -18,7 +19,8 @@ export function usePagedRows<T>(rows: T[], resetKey: string, keep?: (row: T) => 
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const before = () => setPrinting(true);
+    // committed at once: the browser takes the page for printing right after beforeprint, before a queued render
+    const before = () => flushSync(() => setPrinting(true));
     const after = () => setPrinting(false);
     window.addEventListener('beforeprint', before);
     window.addEventListener('afterprint', after);

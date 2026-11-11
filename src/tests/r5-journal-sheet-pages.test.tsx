@@ -55,7 +55,8 @@ test('#642: printing the journal sheet carries every entry, then the screen retu
   await act(async () => { render(<JournalSheetReportView startDate="2026-01-01" endDate="2026-12-31" />); });
   const drawn = () => document.querySelectorAll('#journal-sheet-report table').length;
   assert.equal(drawn(), 200);
-  await act(async () => { window.dispatchEvent(new window.Event('beforeprint')); });
+  // no act() around the event: the rows must be on the page when beforeprint returns, as the browser prints then
+  window.dispatchEvent(new window.Event('beforeprint'));
   assert.equal(drawn(), 250, 'the paper carries all 250 entries');
   assert.equal(screen.queryByRole('button', { name: /Show more entries/ }), null);
   await act(async () => { window.dispatchEvent(new window.Event('afterprint')); });

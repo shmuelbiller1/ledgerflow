@@ -79,7 +79,7 @@ test(`R-5: all ${VIEWS.length} report views open under ${REPORT_BUDGET_MS} ms on
     };
     if (NEEDS_OWN_PROPS[label]) { skipped.push(label); continue; }
     let ms: number;
-    try { ms = await mount(); } catch (error) { throw new Error(`${label} did not open: ${error instanceof Error ? error.message : String(error)}`); }
+    try { ms = await mount(); } catch (error) { throw new Error(`${label} did not open: ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
     if (ms >= BUDGET_MS) ms = Math.min(ms, await mount()); // one retry: the first mount of a view also warms shared code
     timings.push({ file: label, ms });
     if (ms >= BUDGET_MS) slow.push(`${label} ${ms} ms`);
