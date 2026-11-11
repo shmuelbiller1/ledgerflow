@@ -1,6 +1,8 @@
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGING_BUCKETS, computePartyAging, daysOverdue, emptyAging, outstandingBaseCents, type AgingBucketKey, type PartyAgingRow } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
@@ -36,7 +38,9 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   useLedgerCollections('bills', 'customers', 'invoices', 'vendors');
   // N-12: the documents behind an aging row open themselves, add up to the row, and say when the list is partial
   const openRecord = useUIStore(s => s.openRecord);
-  const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills']));
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills'] || s.truncatedCollections?.[side === 'customer' ? 'customers' : 'vendors']));
+  const [serverState, setServerState] = useState<{ key: string; rows: PartyAgingRow[] } | null>(null);
 
   const parties = isCustomer ? rawCustomers : rawVendors;
   const documents = isCustomer ? rawInvoices : rawBills;
@@ -48,10 +52,32 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const [sortBy, setSortBy] = useState<'partyName' | AgingBucketKey | 'total'>('partyName');
   const today = getLocalDateISO();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const serverKey = `${workspaceId}:${side}:${today}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!docsPartial || !workspaceId || typeof fetch !== 'function') return;
+    void (async () => {
+      try {
+        const token = await getIdToken();
+        const q = new URLSearchParams({ workspaceId, side, asOfDate: today });
+        const res = await fetch(`/api/v1/reports/party-aging?${q}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.rows)) setServerState({ key: serverKey, rows: body.rows as PartyAgingRow[] });
+      } catch {
+        // best-effort: retain provisional browser rows if server report cannot be loaded
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [docsPartial, workspaceId, side, today, serverKey]);
 
   // open documents with something still owed (src/lib/aging.ts, shared with the /aging API; L-159)
   const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side) > 0), [documents, side]);
-  const agingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
+  const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
+  const agingRows = (docsPartial && serverState?.key === serverKey) ? serverState.rows : localAgingRows;
 
   // Search filter and Sorting
   const sortedAndFilteredRows = useMemo(() => {

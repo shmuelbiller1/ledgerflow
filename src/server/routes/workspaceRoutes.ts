@@ -145,6 +145,15 @@ workspaceRouter.post('/:workspaceId/import-maps', requireWorkspaceRole(['owner',
       // Keep the most recently used layouts only
       const keep = Object.entries(maps).sort((a, b) => String(b[1].savedAt || '').localeCompare(String(a[1].savedAt || ''))).slice(0, MAX_IMPORT_MAPS);
       t.update(ref, { importColumnMaps: Object.fromEntries(keep), updatedAt: new Date().toISOString() });
+      await writeServerAuditLog({
+        workspaceId,
+        uid: requestUser(req).uid,
+        email: requestUser(req).email,
+        action: 'IMPORT_MAP_SAVED',
+        entityType: 'workspace',
+        entityId: workspaceId,
+        details: { description: `Saved CSV import column layout (${signature})`, signature },
+      }, { db, tx: t });
     });
     res.json({ status: 'success' });
   } catch (err) {
@@ -705,83 +714,47 @@ workspaceRouter.post('/:workspaceId/seed', requireWorkspaceRole(['owner', 'accou
 
     // Write demo chart accounts
     demoData.accounts.forEach(acc => {
-      const ref = db.collection('chartAccounts').doc(`${workspaceId}_${acc.id}`);
+      const ref = db.collection('chartAccounts').doc(acc.id);
       batch.set(ref, { ...acc, uid: requestUser(req).uid, workspaceId });
     });
 
     // Write demo transactions
     demoData.transactions.forEach(tx => {
-      const ref = db.collection('transactions').doc(`${workspaceId}_${tx.id}`);
+      const ref = db.collection('transactions').doc(tx.id);
       batch.set(ref, { ...tx, uid: requestUser(req).uid, workspaceId });
     });
     
-    // Add Demo Customer
+    // Add Demo Customer, Vendor, Invoice, and Bill
     const customerRef = db.collection('customers').doc();
-    batch.set(customerRef, {
-      uid: requestUser(req).uid,
-      workspaceId,
-      name: 'Acme Corporation',
-      email: 'billing@acme.com',
-      status: 'active'
-    });
+    batch.set(customerRef, { uid: requestUser(req).uid, workspaceId, name: 'Acme Corporation', email: 'billing@acme.com', status: 'active' });
 
-    // Add Demo Vendor
     const vendorRef = db.collection('vendors').doc();
-    batch.set(vendorRef, {
-      uid: requestUser(req).uid,
-      workspaceId,
-      name: 'Cloud Services Ltd',
-      category: 'Software',
-      status: 'active'
-    });
-    
-    // Add Demo Invoice
+    batch.set(vendorRef, { uid: requestUser(req).uid, workspaceId, name: 'Cloud Services Ltd', category: 'Software', status: 'active' });
+
     const invoiceRef = db.collection('invoices').doc();
     batch.set(invoiceRef, {
-      uid: requestUser(req).uid,
-      workspaceId,
-      customerId: customerRef.id,
-      customerName: 'Acme Corporation',
-      number: `INV-DEMO-001`,
-      amountCents: 500000,
-      date: today,
-      dueDate: invoiceDue,
-      status: 'sent',
-      type: 'standard',
-      items: [
-        {
-          id: 'item-1',
-          description: 'Consulting Services',
-          quantity: 1,
-          rateCents: 500000,
-          amountCents: 500000,
-          accountId: 'income-acct'
-        }
-      ]
+      uid: requestUser(req).uid, workspaceId, customerId: customerRef.id, customerName: 'Acme Corporation',
+      number: 'INV-DEMO-001', amountCents: 500000, date: today, dueDate: invoiceDue, status: 'sent', type: 'standard',
+      items: [{ id: 'item-1', description: 'Consulting Services', quantity: 1, rateCents: 500000, amountCents: 500000, accountId: 'income-acct' }],
     });
 
-    // Add Demo Bill
     const billRef = db.collection('bills').doc();
     batch.set(billRef, {
-      uid: requestUser(req).uid,
-      workspaceId,
-      vendorId: vendorRef.id,
-      vendorName: 'Cloud Services Ltd',
-      number: `BILL-DEMO-001`,
-      amountCents: 120000,
-      date: today,
-      dueDate: billDue,
-      status: 'pending',
-      splits: [
-        {
-          amountCents: 120000,
-          accountId: 'expense-acct',
-          description: 'Server Hosting'
-        }
-      ]
+      uid: requestUser(req).uid, workspaceId, vendorId: vendorRef.id, vendorName: 'Cloud Services Ltd',
+      number: 'BILL-DEMO-001', amountCents: 120000, date: today, dueDate: billDue, status: 'pending',
+      splits: [{ amountCents: 120000, accountId: 'expense-acct', description: 'Server Hosting' }],
     });
 
     await batch.commit();
+    await writeServerAuditLog({
+      workspaceId,
+      uid: requestUser(req).uid,
+      email: requestUser(req).email,
+      action: 'DEMO_DATA_SEEDED',
+      entityType: 'workspace',
+      entityId: workspaceId,
+      details: { description: 'Seeded demo chart accounts, transactions, contacts, invoice, and bill' },
+    }, { db });
     res.json({ status: 'success', message: 'Demo data seeded' });
   } catch (e) {
     sendError(res, 'Failed to seed demo data', 500, errorMessage(e));

@@ -230,7 +230,7 @@ export function initGlobalErrorTracking() {
         lineno: event.lineno,
         colno: event.colno
       }
-    }).catch(() => {});
+    }).catch((reportErr) => { console.warn('[ErrorTracker] Recursive report suppressed:', reportErr); });
   });
 
   window.addEventListener('unhandledrejection', (event) => {
@@ -238,6 +238,6 @@ export function initGlobalErrorTracking() {
     reportClientError(reason instanceof Error ? reason : String(reason), {
       severity: 'error',
       metadata: { unhandledRejection: true }
-    }).catch(() => {});
+    }).catch((reportErr) => { console.warn('[ErrorTracker] Recursive rejection report suppressed:', reportErr); });
   });
 }

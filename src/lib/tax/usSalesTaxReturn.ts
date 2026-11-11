@@ -18,7 +18,7 @@
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { COUNTED_SALES } from '../taxCodes';
 import { exemptionOn } from '../taxExemption';
-import { registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 import { documentEntityLabels } from './ilVatReturn';
 
 export interface UsSalesDocument extends TaxableDocument {
@@ -81,14 +81,17 @@ export function usSalesTaxReturn(input: {
       // every place recorded for the sale, most specific first; one that names a state (or a country abroad) decides.
       // A US place with no state is incomplete: it is passed over, so adding the state to the customer or the ship-to
       // places a sale whose saved snapshot never had one.
-      const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => (d?.shippingAddress?.state ? { country: d.shippingAddress.country || 'US', state: d.shippingAddress.state } : undefined);
+      const shipTo = (d: UsSalesDocument | undefined): TaxPlace | undefined => {
+        const st = placeState(d?.shippingAddress);
+        return st ? { country: d?.shippingAddress?.country || 'US', state: st } : undefined;
+      };
       const recorded = [doc.metadata?.taxPlace, shipTo(doc), invoice?.metadata?.taxPlace, shipTo(invoice), (customer?.metadata as { taxPlace?: TaxPlace } | undefined)?.taxPlace]
         .filter((p): p is TaxPlace => Boolean(p));
       const abroad = (p: TaxPlace) => String(p.country || '').toUpperCase() !== 'US';
-      const place = recorded.find(p => abroad(p) || p.state);
+      const place = recorded.find(p => abroad(p) || Boolean(placeState(p)));
       if (place && abroad(place)) continue; // a sale abroad is in no state
       // no place recorded anywhere: an over-the-counter sale at the seller's own place
-      const buyerState = String((place ? place.state : recorded.length ? '' : seller.place?.state) || '').toUpperCase();
+      const buyerState = place ? placeState(place) : recorded.length ? '' : placeState(seller.place);
       if (!buyerState) {
         const unplacedFigures = taxReturnDocument(doc);
         const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate);

@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
-import { FieldValue, type Firestore } from '../db/firestore';
+import { FieldValue, isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { InvoiceSchema, BillSchema, OrderSchema, ProjectSchema, BankLineImportSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
 import type { Transaction } from '../../types';
@@ -69,7 +69,7 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
   }
 
   const wsDoc = await db.collection('workspaces').doc(wsId).get();
-  if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) {
+  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, wsId)) {
     throw new BulkRefusal(403, { error: 'Not a member' });
   }
 
@@ -186,8 +186,7 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
     // authority at commit: the role and membership as they are now, read in this transaction, so a
     // role taken away after the first check (middleware) cannot still let this save through
     if (!user.admin) {
-      const isMember = wsNow?.uid === user.uid || (Array.isArray(wsNow?.members) && wsNow.members.includes(user.uid));
-      if (!wsNow || !isMember || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid))) {
+      if (!wsNow || !isWorkspaceMemberData(wsNow, user, wsId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid))) {
         throw new LedgerPostingError(403, 'You no longer have permission to change these books');
       }
     }

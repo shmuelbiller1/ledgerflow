@@ -6,7 +6,7 @@ import { FieldValue } from '../../db/firestore';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { TransactionSchema } from '../../../schemas';
 import type { Transaction, TransactionLine } from '../../../types';
-import { getDb } from '../../db/firestore';
+import { getDb, isWorkspaceMemberData } from '../../db/firestore';
 import type { DocumentData } from '../../db/firestore';
 import { getAbsoluteTotal } from '../../../lib/txFilters';
 import { executeCommand } from '../../utils/commandExecutor';
@@ -26,7 +26,7 @@ import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels
  * still a member, and every date the save touches is open for them (hard close, or the soft close for their role).
  */
 function assertStillOpen(ws: DocumentData | undefined, user: { uid: string; admin?: boolean }, dates: Array<string | null | undefined>): void {
-  if (!ws || (ws.uid !== user.uid && !ws.members?.includes(user.uid) && !user.admin)) throw new HttpError('Not a member', 403);
+  if (!isWorkspaceMemberData(ws, user)) throw new HttpError('Not a member', 403);
   for (const date of dates) {
     const lock = date ? postingLock(date, ws, user.uid) : null;
     if (lock) throw new HttpError(lockMessage(date, lock), 400);
@@ -47,7 +47,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
 
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) {
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
         return res.status(403).json({ error: 'Not a member' });
       }
 
@@ -135,7 +135,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       if (!parsed.success) throw Object.assign(new HttpError('Schema validation failed', 400), { details: parsed.error.issues });
       const transactionToSave = { ...parsed.data, id: parsed.data.id || db.collection("transactions").doc().id } as Transaction;
       const wsData = (await db.collection('workspaces').doc(transactionToSave.workspaceId).get()).data();
-      if (!wsData || (wsData.uid !== user.uid && !wsData.members?.includes(user.uid) && !user.admin)) throw new HttpError('Not a member', 403);
+      if (!isWorkspaceMemberData(wsData, user, transactionToSave.workspaceId)) throw new HttpError('Not a member', 403);
       validatedTx = await TransactionValidator.validateAndPrepare(transactionToSave, { workspaceId: transactionToSave.workspaceId, user: { uid: user.uid, admin: user.admin }, wsData });
       // Z-12: a required label whose rule refuses
       const missing = refusedLabels(validatedTx, wsData?.dimensions);
@@ -165,11 +165,24 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
          throw new Error('Duplicate request processing: Transaction ID already exists');
       }
 
-      t.create(txRef, { 
+      ledgerCreate(t, txRef, { 
         ...validatedTx, 
         createdAt: FieldValue.serverTimestamp(), 
         updatedAt: FieldValue.serverTimestamp() 
       });
+      await writeServerAuditLog({
+        workspaceId: validatedTx.workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: 'TRANSACTION_CREATED',
+        entityType: 'transaction',
+        entityId: validatedTx.id,
+        details: {
+          description: `Created journal entry "${validatedTx.description || validatedTx.id}"`,
+          totalAmountCents: validatedTx.totalAmountCents,
+          date: validatedTx.date,
+        },
+      }, { db, tx: t });
 
       return validatedTx;
     }, () => (budgetWarnings.length > 0 ? { budgetWarnings } : {}));
@@ -191,7 +204,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       const db = getDb();
       const wsDoc = await t.get(db.collection('workspaces').doc(workspaceId));
       const wsData = wsDoc.data();
-      if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) throw new HttpError('Not a member', 403);
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, workspaceId)) throw new HttpError('Not a member', 403);
       const prepared: Transaction[] = [];
       const ids = new Set<string>();
       for (const [index, raw] of (transactions as Array<Record<string, unknown>>).entries()) {
@@ -214,6 +227,18 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       for (const tx of prepared) {
         ledgerCreate(t, db.collection('transactions').doc(tx.id), { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       }
+      await writeServerAuditLog({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: 'TRANSACTIONS_BATCH_CREATED',
+        entityType: 'transaction',
+        entityId: prepared[0]?.id || 'batch',
+        details: {
+          description: `Created ${prepared.length} journal entries in batch`,
+          count: prepared.length,
+        },
+      }, { db, tx: t });
       return { created: prepared.length, ids: prepared.map(tx => tx.id) };
     });
   });
@@ -251,7 +276,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            // Verify workspace inside the same transaction so no second pool client is checked out while holding t
            const wsDoc = await t.get(db.collection('workspaces').doc(wsId));
            const wsData = wsDoc.data();
-           if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+           if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, wsId)) {
              throw new Error('Not a member');
            }
            if (txData?.date) assertPostingOpen(txData.date, wsData, user.uid);
@@ -302,7 +327,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       transaction.uid = user.uid; // Enforce ownership
       const wsDoc = await db.collection('workspaces').doc(transaction.workspaceId).get();
       const wsData = wsDoc.data();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) {
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, transaction.workspaceId)) {
         return res.status(403).json({ error: 'Not a member' });
       }
 
@@ -398,7 +423,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       }
       const wsDoc = await db.collection('workspaces').doc(transactionWsId).get();
       const wsData = wsDoc.data();
-      if (!wsDoc.exists || (wsData?.uid !== user.uid && !wsData?.members?.includes(user.uid) && !user.admin)) {
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, transactionWsId)) {
         return res.status(403).json({ error: 'Not a member' });
       }
 

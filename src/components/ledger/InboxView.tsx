@@ -2,22 +2,25 @@ import React, { useState, useMemo } from 'react';
 import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { useEntityOperations } from '../../hooks/useEntityOperations';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { getIdToken } from '../../firebase';
+import { toast } from 'sonner';
 import { HandOver } from '../collaboration/HandOver';
 import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 
 export default function InboxView() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const { updateEntity } = useEntityOperations();
+  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   // BG-05: who has each entry, and "Give to…" (a task about it)
   const hand = useHandOvers();
   const entry = (t: { id: string; date: string; description?: string }) => ({ type: 'transaction' as const, id: t.id, label: `Entry ${t.date} · ${t.description || ''}`.trim() });
 
   const [showAllHighConfidence, setShowAllHighConfidence] = useState(false);
   const pendingTransactions = useMemo(() => 
-    transactions.filter(t => t.status === 'pending' || t.status === 'draft')
+    transactions.filter(t => !isPostable(t) && !t.deletedAt && (t.status === 'pending' || t.status === 'draft'))
       .map(t => {
         // Compute confidence deterministically based on line categorization & metadata
         const line = t.lines[0];
@@ -57,6 +60,7 @@ export default function InboxView() {
       resolvedAcc = accounts.find(a => a.type === 'expense') || accounts[0];
     }
 
+    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     for (const id of transactionIds) {
       const tx = transactions.find(t => t.id === id);
       if (!tx) continue;
@@ -70,8 +74,7 @@ export default function InboxView() {
           { accountId: cashAcc?.id || resolvedAcc.id, accountName: cashAcc?.name || 'Main Checking', amountCents: -amt }
         ];
       } else {
-        // Find line that needs categorization (e.g. non-cash or uncategorized line)
-        const catLineIdx = updatedLines.findIndex(l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || l.amountCents > 0);
+        const catLineIdx = updatedLines.findIndex(l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, tx) > 0);
         const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
         updatedLines[targetIdx] = {
           ...updatedLines[targetIdx],
@@ -81,12 +84,31 @@ export default function InboxView() {
         };
       }
 
-      await updateEntity('transactions', id, { 
-        lines: updatedLines, 
-        status: 'completed',
-        isReviewed: true
+      updates.push({
+        id,
+        data: { lines: updatedLines, status: 'completed', isReviewed: true }
       });
     }
+
+    if (updates.length === 0 || !currentWorkspaceId) return;
+    const token = await getIdToken();
+    const res = await fetch('/api/v1/transactions/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      toast.error(errBody?.error || errBody?.message || 'Could not file inbox entries');
+      throw new Error(errBody?.error || errBody?.message || 'Batch categorization failed');
+    }
+    const patchMap = new Map(updates.map(u => [u.id, u.data]));
+    useLedgerStore.getState().setTransactions(
+      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
+    );
   };
 
   const handleAutoFile = () => {

@@ -30,8 +30,10 @@ export { balanceRouter } from './balanceRoutes'; // L-123 step 3, mounted at /ap
 import { grossOf, labelOpeningOf, openingBefore, openingKey } from '../reports/reportOpening';
 import { serverProvenance, type ReportProvenance } from '../../lib/reportProvenance';
 import { logSafe, logSafeDetail } from '../utils/logSafe';
+import { operationalReportRouter } from './operationalReportRoutes';
 
 export const reportRouter = express.Router();
+reportRouter.use(operationalReportRouter);
 
 /** a P&L or balance sheet worked out in the last minute, with the moment it was (`at`) */
 const REPORT_CACHE = new Map<string, { data: object; expiry: number; at: number }>();

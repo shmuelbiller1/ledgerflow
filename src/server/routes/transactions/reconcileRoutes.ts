@@ -1,11 +1,12 @@
 import express, { Request, Response } from 'express';
-import { FieldValue } from '../../db/firestore';
+import { FieldValue, getDb, isWorkspaceMemberData } from '../../db/firestore';
+import type { DocumentData, Firestore } from '../../db/firestore';
+import { ledgerMark } from '../../services/ledgerDoor';
+import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../../schemas';
 import type { Transaction } from '../../../types';
 import { parseDateInTimezone } from '../../../lib/calendarDate';
-import { getDb } from '../../db/firestore';
-import type { DocumentData, Firestore } from '../../db/firestore';
 import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
 import { optimizedTransactionSimilarity } from '../../../lib/algorithms';
 import { getWorkspaceUserRole } from '../workspaceRoutes';
@@ -276,7 +277,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       const user = requestUser(req);
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) {
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
         return res.status(403).json({ error: 'Not a member' });
       }
 
@@ -289,6 +290,18 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       // Strict allowlist validation (#78) - rejects any unknown or protected properties
       const validatedData = BankLineUpdateSchema.parse(updatePayload);
       await lineRef.update({ ...validatedData, updatedAt: FieldValue.serverTimestamp() });
+      await writeServerAuditLog({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: 'BANK_LINE_UPDATED',
+        entityType: 'bank_line',
+        entityId: id,
+        details: {
+          description: `Updated bank line ${id}`,
+          fields: Object.keys(validatedData),
+        },
+      }, { db });
       res.json({ status: 'ok', id, data: validatedData });
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -317,7 +330,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
 
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) return res.status(403).json({ error: 'Not a member' });
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) return res.status(403).json({ error: 'Not a member' });
 
       // Fetch transactions and count uncleared (accounting for unset / false / null isCleared)
       const snapshot = await db.collection('transactions')
@@ -353,7 +366,7 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       }
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) return res.status(403).json({ error: 'Not a member' });
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) return res.status(403).json({ error: 'Not a member' });
       const wsTimezone = typeof wsDoc.data()?.timezone === 'string' ? wsDoc.data()?.timezone : undefined;
 
       // Fetch uncleared transactions for this workspace
@@ -448,12 +461,12 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       const user = requestUser(req);
       const db = getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !wsDoc.data()?.members?.includes(user.uid) && !user.admin)) {
+      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
         return res.status(403).json({ error: 'Not a member' });
       }
       // marking entries cleared is bookkeeping: owners, accountants and bookkeepers (CA-04)
-      const role = wsDoc.data()?.uid === user.uid ? 'owner' : wsDoc.data()?.roles?.[user.uid] || 'viewer';
-      if (!user.admin && !['owner', 'accountant', 'bookkeeper'].includes(role)) {
+      const role = roleInWorkspace(wsDoc.data(), user.uid);
+      if (!user.admin && !LEDGER_WRITER_ROLES.includes(role)) {
         return res.status(403).json({ error: 'Only owners, accountants and bookkeepers mark entries cleared' });
       }
       // the day the bank cleared it (CA-04): optional, never before the entry's own date; cleared: false undoes it
@@ -494,6 +507,19 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
           });
       }
       await batch.commit();
+      await writeServerAuditLog({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: undo ? 'TRANSACTIONS_UNCLEARED' : 'TRANSACTIONS_CLEARED',
+        entityType: 'transaction',
+        entityId: String(transactionIds[0]),
+        details: {
+          description: `${undo ? 'Uncleared' : 'Cleared'} ${transactionIds.length} transaction(s)`,
+          count: transactionIds.length,
+          ...(typeof clearanceDate === 'string' ? { clearanceDate } : {}),
+        },
+      }, { db });
 
       res.json({
         status: 'ok',
@@ -502,6 +528,118 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
       });
     } catch (e) {
       res.status(500).json({ error: errorMessage(e) });
+    }
+  });
+
+  const CompleteReconciliationSchema = z.object({
+    workspaceId: z.string().min(1),
+    accountId: z.string().min(1),
+    statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Statement date must be YYYY-MM-DD'),
+    statementBalanceCents: z.number().int(),
+    reconciledTransactionIds: z.array(z.string().min(1)).max(5000).default([]),
+  });
+
+  transactionRouter.post('/reconciliation/complete', async (req, res) => {
+    try {
+      const parsed = CompleteReconciliationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid reconciliation payload', details: parsed.error.issues });
+      }
+      const { workspaceId, accountId, statementDate, statementBalanceCents, reconciledTransactionIds } = parsed.data;
+      const user = requestUser(req);
+      const db = getDb();
+
+      const completedAt = new Date().toISOString();
+      const reconciliationId = db.collection('reconciliations').doc().id;
+      const uniqueTxIds = Array.from(new Set(reconciledTransactionIds));
+
+      await db.runTransaction(async (t) => {
+        const wsDoc = await t.get(db.collection('workspaces').doc(workspaceId));
+        const wsData = wsDoc.data();
+        if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, workspaceId)) {
+          throw Object.assign(new Error('Not a member'), { status: 403 });
+        }
+        if (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsData, user.uid))) {
+          throw Object.assign(new Error('Only owners, accountants and bookkeepers complete reconciliations'), { status: 403 });
+        }
+        assertPostingOpen(statementDate, wsData as never, user.uid);
+
+        const accountSnap = await t.get(db.collection('chartAccounts').doc(accountId));
+        if (!accountSnap.exists || accountSnap.data()?.workspaceId !== workspaceId) {
+          throw Object.assign(new Error(`Account ${accountId} not found in workspace`), { status: 404 });
+        }
+
+        const txRefs = uniqueTxIds.map(txId => db.collection('transactions').doc(txId));
+        const txSnaps = await Promise.all(txRefs.map(ref => t.get(ref)));
+        for (let i = 0; i < txSnaps.length; i++) {
+          const snap = txSnaps[i];
+          if (!snap.exists) {
+            throw Object.assign(new Error(`Transaction ${uniqueTxIds[i]} not found`), { status: 404 });
+          }
+          const txData = snap.data() as Transaction;
+          if (txData.workspaceId !== workspaceId) {
+            throw Object.assign(new Error(`Transaction ${uniqueTxIds[i]} does not belong to this workspace`), { status: 403 });
+          }
+          if (txData.status === 'void' || txData.status === 'draft') {
+            throw Object.assign(new Error(`Cannot reconcile ${txData.status} transaction ${uniqueTxIds[i]}`), { status: 400 });
+          }
+        }
+
+        const recRef = db.collection('reconciliations').doc(reconciliationId);
+        t.create(recRef, {
+          id: reconciliationId,
+          workspaceId,
+          uid: user.uid,
+          accountId,
+          statementDate,
+          statementBalanceCents,
+          reconciledTransactionIds: uniqueTxIds,
+          status: 'completed',
+          completedAt,
+          completedBy: user.uid,
+          createdAt: completedAt,
+          updatedAt: completedAt,
+        });
+
+        for (const snap of txSnaps) {
+          ledgerMark(t, snap.ref, {
+            reconciled: true,
+            isReconciled: true,
+            isCleared: true,
+            reconciledAt: completedAt,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+
+        await writeServerAuditLog({
+          workspaceId,
+          uid: user.uid,
+          email: user.email,
+          action: 'RECONCILIATION_COMPLETED',
+          entityType: 'reconciliation',
+          entityId: reconciliationId,
+          details: {
+            description: `Completed bank reconciliation for account ${accountId} as of ${statementDate}`,
+            accountId,
+            statementDate,
+            statementBalanceCents,
+            reconciledCount: uniqueTxIds.length,
+          },
+        }, { db, tx: t });
+      });
+
+      res.json({
+        status: 'ok',
+        reconciliationId,
+        completedAt,
+        reconciledCount: uniqueTxIds.length,
+      });
+    } catch (e) {
+      const explicitStatus = (e as { status?: number })?.status;
+      const status = typeof explicitStatus === 'number'
+        ? explicitStatus
+        : (/Period Locked/i.test(errorMessage(e)) ? 409 : 400);
+      res.status(status).json({ error: errorMessage(e) });
     }
   });
 }

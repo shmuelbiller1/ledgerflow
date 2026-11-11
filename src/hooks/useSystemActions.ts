@@ -34,7 +34,7 @@ export function useSystemActions() {
       });
     }
     
-    signOut(auth).catch(() => {});
+    signOut(auth).catch((err) => { console.warn('[useSystemActions] Sign-out warning:', err); });
     toast.success('Returned to login screen');
   }, []);
 

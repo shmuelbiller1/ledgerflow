@@ -1,7 +1,9 @@
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Building, Mail, Phone } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { getIdToken } from '../../firebase';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../server/reports/partyReports';
@@ -14,12 +16,37 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   useLedgerCollections('bills', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
+  const [serverState, setServerState] = useState<{ key: string; rows: VendorBalanceSummaryRow[] } | null>(null);
+  const isTruncated = Boolean(truncated.vendors || truncated.bills || truncated.payments || truncated.vendorCredits);
+  const serverKey = `${workspaceId}:${asOfDate}`;
   // Follow the Reports page period when it gives one
 
-  const vendorRows = useMemo<VendorBalanceSummaryRow[]>(() => {
+  useEffect(() => {
+    let cancelled = false;
+    if (!isTruncated || !workspaceId || typeof fetch !== 'function') return;
+    void (async () => {
+      try {
+        const token = await getIdToken();
+        const q = new URLSearchParams({ workspaceId, asOfDate });
+        const res = await fetch(`/api/v1/reports/party-balances?${q}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.vendorRows)) setServerState({ key: serverKey, rows: body.vendorRows as VendorBalanceSummaryRow[] });
+      } catch {
+        // best-effort: retain provisional browser rows if server report cannot be loaded
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isTruncated, workspaceId, asOfDate, serverKey]);
+
+  const localVendorRows = useMemo<VendorBalanceSummaryRow[]>(() => {
     return computeVendorBalanceSummary(
       vendors,
       bills,
@@ -28,6 +55,7 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
       asOfDate
     );
   }, [vendors, bills, payments, vendorCredits, asOfDate]);
+  const vendorRows = (isTruncated && serverState?.key === serverKey) ? serverState.rows : localVendorRows;
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return vendorRows;

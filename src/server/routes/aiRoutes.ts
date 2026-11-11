@@ -54,7 +54,7 @@ aiRouter.post("/process", async (req: express.Request, res: express.Response) =>
   }
 
   const token = authHeader.split("Bearer ")[1];
-  let decodedToken: any;
+  let decodedToken: Awaited<ReturnType<typeof verifyIdToken>>;
   try {
     decodedToken = await verifyIdToken(token);
   } catch {
@@ -99,7 +99,7 @@ aiRouter.post("/process", async (req: express.Request, res: express.Response) =>
 
   // 4. Workspace membership authorization & credit verification
   const db = getDb();
-  let wsData: any;
+  let wsData: Record<string, unknown> | undefined;
   try {
     const memberValidation = await validateWorkspaceMember(db, workspaceId, decodedToken);
     wsData = memberValidation.data;
@@ -153,7 +153,9 @@ aiRouter.post("/process", async (req: express.Request, res: express.Response) =>
   } catch (err) {
     // Refund credits on failure so user is never charged for failed tasks
     if (wsData && wsData.bypassBilling !== true) {
-      await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', weight).catch(() => {});
+      await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', weight).catch((refundErr) => {
+        console.error('[AI Route] Credit refund failed:', errorMessage(refundErr));
+      });
     }
     return res.status(503).json({
       status: "error",

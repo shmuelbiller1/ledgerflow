@@ -1,4 +1,4 @@
-import type { Firestore } from '../db/firestore';
+import { isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { RATES_KIND, ratesProblem, TIME_KIND, timeProblem, type TimeEntry, type TimeInput, type TimeRates, type TimeStatus } from '../../lib/timeEntries';
 import { writeServerAuditLog } from './auditLogService';
@@ -21,8 +21,7 @@ interface Actor { workspaceId: string; uid: string; email?: string }
 async function roleOf(db: Firestore, input: Actor) {
   const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!ws) throw new TimeError(404, 'Workspace not found');
-  const member = ws.uid === input.uid || (Array.isArray(ws.members) && ws.members.includes(input.uid));
-  if (!member) throw new TimeError(403, 'Only people in this workspace log time here');
+  if (!isWorkspaceMemberData(ws, { uid: input.uid }, input.workspaceId)) throw new TimeError(403, 'Only people in this workspace log time here');
   const people = [...new Set([...(Array.isArray(ws.members) ? ws.members.map(String) : []), String(ws.uid)])];
   return { role: workspaceRole(ws as never, input.uid), people };
 }

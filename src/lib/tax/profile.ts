@@ -14,11 +14,18 @@
 export interface TaxPlace {
   country: string;
   state?: string;
+  /** Legacy alias for `state` used in seeded/imported records (F-01). */
+  region?: string;
   county?: string;
   city?: string;
   /** a special taxing district (transit, stadium) or a special area (Eilat) */
   district?: string;
   postalCode?: string;
+}
+
+/** Normalized subdivision code from either `state` or legacy `region` (F-01). */
+export function placeState(place: Partial<TaxPlace> | { state?: string; region?: string } | null | undefined): string {
+  return String(place?.state || place?.region || '').trim().toUpperCase();
 }
 
 export type RegistrationKind =
@@ -113,7 +120,8 @@ export function registrationsOn(profile: TaxProfile, kind: RegistrationKind, dat
 
 /** A stable key for a registration, to group a return's lines: `vat:IL:514000000`, `sales_tax:US-TX:3200…`. */
 export function registrationKey(r: TaxRegistration): string {
-  return `${r.kind}:${r.place.country}${r.place.state ? `-${r.place.state}` : ''}${r.place.city ? `-${r.place.city}` : ''}:${r.number}`;
+  const st = placeState(r.place);
+  return `${r.kind}:${r.place.country}${st ? `-${st}` : ''}${r.place.city ? `-${r.place.city}` : ''}:${r.number}`;
 }
 
 const KINDS: RegistrationKind[] = ['vat', 'sales_tax', 'employer', 'income_tax', 'withholding'];
@@ -127,6 +135,7 @@ function placeProblem(place: unknown, where: string): string | null {
   if (!p || typeof p !== 'object') return `${where}: the place is not readable`;
   if (typeof p.country !== 'string' || !/^[A-Z]{2}$/.test(p.country)) return `${where}: the country is a two-letter code (US, IL)`;
   if (p.state !== undefined && !/^[A-Z0-9]{1,3}$/.test(String(p.state))) return `${where}: the state is a short code (TX, CA)`;
+  if (p.region !== undefined && !/^[A-Z0-9]{1,3}$/.test(String(p.region))) return `${where}: the region is a short code (TX, CA)`;
   for (const k of ['county', 'city', 'district', 'postalCode'] as const) if (!text(p[k], 80)) return `${where}: the ${k === 'postalCode' ? 'postal code' : k} is 1 to 80 characters`;
   return null;
 }

@@ -68,3 +68,31 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
   // D-21: request id + one JSON access line per /api request (replaces the morgan text line).
   app.use(requestContext());
 }
+
+/** Explicit bulk import and backup-restore routes allowed up to 50 MB JSON; all other routes cap at 1 MB (M-8). */
+export const LARGE_JSON_ROUTE_PATTERNS: readonly RegExp[] = [
+  /^\/api\/v1\/workspaces\/[^/]+\/restore\/?$/,
+  /^\/api\/v1\/workspaces\/[^/]+\/import-records\/?$/,
+  /^\/api\/v1\/workspaces\/[^/]+\/pay-runs\/imports(?:\/|$)/,
+  /^\/api\/v1\/open-items(?:\/|$)/,
+  /^\/api\/v1\/transactions\/(?:bulk|batch|batch-create)\/?$/,
+];
+
+export function isLargeJsonRoute(method: string, pathOnly: string): boolean {
+  if (method !== "POST" && method !== "PUT") return false;
+  return LARGE_JSON_ROUTE_PATTERNS.some((pattern) => pattern.test(pathOnly));
+}
+
+export function applyJsonBodyParser(app: express.Express): void {
+  const defaultJson = express.json({ limit: "1mb" });
+  const bulkJson = express.json({ limit: "50mb" });
+  app.use((req, res, next) => {
+    const pathOnly = (req.originalUrl || req.url || "").split("?")[0];
+    const parser = isLargeJsonRoute(req.method, pathOnly) ? bulkJson : defaultJson;
+    parser(req, res, (err) => {
+      if (err) return next(err);
+      req.body ??= {};
+      next();
+    });
+  });
+}

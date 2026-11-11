@@ -37,8 +37,19 @@ export function balanceRouteHarness(wsPrefix: string, name: string) {
       base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       await db.collection('workspaces').doc(ws).set({ uid: OWNER, name, currency: 'USD', timezone: 'UTC', members: [OWNER], ...workspace });
       tables = [...Object.keys(rows), 'workspaces'];
-      for (const [table, list] of Object.entries(rows)) {
-        await db.pool.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(list)]);
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('lf.allow_corrupt_fixture', 'on', true)`);
+        for (const [table, list] of Object.entries(rows)) {
+          await client.query(`insert into public."${table}" (id, data) select r->>'id', r from jsonb_array_elements($1::jsonb) r`, [JSON.stringify(list)]);
+        }
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
       }
     },
     async stop() {

@@ -19,6 +19,9 @@ import { DELIVERY_ID, RETURN_ID } from '../../lib/deliveries';
 import { generateDeliveryNotePdf, layoutDeliveryNote } from '../services/deliveryNotePdf';
 import { registerStockClosingRoutes } from './stockClosingRoutes';
 import type { Estimate, Transaction as LedgerTransaction } from '../../types';
+import { ledgerCreate } from '../services/ledgerDoor';
+import { writeServerAuditLog } from '../services/auditLogService';
+import { deriveScopedOperationKey, executeIdempotent, extractCanonicalOperationId, requestPayloadHash } from '../utils/idempotency';
 
 /** Who may change stock or record its cost (viewers read only). */
 const STOCK_ROLES = ['owner', 'accountant', 'bookkeeper'];
@@ -48,14 +51,7 @@ inventoryRouter.post('/cogs', requireWorkspaceRole(STOCK_ROLES), async (req, res
 
     // 1. Validate workspace membership FIRST (#82)
     const { data: wsData } = await validateWorkspaceMember(db, workspaceId, user);
-
-    const idempotencyKey = req.headers['idempotency-key'] as string;
-    if (idempotencyKey) {
-      const idempDoc = await db.collection('idempotencyKeys').doc(`${workspaceId}_inv_${idempotencyKey}`).get();
-      if (idempDoc.exists) {
-        return res.json(idempDoc.data()?.response);
-      }
-    }
+    const rawOpId = extractCanonicalOperationId(req);
 
     const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
     const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
@@ -129,38 +125,27 @@ inventoryRouter.post('/cogs', requireWorkspaceRole(STOCK_ROLES), async (req, res
     });
 
     const responsePayload = {
-      status: 'ok',
+      status: 'ok' as const,
       message: 'Inventory COGS recorded successfully.',
       transactionId: validatedTx.id,
       unitCostCents: itemData.unitCostCents,
       totalCogsCents
     };
 
-    let resultResponse = responsePayload;
-
     await stockMovesReady(db);
-    await db.runTransaction(async (t: any) => {
+    const performCommit = async (t: Parameters<Parameters<typeof db.runTransaction>[0]>[0]) => {
       // Re-fetch item inside transaction for race-condition safety
       const itemSnap = await t.get(db.collection('inventory').doc(itemId));
       const currentItemData = itemSnap.data();
       const currentQty = typeof currentItemData?.quantityAtHand === 'number' ? currentItemData.quantityAtHand : 0;
-      
+
       if (quantitySold > currentQty) {
         throw new Error(`Insufficient inventory stock. Requested ${quantitySold}, available ${currentQty}.`);
       }
 
-      if (idempotencyKey) {
-        const idempRef = db.collection('idempotencyKeys').doc(`${workspaceId}_inv_${idempotencyKey}`);
-        const idempSnap = await t.get(idempRef);
-        if (idempSnap.exists) {
-          resultResponse = idempSnap.data()?.response || responsePayload;
-          return;
-        }
-      }
-
       const txRef = db.collection('transactions').doc(validatedTx.id);
-      t.set(txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-      
+      ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+
       // Reduce on-hand inventory quantity
       const itemRef = db.collection('inventory').doc(itemId);
       t.update(itemRef, {
@@ -173,20 +158,46 @@ inventoryRouter.post('/cogs', requireWorkspaceRole(STOCK_ROLES), async (req, res
         quantity: -quantitySold, quantityBefore: currentQty, quantityAfter: currentQty - quantitySold,
         unitCostCents: itemData.unitCostCents, valueCents: -totalCogsCents, transactionId: validatedTx.id, uid: user.uid,
       }]);
+      await writeServerAuditLog({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: 'INVENTORY_COGS_RECORDED',
+        entityType: 'inventory',
+        entityId: String(itemId),
+        details: {
+          description: `Recorded COGS for ${quantitySold} units of ${itemName} (${totalCogsCents} cents) on ${txDate}`,
+          itemId,
+          quantitySold,
+          unitCostCents: itemData.unitCostCents,
+          totalCogsCents,
+          transactionId: validatedTx.id,
+          date: txDate,
+        },
+      }, { db, tx: t });
+      return responsePayload;
+    };
 
-      if (idempotencyKey) {
-        const idempRef = db.collection('idempotencyKeys').doc(`${workspaceId}_inv_${idempotencyKey}`);
-        t.set(idempRef, {
-          response: responsePayload,
-          timestamp: new Date().toISOString(),
-          workspaceId
-        });
-      }
-    });
+    const resultResponse = rawOpId
+      ? await executeIdempotent(
+          deriveScopedOperationKey(workspaceId, 'INVENTORY_COGS', rawOpId),
+          {
+            actor: user.uid,
+            workspaceId,
+            operationType: 'INVENTORY_COGS',
+            payloadHash: requestPayloadHash({ workspaceId, itemId, quantitySold, inventoryAccountId, cogsAccountId, date: txDate }),
+          },
+          performCommit,
+        )
+      : await db.runTransaction(performCommit);
 
     res.json(resultResponse);
   } catch (e) {
-    res.status(errorMessage(e).includes('Unauthorized') ? 403 : 400).json({ error: errorMessage(e) });
+    const explicitStatus = (e as { status?: number })?.status;
+    const status = typeof explicitStatus === 'number'
+      ? explicitStatus
+      : (errorMessage(e).includes('Unauthorized') ? 403 : 400);
+    res.status(status).json({ error: errorMessage(e) });
   }
 });
 

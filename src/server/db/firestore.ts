@@ -17,6 +17,24 @@ export const getDb = (): Firestore => {
   return defaultDb;
 };
 
+export function isWorkspaceMemberData(
+  data: DocumentData | null | undefined,
+  user: { uid: string; admin?: boolean; developerWorkspaceId?: string },
+  workspaceId?: string
+): boolean {
+  if (!data) return false;
+  if (workspaceId && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
+    return false;
+  }
+  return Boolean(
+    data.uid === user.uid
+      || (Array.isArray(data.members) && data.members.includes(user.uid))
+      || (!Array.isArray(data.members) && data.roles && typeof data.roles === 'object' && Boolean((data.roles as Record<string, unknown>)[user.uid]))
+      || (data.admins && typeof data.admins === 'object' && Boolean((data.admins as Record<string, unknown>)[user.uid]))
+      || user.admin
+  );
+}
+
 export async function validateWorkspaceMember(db: Firestore, workspaceId: string, user: { uid: string; admin?: boolean; developerWorkspaceId?: string }) {
   if (!workspaceId) throw new Error('Workspace ID is required.');
   if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
@@ -28,11 +46,7 @@ export async function validateWorkspaceMember(db: Firestore, workspaceId: string
     throw new Error('Workspace not found.');
   }
   const data: DocumentData = wsDoc.data() || {};
-  const isMember = data.uid === user.uid
-    || (Array.isArray(data.members) && data.members.includes(user.uid))
-    || Boolean(data.admins && data.admins[user.uid])
-    || user.admin;
-  if (!isMember) {
+  if (!isWorkspaceMemberData(data, user, workspaceId)) {
     throw new Error('Unauthorized: You are not a member of this workspace.');
   }
   return { wsDoc, data };

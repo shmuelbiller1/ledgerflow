@@ -35,7 +35,7 @@ export function enqueuePresenceOperation(
         presenceOperationTails.delete(path);
       }
     })
-    .catch(() => {});
+    .catch((err) => { console.warn('[useCollaborators] Presence sync skipped:', err); });
   return next;
 }
 
@@ -130,7 +130,9 @@ export function useCollaborators() {
 
     // F29: Properly store handler reference and remove on unmount
     const handleUnload = () => {
-      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch(() => {});
+      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch((err) => {
+        console.warn('[useCollaborators] Unload presence cleanup skipped:', err);
+      });
     };
     window.addEventListener('beforeunload', handleUnload);
 
@@ -145,7 +147,9 @@ export function useCollaborators() {
       }
       unsubscribe();
       window.removeEventListener('beforeunload', handleUnload);
-      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch(() => {});
+      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch((err) => {
+        console.warn('[useCollaborators] Unmount presence cleanup skipped:', err);
+      });
     };
   }, [uid, displayName, email, activeWorkspaceId]);
 

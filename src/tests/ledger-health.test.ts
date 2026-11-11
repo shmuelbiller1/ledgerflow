@@ -47,9 +47,24 @@ describe('Ledger health monitor (database)', { skip: !url && 'LF_TEST_DATABASE_U
   const health = async () => (await db.collection('workspaces').doc(ws).get()).data()?.ledgerHealth as LedgerHealth | undefined;
   const told = async () => (await db.pool.query(
     `select data->>'uid' as uid from public.notifications where workspace_id = $1 and data->>'kind' = 'health.problem' order by data->>'createdAt', data->>'uid'`, [ws])).rows.map(r => r.uid as string);
-  const entry = (name: string, lines: Array<{ accountId: string; amountCents: number }>) => db.collection('transactions').doc(id(name)).set({
-    workspaceId: ws, uid: 'owner-1', date: '2026-09-14', description: name, status: 'posted', currency: 'USD', totalAmountCents: 1000, lines,
-  });
+  const entry = async (name: string, lines: Array<{ accountId: string; amountCents: number }>) => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('lf.allow_corrupt_fixture', 'on', true)`);
+      await client.query(
+        `INSERT INTO public.transactions (id, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+        [id(name), JSON.stringify({ workspaceId: ws, uid: 'owner-1', date: '2026-09-14', description: name, status: 'posted', currency: 'USD', totalAmountCents: 1000, lines })]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  };
 
   before(async () => {
     process.env.DATABASE_URL = url;

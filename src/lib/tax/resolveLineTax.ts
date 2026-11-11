@@ -10,7 +10,7 @@
  */
 import { ilVatAreaKeyFor, ilVatRateTable, isIlZeroArea } from './ilVat';
 import { IL_VAT_STANDARD, rateOn } from './ilVatRates';
-import { registrationKey, registrationsOn, type ResolvedProfile, type TaxPlace } from './profile';
+import { placeState, registrationKey, registrationsOn, type ResolvedProfile, type TaxPlace } from './profile';
 
 export interface TaxComponent {
   /** country, state, county, city or district */
@@ -97,11 +97,12 @@ export function resolveLineTax(input: {
   if (sellerCountry === 'US') {
     // sales tax: only where the seller holds a permit for the buyer's state on the date (nexus)
     if (buyer.country !== 'US') return none('export');
-    const permit = registrationsOn(input.seller, 'sales_tax', input.date).find(r => r.place.state === buyer.state);
+    const buyerState = placeState(buyer);
+    const permit = registrationsOn(input.seller, 'sales_tax', input.date).find(r => Boolean(buyerState) && placeState(r.place) === buyerState);
     if (!permit) return none('not-registered');
     const key = registrationKey(permit);
     if (input.exempt) return none('exempt-certificate', key);
-    const components = table(`US-${buyer.state}`)?.(buyer, input.date, input.category);
+    const components = table(`US-${buyerState}`)?.(buyer, input.date, input.category);
     if (!components) return none('no-rate-table', key);
     return { reason: 'taxed', components, rate: total(components), registration: key };
   }

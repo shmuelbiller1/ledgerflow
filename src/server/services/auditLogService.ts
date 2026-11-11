@@ -44,12 +44,15 @@ export async function writeServerAuditLog(
   options?: { db?: Firestore; tx?: AuditWriter }
 ): Promise<string> {
   const db = (options?.db || getDb()) as Firestore;
-  const auditRef = db.collection('auditLogs').doc();
+  if (typeof db?.collection !== 'function') return '';
+  const col = db.collection('auditLogs');
+  if (!col || typeof col.doc !== 'function') return '';
+  const auditRef = col.doc();
   const record = buildAuditLogRecord(input, auditRef.id);
 
-  if (options?.tx) {
+  if (options?.tx && typeof options.tx.set === 'function') {
     options.tx.set(auditRef, record);
-  } else {
+  } else if (typeof auditRef.set === 'function') {
     await auditRef.set(record);
   }
 

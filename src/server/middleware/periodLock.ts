@@ -1,11 +1,11 @@
 import { requestUser } from '../auth/requestUser';
 import { Request, Response, NextFunction } from 'express';
-import { getDb } from '../db/firestore';
+import { getDb, type Firestore } from '../db/firestore';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 
-export function requireOpenPeriod(collectionOrDb?: string | any, dbOverride?: any) {
+export function requireOpenPeriod(collectionOrDb?: unknown, dbOverride?: unknown) {
   const collectionName = typeof collectionOrDb === 'string' ? collectionOrDb : undefined;
-  const explicitDb = typeof collectionOrDb === 'object' && collectionOrDb !== null ? collectionOrDb : dbOverride;
+  const explicitDb = (typeof collectionOrDb === 'object' && collectionOrDb !== null ? collectionOrDb : dbOverride) as Firestore | undefined;
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {

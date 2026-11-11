@@ -32,8 +32,13 @@ export default function CustomerPortalLink({ customer }: { customer: Customer })
       const next = method === 'POST' ? String(data.token) : null;
       useLedgerStore.setState(s => ({ customers: s.customers.map(c => (c.id === customer.id ? { ...c, portalToken: next } : c)) }));
       if (next) {
-        await navigator.clipboard?.writeText(`${window.location.origin}/c/${next}`).catch(() => {});
-        toast.success(token ? 'New link made and copied; the old one no longer works' : 'Portal link made and copied');
+        let copied = true;
+        await navigator.clipboard?.writeText(`${window.location.origin}/c/${next}`).catch(() => { copied = false; });
+        toast.success(
+          token
+            ? (copied ? 'New link made and copied; the old one no longer works' : 'New link made (copy it below); the old one no longer works')
+            : (copied ? 'Portal link made and copied' : 'Portal link made (copy it below)')
+        );
       } else {
         toast.success('Portal link turned off');
       }
@@ -53,7 +58,7 @@ export default function CustomerPortalLink({ customer }: { customer: Customer })
         <div className="flex flex-wrap items-center gap-2">
           <input readOnly value={link} aria-label="Portal link" dir="ltr" onFocus={e => e.currentTarget.select()}
             className="flex-1 min-w-[16rem] px-2 py-1.5 text-xs border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" />
-          <button type="button" onClick={() => { void navigator.clipboard?.writeText(link).then(() => toast.success('Link copied')).catch(() => {}); }}
+          <button type="button" onClick={() => { void navigator.clipboard?.writeText(link).then(() => toast.success('Link copied')).catch(() => { toast.error('Could not copy link to clipboard'); }); }}
             className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Copy</button>
           {canShare && (
             <>

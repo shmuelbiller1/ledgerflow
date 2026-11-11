@@ -12,7 +12,7 @@ export interface IdempotencyRecord {
   updatedAt?: string;
   status: 'pending' | 'success' | 'failed';
   payloadHash?: string;
-  result?: any;
+  result?: unknown;
   error?: string;
   expiresAt: string;
 }
@@ -62,7 +62,7 @@ export function deriveScopedOperationKey(workspaceId: string, operationType: str
  * 3. req.body.operationId
  * 4. req.query.operationId
  */
-export function extractCanonicalOperationId(req: any): string | undefined {
+export function extractCanonicalOperationId(req: { headers?: Record<string, unknown>; body?: Record<string, unknown>; query?: Record<string, unknown> } | null | undefined): string | undefined {
   if (!req) return undefined;
   const headerOpId = req.headers?.['x-operation-id'] || req.headers?.['idempotency-key'];
   if (typeof headerOpId === 'string' && headerOpId.trim()) return headerOpId.trim();
@@ -113,9 +113,7 @@ export async function executeIdempotent<T>(
         const now = Date.now();
         // Allow retry if stuck in pending for > 5 minutes
         if (now - createdAt < 5 * 60 * 1000) {
-          const err = new Error(`Operation ${scopedOperationId} is currently in progress.`);
-          (err as any).status = 409;
-          throw err;
+          throw Object.assign(new Error(`Operation ${scopedOperationId} is currently in progress.`), { status: 409 });
         }
       }
     }

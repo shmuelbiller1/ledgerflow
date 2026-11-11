@@ -34,7 +34,7 @@ export class ViewErrorBoundary extends Component<Props, State> {
     // a crash inside a screen is caught here, so the global error listener never sees it (L-14)
     reportClientError(error, { severity: 'error', componentStack: errorInfo.componentStack || undefined, metadata: { view: this.props.viewName || 'view' } })
       .then(errorRef => { if (errorRef && this.state.hasError) this.setState({ errorRef }); })
-      .catch(() => {});
+      .catch((reportErr) => { console.warn('[ViewErrorBoundary] Telemetry delivery skipped:', reportErr); });
   }
 
   private handleRetry = () => {

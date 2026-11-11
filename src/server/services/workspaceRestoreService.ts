@@ -31,8 +31,8 @@ export interface RestoreTable { key: string; coll: string; onlyIfInBackup?: true
 export const isStoredFile = (data: DocumentData) => typeof data.fileUrl === 'string' && data.fileUrl !== '';
 
 export const RESTORE_COLLECTIONS: RestoreTable[] = [
-  { key: 'transactions', coll: 'transactions' },
   { key: 'accounts', coll: 'chartAccounts' },
+  { key: 'transactions', coll: 'transactions' },
   { key: 'projects', coll: 'projects' },
   { key: 'budgets', coll: 'budgets' },
   { key: 'vendors', coll: 'vendors' },

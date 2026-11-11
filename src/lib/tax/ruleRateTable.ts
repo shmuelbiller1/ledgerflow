@@ -9,13 +9,16 @@
 import { composeFacts, type Fact } from '../rules/facts';
 import { evaluateRules, type Rule } from '../rules/rules';
 import { allTaxRules, type RateEffect, type TaxEffect } from '../rules/packs';
-import type { TaxPlace } from './profile';
+import { placeState, type TaxPlace } from './profile';
 import type { RateTable, TaxComponent } from './resolveLineTax';
 
 /** The facts a sale line gives the rules: where the buyer is and what is sold. */
 export function lineFacts(place: TaxPlace, category?: string): Fact[] {
   const out: Fact[] = [];
-  for (const attribute of ['country', 'state', 'county', 'city', 'district'] as const) {
+  if (place.country) out.push({ attribute: 'country', value: String(place.country) });
+  const st = placeState(place);
+  if (st) out.push({ attribute: 'state', value: st });
+  for (const attribute of ['county', 'city', 'district'] as const) {
     if (place[attribute]) out.push({ attribute, value: String(place[attribute]) });
   }
   if (category) out.push({ attribute: 'productCategory', value: category });

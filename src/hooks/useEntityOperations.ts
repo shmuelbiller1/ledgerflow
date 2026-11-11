@@ -179,6 +179,19 @@ export function useEntityOperations() {
         await LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
       } else if (path === 'vendorCredits') {
         await LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
+      } else if (path === 'transactions') {
+        const token = await getIdToken();
+        const res = await fetch('/api/v1/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ workspaceId: currentWorkspaceId, transaction: finalData }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction creation refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(`Direct browser creation on ${path} is disabled; use the server ledger API.`);
       } else {
         await setDoc(doc(db, path, docId), finalData);
       }
@@ -294,6 +307,19 @@ export function useEntityOperations() {
         const existing = (await savedRecord<VendorCredit>('vendorCredits', id)) || {};
         const mergedData = { ...existing, ...finalData };
         await LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
+      } else if (path === 'transactions' && currentWorkspaceId) {
+        const token = await getIdToken();
+        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ workspaceId: currentWorkspaceId, partialUpdate: finalData }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction update refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(`Direct browser updates on ${path} are disabled; use the server ledger API.`);
       } else {
         await updateDoc(doc(db, path, id), finalData);
       }
@@ -324,6 +350,18 @@ export function useEntityOperations() {
         await LedgerPostService.deletePostings(id, 'creditNoteId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
       } else if (path === 'vendorCredits' && currentWorkspaceId) {
         await LedgerPostService.deletePostings(id, 'vendorCreditId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
+      } else if (path === 'transactions' && currentWorkspaceId) {
+        const token = await getIdToken();
+        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`, {
+          method: 'DELETE',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction deletion refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(`Direct browser deletion on ${path} is disabled; use the server ledger API.`);
       } else {
         await deleteDoc(doc(db, path, id));
       }
