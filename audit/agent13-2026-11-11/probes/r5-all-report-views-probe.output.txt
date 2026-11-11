@@ -1,0 +1,256 @@
+balance-sheet server fetch fallback: TypeError: Failed to parse URL from /api/v1/reports/balance-sheet?workspaceId=ws-sample-12m&endDate=2026-12-31
+    at node:internal/deps/undici/undici:14976:13
+    at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:24)
+    at async <anonymous> (/home/user/ledgerflow/src/components/ledger/BalanceSheetView.tsx:60:19) {
+  [cause]: TypeError: Invalid URL
+      at new URL (node:internal/url:818:25)
+      at new Request (node:internal/deps/undici/undici:9804:25)
+      at fetch (node:internal/deps/undici/undici:10533:25)
+      at fetch (node:internal/deps/undici/undici:14974:10)
+      at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+      at <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:30)
+      at async <anonymous> (/home/user/ledgerflow/src/components/ledger/BalanceSheetView.tsx:60:19) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/v1/reports/balance-sheet?workspaceId=ws-sample-12m&endDate=2026-12-31'
+  }
+}
+cash-flow server fetch fallback: TypeError: Failed to parse URL from /api/v1/reports/cash-flow?workspaceId=ws-sample-12m&startDate=2026-01-01&endDate=2026-12-31
+    at node:internal/deps/undici/undici:14976:13
+    at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:24)
+    at async <anonymous> (/home/user/ledgerflow/src/components/ledger/CashFlowView.tsx:62:19) {
+  [cause]: TypeError: Invalid URL
+      at new URL (node:internal/url:818:25)
+      at new Request (node:internal/deps/undici/undici:9804:25)
+      at fetch (node:internal/deps/undici/undici:10533:25)
+      at fetch (node:internal/deps/undici/undici:14974:10)
+      at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+      at <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:30)
+      at async <anonymous> (/home/user/ledgerflow/src/components/ledger/CashFlowView.tsx:62:19) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/v1/reports/cash-flow?workspaceId=ws-sample-12m&startDate=2026-01-01&endDate=2026-12-31'
+  }
+}
+profit-and-loss server fetch fallback: TypeError: Failed to parse URL from /api/v1/reports/profit-and-loss?workspaceId=ws-sample-12m&startDate=2026-01-01&endDate=2026-12-31
+    at node:internal/deps/undici/undici:14976:13
+    at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:24)
+    at async <anonymous> (/home/user/ledgerflow/src/components/ledger/ProfitAndLossView.tsx:124:19) {
+  [cause]: TypeError: Invalid URL
+      at new URL (node:internal/url:818:25)
+      at new Request (node:internal/deps/undici/undici:9804:25)
+      at fetch (node:internal/deps/undici/undici:10533:25)
+      at fetch (node:internal/deps/undici/undici:14974:10)
+      at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+      at <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:30)
+      at async <anonymous> (/home/user/ledgerflow/src/components/ledger/ProfitAndLossView.tsx:124:19) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/v1/reports/profit-and-loss?workspaceId=ws-sample-12m&startDate=2026-01-01&endDate=2026-12-31'
+  }
+}
+trial-balance server fetch fallback: TypeError: Failed to parse URL from /api/v1/reports/trial-balance?workspaceId=ws-sample-12m&asOfDate=2026-11-11
+    at node:internal/deps/undici/undici:14976:13
+    at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:24)
+    at async <anonymous> (/home/user/ledgerflow/src/components/ledger/TrialBalanceView.tsx:69:19) {
+  [cause]: TypeError: Invalid URL
+      at new URL (node:internal/url:818:25)
+      at new Request (node:internal/deps/undici/undici:9804:25)
+      at fetch (node:internal/deps/undici/undici:10533:25)
+      at fetch (node:internal/deps/undici/undici:14974:10)
+      at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+      at <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:30)
+      at async <anonymous> (/home/user/ledgerflow/src/components/ledger/TrialBalanceView.tsx:69:19) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/v1/reports/trial-balance?workspaceId=ws-sample-12m&asOfDate=2026-11-11'
+  }
+}
+profit-and-loss server fetch fallback: TypeError: Failed to parse URL from /api/v1/reports/profit-and-loss?workspaceId=ws-sample-12m&startDate=2026-12-01&endDate=2026-12-31
+    at node:internal/deps/undici/undici:14976:13
+    at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:24)
+    at async <anonymous> (/home/user/ledgerflow/src/components/ledger/ProfitAndLossView.tsx:124:19) {
+  [cause]: TypeError: Invalid URL
+      at new URL (node:internal/url:818:25)
+      at new Request (node:internal/deps/undici/undici:9804:25)
+      at fetch (node:internal/deps/undici/undici:10533:25)
+      at fetch (node:internal/deps/undici/undici:14974:10)
+      at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+      at <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:94:30)
+      at async <anonymous> (/home/user/ledgerflow/src/components/ledger/ProfitAndLossView.tsx:124:19) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/v1/reports/profit-and-loss?workspaceId=ws-sample-12m&startDate=2026-12-01&endDate=2026-12-31'
+  }
+}
+
+Fixture: 4880 transactions, 170 report modules
+
+id                                                    ms status
+JournalSheetReportView                           6518.73 SLOW
+PaymentsView                                     5586.36 SLOW
+GeneralLedgerView                                4884.27 SLOW
+ExpiringLotsReportView                           2387.31 SLOW
+AccountRegisterView                              1816.14 SLOW
+TransactionsByCustomerView                       1194.21 SLOW
+ItemRegisterReportView                           1148.16 SLOW
+TransactionsByVendorView                          796.04 ok
+StockValueByLocationLotReportView                 685.79 ok
+ImportServicesReportView                          420.07 ok
+AgedInventoryByLotReportView                       313.6 ok
+ExpenseByCategoryReportView                       271.26 ok
+MonthEndCloseView                                 258.19 ok
+CustomerQuotesReportView                          251.69 ok
+IsraelMonthJourneyReportView                      231.22 ok
+VendorScorecardReportView                         206.99 ok
+DocumentTrendsView                                191.97 ok
+DeliveryNotesReportView                           181.33 ok
+Ledger                                            174.47 ok
+RulePackCoverageReportView                        155.03 ok
+BalanceSheetView                                  151.21 ok
+QueryView                                         124.18 ok
+SerialLotLookupReportView                         116.13 ok
+CreditNotesView                                    97.95 ok
+TopPartiesReportView                               97.52 ok
+CustomerGrossProfitView                            95.12 ok
+SampleYearBenchmarkReportView                      90.82 ok
+CashForecast13WeekView                             84.79 ok
+Reports                                            77.28 ok
+InventoryValuationReportView                       76.44 ok
+EverydayReportViews                                71.43 ok
+GoldenTaxFixturesReportView                        70.74 ok
+ProfitAndLossView                                  64.66 ok
+GrossMarginByItemGroupReportView                   61.81 ok
+CustomerLifetimeValueReportView                    58.94 ok
+TrialBalanceView                                   56.55 ok
+StatementColumns                                   55.15 threw: formatMoney is not a function
+ContactBalanceSummaryView                           54.1 ok
+ARAgingReportView                                  52.99 ok
+AgedReceivablesByRepReportView                     51.92 ok
+CashFlowView                                       51.38 ok
+ProfitabilityByView                                50.74 ok
+CustomerBalanceSummaryView                         50.71 ok
+StatementView                                      47.28 ok
+KitAssemblyReportView                              41.58 ok
+BankHolidaysReportView                             40.73 ok
+APAgingReportView                                  39.57 ok
+SpreadWaterfallView                                39.15 ok
+QuoteVersionsReportView                            38.86 ok
+PartyPeriodSummaryView                             37.86 ok
+DuplicateBillsReviewView                           37.63 ok
+ProjectProfitabilityView                           36.17 threw: ResizeObserver is not defined
+DataQualityReportView                              35.63 ok
+RetentionReviewReportView                          34.44 ok
+AccountantQueueView                                34.32 ok
+SalesByItemReportView                              34.11 ok
+PartyAgingReportView                               33.54 ok
+RegistrationThresholdWatchReportView               33.22 ok
+SalesTaxHolidaysReportView                         32.66 ok
+FinancialRatiosReportView                           31.5 ok
+BankingValidationReportView                        31.35 ok
+UsFilingCalendarReportView                         30.29 ok
+IsraeliAnnualPartySummaryView                      28.71 ok
+VendorBalanceSummaryView                           28.19 ok
+Us1099PreviewReportView                            27.44 ok
+AssetRegisterReportView                            25.57 ok
+TaxLiabilityView                                   25.44 ok
+SlowMovingStockView                                25.04 ok
+CustomerCreditLimitReportView                      24.06 ok
+WarehouseOperationsReportView                      23.53 ok
+WarrantyRegisterPanel                               22.8 ok
+Vendor1099ReadinessReportView                      22.46 ok
+BankClearanceReportView                            21.52 ok
+CustomerCohortsReportView                          21.44 ok
+SalesByTerritoryReportView                         20.86 ok
+ExpenseByEmployeeReportView                        19.77 ok
+PaymentMethodSummaryView                           19.58 ok
+UsNexusWatchReportView                             19.51 ok
+IsraelVatReportView                                18.61 ok
+InactiveItemsReportView                            17.97 ok
+VendorTaxRecordsView                               17.77 ok
+TopExpensesIncomeReportView                         17.5 ok
+UsQuarterJourneyReportView                         17.16 ok
+TwoLensesLedger                                    16.97 ok
+RecordNotesReportView                              16.47 ok
+VendorPriceHistoryReportView                       16.19 ok
+VendorWithholdingView                              16.04 ok
+EntityFilingsCalendarView                          15.86 ok
+SubscriptionPlansReportView                         15.7 ok
+LabelProfitReportView                              15.01 ok
+AverageMonthlyReportView                           14.82 ok
+IsraelAdvanceTaxReportView                         14.54 ok
+PettyCashView                                      14.34 ok
+IsraeliBankCodesReportView                         14.34 ok
+ExpenseReceiptChecklistReportView                  13.68 ok
+ReportPicker                                       12.12 ok
+BalanceSheetReport                                 11.55 threw: Cannot read properties of undefined (reading 'assets')
+InventoryTurnoverReportView                        11.31 ok
+DiscountMismatchView                               10.92 ok
+DocumentNumberGapsReportView                        10.8 ok
+ThreeWayMatchReviewView                            10.68 ok
+AuditTrailView                                     10.45 ok
+TimeByProjectReportView                            10.08 ok
+DepreciationLedgerReportView                        9.92 ok
+RecurringTransactionsView                           9.81 ok
+IncomeBySourceReportView                            9.57 ok
+DunningLettersReportView                            9.02 ok
+ReorderSuggestionsReportView                        8.56 ok
+IlSelfEmploymentNiReportView                        8.42 ok
+TransactionsByReferenceView                         8.38 ok
+JournalView                                         7.98 ok
+ExchangeRateHistoryView                             7.94 ok
+TagBreakdownReportView                              7.47 ok
+ShippingMethodsView                                 7.42 ok
+GroupSummaryReportView                              7.15 ok
+IsraeliDocumentTypesView                            7.01 ok
+ClientQueriesView                                   6.79 ok
+TaxCodeSuggestionsReportView                        6.45 ok
+DuplicateContactReviewReportView                    6.37 ok
+PartyLinkedTrialBalanceView                         6.13 ok
+VendorQuotesCompareView                             6.12 ok
+Form856ReportView                                   5.96 ok
+OneSidedTransfersReportView                         5.91 ok
+GoodsNotBilledReportView                            5.84 ok
+MileageRatesReportView                              5.76 ok
+CustomerTaxCertificatesView                         5.61 ok
+PurchasePriceVarianceReportView                      5.6 ok
+PivotSheetView                                      5.29 threw: Cannot read properties of undefined (reading 'map')
+InboxView                                           5.26 ok
+BackordersReportView                                4.98 ok
+UseTaxReportView                                    4.89 ok
+LoansView                                           4.82 ok
+CycleCountReportView                                4.78 ok
+InventoryDetailsReportView                          4.49 ok
+CommissionReportView                                4.42 ok
+BudgetActualReportView                              4.41 ok
+PurchaseItemTrendsView                              4.38 ok
+BlanketOrdersReportView                             4.36 ok
+OpenAdvancesView                                    4.33 ok
+StatementFormatControls                             4.32 ok
+AccountantExportPackView                            4.29 ok
+AskBooksView                                        4.19 ok
+BillRetentionReportView                             4.08 ok
+ReportSkeleton                                      4.08 ok
+StockSourcesUsesReportView                          4.01 ok
+ReconciliationView                                  3.87 threw: Cannot read properties of undefined (reading 'length')
+StockAgingReportView                                3.71 ok
+ExpensePolicyReportView                             3.58 ok
+LandedCostPreviewReportView                         3.54 ok
+WorkOrdersView                                       3.5 ok
+CustomerItemCodesView                               3.31 ok
+StockTransfersReportView                             3.2 ok
+StandardCostReportView                              3.18 ok
+LabelBalanceSheetReportView                         3.13 ok
+ChartOfAccountsView                                 2.99 threw: Cannot read properties of undefined (reading 'toLowerCase')
+MilestoneBillingReportView                          2.73 ok
+PartyReportLayout                                   2.68 threw: Cannot read properties of undefined (reading 'map')
+ImportAcceptanceView                                2.67 ok
+GsaPerDiemReportView                                2.61 ok
+TransactionGridView                                 2.54 threw: Cannot read properties of undefined (reading 'length')
+StatementImporter                                    2.4 ok
+ReportPeriodHeading                                 2.08 ok
+ReportEmptyState                                    1.98 ok
+ReportViewsControls                                  1.9 ok
+ReportTableScroll                                   1.31 ok
+ReportNote                                          1.22 ok
+RangeReportSourceNote                                0.8 ok
+ReportTotalExplainer                                0.77 ok
+ReportProvenanceNote                                0.53 ok
+orderReportCells                                       0 no default export
+
+over 1,000 ms: 7 of 170

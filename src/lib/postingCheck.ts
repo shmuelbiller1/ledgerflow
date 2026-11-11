@@ -11,6 +11,7 @@
  */
 import type { Bill, Invoice, Transaction } from '../types';
 import { isPostable, lineAmount } from './txFilters';
+import { minorUnitRate } from './currencyMinorUnits';
 
 export type PostingIssue = 'missing' | 'duplicate' | 'orphan' | 'amount';
 
@@ -64,23 +65,34 @@ function postedTotal(t: Transaction, kind: 'invoice' | 'bill'): number {
 }
 
 /** What the receivable/payable side of the accrual should be, in base currency. An invoice's
- *  discount is booked on the same side (DR Sales Discounts), so it adds to the invoice's debits. */
-function expectedTotal(kind: 'invoice' | 'bill', doc: { amountCents?: number; exchangeRate?: number; discountCents?: number }): number {
-  const rate = doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
+ *  discount is booked on the same side (DR Sales Discounts), so it adds to the invoice's debits.
+ *
+ *  AF13-001: the rate is the posting path's own rate, not the bare exchange rate. A document keeps
+ *  its amounts in the minor units of its own currency (BM-04: whole yen for JPY, fils for KWD) and
+ *  its entry is in the books' minor units, so the factor is `minorUnitRate(rate, document, books)`
+ *  exactly as `documentMinorRate` in src/services/ledgerPost/postingCore.ts computes it — otherwise a
+ *  document in a 0- or 3-decimal currency looked 100x (or 10x) wrong when the ledger was right. */
+function expectedTotal(
+  kind: 'invoice' | 'bill',
+  doc: { amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string },
+  baseCurrency?: string,
+): number {
+  const rate = minorUnitRate(doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1, doc.currency || baseCurrency, baseCurrency);
   const total = Math.round((doc.amountCents || 0) * rate);
   return kind === 'invoice' ? total + Math.round((doc.discountCents || 0) * rate) : total;
 }
 
 function check(
   kind: 'invoice' | 'bill',
-  docs: Array<{ id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; discountCents?: number; party?: string }>,
+  docs: Array<{ id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string; party?: string }>,
   accruals: Map<string, Transaction[]>,
+  baseCurrency?: string,
 ): PostingMismatch[] {
   const out: PostingMismatch[] = [];
   for (const doc of docs) {
     const entries = accruals.get(doc.id) || [];
     const posted = entries.reduce((s, t) => s + postedTotal(t, kind), 0);
-    const expected = NOT_POSTED.has(String(doc.status)) || (doc.amountCents || 0) <= 0 ? 0 : expectedTotal(kind, doc);
+    const expected = NOT_POSTED.has(String(doc.status)) || (doc.amountCents || 0) <= 0 ? 0 : expectedTotal(kind, doc, baseCurrency);
     const base = { kind, id: doc.id, number: doc.number || doc.id, party: doc.party || '', expectedCents: expected, postedCents: posted };
     if (expected > 0 && entries.length === 0) out.push({ ...base, issue: 'missing', detail: 'Not in the ledger' });
     else if (expected === 0 && entries.length > 0) out.push({ ...base, issue: 'orphan', detail: `Still in the ledger although it is ${doc.status}` });
@@ -90,8 +102,15 @@ function check(
   return out;
 }
 
-export function findPostingMismatches(input: { invoices: Invoice[]; bills: Bill[]; transactions: Transaction[] }): PostingMismatch[] {
-  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'));
-  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'));
+export function findPostingMismatches(input: {
+  invoices: Invoice[];
+  bills: Bill[];
+  transactions: Transaction[];
+  /** The books' currency (a workspace's `currency`); a document without a currency is already in it. */
+  baseCurrency?: string;
+}): PostingMismatch[] {
+  const base = input.baseCurrency || 'USD';
+  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'), base);
+  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'), base);
   return [...invoices, ...bills];
 }

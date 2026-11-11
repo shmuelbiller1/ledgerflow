@@ -39,14 +39,16 @@ export default function SampleYearBenchmarkReportView() {
         <p className="text-sm text-[var(--muted)]">
           Generates a deterministic 12-month small-business year (invoices, supplier bills, purchase orders,
           warehouse receipts, lots and serials, payments, bank statements, reconciliations, and balanced double-entry
-          postings) and checks that every report — led by the five heaviest — completes well under {REPORT_BUDGET_MS} ms.
+          postings) and times the {benchmark.reports.length} report computations it can measure — led by the five
+          heaviest — against the {REPORT_BUDGET_MS} ms budget. It is a speed check of those computations, not of every
+          report screen: the browser-rendered screens are measured separately in the report-speed tests (AF13-004).
           Read-only fixture only: nothing here reads from, writes to, or alters your workspace books.
         </p>
       </div>
 
       <p role={verification.ok && benchmark.allWithinBudget ? 'status' : 'alert'} className="text-sm font-semibold">
         {verification.ok && benchmark.allWithinBudget
-          ? `All ${verification.monthsCovered} months verified (${verification.balancedTransactions} balanced entries, ${verification.totalLines} lines) · Top 5 heaviest reports all under ${REPORT_BUDGET_MS} ms (max ${benchmark.topFiveHeaviest[0]?.durationMs.toFixed(2) || '0.00'} ms).`
+          ? `All ${verification.monthsCovered} months verified (${verification.balancedTransactions} balanced entries, ${verification.totalLines} lines) · Top 5 heaviest of the ${benchmark.reports.length} report computations under ${REPORT_BUDGET_MS} ms (max ${benchmark.topFiveHeaviest[0]?.durationMs.toFixed(2) || '0.00'} ms).`
           : `Check failed: ${verification.failures.join('; ') || 'one or more reports exceeded the 1,000 ms budget'}.`}
       </p>
 

@@ -103,10 +103,12 @@ export default function MonthEndCloseView() {
     return () => { cancelled = true; };
   }, [workspaceId, month]);
 
+  // the books' currency: a document in another currency is converted for the ledger comparison (AF13-001)
+  const baseCurrency = workspace?.currency;
   const items = useMemo(() => buildCloseChecklist({
-    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], journalEntries: journalEntries || [], assets: assets || [],
-  }), [month, transactions, bankLines, invoices, bills, journalEntries, assets]);
-  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], transactions: transactions || [] }, monthEnd(month)), [invoices, bills, transactions, month]);
+    month, baseCurrency, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], journalEntries: journalEntries || [], assets: assets || [],
+  }), [month, baseCurrency, transactions, bankLines, invoices, bills, journalEntries, assets]);
+  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], transactions: transactions || [], baseCurrency }, monthEnd(month)), [invoices, bills, transactions, baseCurrency, month]);
   const stepItems = useMemo(() => closeStepItems(workspace?.closeSteps, month, workspace?.fiscalYearStartMonth || 1), [workspace?.closeSteps, workspace?.fiscalYearStartMonth, month]);
   const signOffs = period?.signOffs || {};
   const readiness = readyToClose([...items, ...stepItems], signOffs);
