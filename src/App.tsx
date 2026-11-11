@@ -528,7 +528,9 @@ const shortcutMap = useMemo(() => {
     );
   }
 
-  if (isInitializing) {
+  // The local sample does not depend on a remote auth round-trip. A later real
+  // auth identity still exits/erases the sample through setUser before publishing it.
+  if (isInitializing && !isGuest) {
     return <InitializationScreen language={language} />;
   }
 

@@ -26,6 +26,8 @@ for (const width of [390, 1280]) test(`EU-A1 guest can save a local invoice and 
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('#main-content')).toContainText('Sample-only customer');
   await page.reload();
+  // Reload waits for navigation, not for auth/bootstrap and the lazy application shell.
+  await page.locator('#main-content').waitFor({ state: 'visible', timeout: 15_000 });
   await expect(page.locator('#main-content')).toContainText('Sample-only customer');
   // The bootstrap guard also fails closed for a future API-only action (not just today's forms).
   const blocked = await page.evaluate(async () => {
