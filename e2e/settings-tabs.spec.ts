@@ -12,6 +12,12 @@ for (const theme of ['light', 'dark']) {
       localStorage.setItem('lf_theme', selectedTheme);
     }, theme);
     await page.goto('/#settings');
+    // EU-F1: this geometry/focus regression exercises the advanced strip, not the basic menu.
+    await page.evaluate(async () => {
+      const modulePath = '/src/stores/useUIStore.ts';
+      const { useUIStore } = await import(/* @vite-ignore */ modulePath) as typeof import('../src/stores/useUIStore');
+      useUIStore.getState().setProMode(true);
+    });
     const modules = page.getByRole('navigation', { name: 'Module pages', exact: true });
     await expect(modules).toBeVisible();
     const buttons = modules.getByRole('button');
