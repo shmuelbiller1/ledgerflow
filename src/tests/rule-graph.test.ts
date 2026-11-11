@@ -92,3 +92,17 @@ test('saved tax profiles feed the same facts: place and registrations, inherited
   assert.deepEqual(facts.registration?.values, ['sales_tax:US-TX:32', 'vat:IL:514000000'], 'registrations accumulate across levels');
   assert.equal(facts.registration?.verified, false, 'a number is evidence to check, not a checked fact');
 });
+
+test('set-valued fact stated both declared and verified reports verified=true (A8-1111-F6)', () => {
+  const { facts } = composeFacts(
+    {
+      labels: { 'world:tx': [{ attribute: 'registration', value: 'sales_tax:US-TX:32', evidence: { kind: 'declared' } }] },
+      books: [{ attribute: 'registration', value: 'sales_tax:US-TX:32', evidence: { kind: 'registration', ref: 'permit-32', verifiedBy: 'owner-1', verifiedAt: '2026-01-15' } }],
+    },
+    { world: 'tx' },
+    ['world'],
+    '2026-10-11',
+  );
+  assert.deepEqual(facts.registration?.values, ['sales_tax:US-TX:32']);
+  assert.equal(facts.registration?.verified, true, 'verified evidence on books satisfies the same registration declared on a label');
+});

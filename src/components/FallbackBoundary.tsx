@@ -27,7 +27,7 @@ export class FallbackBoundary extends React.Component<Props, State> {
     reportClientError(error, {
       severity: 'fatal',
       componentStack: errorInfo.componentStack || undefined
-    }).catch(() => {});
+    }).catch((reportErr) => { console.warn('[FallbackBoundary] Telemetry delivery skipped:', reportErr); });
   }
 
   public render() {

@@ -13,7 +13,7 @@ import { accountParentProblem, allowedParentAccounts } from '../../lib/accountGr
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { addDoc, collection } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { db, getIdToken } from '../../firebase';
 import AsyncButton from '../ui/AsyncButton';
 import JournalEntryModal from './JournalEntryModal';
 import { LexiconText } from '../../hooks/useLexicon';
@@ -67,7 +67,6 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { useCommandDispatcher } from '../../hooks/useSystemContext';
-import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { Labelled } from '../ui/Labelled';
 import { useServerOpening } from '../../hooks/useServerOpening';
@@ -124,28 +123,34 @@ const Ledger = React.memo(() => {
   const { loading: transactionsLoading } = useLedgerCollections('transactions');
   const { handleAction: onAction } = useCommandDispatcher();
   const txActions = useTransactionActions();
-  const { addEntity } = useEntityOperations();
 
   const onCompleteReconciliation = async (data: ReconciliationResult) => {
+    if (!workspaceId) throw new Error('Workspace context required');
     try {
-      const recRecord = {
-        accountId: data.accountId,
-        accountName: data.accountName,
-        statementDate: data.statementDate,
-        statementBalanceCents: data.statementBalanceCents,
-        reconciledTransactionIds: data.reconciledIds || [],
-        reconciledCount: (data.reconciledIds || []).length,
-        status: 'completed',
-        completedAt: data.timestamp || new Date().toISOString()
-      };
-      
-      // Atomically persist reconciliation record and mark all reconciled transactions on the server
-      await addEntity('reconciliations', recRecord);
+      const token = await getIdToken();
+      const res = await fetch('/api/v1/transactions/reconciliation/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          workspaceId,
+          accountId: data.accountId,
+          statementDate: data.statementDate,
+          statementBalanceCents: data.statementBalanceCents,
+          reconciledTransactionIds: data.reconciledIds || [],
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || errBody?.message || 'Failed to complete reconciliation');
+      }
 
       toast.success(`Reconciliation finalized: ${(data.reconciledIds || []).length} transactions marked reconciled.`);
     } catch (err) {
       console.error('Failed to persist reconciliation:', err);
-      toast.error('Failed to save reconciliation.');
+      toast.error((err as Error).message || 'Failed to save reconciliation.');
       throw err;
     }
   };
@@ -188,8 +193,11 @@ const Ledger = React.memo(() => {
       toast.error('Parent account refused', { description: parentProblem });
       return;
     }
+    const targetWorkspaceId = workspaceId;
+    const isCurrent = () => useAuthStore.getState().currentWorkspaceId === targetWorkspaceId;
     try {
-      await addDoc(collection(db, 'chartAccounts'), {
+      const openingCents = Math.round(Number(newAccount.openingBalanceCents) || 0);
+      const createdRef = await addDoc(collection(db, 'chartAccounts'), {
         workspaceId,
         uid: user?.uid || "",
         code: newAccount.code,
@@ -198,12 +206,59 @@ const Ledger = React.memo(() => {
         category: newAccount.category || newAccount.type,
         description: newAccount.description || "",
         parentId: newAccount.parentId || null,
-        openingBalanceCents: newAccount.openingBalanceCents || 0,
+        openingBalanceCents: 0,
         asOfDate: newAccount.asOfDate || new Date().toISOString(),
         balanceCents: 0,
         createdAt: new Date().toISOString()
       });
+      if (openingCents !== 0) {
+        let obeId = accounts.find(a => a.type === 'equity' && /opening balance/i.test(a.name))?.id;
+        if (!obeId) {
+          const obeRef = await addDoc(collection(db, 'chartAccounts'), {
+            workspaceId,
+            uid: user?.uid || "",
+            code: '3900',
+            name: 'Opening Balance Equity',
+            type: 'equity',
+            category: 'Equity',
+            description: 'Balances brought in when accounts were established',
+            openingBalanceCents: 0,
+            balanceCents: 0,
+            createdAt: new Date().toISOString()
+          });
+          obeId = obeRef.id;
+        }
+        const isDebitNormal = newAccount.type === 'asset' || newAccount.type === 'expense';
+        const signedAmt = isDebitNormal ? openingCents : -openingCents;
+        const token = await getIdToken();
+        const obRes = await fetch('/api/v1/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            workspaceId,
+            transaction: {
+              workspaceId,
+              date: (newAccount.asOfDate || format(new Date(), 'yyyy-MM-dd')).slice(0, 10),
+              description: `Opening balance for ${newAccount.name}`,
+              totalAmountCents: Math.abs(signedAmt),
+              currency: useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD',
+              exchangeRate: 1,
+              status: 'completed',
+              type: 'journal',
+              lines: [
+                { accountId: createdRef.id, accountName: newAccount.name, amountCents: signedAmt },
+                { accountId: obeId, accountName: 'Opening Balance Equity', amountCents: -signedAmt },
+              ],
+            },
+          }),
+        });
+        if (!obRes.ok) {
+          const errBody = await obRes.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Opening balance entry refused');
+        }
+      }
       toast.success('System Node Established');
+      if (!isCurrent()) return;
       setActiveModal(null);
       setNewAccount({ 
         code: '', 

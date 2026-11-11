@@ -45,8 +45,9 @@ publicInvoiceRouter.get('/:token', async (req, res) => {
     const doc = snapshot.docs[0];
     const invoice = doc.data();
 
+    interface RawInvoiceLine { description?: string; quantity?: number; unitPriceCents?: number; amountCents?: number }
     const lineTotal = Array.isArray(invoice.lines) 
-      ? invoice.lines.reduce((sum: number, l: any) => {
+      ? (invoice.lines as RawInvoiceLine[]).reduce((sum: number, l: RawInvoiceLine) => {
           const lineAmt = typeof l.amountCents === 'number' 
             ? l.amountCents 
             : Math.round((Number(l.quantity) || 1) * (Number(l.unitPriceCents) || 0));
@@ -79,7 +80,7 @@ publicInvoiceRouter.get('/:token', async (req, res) => {
         currency: invoice.currency || 'USD',
         customerName: invoice.customerName,
         paymentToken: invoice.paymentToken,
-        lines: Array.isArray(invoice.lines) ? invoice.lines.map((l: any) => ({
+        lines: Array.isArray(invoice.lines) ? (invoice.lines as RawInvoiceLine[]).map((l: RawInvoiceLine) => ({
           description: l.description,
           quantity: l.quantity,
           unitPriceCents: l.unitPriceCents,

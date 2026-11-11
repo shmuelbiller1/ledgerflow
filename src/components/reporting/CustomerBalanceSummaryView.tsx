@@ -2,6 +2,8 @@ import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { Users, Mail, Phone } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeCustomerBalanceSummary, CustomerBalanceSummaryRow } from '../../server/reports/partyReports';
@@ -14,12 +16,20 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const invoices = useLedgerStore(s => s.invoices);
   const payments = useLedgerStore(s => s.payments);
   const creditNotes = useLedgerStore(s => s.creditNotes);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  // Follow the Reports page period when it gives one
+  const isTruncated = Boolean(truncated.customers || truncated.invoices || truncated.payments || truncated.creditNotes);
+  const serverRows = useServerOperationalReport<CustomerBalanceSummaryRow[]>(
+    isTruncated && Boolean(workspaceId),
+    workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
+    `${workspaceId}:${asOfDate}:${collectionStamp(customers, invoices, payments, creditNotes)}`,
+    body => (Array.isArray(body.customerRows) ? (body.customerRows as CustomerBalanceSummaryRow[]) : undefined),
+  );
 
-  const customerRows = useMemo<CustomerBalanceSummaryRow[]>(() => {
+  const localCustomerRows = useMemo<CustomerBalanceSummaryRow[]>(() => {
     return computeCustomerBalanceSummary(
       customers,
       invoices,
@@ -28,6 +38,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       asOfDate
     );
   }, [customers, invoices, payments, creditNotes, asOfDate]);
+  const customerRows = serverRows || localCustomerRows;
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return customerRows;

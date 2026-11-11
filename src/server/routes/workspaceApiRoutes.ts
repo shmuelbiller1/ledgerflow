@@ -76,6 +76,18 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
         createdAt: validation.data.createdAt || new Date().toISOString()
       };
       await db.collection("workspaces").doc(newId).set(newWorkspace);
+      await writeServerAuditLog({
+        workspaceId: newId,
+        uid,
+        email: (req as AuthenticatedRequest).user?.email,
+        action: 'WORKSPACE_CREATED',
+        entityType: 'workspace',
+        entityId: newId,
+        details: {
+          description: `Created workspace "${newWorkspace.name}"`,
+          currency: newWorkspace.currency,
+        },
+      }, { db });
       res.status(201).json({
         status: "success",
         message: "Workspace created successfully.",

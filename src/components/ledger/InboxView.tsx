@@ -9,6 +9,7 @@ import { HandOver } from '../collaboration/HandOver';
 import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
 import { resolveAccountRole } from '../../lib/accountUtils';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -34,7 +35,7 @@ export default function InboxView() {
   );
 
   const pendingTransactions = useMemo(() => 
-    transactions.filter(t => t.status === 'pending' || t.status === 'draft')
+    transactions.filter(t => !isPostable(t) && !t.deletedAt && (t.status === 'pending' || t.status === 'draft'))
       .map(t => {
         const line = t.lines[0];
         const calibration = evaluateCalibratedAutoPost(
@@ -93,7 +94,7 @@ export default function InboxView() {
     }
     if (!resolvedAcc) return;
 
-    const updates: Array<{ id: string; data: Record<string, unknown> }> = [];
+    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     for (const id of transactionIds) {
       const tx = transactions.find(t => t.id === id);
       if (!tx) continue;
@@ -107,7 +108,7 @@ export default function InboxView() {
           { accountId: cashAcc?.id || resolvedAcc.id, accountName: cashAcc?.name || 'Main Checking', amountCents: -amt }
         ];
       } else {
-        const catLineIdx = updatedLines.findIndex(l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || l.amountCents > 0);
+        const catLineIdx = updatedLines.findIndex(l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, tx) > 0);
         const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
         updatedLines[targetIdx] = {
           ...updatedLines[targetIdx],
@@ -119,39 +120,36 @@ export default function InboxView() {
 
       updates.push({
         id,
-        data: {
-          lines: updatedLines,
-          status: 'completed',
-          isReviewed: true,
-        },
+        data: { lines: updatedLines, status: 'completed', isReviewed: true }
       });
     }
 
-    if (updates.length === 0) return;
+    if (updates.length === 0 || !currentWorkspaceId) return;
     const token = await getIdToken();
     const res = await fetch('/api/v1/transactions/batch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({
-        workspaceId: currentWorkspaceId,
-        updates,
-      }),
+      body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       toast.error(body.error || body.message || 'Could not save categorized entries');
       return;
     }
+    const patchMap = new Map(updates.map(u => [u.id, u.data]));
+    useLedgerStore.getState().setTransactions(
+      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
+    );
     toast.success(`Filed ${updates.length} ${updates.length === 1 ? 'entry' : 'entries'}`);
   };
 
   const handleCalibratedAutoPost = async () => {
     if (!currentWorkspaceId || calibratedReady.length === 0) return;
     const cashAcc = accounts.find(a => !a.isArchived && resolveAccountRole(a) === 'cash');
-    const updates: Array<{ id: string; data: Record<string, unknown> }> = [];
+    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     let skippedUnresolved = 0;
 
     for (const item of calibratedReady) {
@@ -175,7 +173,7 @@ export default function InboxView() {
         ];
       } else {
         const catLineIdx = updatedLines.findIndex(
-          l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || l.amountCents > 0,
+          l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, item) > 0,
         );
         const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
         updatedLines[targetIdx] = {
@@ -206,7 +204,7 @@ export default function InboxView() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         workspaceId: currentWorkspaceId,
@@ -218,6 +216,10 @@ export default function InboxView() {
       toast.error(body.error || body.message || 'Could not auto-post calibrated entries');
       return;
     }
+    const patchMap = new Map(updates.map(u => [u.id, u.data]));
+    useLedgerStore.getState().setTransactions(
+      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
+    );
     const suffix = skippedUnresolved > 0 ? ` (${skippedUnresolved} skipped due to unresolved accounts)` : '';
     toast.success(`Auto-posted ${updates.length} calibrated ${updates.length === 1 ? 'entry' : 'entries'}${suffix}`);
   };

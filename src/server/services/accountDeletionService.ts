@@ -97,8 +97,12 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
   }
 
   // personal data
-  await db.collection('users').doc(user.uid).delete().catch(() => {});
-  await db.collection('recoveryCodes').doc(user.uid).delete().catch(() => {});
+  await db.collection('users').doc(user.uid).delete().catch((err) => {
+    console.warn('[accountDeletion] Optional users doc cleanup warning:', err instanceof Error ? err.message : String(err));
+  });
+  await db.collection('recoveryCodes').doc(user.uid).delete().catch((err) => {
+    console.warn('[accountDeletion] Optional recoveryCodes doc cleanup warning:', err instanceof Error ? err.message : String(err));
+  });
   for (const table of ['customTemplates', 'notifications', 'loginAudits']) {
     const snap = await db.collection(table).where('uid', '==', user.uid).get();
     for (const d of snap.docs) await d.ref.delete();

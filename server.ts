@@ -44,7 +44,7 @@ import { statusRouter } from "./src/server/routes/statusRoutes.ts";
 import { csrfProtection } from "./src/server/middleware/csrf.ts";
 import { loadServerEnv } from "./src/server/config/env.ts";
 import { createOriginCheck, resolvePort } from "./src/server/http/origins.ts";
-import { applySecurityMiddleware } from "./src/server/http/securityMiddleware.ts";
+import { applySecurityMiddleware, applyJsonBodyParser } from "./src/server/http/securityMiddleware.ts";
 import { apiRequestLogger } from "./src/server/http/apiRequestLog.ts";
 import { publicInvoiceLimiter, pdfGenerationLimiter, brainRateLimiter, createAppRateLimiters } from "./src/server/middleware/rateLimiters.ts";
 
@@ -81,8 +81,7 @@ async function buildApp(): Promise<{ app: express.Express; port: number }> {
   app.use("/api/v1/documents", pdfGenerationLimiter);
   // Only email callbacks bypass CSRF; their router verifies the provider credential.
   app.use(csrfProtection({ isAllowedOrigin, ignoredPaths: [/^\/api\/v1\/email-events\/?$/] }));
-  app.use(express.json({ limit: "50mb" })); // Bulk JSON/restore support; narrow per-route limits are tracked separately.
-  app.use((req, _res, next) => { req.body ??= {}; next(); }); // Express 5 leaves req.body undefined without a body
+  applyJsonBodyParser(app); // 1 MB default JSON body limit; 50 MB only on explicit bulk import/restore paths (M-8)
 
   // Secure Server-Side Transaction Matching Engine API
   registerLedgerMatchRoutes(app, routeContext);

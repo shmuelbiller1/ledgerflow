@@ -1,4 +1,4 @@
-import type { Firestore } from '../db/firestore';
+import { isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { RECORD_TABS, type RecordRef } from '../../lib/recordLinks';
 import { MAX_WATCHES_PER_PERSON, WATCH_KIND, WATCH_TABLES, watchNoticeRecordId, type Watch } from '../../lib/watches';
 import { notify } from './notificationService';
@@ -18,7 +18,7 @@ interface Actor { workspaceId: string; uid: string }
 async function member(db: Firestore, input: Actor) {
   const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!ws) throw new WatchError(404, 'Workspace not found');
-  if (ws.uid !== input.uid && !(Array.isArray(ws.members) && ws.members.includes(input.uid))) throw new WatchError(403, 'Only people in this workspace watch its records');
+  if (!isWorkspaceMemberData(ws, { uid: input.uid }, input.workspaceId)) throw new WatchError(403, 'Only people in this workspace watch its records');
   return ws;
 }
 

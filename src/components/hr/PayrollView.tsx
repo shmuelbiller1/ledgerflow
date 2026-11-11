@@ -116,7 +116,7 @@ const PayrollViewContent: React.FC = () => {
     (async () => {
       const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/time`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
       return res.ok ? ((await res.json()).entries || []) as PayableTime[] : [];
-    })().then(list => { if (live) setPayableTime(list); }).catch(() => {});
+    })().then(list => { if (live) setPayableTime(list); }).catch((err) => { console.warn('[PayrollView] Could not load payable time entries:', err); });
     return () => { live = false; };
   }, [anyHourly, currentWorkspace?.id, canRunPayroll]);
 

@@ -94,8 +94,19 @@ declare
   home_cents bigint := 0;
   has_base boolean := false;
 begin
+  if current_user not in ('anon', 'authenticated')
+     and current_setting('lf.allow_corrupt_fixture', true) = 'on' then
+    return new;
+  end if;
+
   st := lower(coalesce(new.data->>'status', 'completed'));
-  if st in ('draft', 'void', 'failed', 'deleted') or (new.data->>'deletedAt') is not null then
+  if st in ('draft', 'void', 'failed', 'deleted')
+     or (new.data->>'deletedAt') is not null
+     or coalesce((new.data->'metadata'->>'isYearEndClose')::boolean, false)
+     or coalesce((new.data->'metadata'->>'isGhost')::boolean, false)
+     or coalesce(new.data->>'type', '') = 'forecast'
+     or new.id like 'ghost-%'
+     or coalesce(new.workspace_id, new.data->>'workspaceId', '') in ('simulation', 'ghost-workspace') then
     return new;
   end if;
 

@@ -491,35 +491,34 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           txList.push(newTx);
         }
 
-        // 3. Batch import via API endpoint with chunking
+        // 3. Batch import via authoritative server API endpoint with chunking (C-2: no silent client fallback)
         const token = await user?.getIdToken();
+        if (!token) {
+          throw new Error('Authentication required to import ledger transactions.');
+        }
         const BATCH_SIZE = 50;
+        const migrationRunKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `qbo_${Date.now()}`;
 
         for (let i = 0; i < txList.length; i += BATCH_SIZE) {
           const chunk = txList.slice(i, i + BATCH_SIZE);
-
-          if (token) {
-            try {
-              const res = await fetch('/api/v1/transactions/bulk', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  transactions: chunk,
-                  workspaceId: currentWorkspaceId
-                })
-              });
-              if (!res.ok) {
-                const errPayload = await res.json().catch(() => ({}));
-                throw new Error(errPayload.error || errPayload.message || `Bulk transaction import failed (HTTP ${res.status})`);
-              }
-            } catch (postErr) {
-              throw postErr instanceof Error ? postErr : new Error(String(postErr));
-            }
-          } else {
-            throw new Error('Sign in required to import transactions through the validated ledger API.');
+          const res = await fetch('/api/v1/transactions/bulk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+              'Idempotency-Key': `${migrationRunKey}_chunk_${i}`,
+            },
+            body: JSON.stringify({
+              transactions: chunk,
+              workspaceId: currentWorkspaceId
+            })
+          });
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            const reason = errBody?.error || errBody?.message || `Server refused batch (HTTP ${res.status})`;
+            throw new Error(reason);
           }
         }
 

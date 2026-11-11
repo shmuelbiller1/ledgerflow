@@ -14,7 +14,7 @@
 import { effectiveTaxCategory, taxCategoryLabel, type TaxCategoryId } from './taxCategories';
 import { productTaxabilityRows } from './usProductTaxability';
 import { resolveLineTax, type LineTaxReason, type RateTable, type RateTables, type TaxComponent } from './resolveLineTax';
-import type { ResolvedProfile, TaxPlace } from './profile';
+import { placeState, type ResolvedProfile, type TaxPlace } from './profile';
 
 /** The states whose state and local rate sources LedgerFlow has checked (AI #1, 20 Oct). */
 export const US_SUPPORTED_STATES = ['TX', 'CA', 'NY', 'WA', 'CO'] as const;
@@ -74,7 +74,7 @@ export function usInvoiceTax(input: {
   // the place, the permit, a certificate and export do not depend on what is sold: ask once
   const first = resolveLineTax({ ...base, category: 'general' });
   if (first.reason !== 'taxed' && first.reason !== 'no-rate-table') return { kind: 'none', reason: first.reason };
-  const state = String((input.buyer?.country ? input.buyer : input.seller.place)?.state || '').toUpperCase();
+  const state = placeState(input.buyer?.country ? input.buyer : input.seller.place);
   if (first.reason === 'no-rate-table') return { kind: 'none', reason: 'no-rate-table', state };
   const common = { state, verified: isSupportedUsState(state), linesWithoutItem };
 

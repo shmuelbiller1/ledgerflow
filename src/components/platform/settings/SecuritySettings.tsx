@@ -25,6 +25,63 @@ import { inBackground } from '../../../lib/inBackground';
 import { BRAND_NAME, BRAND } from '../../../config/brand';
 type AuthenticatorFactor = Awaited<ReturnType<ReturnType<typeof multiFactor>['getFactors']>>[number];
 
+interface LoginAuditEntry {
+  id: string;
+  event?: string;
+  provider?: string;
+  ip?: string;
+  timestamp?: string;
+}
+
+function RecentSignInsSection() {
+  const user = useAuthStore(s => s.user);
+  const isGuest = useAuthStore(s => s.isGuest);
+  const [audits, setAudits] = useState<LoginAuditEntry[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || user.isAnonymous || isGuest || typeof fetch !== 'function') return;
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/v1/auth/login-audits', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json().catch(() => ({}));
+        const list = body?.loginAudits || body?.data?.audits;
+        if (!cancelled && Array.isArray(list)) setAudits(list);
+      } catch {
+        // optional: offline or unconfigured auth audit endpoint
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, isGuest]);
+
+  return (
+    <div className="p-6 bg-[var(--ink)]/50 border border-[var(--line)] rounded-xl space-y-3">
+      <div className="space-y-1">
+        <h3 className="text-base font-black text-[var(--text)] uppercase tracking-tight">Recent Sign-In Activity</h3>
+        <p className="text-xs font-medium text-[var(--muted)] leading-relaxed">
+          Server-recorded sign-in attempts for your account.
+        </p>
+      </div>
+      {audits && audits.length > 0 ? (
+        <ul className="divide-y divide-[var(--line)] text-xs">
+          {audits.slice(0, 8).map(entry => (
+            <li key={entry.id} className="py-2 flex items-center justify-between gap-4">
+              <span className="font-semibold text-[var(--text)]">{entry.event === 'login_failed' ? 'Failed sign-in' : 'Signed in'}{entry.provider ? ` (${entry.provider})` : ''}</span>
+              <span className="text-[var(--muted)] tabular-nums">{entry.ip ? `${entry.ip} · ` : ''}{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-[var(--muted)]">No recent sign-in records yet.</p>
+      )}
+    </div>
+  );
+}
+
 /** Personal account settings: independent of the user's workspace role. */
 export function TwoStepLoginSettings() {
   const uid = useAuthStore(s => s.user?.uid);
@@ -70,7 +127,7 @@ function TwoStepLoginPanel() {
       if (action === 'add') {
         const next = await TotpMultiFactorGenerator.generateSecret(await mfa.getSession());
         if (current(version)) { setSecret(next); setCode(''); }
-        else { await mfa.cancelEnrollment(next.factorId).catch(() => {}); }
+        else { await mfa.cancelEnrollment(next.factorId).catch((err) => { console.warn('[SecuritySettings] Stale MFA enrollment cleanup failed:', err); }); }
       } else if (action === 'verify' && secret) {
         await mfa.enroll(TotpMultiFactorGenerator.assertionForEnrollment(secret, code));
         if (!current(version)) return;
@@ -272,6 +329,8 @@ export default function SecuritySettings() {
                   REVOKE ALL SESSIONS
                 </button>
             </div>
+
+            <RecentSignInsSection />
 
             <div className="p-6 bg-[var(--ink)]/50 border border-[var(--line)] rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="space-y-1">

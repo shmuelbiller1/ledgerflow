@@ -21,7 +21,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = Object.fromEntries([
 
 async function countCollectionDocs(queryObj: unknown): Promise<number> {
   const q = queryObj as {
-    count?: () => { get: () => Promise<{ data: (() => { count?: number }) | { count?: number } }> };
+    count?: () => { get: () => Promise<{ data: (() => { count?: number } | undefined) | { count?: number } }> };
     get: () => Promise<{ size?: number; docs?: unknown[] }>;
   };
   if (typeof q.count === 'function') {
@@ -47,7 +47,7 @@ export function requirePlanCapacity(resource: MeteredResource, dbOverride?: unkn
         return res.status(400).json({ status: 'error', message: 'Missing workspaceId parameter' });
       }
 
-      const db = (dbOverride || getDb()) as ReturnType<typeof getDb>;
+      const db = (dbOverride as Firestore | undefined) || getDb();
       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
       if (!wsDoc.exists) {
         return res.status(404).json({ status: 'error', message: 'Workspace not found' });

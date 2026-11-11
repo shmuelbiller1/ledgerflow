@@ -179,57 +179,19 @@ export function useEntityOperations() {
         await LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
       } else if (path === 'vendorCredits') {
         await LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData });
-      } else if (path === 'transactions' || path === 'journalEntries') {
+      } else if (path === 'transactions') {
+        const token = await getIdToken();
         const res = await fetch('/api/v1/transactions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-            'x-operation-id': docId,
-          },
-          body: JSON.stringify({ transaction: finalData }),
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ workspaceId: currentWorkspaceId, transaction: finalData }),
         });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to save transaction');
-      } else if (path === 'reconciliations') {
-        const recPayload = data as unknown as {
-          accountId?: string;
-          accountName?: string;
-          statementDate?: string;
-          statementBalanceCents?: number;
-          reconciledTransactionIds?: string[];
-          completedAt?: string;
-        };
-        const res = await fetch('/api/v1/transactions/reconciliations/complete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-          },
-          body: JSON.stringify({
-            workspaceId: currentWorkspaceId,
-            accountId: recPayload.accountId,
-            accountName: recPayload.accountName,
-            statementDate: recPayload.statementDate,
-            statementBalanceCents: recPayload.statementBalanceCents ?? 0,
-            reconciledTransactionIds: recPayload.reconciledTransactionIds || [],
-            completedAt: recPayload.completedAt,
-          }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to save reconciliation');
-      } else if (path === 'payments') {
-        const res = await fetch('/api/v1/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-            'x-operation-id': docId,
-          },
-          body: JSON.stringify({ ...data, workspaceId: currentWorkspaceId }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to record payment');
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction creation refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(`Direct browser creation on ${path} is disabled; use the server ledger API.`);
       } else {
         await setDoc(doc(db, path, docId), finalData);
       }
@@ -345,19 +307,19 @@ export function useEntityOperations() {
         const existing = (await savedRecord<VendorCredit>('vendorCredits', id)) || {};
         const mergedData = { ...existing, ...finalData };
         await LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData });
-      } else if (path === 'transactions' || path === 'journalEntries') {
+      } else if (path === 'transactions' && currentWorkspaceId) {
+        const token = await getIdToken();
         const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-          },
-          body: JSON.stringify({ partialUpdate: finalData }),
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ workspaceId: currentWorkspaceId, partialUpdate: finalData }),
         });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to update transaction');
-      } else if (path === 'reconciliations' || path === 'payments') {
-        throw new Error(`${path} records are immutable after posting; use server reversal endpoints instead.`);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction update refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(`Direct browser updates on ${path} are disabled; use the server ledger API.`);
       } else {
         await updateDoc(doc(db, path, id), finalData);
       }
@@ -388,30 +350,22 @@ export function useEntityOperations() {
         await LedgerPostService.deletePostings(id, 'creditNoteId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
       } else if (path === 'vendorCredits' && currentWorkspaceId) {
         await LedgerPostService.deletePostings(id, 'vendorCreditId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' });
-      } else if (path === 'transactions' || path === 'journalEntries') {
-        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-          },
-          body: JSON.stringify({ partialUpdate: { status: 'failed', deletedAt: new Date().toISOString() } }),
+      } else if (path === 'transactions' && currentWorkspaceId) {
+        const token = await getIdToken();
+        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`, {
+          method: 'DELETE',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to void transaction');
-      } else if (path === 'payments' && currentWorkspaceId) {
-        const res = await fetch(`/api/v1/payments/${encodeURIComponent(id)}/void`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getIdToken()}`,
-          },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId, reason: 'Voided from UI' }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || body.message || 'Failed to void payment');
-      } else if (path === 'reconciliations') {
-        throw new Error('Completed reconciliations cannot be deleted directly from the browser.');
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.message || errBody?.error || 'Transaction deletion refused by server');
+        }
+      } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
+        throw new Error(
+          path === 'reconciliations'
+            ? 'Completed reconciliations cannot be deleted directly from the browser.'
+            : `Direct browser deletion on ${path} is disabled; use the server ledger API.`,
+        );
       } else {
         await deleteDoc(doc(db, path, id));
       }

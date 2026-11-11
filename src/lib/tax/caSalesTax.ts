@@ -11,7 +11,7 @@
  * the components (`canadaSalesTaxRateTable`), never by adding two "combined" rows.
  */
 import type { RateTable, TaxComponent } from './resolveLineTax';
-import type { TaxPlace } from './profile';
+import { placeState, type TaxPlace } from './profile';
 
 export type CaTaxKind = 'GST' | 'HST' | 'PST' | 'RST' | 'QST';
 
@@ -106,7 +106,7 @@ export function canadaCombinedRate(province: string, date: string): number | und
 export function canadaSalesTaxRateTable(rows: CaSalesTaxRow[] = CA_SALES_TAX): RateTable {
   return (place: TaxPlace, date: string): TaxComponent[] | undefined => {
     if (place.country !== 'CA') return undefined;
-    const province = (place.state || '').toUpperCase();
+    const province = placeState(place);
     if (!province) return undefined;
     const inForceRows = rows.filter(r => r.province === province && r.validFrom <= date && (!r.validTo || date <= r.validTo));
     if (!inForceRows.length) return undefined;
