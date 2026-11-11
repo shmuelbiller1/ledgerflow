@@ -1,5 +1,5 @@
 /**
- * R-5: every report view in src/components/reporting opens on the ~5,000-entry sample year (scale 4) within the
+ * R-5 / #642: every report, statement and register view in src/components/{reporting,ledger,finance} opens on the ~5,000-entry sample year (scale 4) within the
  * product budget (REPORT_BUDGET_MS, 1 s; three times that on a shared CI runner). The module import is timed apart
  * from the mount, as the app shell preloads route chunks; only the mount (render to committed DOM) is the report.
  */
@@ -20,8 +20,18 @@ import { formatCurrency } from '../lib/utils';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 
 const BUDGET_MS = process.env.CI ? REPORT_BUDGET_MS * 3 : REPORT_BUDGET_MS;
-const DIR = join(process.cwd(), 'src/components/reporting');
-const VIEWS = readdirSync(DIR).filter(f => /View\.tsx$/.test(f)).sort();
+// #642: the statement and register screens in ledger/ and finance/ too, not only the Reports picker's views
+const DIRS = ['reporting', 'ledger', 'finance'];
+const VIEWS = DIRS.flatMap(dir => readdirSync(join(process.cwd(), 'src/components', dir))
+  .filter(f => /(View|Register)\.tsx$/.test(f)).sort().map(f => `${dir}/${f}`));
+// editors and widgets that open only with props of their own (not report views), each with why; the list must stay real
+const NEEDS_OWN_PROPS: Record<string, string> = {
+  'ledger/ChartOfAccountsView.tsx': 'the chart editor needs its account handlers',
+  'ledger/PivotSheetView.tsx#PivotSheetView': 'a widget given its rows by the pivot screen',
+  'ledger/ProjectProfitabilityView.tsx': 'draws a chart that needs ResizeObserver, absent from jsdom',
+  'ledger/ReconciliationView.tsx#ReconciliationView': 'the reconcile panel is given its bank lines by Reconciliation',
+  'ledger/TransactionGridView.tsx#TransactionGridView': 'a grid given its rows by the transactions screen',
+};
 
 afterEach(async () => {
   cleanup();
@@ -51,8 +61,9 @@ test(`R-5: all ${VIEWS.length} report views open under ${REPORT_BUDGET_MS} ms on
   };
   const timings: Array<{ file: string; ms: number }> = [];
   const slow: string[] = [];
+  const skipped: string[] = [];
   for (const file of VIEWS) {
-    const mod = await import(`../components/reporting/${file.replace(/\.tsx$/, '')}`) as Record<string, unknown>;
+    const mod = await import(`../components/${file.replace(/\.tsx$/, '')}`) as Record<string, unknown>;
     // the default export, else every named export ending in View (a file can hold two: sales and purchase trends)
     const views = (mod.default ? [['default', mod.default]] : Object.entries(mod).filter(([name, v]) => /View$/.test(name) && typeof v === 'function'))
       .map(([name, v]) => [name, v as React.ComponentType<Record<string, unknown>>] as const);
@@ -66,7 +77,9 @@ test(`R-5: all ${VIEWS.length} report views open under ${REPORT_BUDGET_MS} ms on
       cleanup();
       return ms;
     };
-    let ms = await mount();
+    if (NEEDS_OWN_PROPS[label]) { skipped.push(label); continue; }
+    let ms: number;
+    try { ms = await mount(); } catch (error) { throw new Error(`${label} did not open: ${error instanceof Error ? error.message : String(error)}`); }
     if (ms >= BUDGET_MS) ms = Math.min(ms, await mount()); // one retry: the first mount of a view also warms shared code
     timings.push({ file: label, ms });
     if (ms >= BUDGET_MS) slow.push(`${label} ${ms} ms`);
@@ -74,5 +87,6 @@ test(`R-5: all ${VIEWS.length} report views open under ${REPORT_BUDGET_MS} ms on
   }
   timings.sort((a, b) => b.ms - a.ms);
   console.log('R-5 slowest:', timings.slice(0, 8).map(t => `${t.file} ${t.ms}`).join(', '));
+  assert.deepEqual(skipped.sort(), Object.keys(NEEDS_OWN_PROPS).sort(), 'every view excluded for its own props still exists');
   assert.deepEqual(slow, [], `report views over ${BUDGET_MS} ms`);
 });

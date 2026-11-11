@@ -39,3 +39,25 @@ test('R-5: 450 entries of 10.00 → 200 drawn, then 400, then all; totals 4,500.
   assert.equal(drawn(), 450);
   assert.equal(screen.queryByRole('button', { name: /Show more entries/ }), null);
 });
+
+test('#642: printing the journal sheet carries every entry, then the screen returns to its page', async () => {
+  const accounts = [
+    makeChartAccount({ id: 'cash', code: '1000', name: 'Bank', type: 'asset', category: 'Cash', balanceCents: 0 }),
+    makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue', balanceCents: 0 }),
+  ];
+  const transactions = Array.from({ length: 250 }, (_, i) => makeTransaction({
+    id: `p${String(i).padStart(3, '0')}`, workspaceId: 'component-workspace', date: `2026-03-${String(1 + (i % 28)).padStart(2, '0')}`,
+    description: `Sale ${i}`, lines: [{ accountId: 'cash', amountCents: 1000 }, { accountId: 'sales', amountCents: -1000 }],
+  }));
+  markComponentCollectionsLoaded('transactions', 'accounts');
+  setComponentWorkspace('owner');
+  useLedgerStore.setState({ transactions, accounts });
+  await act(async () => { render(<JournalSheetReportView startDate="2026-01-01" endDate="2026-12-31" />); });
+  const drawn = () => document.querySelectorAll('#journal-sheet-report table').length;
+  assert.equal(drawn(), 200);
+  await act(async () => { window.dispatchEvent(new window.Event('beforeprint')); });
+  assert.equal(drawn(), 250, 'the paper carries all 250 entries');
+  assert.equal(screen.queryByRole('button', { name: /Show more entries/ }), null);
+  await act(async () => { window.dispatchEvent(new window.Event('afterprint')); });
+  assert.equal(drawn(), 200);
+});

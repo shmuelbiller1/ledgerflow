@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { usePagedRows } from '../../hooks/usePagedRows';
+import { ShowMoreRows } from '../common/ShowMoreRows';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, parseLocalDate, cn, formatDate } from '../../lib/utils';
@@ -35,23 +37,28 @@ export default function PaymentsView() {
   const { loading } = useLedgerCollections('bills', 'customers', 'invoices', 'payments', 'vendors');
   const dataHealth = useScreenDataHealth(['bills', 'customers', 'invoices', 'payments', 'vendors']);
   // the paid document's number (the id's second half was shown: 'undefined' for most ids)
-  const documentLabel = (alloc: { documentId: string; documentType: string }) => {
-    const docs: Array<{ id: string; number?: string }> = alloc.documentType === 'bill' ? bills : invoices;
-    return docs.find(d => d.id === alloc.documentId)?.number || `#${alloc.documentId.slice(0, 8)}`;
-  };
+  // #642: the numbers are looked up from a map built once, not by searching every invoice and bill per allocation
+  const numbers = useMemo(() => ({
+    bill: new Map((bills || []).map(d => [d.id, d.number] as const)),
+    invoice: new Map((invoices || []).map(d => [d.id, d.number] as const)),
+  }), [bills, invoices]);
+  const documentLabel = (alloc: { documentId: string; documentType: string }) =>
+    (alloc.documentType === 'bill' ? numbers.bill : numbers.invoice).get(alloc.documentId) || `#${alloc.documentId.slice(0, 8)}`;
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const [previewPayment, setPreviewPayment] = useState<import("../../types").Payment | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredPayments = useMemo(() => {
-    return payments.filter(p => {
-      const term = searchTerm.toLowerCase();
-      if (!term) return true;
-      const searchStr = `${p.contactName || p.contactId} ${p.method} ${p.reference || ''}`.toLowerCase();
-      return searchStr.includes(term);
-    }).sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime());
+    const term = searchTerm.toLowerCase();
+    // #642: each date is parsed once, not twice per comparison (a parse builds a time-zone formatter)
+    return payments.filter(p => !term || `${p.contactName || p.contactId} ${p.method} ${p.reference || ''}`.toLowerCase().includes(term))
+      .map(p => ({ p, t: parseLocalDate(p.date).getTime() }))
+      .sort((a, b) => b.t - a.t)
+      .map(x => x.p);
   }, [payments, searchTerm]);
+  // #642: a year of payments draws its first page at once (printing draws them all)
+  const paged = usePagedRows(filteredPayments, searchTerm);
 
   return (
     // A-276: w-full min-w-0, so the 800 px table scrolls inside its box on a phone instead of
@@ -97,7 +104,7 @@ export default function PaymentsView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ledger-line/30">
-              {filteredPayments.map(payment => (
+              {paged.visible.map(payment => (
                 <tr key={payment.id} className="group hover:bg-[var(--ink)]/30 transition-all">
                   <td className="p-4 md:p-8 font-mono font-bold text-[var(--muted)] group-hover:text-[var(--text)] transition-colors">
                     {formatDate(payment.date)}
@@ -179,6 +186,7 @@ export default function PaymentsView() {
               )}
             </tbody>
           </table>
+          <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="payments" onMore={paged.more} onAll={paged.all} />
         </div>
       </div>
 
