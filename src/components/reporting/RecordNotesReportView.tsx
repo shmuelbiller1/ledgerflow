@@ -9,6 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { NOTE_COLLECTIONS, noteCountsByType, notePreview, recordNotesFromMetadata, searchRecordNotes, type NoteableType, type NoteCollection, type RecordNote } from '../../lib/recordNotes';
@@ -90,7 +91,7 @@ export default function RecordNotesReportView() {
   const selected = ofType.find(row => row.entityId === selectedId) || ofType[0];
   const partial = Object.keys(NOTE_COLLECTIONS).some((t) => {
     const key = NOTE_COLLECTIONS[t as NoteableType] === 'inventory' ? 'inventory' : NOTE_COLLECTIONS[t as NoteableType];
-    return Boolean(truncated[key as keyof typeof truncated] || failed[key as keyof typeof failed]);
+    return Boolean(isCollectionCapped(truncated, key) || failed[key]);
   });
 
   return (
