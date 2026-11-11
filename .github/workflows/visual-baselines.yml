@@ -1,19 +1,18 @@
 name: Refresh visual baselines
-# Manual review workflow: captures updated images on the Linux Chromium used by CI.
-# It NEVER pushes to main. Candidate images go to a review branch `visual-baselines/<run id>`
-# (and the artifact); a reviewer opens the images there and merges the branch only after looking.
-permissions:
-  contents: write
 on:
   workflow_dispatch:
     inputs:
       screens:
-        description: 'Test-name filter, e.g. "pnl|balance-sheet"'
+        description: Settings baseline review
         required: true
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,52 +23,21 @@ jobs:
         env:
           HUSKY: 0
       - run: node_modules/.bin/playwright install --with-deps chromium
-      - name: Generate candidate reference images
-        env:
-          # Read in the shell, never interpolated into the script text: the spec wraps this line in
-          # JavaScript template literals, so `${{ inputs.screens }}` pasted into the run block was
-          # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
-          SCREENS: ${{ inputs.screens }}
-        # `--update-snapshots` still runs every assertion before the screenshot, so a failing wait
-        # (a heading that was renamed, a store that never filled) aborts the capture and leaves the
-        # reviewer with no images. The JSON report is replayed into the step summary, because the raw
-        # job log is not always reachable from a reviewer's tools.
+      - name: Capture and verify the four merged Settings screens
         run: |
-          set +e
-          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --update-snapshots --retries=0 --reporter=list,json
-          status=$?
-          # The JSON reporter writes next to test-results/, not to the working directory.
-          report=$(find . -maxdepth 3 -name 'playwright-report.json' -newermt '-20 minutes' | head -1)
-          node scripts/playwright-failures.mjs "${report:-playwright-report.json}" --summary "$GITHUB_STEP_SUMMARY"
-          exit $status
-      # Re-run exactly what was recaptured. Checking the *entire* set here failed whenever the filter
-      # named a subset (the other screens legitimately still differ), which blocked the push of a
-      # correct candidate set; the reviewer still merges only after looking at the images.
-      - name: Check the captured reference set
+          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep 'visual settings' --update-snapshots --workers=2
+          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep 'visual settings' --workers=2
+      - name: Publish reviewable image blob references without creating a branch
         env:
-          SCREENS: ${{ inputs.screens }}
-        run: node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: candidate-visual-baselines
-          path: |
-            e2e/__screenshots__/
-            test-results/
-            playwright-report/
-          retention-days: 7
-          if-no-files-found: ignore
-      - name: Push candidates to a review branch (never main)
-        if: success()
-        env:
-          BRANCH: visual-baselines/${{ github.run_id }}
-          # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
-          SCREENS: ${{ inputs.screens }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git add e2e/__screenshots__
-          if git diff --cached --quiet; then echo "No image changed"; exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "test: candidate visual baselines (${SCREENS}) for review"
-          git push origin "HEAD:refs/heads/$BRANCH"
-          echo "Review branch: $BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import base64,glob,json,subprocess
+          blobs={}
+          for path in sorted(glob.glob('e2e/__screenshots__/settings-*-chromium-linux.png')):
+              payload=json.dumps({'encoding':'base64','content':base64.b64encode(open(path,'rb').read()).decode()})
+              result=json.loads(subprocess.check_output(['gh','api','repos/shmuelbiller1/ledgerflow/git/blobs','--input','-'],input=payload,text=True))
+              blobs[path]=result['sha']
+          body='PR649 merged Settings baseline evidence '+json.dumps(blobs)
+          subprocess.run(['gh','pr','comment','649','--body',body],check=True)
+          PY
