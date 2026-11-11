@@ -1,3 +1,4 @@
+import { openTool } from './support/openTool';
 import { test, expect, type Page } from '@playwright/test';
 
 /**
@@ -6,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test';
  * and a column switched off in the Columns menu stays off after a reload (I-13).
  */
 async function openAllTransactions(page: Page) {
-  await page.locator('[data-testid="nav-transactions"]').first().click();
+  await openTool(page, 'Transactions');
   await page.locator('[data-testid="filtered-totals-bar"]').waitFor({ timeout: 15000 });
   // no saved view is switched on at the start (one used to be, hiding most entries)
   await expect(page.locator('button[aria-pressed="true"]')).toHaveCount(0);
@@ -74,7 +75,7 @@ test.describe('Transaction list', () => {
     await page.getByLabel('Project', { exact: true }).uncheck();
     await expect(page.getByRole('button', { name: 'Filter by project' })).toHaveCount(0);
     await page.reload();
-    await page.locator('[data-testid="nav-transactions"]').first().waitFor({ timeout: 15000 });
+    await expect(page.getByRole('navigation', { name: 'Main navigation', exact: true })).toBeVisible();
     await openAllTransactions(page);
     await expect(page.getByRole('button', { name: 'Filter by project' })).toHaveCount(0);
     await expect(page.locator('[data-testid="tx-amount"]')).toHaveCount(2);
