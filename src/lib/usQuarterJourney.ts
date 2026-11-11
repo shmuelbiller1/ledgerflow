@@ -25,7 +25,8 @@ import {
 } from './tax/profile';
 import { filingCalendarRow, filingDueDate } from './tax/usFilingCalendar';
 import { nexusThreshold } from './tax/usNexus';
-import { usSalesTaxReturn, type UsSalesDocument } from './tax/usSalesTaxReturn';
+import { usSalesTaxReturn, usSaleDestination, type UsSalesDocument } from './tax/usSalesTaxReturn';
+import { documentEntityLabels } from './tax/ilVatReturn';
 import { NO_STATE_SALES_TAX, US_STATE_SALES_TAX } from './tax/usStateSalesTax';
 import { reviewUseTax, type UseTaxBill, type UseTaxItem, type UseTaxReview } from './tax/usUseTax';
 import { productTaxabilityRows } from './tax/usProductTaxability';
@@ -324,12 +325,13 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
     if (!COUNTED_SALES.has(String(doc.status)) || date < startDate || date > endDate) continue;
     if (Number(doc.taxAmountCents || 0) !== 0) continue;
     if (doc.taxTreatment !== 'exempt' && doc.taxTreatment !== 'zero_rated') continue;
-    const seller = resolveSellerProfile(profiles, doc.dimensions, order);
+    // the seller and the destination are read exactly as the state return reads them (#627)
+    const seller = resolveSellerProfile(profiles, documentEntityLabels(doc), order);
     if (!registrationsOn(seller, 'sales_tax', date).some(r => r.place?.country === 'US')) continue;
     const customer = doc.customerId ? customersById.get(doc.customerId) : undefined;
-    const place = (customer?.metadata as { taxPlace?: { country?: string; state?: string } } | undefined)?.taxPlace;
-    const buyerState = place?.country === 'US' ? place.state : seller.place?.state;
-    if (!buyerState || exemptByProduct(doc, buyerState, date)) continue;
+    const destination = usSaleDestination(doc, undefined, customer, seller.place?.state);
+    const buyerState = destination.state;
+    if (destination.abroad || !buyerState || exemptByProduct(doc, buyerState, date)) continue;
     certificates.counted++;
     const found = exemptionOn(customer, date);
     if (!found) certificates.missing++;

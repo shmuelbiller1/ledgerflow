@@ -380,3 +380,45 @@ test('AF-004 (#518): unplaced sales of two selling entities with their own permi
   });
   assert.equal(q.problems.find(p => /no state/.test(p)), "2 US sales have no state on the invoice or the customer, with 14.50 of tax: they are in no state's return. Add the state to the customer or the invoice.");
 });
+
+// #627: the certificate step reads the seller and the destination exactly as the state return does
+const certStep = (invoice: UsSalesDocument, people = customers, taxProfiles = profiles) => usQuarterJourney({
+  quarter: QUARTER, today: TODAY, profiles: taxProfiles, order: ['world'], customers: people,
+  items: [{ id: 'digital', productTaxCategory: 'digital-goods' }, { id: 'plain', productTaxCategory: 'general' }],
+  invoices: [invoice],
+}).steps.find(s => s.id === 'certificates')!;
+const caProfiles: TaxProfiles = {
+  books: { place: { country: 'US', state: 'CA' }, registrations: [{ kind: 'sales_tax', number: 'CA-5555', place: { country: 'US', state: 'CA' } }] },
+  labels: { 'world:il': { name: 'Israel branch', place: { country: 'IL' }, registrations: [{ kind: 'vat', number: '514000001', place: { country: 'IL' } }] } },
+};
+
+test('#627: moving the customer does not change a past sale’s certificate check (the saved destination decides)', () => {
+  // digital goods are exempt in California and taxable in Texas; the sale was delivered in California
+  const sale = (extra: Partial<UsSalesDocument>) => doc('z1', 'c1', 10000, 0, [], { date: '2026-07-10', dimensions: undefined, items: [{ itemId: 'digital' }], ...extra } as Partial<UsSalesDocument>);
+  const saved = sale({ metadata: { taxPlace: { country: 'US', state: 'CA' } } });
+  const inCa = [{ id: 'c1', metadata: { taxPlace: { country: 'US', state: 'CA' } } }];
+  const movedToTx = [{ id: 'c1', metadata: { taxPlace: { country: 'US', state: 'TX' } } }];
+  assert.equal(certStep(saved, inCa, caProfiles).status, 'not-applicable');
+  assert.equal(certStep(saved, movedToTx, caProfiles).status, 'not-applicable', 'the customer moved; the sale did not');
+  // the ship-to state decides when no place was saved
+  assert.equal(certStep(sale({ shippingAddress: { state: 'CA' } } as Partial<UsSalesDocument>), movedToTx, caProfiles).status, 'not-applicable');
+  // with nothing saved on the sale, the customer's place today is the only record: Texas taxes digital goods
+  assert.equal(certStep(sale({}), movedToTx, caProfiles).figures.find(f => f.label === 'Certificate missing')!.count, 1);
+  // no place anywhere: over the counter at the seller's own state (California: exempt by product)
+  assert.equal(certStep(sale({}), [], caProfiles).status, 'not-applicable');
+});
+
+test('#627: a sale labelled on its first line for a branch with no US permit is not in the US certificate list', () => {
+  const line = { itemId: 'plain', dimensions: { world: 'il' } };
+  const branchSale = doc('z2', 'c1', 10000, 0, [], { date: '2026-07-10', dimensions: undefined, items: [line] } as Partial<UsSalesDocument>);
+  assert.equal(certStep(branchSale, [], caProfiles).status, 'not-applicable');
+  // the same sale with no label anywhere is the books' own sale and is counted
+  const plain = doc('z3', 'c1', 10000, 0, [], { date: '2026-07-10', dimensions: undefined, items: [{ itemId: 'plain' }] } as Partial<UsSalesDocument>);
+  assert.equal(certStep(plain, [], caProfiles).figures.find(f => f.label === 'Zero-tax sales')!.count, 1);
+});
+
+test('#627: a zero-tax sale delivered abroad is in no state, so it asks for no US certificate', () => {
+  const exported = doc('z4', 'c1', 10000, 0, [], { date: '2026-07-10', dimensions: undefined, items: [{ itemId: 'plain' }], metadata: { taxPlace: { country: 'CA' } } } as Partial<UsSalesDocument>);
+  assert.equal(certStep(exported, [], caProfiles).status, 'not-applicable');
+});
+

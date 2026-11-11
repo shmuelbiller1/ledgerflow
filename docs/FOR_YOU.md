@@ -557,3 +557,15 @@ reversals, exports, reconciliation, the repost engine), and every one of them wo
 migration you apply.
 *Default I used:* **paused** until a real workspace gets big enough for the database to be slow (none is yet). Say
 "do C-19" and I start it as one PR.
+
+## 11 Nov — one rule I chose with a default: tax details do not cross a country border (AI #1, issue #628)
+
+A label value (an entity, a branch) with no tax details of its own takes them from its parent, then from the books.
+Until now that also happened across countries: a US entity under Israeli books got the books' Israeli VAT number and
+city, so its sales were counted in the Israeli VAT return (and the other way round for a California company's Israeli
+branch).
+*Default I used:* an entity in another country takes only the **name** and the **accounting basis** from above. Its
+place, tax registrations and advance-tax settings must be entered on the entity itself (Settings → Tax profiles).
+*What you may notice:* a foreign branch that relied on the books' registration now shows "Not set" there and drops out
+of that country's return until its own number is entered. Say if you would rather have the screen refuse to save such
+a branch instead.
