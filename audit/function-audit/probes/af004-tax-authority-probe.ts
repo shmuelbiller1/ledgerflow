@@ -4,6 +4,20 @@
  * Each case prints OBSERVED vs EXPECTED. "DEFECT" = observed behaviour differs from the expected
  * contract stated in the source comments; "OK" = the control holds. Exit code is 0 on purpose: the
  * probe documents behaviour, it does not gate CI.
+ *
+ * UPDATED 2026-11-11 (Agent #8) at upstream main `ec3ff49336c53eeed531a79ac32cc08d1574ec96`.
+ * PR #614 (merged 2026-11-10T17:37Z) closed #517, #518 and #519 by rewriting `usSalesTaxReturn`, so
+ * three of these cases had become STALE and were printing "DEFECT" for behaviour that is now correct:
+ *   - P3 (#518): a US sale with no state is no longer counted in a state return; it is reported in the
+ *     new `unplaced` figure. The expectation was rewritten to the new contract and the case is now a
+ *     regression guard, not a defect claim.
+ *   - P8 (#517): the return now reads the first line's entity label via `documentEntityLabels`; the case
+ *     passes and is kept as a regression guard.
+ *   - P2 was partly #519's; it is kept because it still fails for a different reason (see below).
+ * Still failing at the pinned audit SHA: P1, P2, P4, P6, P7. P1/P2/P7 share one root cause in
+ * `resolveSellerProfile` (profile.ts:98-99), which #614 did not change. P4 is a distinct foreign-buyer
+ * fallback case, not reproduced by R1/R2/R3 in `af004-614-residual.ts`.
+ * Its independent control below tests the seller-state fallback when no buyer destination is recorded.
  */
 import { resolveSellerProfile, type TaxProfiles } from '../../../src/lib/tax/profile';
 import { usSalesTaxReturn } from '../../../src/lib/tax/usSalesTaxReturn';
@@ -33,18 +47,25 @@ const report = (id: string, ok: boolean, detail: string) => console.log(`${ok ? 
     `expected 0 documents in the Texas permit return; observed documentCount=${r.documentCount}, grossSalesCents=${r.grossSalesCents}`);
 }
 
-// ---- P3: a customer whose tax place has a country but no state is dropped without any trace (usSalesTaxReturn.ts:62-63)
+// ---- P3 (#518, FIXED by PR #614 — now a regression guard, not a defect claim).
+// A US place with a country but no state is passed over (usSalesTaxReturn.ts:85-91) and the sale is reported
+// in the new `unplaced` figure (usSalesTaxReturn.ts:92-101) instead of being silently dropped. The old
+// expectation here was `documentCount === 1`, which is WRONG under the new contract: an unplaced sale must be
+// in no state's return, so `documentCount` stays 0 and `unplaced` carries it. Left unchanged, this case
+// printed "DEFECT" against a closed issue.
 {
   const profiles: TaxProfiles = { books };
   const customers = [{ id: 'c1', metadata: { taxPlace: { country: 'US' } } }];
   const invoice = { id: 'inv-us-1', date: '2026-07-10', status: 'paid', customerId: 'c1', amountCents: 10825, taxAmountCents: 825, taxVersion: 2, taxTreatment: 'standard' as const, taxBreakdown: [{ name: 'Texas state sales tax', rate: 0.0625, taxCents: 625 }, { name: 'Austin', rate: 0.02, taxCents: 200 }] };
   const r = usSalesTaxReturn({ registration: registrationKey(), profiles, order: ['world'], invoices: [invoice as never], customers, startDate: '2026-07-01', endDate: '2026-09-30' });
-  report('AF-004-P3 TX sale with US place but no state is silently omitted', r.documentCount === 1,
-    `expected the sale to be reported or flagged; observed documentCount=${r.documentCount}, taxCollectedCents=${r.taxCollectedCents}`);
+  report('AF-004-P3 #518 guard: a US sale with no state is reported in `unplaced`, in no state return',
+    r.documentCount === 0 && r.unplaced.documentCount === 1 && r.unplaced.netCents === 10000 && r.unplaced.taxCents === 825,
+    `expected documentCount=0 with unplaced 1 doc / 10000 net / 825 tax; observed documentCount=${r.documentCount}, unplaced=${JSON.stringify({ ...r.unplaced, documents: r.unplaced.documents.length })}`);
 }
 
 // ---- P4: the same buyer rule, two implementations: a non-US buyer place (usQuarterJourney.ts:322 vs usSalesTaxReturn.ts:62).
-// Runs the REAL usQuarterJourney on the same sale and reads its certificate worklist.
+// Runs the REAL usQuarterJourney on the Canadian-buyer sale and reads its certificate worklist.
+// The independent control below confirms the seller-state fallback when no buyer destination exists.
 {
   const profiles: TaxProfiles = { books };
   const customers = [{ id: 'c2', metadata: { taxPlace: { country: 'CA', state: 'TX' } } }];
@@ -54,6 +75,15 @@ const report = (id: string, ok: boolean, detail: string) => console.log(`${ok ? 
   const zeroTaxSales = JSON.stringify(quarter).match(/"label":"Zero-tax sales","count":(\d+)/)?.[1] ?? 'not found';
   report('AF-004-P4 non-US buyer: state return vs quarter journey disagree', !(sales.documentCount === 0 && zeroTaxSales === '1'),
     `usSalesTaxReturn documentCount=${sales.documentCount} for this Canadian buyer; real usQuarterJourney certificate step counts ${zeroTaxSales} zero-tax sale(s) to a US customer (seller state fallback)`);
+
+  // Non-vacuity control specific to P4: no buyer destination means the seller's TX place applies.
+  const noBuyerPlace = [{ id: 'c2' }];
+  const controlSales = usSalesTaxReturn({ registration: 'sales_tax:US-TX:TX-1234', profiles, order: ['world'], invoices: [invoice as never], customers: noBuyerPlace, startDate: '2026-07-01', endDate: '2026-09-30' });
+  const controlQuarter = usQuarterJourney({ quarter: '2026-Q3', today: '2026-11-05', profiles, order: ['world'], customers: noBuyerPlace, invoices: [invoice as never] });
+  const controlZeroTaxSales = JSON.stringify(controlQuarter).match(/"label":"Zero-tax sales","count":(\d+)/)?.[1] ?? 'not found';
+  report('AF-004-P4 control: absent buyer destination falls back to seller state in both consumers',
+    controlSales.documentCount === 1 && controlZeroTaxSales === '1',
+    `expected TX return=1 and certificate zero-tax sales=1; observed return=${controlSales.documentCount}, journey=${controlZeroTaxSales}`);
 }
 
 // ---- P7: a US-labelled entity with no registrations inherits the books' Israeli VAT registration (profile.ts:98 + ilVatReturn belongsTo)
@@ -85,14 +115,17 @@ const report = (id: string, ok: boolean, detail: string) => console.log(`${ok ? 
     `verified=${c.facts.productCategory?.verified} although a verified copy of the same value exists (conservative: a false negative, not an unsafe pass)`);
 }
 
-// ---- P8: the US return reads doc.dimensions, but the screens keep entity labels on the first line
-// (ilVatReturn.ts documentEntityLabels, CON-4b). The Texas permit return therefore ignores the entity label.
+// ---- P8 (#517, FIXED by PR #614 — now a regression guard).
+// The return reads the entity label the invoice screen actually saves: the first line's, else the document's
+// (`documentEntityLabels`, usSalesTaxReturn.ts:78, shared with ilVatReturn.ts:54). This case passes at
+// `ec3ff49`. NOTE: the quarter journey's certificate step was NOT updated with it and still reads
+// `doc.dimensions` (usQuarterJourney.ts:327) — see af004-614-residual.ts R2.
 {
   const profiles: TaxProfiles = { books, labels: { 'world:il': { name: 'Acme Israel branch', place: { country: 'IL' }, registrations: [{ kind: 'vat', number: '514000000', place: { country: 'IL' }, validFrom: '2020-01-01' }] } } };
   const invoice = { id: 'inv-il-2', date: '2026-07-10', status: 'paid', items: [{ dimensions: { world: 'il' } }], amountCents: 10000, taxAmountCents: 0, taxVersion: 2, taxTreatment: 'standard' as const };
   const r = usSalesTaxReturn({ registration: 'sales_tax:US-TX:TX-1234', profiles, order: ['world'], invoices: [invoice as never], customers: [], startDate: '2026-07-01', endDate: '2026-09-30' });
-  report('AF-004-P8 US return ignores first-line entity label', r.documentCount === 0,
-    `Israeli-branch invoice (label on items[0]) counted in the Texas return: documentCount=${r.documentCount}`);
+  report('AF-004-P8 #517 guard: the US return honours the first line\'s entity label', r.documentCount === 0,
+    `expected the Israeli-branch invoice (label on items[0]) to be outside the Texas return; observed documentCount=${r.documentCount}`);
 }
 
 function registrationKey(): string { return 'sales_tax:US-TX:TX-1234'; }

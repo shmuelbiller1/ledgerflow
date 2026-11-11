@@ -388,7 +388,7 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
         className="min-h-11 px-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:underline"
       >
         <Plus aria-hidden="true" size={12} />
-        New dimension
+        New label
       </button>
     );
   }
@@ -397,7 +397,7 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
     <div className="space-y-1 text-[11px]">
       <div className="flex flex-wrap items-center gap-1.5">
         <label htmlFor={inputId} className="sr-only">
-          New dimension name
+          New label name
         </label>
         <input
           ref={axisInputRef}

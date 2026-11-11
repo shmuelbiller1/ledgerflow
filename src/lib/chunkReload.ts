@@ -1,3 +1,4 @@
+import { hasUnsavedDocumentWork } from './pwaUpdateManager';
 /**
  * After a new version is deployed, a tab that is already open still asks for the previous version's
  * screen files (e.g. /assets/Sales-<oldhash>.js), which no longer exist. The fix is a page reload, which
@@ -21,6 +22,15 @@ export function reloadOnceForNewVersion(now: number = Date.now(), storage: Pick<
   } catch { /* storage blocked: still reload once */ }
   reload();
   return true;
+}
+
+/**
+ * The same reload, but never while the person has unsaved work on screen (an open invoice, a half-filled
+ * form): false then, so the caller shows its own error and the work stays.
+ */
+export function reloadForNewVersionUnlessUnsaved(hasUnsaved: () => boolean = hasUnsavedDocumentWork, reload: () => boolean = reloadOnceForNewVersion): boolean {
+  try { if (hasUnsaved()) return false; } catch { return false; /* cannot tell: keep the work */ }
+  return reload();
 }
 
 function safeSession(): Storage | null {

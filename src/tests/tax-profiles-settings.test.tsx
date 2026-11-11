@@ -46,7 +46,8 @@ test('mixed-language nested profiles show inherited fields and their exact sourc
   assert.match(country.textContent||'',/US/);assert.match(country.textContent||'',/world:entity/);
   assert.match(country.className,/muted/);
   const city=screen.getByText('City').nextElementSibling!;
-  assert.match(city.textContent||'',/ירושלים/);assert.match(city.textContent||'',/the books/);
+  // #628: the branch is in the US (from world:entity), so the Israeli books' city is not inherited across the border
+  assert.equal(city.textContent,'Not set');
   const name=screen.getByText('Name').nextElementSibling!;
   assert.equal(name.textContent,'סניף Branch');assert.doesNotMatch(name.className,/muted/);
   assert.match(screen.getByText(/saving a profile does not verify/).textContent||'',/declarations/);

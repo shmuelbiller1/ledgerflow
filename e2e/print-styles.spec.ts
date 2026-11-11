@@ -183,7 +183,7 @@ test('A-273: printing an invoice document gives the loaded document alone, not t
     route.fulfill({ status: 200, contentType: 'application/pdf', body: invoicePdf }));
   await page.goto('/');
   await page.waitForSelector('text="Overview"', { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Money In', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Sales', exact: true }).first().click();
   await page.getByRole('button', { name: 'Invoices', exact: true }).first().click();
   // a demo invoice (the guest workspace's own sample company)
   await seedDemoBooks(page);

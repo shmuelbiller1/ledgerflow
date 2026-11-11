@@ -1,3 +1,4 @@
+import { openTool } from './support/openTool';
 import { test, expect } from '@playwright/test';
 import { settleAnimations } from './support/a11yGate';
 
@@ -25,21 +26,18 @@ test.describe('E2E Smoke Suite', () => {
   });
 
   test('1. Receipt Ingestion: Verify Vault upload button and receipt structure', async ({ page }) => {
-    await page.click('button:has-text("Settings")');
-    await page.click('button:has-text("Documents")');
+    await openTool(page, 'Documents');
     await expect(page.locator('body')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toBeAttached();
   });
 
   test('2. Transaction Persistence: Verify ledger line-edit UI renders', async ({ page }) => {
-    await page.click('button:has-text("Transactions")');
-    await page.click('button:has-text("Ledger & Journal")');
+    await openTool(page, 'Ledger & Journal');
     await expect(page.locator('body')).toBeVisible();
   });
 
   test('3. Vault Scanner: OCR Deep Scan button exists and works', async ({ page }) => {
-    await page.click('button:has-text("Settings")');
-    await page.click('button:has-text("Documents")');
+    await openTool(page, 'Documents');
 
     // Upload a fixture document to activate the inspector drawer
     const fileInput = page.locator('input[type="file"]');
@@ -57,7 +55,7 @@ test.describe('E2E Smoke Suite', () => {
   });
 
   test('4. Send Invoice: Invoice dialog opens', async ({ page }) => {
-    await page.click('button:has-text("Money In")');
+    await page.click('button:has-text("Sales")');
     await page.click('button:has-text("Invoices")');
     await expect(page.locator('button:has-text("Add Invoice")').first()).toBeVisible();
     await page.click('button:has-text("Add Invoice")');
@@ -65,8 +63,7 @@ test.describe('E2E Smoke Suite', () => {
   });
 
   test('5. ToolSandbox Algorithm: Sandbox renders without NaN on empty dates', async ({ page }) => {
-    await page.click('button:has-text("Reports")');
-    await page.click('button:has-text("Insights")');
+    await openTool(page, 'Insights');
     
     // Wait for the math algorithms to compute
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -153,8 +150,7 @@ test.describe('E2E Smoke Suite', () => {
     });
 
     // Navigate to Documents in Vault
-    await page.click('button:has-text("Settings")');
-    await page.click('button:has-text("Documents")');
+    await openTool(page, 'Documents');
 
     // Upload receipt file fixture
     const fileInput = page.locator('input[type="file"]');

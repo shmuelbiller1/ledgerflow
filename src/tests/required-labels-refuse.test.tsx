@@ -41,6 +41,7 @@ describe('The rule', () => {
     const missing = refusedLabels(entry(), refusing);
     assert.deepEqual(missing.map(m => [m.dimensionName, m.accountName]), [['Property', 'Utilities']]);
     assert.match(refusedLabelsMessage(missing), /^This entry needs Property on Utilities \(a required label\)\. Add it to the line, or ask an owner or accountant/);
+    assert.match(refusedLabelsMessage(missing), /Settings → Labels → Required labels/);
     assert.equal(refusedLabels(entry({}, { dimensions: { property: 'P5' } }), refusing).length, 0, 'labelled');
     assert.equal(refusedLabels(entry(), listing).length, 0, 'a rule that only lists never refuses');
     assert.equal(refusedLabels(entry({ date: '2026-09-30' }), refusing).length, 0, 'before the rule applies');

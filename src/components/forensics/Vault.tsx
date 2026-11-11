@@ -34,6 +34,10 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { aiService } from '../../services/aiService';
 import { useTimeout } from '../../hooks/useTimeout';
+import {
+  applyDocumentFilters, documentCounts, documentMonths, documentOwnerLabel, documentFileType,
+  DOCUMENT_LINK_KINDS, type DocumentFileType, type DocumentLinkKind,
+} from '../../lib/documentLibrary';
 import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../lib/receiptIngestion';
 
 
@@ -52,6 +56,12 @@ export default function Vault() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  // J-7: filter by file type, by the record it belongs to, and by month (a tag filter still works).
+  const [fileType, setFileType] = useState<DocumentFileType | 'all'>('all');
+  const [linkedTo, setLinkedTo] = useState<DocumentLinkKind | 'unlinked' | 'all'>('all');
+  const [month, setMonth] = useState<string | 'all'>('all');
+  const [loadError, setLoadError] = useState('');
+  const [loadVersion, setLoadVersion] = useState(0);
   const [selectedDoc, setSelectedDoc] = useState<CloudDocument | null>(null);
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setSelectedDoc(null), !!selectedDoc);
   const [isScanning, setIsScanning] = useState(false);
@@ -64,18 +74,24 @@ export default function Vault() {
       return;
     }
 
-    const q = query(
-      collection(db, 'documents'),
-      where('workspaceId', '==', workspaceId),
-      where('uid', '==', uid)
-    );
+    // J-7: the screen lists the workspace's documents, not only the ones this user uploaded. Files a
+    // colleague attached to an invoice belong on a bookkeeper's Documents screen, and the database's
+    // own workspace rules already decide who may read them.
+    const q = query(collection(db, 'documents'), where('workspaceId', '==', workspaceId));
 
     return onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CloudDocument));
-      setDocuments(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      // the same collection also holds records that are not files (stages, time entries, watches): only stored files are listed
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CloudDocument))
+        .filter(row => typeof row.fileUrl === 'string' && row.fileUrl !== '');
+      setDocuments(data);
+      setLoadError('');
       setLoading(false);
-    }, () => setLoading(false));
-  }, [workspaceId, uid, setSafeTimeout]);
+    }, (failure?: { message?: string }) => {
+      // a failed read is not "no documents": say so and offer the retry
+      setLoadError(failure?.message || 'The documents could not be loaded.');
+      setLoading(false);
+    });
+  }, [workspaceId, uid, setSafeTimeout, loadVersion]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -287,14 +303,21 @@ export default function Vault() {
     }
   };
 
-  const filteredDocs = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          doc.tags?.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesTag = !filterTag || doc.tags?.includes(filterTag);
-    return matchesSearch && matchesTag;
-  });
+  const tagged = filterTag ? documents.filter(doc => doc.tags?.includes(filterTag)) : documents;
+  const { rows: filteredDocs, undated } = applyDocumentFilters(tagged, { search: searchTerm, fileType, linkedTo, month });
+  const counts = documentCounts(documents);
+  const months = documentMonths(documents);
+  const filtersActive = Boolean(searchTerm.trim()) || fileType !== 'all' || linkedTo !== 'all' || month !== 'all' || Boolean(filterTag);
 
   const allTags = Array.from(new Set(documents.flatMap(d => d.tags || [])));
+  const FILE_TYPE_LABELS: Record<DocumentFileType, string> = { pdf: 'PDF', image: 'Image', spreadsheet: 'Spreadsheet', document: 'Document', other: 'Other' };
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFileType('all');
+    setLinkedTo('all');
+    setMonth('all');
+    setFilterTag(null);
+  };
 
   return (
     <div className="space-y-8 h-full min-w-0 flex flex-col">
@@ -344,6 +367,49 @@ export default function Vault() {
         </div>
       </div>
 
+      {/* J-7: filter by file type, by the record the file belongs to, and by month. */}
+      <div className="flex flex-wrap items-end gap-3 bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)]">
+        <div className="space-y-1">
+          <label htmlFor="doc-type" className="block text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Type</label>
+          <select id="doc-type" value={fileType} onChange={e => setFileType(e.target.value as DocumentFileType | 'all')}
+            className="h-11 px-3 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]">
+            <option value="all">All files ({counts.all ?? 0})</option>
+            {(Object.keys(FILE_TYPE_LABELS) as DocumentFileType[]).map(type => (
+              <option key={type} value={type}>{FILE_TYPE_LABELS[type]} ({counts[type] ?? 0})</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="doc-linked" className="block text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Belongs to</label>
+          <select id="doc-linked" value={linkedTo} onChange={e => setLinkedTo(e.target.value as DocumentLinkKind | 'unlinked' | 'all')}
+            className="h-11 px-3 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]">
+            <option value="all">Anything</option>
+            {DOCUMENT_LINK_KINDS.filter(kind => counts[kind]).map(kind => (
+              <option key={kind} value={kind}>{kind === 'chartAccounts' ? 'Account' : kind === 'purchaseOrders' ? 'Purchase order' : kind === 'creditNotes' ? 'Credit note' : kind === 'vendorCredits' ? 'Vendor credit' : kind === 'supportTickets' ? 'Support ticket' : kind.charAt(0).toUpperCase() + kind.slice(1)} ({counts[kind]})</option>
+            ))}
+            <option value="unlinked">No record yet ({counts.unlinked ?? 0})</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="doc-month" className="block text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Month</label>
+          <select id="doc-month" value={month} onChange={e => setMonth(e.target.value)}
+            className="h-11 px-3 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]">
+            <option value="all">Every month</option>
+            {months.map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </div>
+        {filtersActive && (
+          <button type="button" onClick={clearFilters}
+            className="h-11 px-4 rounded-lg border border-[var(--line)] text-sm font-semibold text-[var(--text)] hover:bg-[var(--panel)]">
+            Clear filters
+          </button>
+        )}
+        <p className="ml-auto text-xs text-[var(--muted)]" role="status">
+          Showing {filteredDocs.length} of {documents.length} file{documents.length === 1 ? '' : 's'}
+          {undated > 0 && month !== 'all' && <> · {undated} without a date are always shown</>}
+        </p>
+      </div>
+
       <div className="flex-1 overflow-auto custom-scrollbar">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {filteredDocs.map((docItem) => (
@@ -358,12 +424,12 @@ export default function Vault() {
                   <FileText aria-hidden="true" size={32} />
                 </div>
                 <div className="flex items-center gap-2">
-                  {docItem.linkedTransactionId ? (
-                    <div className="w-8 h-8 flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-xl border border-emerald-100" title="Linked to transaction">
+                  {documentOwnerLabel(docItem) ? (
+                    <div className="w-8 h-8 flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-xl border border-emerald-100" title={`Belongs to ${documentOwnerLabel(docItem)}`}>
                       <Paperclip aria-hidden="true" size={16} />
                     </div>
                   ) : (
-                    <div className="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-500 rounded-xl border border-amber-100" title="Unlinked document">
+                    <div className="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-500 rounded-xl border border-amber-100" title="Not attached to a record yet">
                       <Clock aria-hidden="true" size={16} />
                     </div>
                   )}
@@ -373,10 +439,15 @@ export default function Vault() {
               <div className="space-y-2">
                 <h3 className="text-base font-black text-[var(--text)] line-clamp-1 leading-none tracking-tight">{docItem.name}</h3>
                 <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.1em] font-mono">
-                  <span>{format(new Date(docItem.createdAt), 'MMM dd, yyyy')}</span>
+                  <span>{docItem.createdAt ? format(new Date(docItem.createdAt), 'MMM dd, yyyy') : 'No date'}</span>
                   <span className="w-1 h-1 bg-slate-100 rounded-full" />
-                  <span>{(docItem.sizeBytes / 1024).toFixed(1)} KB</span>
+                  <span>{((docItem.sizeBytes || 0) / 1024).toFixed(1)} KB</span>
+                  <span className="w-1 h-1 bg-slate-100 rounded-full" />
+                  <span>{documentFileType(docItem.mimeType)}</span>
                 </div>
+                <p className="text-[11px] text-[var(--muted)] line-clamp-1" title={documentOwnerLabel(docItem) || 'Not attached to a record yet'}>
+                  {documentOwnerLabel(docItem) ? `Belongs to ${documentOwnerLabel(docItem)}` : 'Not attached to a record yet'}
+                </p>
               </div>
 
               <div className="flex flex-wrap gap-2 mt-auto">
@@ -388,6 +459,15 @@ export default function Vault() {
               </div>
 
               <div className="absolute top-6 right-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center gap-2">
+                 <button
+                  type="button"
+                  aria-label={`Open ${docItem.name}`}
+                  title="Open this file"
+                  onClick={event => { event.stopPropagation(); setSelectedDoc(docItem); }}
+                  className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-[32px] hover:bg-slate-700 transition-all shadow-sm"
+                >
+                  <ExternalLink aria-hidden="true" size={16} />
+                </button>
                  <AsyncButton 
                   aria-label={`Delete document ${docItem.name}`}
                   onClick={async () => { inBackground(handleDelete(docItem.id)); }}
@@ -399,13 +479,33 @@ export default function Vault() {
             </motion.div>
           ))}
 
-          {filteredDocs.length === 0 && !loading && (
+          {loadError && !loading && (
+            <div className="col-span-full py-20 flex flex-col items-center justify-center bg-[var(--surface)] border-2 border-[var(--neg)] rounded-[32px] text-center" role="alert">
+              <File aria-hidden="true" size={48} className="text-[var(--neg)] mb-4" />
+              <h2 className="text-xl font-black text-[var(--text)] mb-2">Your documents could not be loaded</h2>
+              <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-4">{loadError} Nothing has been deleted; this is a read failure.</p>
+              <button type="button" onClick={() => { setLoadError(''); setLoading(true); setLoadVersion(v => v + 1); }}
+                className="h-11 px-5 rounded-lg bg-[var(--brass)] text-black font-bold text-sm">Try again</button>
+            </div>
+          )}
+
+          {!loadError && filteredDocs.length === 0 && !loading && (
             <div className="col-span-full py-40 flex flex-col items-center justify-center bg-[var(--ink)]/20 border-4 border-dashed border-[var(--line)] rounded-[32px] text-center">
               <div className="w-32 h-32 bg-[var(--surface)] rounded-[32px] flex items-center justify-center text-slate-200 mb-8 shadow-sm">
                 <File aria-hidden="true" size={64} />
               </div>
-              <h2 className="text-3xl font-black text-[var(--text)] tracking-tight mb-3">Vault Depleted</h2>
-              <p className="text-[var(--muted)] max-w-sm mx-auto text-xs font-black uppercase tracking-[0.2em] opacity-50">Secure storage is currently empty. Initialize upload to establish audit compliance.</p>
+              {documents.length > 0 && filtersActive ? (
+                <>
+                  <h2 className="text-3xl font-black text-[var(--text)] tracking-tight mb-3">No file matches these filters</h2>
+                  <p className="text-[var(--muted)] max-w-sm mx-auto text-xs font-black uppercase tracking-[0.2em] opacity-50">There {documents.length === 1 ? 'is' : 'are'} {documents.length} file{documents.length === 1 ? '' : 's'} here; none of them is a {fileType === 'all' ? 'match' : FILE_TYPE_LABELS[fileType].toLowerCase()}{month !== 'all' ? ` from ${month}` : ''}{linkedTo !== 'all' ? ` attached to ${linkedTo}` : ''}.</p>
+                  <button type="button" onClick={clearFilters} className="mt-6 h-11 px-5 rounded-lg bg-[var(--brass)] text-black font-bold text-sm">Clear the filters</button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-3xl font-black text-[var(--text)] tracking-tight mb-3">No documents yet</h2>
+                  <p className="text-[var(--muted)] max-w-sm mx-auto text-xs font-black uppercase tracking-[0.2em] opacity-50">Nothing is stored here. Use Upload above to keep a receipt or a signed contract; files you attach to an invoice or a bill also appear here.</p>
+                </>
+              )}
             </div>
           )}
         </div>

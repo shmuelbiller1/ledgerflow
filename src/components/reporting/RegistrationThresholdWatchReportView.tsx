@@ -89,7 +89,7 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
         <li><code>ca_gst_taxable_supplies</code> — Canada GST/HST taxable supplies</li>
         <li><code>eu_oss_qualifying_b2c_supplies</code> — qualifying EU OSS-related cross-border B2C supplies</li>
       </ul>
-      <p>Create these as values in the selected activity dimension (Settings → Dimensions), then assign them to the relevant posted revenue lines. For the EU label, use it only after checking supplier establishment, customer/supply type and goods-dispatch scope.</p>
+      <p>Create these as values in the selected activity dimension (Settings → Labels), then assign them to the relevant posted revenue lines. For the EU label, use it only after checking supplier establishment, customer/supply type and goods-dispatch scope.</p>
     </div>
 
     {waiting && <p role="status">Loading posted sales and dimension labels…</p>}

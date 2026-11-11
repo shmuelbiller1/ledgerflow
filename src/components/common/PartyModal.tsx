@@ -1,3 +1,5 @@
+import DocumentDefaultsEditor from './DocumentDefaultsEditor';
+import { documentDefaultsOf, defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import React, { useState } from 'react';
 import { DOCUMENT_LANGUAGES, MAX_CONTACT_TERMS } from '../../lib/documentLanguage';
@@ -70,6 +72,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const customerGroups = normalizeCustomerGroups(useAuthStore(s => s.getCurrentWorkspace()?.customerGroups)); // CC-11
   const blank = () => ({
+    documentDefaults: documentDefaultsOf(initial),
     name: initial?.name || '', email: initial?.email || '', phone: initial?.phone || '', address: initial?.address || '',
     status: (initial?.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
     category: initial?.category || 'Standard', currency: initial?.currency || '', groupId: initial?.groupId || '', tags: (initial?.tags || []).join(', '),
@@ -122,6 +125,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
       const { documentLanguage: _l, documentTerms: _t, taxExemption: _x, taxPlace: _p, withholding: _w, vatNumber: _v, ...rest } = initial?.metadata || {};
       party.metadata = { ...rest, ...(form.language ? { documentLanguage: form.language } : {}), ...(form.terms.trim() ? { documentTerms: form.terms.trim() } : {}), ...(exemption ? { taxExemption: exemption } : {}), ...(taxPlace ? { taxPlace } : {}), ...(withholding ? { withholding } : {}), ...(form.vatNumber.trim() ? { vatNumber: form.vatNumber.trim() } : {}) };
     }
+    if (Object.keys(cleanDocumentDefaults(form.documentDefaults)).length || initial?.metadata?.documentDefaults) party.metadata = defaultsMetadata(party.metadata || initial?.metadata, form.documentDefaults);
     if (contacts.length || (editing && initial?.contacts?.length)) party.contacts = contacts;
     onSave(editing ? { ...party, id: initial!.id } : party);
     if (!editing) setForm(blank());
@@ -263,6 +267,7 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
             </Labelled>
           </div>
 
+          <DocumentDefaultsEditor side={side} value={form.documentDefaults} onChange={documentDefaults => set({ documentDefaults })} />
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold text-slate-700 dark:text-slate-300">People to contact</legend>
             <datalist id={`contact-roles-${side}`}>

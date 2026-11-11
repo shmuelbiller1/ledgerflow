@@ -219,7 +219,7 @@ export default function PickPackShipPanel() {
     </div>
 
     {!orders.length && !loading && <p className="text-sm text-[var(--muted)]">No accepted sales orders with inventory lines are loaded.</p>}
-    {orders.length > 0 && !locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Dimensions and assign bins before printing a location-specific pick list.</p>}
+    {orders.length > 0 && !locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Labels and assign bins before printing a location-specific pick list.</p>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">

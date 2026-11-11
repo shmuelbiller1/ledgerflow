@@ -85,7 +85,7 @@ export default function WarehouseBinLocationsPanel() {
       <span className="text-sm text-[var(--muted)]">{visibleItems.length} of {items.length} loaded stock item(s)</span>
     </div>
 
-    {!locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Dimensions before assigning bins. You can still view the loaded inventory below.</p>}
+    {!locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Labels before assigning bins. You can still view the loaded inventory below.</p>}
     {location?.status === 'archived' && <p className="text-sm text-[var(--muted)]">This Location is archived. Existing bin labels are shown read-only and cannot be changed.</p>}
 
     <ReportTableScroll>

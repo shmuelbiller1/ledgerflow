@@ -37,6 +37,8 @@ NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic npx tsx --test 
   audit/agent6-2026-11-10/probes/af004-taxplace-key-mismatch.test.ts \
   audit/agent6-2026-11-10/probes/af012-rule-chain-order.test.ts \
   audit/agent6-2026-11-10/probes/f8-tax-return-two-universes.test.ts \
+  audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts \
+  audit/agent6-2026-11-10/probes/f10-handwritten-idempotency.test.ts \
   audit/agent6-2026-11-10/probes/s7-route-guards.test.ts
 python3 audit/agent6-2026-11-10/probes/lf-rules-coverage.py
 ```

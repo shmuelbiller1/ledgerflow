@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Star } from 'lucide-react';
-import { APP_TABS, REPORT_TABS_REGISTRY, SETTINGS_TABS_REGISTRY } from '../../config/registry';
+import { APP_TABS, isTabVisible, REPORT_TABS_REGISTRY, SETTINGS_TABS_REGISTRY } from '../../config/registry';
 import { pageLabel } from '../../config/pageLabels';
 import { currentPage } from '../../lib/pinnedPages';
 import { bookmarkKey, bookmarkStorageKey, MAX_BOOKMARKS, parseBookmarks, reorderBookmark, validBookmark } from '../../lib/bookmarks';
@@ -17,11 +17,12 @@ function ScopedBookmarks({ uid, workspaceId, expanded }: { uid: string; workspac
   const [pages, setPages] = useState(() => { try { return parseBookmarks(localStorage.getItem(storageKey), registry); } catch { return []; } });
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const activeTab = useUIStore(s => s.activeTab), activeReportTab = useUIStore(s => s.activeReportTab), activeSettingsTab = useUIStore(s => s.activeSettingsTab);
-  const isAdmin = useAuthStore(s => s.isAdmin), isProMode = useUIStore(s => s.isProMode);
+  const isAdmin = useAuthStore(s => s.isAdmin), developerMode = useUIStore(s => s.developerMode);
+  const modules = useAuthStore(s => s.getCurrentWorkspace()?.modules);
   const page = validBookmark(currentPage({ activeTab, activeReportTab, activeSettingsTab }), registry);
   const starred = page && pages.some(p => bookmarkKey(p) === bookmarkKey(page));
   const current = () => (useAuthStore.getState().user?.uid || 'guest') === uid && (useAuthStore.getState().currentWorkspaceId || 'none') === workspaceId;
-  const canOpen = (target: Bookmark) => { const tab = APP_TABS.find(t => t.id === target.tab); return Boolean(tab && (tab.groupId !== 'admin' || isAdmin) && (!tab.isAdvanced || isProMode)); };
+  const canOpen = (target: Bookmark) => { const tab = APP_TABS.find(t => t.id === target.tab); return Boolean(tab && isTabVisible(tab, { isOwner: isAdmin, isProMode: false, developerMode, modules, showAll: true })); };
   function save(next: Bookmark[]) {
     if (!current()) return;
     setPages(next); setError('');

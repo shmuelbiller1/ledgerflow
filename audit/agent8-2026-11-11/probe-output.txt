@@ -1,0 +1,52 @@
+# Agent #8 probe output — pinned at upstream main ec3ff49336c53eeed531a79ac32cc08d1574ec96 (2026-11-11)
+
+Command: NODE_ENV=test npx tsx audit/function-audit/probes/af004-614-residual.ts
+
+=== R1: #519 destination snapshot — state return vs the journey certificate step ===
+OK     R1a #519 holds in usSalesTaxReturn: the July California sale stays in the CA return after the customer moves: documentCount 1 -> 1, exemptSalesCents 10000 -> 10000
+DEFECT R1b the journey certificate step honours the same saved destination: customer in CA: status=not-applicable (No zero-tax sale to a US customer is recorded in the quarter, so no certificate is needed from this data.); customer moved to TX: status=attention (1 zero-tax sale(s) to a US customer: 1 without a recorded certificate, 0 after the certificate’s last day. An expired ce). The journey re-derives the buyer's state from the customer's place TODAY (usQuarterJourney.ts:330-331), so exemptByProduct is looked up in the wrong state's table.
+DEFECT R1c the documented "the two counts agree" invariant (usQuarterJourney.ts:304-306): the CA return counts this sale as an exempt California sale in both cases (documentCount=1); the certificate step says "attention" once the customer moves, demanding a certificate the sale's own destination state never required.
+
+=== R2: #517 seller entity label — state return vs the journey certificate step ===
+OK     R2a #517 holds in usSalesTaxReturn: the Israeli branch's sale is not in the California permit's return: documentCount=0
+DEFECT R2b the journey certificate step reads the same seller label: usSalesTaxReturn counts 0 document(s) for this sale under the CA permit, but the journey's certificate step counts 1 zero-tax US sale(s) — it resolves the seller from doc.dimensions (usQuarterJourney.ts:327) instead of documentEntityLabels (usSalesTaxReturn.ts:78, ilVatReturn.ts:54), so the first line's entity label is invisible to it.
+OK     R2c control: the same sale with no entity label IS counted (proves R2b is not vacuous): unlabelled sale -> certificate step counts 1 zero-tax US sale(s); first-line-labelled IL sale -> 1. Both are the same money, the same customer, the same date.
+
+=== R3: cross-country inheritance in resolveSellerProfile (never covered by #517/#518/#519) ===
+DEFECT R3a an Israeli entity does not inherit a US state: resolveSellerProfile returned place {"country":"IL","state":"CA"} from ["world:il","books"]: the books' state survives into a different country (profile.ts:99).
+DEFECT R3b an Israeli branch sale is not counted in a US state return: the IL-labelled over-the-counter sale inherits the books' CA permit (profile.ts:98) and the books' state via the merged place (profile.ts:99), so it lands in the California return: documentCount=1, grossSalesCents=10000. No open issue covers this: #517/#518/#519 were closed by #614, which did not change profile.ts.
+
+=== R3c: the repository's OWN tax-profile fixture, resolved at the level no test resolves ===
+DEFECT R3c "Acme US" is not situated in Tel Aviv and does not hold an Israeli VAT number: resolveSellerProfile(world:us) -> place {"country":"US","city":"Tel Aviv"}, vat registrations ["vat:IL:514000000"] (from ["world:us","books"]). ilVatReturn.belongsTo matches on registrationKey, so an invoice labelled world=us is counted in the ISRAELI VAT return (see P7).
+DEFECT R3d a Texas entity with no own city does not inherit a foreign one: resolveSellerProfile(world:us/texas) -> place {"country":"US","city":"Tel Aviv","state":"TX"}: the books' city survives into another country. This place is what Settings -> Tax profiles shows as the entity's inherited place, and what usSalesTaxReturn.ts:91 / usQuarterJourney.ts:331 use as the over-the-counter buyer-state fallback.
+OK     R3e scope control: the invoice rate suggestion is NOT wrong-country (resolveLineTax branches on country): resolveLineTax for Acme US returned reason=not-registered rate=0: the country is correct, so the harm is in the RETURNS (which match on registrationKey), not in the suggested rate.
+
+---- Command: NODE_ENV=test npx tsx audit/function-audit/probes/af004-tax-authority-probe.ts
+
+DEFECT AF-004-P1 place merge across countries: expected place of an Israeli entity to carry no US state; observed {"country":"IL","state":"TX"} (from ["world:il","books"])
+DEFECT AF-004-P2 Israeli sale leaks into Texas return: expected 0 documents in the Texas permit return; observed documentCount=1, grossSalesCents=10000
+OK     AF-004-P3 #518 guard: a US sale with no state is reported in `unplaced`, in no state return: expected documentCount=0 with unplaced 1 doc / 10000 net / 825 tax; observed documentCount=0, unplaced={"documentCount":1,"netCents":10000,"taxCents":825,"documents":1}
+DEFECT AF-004-P4 non-US buyer: state return vs quarter journey disagree: usSalesTaxReturn documentCount=0 for this Canadian buyer; real usQuarterJourney certificate step counts 1 zero-tax sale(s) to a US customer (seller state fallback)
+DEFECT AF-004-P7 US branch sale lands in the Israeli VAT return: expected 0 documents in the IL VAT return for a US-labelled sale; observed documentCount=1, taxableSalesCents=10000
+OK     AF-004-P5 control: conflicting legalForm reported as conflict: conflicts=1, chosen=llc (first dimension in order)
+DEFECT AF-004-P6 duplicate verified/declared set value stays unverified: verified=false although a verified copy of the same value exists (conservative: a false negative, not an unsafe pass)
+OK     AF-004-P8 #517 guard: the US return honours the first line's entity label: expected the Israeli-branch invoice (label on items[0]) to be outside the Texas return; observed documentCount=0
+
+---- Command: npx tsx audit/function-audit/probes/af012-rule-chain-order.mjs  (#161 re-check)
+
+order A,B,C -> applied A,C | displaced B by A
+order B,A,C -> applied A,C | displaced B by A
+order C,B,A -> applied C,A | displaced B by A
+
+---- Command: npx tsx audit/function-audit/probes/af012-shipped-pack-chains.mjs
+
+packs: 18, rules: 584, overrides: 67
+override targets that are themselves overrides: 0
+dangling targets: 0
+
+---- Command: npx tsx audit/function-audit/probes/af004-519-customer-moves.ts
+
+snapshot written on issue: {"taxPlace":{"country":"US","state":"TX"}}
+customer still in TX: documentCount=1 grossSalesCents=10000 taxCollectedCents=825
+customer moved to CA: documentCount=1 grossSalesCents=10000 taxCollectedCents=825
+EXPECTED per the #255 contract (usNexusWatch reads the invoice snapshot): the July sale stays in the TX return either way.

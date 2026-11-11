@@ -1,3 +1,4 @@
+import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
 import { ConfirmButton } from '../ui/ConfirmButton';
@@ -37,7 +38,8 @@ import {
   addDoc, 
   deleteDoc, 
   doc,
-  updateDoc
+  updateDoc,
+  deleteField
 } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { InventoryItem } from '../../types';
@@ -169,8 +171,6 @@ export default function Inventory() {
       category: formData.get('category') as string,
       // BF-01: an item with stock on hand stays a stock item
       itemType: formData.get('itemType') === 'service' && !editingItem.quantityAtHand ? 'service' : (editingItem.quantityAtHand ? editingItem.itemType || 'stock' : 'stock'),
-      // A-7 (CA-16): the default tax code an invoice line for this item fills in
-      defaultTaxCodeId: (formData.get('defaultTaxCodeId') as string) || undefined,
       // A-30: the item tax category the state taxability table reads
       productTaxCategory: (formData.get('productTaxCategory') as string) || undefined,
       // A-19: the bundle's parts (empty = an ordinary item)
@@ -184,7 +184,14 @@ export default function Inventory() {
     };
 
     try {
-      await updateDoc(doc(db, 'inventory', editingItem.id), updates);
+      const defaults = cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')));
+      await updateDoc(doc(db, 'inventory', editingItem.id), {
+        ...updates,
+        // Atomic nested update: notes/images edited beside this form must not be replaced by its old metadata.
+        'metadata.documentDefaults': Object.keys(defaults).length ? defaults : deleteField(),
+        // A-7: a cleared visible item tax field must remove the saved default.
+        defaultTaxCodeId: String(formData.get('defaultTaxCodeId') || '') || deleteField(),
+      });
       setEditingItem(null);
       toast.success('Inventory item updated');
     } catch {
@@ -197,6 +204,7 @@ export default function Inventory() {
     const formData = new FormData(e.currentTarget);
     
     const newItem: Omit<InventoryItem, 'id'> = {
+      metadata: defaultsMetadata(undefined, cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')))),
       uid: uid || "",
       workspaceId: workspaceId || "",
       name: formData.get('name') as string,

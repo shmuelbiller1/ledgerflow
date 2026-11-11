@@ -83,6 +83,7 @@ export default function TagsSettings() {
     <section aria-labelledby="tags-title" className="space-y-4">
       <div>
         <h2 id="tags-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><Tag className="w-5 h-5" aria-hidden="true" /> Tags</h2>
+        <p className="text-xs text-[var(--muted)]">Labels group line amounts in reports; tags help you find records.</p>
         <p className="text-sm text-[var(--muted)]">Every tag used in this workspace and where. Rename one everywhere at once; renaming it to another tag&apos;s name merges the two.</p>
       </div>
       <input type="search" aria-label="Find a tag" value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a tag" className={`${field} w-64`} dir="auto" />
