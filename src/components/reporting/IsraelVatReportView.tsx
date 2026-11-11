@@ -134,7 +134,7 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || truncated.accounts ||
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || truncated.accounts || truncated.chartAccounts ||
     failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits || failed.accounts
   );
 
