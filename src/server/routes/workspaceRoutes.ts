@@ -5,8 +5,6 @@ import type { DecodedIdToken } from '../auth/supabaseAuth';
 import { z } from 'zod';
 import { getDb, validateWorkspaceMember, FieldValue, type Firestore } from '../db/firestore';
 import { writeServerAuditLog } from '../services/auditLogService';
-import { seedDemoWorkspace } from '../../lib/demoWorkspaceSeeder';
-import { formatTzDate } from './transactionRoutes';
 import { applyAccountTemplate, TemplateError } from '../services/templateService';
 import { importRecords, undoImport, ImportError } from '../services/recordImportService';
 import { IMPORT_KINDS, MAX_IMPORT_ROWS } from '../../lib/recordImport';
@@ -694,69 +692,5 @@ workspaceRouter.post('/:workspaceId/cancel-deletion', requireWorkspaceRole(['own
   }
 });
 
-/**
- * Task 5: Seed Demo Data
- */
-workspaceRouter.post('/:workspaceId/seed', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const db = getDb();
-  
-  try {
-    const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-    const wsTz = wsDoc.data()?.timezone || 'UTC';
-    const now = new Date();
-    const today = formatTzDate(now, wsTz);
-    const invoiceDue = formatTzDate(new Date(now.getTime() + 30 * 86400000), wsTz);
-    const billDue = formatTzDate(new Date(now.getTime() + 15 * 86400000), wsTz);
-
-    const demoData = seedDemoWorkspace(workspaceId);
-    const batch = db.batch();
-
-    // Write demo chart accounts
-    demoData.accounts.forEach(acc => {
-      const ref = db.collection('chartAccounts').doc(acc.id);
-      batch.set(ref, { ...acc, uid: requestUser(req).uid, workspaceId });
-    });
-
-    // Write demo transactions
-    demoData.transactions.forEach(tx => {
-      const ref = db.collection('transactions').doc(tx.id);
-      batch.set(ref, { ...tx, uid: requestUser(req).uid, workspaceId });
-    });
-    
-    // Add Demo Customer, Vendor, Invoice, and Bill
-    const customerRef = db.collection('customers').doc();
-    batch.set(customerRef, { uid: requestUser(req).uid, workspaceId, name: 'Acme Corporation', email: 'billing@acme.com', status: 'active' });
-
-    const vendorRef = db.collection('vendors').doc();
-    batch.set(vendorRef, { uid: requestUser(req).uid, workspaceId, name: 'Cloud Services Ltd', category: 'Software', status: 'active' });
-
-    const invoiceRef = db.collection('invoices').doc();
-    batch.set(invoiceRef, {
-      uid: requestUser(req).uid, workspaceId, customerId: customerRef.id, customerName: 'Acme Corporation',
-      number: 'INV-DEMO-001', amountCents: 500000, date: today, dueDate: invoiceDue, status: 'sent', type: 'standard',
-      items: [{ id: 'item-1', description: 'Consulting Services', quantity: 1, rateCents: 500000, amountCents: 500000, accountId: 'income-acct' }],
-    });
-
-    const billRef = db.collection('bills').doc();
-    batch.set(billRef, {
-      uid: requestUser(req).uid, workspaceId, vendorId: vendorRef.id, vendorName: 'Cloud Services Ltd',
-      number: 'BILL-DEMO-001', amountCents: 120000, date: today, dueDate: billDue, status: 'pending',
-      splits: [{ amountCents: 120000, accountId: 'expense-acct', description: 'Server Hosting' }],
-    });
-
-    await batch.commit();
-    await writeServerAuditLog({
-      workspaceId,
-      uid: requestUser(req).uid,
-      email: requestUser(req).email,
-      action: 'DEMO_DATA_SEEDED',
-      entityType: 'workspace',
-      entityId: workspaceId,
-      details: { description: 'Seeded demo chart accounts, transactions, contacts, invoice, and bill' },
-    }, { db });
-    res.json({ status: 'success', message: 'Demo data seeded' });
-  } catch (e) {
-    sendError(res, 'Failed to seed demo data', 500, errorMessage(e));
-  }
-});
+// #656: the demo-seed route was removed: no screen called it, and it wrote demo entries into real books, even a closed
+// month, past the validator, the period lock and the audit. Guest mode keeps the same demo data in memory only.
