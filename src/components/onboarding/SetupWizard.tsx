@@ -173,8 +173,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
             </div>
             <p className="text-xs text-[var(--muted)]">The home currency can&apos;t be changed once there are entries.</p>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal" onClick={startFromZero} disabled={busy}>Skip setup</button>
-              <button type="button" className="btn-primary" onClick={saveBusiness} disabled={busy || !businessType}>{busy ? 'Saving…' : 'Next'}</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={startFromZero} disabled={busy}>Skip setup</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={saveBusiness} disabled={busy || !businessType}>{busy ? 'Saving…' : 'Next'}</button>
             </div>
           </section>
         )}
@@ -204,8 +204,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
               ))}
             </fieldset>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal" onClick={() => setStep(0)} disabled={busy}>Back</button>
-              <button type="button" className="btn-primary" onClick={applyChart} disabled={busy || (!templateId && accounts.length === 0)}>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => setStep(0)} disabled={busy}>Back</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={applyChart} disabled={busy || (!templateId && accounts.length === 0)}>
                 {busy ? 'Applying…' : 'Next'}
               </button>
             </div>
@@ -219,9 +219,9 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
               Your starter settings are ready. If you have previous books, use “Bring in last year's numbers” on Overview when you are ready.
             </p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn-primary" onClick={() => finish('sales')}>Create the first invoice</button>
-              <button type="button" className="btn-tonal" onClick={() => finish('banking')}>Connect or import a bank account</button>
-              <button type="button" className="btn-tonal" onClick={() => finish()}>Go to Overview</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={() => finish('sales')}>Create the first invoice</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish('banking')}>Connect or import a bank account</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish()}>Go to Overview</button>
             </div>
           </section>
         )}
