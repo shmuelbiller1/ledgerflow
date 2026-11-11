@@ -59,6 +59,25 @@ Evidence and register: [`audit/agent13-2026-11-11/FINDINGS.md`](audit/agent13-20
 | The one failure | A-229's cold-module-preload leg: **1,521.74 ms vs a 1,500 ms budget** (`report-speed-12m.test.tsx:258`). It read 2,329 ms in an earlier run on the same host, and `CURRENT_WORK.md` records this leg as a machine artefact on unmodified `main`; the ten screens it times do not import anything this PR changes. Not fixed by raising a budget. |
 | `tsc` / ESLint / build | 0 errors / 0 errors + **42 warnings** (cap unchanged) / pass |
 | New and neighbouring suites | `close-checklist-statuses` 4/4 · `report-speed-all-views` 1/1 · close/FX neighbours 51/51 · `af13-008` probe 1/1 |
-| **SonarQube Cloud** | **Not green** — "The last analysis has failed". Cause unknown from this sandbox (sonarcloud.io unreachable). The same message is on upstream #626, i.e. the base commit, while #625/#610 passed. **Owner/AI #1: read the dashboard before merging; the 21 green checks do not cover this.** |
+| **SonarQube Cloud** | **Green on the final head** — Quality Gate passed, 0 new issues, **0.0 % duplication on new code**. It first failed on 25.1 % duplication and a D reliability rating, both in this PR's own new files; the last commit fixes them by sharing two harnesses. Details in "Sonar follow-up" below. |
 
 Nothing in this PR merges itself, and no money, posting, tax, `src/server/`, migration, schema, test-input, baseline or warning-cap file is touched. **AI #1 merges.**
+
+## Sonar follow-up (final head `2398da9`): the gate failed, and it was this PR — now green
+
+The first Sonar result was reported wrong, so here is the correction. The bot comment said "The last analysis has failed"; the **check run and the API said something different**: Quality Gate failed on **25.1 % Duplication on New Code** (limit 3 %) and **D Reliability Rating on New Code**. Both were inside this PR's own new files, not in the base commit — reading it as "also broken upstream #626, so not mine" was a mistake in my first comment.
+
+| Source | Duplicated lines | Cause |
+|---|---|---|
+| `probes/af13-001-minor-unit-repost-check.test.ts` | 29 | inline copy of the ledger-context fixture |
+| `probes/r5-all-report-views-probe.ts` | 43 | inline copy of the report-screen harness |
+| `src/tests/close-checklist-statuses.test.ts` | 49 | the same fixture, again |
+| `probes/af13-002-003-checklist-statuses.test.ts` | 22 | near-copy of the new `src/tests` test |
+| `src/tests/report-speed-all-views.test.tsx` | 43 | the same harness, again |
+| `probes/af13-008-fx-aging-vs-ledger.test.ts` | 13 | the same fixture, again |
+
+The one reliability issue was `typescript:S2871` — `.sort()` without a comparator on strings, in the R-5 probe.
+
+Fixed in `d621623` and `2398da9`: two shared harnesses (`src/tests/helpers/postingHarness.ts`, `src/tests/helpers/reportScreens.ts`) that the probe and the tests both import; one `JPY_INVOICE` fixture for the three files that post the same Yen invoice; `localeCompare` everywhere sorting is by string; the redundant `af13-002-003` probe folded into `src/tests/close-checklist-statuses.test.ts`; `probes/helpers/dom-probe.ts` reduced to an import of `src/tests/helpers/dom`. Re-analysis on `2398da9`: **0.0 % duplicated lines, 0 new bugs, 0 new code smells, 0 vulnerabilities, 0 hotspots — Quality Gate passed.**
+
+Worth keeping: for a public Sonar project both `GET /api/issues/search?...&pullRequest=<n>&types=BUG&sinceLeakPeriod=true` and `GET /api/duplications/show?key=<component>&pullRequest=<n>` answer without a token. That is how the exact offending lines were found from a sandbox that cannot open the dashboard.
