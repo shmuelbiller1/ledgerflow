@@ -2,7 +2,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { LEDGER_COLLECTIONS, isCollectionCapped, anyCollectionCapped, type LedgerKey } from '../lib/ledgerCollections';
+import { LEDGER_COLLECTIONS, isCollectionCapped, anyCollectionCapped, ledgerKeyOfCollection, type LedgerKey } from '../lib/ledgerCollections';
+import { DATA_CHECKS, truncatedInputs } from '../lib/dataChecks';
 
 /**
  * A completeness flag that can never be true is worse than no flag: the screen shows a figure worked
@@ -54,6 +55,32 @@ describe('Truncation key space: store keys vs database collection names', () => 
       }
     }
     assert.deepEqual(offenders, []);
+  });
+
+  test('a cut chart of accounts reaches the data-health checks under the key they name (AF-013)', () => {
+    // the store map holds the collection name; the checks compare against store keys
+    assert.deepEqual(truncatedInputs({ chartAccounts: true, transactions: false }), ['accounts']);
+    // every other collection passes through unchanged
+    assert.deepEqual(truncatedInputs({ invoices: true, bankLines: true }), ['invoices', 'bankLines']);
+    // a collection the browser does not load is kept, not dropped
+    assert.deepEqual(truncatedInputs({ stockClosings: true }), ['stockClosings']);
+    assert.deepEqual(truncatedInputs(undefined), []);
+    assert.equal(ledgerKeyOfCollection('chartAccounts'), 'accounts');
+    assert.equal(ledgerKeyOfCollection('invoices'), 'invoices');
+  });
+
+  test('a cut chart of accounts stops the A/R control-balance check from reporting a false difference', () => {
+    // the check names store keys, so it must see the chart's own cut
+    const control = DATA_CHECKS.find(c => c.id === 'control-balance')!;
+    const account = { id: 'ar', code: '1200', name: 'Accounts Receivable', type: 'asset', role: 'ar', openingBalance: 0 } as never;
+    const base = {
+      invoices: [], bills: [], accounts: [account], transactions: [], baseCurrency: 'USD', today: '2026-11-11',
+      truncated: truncatedInputs({ chartAccounts: true }),
+    } as never;
+    const found = control.run(base);
+    assert.deepEqual(found.map(f => f.id), ['control-balance-incomplete']);
+    // with the same chart not cut, the check runs and finds nothing to report
+    assert.deepEqual(control.run({ ...(base as object), truncated: [] } as never), []);
   });
 
   test('the live subscriber still records truncation under the database collection name', () => {

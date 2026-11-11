@@ -109,6 +109,16 @@ export function anyCollectionCapped(truncated: Record<string, boolean> | undefin
 }
 
 /**
+ * The store key behind a cut collection name, for screens that carry collection names rather than keys
+ * (`truncatedInputs` in src/lib/dataChecks.ts). A collection the app does not load in the browser (a
+ * server-only list) is returned unchanged, so nothing is silently dropped.
+ */
+export function ledgerKeyOfCollection(collection: string): LedgerKey | string {
+  const key = (Object.keys(LEDGER_COLLECTIONS) as LedgerKey[]).find(k => LEDGER_COLLECTIONS[k].collection === collection);
+  return key ?? collection;
+}
+
+/**
  * L-123 step 4: the entry list is partial when the cap is reached, or when the closed years are left to the server
  * (`closedThrough`: the newest fresh year-end snapshot's day). Either way the screens that read every entry fall back
  * to the server's figures, as they do for a capped list.

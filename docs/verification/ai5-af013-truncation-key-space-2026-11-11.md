@@ -113,15 +113,37 @@ here. This is the standing sandbox timing flake recorded in earlier checkpoints.
 
 `npx tsc --noEmit` exit 0 · `npm run lint:eslint` 0 errors, 42 warnings (unchanged cap).
 
+## Same defect in the data-health screen (same commit, second half)
+
+`src/lib/dataChecks.ts:523` (`control-balance`) filters the cut list with `k === 'accounts'`, but
+`truncatedInputs()` returned **database collection names** — so a chart of accounts cut at its cap never
+reached the check, and the screen compared A/R and A/P over a partial chart without its "Not checked:
+the data read is incomplete" note. It also meant Data Health said "chartAccounts" where a reader expects
+"accounts".
+
+Fixed with `ledgerKeyOfCollection(collection)` in `ledgerCollections.ts`, applied in `truncatedInputs()`.
+A collection the browser never loads (a server-only list) is returned unchanged, so nothing is silently
+dropped. Two tests cover it, and **both fail on the old code** (verified by reverting `dataChecks.ts` and
+re-running): one on `truncatedInputs({ chartAccounts: true })` → `['accounts']`, one driving the real
+`control-balance` check over a cut chart and asserting the `control-balance-incomplete` finding.
+
+*Correction to an earlier note in this document:* it said the `AGENTS.md` purity rule forbade
+`dataChecks.ts` importing `ledgerCollections.ts`. **That was wrong** — `dataChecks.ts` already imports
+from `../server/reports/computeReports`, `eslint.config.js` has no import restriction, and
+`src/lib/AGENTS.md:15` scopes the pure-compute rule to calculations rather than every file in `lib`.
+No owner decision was needed.
+
+## Checked and deliberately NOT changed
+
+- **`src/components/reporting/AssetRegisterReportView.tsx:20`** — it lists `'accounts'` but checks only
+  `failed[key]`, never truncation. This looked inconsistent, so it was changed to also test
+  `isCollectionCapped` — and `l123-step4c-asset-register.test.tsx` failed. The test is right and the change
+  was wrong: the register reads **every** asset and run from the server (`useServerAssetRegister`), so a
+  capped browser list must *not* mark its figures provisional, and marking it partial would disable a CSV
+  export that is in fact complete. Reverted; the code stands as written. Recorded here so the next auditor
+  does not "fix" it again.
+
 ## Remaining related work (not fixed here)
 
-- **`src/lib/dataChecks.ts:523`** — `control-balance` tests `k === 'accounts'`, so a cut chart never
-  produces its "Not checked: the data read is incomplete" note. `ledgerCollections.ts` forbids a
-  runtime import of `LEDGER_COLLECTIONS` from `src/lib/dataChecks.ts` (the `AGENTS.md` purity rule),
-  so this needs a deliberate decision: pass collection names into `CheckContext.truncated` at the
-  caller (`DataHealthView`) or map in `dataChecks` by an explicit constant. Left for review.
-- **`src/components/reporting/AssetRegisterReportView.tsx:20`** — lists `'accounts'` but checks only
-  `failed[key]`, never `truncated`; the server report is the source, so this is cosmetic, but it is
-  inconsistent with its own CSV-disable gate.
-- **`DataQualityReportView` / `TruncatedInputs`** — `truncatedInputs()` returns collection names, so
-  `DataHealthView` shows "chartAccounts" where a reader expects "accounts" (wording only).
+- Nothing outstanding in this family. `DataStatusBar`, `reportProvenance.ts` and the `useServer*` hooks all
+  read through the helper or by collection name correctly.
