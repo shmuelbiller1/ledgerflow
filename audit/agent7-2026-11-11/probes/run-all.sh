@@ -24,7 +24,7 @@ run a7-01-ledger-door-dataflow      npx tsx $P/a7-01-ledger-door-dataflow.ts
 run a7-02-fx-reversal-residue       npx tsx $P/a7-02-fx-reversal-residue.ts
 run a7-05-browser-writes-ledger     node $P/run-sql.mjs $P/a7-05-browser-writes-ledger.sql
 run a7-06-residual-browser-writes   node $P/run-sql.mjs $P/a7-06-residual-browser-writes.sql
-for t in a7-02b-fx-reversal-route a7-02d-fx-journal-screen-shape a7-03-fx-installments a7-04-system-entries-editable a7-06-forged-credit a7-07-closed-period-sweep a7-08-recurring-entry a7-10-smoke; do
+for t in a7-02b-fx-reversal-route a7-02d-fx-journal-screen-shape a7-03-fx-installments a7-04-system-entries-editable a7-04e-rate-by-partial-update a7-04f-unpost-then-delete a7-04g-ledger-list-void-button a7-06-forged-credit a7-07-closed-period-sweep a7-08-recurring-entry a7-10-smoke; do
   run "$t" timeout 170 npx tsx --test --test-force-exit "$P/$t.test.ts"
 done
 exit $status

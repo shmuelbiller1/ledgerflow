@@ -1,6 +1,6 @@
 # pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
 # command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-03-fx-installments.test.ts
-# run: 2026-11-11T20:27:40Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T20:43:43Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 invoice status: paid; paid 100.00 EUR of 100.00 EUR
 ledger (home currency): {"bank":10843,"ar":-1,"sales":-10842}
 A/R ageing report (200): {"current":0,"1-30":0,"31-60":0,"61-90":0,"90+":0,"total":0}
@@ -8,8 +8,8 @@ trial balance route, Accounts Receivable: -0.01
 DEFECT A7-03: Accounts Receivable after a fully paid invoice = -0.01 (expected 0.00)
 Data Health (medium): Accounts receivable is -$0.01, the open invoices add up to $0.00
 ▶ A7-03 foreign invoice paid in instalments
-  ✔ 100.00 EUR at 1.0842 paid as 33.33 + 33.33 + 33.34 at the same rate (247.729035ms)
-✔ A7-03 foreign invoice paid in instalments (1337.58671ms)
+  ✔ 100.00 EUR at 1.0842 paid as 33.33 + 33.33 + 33.34 at the same rate (240.202907ms)
+✔ A7-03 foreign invoice paid in instalments (1209.357624ms)
 ℹ tests 1
 ℹ suites 1
 ℹ pass 1
@@ -17,4 +17,4 @@ Data Health (medium): Accounts receivable is -$0.01, the open invoices add up to
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1466.824256
+ℹ duration_ms 1365.621328
