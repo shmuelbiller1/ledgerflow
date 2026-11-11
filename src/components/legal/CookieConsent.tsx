@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Cookie, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import { BRAND_NAME } from '../../config/brand';
 interface CookieConsentProps {
   onOpenPrivacyPolicy?: () => void;
 }
@@ -46,7 +47,7 @@ export default function CookieConsent({ onOpenPrivacyPolicy }: CookieConsentProp
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed mb-4">
-          LedgerFlow uses essential cookies and client storage to secure workspace sessions, maintain active financial state, and meet compliance standards.{' '}
+          {BRAND_NAME} uses essential cookies and client storage to secure workspace sessions, maintain active financial state, and meet compliance standards.{' '}
           {onOpenPrivacyPolicy && (
             <button
               onClick={onOpenPrivacyPolicy}

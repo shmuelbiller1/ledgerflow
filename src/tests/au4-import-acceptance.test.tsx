@@ -30,6 +30,7 @@ import { setComponentWorkspace } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import ImportAcceptanceView from '../components/reporting/ImportAcceptanceView';
 
+import { BRAND_NAME } from '../config/brand';
 const SOURCE = [
   '"Northwind Studio"', '"Trial Balance"', '"As of March 31, 2026"',
   '"","Debit","Credit"',
@@ -87,7 +88,7 @@ test('an import that went wrong: every difference is named, with its amount', ()
     ['3200 Opening Balance Equity', -525_000, -500_000, 25_000, 'balance differs'],
     ['4000 Project Revenue', -58_000, -28_000, 30_000, 'balance differs'],
     ['6100 Office Supplies', null, 80_000, 80_000, 'not in the source'],
-    ['1050 Petty Cash (row 6)', 25_000, null, -25_000, 'not in LedgerFlow'],
+    ['1050 Petty Cash (row 6)', 25_000, null, -25_000, `not in ${BRAND_NAME}`],
   ]);
   assert.deepEqual(r.checks.map(c => [c.key, c.sourceCents, c.ledgerCents, c.differenceCents]), [
     ['trial-balance', 675_000, 700_000, 25_000], ['ar', 150_000, 120_000, -30_000], ['ap', 80_000, 160_000, 80_000], ['cash', 500_000, 500_000, 0], ['tax', 12_000, 12_000, 0],
@@ -103,7 +104,7 @@ test('a source file that does not balance is a problem, never accepted', () => {
 
 afterEach(() => cleanup());
 
-test('the screen: upload the source, read LedgerFlow\'s trial balance on the date, name the differences', async () => {
+test(`the screen: upload the source, read ${BRAND_NAME}'s trial balance on the date, name the differences`, async () => {
   setComponentWorkspace('viewer');
   useLedgerStore.setState({ accounts: WRONG_CHART } as never);
   const asked: string[] = [];
@@ -120,5 +121,5 @@ test('the screen: upload the source, read LedgerFlow\'s trial balance on the dat
   const rows = within(card).getAllByRole('row').map(r => r.textContent || '');
   assert.ok(rows.some(t => t === 'Accounts receivable$1,500.00$1,200.00-$300.00'), rows.join(' | '));
   assert.ok(rows.some(t => t === 'Cash and bank$5,000.00$5,000.00agrees'), rows.join(' | '));
-  assert.ok(rows.some(t => t === '1050 Petty Cash (row 6)not in LedgerFlow$250.00—-$250.00'), rows.join(' | '));
+  assert.ok(rows.some(t => t === `1050 Petty Cash (row 6)not in ${BRAND_NAME}$250.00—-$250.00`), rows.join(' | '));
 });

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+import { BRAND_NAME } from '../src/config/brand';
 /**
  * W9 (RELEASE_GATE): month-end close and reopen, driven on the real screen.
  *
@@ -49,7 +50,7 @@ async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; reques
 
   await page.route('**/close-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en" class="light"><head><title>LedgerFlow close</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en" class="light"><head><title>${BRAND_NAME} close</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/close-fixture');
 

@@ -1,20 +1,78 @@
 import { useAuthStore } from '../stores/useAuthStore';
 import { ErrorLogRecord } from '../types';
+import { redactForLogs } from './logRedaction';
+import { secureId } from './secureId';
 
 const RECENT_ERRORS_MAX = 5;
 const recentErrors: ErrorLogRecord[] = [];
+
+/**
+ * F-21: the same crash on the same screen at the same release is one problem, not one line per
+ * reload. The group keeps the count and the first/last time so the diagnostics attachment and the
+ * telemetry route can show how often it happens without carrying any more personal data than the
+ * redacted record already does.
+ */
+export interface ErrorGroup {
+  fingerprint: string;
+  screen: string;
+  message: string;
+  release: string;
+  count: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  errorId: string;
+}
+
+const ERROR_GROUPS_MAX = 50;
+const errorGroups = new Map<string, ErrorGroup>();
+
+/** A stable identity: the screen, the message without request-unique ids or times, and the release. */
+export function errorFingerprint(screen: string, message: string, release: string): string {
+  const stable = message
+    .replace(/err_\d+_[a-z0-9]+/gi, 'err')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, 'id')
+    .replace(/\b\d{4}-\d{2}-\d{2}T[\d:.]+Z\b/g, 'time')
+    .slice(0, 400)
+    .trim();
+  return `${screen || 'app'} :: ${stable || 'unknown'} :: ${release || 'unknown'}`;
+}
+
+function recordGroup(fingerprint: string, screen: string, message: string, release: string, errorId: string, at: string): ErrorGroup {
+  const existing = errorGroups.get(fingerprint);
+  if (existing) {
+    existing.count += 1;
+    existing.lastSeenAt = at;
+    existing.errorId = errorId;
+    return existing;
+  }
+  const group: ErrorGroup = { fingerprint, screen, message, release, count: 1, firstSeenAt: at, lastSeenAt: at, errorId };
+  errorGroups.set(fingerprint, group);
+  if (errorGroups.size > ERROR_GROUPS_MAX) {
+    // drop the group seen longest ago; the recent list still holds the newest records
+    const oldest = [...errorGroups.values()].sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt))[0];
+    errorGroups.delete(oldest.fingerprint);
+  }
+  return group;
+}
+
+/** The grouped crashes, newest first (F-21); one row per screen + message + release. */
+export function getErrorGroups(): ErrorGroup[] {
+  return [...errorGroups.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
+}
+
+/** Test helper: forget the groups between cases. */
+export function clearErrorGroups(): void {
+  errorGroups.clear();
+}
 
 /**
  * Strips potential sensitive data (keys, passwords, tokens, bearer tokens) from strings
  */
 function sanitizeText(input: string): string {
   if (!input) return '';
-  return input
-    .replace(/(bearer\s+)[a-zA-Z0-9_.-]+/gi, '$1[REDACTED]')
-    .replace(/(api[_-]?key["']?\s*[:=]\s*["']?)[a-zA-Z0-9_.-]+/gi, '$1[REDACTED]')
-    .replace(/(password["']?\s*[:=]\s*["']?)[^\s"']+/gi, '$1[REDACTED]')
-    .replace(/(secret["']?\s*[:=]\s*["']?)[^\s"']+/gi, '$1[REDACTED]')
-    .slice(0, 5000);
+  // F-35: one redaction rule (credentials, e-mail addresses, card numbers) lives in
+  // src/lib/logRedaction.ts, so nothing personal leaves the browser in a crash report.
+  return redactForLogs(input).slice(0, 5000);
 }
 
 /**
@@ -55,25 +113,37 @@ export async function reportClientError(
 
   const user = authState.user;
   const workspaceId = authState.currentWorkspaceId || authState.getCurrentWorkspace()?.id || 'unassigned';
-  const errorId = `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  // Keep the existing reference shape for diagnostics and grouping. If Web Crypto
+  // is unavailable, let the telemetry server allocate the id rather than invent
+  // a weak client reference. The server fallback has its own separate review.
+  const randomId = secureId('');
+  let errorId = randomId ? `err_${Date.now()}_${randomId.replace(/-/g, '')}` : '';
+  const stableMessage = sanitizeText(message);
+  const screen = typeof extra?.metadata?.view === 'string'
+    ? extra.metadata.view
+    : (typeof window !== 'undefined' ? window.location.pathname : 'server');
+  const release = 'ledgerflow-prod-v1';
+  const fingerprint = errorFingerprint(screen, stableMessage, release);
+  const createdAt = new Date().toISOString();
+  const group = recordGroup(fingerprint, screen, stableMessage.slice(0, 300), release, errorId, createdAt);
 
   const record: ErrorLogRecord = {
     id: errorId,
     workspaceId,
     userId: user?.uid,
     userEmail: user?.email || undefined,
-    message: sanitizeText(message).slice(0, 2000),
+    message: stableMessage.slice(0, 2000),
     stack: stack ? sanitizeText(stack).slice(0, 4000) : undefined,
     componentStack: extra?.componentStack ? sanitizeText(extra.componentStack).slice(0, 2000) : undefined,
     url: typeof window !== 'undefined' ? sanitizeTelemetryUrl(window.location.pathname + window.location.search) : '',
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
     appVersion: '0.1.0',
-    release: 'ledgerflow-prod-v1',
+    release,
     source: 'frontend',
     severity: extra?.severity || 'error',
-    metadata: extra?.metadata,
+    metadata: { ...(extra?.metadata || {}), fingerprint, screen, repeatCount: group.count },
     ticketId: extra?.ticketId,
-    createdAt: new Date().toISOString()
+    createdAt
   };
 
   // Add to in-memory ring buffer
@@ -92,11 +162,21 @@ export async function reportClientError(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    await fetch('/api/v1/telemetry/errors', {
+    const response = await fetch('/api/v1/telemetry/errors', {
       method: 'POST',
       headers,
       body: JSON.stringify(record)
     });
+    if (!errorId && response.ok) {
+      const result: unknown = await response.json();
+      const serverId = result && typeof result === 'object' && 'errorId' in result ? result.errorId : null;
+      if (typeof serverId === 'string' && /^err_[a-zA-Z0-9_-]{1,124}$/.test(serverId)) {
+        errorId = serverId;
+        record.id = serverId;
+        // Only update the group if this is still its latest retained record.
+        if (recentErrors.find(item => item.metadata?.fingerprint === fingerprint) === record) group.errorId = serverId;
+      }
+    }
   } catch (networkErr) {
     console.warn('[ErrorTracker] Failed to ship telemetry to server:', networkErr);
   }

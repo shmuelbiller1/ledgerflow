@@ -45,7 +45,7 @@ test.describe('Keyboard', () => {
       await page.keyboard.press('Enter');
     };
     await press('Money In');
-    await press('Invoices & AP');
+    await press('Invoices');
     await page.getByRole('button', { name: /Add Invoice/ }).first().focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible();
@@ -64,6 +64,7 @@ test.describe('Keyboard', () => {
         return (byFor || el.getAttribute('aria-label') || el.textContent || '').trim();
       });
       reached.add(label);
+      if (label === 'More options') await page.keyboard.press('Enter');
       if (label === 'Item / Description') await page.keyboard.type('Consulting');
       if (/^Rate/.test(label)) await page.keyboard.type('120');
     }
@@ -366,8 +367,8 @@ test.describe('Keyboard', () => {
 
     // 1. Navigate to Sales → Customers & Clients and create a customer via keyboard
     await pressButton('Money In');
-    await pressButton('Invoices & AP');
-    await pressButton('Customers & Clients');
+    await pressButton('Invoices');
+    await pressButton('Customers');
     const newCustomerInput = page.getByLabel('New customer name');
     await newCustomerInput.focus();
     await expect(newCustomerInput).toBeFocused();
@@ -376,7 +377,7 @@ test.describe('Keyboard', () => {
     await expect(page.locator('#main-content')).toContainText('H3 Keyboard Customer');
 
     // 2. Switch to Invoices & AP and issue an invoice for that customer via keyboard
-    await pressButton('Invoices & AP');
+    await pressButton('Invoices');
     await pressButton(/Add Invoice/);
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible();
     await page.getByLabel('Customer', { exact: true }).focus();
@@ -390,6 +391,7 @@ test.describe('Keyboard', () => {
         const byFor = id ? document.querySelector(`label[for="${id}"]`)?.textContent : '';
         return (byFor || el.getAttribute('aria-label') || el.textContent || '').trim();
       });
+      if (label === 'More options') await page.keyboard.press('Enter');
       if (label === 'Item / Description') await page.keyboard.type('Advisory Retainer');
       if (/^Rate/.test(label)) await page.keyboard.type('250');
       if (label === 'Save & Close') break;

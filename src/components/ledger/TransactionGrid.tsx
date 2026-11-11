@@ -7,7 +7,7 @@ import { Transaction, FilterCriteria } from '../../types';
 
 import { toast } from 'sonner';
 
-import { gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
+import { emptyLabelColumns, gridTemplate, gridTracks, orderedGridTracks } from '../../lib/transactionColumns';
 import { gridFieldEditable, gridFieldLabel, gridFields, reconcileGridFocus, type GridFocus } from '../../lib/ledgerGridNav';
 import { listStateFromParams, listStateToParams, replaceSearchParams } from '../../lib/listPermalink';
 import { useTransactionColumnLayout } from '../../hooks/useTransactionColumnLayout';
@@ -29,6 +29,7 @@ import { useSavedViewsStore } from '../../stores/useSavedViewsStore';
 import { useAutoRules } from '../../hooks/useAutoRules';
 import { useRecordFocus } from '../../hooks/useRecordFocus';
 import { VirtualRowProps } from './TransactionGridShared';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 function useTransactionGridModel() {
   const formId = useId();
   const transactions = useLedgerStore(s => s.transactions);
@@ -202,9 +203,9 @@ function useTransactionGridModel() {
     }
 
     return {
-      category: Array.from(categoriesSet).sort(),
-      project: Array.from(projectsSet).sort(),
-      status: Array.from(statusesSet).sort()
+      category: Array.from(categoriesSet).sort(byCodeUnit),
+      project: Array.from(projectsSet).sort(byCodeUnit),
+      status: Array.from(statusesSet).sort(byCodeUnit)
     };
   }, [safeTransactions, accounts]);
 
@@ -269,9 +270,11 @@ function useTransactionGridModel() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const rowHeight = isCompactMode ? (isMobileGrid ? 44 : 32) : isProMode ? 44 : 72;
+  // phones keep a 44px row (touch target) in every density
+  const rowHeight = isMobileGrid ? (isCompactMode || isProMode ? 44 : 52) : isCompactMode ? 32 : isProMode ? 40 : 52;
   // one width per cell the rows draw (desktop rows also have a running balance and actions)
-  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout);
+  const emptyColumns = useMemo(() => emptyLabelColumns(transactionsWithBalance), [transactionsWithBalance]);
+  const gridCols = gridTemplate({ mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode }, hiddenColumns, columnLayout, emptyColumns);
 
   const trackLayout = { mobile: isMobileGrid, tablet: isTabletGrid, compact: isProMode || isCompactMode };
   const naturalColumnOrder = gridTracks(trackLayout, hiddenColumns).map(([id]) => id);
@@ -339,7 +342,7 @@ function useTransactionGridModel() {
     downloadCsv(`ledger_export_${getLocalDateISO()}.csv`,
       ['Date', 'Description', 'Category', 'Project', 'Amount', 'Currency', 'Status'],
       transactionsWithBalance.map(t => [t.date, t.description, resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || 'General', csvMoney(signedCents(t)), t.currency || '', t.status]));
-    toast.success('Ledger Export Matrix Generated');
+    toast.success('Transactions exported');
   };
 
   const handleBulkUpdate = useCallback(async (updates: Partial<Transaction>) => {

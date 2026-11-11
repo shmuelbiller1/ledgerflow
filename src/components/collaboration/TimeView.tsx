@@ -14,6 +14,8 @@ import { useHandOvers } from './useHandOvers';
 import TimeRatesPanel from './TimeRatesPanel';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import TimeTimer from './TimeTimer';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
@@ -36,6 +38,7 @@ async function call(workspaceId: string, path: string, method = 'GET', body?: un
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
   const { loading } = useLedgerCollections('customers', 'projects');
+  const dataHealth = useScreenDataHealth(['customers', 'projects']);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const uid = useAuthStore(s => s.user?.uid) || '';
   const role = useCurrentRole();
@@ -139,6 +142,7 @@ export default function TimeView() {
   return (
     <div className="h-full overflow-auto p-6 md:p-8">
       <div className="max-w-5xl mx-auto space-y-5">
+        <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
         <header className="space-y-1">
           <h1 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2"><Clock className="w-6 h-6" aria-hidden="true" /> Time</h1>
           <p className="text-sm text-[var(--muted)]">Log what you worked on and submit it. Owners and accountants approve it; approved billable time becomes a draft invoice for its customer.</p>

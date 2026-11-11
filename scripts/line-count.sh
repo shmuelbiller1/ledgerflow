@@ -14,7 +14,7 @@ done_=$(grep -c '^[[:space:]]*- \[x\]' docs/TRACKER.md || true)
 queues=$(awk '/^## /{h=$0} /^- \[ \]/{ if (match(h,/AI #[0-9]+/)) c[substr(h,RSTART+4,RLENGTH-4)]++ } END{for(k in c) printf "#%s:%d ", k, c[k]}' docs/COORDINATION.md | tr ' ' '\n' | sort -t'#' -k2 -n | tr '\n' ' ' | sed 's/ *$//')
 day=$(date -u +%Y-%m-%d)
 f=docs/LINE_COUNT.md
-if [ ! -f "$f" ]; then
+if [[ ! -f "$f" ]]; then
   printf '# Lines of code, one row per day\n\nApp = src without tests; Tests = unit + browser tests; To-do = items in docs/TRACKER.md (the lead list); AI queues = open tasks per AI in docs/COORDINATION.md. Written by scripts/line-count.sh (daily by GitHub Actions).\n\n| Date | App | Tests | SQL | Docs | Total | To-do open | To-do done | List 2 open | AI queues (open) |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---|\n' > "$f"
 fi
 grep -v "^| $day |" "$f" > "$f.tmp" && mv "$f.tmp" "$f"

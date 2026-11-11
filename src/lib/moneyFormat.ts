@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { currencyDigits } from './currencyMinorUnits';
 import { readBrowserWorkspacePrefs } from './workspacePrefs';
+import { isPlainDecimal } from './textShape';
 
 // Set default rounding mode to HALF_UP (standard financial rounding)
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP });
@@ -158,6 +159,8 @@ export function isAmountText(val: string, opts: { complete?: boolean; locale?: s
   const text = decimalCommaAsPoint(plainAmountText(val), opts);
   const inner = text.replace(/^\(/, '').replace(/\)$/, '').trim();
   if (!/\d/.test(inner)) return false;
+  // No real amount is this long; the patterns below would only slow down on such text.
+  if (inner.length > 48) return false;
   if ((inner.match(/[-+]/g) || []).length > 1) return false;
   if (opts.complete) {
     if (text.startsWith('(') !== text.endsWith(')')) return false;
@@ -176,7 +179,7 @@ export function parseAmountToCents(val: string | number | undefined | null, opts
   if (!/\d/.test(text)) return 0;
   if (/\d[\s\p{L}\p{Sc}]*[+*/×÷=][\s\p{L}\p{Sc}(]*\d/u.test(text)) throw new Error(`"${text}" is not an amount`);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
-  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleanStr)) throw new Error(`"${text}" is not an amount`);
+  if (!isPlainDecimal(cleanStr)) throw new Error(`"${text}" is not an amount`);
   const cents = new Decimal(cleanStr).mul(100).round().toNumber();
   return text.startsWith('(') ? -Math.abs(cents) : cents;
 }

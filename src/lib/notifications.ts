@@ -6,6 +6,7 @@
  */
 import { workspaceRole } from './periodLock';
 
+import { BRAND_NAME } from '../config/brand';
 type Role = 'owner' | 'accountant' | 'bookkeeper' | 'viewer';
 const BOOKS: Role[] = ['owner', 'accountant', 'bookkeeper'];
 
@@ -24,7 +25,7 @@ export const NOTIFICATION_TYPES = {
   'recurring.failed': { label: 'A recurring invoice, bill, estimate or entry could not be created', roles: BOOKS, tab: 'recurring' },
   'payment.received': { label: 'A customer payment was received', roles: BOOKS, tab: 'payments' },
   'payment.failed': { label: "A customer's online payment did not go through", roles: BOOKS, tab: 'sales' },
-  'subscription.payment_failed': { label: 'The LedgerFlow plan could not be charged', roles: ['owner'] as Role[], tab: 'settings' },
+  'subscription.payment_failed': { label: `The ${BRAND_NAME} plan could not be charged`, roles: ['owner'] as Role[], tab: 'settings' },
   'email.bounced': { label: 'An email to a customer bounced or was marked as spam', roles: BOOKS, tab: 'sales' },
   'bank.disconnected': { label: 'A bank connection needs to be reconnected', roles: BOOKS, tab: 'banking' },
   'member.invited': { label: 'Someone was invited to the workspace', roles: ['owner'] as Role[], tab: 'settings' },

@@ -1,6 +1,7 @@
 import { cn } from '../../lib/utils';
 import { useApiHubModel } from './useApiHubModel';
 
+import { BRAND_NAME } from '../../config/brand';
 export function ApiHubDocsNavigation({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { activeDoc, setActiveDoc } = model;
  return (<div className="w-full md:w-64 border-r border-[var(--line)] overflow-y-auto bg-[var(--ink)]/20 p-4 shrink-0 space-y-6">
@@ -54,7 +55,7 @@ export function ApiHubDocsNavigation({ model }: { model: ReturnType<typeof useAp
              </div>
 
              <div>
-                <div className="font-bold text-[10px] text-[var(--muted)] uppercase tracking-wider mb-3 px-2">AI LedgerFlow AI & ML</div>
+                <div className="font-bold text-[10px] text-[var(--muted)] uppercase tracking-wider mb-3 px-2">AI {BRAND_NAME} AI & ML</div>
                 <div className="space-y-1">
                   <button onClick={() => setActiveDoc('post-brain')} className={cn("w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-all", activeDoc === 'post-brain' ? "bg-[var(--surface)] shadow-sm font-bold border border-[var(--line)] text-[#8A2BE2]" : "hover:bg-[var(--ink)]/50")}>POST /brain/analyze</button>
                   <button onClick={() => setActiveDoc('post-classify')} className={cn("w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-all", activeDoc === 'post-classify' ? "bg-[var(--surface)] shadow-sm font-bold border border-[var(--line)] text-[#d1502c]" : "hover:bg-[var(--ink)]/50")}>POST /brain/classify</button>
@@ -70,7 +71,7 @@ export function ApiHubDocGetStatus({ model }: { model: ReturnType<typeof useApiH
  return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  <div>
                     <h2 className="text-2xl font-bold font-display mb-2">Check Engine Status</h2>
-                    <p className="text-[var(--muted)]">Pings the LedgerFlow core API and returns active workspace metadata, currency settings, and uptime telemetry.</p>
+                    <p className="text-[var(--muted)]">Pings the {BRAND_NAME} core API and returns active workspace metadata, currency settings, and uptime telemetry.</p>
                  </div>
 
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
@@ -186,7 +187,7 @@ fetch(url, {
 
                  <p className="text-xs text-[var(--muted)] bg-slate-900/10 p-4 rounded-xl border border-indigo-600/20">
                    <strong>💡 Auto-Balancing:</strong> The example above uses <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">amountCents</code> instead of strict <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">lines</code>.
-                   The LedgerFlow engine will intuitively pair your default operational expense and liquid asset accounts to balance the entry automatically. To specify multi-line distribution, pass an array of <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">lines</code>.
+                   The {BRAND_NAME} engine will intuitively pair your default operational expense and liquid asset accounts to balance the entry automatically. To specify multi-line distribution, pass an array of <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">lines</code>.
                  </p>
                </div>);
 }
@@ -196,11 +197,11 @@ export function ApiHubDocPostBrain({ model }: { model: ReturnType<typeof useApiH
  return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  <div>
                     <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">
-                       Analyze with AI LedgerFlow AI
+                       Analyze with AI {BRAND_NAME} AI
                        <span className="text-[10px] bg-[#8A2BE2] text-white px-2 py-0.5 rounded-full tracking-widest uppercase">POST</span>
                     </h2>
                     <p className="text-[var(--muted)]">
-                      Ask the LedgerFlow AI engine a question about your financial data. The deep engine securely compiles your ledger context and queries the rule models directly.
+                      Ask the {BRAND_NAME} AI engine a question about your financial data. The deep engine securely compiles your ledger context and queries the rule models directly.
                     </p>
                  </div>
 

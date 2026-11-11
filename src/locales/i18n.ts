@@ -1,8 +1,9 @@
+import { BRAND_NAME } from '../config/brand';
 export type SupportedLocale = 'en' | 'es' | 'fr' | 'de' | 'he';
 
 export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
   en: {
-    'app.title': 'LedgerFlow ERP & Financial Engine',
+    'app.title': `${BRAND_NAME} ERP & Financial Engine`,
     'common.transactions': 'Transactions',
     'common.accounts': 'Chart of Accounts',
     'common.reports': 'Reports & Analytics',
@@ -15,7 +16,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Balance'
   },
   es: {
-    'app.title': 'LedgerFlow ERP y Motor Financiero',
+    'app.title': `${BRAND_NAME} ERP y Motor Financiero`,
     'common.transactions': 'Transacciones',
     'common.accounts': 'Plan de Cuentas',
     'common.reports': 'Informes y Analítica',
@@ -28,7 +29,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Saldo'
   },
   fr: {
-    'app.title': 'LedgerFlow ERP & Moteur Financier',
+    'app.title': `${BRAND_NAME} ERP & Moteur Financier`,
     'common.transactions': 'Transactions',
     'common.accounts': 'Plan Comptable',
     'common.reports': 'Rapports et Analyses',
@@ -41,7 +42,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Solde'
   },
   de: {
-    'app.title': 'LedgerFlow ERP & Finanz-Engine',
+    'app.title': `${BRAND_NAME} ERP & Finanz-Engine`,
     'common.transactions': 'Transaktionen',
     'common.accounts': 'Kontenrahmen',
     'common.reports': 'Berichte & Analysen',
@@ -54,7 +55,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Saldo'
   },
   he: {
-    'app.title': 'LedgerFlow מנוע פיננסי ו-ERP',
+    'app.title': `${BRAND_NAME} מנוע פיננסי ו-ERP`,
     'common.transactions': 'תנועות',
     'common.accounts': 'לוח חשבונות',
     'common.reports': 'דוחות וניתוחים',

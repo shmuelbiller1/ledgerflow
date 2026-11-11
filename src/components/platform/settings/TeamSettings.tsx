@@ -11,6 +11,7 @@ import { EmptyState } from '../../ui/EmptyState';
 import { useTeamRequests } from '../../../hooks/useTeamRequests';
 import { copyWithFeedback } from '../../../lib/clipboard';
 import { planFor } from '../../../lib/plans';
+import { isEmailShape } from '../../../lib/textShape';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -32,6 +33,9 @@ function ScopedTeamSettings() {
   const [loading, setLoading] = useState<boolean>(true);
   
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole>('viewer');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [inviting, setInviting] = useState(false);
   const role = useCurrentRole();
   const canManage = role === 'owner';
   const { request, saving, isCurrent } = useTeamRequests(workspaceId);
@@ -195,11 +199,22 @@ function ScopedTeamSettings() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            <div className="relative sm:col-span-6">
-              <InlineEdit value="" kind="email" label="Invite team member email"
-                placeholder="Type an email and press Enter to invite" canEdit={canManage && !saving && !isSeatLimitReached}
-                onSave={handleSendInvite} />
-            </div>
+            {canManage ? <form className="relative sm:col-span-6 flex gap-2" onSubmit={async event => {
+              event.preventDefault();
+              const email = inviteEmail.trim();
+              if (!isEmailShape(email)) { setInviteError('Enter a valid email address.'); return; }
+              setInviting(true); setInviteError('');
+              try { await handleSendInvite(email); setInviteEmail(''); }
+              catch (failure) { setInviteError(failure instanceof Error ? failure.message : 'The invitation was not created.'); }
+              finally { setInviting(false); }
+            }}>
+              <input type="email" aria-label="Invite team member email" value={inviteEmail} placeholder="name@example.com"
+                disabled={!canManage || saving || inviting || isSeatLimitReached} onChange={event => { setInviteEmail(event.target.value); setInviteError(''); }}
+                className="min-h-11 flex-1 min-w-0 px-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-sm text-[var(--text)]" />
+              <button type="submit" disabled={!canManage || saving || inviting || isSeatLimitReached || !inviteEmail.trim()}
+                className="min-h-11 px-4 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{inviting ? 'Sending…' : 'Send invite'}</button>
+              {inviteError && <p role="alert" className="absolute -bottom-6 left-0 text-xs text-rose-400">{inviteError}</p>}
+            </form> : <p className="sm:col-span-6 text-sm text-[var(--muted)]">Only the workspace owner can invite people.</p>}
 
             <div className="sm:col-span-4">
               <select disabled={!canManage || saving} aria-label="Role for invited team member"

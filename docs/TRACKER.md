@@ -1,6 +1,6 @@
 # LedgerFlow tracker (kept by Claude)
 
-> AI #1's own open items (helper AIs: use [`CURRENT_WORK.md`](../CURRENT_WORK.md)). Finished items moved to [`docs/archive/TRACKER_DONE.md`](archive/TRACKER_DONE.md) on 20 Oct. Old instructions further down that say "work on main" are AI #1's rule only — every other AI uses its own branch and a PR.
+Finished items moved to [`docs/archive/TRACKER_DONE.md`](archive/TRACKER_DONE.md) on 20 Oct and 10 Nov 2026.
 
 
 This is the working plan: what is done, what is next, and the full 864-item list. Claude
@@ -394,102 +394,9 @@ WRAPPER — paste at the top of every prompt
   npm run test:rules · npm run test:e2e
 ```
 
-## Batch 1 — makes CI fully green ✔ DONE (7160b13 + 9f9c419)
+*This finished (✔ DONE) section was moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
-**CARD 1.1 — Test helpers must set `createdAt`** (3 type errors)
-- Where: `src/tests/fixtures.ts` — `makePayment` (line 56), `makeCreditNote` (74), `makeVendorCredit` (88).
-- Change: in each of the three, add this line directly **above** `...overrides`:
-  ```ts
-      createdAt: '2026-01-01T00:00:00.000Z',
-  ```
-- Done when: `npm run lint:types` → no errors.
-
-**CARD 1.2 — Remove the 34 `as any` casts from tests** (ESLint over the limit)
-- Where: `src/tests/report-contract.test.ts` lines 22, 55, 195, 211, 227, 243, 253, 281, 294,
-  306, 315, 319, 324 · `src/tests/reports-math.test.ts` lines 16, 21, 29, 34, 38, 63, 78, 82,
-  86, 103, 106, 109, 122, 125, 128, 142, 146, 149, 160, 163 · `src/tests/document-math-tax.test.ts` line 158.
-- Change: wrap every object in the matching helper from `src/tests/fixtures.ts`
-  (`makeCustomer`, `makeVendor`, `makeInvoice`, `makeBill`, `makePayment`, `makeCreditNote`,
-  `makeVendorCredit`, `makeChartAccount`, `makeTransaction`), give the array a real type, drop the cast:
-  ```ts
-  // before
-  const mockCustomers = [
-    { id: 'cust-1', name: 'Acme Corp', email: 'acme@example.com', phone: '555-0101' },
-  ] as any[];
-  // after
-  const mockCustomers: Customer[] = [
-    makeCustomer({ id: 'cust-1', name: 'Acme Corp', email: 'acme@example.com', phone: '555-0101' }),
-  ];
-  ```
-  At the top of each test file add the imports it needs, e.g.
-  `import { makeCustomer, makeInvoice, makePayment } from './fixtures';` and
-  `import type { Customer, Invoice, Payment } from '../types';`.
-  `document-math-tax.test.ts:158`: the literal has `totalCents`, a field Invoice dropped on
-  purpose and nothing reads. Pass `makeInvoice({ id: invoice.id, date: invoice.date,
-  amountCents: invoice.amountCents, salesTaxCents: invoice.salesTaxCents, status: invoice.status })`.
-  Same values, same expected numbers.
-- Done when: `grep -c "as any" <each file>` → 0 · `npm test` → all pass.
-
-**CARD 1.3 — Saved-view chip: no button inside a button** (Overview accessibility)
-- Where: `src/components/ui/SavedViewsBar.tsx` lines 84–138.
-- Change (3 edits):
-  1. On the outer `<div key={view.id}` delete `role="button"`, `tabIndex={0}`, `onClick={...}`
-     and the whole `onKeyDown={...}` block. Keep its `className`.
-  2. Right after that div's opening `>`, open a real button around the icon + text:
-     ```tsx
-     <button
-       type="button"
-       aria-pressed={isActive}
-       onClick={() => setActiveView(isActive ? null : view.id)}
-       className="flex items-center gap-2 text-left"
-     >
-     ```
-  3. Close it with `</button>` just before the existing star `<button type="button"` — so the
-     star button becomes a sibling, not a child.
-- Done when: `npm run test:e2e` → "Navigate and mount view: Overview" passes.
-
-**CARD 1.4 — Lower the warning limit**
-- Where: `package.json` line 16 (`"lint:eslint": "eslint . --max-warnings 2816"`).
-- Change: after 1.2 and 1.3, run `npx eslint . 2>&1 | tail -1`, put that number in place
-  of 2816 (it must be ≤ 2808), then run `npm run ratchet:update`.
-- Done when: `npm run lint:eslint` passes; both GitHub CI jobs green.
-
-## Batch 6 — ✔ DONE in cdd1f46 (leftovers moved into Prompt L Part 2)
-
-**CARD 6.1 — Remove the unused endpoint** (fixes both CI failures)
-- Where: `src/server/routes/transactionRoutes.ts` — delete the whole
-  `transactionRouter.post('/bank-lines/:id/unmatch', …)` block added in `5119ad2`, and its
-  `import { requireWorkspaceRole } from './workspaceRoutes';` line if 6.2 doesn't use it.
-- Done when: `npm run lint:eslint` passes (≤ 2803) and `npm test` → 324/324.
-
-**CARD 6.2 — Harden the real reconcile endpoint** (`transactionRoutes.ts:657`, `POST /reconcile`)
-- a. Role: add `requireWorkspaceRole(['owner', 'accountant', 'bookkeeper'])` as middleware
-  (import from `./workspaceRoutes`) — viewers get 403.
-- b. Locked period: after loading each bank line and transaction the operations touch, if
-  its `date` is on or before the workspace `lockDate`, return
-  `400 { error: 'This period is locked' }` and write nothing.
-- c. Audit: in the same batch, write one `auditLogs` entry per call with the standard fields
-  `{ workspaceId, uid, action: 'reconcile' (or 'reconcile_undo' when a line goes back to
-  pending), details, severity: 'info', timestamp }` — the fields `AuditLogViewer` reads.
-- d. Types: use the existing authenticated-request type instead of `(req as any)`, and
-  `catch (e)` with `e instanceof Error ? e.message : String(e)` — no new `any`.
-- e. Tests (new `src/tests/reconcile-endpoint.test.ts` or the existing route tests):
-  viewer → 403 · line dated inside a locked period → 400 · undo sets the bank line to
-  `pending` + `matchedTransactionId: null` **and** the transaction back to `completed` ·
-  one audit entry written.
-- Done when: all 7 checks pass.
-
-**CARD 6.3 — One local-date helper**
-- `src/lib/utils.ts`: keep `getLocalDateISO` (line 142 — follows the workspace timezone).
-  Replace every `getLocalDateIso` import/call with `getLocalDateISO` in: `sales/Sales.tsx`,
-  `platform/settings/BackupExportSettings.tsx`, `platform/ToolSandbox.tsx`,
-  `hr/PayrollView.tsx`, `banking/TransferModal.tsx`, `lib/paymentTerms.ts`,
-  `lib/depreciationEngine.ts`, `lib/estimateConverter.ts`, `lib/creditNoteEngine.ts`.
-  Then delete `getLocalDateIso` (line 397).
-- Watch out: `src/lib/*` files are also used on the server, where there is no signed-in
-  workspace — `getLocalDateISO` falls back to UTC there; pass the workspace timezone in
-  from the caller when it's known (`formatTzDate(d, workspace.timezone)`).
-- Done when: `grep -rn "getLocalDateIso" src` → nothing; all tests pass.
+*This finished (✔ DONE) section was moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 ## Batch 2 — dates (now Prompt L Part 3, with updated line numbers)
 
@@ -1327,7 +1234,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] L-67 Protect `main`: require both CI jobs before merging (GitHub setting — you) — would have blocked 5119ad2
 - [ ] L-83 Verify the database TLS certificate (`DATABASE_CA_CERT`) — **waits for you** (docs/FOR_YOU.md #6): the server already verifies the certificate as soon as `DATABASE_CA_CERT` is set in Vercel (`src/server/db/pgFirestore.ts`); without it the connection is encrypted but not verified
 - [ ] L-84 Custom SMTP sender for sign-up / reset emails
-- [x] L-94 Build invoice/bill postings on the server (with the document engine) — design 21 Oct: `docs/design/L-94-server-postings.md`; **step 0 done 21 Oct**: entry builders import only `postingCore.ts` (no Firebase client, stores, toasts), the browser registers its host in `postingKit.ts`, `context.capture` collects entries, guard test `l94-posting-core.test.ts`. **step 1 shadow done 21 Oct** (`postingShadowCheck.ts` logs any difference after each invoice/bill save). Next: read the logs of the first testers; then refuse a mismatch (409), then step 2 **Done (24 Oct, checked by AI #1):** L94-STEP2 (#308) and L94-STEP2B: the server builds the entries of invoices, bills, credit notes and vendor credits (`POST /api/v1/documents/:type/:id/post`); `/transactions/bulk` refuses those documents and any entry naming one (`documentPostedByServer`, tests `l94-step2-document-post`, `l94-step2b-documents`). The shadow check lives on in the tests only, so no live logs are needed before enforcing.
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [ ] L-123 Later: balances and reports need every entry in the browser. Move them to the server (opening balances per closed year) so the browser can load only open years (with C-19)
 
 # SECTION AA–AI — DEFECTS FOUND BY EXECUTION
@@ -1412,7 +1320,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION U — PAYROLL LIFECYCLE
 
-- [x] U-12 (done in 7d41a654: `u12-shared-time.test.ts`) Refuse paying the same time entry twice inside one pay run — **AI #2 review, 11 Oct (TOOL_REVIEW F13), AI #1 payroll ownership**: two active hourly employees can select the same `timeUid`; one approved 60-minute entry at 2500 cents/hour then produces two 2500-cent employee lines, gross 5000 cents. Later-run paid markers do not deduplicate this run. Agree the employee/person linking rule or authoritative allocation, and verify duplicate-entry refusal on the server and approval/release lifecycle. Pure selector/totals reproduction confirmed; no synthetic payroll posting performed.
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 # SECTION V — PROJECTS & TIME
 
@@ -1420,7 +1329,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION W — INVENTORY DEPTH
 
-- [x] W-07 Assembly / kitting — covered by kits built from parts: bundles (BF-03, `itemBundles`), Kit Assembly plan (A-116, `kitAssembly`) and work orders with pick lists (A-169, `WorkOrdersView`); a kit sold uses its parts' stock. Building kits ahead into their own stock (a finished-goods item) is not done, by design — FOR_YOU #55; ticked 8 Nov
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [~] W-08 Backorder + drop-ship — **backorders done 10 Oct**: Reports → Backorders: sales orders' item lines still to deliver, oldest order first, against stock on hand (what each takes from stock and what it is short), and each short item in all with what is on order from vendors and what is still to buy; read-only (`src/lib/backorders.ts`, `BackordersReportView.tsx`; tests `backorders.test.tsx`). **Open:** drop-ship (a sales order line bought from a vendor and sent straight to the customer)
 
 # SECTION X — FIXED ASSET LIFECYCLE
@@ -1434,7 +1344,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] Y-07 Yodlee
 - [ ] Y-29 Sending domain with SPF/DKIM
 - [ ] Y-32 Data region selection
-- [x] Y-35 Rounding policy setting — Settings → Appearance "Tax rounding": half up (default, unchanged), half to even, or down; invoices and bills use it for the tax when created or edited (`roundTaxCents` in `src/lib/taxCodes.ts`; migration `20261101000000_workspace_tax_rounding`)
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 # SECTION Z — API · DATA QUALITY · MULTI-ENTITY · INTEGRATIONS
 
@@ -1548,7 +1459,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION BH–BP — CURRENCY · COMPLIANCE · OPS
 
-- [x] BH-02 Storage model decision for 3-decimal currencies — (decided and built with BM-04, PR #322: three-decimal dinars stored as fils; ticked 2 Nov)
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [ ] BI-01 Fund accounting (vertical — recommend not building)
 - [ ] BI-02 Grant tracking
 - [ ] BI-03 SOA / SOFP
@@ -1566,32 +1478,23 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BI-15 Restaurant Z-report
 - [ ] BI-16 Marketplace settlement
 - [ ] BJ-01 SOC 2 evidence export
-- [x] BJ-02 Audit evidence pack (codex, 25 Oct, PR #381): Settings → Security → Audit evidence pack downloads one ZIP for a chosen period — audit trail, period locks, approvals, approval rules and the access review, each a CSV, plus a README of its limits. Browser-built; no server, schema or posting change. See `docs/verification/ai2-c35-c36-2026-10-25.md`.
-- [x] BJ-03 Access review report (codex, 25 Oct, PR #381): Settings → Security → Access review lists every person with role, last recorded sign-in, two-step login and last role change, CSV and print, owners and accountants, read-only; limits (500-entry trail window, another person's authenticator not readable) said on screen. See `docs/verification/ai2-c35-c36-2026-10-25.md`.
 - [ ] BJ-07 Breach notification
 - [ ] BJ-10 ISO 27001 mapping
 - [ ] BK-02 QBO API import
 - [~] BK-03 Wave import — **10 Oct (Claude)**: Wave's customers, vendors, items and chart of accounts exports import with their columns and account types recognised (CE-09). **Open:** its transactions.
 - [ ] BK-04 FreshBooks import
-- [x] BK-10 Full workspace archive — (AI #5, E-21: `src/lib/workspaceArchive.ts`, Settings → Backup & Export; ticked 2 Nov)
 - [ ] BL-02 Spam complaints
 - [ ] BL-04 Sender verification
 - [ ] BL-06 Resend
 - [ ] BL-07 Open / click tracking
-- [x] BM-04 Per-currency rounding — (AI #9, PR #322: `src/lib/currencyMinorUnits.ts`, amounts in each currency's own minor units; design `docs/design/BM-04-currency-minor-units.md`; ticked 2 Nov)
 - [~] BM-05 RTL number alignment (AI #1 Appearance settings shipped; AI #2, 11 Oct: P&L, balance sheet, period columns and aging/document-detail/totals isolate existing locale-formatted money with bdi; he-IL minus/accounting DOM cases, mixed Hebrew identity and phone CSV/print verified. Shared Money isolation retained. Remaining primary sales/purchase document lists belong to AI #1; no amounts or financial CSV formats changed.)
-- [x] BM-06 `rateUsedId` per line — (AI #9, PR #332: `metadata.ratesUsed` on payment entries, shown in the entry detail; `src/tests/bm06-rate-used.test.ts`; ticked 2 Nov)
-- [x] BN-01 Structured JSON logging *(AI #1, 1 Nov, D-21: `src/server/utils/logger.ts` adds the request context (id, method, route, workspace) to every line and redacts personal fields; `src/server/http/requestContext.ts` gives each request an `x-request-id` and writes one JSON access line per /api request instead of the morgan text line; test `structured-logging.test.ts`.)*
-- [x] BN-02 Slow-query log *(AI #1, 1 Nov, D-22: `src/server/db/slowQueryLog.ts` times every pool and transaction query; one over 500 ms (or `SLOW_QUERY_MS`) is logged with its shape only — literals as `?`, parameter count, never values — plus the request context from the D-21 logger; test `slow-query-log.test.ts`.)*
 - [ ] BN-03 Usage dashboard
 - [ ] BN-04 SLO tracking
 - [ ] BN-05 Synthetic uptime
 - [ ] BN-06 Alert routing
-- [x] BN-07 Runbooks — (AI #4, D-14: `docs/runbooks/`; ticked 2 Nov)
 - [ ] BO-04 Video walkthroughs
 - [ ] BP-01 Docker compose
 - [ ] BP-02 Emulator setup docs
-- [x] BP-03 ADRs — (AI #4, D-13: `docs/adr/` 0001–0007; ticked 2 Nov)
 - [ ] BP-04 Storybook
 - [ ] BP-06 Load tests
 - [ ] BP-07 Canary rollout
@@ -1610,8 +1513,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CA-22 Coupons
 - [ ] CA-23 Loyalty
 - [ ] CA-24 Shipping rules
-- [x] CA-28 Mode of payment — Settings → Defaults has one account per payment method (cash, check, transfer, card, other), preselected on Record payment; unset = the Bank default (`paymentModeAccountId` in `src/lib/accountDefaults.ts`)
-- [x] CA-29 Party link — a customer can be linked to the vendor that is the same business (customer page); both pages show what they owe us, what we owe them and the net (`src/lib/partyLink.ts`, `PartyLinkPanel`; migration `20261102000000_customer_linked_vendor`)
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [ ] CA-30 Payment request
 - [ ] CA-31 Payment order
 - [ ] CB-15 Partner commission
@@ -1621,16 +1524,8 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CC-01 Per-recipient invitation links + view tracking
 - [ ] CC-02 Design templates
 - [ ] CC-03 Proposals
-- [x] CC-04 Recurring quotes — Reports → Customer quotes: "Repeat this estimate" saves a monthly/quarterly/yearly schedule; the daily job makes a numbered draft estimate on each date (no signing link, nothing sent) and tells the team (`generateEstimate` in `recurringService.ts`, `estimate.draft_ready`)
 - [ ] CC-06 Gateway tokens
 - [ ] CC-07 Multiple gateways
-- [x] CC-08 Payment terms entity — Settings has the workspace's own Net N terms (1–365 days) next to Due on Receipt / Net 15 / 30 / 60; invoices offer them and set the due date (`termOptions`, `PaymentTermsSettings`; migration `20261102010000_workspace_payment_terms`)
-- [x] CC-09 Payment types entity — Settings has the workspace's own payment types (e.g. PayPal under Card; changed only through the server, one change at a time); Record payment offers them, the server takes the type's method and name from the workspace and keeps the name on the payment (`src/lib/paymentTypes.ts`, `PaymentTypesSettings`; migration `20261102020000_workspace_payment_types`)
-- [x] CC-10 Expense categories — (AI #5, E-22: `src/lib/expenseAccountCategories.ts`, Expenses by Category; ticked 2 Nov)
-- [x] CC-11 Client-group settings — Settings has customer groups with default payment terms (kept by the server, one change at a time); a customer joins a group on its page and new invoices take the group's terms when it has none (`src/lib/customerGroups.ts`, `customerGroupService`, `CustomerGroupsSettings`; migration `20261102030000_customer_groups`)
-- [x] CC-12 Passkeys — "Sign in with a passkey" on the sign-in screen and a Passkeys section in Settings → Security (add with a name, list, remove) through Supabase Auth's WebAuthn; an authenticator-app user still gives the code (`src/lib/db/auth.ts`, `PasskeySettings`, `passkeys.test.tsx`); needs passkeys enabled in Supabase (FOR_YOU #49); ticked 7 Nov
-- [x] CC-13 User-defined scheduler — covered by the schedules users already set: recurring invoices/bills/entries/estimates (`recurringService`), scheduled reports (K-28, `scheduledReportService`), payment reminders and monthly statements (BE-01/BE-07, `reminderService`, `statementMonthDue`); ticked 7 Nov
-- [x] CC-14 Tasks + statuses — same item as BG-03: tasks given to a workspace member, optionally about a record, with a due date and open/done status (`src/lib/tasks.ts`, `taskService`, `TasksView`); ticked 7 Nov
 - [ ] CC-15 E-invoicing log
 - [ ] CC-16 System log
 - [ ] CD-01 Scheduled transactions
@@ -1653,7 +1548,6 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CF-03 Rate hierarchy
 - [ ] CF-04 Working time / capacity
 - [ ] CF-05 Per-user bookmarks
-- [x] CF-06 Export templates — **26 Oct (AI #2, C-38):** named C-29 column/order choices for indexed report tables and statement period groups, scoped per user/workspace/report on this browser. Apply then use the existing CSV action; changed schemas are refused, and blocked storage is explicit. The feature is on `main`; `export-templates.test.tsx` 4/4 and `column-chooser.test.tsx` re-verified at `116ee530`. Earlier fifteen targeted tests and phone CSV download remain historical evidence.
 - [ ] CF-07 Comments on customer / project
 - [~] CF-08 Meta fields on any entity — **14 Oct (AI #3)**: A-36 keeps notes as meta fields on eight record kinds and A-37 defines custom fields (text/number/date/choice) on customers, vendors and items with their values in each record's metadata; “any entity” beyond those kinds waits on the reserved document forms.
 - [ ] CG-02 Unit of measure
@@ -1744,16 +1638,14 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 
 ### From the owner's second AI audit (13 Oct) — only the parts the code check showed are real gaps
 - [~] AU-1 (17 Oct: server done — `/sync` uses `/transactions/sync` from a saved `syncCursor` per connection, all pages, cursor saved only after the last page, a mid-read change restarts from the same cursor; returns `transactions` (added) plus `modified` and `removed`; test `plaid-sync-cursor.test.ts`. 31 Oct: corrections and deletions are applied to stored lines on the server (AF-001, #439/#455), and the Plaid webhook is in (`/api/webhook/plaid`: a verified SYNC_UPDATES_AVAILABLE notice syncs that connection from its cursor; `plaid-webhook.test.ts`). Merged as #458 with a first sync on connect, webhook registration on reconnect and 503 for Plaid to retry. Left: you set `PLAID_WEBHOOK_URL` in Vercel, see docs/FOR_YOU.md; follow-up: a durable job queue so the webhook answers at once and a failed first sync is retried on its own, CodeRabbit on #458) Plaid: move from `transactionsGet` (plaidRoutes.ts) to `/transactions/sync` with a saved cursor per item, handling added / modified / removed, webhook replay safe.
-- [x] AU-4 (done in 4e1aafcd: Reports → Import acceptance, `ImportAcceptanceView`) Migration acceptance by reconciliation: after a QuickBooks/CSV import, show trial balance, A/R, A/P, cash and tax payable against the source, not just a record count.
-- [x] ACC-1 (31 Oct: System Command Center → Deep User Matrix → Give access; `POST /api/v1/admin/give-access`, `src/server/routes/giveAccessRoutes.ts`, test `acc1-give-access.test.ts`) Owner "Give access" screen (owner request, 13 Oct): as platform admin, type a person's email, pick Full / Pro / Growth / tester, and it sets bypassBilling or the plan on their workspaces (and can make them admin), with an audit line. Today this needs SQL or the System Command Center per workspace.
-- [x] ACC-1b (31 Oct) Seat checks count the owner twice when the owner is also in `members` (`workspaceRoutes.ts` invite, `invitePublicRoutes.ts` accept, `TeamSettings.tsx`): count unique people (`uid` + `members`), so a 5-seat plan really allows 5. Older than #460; noted there by Codex/CodeRabbit.
-- [x] ACC-2 (31 Oct: the jargon was already gone; free access now says "Free access (given by LedgerFlow)", and plan names come from `src/lib/plans.ts` on the badge and the usage panel) Settings → Billing & Plan: remove jargon ("Precision Core v2.0", "institutional rule bridges", "Documentation Protocol … topological registries"); show "Free access (given by LedgerFlow)" when bypassBilling is on; plan names match everywhere (sandbox/growth vs Free/Growth/Pro).
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 ### Prevent the whole family (owner, 13 Oct: "what can prevent all these types of bugs?") — before the single fixes
 - [~] PREV-0 **Bug-pattern scanner** (13 Oct, done): `scripts/bug-patterns.ts` finds the seven patterns behind #96–#111 in every client file; `docs/BUG_PATTERNS.md` lists each place (a checklist); `src/tests/bug-patterns.test.ts` fails if any count rises and if the issue sites stop being found. Shared fixes in `src/lib/serverAction.ts` (ActionResult, runOnce, workspaceScope, allSettledWrites). First fixes: #105 transfer (success only when saved, one click), #109 bank file only for accepted payments and no double payment on retry.
 - [~] PREV-1 (helpers in `src/lib/serverAction.ts`: runOnce, ActionResult, operationIdFor; used by transfer, payments, import; a single hook still to do) One `useServerAction` hook for every save button: disabled while pending, one idempotency key per click, success shown only after the server confirms, every error shown (never swallowed). Then convert the screens in ISS-A to it.
-- [x] PREV-5 Failure tests by default: a test harness that runs each save action with the server refusing, slow, or switched workspace mid-request, and asserts no success message, no partial write, no stale data. Every new save action gets these three cases. *(AI #9: #313 PREV-5 money-save failure tests, #331 PREV-5b workspace switched mid-save.)*
-- [x] PREV-6 Parsers: fuzz + real-file corpus (F-37, E-56) so import bugs like #101 are found before users. *(AI #9: parser-corpus.test.ts + parser-fuzz.test.ts; odd statement files refused whole.)*
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 ### Public issues (13 Oct) — money/data safety, AI #1 first (GitHub labels `money`, `priority`)
 
@@ -1761,49 +1653,27 @@ C-39 / CB-22 review note (AI #2, 11 Oct): `DiscountMismatchView` compares curren
 
 Each is fixed with the acceptance test its section names. Server, posting, restore, jobs and security items are AI #1's; AUD-13/14/15 may go to a helper queue.
 
-- [x] AUD-01 (merged; ticked 31 Oct) — Statement screen, server JSON and PDF do not have one scope contract
-- [x] AUD-02 (18 Oct: every ledger entry in a backup is checked by the ledger door before anything is read or written — an unbalanced one restores nothing; test in `workspace-restore.test.ts`. 20 Oct: the closed-books check, the other-workspace ownership check and the reads of what is deleted now run inside the one serializable transaction that writes the backup, so nothing can change between checking and writing; 17 backup/restore tests incl. the main path pass. 20 Oct: invoices, bills, projects, credit notes and vendor credits in a backup must have the field types a save accepts (an amount as text refuses the backup; missing fields and older status labels are not judged, and unknown fields are kept); the backup export reads every table in one read-only serializable transaction, so it is one consistent moment of the books) — Restore commits atomically, but validation and ownership reads precede the commit transaction
-- [x] AUD-03 (merged; ticked 31 Oct) — RMA decisions/history remain editable metadata, not server approval authority
-- [x] AUD-04 (merged; ticked 31 Oct) — Scheduled-report pre-marking trades duplicate avoidance for lost delivery and is not a concurrent claim
-- [x] AUD-05 (merged; ticked 31 Oct) — Standalone background-job coverage differs from Vercel
-- [x] AUD-09 — Privileged server access means SQL client guards are not a universal safety net. *31 Oct: step 1, `aud09-write-access.test.ts`: all 89 write routes under `/api/v1/workspaces/:workspaceId` refuse a non-member (403), and every one a viewer may not use refuses a viewer (4xx); the writes a viewer may make by design are listed in `VIEWER_MAY`; `delete /tasks/:taskId` is tested on a real task (#464). 1 Nov: step 2, `aud09-outside-routers.test.ts` (#463): the write routes mounted outside `/workspaces` refuse non-members and viewers; it found that a viewer could post a journal through `/api/v1/revenue/recognize` and `/api/v1/lease/capitalize` (fixed: owner, accountant or bookkeeper). 1 Nov: step 3, `aud09-app-routes.test.ts` (real sign-in tokens) and Plaid in the router sweep: an accountant or bookkeeper could revoke a workspace API key (now owner only, as making one), and a non-member got 500 instead of 403 from `handleApiError` (fixed). A platform admin outside the workspace revokes a key (tested). 1 Nov: valid-body cases (#468): even the owner gets 400 with the reason ("does not belong to authorized workspace", "Period Locked") for another workspace's account or a closed date, on revenue and lease.*
-- [x] AUD-09a (1 Nov) The person who created a workspace can no longer be given another role on the role screen (they always count as owner, so the stored role disagreed); test `creator-role.test.ts` (CodeRabbit on #463).
-- [x] AUD-10 (merged; ticked 31 Oct) — Report fallback and cache completeness need one visible provenance contract
-- [x] AUD-11 (merged; ticked 31 Oct) — Safe-fetch DNS validation is not a pinned connection
-- [x] AUD-12 (merged; ticked 31 Oct) — Static Vercel CSP can disagree with the configurable Supabase project
-- [x] AUD-13 (merged; ticked 31 Oct) — Async auth-derived UI state has no identity generation check
-- [x] AUD-14 (merged; ticked 31 Oct) — A registered receipt algorithm is a hard-coded demonstration
-- [x] AUD-15 (merged; ticked 31 Oct) — Client post-success cache inserts request entries rather than a canonical server result
-- [x] AUD-19 (merged; ticked 31 Oct) — Altman analytical EBIT loses reversal signs
-- [x] AUD-20 (merged; ticked 31 Oct) — Remote database TLS does not authenticate the server unless a CA is supplied
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 ## Issues and connections (18 Oct)
 
-- [~] ISS-130 *(→ AI #9 from 20 Oct; PR open, ai9/ISS-130)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
-- [x] ISS-131 *(AI #9, merged 20 Oct)* Inventory valuation as-of date mixes today's stock with past books (issue #131): historical quantities/costs from stock moves, or the comparison hidden for past dates.
-- [x] ISS-143 RMA approvals and quantities enforced on the server in one transaction (issue #143, with AUD-03). *(AI #9, #302; AUD-03 done by the same PR.)*
-- [x] CON-1 *(AI #9, merged 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
-- [x] CON-2 *(AI #9, merged 20 Oct)* US nexus watch (138) on a screen from posted invoices, for the supported states.
-- [x] CON-3 *(AI #9, merged 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
-- [x] CON-4 *(AI #9, merged 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
-- [x] CON-4b (merged; ticked 31 Oct) (from AI #9, #244) The Israeli VAT return record on the server carries its registration (dealer number), so "filed" can be attributed to one of several registrations; then let the screen clear it per registration. Also check the Eilat Law s.5 subsection numbers against the statute, and the PCN874 bi-monthly header month against the Tax Authority spec.
-- [x] CON-1 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* US sales-tax table (capability 137) and item taxability (139) used by invoice lines for the supported states; label stays "not verified" for others.
+- [x] ISS-130 *(AI #9, merged #259; DB change applied by the owner 21 Oct; issue closed 10 Nov)* Inventory unit-cost edits change stock value without a ledger posting (issue #130): cost changes on stock in hand go through a balanced revaluation entry, or are refused.
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [~] CON-2 *(→ AI #9 from 20 Oct; PR open, ai9/CON-2)* US nexus watch (138) on a screen from posted invoices, for the supported states.
-- [x] CON-3 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel special VAT areas (141, Eilat) applied to invoices with a test.
-- [x] CON-4 (merged; ticked 31 Oct) *(→ AI #9 from 20 Oct)* Israel VAT reporting frequency (161) drives the VAT report period and PCN874.
-- [x] DIM-1 (21 Oct: payments recorded on their own (Record payment, and applying a deposit later) carry the paid invoices'/bills' line labels in proportion; the part not applied stays unlabelled; worked figures in `dim1-payment-records.test.ts`. 18 Oct: invoices and bills — receivable/payable, tax, discount and retainage now carry the lines' labels in proportion, so each label balances; the lines' own revenue/expense lines keep exactly their labels; test `labels-every-side.test.ts`. 19 Oct: the payment posted with a paid invoice/bill now carries the document lines' labels in the same proportions — each label balances and a full payment clears each label's receivable/payable to 0 (300 random cases in `labels-every-side.test.ts`; 404 posting tests pass). Left: payments recorded separately (payment records applied to invoices/bills: bank, fees, FX difference)) Labels on every side of an entry (owner, 18 Oct): today only revenue/expense lines and the cost of goods carry the document line's labels. Carry them (in proportion) to receivable/payable, tax, discount, retainage, the payment entry (bank, fees, FX difference), and stock moves; so a P&L or balance sheet by label is complete. Test: an invoice with two labelled lines, paid with a fee → every line of every entry has the right labels and each label's books balance.
 - [ ] DIM-2 *(→ AI #9 from 20 Oct)* Stock moves keep where an item came from (vendor/bill/receipt line) and where it went (customer, project, label) — with issue #132 / P2-36.
 
 ## Audit of 18 Oct (audit/VERIFIED_BUG_REPORT.md) — AI #1 fixes these, each with the test the report names
 
 - [~] BUG-02 (18 Oct: P&L, balance sheet, trial balance and cash flow drop the server figures when a reload fails and ignore late answers (a request counter); existing report tests pass. Left: a screen test — rendering these views with a workspace set hangs the node test runner (also without the fix), see D-93) A failed report refetch leaves the previous period's server figures under the new date heading (P&L, balance sheet, trial balance, cash flow).
-- [x] DIM-3 (merged; ticked 31 Oct) Each label kind gets an accounting role: informational (no balancing), fully attributed (every line has a value), or self-balancing (each value balances) — so balancing is applied only where it is required (strategy §16).
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 
 ## Integrity follow-up of 18 Oct (owner's request; independent AI examination at 507d3cc)
 
 - [~] INT-6 *(AI #9, PR open, ai9/INT-6: the pay link keys on invoice + amount due, the subscription checkout on workspace + plan + price + current subscription; test `int6-checkout-idempotency.test.ts` with a mocked Stripe)* Stripe Checkout session creation (publicInvoiceRoutes, billingRoutes) sends an idempotency key per invoice + amount, so a double click cannot open two payable sessions.
 - [~] INT-7 *(AI #9, PR #286: the rest above what is due is the customer's credit in Customer Deposits, flagged `refundReview`, with a notice; A/R never negative; test `int7-online-overpayment.test.ts`)* An online payment arriving for an invoice already paid in full is recorded as an overpayment (customer credit) and flagged for refund review — never silently applied twice. (From the owner's "exactly-once impossibility" exam, 18 Oct: we rely on Stripe Checkout + webhook event ids, which already avoids the impossible case.)
-
 
 
 ## AI #2 launch-readiness batch — 26 Oct 2026
@@ -1812,19 +1682,8 @@ Completed or re-verified from `main` `116ee530` on `arena/63bdffa0-ledgerflow`; 
 `docs/verification/ai2-launch-batch-2026-10-26.md`. Screens and presentation only: no money calculation,
 posting, tax maths, `src/server/`, schema, dependency or quality-baseline change.
 
-- [x] **C-38 / CF-06** named export templates: verified existing per-user/workspace/report storage, compatibility refusal and blocked-storage wording.
-- [x] **C-54 / C-91** report empty states: one next-action fallback for empty report tables, explicit states where missing, and a 130-report coverage guard.
-- [x] **C-65** keyboard shortcut help: verified global and registry-backed screen shortcut lists and their tests.
-- [x] **C-67** column chooser on invoices, bills, payments, customers and vendors; locked selection/actions and print restoration.
-- [x] **C-68** print-friendly reports: verified report-only print heading with period/entity and report-pack cover.
-- [x] **C-85** named report views: report, period, comparison and custom dates by user/workspace on this device.
-- [x] **C-87** Excel report exports: one header block with entity, period, basis, currency and generated-at above headings.
-- [x] **C-89** report column chooser: verified `ReportTableScroll` coverage of the ten busiest reports and 82 report files.
-- [x] **C-90** negative formatting: verified one `moneyText` helper and workspace minus/accounting setting.
-- [x] **C-96** exact report links with filters and a stated clipboard-refusal path.
-- [x] **C-97** bilingual, searchable accounting glossary with 36 terms, RTL isolation and help/registry wiring.
-- [x] **C-98** first-bookkeeping checklist: verified existing first-hour guide with bank, import, invoice, bill, payment, reconcile and report steps.
-- [x] **C-101** tax registrations per entity/label: verified existing Tax profiles editor and tests.
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
 - [~] **C-71** empty states everywhere: main lists and registered reports are covered; auxiliary settings/admin lists remain unaudited.
 - [~] **C-86** report scheduling: weekly/monthly schedules are stored and sent; an explicit day picker is still open.
 - [~] **C-88** PDF consistency: Reports and report packs share their heading/cover; specialized server PDF routes remain separate.
@@ -1832,5 +1691,12 @@ posting, tax maths, `src/server/`, schema, dependency or quality-baseline change
 Review round (26 Oct): saved-view comparison/period restore, private query-key allowlisting, blocked-storage drafts, structural report-row detection, incomplete-history empty wording, exact formula-safe Excel headers, the ToolSandbox algorithm period, glossary Hebrew/search and the duplicate CF-06 row were corrected with focused tests. CI workflow `40424080429` refreshed and checked all 40 visual references; 18 intentional PNG changes were reviewed. Details in `docs/verification/ai2-launch-batch-2026-10-26.md` §5.
 
 ## Money input fixes (AI #1, 28–29 Oct)
-- [x] **AF-010** typed amounts: `readAmountCents` on ten screens (#432); quick entry always posts two lines (#431); a mistyped estimate price no longer freezes the price box (#437).
-- [x] **AF-011** decimal comma: `12,50` read 1,250.00 and `1.234,56` read 1.23. Now `1.234,56`, `1 234,56` and `1234,56` read as the decimal everywhere, and `12,50` / `1,23` finish as a decimal only in comma-decimal books, so an en-US save still refuses a half-typed `1,234` (#438).
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+
+
+## UX — the whole front end, screen by screen (owner, 9 Nov: "make sure the UI/UX of the whole site is good, normal and great")
+
+Method for every item: open the screen in a browser at 1280 and 1440 px (and 390 px for phones), fix what is messy, check the screenshot again, then a PR. Plain words only, no made-up figures, one page-header shape (title + one line + actions on the right, like Purchases), tables fit the screen.
+
+*Finished [x] items from this section were moved to [docs/archive/TRACKER_DONE.md](archive/TRACKER_DONE.md) on 10 Nov 2026 (AI #13 cleanup).*
+

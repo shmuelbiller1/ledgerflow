@@ -14,6 +14,7 @@ import { ruleRateTable } from '../lib/tax/ruleRateTable';
 import { isSupportedUsState, lineTaxCategory, usInvoiceTax, US_SUPPORTED_STATES } from '../lib/tax/usInvoiceTax';
 import TaxExemptionNotice from '../components/sales/TaxExemptionNotice';
 import { setComponentWorkspace } from './helpers/componentFixtures';
+import { BRAND_NAME } from '../config/brand';
 
 const DATE = '2026-08-10';
 const profiles: TaxProfiles = {
@@ -136,7 +137,7 @@ describe('CON-1 on the invoice screen', () => {
 
   test('unclear category: confirm with the state', async () => {
     const { text } = await mount(['services']);
-    assert.match(text, /whether Services is taxed in TX is not settled in LedgerFlow's table: confirm with the state and choose the tax yourself/);
+    assert.match(text, new RegExp(String.raw`whether Services is taxed in TX is not settled in ${BRAND_NAME}'s table: confirm with the state and choose the tax yourself`));
     assert.equal(screen.queryByRole('button'), null);
   });
 
@@ -154,7 +155,7 @@ describe('CON-1 on the invoice screen', () => {
 
   test('another state: answered, labelled not verified', async () => {
     const { text } = await mount(['general'], { country: 'US', state: 'IL', city: 'Chicago' }, 0.0625);
-    assert.match(text, /Not verified: LedgerFlow has checked the state tables of TX, CA, NY, WA, CO only\./);
+    assert.match(text, new RegExp(String.raw`Not verified: ${BRAND_NAME} has checked the state tables of TX, CA, NY, WA, CO only\.`));
     assert.equal(screen.queryByRole('button'), null, 'already at 6.25%');
   });
 });

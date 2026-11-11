@@ -17,9 +17,9 @@ export function ActiveFilterChips({ filters, search, onFilters, onSearch }: { fi
   });
   if (search) chips.unshift({ id: 'local-search', label: `List search: ${search}`, remove: () => onSearch('') });
   if (!chips.length) return null;
-  return <section aria-label="Active filters" className="flex flex-wrap items-center gap-2 px-4 pb-4">
-    <span className="text-sm font-semibold">Active filters:</span>
-    {chips.map(chip => <button type="button" key={chip.id} aria-label={`Remove ${chip.label} filter`} onClick={chip.remove} className="min-h-11 rounded-full border border-[var(--line)] bg-[var(--ink)] px-3 text-sm">{chip.label} <span aria-hidden="true">×</span></button>)}
-    <button type="button" onClick={() => { onSearch(''); onFilters({}); }} className="min-h-11 px-3 text-sm underline">Clear All</button>
+  return <section aria-label="Active filters" className="flex flex-wrap items-center gap-2 px-4 py-1.5 border-b border-[var(--line)]">
+    <span className="text-xs font-semibold text-[var(--muted)]">Filters:</span>
+    {chips.map(chip => <button type="button" key={chip.id} aria-label={`Remove ${chip.label} filter`} onClick={chip.remove} className="min-h-11 md:min-h-7 rounded-full border border-[var(--line)] bg-[var(--ink)] px-3 text-sm md:text-xs">{chip.label} <span aria-hidden="true">×</span></button>)}
+    <button type="button" onClick={() => { onSearch(''); onFilters({}); }} className="min-h-11 md:min-h-7 px-2 text-sm md:text-xs underline">Clear All</button>
   </section>;
 }

@@ -9,6 +9,8 @@ import PdfPreviewModal from '../ui/PdfPreviewModal';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import ListColumnChooser from '../ui/ListColumnChooser';
 
 function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
@@ -31,6 +33,7 @@ export default function PaymentsView() {
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
   const { loading } = useLedgerCollections('bills', 'customers', 'invoices', 'payments', 'vendors');
+  const dataHealth = useScreenDataHealth(['bills', 'customers', 'invoices', 'payments', 'vendors']);
   // the paid document's number (the id's second half was shown: 'undefined' for most ids)
   const documentLabel = (alloc: { documentId: string; documentType: string }) => {
     const docs: Array<{ id: string; number?: string }> = alloc.documentType === 'bill' ? bills : invoices;
@@ -51,7 +54,10 @@ export default function PaymentsView() {
   }, [payments, searchTerm]);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    // A-276: w-full min-w-0, so the 800 px table scrolls inside its box on a phone instead of
+    // blowing this flex item out to its content width and clipping off the edge
+    <div className="w-full min-w-0 p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this register" />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-[var(--text)]">Payments Register</h1>

@@ -8,6 +8,7 @@ import { getTrustedAppUrl } from "../utils/urlHelper.ts";
 import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
 import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService.ts";
 
+import { BRAND_NAME } from '../../config/brand';
 export const billingRouter = express.Router();
 
 const errorStatus = (err: unknown) => (errorMessage(err).startsWith('FORBIDDEN') ? 403 : errorMessage(err).startsWith('NOT_FOUND') ? 404 : 500);
@@ -47,7 +48,7 @@ billingRouter.post("/checkout", async (req: express.Request, res: express.Respon
     const priceInfo = {
       price_data: {
         currency: 'usd',
-        product_data: { name: `LedgerFlow ${chosen.name}`, description: chosen.description },
+        product_data: { name: `${BRAND_NAME} ${chosen.name}`, description: chosen.description },
         unit_amount: chosen.monthlyUsd * 100,
         recurring: { interval: 'month' as const },
       },

@@ -31,14 +31,14 @@ test.describe('Transaction list', () => {
     await openAllTransactions(page);
     await expect(page.locator('[data-testid="tx-amount"]')).toHaveCount(2);
     expect((await page.getByTestId('tx-header').boundingBox())!.height).toBeLessThan(70);
-    await expect(page.getByText('Consensus Balanced')).toBeVisible();
+    await expect(page.getByText('Balanced', { exact: true })).toBeVisible();
   });
 
   test('the search is in the address and a shared link opens it (I-17)', async ({ page }) => {
     await page.goto('/?search=Acme#transactions');
     await page.locator('[data-testid="filtered-totals-bar"]').waitFor({ timeout: 15000 });
-    await expect(page.getByRole('textbox', { name: /^(Search within view|Deep search ledger)/ })).toHaveValue('Acme');
-    await page.getByRole('textbox', { name: /^(Search within view|Deep search ledger)/ }).fill('AWS');
+    await expect(page.getByRole('textbox', { name: /^(Search within view|Search entries)/ })).toHaveValue('Acme');
+    await page.getByRole('textbox', { name: /^(Search within view|Search entries)/ }).fill('AWS');
     await expect.poll(() => new URL(page.url()).searchParams.get('search')).toBe('AWS');
   });
 

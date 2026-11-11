@@ -22,7 +22,8 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push')
+       github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,7 +36,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
         env:
           HUSKY: 0
           NODE_ENV: development
@@ -45,7 +46,7 @@ jobs:
       - name: Lower ceiling only if fewer warnings are present
         run: node scripts/eslint-warning-ratchet.mjs --update
       - name: Propose change in a reviewable PR
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         id: pr
         with:
           branch: automation/eslint-warning-ceiling

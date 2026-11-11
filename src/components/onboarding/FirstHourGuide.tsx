@@ -9,7 +9,7 @@ export default function FirstHourGuide() {
   const signIn = () => useAuthStore.getState().setIsGuest(false);
   const steps = [
     { title: 'Choose accounts', description: 'After saving your business details in setup, choose a chart of accounts. Review it before recording entries.', action: 'Choose accounts', open: () => setTemplateSelectorOpen(true) },
-    { title: 'Add a customer', description: 'In Sales, open Customers & Clients, then Add Customer. Keep names and addresses in their original language.', action: 'Open customers', open: () => goToPage({ tab: 'sales' }) },
+    { title: 'Add a customer', description: 'In Sales, open Customers, then Add Customer. Keep names and addresses in their original language.', action: 'Open customers', open: () => goToPage({ tab: 'sales' }) },
     { title: 'Create an invoice', description: 'In Sales, choose Add Invoice. Select the customer, date, account and amount. A draft is not a posted sale.', action: 'Open invoices', open: () => goToPage({ tab: 'sales' }) },
     { title: 'Record a bill', description: 'In Purchases, add a vendor, then choose Record Bill. Review the account, date and amount before saving.', action: 'Open bills', open: () => goToPage({ tab: 'purchases' }) },
     { title: 'Record a payment', description: 'Open an unpaid invoice in Sales and use Receive Payment. For a bill payment, use Purchases. Recording a payment does not send money through your bank.', action: 'Open unpaid invoices', open: () => goToPage({ tab: 'sales' }) },

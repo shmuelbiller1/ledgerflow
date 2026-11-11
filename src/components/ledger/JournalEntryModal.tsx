@@ -313,7 +313,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
         .filter(l => l.amountCents > 0)
         .reduce((sum, l) => sum + l.amountCents, 0) || Math.round(totals.debit * appliedRate);
 
-      const entryId = `tx_je_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const entryId = `tx_je_${crypto.randomUUID()}`;
       const payload = {
         id: entryId,
         uid: user.uid,

@@ -5,6 +5,7 @@ import {
   filterChangelogReleases,
 } from '../../lib/changelogEntries';
 
+import { BRAND_NAME } from '../../config/brand';
 export default function ReleaseNotes() {
   const [selectedTag, setSelectedTag] = useState<ChangelogTag | 'All'>('All');
   const releases = useMemo(() => filterChangelogReleases(selectedTag), [selectedTag]);
@@ -16,7 +17,7 @@ export default function ReleaseNotes() {
       </summary>
       <div className="max-h-96 overflow-y-auto border-t border-[var(--line)] p-4 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-[var(--text)]">Updates to LedgerFlow</h2>
+          <h2 className="text-base font-bold text-[var(--text)]">Updates to {BRAND_NAME}</h2>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter updates by topic">
             {(['All', ...CHANGELOG_TAGS] as const).map(tag => (
               <button

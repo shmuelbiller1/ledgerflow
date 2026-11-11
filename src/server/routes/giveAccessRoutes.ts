@@ -6,6 +6,7 @@ import { getDb } from "../db/firestore";
 import type { Firestore } from "../db/firestore";
 import { authAdmin } from "../auth/supabaseAuth";
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * ACC-1 (owner, 13 Oct): "Give access". A platform admin types a person's email and picks a level; every
  * workspace that person owns gets it, each with an audit line. Optionally the person is made a platform admin.
@@ -94,7 +95,7 @@ export function registerGiveAccessRoutes(app: express.Express): void {
         previousClaims = user.customClaims || {};
       } catch (err) {
         // only "no such account" is a 404; a lookup that fails for another reason goes to the error handler (CodeRabbit on #460)
-        if ((err as { code?: string })?.code === "auth/user-not-found") return sendError(res, "No LedgerFlow account uses this email", 404);
+        if ((err as { code?: string })?.code === "auth/user-not-found") return sendError(res, `No ${BRAND_NAME} account uses this email`, 404);
         throw err;
       }
       // the admin claim is what requireAdmin reads, so it is set first; a failure is reported, not hidden (Codex on #460)

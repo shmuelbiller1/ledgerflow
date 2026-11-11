@@ -7,6 +7,7 @@
  */
 import type { PinnedPage } from './pinnedPages';
 
+import { BRAND_NAME } from '../config/brand';
 export interface MainPathStep {
   id: string;
   title: string;
@@ -27,7 +28,7 @@ export interface MainPathStep {
 export const MAIN_PATH_FIELDS: Array<{ key: keyof Omit<MainPathStep, 'id' | 'title' | 'page'>; label: string }> = [
   { key: 'before', label: 'Before you start' },
   { key: 'doIt', label: 'What you do' },
-  { key: 'changes', label: 'What LedgerFlow changes' },
+  { key: 'changes', label: `What ${BRAND_NAME} changes` },
   { key: 'afterwards', label: 'What you see afterwards' },
   { key: 'affects', label: 'What it affects further on' },
   { key: 'canFail', label: 'What can fail' },
@@ -139,7 +140,7 @@ export const MAIN_PATH: MainPathStep[] = [
     canFail: 'A difference that is not zero cannot be finished.',
     undo: 'Entries in a reconciled month can still be corrected while the month is open; the change is reported against the reconciliation.',
     workspaceOnly: 'Matches and reconciliations.',
-    byItself: 'LedgerFlow suggests the best match for each line; it never matches without you.',
+    byItself: `${BRAND_NAME} suggests the best match for each line; it never matches without you.`,
     needsPerson: 'Confirming every match.',
   },
   {

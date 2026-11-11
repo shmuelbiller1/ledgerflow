@@ -1,5 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGING_BUCKETS, computePartyAging, daysOverdue, emptyAging, outstandingBaseCents, type AgingBucketKey, type PartyAgingRow } from '../../lib/aging';
@@ -17,6 +17,16 @@ interface PartyAgingReportViewProps {
 
 export default function PartyAgingReportView({ side }: PartyAgingReportViewProps) {
   const isCustomer = side === 'customer';
+  // A-270: the keyboard path. Opening a row's drill-down must leave focus on that row when it
+  // closes, whichever control opened it (the row itself, its arrow, or Enter on either).
+  const rowId = (partyId: string) => `aging-row-${side}-${partyId}`;
+  const openerRef = useRef<HTMLElement | null>(null);
+  /** Closes the drill-down and puts focus back on whatever opened it (the row or its arrow). */
+  const closeDrillDown = () => {
+    setSelectedPartyId(null);
+    // the row never unmounts, so the control that opened the drawer is still there to return to
+    requestAnimationFrame(() => openerRef.current?.focus());
+  };
   
   // Get data from store
   const rawCustomers = useLedgerStore(s => s.customers) || [];
@@ -74,7 +84,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
 
   // Selected party documents for drill down
   const selectedParty = parties.find(p => p.id === selectedPartyId);
-  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setSelectedPartyId(null), !!(selectedPartyId && selectedParty));
+  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(closeDrillDown, !!(selectedPartyId && selectedParty));
   const selectedPartyDocs = useMemo(() => {
     return selectedPartyId
       ? outstandingDocs.filter(d => {
@@ -189,10 +199,14 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
               {sortedAndFilteredRows.map(row => (
-                <tr 
+                <tr
                   key={row.partyId}
-                  onClick={() => setSelectedPartyId(row.partyId)}
-                  className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group"
+                  id={rowId(row.partyId)}
+                  onClick={e => { openerRef.current = (e.target as HTMLElement).closest('button'); setSelectedPartyId(row.partyId); }}
+                  onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); } }}
+                  tabIndex={0}
+                  aria-label={`Open the ${isCustomer ? 'customer' : 'vendor'} aging detail for ${row.partyName}`}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                 >
                   <td className="p-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <Users aria-hidden="true" className="w-4 h-4 text-[var(--muted)]" />
@@ -207,7 +221,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total)}</bdi>
                   </td>
                   <td className="p-4 text-right">
-                    <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
+                    <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
                       <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                     </button>
                   </td>
@@ -245,8 +259,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
             {/* Drawer Header */}
             <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
               <div>
-                <button 
-                  onClick={() => setSelectedPartyId(null)}
+                <button
+                  onClick={closeDrillDown}
                   className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-bold mb-1"
                 >
                   <ArrowLeft aria-hidden="true" className="w-3 h-3" /> Back to Aging Schedule
@@ -255,8 +269,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                   Outstanding Ledger: {selectedParty.name}
                 </h3>
               </div>
-              <button 
-                onClick={() => setSelectedPartyId(null)}
+              <button
+                onClick={closeDrillDown}
                 className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-lg"
               >
                 Close

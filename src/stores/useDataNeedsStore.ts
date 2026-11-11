@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { LedgerKey } from '../lib/ledgerCollections';
 import { canRetryNow, planRetry, type RetryTrouble } from '../lib/collectionRetry';
+import { byCodeUnit } from '../lib/codeUnitOrder';
 
 /**
  * Which on-demand collections screens have asked for (src/lib/ledgerCollections.ts), which have
@@ -53,7 +54,7 @@ export const useDataNeedsStore = create<DataNeedsState>((set) => ({
   trouble: {},
   ask: (keys) => set((state) => {
     const missing = keys.filter(k => !state.asked.includes(k));
-    return missing.length ? { asked: [...state.asked, ...missing].sort() } : state;
+    return missing.length ? { asked: [...state.asked, ...missing].sort(byCodeUnit) } : state;
   }),
   markLoaded: (key) => set((state) => {
     // loaded, with nothing failed or half-retried for this key: nothing to change

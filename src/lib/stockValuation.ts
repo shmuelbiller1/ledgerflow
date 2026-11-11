@@ -20,6 +20,7 @@
  */
 import { inventoryAsOf, type InventoryAsOfRow } from './inventoryAsOf';
 import type { ItemDetails } from './stockMoves';
+import { byCodeUnit } from './codeUnitOrder';
 
 export const NO_LOCATION = '';
 
@@ -238,7 +239,7 @@ export function valuationByLots(received: LotReceiptLine[], sales: LotSaleRef[])
   }
   const rows = [...lots.values()].map(({ expirySet, valueRaw, ...row }) => ({
     ...row,
-    expiryDates: [...expirySet].sort(),
+    expiryDates: [...expirySet].sort(byCodeUnit),
     receivedValueCents: Math.round(valueRaw),
     unitCostCents: row.receivedQty > 0 ? Math.round(valueRaw / row.receivedQty) : 0,
   })).sort((a, b) => a.itemName.localeCompare(b.itemName) || a.lotNumber.localeCompare(b.lotNumber));

@@ -11,6 +11,7 @@ import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getLocalDateISO } from '../../../lib/utils';
 import { buildWorkspaceArchive } from '../../../lib/workspaceArchive';
 import { recordBackupCompleted } from '../../../lib/ledgerBackupHealth';
+import { BRAND } from '../../../config/brand';
 
 export default function WorkspaceArchiveExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -63,7 +64,7 @@ function WorkspaceArchiveExportBody() {
       const url = URL.createObjectURL(archive.blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'ledgerflow-archive-' + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.zip';
+      link.download = `${BRAND.fileSlug}-archive-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.zip';
       document.body.appendChild(link);
       link.click();
       link.remove();

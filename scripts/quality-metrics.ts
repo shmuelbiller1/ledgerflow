@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { importEdges } from './import-edges.mjs';
 
 export interface QualityMetrics {
   anyCount: number;
@@ -84,18 +85,12 @@ function computeOrphanFiles(rootDir: string): number {
   const queue = [...entryPoints];
   queue.forEach(e => visited.add(path.resolve(e)));
 
-  const importRegex = /(?:import|export)\s+(?:[\w*\s{},]+\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\.meta\.glob\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-
   while (queue.length > 0) {
     const currentPath = queue.shift()!;
     if (!fs.existsSync(currentPath)) continue;
 
     const content = fs.readFileSync(currentPath, 'utf-8');
-    let match: RegExpExecArray | null;
-    while ((match = importRegex.exec(content)) !== null) {
-      const source = match[1] || match[2] || match[3];
-      if (!source) continue;
-
+    for (const source of importEdges(currentPath, content)) {
       if (source.includes('*')) {
         const globMatches = expandGlob(currentPath, source);
         for (const gm of globMatches) {

@@ -7,6 +7,8 @@
  * there is no document — while `render` goes on working, which makes it look like something else.
  */
 import 'global-jsdom/register';
+import { GoTrueClient } from '@supabase/auth-js';
+import { RealtimeClient } from '@supabase/realtime-js';
 
 // jsdom has no layout; motion and some widgets ask for these
 if (!window.matchMedia) {
@@ -18,6 +20,32 @@ if (!window.matchMedia) {
 if (!('ResizeObserver' in window)) {
   (window as unknown as { ResizeObserver: unknown }).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 }
+if (typeof globalThis.BroadcastChannel !== 'undefined') {
+  class MockBroadcastChannel extends EventTarget {
+    name: string;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onmessageerror: ((event: MessageEvent) => void) | null = null;
+    constructor(name: string) {
+      super();
+      this.name = name;
+    }
+    postMessage(_message: unknown) {}
+    close() {}
+  }
+  globalThis.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel;
+  if (typeof window !== 'undefined') {
+    (window as unknown as { BroadcastChannel: unknown }).BroadcastChannel = MockBroadcastChannel;
+  }
+}
+
+// In test environment, stub RealtimeClient.disconnect and GoTrueClient.dispose to prevent hung socket promises
+RealtimeClient.prototype.disconnect = async function disconnect() { return 'ok'; };
+GoTrueClient.prototype.dispose = async function dispose(this: { stopAutoRefresh?: () => void }) {
+  if (typeof this.stopAutoRefresh === 'function') {
+    this.stopAutoRefresh();
+  }
+};
+
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** fetch that answers every call with `status` and records the URLs asked for. */

@@ -7,6 +7,7 @@ import { globalAdminConfig } from "../http/serverKit";
 import { apiKeyLimit, apiKeyRateLimiter } from "../middleware/rateLimiters";
 import type { AuthenticatedRequest, AuthUser } from "../http/serverKit";
 
+import { BRAND_NAME } from '../../config/brand';
 // Deep API Key Authentication Middleware
 export const apiAuthenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization || (req.headers['x-api-key'] as string);
@@ -174,7 +175,7 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
       return apiKeyRateLimiter(req, res, next);
     } catch (err) {
       console.error("[Deep Auth] Token verification failure:", err);
-      return res.status(500).json({ status: "error", message: "Authentication / Verification failure within LedgerFlow core." });
+      return res.status(500).json({ status: "error", message: `Authentication / Verification failure within ${BRAND_NAME} core.` });
     }
   }
 

@@ -4,6 +4,7 @@ import { apiAuthenticate } from "../auth/apiAuthenticate";
 import { authorizeWorkspace, sendError } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 
+import { BRAND_NAME } from '../../config/brand';
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerApiStatusRoutes(app: express.Express, _ctx: ServerContext): void {
   // Endpoints v1
@@ -22,7 +23,7 @@ export function registerApiStatusRoutes(app: express.Express, _ctx: ServerContex
 
       res.json({
         status: "active",
-        service: "LedgerFlow Deep API Engine",
+        service: `${BRAND_NAME} Deep API Engine`,
         workspaceId,
         metadata: {
           name: wsName,

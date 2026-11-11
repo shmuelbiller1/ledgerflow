@@ -100,3 +100,20 @@ test('S8786: input with a line over 500 characters is left whole to the fallback
   assert.equal(IntentResolver.resolveEntry(`tea 5\n${long}`), null);
   assert.ok(IntentResolver.resolveEntry('tea 5'));
 });
+
+test('entry prechecks preserve numeric, mixed-script, split and multiline matching', () => {
+  const first = IntentResolver.resolveEntry('spent $2.50 on tea\nreceived 1.5k from acme sale');
+  assert.deepEqual(first?.map(entry => [entry.description, entry.amountCents]), [['Tea', -250], ['Acme sale', 150000]]);
+  const split = IntentResolver.resolveEntry('חנות $100 ($40 ציוד, $60 תוכנה)');
+  assert.deepEqual(split?.[0].lines, [{ accountName: 'ציוד', amountCents: 4000 }, { accountName: 'תוכנה', amountCents: 6000 }]);
+  assert.equal(split?.[0].amountCents, -10000);
+  // The original /iu grammar treats this combining mark as a case-folded letter.
+  assert.deepEqual(IntentResolver.resolveEntry('4\u0345')?.map(entry => [entry.description, entry.amountCents]), [['Ι', -400]]);
+  // The suffix expression can accept numeric descriptions even without a letter.
+  assert.deepEqual(IntentResolver.resolveEntry('12 34')?.map(entry => [entry.description, entry.amountCents]), [['12', -3400]]);
+  assert.equal(IntentResolver.resolveEntry('nothing to parse (here)'), null);
+  // Preserve the legacy malformed-comma exception; this guard must not route it elsewhere.
+  assert.throws(() => IntentResolver.resolveEntry(', tea'), /Invalid amount format/);
+  assert.equal(IntentResolver.resolveEntry('only letters\n' + 'a'.repeat(499)), null);
+  assert.equal(IntentResolver.resolveEntry('tea 5\n' + 'x'.repeat(501)), null, 'the entire input still falls back');
+});

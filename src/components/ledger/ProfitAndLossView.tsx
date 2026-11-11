@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 import { exportPlToExcel } from '../../lib/plExport';
 import { isPostable, lineAmount, calculateNetIncome, isTransactionInDateRange } from '../../lib/txFilters';
 import { resolveAccountRole } from '../../lib/accountUtils';
+import { budgetPL } from '../../lib/budgetStatement';
+import ReportNote from '../reporting/ReportNote';
+import type { SavedBudget } from '../../lib/budgetActual';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFinancialReporting } from '../../hooks/useFinancialReporting';
@@ -26,14 +29,14 @@ import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import { statementTotalDrill, type StatementTotal } from '../../lib/statementDrill';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { BudgetComparisonNotice } from './BudgetComparisonNotice';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 /** A P&L line as the report holds it; `parentId` is only for account groups (K-14). */
 interface PLAccount { name: string; code?: string; balance: number; parentId?: string }
-
 /** A P&L line with its own id, the shape the account-group helpers want. */
 interface PLRow { id: string; name: string; code?: string; type: string; parentId?: string; balance: number }
-
 interface PLData {
   income: { total: number; accounts: Record<string, PLAccount> };
   cogs: { total: number; accounts: Record<string, PLAccount> };
@@ -77,6 +80,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     return scoped;
   }, [allTransactions, labelFilter]);
   const accounts = useLedgerStore(s => s.accounts);
+  useLedgerCollections('budgets'); // R-2: "compare to budget"
+  const budgets = useLedgerStore(s => s.budgets);
+  const [compareTo, setCompareTo] = useState<'previous' | 'budget'>('previous');
   const [dateRange, setDateRange] = usePageSyncedState(
     JSON.stringify([startDate, endDate]),
     startDate && endDate ? { start: startDate, end: endDate } : undefined,
@@ -289,7 +295,9 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
     ? (cashReady ? provenanceFromResponse(serverData) : null)
     : useServer && serverData ? provenanceFromResponse(serverData)
     : serverFailed || labelFilter || browserFigures.completeness !== 'complete' ? browserFigures : null;
-  const prevData = basis === 'cash' ? (cashReady && serverPrevData?.basis === 'cash' ? serverPrevData : emptyPl) : useServer && serverPrevData ? serverPrevData : localCalculation.prevData;
+  const vsBudget = isComparative && compareTo === 'budget' && basis === 'accrual';
+  const budgetData = useMemo(() => budgetPL(budgets as SavedBudget[], accounts, dateRange.start, dateRange.end), [budgets, accounts, dateRange.start, dateRange.end]);
+  const prevData = vsBudget ? budgetData : basis === 'cash' ? (cashReady && serverPrevData?.basis === 'cash' ? serverPrevData : emptyPl) : useServer && serverPrevData ? serverPrevData : localCalculation.prevData;
   const chooseBasis = (next: 'accrual' | 'cash') => {
     setBasis(next);
     setServerData(null);
@@ -337,7 +345,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const incomeGroups = groupedSection(data?.income?.accounts, 'income');
   const expenseGroups = groupedSection(data?.expense?.accounts, 'expense');
 
-  const exportToExcel = () => exportPlToExcel({ data, prevData, isComparative, labels, start: dateRange.start, end: dateRange.end, cash: basis === 'cash' });
+  const exportToExcel = () => exportPlToExcel({ data, prevData, isComparative, compareLabel: vsBudget ? 'Budget' : undefined, labels, start: dateRange.start, end: dateRange.end, cash: basis === 'cash' });
 
   if (!data) return null;
 
@@ -397,8 +405,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
                 <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
               </span>
-              <span className="text-[10px] text-[var(--text)]">Prior period</span>
+              <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? 'Budget' : 'Prior period'}</span>
             </label>
+            {isComparative && basis === 'accrual' && (
+              <select aria-label="Compare to" value={compareTo} onChange={e => setCompareTo(e.target.value === 'budget' ? 'budget' : 'previous')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
+                <option value="previous">Previous period</option><option value="budget">Budget</option>
+              </select>
+            )}
           </div>
         </div>
       </div>
@@ -431,7 +444,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.income?.total || 0) >= prevData.income?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}% vs Prior
+                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -466,7 +479,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.expense?.total || 0) <= prevData.expense?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}% vs Prior
+                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -511,7 +524,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold ml-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
-                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}%
+                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                </span>
             )}
           </div>
@@ -525,8 +538,11 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             : loadingStates.pl ? 'Calculating on cash basis…' : 'Cash basis is calculated by the server, and it could not be reached: try again in a moment.'}
         </p>
       )}
+      {/* R-4: the note for the dates on screen */}<ReportNote key={`pnl|${dateRange.start}|${dateRange.end}`} report="pnl" startDate={dateRange.start} endDate={dateRange.end} />
+      {vsBudget && <BudgetComparisonNotice labelFiltered={Boolean(labelFilter)} />}
+      {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
-        startDate={dateRange.start} endDate={dateRange.end} compare={isComparative}
+        startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}
         compareStartDate={prevRange.start} compareEndDate={prevRange.end}
         mode={columnMode} onModeChange={setColumnMode} showPercent={showPercent} onPercentChange={setShowPercent}
         totalData={data} previousTotalData={prevData} totalAuthoritative={useServer}
@@ -622,7 +638,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs truncate flex items-center gap-1.5">
+                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
                         {acc.name}
                         <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
                       </span>
@@ -704,7 +720,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs truncate flex items-center gap-1.5">
+                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
                         {acc.name}
                         <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
                       </span>
@@ -746,7 +762,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                     "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded", 
                     (data.netIncome || 0) >= prevData.netIncome ? "bg-emerald-950 text-emerald-400" : "bg-rose-950 text-rose-400"
                   )}>
-                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs Prior
+                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
                   </span>
                 </div>
               )}

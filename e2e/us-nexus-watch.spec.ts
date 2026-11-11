@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+import { BRAND_NAME } from '../src/config/brand';
 /**
  * CON-2 (W8): the US nexus watch in a real browser at phone width. The Reports view ('UsNexusWatchReportView') is
  * mounted against the app's own stores with the request boundary stubbed. Worked by hand, as of 2026-10-20: Texas
@@ -19,7 +20,7 @@ test('CON-2 browser: the nexus watch flags Texas at 80%, labels Illinois not ver
   await page.route('**/api/**', route => route.fulfill({ json: {} }));
   await page.route('**/nexus-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en" class="light"><head><title>LedgerFlow nexus watch</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en" class="light"><head><title>${BRAND_NAME} nexus watch</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/nexus-fixture');
   await page.evaluate(async ({ workspaceId, user }) => {

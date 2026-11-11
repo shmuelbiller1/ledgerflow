@@ -1,5 +1,6 @@
 import { normalizeSearchText } from '../textNormalization';
 import { KNOWN_CANONICAL_BRANDS } from './merchantIdentity';
+import { trimEndDigits } from '../textShape';
 
 
 /**
@@ -376,7 +377,7 @@ export class BayesianClassifier {
     const rawWords = normalizeSearchText(text)
       .replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ')
       .split(/\s+/)
-      .map(w => w.replace(/\d{2,}$/, ''))
+      .map(w => trimEndDigits(w, 2))
       .filter(w => (w.length > 2 || (w.length >= 2 && /\p{Script=Hebrew}/u.test(w))) && !BayesianClassifier.FINANCIAL_STOPWORDS.has(w));
 
     // Unigrams

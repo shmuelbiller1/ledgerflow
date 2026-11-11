@@ -38,6 +38,7 @@ for (const width of [390, 1280]) {
         const field = await page.locator(`#${id}`).boundingBox();
         expect(box!.y + box!.height).toBeLessThanOrEqual(field!.y + 1);
       };
+      await page.locator('summary').filter({ hasText: 'More options' }).click();
       for (const [label, id] of [['Vendor', 'bill-vendor'], ['Bill Number', 'bill-number'], ['Bill Date', 'bill-date'], ['Due Date', 'bill-due-date']]) {
         await labelAbove(label, id);
       }

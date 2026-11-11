@@ -227,3 +227,65 @@ test('artifact-only drift is visible but is not treated as production source dri
   assert.deepEqual(delta.sourceChanges, []);
   assert.ok(delta.generatedArtifactChanges.some(d => d.path === 'docs/CODE_ATLAS_VALIDATION.md'));
 }));
+
+test('SQL policies bind only their own ON clause, not a later statement', () => {
+  const text = `create policy customer_read on public."customers" using (true);
+create policy incomplete;
+create table public.other (id text);
+create policy vendor_read on public."vendors" using (true);`;
+  const facts = extract('policy.sql', Buffer.from(text)).sql;
+  assert.deepEqual(facts.policies.map(policy => policy.name), ['customer_read', 'vendor_read']);
+  assert.equal(facts.policies[1].line, 4);
+});
+
+test('markdown headings stay on their own line, including on long whitespace input', () => {
+  const text = `# First\n#\nNot a heading\n## Second\n#${' '.repeat(100_000)}\n`;
+  const result = extract('guide.md', Buffer.from(text));
+  assert.equal(result.headings[0], 'First');
+  assert.equal(result.headings[1], 'Second');
+  assert.equal(result.headings.includes('Not a heading'), false);
+});
+
+test('heading scanner matches the prior single-line grammar for short strings', () => {
+  const pattern = /^#{1,4}[^\S\r\n\u2028\u2029]+(.+)$/m;
+  let level = [''];
+  for (let n = 0; n <= 6; n++) {
+    for (const text of level) {
+      const expected = pattern.exec(text)?.[1];
+      const actual = extract('fixture.md', Buffer.from(text)).headings;
+      assert.deepEqual(actual, expected === undefined ? [] : [expected], JSON.stringify(text));
+    }
+    level = level.flatMap(text => ['#', ' ', '\t', 'a'].map(char => text + char));
+  }
+});
+
+test('snapshot resolves committed files even when git archive would export-ignore them', () => fixture(({ root, output, write, commit }) => {
+  write('.gitattributes', 'src/money.ts export-ignore\n');
+  const rev = commit();
+  generate(root, rev, output);
+  const index = readIndex(output);
+  const edge = index.files.find(f => f.path === 'src/main.ts').dependencies.find(e => e.specifier === './money');
+  assert.equal(edge.target, 'src/money.ts');
+}));
+
+test('snapshot does not follow tracked symlinks or invoke tar from PATH', () => fixture(({ root, output, write, commit }) => {
+  write('src/link-user.ts', 'import { amount } from "./linked"; amount(1);');
+  fs.symlinkSync('money.ts', path.join(root, 'src/linked.ts'));
+  const rev = commit();
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-tar-path-'));
+  const marker = path.join(fakeBin, 'ran');
+  const oldPath = process.env.PATH;
+  try {
+    fs.writeFileSync(path.join(fakeBin, 'tar'), `#!/bin/sh\ntouch '${marker}'\nexit 99\n`, { mode: 0o755 });
+    process.env.PATH = `${fakeBin}${path.delimiter}${oldPath}`;
+    generate(root, rev, output);
+    const index = readIndex(output);
+    assert.equal(fs.existsSync(marker), false);
+    assert.equal(index.files.find(f => f.path === 'src/linked.ts').mode, '120000');
+    assert.ok(index.files.find(f => f.path === 'src/link-user.ts').unknownRelationships.some(e => e.specifier === './linked'));
+    assert.match(index.meta.exclusions.join(' '), /symlinks/);
+  } finally {
+    if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
+}));

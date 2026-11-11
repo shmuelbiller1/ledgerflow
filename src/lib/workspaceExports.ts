@@ -1,3 +1,4 @@
+import { byCodeUnit } from './codeUnitOrder';
 /** E-17: guarded human-review worksheet for recorded Israeli withholding; not filing-ready. */
 export { form856ReviewExport, FORM_856_REVIEW_HEADERS } from './tax/form856ReviewExport';
 
@@ -79,7 +80,8 @@ export { IL_VAT_SPECIAL_AREAS, ilVatAreaRow, isIlZeroArea, ilVatRateTable } from
  */
 export { suggestTaxCode, unusualTaxCode } from './tax/taxSuggestions';
 /**
- * PLAN IL-3: Israel's VAT report figures per registration. Reachable here until AI #2's C-40 screen uses them.
+ * PLAN IL-3: Israel's VAT report figures per registration. The C-40 Israel VAT Report screen imports
+ * `tax/ilVatReturn` directly; this re-export keeps the pure helper in the reachable exports inventory.
  */
 export { israelVatReturn } from './tax/ilVatReturn';
 /**
@@ -153,7 +155,7 @@ export function trialBalanceExportTable(transactions:Transaction[],accounts:Char
 }
 /** Display columns remain spreadsheet-safe; Record JSON preserves types, whitespace and nested fields exactly. */
 export function recordExportTable(records:object[]):ExportTable{
- const keys=[...new Set(records.flatMap(record=>Object.keys(record)))].sort();
+ const keys=[...new Set(records.flatMap(record=>Object.keys(record)))].sort(byCodeUnit);
  return {headers:[...keys,'Record JSON'],rows:records.map(record=>{
   const data=record as Record<string,unknown>;
   return [...keys.map(key=>{const value=data[key];return value===undefined?null:typeof value==='object'?JSON.stringify(value):String(value);}),JSON.stringify(record)];
@@ -234,3 +236,25 @@ export { USE_TAX_STATES, USE_TAX_CSV_HEADERS, reviewUseTax, reviewUseTaxCsvRows 
 export { US_EXEMPTION_CERTIFICATE_TYPES, SST_MEMBER_STATES, SST_MEMBER_ROW, CERTIFICATE_TYPE_IDS, certificateAcceptance, exemptionCertificateType, certificateTypeName, exemptionCertificateProblems } from './tax/usExemptionCertificates';
 export { ilImportServicesPack, importBillsReview, importBillsCsvRows, vendorCountryOf, IMPORT_BILLS_CSV_HEADERS } from './tax/ilImportServices';
 export { IL_VAT_REPORT_FREQUENCY, IL_BIMONTHLY_TURNOVER_CEILING_CENTS, assignedFrequency, frequencyCheck, ilVatFrequencyPack, ilVatFrequencyProblems } from './tax/ilVatFilingFrequency';
+
+/**
+ * US Federal Payroll (D-15 / D-18): IRS Publication 15-T (2026/2025) withholding tables,
+ * FICA (Social Security & Medicare), and FUTA calculation helpers.
+ */
+export {
+  calculateFederalIncomeTaxWithholding,
+  calculateFicaTax,
+  calculateFutaTax,
+  getFicaRatesOn,
+  getFederalWithholdingTable,
+  US_FEDERAL_WITHHOLDING_ANNUAL,
+  US_FICA_FUTA_HISTORY,
+  PAY_PERIODS_PER_YEAR,
+  type UsPayrollFilingStatus,
+  type UsPayFrequency,
+  type TaxBracket,
+  type FederalWithholdingTableEntry,
+  type FicaRates,
+  type FicaBreakdown,
+  type FutaBreakdown,
+} from './tax/usFederalPayroll';

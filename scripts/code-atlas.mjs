@@ -17,12 +17,13 @@ const DEFAULT_INDEX = 'docs/CODE_ATLAS.jsonl';
 const ARTIFACTS = new Set([DEFAULT_INDEX, 'docs/CODE_ATLAS_VALIDATION.md']);
 const CODE = /\.(?:[cm]?[jt]sx?|sql|sh|css|html)$/;
 const JS = /\.(?:[cm]?[jt]sx?)$/;
-const TEST = /(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TEST = /(?:(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 const MAX_BUFFER = 128 * 1024 * 1024;
 const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER });
 const txt = (root, args) => git(root, args).toString('utf8').trim();
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 const unique = xs => [...new Set(xs)];
+const byCodeUnit = (a, b) => (a < b ? -1 : Number(a > b));
 const slash = x => x.split(path.sep).join('/');
 const compact = (s, max = 260) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 const literal = n => n && ts.isStringLiteralLike(n) ? n.text : null;
@@ -73,12 +74,27 @@ function sqlFacts(text) {
   };
   scan(/\b(?:create\s+table(?:\s+if\s+not\s+exists)?|alter\s+table)\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'table-ddl', result.tables);
   scan(/\bcreate\s+(?:or\s+replace\s+)?function\s+((?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*))/gi, 'function-ddl', result.functions);
-  scan(/\bcreate\s+policy\s+([^\s]+)[\s\S]*?\bon\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
+  scan(/\bcreate\s+policy\s+([^\s]+)\s+on\s+(?:public\.)?(?:"[^"]+"|[a-zA-Z_][\w]*)/gi, 'policy-ddl', result.policies);
   for (const m of clean.matchAll(/\b(all_tables)\s+text\[\]\s*:=\s*array\s*\[([\s\S]*?)\]/gi)) {
     for (const table of m[2].matchAll(/'([^']+)'/g)) result.tables.push({ kind: 'dynamic-template-array-candidate', name: table[1], line: clean.slice(0, m.index).split('\n').length, excerpt: 'all_tables array; inspect FOREACH/format DDL before assuming creation' });
   }
   for (const m of clean.matchAll(/\bexecute\s+format\s*\(/gi)) result.dynamic.push({ kind: 'runtime-formatted-sql', line: clean.slice(0, m.index).split('\n').length, status: 'unknown-until-SQL-reviewed' });
   return result;
+}
+// Markdown heading whitespace is restricted to the current line. Scan rather than
+// combining overlapping whitespace and content quantifiers on untrusted source text.
+function markdownHeadings(text) {
+  const headings = [];
+  for (const line of text.split(/\r\n|[\r\n\u2028\u2029]/)) {
+    let i = 0;
+    while (i < line.length && line[i] === '#' && i < 4) i++;
+    if (i === 0 || i === line.length || !/\s/.test(line[i])) continue;
+    const spaceStart = i;
+    while (i < line.length && /\s/.test(line[i])) i++;
+    if (i < line.length) headings.push(line.slice(i));
+    else if (i - spaceStart > 1) headings.push(line.slice(-1));
+  }
+  return headings;
 }
 export function extract(file, buffer) {
   const binary = buffer.includes(0);
@@ -88,7 +104,7 @@ export function extract(file, buffer) {
   if (ARTIFACTS.has(file)) { f.category = 'generated-atlas-artifact'; f.contentInspection = 'inventory/blob metadata only; deliberately not recursively indexed'; return f; }
   if (file.endsWith('.sql')) { f.sql = sqlFacts(text); return f; }
   if (!JS.test(file)) {
-    f.headings = [...text.matchAll(/^#{1,4}\s+(.+)$/gm)].map(m => m[1]);
+    f.headings = markdownHeadings(text);
     f.supportEvidence = text.split('\n').map((s, i) => ({ line: i + 1, text: compact(s, 240) })).filter(x => x.text).slice(0, 4);
     return f;
   }
@@ -215,7 +231,7 @@ function resolveModules(files, snapshot, options) {
           if (!regex) f.unknownRelationships.push({ kind: 'glob', line: raw.line, expression: raw.expression, reason: 'computed-or-unsupported-glob' });
           else targets.push(...files.filter(x => regex.test(x.path)).map(x => x.path));
         }
-        f.dependencies.push({ ...raw, resolution: raw.patterns.every(p => p && globRegex(p)) ? 'static-glob' : 'partial-or-unknown-glob', targets: unique(targets).sort(), target: null });
+        f.dependencies.push({ ...raw, resolution: raw.patterns.every(p => p && globRegex(p)) ? 'static-glob' : 'partial-or-unknown-glob', targets: unique(targets).sort(byCodeUnit), target: null });
         continue;
       }
       if (raw.specifier === null) {
@@ -242,7 +258,7 @@ function resolveModules(files, snapshot, options) {
     for (const target of unique([d.target, d.assetTarget, ...(d.targets || [])].filter(Boolean))) byPath.get(target)?.inbound.push({ path: f.path, kind: d.kind, line: d.line, test: TEST.test(f.path), certainty: d.resolution });
   }
   for (const f of files) {
-    f.verification = { directTestImporters: unique(f.inbound.filter(x => x.test).map(x => x.path)).sort(), evidence: 'test-file import, not tested-symbol coverage or pass evidence', suggested: checklist(f) };
+    f.verification = { directTestImporters: unique(f.inbound.filter(x => x.test).map(x => x.path)).sort(byCodeUnit), evidence: 'test-file import, not tested-symbol coverage or pass evidence', suggested: checklist(f) };
     f.purpose = { certainty: 'inferred-from-source-structure', text: f.mechanical.comments[0] || (f.mechanical.symbols.length ? `Declares ${f.mechanical.symbols.slice(0, 7).map(x => x.name).join(', ')}; inspect recorded signatures, guards and I/O before reuse.` : `${f.mechanical.category}: ${f.mechanical.headings.slice(0, 3).join('; ') || 'see source evidence and classification'}`) };
     f.potentialData = f.mechanical.data.map(d => ({ ...d, migrations: files.filter(m => (d.table && m.mechanical.sql?.tables.some(t => t.name.replace(/^public\./, '') === d.table)) || (d.kind === 'rpc-call' && d.name && m.mechanical.sql?.functions.some(t => t.name.replace(/^public\./, '') === d.name))).map(m => m.path), migrationCertainty: 'textual-table-name-candidate; does not establish deployment or complete schema' }));
   }
@@ -267,31 +283,40 @@ export function generate(root, rev, output = path.join(root, DEFAULT_INDEX), fre
   const extractorHash = digest(fs.readFileSync(SELF));
   let reused = 0;
   try {
-    execFileSync('tar', ['-xf', '-', '-C', snapshot], { input: git(root, ['archive', '--format=tar', pinned]), maxBuffer: MAX_BUFFER });
-    const modules = path.join(root, 'node_modules');
-    if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(snapshot, 'node_modules'), 'dir');
     const previous = new Map(old.files.map(f => [f.path, f]));
     const files = tree.map(t => {
       const prior = previous.get(t.path);
       const buffer = t.objectType === 'blob' ? git(root, ['cat-file', 'blob', t.blobSha]) : Buffer.alloc(0);
+      // Materialize regular Git blobs directly, without executing tar or following
+      // repository symlinks. The snapshot is used only for module resolution.
+      if (t.objectType === 'blob' && (t.mode === '100644' || t.mode === '100755')) {
+        const destination = path.resolve(snapshot, t.path);
+        if (!destination.startsWith(snapshot + path.sep)) throw new Error(`Unsafe snapshot path: ${t.path}`);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.writeFileSync(destination, buffer);
+      }
       let mechanical;
       if (!fresh && old.meta?.extractorHash === extractorHash && prior?.blobSha === t.blobSha) { mechanical = prior.mechanical; reused++; }
       else mechanical = extract(t.path, buffer);
       return { record: 'file', schema: SCHEMA, ...t, sourceRevision: pinned, mechanical, manual: prior?.manual || null };
     });
+    const modules = path.join(root, 'node_modules');
+    if (fs.existsSync(modules) && !fs.existsSync(path.join(snapshot, 'node_modules'))) {
+      fs.symlinkSync(modules, path.join(snapshot, 'node_modules'), 'dir');
+    }
     resolveModules(files, snapshot, compilerOptions(snapshot));
     const byPath = new Map(files.map(f => [f.path, f]));
     for (const f of files) f.manual = staleReview(f.manual, byPath);
     const workflows = old.workflows.map(w => ({ ...w, review: staleReview(w.review, byPath) }));
     const retired = [...(old.meta?.retiredAnnotations || []), ...old.files.filter(f => f.manual && !byPath.has(f.path)).map(f => ({ path: f.path, manual: f.manual, removedFromRevision: pinned }))];
-    const meta = { record: 'meta', schema: SCHEMA, sourceRevision: pinned, sourceTree: txt(root, ['rev-parse', `${pinned}^{tree}`]), sourceCommitDate: txt(root, ['show', '-s', '--format=%cI', pinned]), extractorHash, typescriptVersion: ts.version, moduleResolution: 'TypeScript resolveModuleName using snapshot tsconfig and locally installed lockfile dependencies; assets/globs separately labeled', inventoryCount: files.length, exclusions: ['Untracked/ignored working files and Git internals are not in the committed tree. No tracked paths excluded.', 'Binary assets: metadata only, no visual/decompilation review.', 'Gitlinks: inventory only, submodule contents not traversed.'], generatedArtifacts: [...ARTIFACTS], artifactSemantics: 'These files have entries for their blobs IN THE PINNED INPUT COMMIT, not the later generated output. A Git blob cannot contain its own output hash. Compare source changes separately from expected generated-artifact drift.', retiredAnnotations: retired };
+    const meta = { record: 'meta', schema: SCHEMA, sourceRevision: pinned, sourceTree: txt(root, ['rev-parse', `${pinned}^{tree}`]), sourceCommitDate: txt(root, ['show', '-s', '--format=%cI', pinned]), extractorHash, typescriptVersion: ts.version, moduleResolution: 'TypeScript resolveModuleName using snapshot tsconfig and locally installed lockfile dependencies; assets/globs separately labeled', inventoryCount: files.length, exclusions: ['Untracked/ignored working files and Git internals are not in the committed tree. No tracked paths excluded.', 'Binary assets: metadata only, no visual/decompilation review.', 'Gitlinks and symlinks: inventory only; submodules and symlink targets are not materialized for resolution.'], generatedArtifacts: [...ARTIFACTS], artifactSemantics: 'These files have entries for their blobs IN THE PINNED INPUT COMMIT, not the later generated output. A Git blob cannot contain its own output hash. Compare source changes separately from expected generated-artifact drift.', retiredAnnotations: retired };
     writeIndex(output, meta, files, workflows);
     return { ...statistics(readIndex(output)), mechanicalEntriesReused: reused, relationshipsReResolved: files.length };
   } finally { fs.rmSync(snapshot, { recursive: true, force: true }); }
 }
 export function statistics(index) {
   const files = index.files;
-  return { sourceRevision: index.meta?.sourceRevision, sourceTree: index.meta?.sourceTree, inventory: files.length, coverageDenominator: index.meta?.inventoryCount, codeFiles: files.filter(f => f.mechanical.isCode).length, binary: files.filter(f => f.mechanical.binary).length, automaticallyExtracted: files.length, reviewerAnnotated: files.filter(f => f.manual).length, manuallyInspected: files.filter(f => f.manual?.inspection === 'targeted-source-inspection').length, staleAnnotations: files.filter(f => f.manual?.status === 'stale').map(f => f.path), unknownRelationships: files.reduce((n, f) => n + f.unknownRelationships.length, 0), unknownModuleFiles: files.filter(f => f.unknownRelationships.length).map(f => f.path), computedApiCalls: files.reduce((n, f) => n + f.mechanical.api.filter(a => a.url === null).length, 0), parseErrors: files.flatMap(f => f.mechanical.parseErrors.map(e => ({ path: f.path, ...e }))), workflows: index.workflows.map(w => ({ id: w.id, title: w.title, status: w.review?.status || 'unreviewed', runtimeVerification: w.runtimeVerification })), categories: Object.fromEntries(unique(files.map(f => f.mechanical.category)).sort().map(c => [c, files.filter(f => f.mechanical.category === c).length])) };
+  return { sourceRevision: index.meta?.sourceRevision, sourceTree: index.meta?.sourceTree, inventory: files.length, coverageDenominator: index.meta?.inventoryCount, codeFiles: files.filter(f => f.mechanical.isCode).length, binary: files.filter(f => f.mechanical.binary).length, automaticallyExtracted: files.length, reviewerAnnotated: files.filter(f => f.manual).length, manuallyInspected: files.filter(f => f.manual?.inspection === 'targeted-source-inspection').length, staleAnnotations: files.filter(f => f.manual?.status === 'stale').map(f => f.path), unknownRelationships: files.reduce((n, f) => n + f.unknownRelationships.length, 0), unknownModuleFiles: files.filter(f => f.unknownRelationships.length).map(f => f.path), computedApiCalls: files.reduce((n, f) => n + f.mechanical.api.filter(a => a.url === null).length, 0), parseErrors: files.flatMap(f => f.mechanical.parseErrors.map(e => ({ path: f.path, ...e }))), workflows: index.workflows.map(w => ({ id: w.id, title: w.title, status: w.review?.status || 'unreviewed', runtimeVerification: w.runtimeVerification })), categories: Object.fromEntries(unique(files.map(f => f.mechanical.category)).sort(byCodeUnit).map(c => [c, files.filter(f => f.mechanical.category === c).length])) };
 }
 export function changes(root, index, rev = 'worktree') {
   const base = index.meta.sourceRevision;

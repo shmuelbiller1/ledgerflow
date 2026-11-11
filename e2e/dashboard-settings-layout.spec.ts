@@ -13,8 +13,10 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     const overview = page.getByRole('region', { name: 'Dashboard at a glance', exact: true });
     await expect(overview.getByRole('link', { name: /^Cash .* report$/ })).toContainText('$3,000.00');
     await expect(overview.getByRole('link', { name: /^Profit this month .* report$/ })).toContainText('$3,000.00');
-    // The real, unfinished setup checklist must not push the first-screen actions away.
-    await expect(page.getByRole('heading', { name: 'Workspace Setup Checklist' })).toBeVisible();
+    // The real, unfinished setup checklist must not push the first-screen actions away. D-85 renamed
+    // it to say what it asks for; the badge names the step it is on.
+    await expect(page.getByRole('heading', { name: 'Finish setting up your books', exact: true })).toBeVisible();
+    await expect(page.getByText(/^Setup \d of 3$/)).toBeVisible();
     const controls = overview.getByRole('link');
     await expect(controls).toHaveCount(5);
     for (const control of await controls.all()) {
@@ -46,7 +48,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     });
     await expect(overview.getByText('Unavailable', { exact: true })).toHaveCount(4);
     await expect(page.getByRole('alert').filter({ hasText: 'Incomplete data:' })).toContainText('invoices');
-    const range = page.getByLabel('Dashboard date range');
+    const range = page.getByLabel(/dashboard date range/i);
     await range.selectOption('custom');
     await page.getByLabel('Dashboard from').fill('2026-10-01');
     await expect(overview.getByText('Choose dates', { exact: true })).toHaveCount(4);

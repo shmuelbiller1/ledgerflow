@@ -15,6 +15,7 @@ import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 import supabaseConfig from '../../../supabase-config.json';
 import { getDb } from '../db/firestore';
+import { trimEndChar } from '../../lib/textShape';
 
 // Same as firebase-admin's DecodedIdToken: routes read extra claims directly.
 type ClaimAny = any;
@@ -47,7 +48,7 @@ export function supabaseUrl(): string {
   const fallback = process.env.NODE_ENV === 'development'
     ? 'https://ledgerflow-unconfigured.invalid'
     : supabaseConfig.url;
-  return (process.env.SUPABASE_URL || fallback).replace(/\/+$/, '');
+  return trimEndChar(process.env.SUPABASE_URL || fallback, '/');
 }
 
 let remoteKeys: { url: string; keys: JWTVerifyGetKey } | null = null;

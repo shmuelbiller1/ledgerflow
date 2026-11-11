@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 
+import { BRAND_NAME } from '../../../config/brand';
 interface Usage { plan: string; unlimited: boolean; entries: { used: number; limit: number }; seats: { used: number; limit: number }; storageMb: { used: number; limit: number } }
 
 /** Near a limit from 80% on, so it is seen before anything is refused. */
@@ -31,7 +32,7 @@ export default function UsagePanel() {
   return (
     <section aria-labelledby="usage-title" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-2">
       <h3 id="usage-title" className="text-sm font-bold text-[var(--text)]">Usage on the {planFor(usage.plan).name} plan</h3>
-      {usage.unlimited ? <p className="text-xs text-[var(--muted)]">Free access (given by LedgerFlow): no limits apply to this workspace.</p> : (
+      {usage.unlimited ? <p className="text-xs text-[var(--muted)]">Free access (given by {BRAND_NAME}): no limits apply to this workspace.</p> : (
         <ul className="space-y-2 text-sm">
           {rows.map(([label, { used, limit }, unit]) => {
             const share = limit > 0 ? used / limit : 0;

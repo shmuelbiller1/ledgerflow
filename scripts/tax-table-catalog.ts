@@ -303,6 +303,36 @@ export const TAX_TABLES: readonly TableSpec[] = [
     "amounts": [
       "dailyCents"
     ]
+  },
+  {
+    "file": "usFederalPayroll.ts",
+    "name": "US_FICA_FUTA_HISTORY",
+    "keys": [],
+    "amounts": [
+      "socialSecurityWageBaseCents",
+      "futaWageBaseCents"
+    ],
+    "percentages": [
+      "socialSecurityEmployeeRate",
+      "socialSecurityEmployerRate",
+      "medicareEmployeeRate",
+      "medicareEmployerRate",
+      "additionalMedicareRate",
+      "futaGrossRate",
+      "futaMaxCredit",
+      "futaEffectiveRate"
+    ]
+  },
+  {
+    "file": "usFederalPayroll.ts",
+    "name": "US_FEDERAL_WITHHOLDING_ANNUAL",
+    "keys": [
+      "filingStatus",
+      "rateTier"
+    ],
+    "amounts": [
+      "standardDeductionAdjustmentCents"
+    ]
   }
 ];
 /** Non-table modules are classified so a newly added module cannot silently escape review. */

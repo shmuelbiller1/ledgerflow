@@ -147,7 +147,9 @@ describe('the trial balance', () => {
     await waitFor(() => assert.ok(rows().some(row => row.includes('Total Overheads'))));
     const subtotal = rows().find(row => row.includes('Total Overheads'))!;
     assert.match(subtotal, /\$195\.00/, 'the subtotal is 5.00 + 120.00 + 70.00');
-    assert.deepEqual(footer().match(/\$195\.00/g)!.length, 2, 'debits and credits still agree');
+    // the footer carries each total twice: the drill-down button (screen) and its print-only text
+    // twin (the print stylesheet hides buttons, so the paper needs the amounts as text)
+    assert.deepEqual(footer().match(/\$195\.00/g)!.length, 4, 'debits and credits still agree');
     const nameCell = (name: string) => screen.getByText(name).closest('div[style]') as HTMLElement;
     assert.deepEqual([nameCell('Overheads').style.paddingLeft, nameCell('Rent').style.paddingLeft], ['0px', '16px']);
   });

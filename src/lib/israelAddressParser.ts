@@ -1,3 +1,4 @@
+import { headBeforeFiveDigits } from './textShape';
 /**
  * E-36: conservative suggestions for free-text Israeli contact addresses.
  * This is a preview-only parser, not an address verifier or a source of tax jurisdiction. It keeps
@@ -11,7 +12,7 @@ export interface IsraeliAddressSuggestion {
   readonly warnings: readonly string[];
 }
 
-const POSTAL_LABEL = /(?:\b(?:postal(?:\s+code)?|zip(?:\s+code)?)\b|מיקוד)\s*[:#-]?\s*(\d{5}|\d{7})(?!\d)/giu;
+const POSTAL_LABEL = /(?:\b(?:postal(?:\s+code)?|zip(?:\s+code)?)\b|מיקוד)\s*(?:[:#-]\s*)?(\d{5}|\d{7})(?!\d)/giu;
 const BARE_SEVEN_DIGIT_POSTAL = /(?:^|[^\d])(\d{7})(?!\d)/g;
 const ENGLISH_STREET_MARKER = /\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|highway|hwy\.?)\b/iu;
 const HEBREW_STREET_MARKER = /(?:רחוב|רח׳|רח'|דרך|כביש|שדרות|שדר׳|שד׳|שד'|סמטה|כיכר)/u;
@@ -88,7 +89,7 @@ export function parseIsraeliAddress(source: string | null | undefined): IsraeliA
   let segments = text
     .replace(/[\r\n]+/gu, ',')
     .split(/[,;|]+/u)
-    .map(part => part.replace(/\s+/gu, ' ').trim().replace(/^[,;|]+|[,;|]+$/gu, '').trim())
+    .map(part => part.replace(/\s+/gu, ' ').trim()) // split above leaves no , ; | to trim
     .filter(Boolean);
   // Contact exporters often append the country to a free-text address. It is not one of the fields
   // this Israeli parser returns, so remove only an exact terminal country label.
@@ -114,9 +115,9 @@ export function parseIsraeliAddress(source: string | null | undefined): IsraeliA
       const remaining = segments.filter(segment => segment !== candidate);
       if (remaining.length === 1 && !/\d/u.test(remaining[0])) city = remaining[0];
       else if (remaining.length === 1) {
-        const possibleCity = remaining[0].match(/^(.*?)\s+(\d{5})$/u);
-        if (possibleCity?.[1] && /\p{L}/u.test(possibleCity[1])) {
-          city = possibleCity[1].trim();
+        const possibleCity = headBeforeFiveDigits(remaining[0]);
+        if (possibleCity && /\p{L}/u.test(possibleCity)) {
+          city = possibleCity.trim();
           warnings.push('An unlabelled five-digit value was left unclassified, not treated as a postal code.');
         } else warnings.push('City could not be separated unambiguously; review the original address.');
       } else if (remaining.length > 0) warnings.push('City could not be separated unambiguously; review the original address.');

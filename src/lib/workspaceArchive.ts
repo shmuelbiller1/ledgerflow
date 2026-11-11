@@ -11,7 +11,9 @@
  */
 import { toCsv } from './csvExport';
 import { recordExportTable } from './workspaceExports';
+import { byCodeUnit } from './codeUnitOrder';
 
+import { BRAND_NAME } from '../config/brand';
 export type JsonObject = Record<string, unknown>;
 const textEncoder = new TextEncoder();
 const obj = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -148,11 +150,11 @@ export async function buildWorkspaceArchive(payload: unknown, workspaceId: strin
 
   const checksum = String(meta.checksum);
 
-  const keys = Object.keys(meta.counts as JsonObject).sort();
+  const keys = Object.keys(meta.counts as JsonObject).sort(byCodeUnit);
   if (!keys.length || !keys.includes('transactions') || !keys.includes('accounts')) {
     throw new Error('The backup is missing required ledger collections.');
   }
-  const topArrays = Object.keys(backup).filter(key => Array.isArray(backup[key])).sort();
+  const topArrays = Object.keys(backup).filter(key => Array.isArray(backup[key])).sort(byCodeUnit);
   if (JSON.stringify(topArrays) !== JSON.stringify(keys)) {
     throw new Error('Backup collection inventory is incomplete or differs from its counts.');
   }
@@ -258,7 +260,7 @@ export async function backupFromWorkspaceArchive(bytes: Uint8Array): Promise<{ t
   };
   const manifest = read('manifest.json');
   if (!obj(manifest) || manifest.format !== 'ledgerflow-backup-archive-v1' || manifest.restoreFile !== 'backup.json') {
-    throw new Error('This ZIP is not a LedgerFlow workspace archive.');
+    throw new Error(`This ZIP is not a ${BRAND_NAME} workspace archive.`);
   }
   const backup = read('backup.json');
   if (!obj(backup) || !obj(backup.metadata) || backup.metadata.checksum !== manifest.sourceChecksumSha256

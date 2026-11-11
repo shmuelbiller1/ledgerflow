@@ -18,16 +18,17 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getLocalDateISO } from '../../../lib/utils';
+import { BRAND } from '../../../config/brand';
 import { verifiedBackupCollections, makeStoredZip } from '../../../lib/workspaceArchive';
 import type { ZipEntry } from '../../../lib/workspaceArchive';
-import { buildYearArchiveCsvEntries, planYearArchive, type YearArchivePlan } from '../../../lib/yearEndArchive';
+import { buildYearArchiveCsvEntries, planYearArchive, withPdfOutcome, type YearArchivePlan } from '../../../lib/yearEndArchive';
 
 /** The invoice PDF, from the route the invoice screen itself uses (src/services/documentDownloads.ts). */
-async function fetchInvoicePdf(workspaceId: string, documentId: string, token: string): Promise<Blob | null> {
+async function fetchInvoicePdf(workspaceId: string, documentId: string, token: string, signal: AbortSignal): Promise<Blob | null> {
   const query = new URLSearchParams({ workspaceId });
   const response = await fetch(
     `/api/v1/documents/invoice/${encodeURIComponent(documentId)}/pdf?${query.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: { Authorization: `Bearer ${token}` }, signal },
   );
   if (!response.ok) return null;
   return response.blob();
@@ -102,7 +103,7 @@ function YearEndArchiveExportBody() {
       if (!response.ok) throw new Error('The server backup could not be read. No incomplete archive was downloaded.');
       const collections = await verifiedBackupCollections(await response.json(), selectedId);
       const current = planYearArchive(collections, { year });
-      const entries: ZipEntry[] = buildYearArchiveCsvEntries(collections, current);
+      let entries: ZipEntry[] = buildYearArchiveCsvEntries(collections, current);
 
       // the invoices of the year, as the same PDF the invoice screen prints
       let pdfs = 0;
@@ -110,23 +111,28 @@ function YearEndArchiveExportBody() {
       for (const file of current.files) {
         if (file.kind !== 'pdf' || !file.documentId) continue;
         if (controller.signal.aborted) return;
-        const blob = await fetchInvoicePdf(selectedId, file.documentId, token);
+        const blob = await fetchInvoicePdf(selectedId, file.documentId, token, controller.signal);
         if (!blob) { failed.push(file.documentNumber || file.documentId); continue; }
         // raw bytes: a PDF is binary and must not go through the text encoder
-        entries.push({ path: file.path, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        if (controller.signal.aborted) return;
+        entries.push({ path: file.path, bytes });
         pdfs += 1;
       }
+      // the workspace changed or the screen closed while the files were read: download nothing
+      if (controller.signal.aborted) return;
+      entries = withPdfOutcome(entries, current, pdfs, failed);
 
       const blob = makeStoredZip(entries);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `ledgerflow-${year}-archive-${selectedId.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`;
+      link.download = `${BRAND.fileSlug}-${year}-archive-${selectedId.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-      toast.success(`Archived ${year}: ${entries.length - 1 - pdfs} CSV file(s) and ${pdfs} invoice PDF(s).${failed.length ? ` ${failed.length} invoice PDF(s) could not be made and are listed in the manifest.` : ''}`);
+      toast.success(`Archived ${year}: ${entries.length - 1 - pdfs} CSV file(s) and ${pdfs} invoice PDF(s).${failed.length ? ` ${failed.length} invoice PDF(s) could not be made and are listed in manifest.json.` : ''}`);
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not build the archive.');
     } finally {

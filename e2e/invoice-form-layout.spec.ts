@@ -31,6 +31,7 @@ for (const width of [390, 1280]) {
       expect(await captured(page, 'save')).toHaveLength(0);
       await page.getByLabel('Customer', { exact: true }).fill('לקוח Example');
       await expect(page.locator('#inv-customer-error')).toHaveCount(0);
+      await page.locator('summary').filter({ hasText: 'More options' }).click();
       await page.locator('#inv-deposit').fill('1');
       await save.click();
       await expect(page.locator('#inv-deposit-error')).toHaveText("The deposit can't be more than the invoice total");

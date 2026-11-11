@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CalendarClock, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -10,6 +10,7 @@ import {
   type ReportFrequency, type ScheduledReport, type ScheduledReportKind,
 } from '../../../lib/scheduledReports';
 import { getLocalDateISO } from '../../../lib/utils';
+import { workspaceScope } from '../../../lib/serverAction';
 
 /**
  * Settings → Scheduled reports (K-28): a report emailed by itself after each finished week (Monday to
@@ -30,6 +31,37 @@ export default function ScheduledReportsSettings() {
   const [frequency, setFrequency] = useState<ReportFrequency>('monthly');
   const [recipients, setRecipients] = useState(userEmail);
   const [busy, setBusy] = useState('');
+  // R-3: the email the new schedule would send for its last finished period, before saving it
+  const latestPreview = useRef('');
+  const [preview, setPreview] = useState<{ subject: string; html: string; attachments: string[] } | null>(null);
+  // a preview belongs to the report and frequency it was asked for: changing either drops it, and a reply still on its way is ignored
+  const dropPreview = () => { latestPreview.current = ''; setPreview(null); };
+  const showPreview = async () => {
+    if (!workspace?.id) return;
+    // a reply for another workspace or report (the user switched while it loaded) is not shown
+    const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
+    const asked = `${report}|${frequency}`;
+    const isCurrent = () => scope.isCurrent() && latestPreview.current === asked;
+    latestPreview.current = asked;
+    setBusy('preview');
+    try {
+      const token = await getIdToken().catch(() => null);
+      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ report, frequency }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.html !== 'string') throw new Error(data.message || 'The preview could not be made');
+      if (!isCurrent()) return;
+      setPreview({ subject: String(data.subject || ''), html: data.html, attachments: Array.isArray(data.attachments) ? data.attachments.map(String) : [] });
+    } catch (err) {
+      if (!isCurrent()) return;
+      setPreview(null);
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy('');
+    }
+  };
 
   const save = async (next: ScheduledReport[], message: string) => {
     if (!workspace?.id) return false;
@@ -117,13 +149,13 @@ export default function ScheduledReportsSettings() {
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted)]">Report</span>
-              <select value={report} onChange={e => setReport(e.target.value as ScheduledReportKind)} className={field}>
+              <select value={report} onChange={e => { dropPreview(); setReport(e.target.value as ScheduledReportKind); }} className={field}>
                 {(Object.keys(SCHEDULED_REPORTS) as ScheduledReportKind[]).map(k => <option key={k} value={k}>{SCHEDULED_REPORTS[k]}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted)]">How often</span>
-              <select value={frequency} onChange={e => setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly')} className={field}>
+              <select value={frequency} onChange={e => { dropPreview(); setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly'); }} className={field}>
                 <option value="monthly">Monthly (on the 1st, for the month before)</option>
                 <option value="weekly">Weekly (on Monday, for the week before)</option>
               </select>
@@ -132,8 +164,17 @@ export default function ScheduledReportsSettings() {
               <span className="text-xs text-[var(--muted)]">Email to (commas between addresses)</span>
               <input value={recipients} onChange={e => setRecipients(e.target.value)} className={field} dir="ltr" placeholder="you@example.com, accountant@example.com" />
             </label>
+            <button type="button" disabled={Boolean(busy)} onClick={() => void showPreview()} className="px-3 py-1.5 rounded border border-[var(--line)] font-semibold disabled:opacity-50">{busy === 'preview' ? 'Making the preview…' : 'Preview'}</button>
             <button type="button" disabled={Boolean(busy)} onClick={() => void add()} className="px-3 py-1.5 rounded bg-indigo-600 text-white font-semibold disabled:opacity-50">Add</button>
           </div>
+          {preview && (
+            <div className="space-y-2" data-testid="schedule-preview">
+              <p className="text-sm"><span className="text-[var(--muted)]">Subject:</span> <bdi>{preview.subject}</bdi></p>
+              {preview.attachments.length > 0 && <p className="text-xs text-[var(--muted)]">Attached: {preview.attachments.join(', ')}</p>}
+              {/* the email body exactly as sent, in a sandbox that runs no script */}
+              <iframe title="Email preview" sandbox="" srcDoc={preview.html} className="w-full h-96 rounded border border-[var(--line)] bg-white" />
+            </div>
+          )}
         </div>
       ) : (
         <p className="text-xs text-[var(--muted)]">Owners and accountants add and change scheduled reports.</p>

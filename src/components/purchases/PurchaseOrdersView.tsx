@@ -1,6 +1,11 @@
 import { useDialog } from '../../hooks/useDialog';
+import { PageHeader } from '../ui/PageHeader';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import React, { useId, useMemo, useState } from 'react';
-import { ShoppingCart, Plus, ShieldCheck, X, Check, CheckCircle2, FileText, Ban, Printer, Trash2, ChevronRight, ChevronDown, Copy } from 'lucide-react';
+import { ShoppingCart, Plus, ShieldCheck, X, Check, CheckCircle2, FileText, Ban, Printer, Trash2, ChevronRight, ChevronDown, Copy, AlertTriangle, RotateCw } from 'lucide-react';
 import InlineEdit from '../ui/InlineEdit';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import type { Bill, GoodsReceipt, PurchaseOrder, PurchaseOrderItem, Vendor } from '../../types';
@@ -38,7 +43,11 @@ export const PurchaseOrdersView: React.FC = () => {
   const bills = useLedgerStore(s => (s.bills || []) as Bill[]);
   const vendors = useLedgerStore(s => (s.vendors || []) as Vendor[]);
   const accounts = useLedgerStore(s => s.accounts || []);
-  useLedgerCollections('bills', 'inventory', 'vendors');
+  // the vendors and stock this screen reads load on demand, so their loading state is shown (I-05)
+  const { loading } = useLedgerCollections('bills', 'inventory', 'vendors');
+  const dataHealth = useScreenDataHealth(['bills', 'inventory', 'vendors']);
+  // a failed collection is explained by the notice above and must not keep the order table on a skeleton
+  const collectionsLoading = loading && dataHealth.failedKeys.length === 0;
   // J-08: an order line can be a stock item; the bill made from the order brings its units in
   const stockItems = (useLedgerStore(s => s.inventory) || []).filter(i => i.itemType !== 'service');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -48,7 +57,9 @@ export const PurchaseOrdersView: React.FC = () => {
   const [declining, setDeclining] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
   const { addEntity, updateEntity, deleteEntity } = useEntityOperations();
-  const { data: purchaseOrders, loading } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: 500 });
+  // the orders have their own live query, so their failure is reported on its own: an unreadable
+  // order list must never read as "no purchase orders yet" (A-272)
+  const { data: purchaseOrders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: 500 });
   const goodsReceipts = useMemo(() => purchaseOrders.flatMap(po => po.receipts || []), [purchaseOrders]);
   const matchSummary = useMemo(() => performThreeWayMatch(purchaseOrders, goodsReceipts, bills), [purchaseOrders, goodsReceipts, bills]);
   const ids = useId();
@@ -212,24 +223,20 @@ export const PurchaseOrdersView: React.FC = () => {
   const { dialogProps: receiveDialogProps } = useDialog(() => setReceivingPO(null), !!receivingPO);
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="purchase-orders-view">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="w-5 h-5" aria-hidden="true" /> Purchase orders</h1>
-          <p className="text-sm text-[var(--muted)] mt-1">
-            Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.
-            {poRule.enabled && poRule.thresholdCents > 0 ? ` Orders above ${formatCurrency(poRule.thresholdCents, workspace?.currency)} require approval before receiving or billing.` : ''}
-          </p>
-        </div>
+    <div className="space-y-6 w-full min-w-0 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="purchase-orders-view">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
+      <PageHeader className="border-b border-[var(--line)] pb-5" icon={<ShoppingCart className="w-6 h-6" aria-hidden="true" />} title="Purchase orders"
+        description={<>Order from a vendor, record what arrives, then turn the order into a bill. The 3-way match compares all three.
+          {poRule.enabled && poRule.thresholdCents > 0 ? ` Orders above ${formatCurrency(poRule.thresholdCents, workspace?.currency)} require approval before receiving or billing.` : ''}</>}>
         {canEdit && (
           <button type="button" onClick={() => setIsCreatingPO(true)} id="create-po-btn"
             className="px-4 py-2 text-xs font-semibold bg-[var(--brass)] text-[var(--ink)] rounded-lg flex items-center gap-1.5">
             <Plus className="w-3.5 h-3.5" aria-hidden="true" /> New purchase order
           </button>
         )}
-      </div>
+      </PageHeader>
 
-      <div className="flex gap-1 p-1 rounded-lg w-fit bg-[var(--panel)] border border-[var(--line)]" role="tablist" aria-label="Purchase orders">
+      <div className="flex gap-1 p-1 rounded-lg w-fit max-w-full overflow-x-auto bg-[var(--panel)] border border-[var(--line)]" role="tablist" aria-label="Purchase orders">
         {tabs.map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setActiveTab(id)}
             className={`px-4 py-1.5 text-xs font-semibold rounded-md ${activeTab === id ? 'bg-[var(--surface)] text-[var(--text)]' : 'text-[var(--muted)]'}`}>
@@ -239,7 +246,8 @@ export const PurchaseOrdersView: React.FC = () => {
       </div>
 
       {activeTab === 'pos' && (
-        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto">
+        // A-276: a scrollable region a keyboard can reach (axe scrollable-region-focusable)
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Purchase orders table" tabIndex={0}>
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Purchase orders</caption>
             <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
@@ -251,9 +259,30 @@ export const PurchaseOrdersView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {loading && <tr><td colSpan={7} className="py-6 px-4 text-center text-[var(--muted)]">Loading…</td></tr>}
-              {!loading && purchaseOrders.length === 0 && (
-                <tr><td colSpan={7} className="py-10 px-4 text-center text-[var(--muted)]">No purchase orders yet.{canEdit ? ' Choose "New purchase order" to create one.' : ''}</td></tr>
+              {(collectionsLoading || ordersLoading) && <tr><td colSpan={7}><LoadingState what="purchase orders" /></td></tr>}
+              {!collectionsLoading && !ordersLoading && ordersError && (
+                <tr><td colSpan={7} className="p-4">
+                  <div role="status" data-orders-notice className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-start">
+                    <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--neg)]" aria-hidden="true" />
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="font-semibold text-[var(--text)]">Couldn't load the purchase orders.</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{ordersError.message} Orders that already exist are not shown below. Try again.</p>
+                    </div>
+                    <button type="button" onClick={() => refetchOrders()} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--line)] px-4 text-xs font-bold text-[var(--text)] hover:bg-[var(--panel)]">
+                      <RotateCw size={14} aria-hidden="true" /> Try again
+                    </button>
+                  </div>
+                </td></tr>
+              )}
+              {!collectionsLoading && !ordersLoading && !ordersError && purchaseOrders.length === 0 && (
+                <tr><td colSpan={7} className="p-4">
+                  <EmptyState
+                    title="No purchase orders yet"
+                    description="A purchase order tells a vendor what to send before anything is billed; what arrives is recorded against it and the 3-way match compares order, receipt and bill."
+                    actionLabel={canEdit ? 'New purchase order' : undefined}
+                    onAction={canEdit ? () => setIsCreatingPO(true) : undefined}
+                  />
+                </td></tr>
               )}
               {purchaseOrders.map(po => (
                 <React.Fragment key={po.id}>
@@ -341,7 +370,7 @@ export const PurchaseOrdersView: React.FC = () => {
               </div>
             ))}
           </div>
-          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto">
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="3-way match table" tabIndex={0}>
             <table className="w-full text-left text-xs">
               <caption className="sr-only">3-way match</caption>
               <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
@@ -373,7 +402,7 @@ export const PurchaseOrdersView: React.FC = () => {
       )}
 
       {activeTab === 'receipts' && (
-        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto">
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Goods received table" tabIndex={0}>
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Goods received</caption>
             <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
@@ -383,7 +412,16 @@ export const PurchaseOrdersView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {goodsReceipts.length === 0 && <tr><td colSpan={6} className="py-8 px-4 text-center text-[var(--muted)]">Nothing received yet.</td></tr>}
+              {goodsReceipts.length === 0 && (
+                <tr><td colSpan={6} className="p-4">
+                  <EmptyState
+                    title="Nothing received yet"
+                    description="Recording what arrived against an order (with its delivery note and quantities) is what the 3-way match and the stock ledger read."
+                    actionLabel={canEdit && purchaseOrders.length > 0 ? 'Record what arrived' : undefined}
+                    onAction={canEdit && purchaseOrders.length > 0 ? () => setActiveTab('pos') : undefined}
+                  />
+                </td></tr>
+              )}
               {goodsReceipts.map(gr => (
                 <tr key={gr.id}>
                   <td className="py-3 px-4 font-mono font-bold">{gr.receiptNumber}</td>

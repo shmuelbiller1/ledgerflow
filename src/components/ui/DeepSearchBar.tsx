@@ -29,7 +29,7 @@ const SEARCH_OPERATORS = [
   { prefix: '-tax', description: 'Exclude negative keyword', icon: X },
 ];
 
-export default function DeepSearchBar({ value, onChange, metrics, placeholder = "Deep search ledger... (e.g. > 500, this month, category: Meals)", className }: DeepSearchBarProps) {
+export default function DeepSearchBar({ value, onChange, metrics, placeholder = "Search entries… (e.g. > 500, this month, category: Meals)", className }: DeepSearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

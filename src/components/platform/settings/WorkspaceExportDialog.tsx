@@ -13,6 +13,7 @@ import {isCashAccount} from '../../../lib/txFilters';
 import {generateOFX} from '../../../lib/ofx-exporter';
 import {computeGeneralLedger} from '../../../server/reports/computeReports';
 import type {ChartAccount,Customer,Vendor,Transaction} from '../../../types';
+import { BRAND } from '../../../config/brand';
 interface Source {accounts:ChartAccount[];customers:Customer[];vendors:Vendor[];transactions:Transaction[]}
 export default function WorkspaceExportDialog({onClose}:{onClose:()=>void}){
  const {dialogProps,titleId}=useDialog(onClose);
@@ -58,7 +59,7 @@ export default function WorkspaceExportDialog({onClose}:{onClose:()=>void}){
    if(!current())return;
    const scoped=<T extends{workspaceId?:string}>(rows:T[])=>rows.filter(row=>row.workspaceId===workspace);
    source={accounts:scoped(source.accounts),customers:scoped(source.customers),vendors:scoped(source.vendors),transactions:scoped(source.transactions)};
-   const filename=`ledgerflow-${kind}-${endDate}`;
+   const filename=`${BRAND.fileSlug}-${kind}-${endDate}`;
    if(kind==='trial-balance'){
     const table=trialBalanceExportTable(source.transactions,source.accounts,endDate,tbLayout);
     downloadCsv(filename+'.csv',table.headers,table.rows);

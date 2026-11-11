@@ -300,6 +300,7 @@ export function statementColumnCsv(
   showPercent: boolean,
   compare: boolean,
   accounts: ChartAccount[] = [],
+  compareLabel = "Previous",
 ): { headers: string[]; rows: string[][] } {
   const headers = ["Account", "Code"];
   for (const column of columns) {
@@ -308,7 +309,7 @@ export function statementColumnCsv(
     if (showPercent) headers.push(`${label} % of total`);
     if (compare)
       headers.push(
-        `${label} Previous`,
+        `${label} ${compareLabel}`,
         `${label} Variance`,
         `${label} Variance %`,
       );

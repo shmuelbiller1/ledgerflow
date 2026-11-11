@@ -86,8 +86,8 @@ function ScopedViews({ state, onUse, storageKey, user, workspace }: Props & {
   }
 
   return (
-    <details data-print-hide className="min-w-0 rounded border p-2">
-      <summary className="min-h-11 cursor-pointer">Saved report views</summary>
+    <details data-print-hide className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] open:pb-3 open:w-full">
+      <summary className="min-h-11 flex items-center cursor-pointer font-medium">Saved report views</summary>
       <p className="text-xs">
         Save the report, period, comparison and date range under a name. It is kept for you in this
         workspace on this device; no report rows or amounts are stored.

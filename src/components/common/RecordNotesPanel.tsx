@@ -1,3 +1,4 @@
+import { secureId } from '../../lib/secureId';
 /**
  * A-36 (tracker CD-06, CF-08): the notes panel — who wrote what, when, on one record. Notes are
  * plain and appended (threads and mentions are A-21's commentThreads); they live in the record's
@@ -51,11 +52,6 @@ export interface RecordNotesPanelProps {
   metadata?: Record<string, unknown> | null;
   /** False: the panel shows the notes but takes none (a viewer or a guest). */
   canEdit?: boolean;
-}
-
-function newNoteId(): string {
-  const c = globalThis.crypto as { randomUUID?: () => string } | undefined;
-  return c?.randomUUID ? c.randomUUID() : `note_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 }
 
 const when = (iso: string) => {
@@ -157,9 +153,11 @@ export default function RecordNotesPanel({ entityType, entityId, entityName, met
     const refusal = commentProblem(threadDraft);
     if (refusal) { setThreadProblem(refusal); return; }
     setThreadProblem('');
+    const id = secureId('note_');
+    if (!id) { setThreadProblem('Could not create a secure identifier. Try a different browser.'); return; }
     const created = newThreadComment(
       {
-        id: newNoteId(),
+        id,
         workspaceId,
         entityType: commentEntityType,
         entityId,
@@ -191,8 +189,10 @@ export default function RecordNotesPanel({ entityType, entityId, entityName, met
     const refusal = noteProblem(text);
     if (refusal) { setProblem(refusal); return; }
     setProblem('');
+    const id = secureId('note_');
+    if (!id) { setProblem('Could not create a secure identifier. Try a different browser.'); return; }
     const note = addRecordNote({
-      id: newNoteId(), workspaceId, entityType, entityId, body: text, authorUid, ...(authorName ? { authorName } : {}),
+      id, workspaceId, entityType, entityId, body: text, authorUid, ...(authorName ? { authorName } : {}),
     });
     if (await save([...notes, note], `Note saved on ${entityName}`)) setDraft('');
   };

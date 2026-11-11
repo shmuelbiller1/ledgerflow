@@ -7,6 +7,7 @@ import { IL_VAT_SPECIAL_AREAS, ilVatAreaKeyFor, ilVatAreaNames } from '../../lib
 import { getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 /** How many missing places the gaps list spells out before it says "…and N more" (the CSV has them all). */
@@ -24,7 +25,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
   const [kind, setKind] = useState<CoverageKind | 'all'>('all');
 
   const coverage = useMemo(() => ruleCoverage({ asOf }), [asOf]);
-  const countries = useMemo(() => [...new Set(coverage.rows.map(row => row.country).filter(Boolean))].sort(), [coverage]);
+  const countries = useMemo(() => [...new Set(coverage.rows.map(row => row.country).filter(Boolean))].sort(byCodeUnit), [coverage]);
   const rows = useMemo(() => coverage.rows.filter(row =>
     (country === 'all' || row.country === country) && (kind === 'all' || (row.kinds[kind] || 0) > 0)), [coverage, country, kind]);
   const shown = useMemo(() => ({ ...coverage, rows }), [coverage, rows]);

@@ -13,7 +13,6 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { getLocalDateISO } from '../lib/utils';
-import { getSupabase } from '../lib/db/client';
 
 const shift = (iso: string, days: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 const today = getLocalDateISO();
@@ -34,7 +33,7 @@ describe('Dunning letters screen', () => {
     useDataNeedsStore.setState({ failed: {} as never });
     useLedgerStore.setState({ customers: customers as never, invoices: invoices as never, truncatedCollections: {} as never });
   });
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('overdue invoices get the step their age calls for, oldest first', () => {
     render(<DunningLettersReportView />);

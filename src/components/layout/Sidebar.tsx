@@ -11,6 +11,7 @@ import { NAV_GROUPS, APP_TABS } from '../../config/registry';
 import BookmarksGroup from './BookmarksGroup';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 
+import { BRAND_NAME } from '../../config/brand';
 interface SidebarProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
@@ -42,12 +43,18 @@ const NAV_SECTIONS = [
 ];
 const ASSIGNED_GROUPS = new Set(NAV_SECTIONS.flatMap(section => section.groups));
 
-const WORLD_COLORS = [
+const SERIES_COLORS = [
   'var(--w-personal)',
   'var(--w-charity)',
   'var(--w-book)',
   'var(--w-estate)'
 ];
+
+/** "cost_of_goods" reads as "Cost of goods" in the sidebar (D-92: names people recognise). */
+function accountTypeName(type: string): string {
+  const plain = type.replace(/_/g, ' ').toLowerCase();
+  return plain.charAt(0).toUpperCase() + plain.slice(1);
+}
 
 const Sidebar = React.memo(({ 
   activeTab, 
@@ -73,34 +80,50 @@ const Sidebar = React.memo(({
   const currentTabDef = APP_TABS.find(t => t.id === activeTab);
   const activeGroupId = currentTabDef?.groupId || 'dashboard';
 
-  const worldItems = React.useMemo(() => {
+  // D-92: the old "Worlds" box mixed two different things. It now says what it shows —
+  // your projects when there are any, otherwise the balance of each account type — and it
+  // explains the figure instead of leaving the reader to guess.
+  const summary = React.useMemo(() => {
     if (realProjects && realProjects.length > 0) {
-      return realProjects.map((p, idx) => ({
-        id: p.id,
-        name: p.name,
-        color: (p as typeof p & { color?: string; spentCents?: number }).color || WORLD_COLORS[idx % WORLD_COLORS.length],
-        val: formatCurrency(p.budgetCents || (p as typeof p & { color?: string; spentCents?: number }).spentCents || 0)
-      }));
+      return {
+        kind: 'projects' as const,
+        title: 'Projects',
+        hint: 'The budget you set for each project.',
+        items: realProjects.slice(0, 4).map((project, index) => ({
+          id: project.id,
+          name: project.name,
+          color: (project as typeof project & { color?: string }).color || SERIES_COLORS[index % SERIES_COLORS.length],
+          amount: formatCurrency(project.budgetCents || (project as typeof project & { spentCents?: number }).spentCents || 0),
+        })),
+      };
     }
 
     const typeTotals: Record<string, number> = {};
-    accounts.forEach(acc => {
-      const typeLabel = acc.type.toUpperCase();
-      typeTotals[typeLabel] = (typeTotals[typeLabel] || 0) + Math.abs(acc.balanceCents || 0);
+    accounts.forEach(account => {
+      const type = account.type.toUpperCase();
+      typeTotals[type] = (typeTotals[type] || 0) + Math.abs(account.balanceCents || 0);
     });
 
     if (Object.keys(typeTotals).length > 0) {
-      return Object.entries(typeTotals).slice(0, 4).map(([name, total], idx) => ({
-        id: name,
-        name: name.charAt(0) + name.slice(1).toLowerCase(),
-        color: WORLD_COLORS[idx % WORLD_COLORS.length],
-        val: formatCurrency(total)
-      }));
+      return {
+        kind: 'accountTypes' as const,
+        title: 'Balances by account type',
+        hint: 'The total of every account in each type, as recorded in your books. The balance sheet shows the detail.',
+        items: Object.entries(typeTotals).slice(0, 4).map(([type, total], index) => ({
+          id: type,
+          name: accountTypeName(type),
+          color: SERIES_COLORS[index % SERIES_COLORS.length],
+          amount: formatCurrency(total),
+        })),
+      };
     }
 
-    return [
-      { id: '1', name: 'Main Ledger', color: WORLD_COLORS[0], val: formatCurrency(0) }
-    ];
+    return {
+      kind: 'accountTypes' as const,
+      title: 'Balances by account type',
+      hint: 'The total of every account in each type, as recorded in your books. The balance sheet shows the detail.',
+      items: [{ id: 'main', name: 'Main ledger', color: SERIES_COLORS[0], amount: formatCurrency(0) }],
+    };
   }, [realProjects, accounts]);
 
   return (
@@ -120,7 +143,7 @@ const Sidebar = React.memo(({
           <WorkspaceSwitcher onSelect={onSelectWorkspace} onNewWorkspace={onNewWorkspace} />
         ) : (
           <div className="flex items-center justify-center w-full">
-            <div className="w-8 h-8 rounded-lg bg-[var(--brass-soft)] border border-[var(--brass-line)] flex items-center justify-center text-[var(--brass)] shrink-0 shadow-sm" title={workspaces.find(w => w.id === currentWorkspaceId)?.name || 'LedgerFlow'}>
+            <div className="w-8 h-8 rounded-lg bg-[var(--brass-soft)] border border-[var(--brass-line)] flex items-center justify-center text-[var(--brass)] shrink-0 shadow-sm" title={workspaces.find(w => w.id === currentWorkspaceId)?.name || `${BRAND_NAME}`}>
               <Compass aria-hidden="true" size={18} className="animate-spin-slow" />
             </div>
           </div>
@@ -168,25 +191,42 @@ const Sidebar = React.memo(({
             </div>
          </section>)}
 
-         {/* Project amounts, or absolute account totals when there are no projects. */}
+         {/* D-92: projects or account-type balances, named and explained (the old "Worlds" box) */}
          {uiStore.isSidebarOpen && (
-           <div className="pt-2 border-t border-[var(--line)]">
-              <h2 className="font-mono text-[10px] uppercase tracking-widest text-[var(--faint)] px-2 mb-2 font-semibold">{realProjects.length ? 'Projects' : accounts.length ? 'Account totals' : 'Book summary'}</h2>
-              <p className="text-[10px] text-[var(--muted)] px-2 mb-2">{realProjects.length ? 'Budgets or spending, as available' : accounts.length ? 'Sum of absolute account balances' : 'No accounts loaded'}</p>
-              <div className="space-y-1">
-                 {worldItems.map((w) => (
-                   <div 
-                     key={w.id || w.name}
-                     className="flex items-center justify-between px-3 py-1.5 rounded-md hover:bg-[var(--elevated)] text-[12.5px] cursor-pointer transition-colors"
+           <div className="pt-2 border-t border-[var(--line)]" data-testid="sidebar-balances">
+              <h2 className="font-mono text-[10px] uppercase tracking-widest text-[var(--faint)] px-2 mb-0.5 font-semibold" title={summary.hint}>
+                {summary.title}
+              </h2>
+              <p className="px-2 mb-2 text-[10.5px] leading-snug text-[var(--faint)]">{summary.hint}</p>
+              <ul className="space-y-1">
+                 {summary.items.map(item => (
+                   <li
+                     key={item.id || item.name}
+                     className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-[12.5px]"
                    >
-                     <div className="flex items-center gap-2.5 truncate">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: w.color }} />
-                        <span className="truncate text-[var(--text)]">{w.name}</span>
-                     </div>
-                     <span className="font-mono text-[11px] text-[var(--muted)] tabular-nums">{w.val}</span>
-                   </div>
+                     <span className="flex min-w-0 items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full shrink-0" aria-hidden="true" style={{ backgroundColor: item.color }} />
+                        <span className="truncate text-[var(--text)]" title={item.name}>{item.name}</span>
+                     </span>
+                     <span className="font-mono text-[11px] text-[var(--muted)] tabular-nums shrink-0">{item.amount}</span>
+                   </li>
                  ))}
-              </div>
+              </ul>
+              <button
+                type="button"
+                onClick={() => {
+                  if (summary.kind === 'projects') {
+                    setActiveTab('projects' as unknown as string);
+                  } else {
+                    useUIStore.getState().setActiveReportTab('balance-sheet');
+                    setActiveTab('reports' as unknown as string);
+                  }
+                }}
+                className="mt-1.5 w-full min-h-11 flex items-center justify-between gap-2 px-3 rounded-md text-[12px] font-medium text-[var(--muted)] hover:bg-[var(--elevated)] hover:text-[var(--text)] transition-colors"
+              >
+                <span>{summary.kind === 'projects' ? 'Open projects' : 'Open balance sheet'}</span>
+                <ArrowUpRight size={13} aria-hidden="true" className="shrink-0 text-[var(--faint)]" />
+              </button>
            </div>
          )}
       </div>

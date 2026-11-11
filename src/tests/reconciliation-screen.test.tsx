@@ -182,13 +182,13 @@ describe('Bank reconciliation screen', () => {
   test('reconciled percentage counts only matched lines inside the same scoped population', () => {
     stubFetchWithBodies(200, {});
     render(<Reconciliation />);
-    assert.match(screen.getByText(/Reconciled:/).textContent || '', /Reconciled:\s*25%/); // 1 matched of 4 active lines
+    assert.match(screen.getByText(/of bank lines matched/).textContent || '', /25% of bank lines matched/); // 1 matched of 4 active lines
     cleanup();
 
     // An ignored line is work set aside, not a reconciled line: 1 matched of 3 active lines = 33%.
     useLedgerStore.setState({ bankLines: bankLines.map(l => (l.id === 'b3' ? { ...l, status: 'ignored' } : l)) });
     render(<Reconciliation />);
-    assert.match(screen.getByText(/Reconciled:/).textContent || '', /Reconciled:\s*33%/);
+    assert.match(screen.getByText(/of bank lines matched/).textContent || '', /33% of bank lines matched/);
     cleanup();
 
     // The card account holds only the pending coffee line: 0 matched of 1 in scope,
@@ -196,6 +196,6 @@ describe('Bank reconciliation screen', () => {
     useLedgerStore.setState({ bankLines });
     render(<Reconciliation />);
     fireEvent.change(screen.getByLabelText('Reconciliation account'), { target: { value: 'card' } });
-    assert.match(screen.getByText(/Reconciled:/).textContent || '', /Reconciled:\s*0%/);
+    assert.match(screen.getByText(/of bank lines matched/).textContent || '', /0% of bank lines matched/);
   });
 });

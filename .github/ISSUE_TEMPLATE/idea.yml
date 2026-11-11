@@ -1,5 +1,5 @@
 name: Idea or missing feature
-description: Something LedgerFlow should do.
+description: Something the app should do.
 labels: [idea, needs-triage]
 body:
   - type: textarea
@@ -17,4 +17,4 @@ body:
     id: size
     attributes:
       label: How much does it matter to you?
-      options: [I cannot use LedgerFlow without it, It would save me real time, Nice to have]
+      options: [I cannot use the app without it, It would save me real time, Nice to have]

@@ -35,7 +35,7 @@ async function fetchWithCache(url: string, headers: Record<string, string>, cach
   return payload;
 }
 
-const urlKey = (url: string) => crypto.createHash('md5').update(url).digest('hex');
+const urlKey = (url: string) => crypto.createHash('sha256').update(url).digest('hex');
 
 currencyRouter.get('/:endpoint', async (req, res) => {
   try {

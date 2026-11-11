@@ -506,7 +506,7 @@ ones — and a large share look mechanical (unused vars, `no-explicit-any`).
 
 **Evidence:** **147 of 736 test files (20%)** reference `LF_TEST_DATABASE_URL` [LOCAL]. Locally
 they skip; in CI they run against real Postgres. **This is already known inside the project** —
-`audit/AUDIT_PROGRESS.md:75` records *"Output contained 125 `LF_TEST_DATABASE_URL not set`
+`docs/archive/audit/AUDIT_PROGRESS.md:75` records *"Output contained 125 `LF_TEST_DATABASE_URL not set`
 notices. TAP's final leaf skipped count was 0; therefore this result does not claim DB/RLS
 coverage."* That last clause is the sharp part: **TAP reports zero skips while 125 files silently
 did nothing**, so the suite's own summary looks complete when it is not.
@@ -588,7 +588,7 @@ Stated plainly, so you can weigh the rest:
   10.9 min figures are GitHub's own timestamps from a real 4-core CI run, which is the more
   authoritative source anyway — but I have no local end-to-end test count to compare against the
   test totals this repository quotes, which themselves disagree: `docs/PLAN.md:33` says **2,785**
-  unit tests, while `audit/ARCHITECTURE_AND_STRATEGY_REVIEW.md:47` and `audit/AUDIT_PROGRESS.md:75`
+  unit tests, while `audit/ARCHITECTURE_AND_STRATEGY_REVIEW.md:47` and `docs/archive/audit/AUDIT_PROGRESS.md:75`
   say **2,799**.
 - **No Postgres or Docker exists in this sandbox**, so I could not run `db:test-setup`,
   `test:rules`, or any of the 147 database-backed tests. Everything about the database layer here

@@ -15,7 +15,6 @@ import { recordNotesFromMetadata, RECORD_NOTES_METADATA_KEY } from '../lib/recor
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { getSupabase } from '../lib/db/client';
 
 /** Database writes go through the Supabase `lf_update` RPC; let those succeed and nothing else. */
 function stubDbWrites(): void {
@@ -74,7 +73,7 @@ describe('Record notes screen', () => {
       transactions: [] as never, projects: [] as never, truncatedCollections: {} as never,
     });
   });
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('a two-word search finds the notes with both words, newest first, with their record', () => {
     render(<RecordNotesReportView />);
@@ -113,6 +112,22 @@ describe('Record notes screen', () => {
     assert.match(within(panel).getByText('Promised a PO by Friday').closest('li')?.textContent || '', /dana@shop\.test/);
   });
 
+  test('a missing secure random source refuses the note and retains its draft', async () => {
+    render(<RecordNotesReportView />);
+    const panel = screen.getByRole('region', { name: 'Notes on Acme Ltd' });
+    const input = within(panel).getByLabelText('New note on Acme Ltd') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Please retain this draft' } });
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto')!;
+    try {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+      await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Add note' })); });
+      assert.match(within(panel).getByRole('alert').textContent || '', /secure identifier/);
+      assert.equal(input.value, 'Please retain this draft');
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', original);
+    }
+  });
+
   test('an empty note is refused in words', async () => {
     render(<RecordNotesReportView />);
     const panel = screen.getByRole('region', { name: 'Notes on Acme Ltd' });
@@ -133,7 +148,7 @@ describe('Record notes screen', () => {
 });
 
 describe('Notes panel on a record', () => {
-  afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+  afterEach(() => { cleanup(); });
 
   test('the author can change their own note, and the panel names the record', async () => {
     stubDbWrites();

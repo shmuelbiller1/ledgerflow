@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { waitForFiniteAnimations } from './support/a11yGate';
 
 // Fixed civil date, seeded guest records, real UI and real fonts. Nothing financial is masked.
 test.use({ locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' });
 const screens = [
-  ['dashboard', '/#dashboard', 'Real-Time Financial Ledger'],
+  ['dashboard', '/#dashboard', 'Dashboard'],
   ['transactions', '/#transactions', 'Journal Entries'],
-  ['sales', '/#sales', 'Invoicing & Customer Accounts'],
+  ['sales', '/#sales', 'Sales'],
   ['purchases', '/#purchases', 'Purchases & AP'],
   ['reconcile', '/#reconciliation', 'Smart Matching & Bank Reconciliation'],
   ['pnl', '/?report=pnl&start=2026-09-01&end=2026-09-30&cmp=none#reports', 'Reports'],
@@ -53,15 +54,31 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
           const cell = await descriptions.last().boundingBox(), frame = await main.boundingBox();
           return !!cell && !!frame && cell.y >= frame.y && cell.y + cell.height <= frame.y + frame.height;
         }).toBe(true);
-      } else for (let attempt = 0; attempt < 3; attempt++) {
-        const overflow = await main.evaluate(element => element.scrollHeight - element.clientHeight);
-        if (overflow <= 1) break;
-        const height = page.viewportSize()!.height + overflow;
-        expect(height).toBeLessThan(16_000);
-        await page.setViewportSize({ width, height });
+      } else {
+        // Content that arrives after the first measure (Settings loads a section a moment later) made
+        // this loop stop one step early on some runs, so the shot was 305px shorter than the baseline.
+        // Wait for the page to stop fetching, then re-measure until two consecutive reads agree.
+        await page.waitForLoadState('networkidle');
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const overflow = await main.evaluate(element => element.scrollHeight - element.clientHeight);
+          if (overflow <= 1 && attempt > 0) break;
+          if (overflow <= 1) {
+            await page.waitForTimeout(250);
+            continue;
+          }
+          const height = page.viewportSize()!.height + overflow;
+          expect(height).toBeLessThan(16_000);
+          await page.setViewportSize({ width, height });
+        }
       }
       if (screen !== 'transactions') await expect.poll(() => main.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
       await page.mouse.move(0, 0);
+      // Cards that animate in on mount (the sales aging tiles, the dashboard widgets) are still moving
+      // when the shot is taken: `animations: 'disabled'` only settles CSS animations and transitions, so
+      // the capture and its verification re-run disagreed by a few hundred pixels on one screen. Wait
+      // for the page's own finite animations to finish first, with motion reduced as the rest of the
+      // suite does.
+      await waitForFiniteAnimations(page);
       // A tight absolute pixel allowance catches small regressions even on tall screens.
       await expect(page).toHaveScreenshot(`${screen}-${width}-${theme}.png`, {
         fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css',

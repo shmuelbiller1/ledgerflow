@@ -3,6 +3,7 @@ import { BookOpen, Search } from 'lucide-react';
 import { EmptyState } from '../ui/EmptyState';
 import { GLOSSARY_TERMS, searchGlossary, type GlossaryTerm } from '../../lib/accountingGlossary';
 
+import { BRAND_NAME } from '../../config/brand';
 /** C-97: one searchable, bilingual, read-only screen. Definitions never calculate tax or post data. */
 export default function GlossaryView() {
   const [query, setQuery] = useState('');
@@ -28,7 +29,7 @@ export default function GlossaryView() {
           <BookOpen aria-hidden="true" className="h-6 w-6" /> Accounting glossary
         </h1>
         <p className="text-sm text-[var(--muted)]">
-          Plain English and Hebrew explanations of the words used in LedgerFlow. A definition is a
+          Plain English and Hebrew explanations of the words used in {BRAND_NAME}. A definition is a
           learning aid: it does not decide a tax rule, change a report or post an entry.
         </p>
         <p lang="he" dir="rtl" className="text-sm text-[var(--muted)]">

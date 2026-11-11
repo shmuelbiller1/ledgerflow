@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Public status page at /status (L-17, BO-06, G-14): each part of LedgerFlow and whether it works,
  * from GET /api/v1/public/status. Needs no sign-in, so people can check it when they can't log in.
@@ -38,7 +39,7 @@ const STATE_STYLE: Record<ComponentState, string> = {
 const HEADLINE: Record<SystemStatus['state'], string> = {
   operational: 'Everything is working',
   degraded: 'Some parts have problems',
-  down: 'LedgerFlow is not working right now',
+  down: `${BRAND_NAME} is not working right now`,
 };
 
 /** Renders the public system health status page and refreshes health checks while visible. */
@@ -73,7 +74,7 @@ export default function StatusPage() {
     <main className="min-h-screen bg-gray-50 text-gray-900 py-12 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-sm font-semibold text-gray-700">LedgerFlow</p>
+          <p className="text-sm font-semibold text-gray-700">{BRAND_NAME}</p>
           <h1 className="text-2xl font-bold">System status</h1>
           <p className="text-xs text-gray-700">Automatic health check every 60 seconds · No sign-in required</p>
         </header>
@@ -104,7 +105,7 @@ export default function StatusPage() {
         </section>
 
         {status && !unreachable && (
-          <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100" aria-label="Parts of LedgerFlow">
+          <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100" aria-label={`Parts of ${BRAND_NAME}`}>
             {status.components.map(c => (
               <li key={c.id} className="flex items-start justify-between gap-4 p-4">
                 <div>
@@ -129,7 +130,7 @@ export default function StatusPage() {
             href="/"
             className="underline text-gray-900 font-medium min-h-11 px-2 inline-flex items-center"
           >
-            Back to LedgerFlow
+            Back to {BRAND_NAME}
           </a>
         </div>
       </div>

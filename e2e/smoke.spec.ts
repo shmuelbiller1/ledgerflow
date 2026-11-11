@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { settleAnimations } from './support/a11yGate';
 
 test.describe('E2E Smoke Suite', () => {
 
@@ -57,7 +58,7 @@ test.describe('E2E Smoke Suite', () => {
 
   test('4. Send Invoice: Invoice dialog opens', async ({ page }) => {
     await page.click('button:has-text("Money In")');
-    await page.click('button:has-text("Invoices & AP")');
+    await page.click('button:has-text("Invoices")');
     await expect(page.locator('button:has-text("Add Invoice")').first()).toBeVisible();
     await page.click('button:has-text("Add Invoice")');
     await expect(page.getByRole('heading', { name: 'New invoice' })).toBeVisible({ timeout: 8000 });
@@ -68,7 +69,8 @@ test.describe('E2E Smoke Suite', () => {
     await page.click('button:has-text("Insights")');
     
     // Wait for the math algorithms to compute
-    await page.waitForTimeout(2000); 
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await settleAnimations(page, 2000); 
     
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).not.toContain('NaN');

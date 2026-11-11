@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "comment": "F-38 nightly speed budgets (photocraft perf-nightly equivalent). Fail when a budget is broken.",
+  "budgets": {
+    "posting": { "p50Ms": 800, "p95Ms": 2000, "route": "POST /api/v1/transactions/bulk" },
+    "pl": { "p50Ms": 600, "p95Ms": 1500, "report": "profit-and-loss" },
+    "balanceSheet": { "p50Ms": 600, "p95Ms": 1500, "report": "balance-sheet" },
+    "search": { "p50Ms": 200, "p95Ms": 500 },
+    "screens": {
+      "overview": { "firstRenderMs": 800 },
+      "transactions": { "firstRenderMs": 600 },
+      "sales": { "firstRenderMs": 600 },
+      "purchases": { "firstRenderMs": 600 },
+      "reports": { "firstRenderMs": 600 },
+      "banking": { "firstRenderMs": 500 },
+      "reconciliation": { "firstRenderMs": 800 },
+      "monthEndClose": { "firstRenderMs": 600 },
+      "settings": { "firstRenderMs": 400 }
+    }
+  }
+}

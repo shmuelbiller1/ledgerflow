@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './support/a11yGate';
 
 /**
  * Money dialogs with a keyboard and a screen reader (E-08…E-20): each opens as a dialog named by
@@ -12,8 +13,8 @@ async function open(page: Page, group: string, screen: string) {
 }
 
 const dialogs: Array<{ name: string; title: RegExp; show: (p: Page) => Promise<void> }> = [
-  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Money In', 'Invoices & AP'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
-  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Money In', 'Invoices & AP'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
+  { name: 'invoice', title: /New invoice/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Add Invoice/ }).first().click(); } },
+  { name: 'customer', title: /Add Customer/, show: async p => { await open(p, 'Money In', 'Invoices'); await p.getByRole('button', { name: /Customers/ }).first().click(); await p.getByRole('button', { name: /Add Customer/ }).first().click(); } },
   { name: 'bill', title: /Record New Bill/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Record Bill/ }).first().click(); } },
   { name: 'vendor', title: /Add Vendor/, show: async p => { await open(p, 'Money Out', 'Purchases'); await p.getByRole('button', { name: /Vendors/ }).first().click(); await p.getByRole('button', { name: /Add Vendor|New Vendor/ }).first().click(); } },
   { name: 'credit note', title: /Credit Note/, show: async p => { await open(p, 'Transactions', 'Credit Notes & Vendor Credits'); await p.getByRole('button', { name: /New Credit Note/ }).first().click(); } },
@@ -43,7 +44,7 @@ test.describe('Dialogs', () => {
       await d.show(page);
       const dialog = page.getByRole('dialog', { name: d.title });
       await expect(dialog).toBeVisible();
-      await page.waitForTimeout(600); // entrance animation
+      await settleAnimations(page, 600); // entrance animation
       expect(await dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
 
       // D-51: the tested dialogs keep keyboard focus in the real tab order and expose the shared
@@ -54,6 +55,7 @@ test.describe('Dialogs', () => {
         'select:not([disabled]):visible',
         'textarea:not([disabled]):visible',
         'a[href]:visible',
+        'summary:visible',
         '[tabindex]:not([tabindex="-1"]):visible',
       ].join(', '));
       const focusableCount = await focusable.count();

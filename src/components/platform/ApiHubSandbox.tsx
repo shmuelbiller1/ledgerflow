@@ -8,6 +8,7 @@ import { Labelled } from '../ui/Labelled';
 
 import type { useApiHubModel } from './useApiHubModel';
 import { copyWithFeedback } from '../../lib/clipboard';
+import { BRAND_NAME } from '../../config/brand';
 export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { formId, currentWorkspace, publicKeys, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
  return (<div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
@@ -48,7 +49,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                     <option value="POST_v1_projects">POST /api/v1/projects (Map Corporate Scenario Submodule)</option>
                     <option value="GET_v1_metrics">GET /api/v1/metrics (Retrieve Sifting KPIs)</option>
                     <option value="POST_ledger_match">POST /api/v1/ledger/match (Parallel Rule Matching)</option>
-                    <option value="POST_brain_analyze">POST /api/v1/brain/analyze (Query LedgerFlow AI Cognitive AI)</option>
+                    <option value="POST_brain_analyze">POST /api/v1/brain/analyze (Query {BRAND_NAME} AI Cognitive AI)</option>
                     <option value="POST_v1_brain_classify_batch">POST /api/v1/brain/classify-batch (10x Cognitive NLP Batch Categorizer)</option>
                   </select>
                 </Labelled>
@@ -267,7 +268,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                           "text-[9px] font-semibold px-1.5 rounded",
                           sandboxEndpoint === 'POST_v1_brain_classify_batch' ? "bg-purple-50 text-purple-650" : "bg-emerald-50 text-[#228B22]"
                         )}>
-                          {sandboxEndpoint === 'POST_v1_brain_classify_batch' ? "LedgerFlow AI engine" : "Bayesian matching pipeline"}
+                          {sandboxEndpoint === 'POST_v1_brain_classify_batch' ? `${BRAND_NAME} AI engine` : "Bayesian matching pipeline"}
                         </span>
                       </div>
                       <textarea
@@ -288,7 +289,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
                         <label htmlFor={`${formId}-prompt`} className="text-[9px] font-black uppercase text-[var(--muted)]">Cognitive Prompt Directive</label>
-                        <span className="text-[9px] text-[#800080] font-semibold bg-purple-50 px-1.5 rounded">LedgerFlow AI Model</span>
+                        <span className="text-[9px] text-[#800080] font-semibold bg-purple-50 px-1.5 rounded">{BRAND_NAME} AI Model</span>
                       </div>
                       <textarea
                         id={`${formId}-prompt`}

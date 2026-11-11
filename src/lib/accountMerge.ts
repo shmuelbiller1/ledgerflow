@@ -7,13 +7,14 @@
  */
 import type { ChartAccount } from '../types';
 
+import { BRAND_NAME } from '../config/brand';
 /** Why the two accounts cannot be merged, or null. */
 export function mergeProblem(from: ChartAccount | undefined, into: ChartAccount | undefined): string | null {
   if (!from || !into) return 'Both accounts must be in this workspace';
   if (from.id === into.id) return 'Choose two different accounts';
   if (from.type !== into.type) return `"${from.name}" is ${article(from.type)} and "${into.name}" is ${article(into.type)}; only accounts of the same kind can be merged`;
   if (from.currency && into.currency && from.currency !== into.currency) return `"${from.name}" is in ${from.currency} and "${into.name}" in ${into.currency}`;
-  if (from.isSystem || from.role) return `"${from.name}" is used by LedgerFlow itself and cannot be merged away; merge the other account into it instead`;
+  if (from.isSystem || from.role) return `"${from.name}" is used by ${BRAND_NAME} itself and cannot be merged away; merge the other account into it instead`;
   if (from.asOfDate && into.asOfDate && from.asOfDate.slice(0, 10) !== into.asOfDate.slice(0, 10) && (from.openingBalanceCents || 0) !== 0 && (into.openingBalanceCents || 0) !== 0) {
     return `The two opening balances are on different dates (${from.asOfDate.slice(0, 10)} and ${into.asOfDate.slice(0, 10)})`;
   }

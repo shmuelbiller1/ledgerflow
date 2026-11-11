@@ -7,7 +7,7 @@ for (const width of [1280, 390]) {
     await page.goto('/');
     const dashboard = page.getByRole('region', { name: 'Dashboard widgets' });
     await expect(dashboard).toBeVisible();
-    await dashboard.getByLabel('Dashboard date range').selectOption('custom');
+    await dashboard.getByLabel(/dashboard date range/i).selectOption('custom');
     await dashboard.getByLabel('Dashboard from').fill('2024-02-10'); await dashboard.getByLabel('Dashboard to').fill('2024-02-29');
     const revenue = dashboard.getByRole('article', { name: 'Revenue', exact: true });
     await expect(revenue.getByRole('img')).toHaveCount(1);
@@ -16,13 +16,13 @@ for (const width of [1280, 390]) {
     const toggle = dashboard.getByRole('checkbox', { name: 'Revenue', exact: true });
     await toggle.focus(); await toggle.press('Space'); await expect(revenue).toHaveCount(0);
     await page.reload(); await dashboard.getByText('Customize widgets', { exact: true }).click(); await expect(toggle).not.toBeChecked();
-    const move = dashboard.getByRole('button', { name: 'Move Cash balance up', exact: true });
+    const move = dashboard.getByRole('button', { name: 'Move You owe up', exact: true });
     await move.focus(); await move.press('Enter');
     await dashboard.getByRole('button', { name: 'Reset layout', exact: true }).click(); await expect(revenue).toBeVisible();
-    await dashboard.getByLabel('Dashboard date range').selectOption('custom');
+    await dashboard.getByLabel(/dashboard date range/i).selectOption('custom');
     await dashboard.getByLabel('Dashboard from').fill('2024-02-10'); await dashboard.getByLabel('Dashboard to').fill('2024-02-29');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    const target = dashboard.getByLabel('Dashboard date range'); expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const target = dashboard.getByLabel(/dashboard date range/i); expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await revenue.getByRole('link').click();
     await expect(page).toHaveURL(/start=2024-02-10.*end=2024-02-29.*#reports/);
     // A-220: the label names the custom range and the same dates print in the workspace's own date

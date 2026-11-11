@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { importEdges } from '../../scripts/import-edges.mjs';
 
 function getAllFiles(dir: string, fileList: string[] = []): string[] {
   if (!fs.existsSync(dir)) return fileList;
@@ -76,18 +77,12 @@ test('Reachability Guard: True import graph walk from entry points (static + dyn
   const queue = [...entryPoints];
   queue.forEach(e => visited.add(path.resolve(e)));
 
-  const importRegex = /(?:import|export)\s+(?:[\w*\s{},]+\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\.meta\.glob\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-
   while (queue.length > 0) {
     const currentPath = queue.shift()!;
     if (!fs.existsSync(currentPath)) continue;
 
     const content = fs.readFileSync(currentPath, 'utf-8');
-    let match: RegExpExecArray | null;
-    while ((match = importRegex.exec(content)) !== null) {
-      const source = match[1] || match[2] || match[3];
-      if (!source) continue;
-
+    for (const source of importEdges(currentPath, content)) {
       if (source.includes('*')) {
         const globMatches = expandGlob(currentPath, source);
         for (const gm of globMatches) {

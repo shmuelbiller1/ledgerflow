@@ -8,7 +8,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  YEAR_ARCHIVE_COLLECTIONS, buildYearArchiveCsvEntries, planYearArchive, recordYear, safeFilePart,
+  YEAR_ARCHIVE_COLLECTIONS, buildYearArchiveCsvEntries, planYearArchive, recordYear, safeFilePart, withPdfOutcome,
 } from '../lib/yearEndArchive';
 import { makeStoredZip, readStoredZip } from '../lib/workspaceArchive';
 
@@ -124,5 +124,28 @@ describe('J-8 year-end archive', () => {
     const manifest = JSON.parse(new TextDecoder().decode(back.get('manifest.json')));
     assert.equal(manifest.format, 'ledgerflow-year-archive-v1');
     assert.equal(manifest.year, 2026);
+  });
+});
+
+describe('review fixes on the year archive', () => {
+  test('the chart of accounts under the backup\'s own key (accounts) is written whole, old and undated rows included', () => {
+    const data = { accounts: [{ id: 'a1', name: 'Checking', createdAt: '2019-03-01' }, { id: 'a2', name: 'Sales' }], transactions: [{ id: 't1', date: '2026-02-01' }] };
+    const plan = planYearArchive(data, { year: 2026 });
+    const file = plan.files.find(f => f.collection === 'accounts');
+    assert.equal(file?.rows, 2);
+    const csv = buildYearArchiveCsvEntries(data, plan).find(e => e.path === file?.path)?.content || '';
+    assert.ok(csv.includes('Checking') && csv.includes('Sales'));
+    assert.equal((plan.manifest.undatedRecords as Record<string, number>).accounts, undefined);
+  });
+
+  test('the manifest in the ZIP names the invoices whose PDF could not be made', () => {
+    const data = { invoices: [{ id: 'i1', number: 'INV-1', date: '2026-01-05' }, { id: 'i2', number: 'INV-2', date: '2026-01-06' }] };
+    const plan = planYearArchive(data, { year: 2026 });
+    const entries = withPdfOutcome(buildYearArchiveCsvEntries(data, plan), plan, 1, ['INV-2']);
+    const manifest = JSON.parse(entries.find(e => e.path === 'manifest.json')?.content || '{}');
+    assert.equal(manifest.invoicePdfCount, 1);
+    assert.deepEqual(manifest.invoicePdfsMissing, ['INV-2']);
+    assert.equal(entries.filter(e => e.path === 'manifest.json').length, 1);
+    assert.equal(plan.manifest.invoicePdfCount, 2, 'the plan itself is not changed');
   });
 });

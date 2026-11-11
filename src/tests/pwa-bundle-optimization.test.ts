@@ -28,6 +28,7 @@ import * as retentionLight from '../lib/retentionPolicy';
 import * as brandingFull from '../lib/branding';
 import * as brandingLight from '../lib/brandingConstants';
 
+import { BRAND_NAME } from '../config/brand';
 function makeDoc(bodyHtml: string): Document {
   const doc = document.implementation.createHTMLDocument('test');
   doc.body.innerHTML = bodyHtml;
@@ -583,7 +584,7 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
   it('returns 404 (never index.html) when requesting a removed lazy chunk under /assets/*', async () => {
     const tmpDist = fs.mkdtempSync(path.join(os.tmpdir(), 'lf-spa-static-'));
     fs.mkdirSync(path.join(tmpDist, 'assets'), { recursive: true });
-    fs.writeFileSync(path.join(tmpDist, 'index.html'), '<!doctype html><html><body>LedgerFlow SPA</body></html>');
+    fs.writeFileSync(path.join(tmpDist, 'index.html'), `<!doctype html><html><body>${BRAND_NAME} SPA</body></html>`);
     fs.writeFileSync(path.join(tmpDist, 'assets/app-ok.js'), 'export const ok = true;\n');
 
     const prevFetch = globalThis.fetch;
@@ -625,7 +626,7 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
       const spaRoute = await requestPath('/reports');
       assert.equal(spaRoute.status, 200);
       assert.match(spaRoute.contentType, /text\/html/i);
-      assert.match(spaRoute.body, /LedgerFlow SPA/);
+      assert.match(spaRoute.body, new RegExp(`${BRAND_NAME} SPA`));
     } finally {
       globalThis.fetch = prevFetch;
       await new Promise<void>((resolve) => server.close(() => resolve()));

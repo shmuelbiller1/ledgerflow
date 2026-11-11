@@ -1,3 +1,4 @@
+import { groupThousands } from './textShape';
 /**
  * A-70: overdue reminders (dunning) in three steps, each with its own wording in English or Hebrew.
  * A letter is one step for one invoice, sent through the existing email path (the caller sends it);
@@ -103,7 +104,7 @@ const TEMPLATES: Record<DunningLanguage, Record<1 | 2 | 3, { subject: string; bo
 export function dunningAmountText(cents: number, currency: string): string {
   const whole = Math.trunc(Math.abs(cents) / 100);
   const frac = String(Math.abs(cents) % 100).padStart(2, '0');
-  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const grouped = groupThousands(String(whole));
   return `${cents < 0 ? '-' : ''}${grouped}.${frac} ${currency}`;
 }
 

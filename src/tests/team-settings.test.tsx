@@ -50,20 +50,26 @@ test('role changes save through the existing scoped PATCH; refusal keeps the typ
 
 test('invitation by typing and Enter validates email and retains draft on server refusal', async () => {
   await openTeam();
-  fireEvent.click(screen.getByRole('button', { name: inlineEditName('Edit Invite team member email') }));
   let input = screen.getByRole('textbox', { name: 'Invite team member email' });
   fireEvent.change(input, { target: { value: 'bad-email' } });
-  await act(async () => fireEvent.keyDown(input, { key: 'Enter' }));
+  await act(async () => fireEvent.submit(input.closest('form')!));
   assert.equal(mutations().length, 0);
+  assert.match(screen.getByRole('alert').textContent || '', /valid email/);
+  for (const email of ['a@.test', 'a@test.', 'a@@test.com', `a@${'x'.repeat(100_000)}`]) {
+    fireEvent.change(input, { target: { value: email } });
+    await act(async () => fireEvent.submit(input.closest('form')!));
+    assert.equal(mutations().length, 0);
+    assert.match(screen.getByRole('alert').textContent || '', /valid email/);
+  }
   status = 403;
   fireEvent.change(input, { target: { value: 'person@example.test' } });
-  await act(async () => fireEvent.keyDown(input, { key: 'Enter' }));
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send invite' })));
   await waitFor(() => assert.ok(screen.getByRole('alert')));
   input = screen.getByRole('textbox', { name: 'Invite team member email' });
   assert.equal((input as HTMLInputElement).value, 'person@example.test');
   status = 200;
-  await act(async () => fireEvent.keyDown(input, { key: 'Enter' }));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: inlineEditName('Edit Invite team member email') })));
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send invite' })));
+  await waitFor(() => assert.equal((screen.getByRole('textbox', { name: 'Invite team member email' }) as HTMLInputElement).value, ''));
   assert.deepEqual(mutations().map(call => call.body), [{ email: 'person@example.test', role: 'viewer' }, { email: 'person@example.test', role: 'viewer' }]);
 });
 

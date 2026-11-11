@@ -19,6 +19,7 @@ import { isPostable, lineAmount, transactionDate } from './txFilters';
 import { datedMoves, NO_LOCATION, orderedMoves, type StockMove } from './stockMoves';
 import type { CheckFinding, DataCheck } from './dataChecks';
 import { formatCurrency } from './moneyFormat';
+import { byCodeUnit } from './codeUnitOrder';
 
 export interface StockClosingRow {
   itemId: string;
@@ -72,7 +73,7 @@ export function fnv64(text: string): string {
 /** What a move contributes to a checksum: everything that changes a quantity or a value, and its place in the order. */
 const moveKey = (m: StockMove) => [m.id || '', m.itemId, m.locationId || NO_LOCATION, day(m.date), m.seq, round6(Number(m.quantity) || 0), Number(m.valueCents) || 0].join('|');
 
-export const movesChecksum = (moves: StockMove[]) => fnv64(moves.map(moveKey).sort().join('\n'));
+export const movesChecksum = (moves: StockMove[]) => fnv64(moves.map(moveKey).sort(byCodeUnit).join('\n'));
 
 /** The moves a closing at `asOf` covers. */
 export const movesUpTo = (moves: StockMove[], asOf: string) => moves.filter(m => day(m.date) !== '' && day(m.date) <= asOf);
@@ -92,10 +93,10 @@ export function inventoryEntriesChecksum(entries: Transaction[], accounts: Chart
     const d = transactionDate(tx);
     if (!isPostable(tx) || d === '' || d > asOf) continue;
     const lines = (tx.lines || []).filter(l => l && inventory.has(l.accountId)).map(l => `${l.accountId}:${lineAmount(l, tx)}`);
-    if (lines.length) keys.push(`${tx.id}|${d}|${lines.sort().join(',')}`);
+    if (lines.length) keys.push(`${tx.id}|${d}|${lines.sort(byCodeUnit).join(',')}`);
   }
-  const opening = accounts.filter(a => inventory.has(a.id)).map(a => `${a.id}:${Number(a.openingBalanceCents) || 0}`).sort();
-  return fnv64([...keys.sort(), `opening|${opening.join(',')}`].join('\n'));
+  const opening = accounts.filter(a => inventory.has(a.id)).map(a => `${a.id}:${Number(a.openingBalanceCents) || 0}`).sort(byCodeUnit);
+  return fnv64([...keys.sort(byCodeUnit), `opening|${opening.join(',')}`].join('\n'));
 }
 
 /** Shares `cents` over `weights` (all positive) by the largest remainder, so the parts add back to it exactly. */
@@ -158,7 +159,7 @@ export function buildStockClosing(input: { workspaceId: string; asOf: string; mo
   }
   rows.sort((a, b) => a.itemName.localeCompare(b.itemName) || a.locationId.localeCompare(b.locationId));
   const stockValueCents = rows.reduce((s, r) => s + r.valueCents, 0);
-  const startKey = [...byItem.keys()].sort().map(id => `${id}:${starts.get(id) || 0}`).join(',');
+  const startKey = [...byItem.keys()].sort(byCodeUnit).map(id => `${id}:${starts.get(id) || 0}`).join(',');
   return {
     workspaceId: input.workspaceId, asOf: input.asOf, rows, moveCount: covered.length, checksum: fnv64(`${movesChecksum(covered)}|${startKey}`),
     ...(input.booksChecksum ? { booksChecksum: input.booksChecksum } : {}),
@@ -285,7 +286,7 @@ export function closingFreshness(closing: Pick<StockClosing, 'asOf' | 'checksum'
   const changed = new Set<string>();
   for (const r of now.rows) { const t = then.get(key(r)); if (!t || t.checksum !== r.checksum || t.valueCents !== r.valueCents || t.quantity !== r.quantity) changed.add(r.itemName); }
   for (const r of closing.rows) if (!nowRows.has(key(r))) changed.add(r.itemName);
-  const changedItems = movesChanged ? [...changed].sort() : [];
+  const changedItems = movesChanged ? [...changed].sort(byCodeUnit) : [];
   const why = [
     movesChanged ? `its stock moves were changed since it was taken (${now.moveCount} now, ${closing.moveCount} then${changedItems.length ? `; ${changedItems.slice(0, 5).join(', ')}` : ''})` : '',
     booksChanged ? `an entry to Inventory dated on or before ${closing.asOf} was posted, changed or removed since it was taken` : '',

@@ -12,6 +12,7 @@ import { parseExcelToRows } from '../../lib/excelExport';
 import { parseCsvChecked } from '../../lib/csv';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { QBOMigrationWizardView } from './QBOMigrationWizardView';
+import { BRAND_NAME } from '../../config/brand';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -180,8 +181,8 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           if (!val) return 0;
           const str = String(val).trim();
           const isParenNegative = /^\(.*\)$/.test(str);
-          const isCr = /\bcr\b|cr$/i.test(str);
-          const isDr = /\bdr\b|dr$/i.test(str);
+          const isCr = /(?:\bcr\b)|(?:cr$)/i.test(str);
+          const isDr = /(?:\bdr\b)|(?:dr$)/i.test(str);
           const cleaned = str.replace(/[^0-9.-]/g, '');
           const numVal = Number.parseFloat(cleaned);
           if (Number.isNaN(numVal)) return 0;
@@ -526,7 +527,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           }
         }
 
-        toast.success(`Successfully migrated ${parsedRows.length} transactions into LedgerFlow!`);
+        toast.success(`Successfully migrated ${parsedRows.length} transactions into ${BRAND_NAME}!`);
         setIsProcessing(false);
         onClose();
       } catch (err) {

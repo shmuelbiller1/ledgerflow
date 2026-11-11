@@ -17,6 +17,7 @@ import { db } from '../../../firebase';
 import { doc, updateDoc } from '../../../lib/db/firestore';
 import InlineEdit from '../../ui/InlineEdit';
 import { downloadCsv } from '../../../lib/csvExport';
+import { secureId } from '../../../lib/secureId';
 import ReportTableScroll from '../../reporting/ReportTableScroll';
 import {
   coerceCustomField, customFieldColumns, customFieldCsvRow, customFieldProblem, customFieldValues,
@@ -32,11 +33,6 @@ const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(-
 
 interface RecordLike {
   id: string; name?: string; metadata?: Record<string, unknown>; workspaceId?: string;
-}
-
-function newFieldId(): string {
-  const c = globalThis.crypto as { randomUUID?: () => string } | undefined;
-  return c?.randomUUID ? c.randomUUID() : `cf_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 }
 
 /**
@@ -172,10 +168,14 @@ export default function CustomFieldsSettings() {
         <div className="flex flex-wrap gap-2" data-print-hide>
           {(Object.keys(ENTITY_LABELS) as CustomFieldEntity[]).map(entityType => (
             <button key={entityType} type="button" disabled={busy}
-              onClick={() => change([...defs, {
-                id: newFieldId(), entityType, key: `field${defs.length + 1}`,
-                label: `Field ${defs.length + 1}`, type: 'text',
-              }])}
+              onClick={() => {
+                const id = secureId('cf_');
+                if (!id) { toast.error('Could not create a secure identifier. Try a different browser.'); return; }
+                change([...defs, {
+                  id, entityType, key: `field${defs.length + 1}`,
+                  label: `Field ${defs.length + 1}`, type: 'text',
+                }]);
+              }}
               className="min-h-11 px-4 rounded border border-[var(--line)] inline-flex items-center gap-1">
               <Plus size={16} aria-hidden="true" /> Add on {ENTITY_LABELS[entityType].toLocaleLowerCase()}
             </button>

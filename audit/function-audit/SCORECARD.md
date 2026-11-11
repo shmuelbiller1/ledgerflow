@@ -1,132 +1,125 @@
-# Audit scorecard — independent function-level review (Pass A)
+# Audit scorecard — independent function-level review (Pass A) and workflow review (Pass B)
 
-**Latest update:** 2026-10-25 · **Owner:** AI #8 (independent audit, review-only)
-**Pinned SHA:** `8df972dad7e9f282fad317e2c1a8939b9ef96aef` (= `upstream/main` at session start)
-**Mission:** `docs/INDEPENDENT_AUDIT_AGENT.md` · umbrella issue [#150](https://github.com/shmuelbiller1/ledgerflow/issues/150)
+**Latest update:** 2026-10-25 (second session) · **Owner:** AI #8 (independent audit, review-only)
+**Pinned SHA:** `50ee1205d9049d7c225beb433bcb3dff75b77be9` (= `upstream/main`, 2026-10-25 21:01 UTC)
+**Previous pin:** `8df972da` (2026-10-24, slices 1–3) — 85 commits have landed since; this pass re-verified the
+old evidence at the new pin and added slices 4–6.
+**Mission:** [`docs/INDEPENDENT_AUDIT_AGENT.md`](../../docs/INDEPENDENT_AUDIT_AGENT.md) · umbrella issue
+[#150](https://github.com/shmuelbiller1/ledgerflow/issues/150)
+**Owner-facing list:** [`../FINAL_ACCURATE_LIST_2026-10-25.md`](../FINAL_ACCURATE_LIST_2026-10-25.md)
+
+## Headline
+
+- **The release-gate worked-figure suites were executed for the first time in this environment**: six
+  gold suites against a real Postgres → **31/31 pass**. They *skip* without `LF_TEST_DATABASE_URL`, which is
+  why earlier audit sessions could only read them.
+- **Statement scope, entity statements, stock revaluation, inventory as-of and import acceptance** → **51/51**;
+  **RMA server** → **5/5**; **RLS** → all pass; types 0 errors; ESLint 0 errors / 61 warnings.
+- **Two new verified defects**: **AF-011** (#342, civil-date/time-zone contract, P1) and **AF-012** (#161,
+  override chains, P2 latent). **Two source-verified screen defects** carried forward: AF-013 (#104),
+  AF-014 (#96).
+- **Five open GitHub issues are actually fixed at this pin** and can be closed: #141, #143, #130, #131, AU-4.
 
 ## Coverage (honest counts — indexing is not review)
 
 | Metric | Count | Note |
 |---|---:|---|
-| Inventory: non-test TS/TSX source files at pin | 1,384 | `find src -name '*.ts*'`, tests excluded |
-| Inventory: function-like declarations (simple grep) | ~10,100 | Automatic inventory only, **not** reviewed |
-| Prior atlas extraction (older SHA `74b8318`, incl. tests) | 29,662 functions / 121,619 edges | Atlas stats are stale vs this SHA; regenerate before relying on them |
-| Functions fully inspected (body + callers + side effects), slices 1–3 | **67** | Enumerated below; each has executed or source-pinned evidence |
-| Verified defects (open findings) | **8** | AF-001 ×4, AF-002-F1, AF-010 ×7 — see register; AF-001 is one existing issue |
-| Verified-no-finding (with executed check) | 15+ helpers | plus 7,000+ property-test cases across allocators/labels |
-| DB-gated checks executed here | 0 | No `LF_TEST_DATABASE_URL` in this environment; never claimed as run |
+| Inventory: non-test TS/TSX source files at pin | 1,384 | unchanged inventory method |
+| Prior atlas extraction (older SHA `74b8318`, incl. tests) | 29,662 functions / 121,619 edges | stale vs this pin; regenerate before relying on it |
+| Functions fully inspected, slices 1–3 (previous sessions) | 67 | see the previous scorecard sections (kept below) |
+| **Functions fully inspected, slices 4–6 (this session)** | **22** | listed below; each has source + executed evidence |
+| Functions read partially (sampled) this session | 4 | named as partial, not counted as reviewed |
+| Verified defects open | **13** | AF-001 ×4, AF-002-F1, AF-010 ×7, AF-011, AF-012 (AF-013/AF-014 are screen-level, source-verified) |
+| Verified-no-finding with executed check | 15+ helpers, 584 rules, 12 gold workflows | property suites and the real-Postgres runs below |
+| DB-gated checks executed here | **yes** | Postgres 18.4 (embedded), stub + all 45 migrations, RLS pass |
 
-### Inspected functions (slice 1, all at the pinned SHA)
+### Slice 4 — statements, imports, acceptance (fully read: body + callers + side effects)
 
-- **Money templates/kernel:** `allocateCents` (kernel), `splitByAccount`, `spreadLabels`,
-  `TransactionTemplates.buildInvoiceLines/buildBillLines/buildPaymentLines/buildReversalLines`;
-  `allocateCents` (`lib/Allocation.ts`).
-- **Amount parsing/export:** `parseAmountToCents` (utils), `TruthEngine.parseAmountToCents`,
-  `parseAmountToCentsOrZero`, `bankCsvAmountCents`, `bankCsvDate`, `assertReadableText`,
-  `sanitizeCsvCell`, `formatDecimal`, `toCsv`, `csvMoney`, `downloadCsv`.
-- **Dates/periods:** `bankStatementDate`; `workspaceRole`, `effectiveLockDate`, `isLockedDate`,
-  `postingLock`, `lockMessage`, `assertPostingOpen`, `monthEnd`, `dayBefore`, `monthCloseState`;
-  `TruthEngine.resolveEffectiveValue` and its two historical-conversion callers.
-- **Bank feed:** `syncAllPages`, the full `POST /sync` route and the link/exchange/reconnect/
-  disconnect/banks handlers; `Banking.handleSyncNow`; `BankFeedImport.fetchFromPlaid/handleAutoMap/
-  handleConfirm`; `parseMT940Statement`, `parseCamt053Statement`.
-- **Server money services:** `allocationLedger.ts` (12 exports incl. `splitAllocations`,
-  `recordAllocation`, `reverseAllocation`, `allocationsOf`), payment idempotency wrapper,
-  `paymentService.documentLabelWeights/payeeLabels`, `importActions.handleImportTransactions`
-  (read), and the posting guards in `invoicePosting.ts` / `billPosting.ts` that bound AF-002-F1.
-- **Slice 2 — untrusted input and ledger predicates:** `amountExpression.evaluateAmountExpression`
-  and its rational helpers, `csv.detectDelimiter/parseCsv/parseCsvChecked/readCsv`,
-  `documentMath` (8 exports incl. inclusive/exclusive tax), `taxCodes.computeTax/effectiveRate`,
-  `cents.roundCents/calculateFXCents`, and `txFilters.ts` (`isPostable`, `lineAmount`,
-  `settleHomeCurrency`, `isPeriodLocked`, date-range and inflow/outflow predicates,
-  `calculateFilteredTotals`, `calculateNetIncome`, `runningBalances`).
-- **Slice 3 — multi-currency and report periods:** `currencyMinorUnits`
-  (`currencyDigits/minorUnitRate/convertMinorUnits/minorToMajor/amountStep`, BM-04) and
-  `reportCustomPeriod.validCustomReportPeriod`; both verified-no-finding with worked JPY/KWD
-  figures, a reciprocal round-trip and calendar/ordering boundary tests.
+`statementDate` · `loadStatement` (statementService) · the statement branch of `documentRoutes`
+(period → `loadStatement` → PDF) · `amountCents` · `readSourceTrialBalance` · `compareImport`
+(importAcceptance, incl. the QuickBooks `"1200 Accounts Receivable"` code/name matching and the file's own
+total row) · `lf_rma_guard` (SQL trigger) · `allocationId` · `realizedFxFor` · `allocationLedgerReady`.
+
+### Slice 5 — civil dates and the rule engine
+
+`parseLocalDate` · `formatDate` · the `TaxManager` year filter · `evaluateRules` (full body) · `holds` ·
+`describe` · `ilVatPack` · `stateRateTargets` · `taxRulePacks` / `allTaxRules` (all 18 packs materialised and
+measured: 584 rules, 67 overrides, 221 exclusions, 0 chains, 0 dangling targets).
+
+### Slice 6 — screens and recovery (source-verified; browser reproduction outstanding)
+
+`TransactionGrid` keyboard effect (window listener, index arithmetic, no `scrollToItem`) ·
+`useDataNeedsStore` `retry`/`markFailed` (no `online`/`visibilitychange` path) · `useLedgerData` subscription
+effect (no recovery hook) · `ImportAcceptanceView` + `Reports` registration (reachable at
+Reports → Import Acceptance) — read for reachability, **not** counted as full reviews.
 
 ## Findings register (the accurate list)
 
-| ID | Sev | Finding | Owner lane | Tracked |
+| ID | Sev | Finding | Lane | Tracked |
 |---|---|---|---|---|
-| AF-001-F1 | P1 (P0 mechanism) | `/sync` advances `syncCursor` with no durable write of returned rows; route has no `bankLines` access | AI #1 server | issue #151 (re-verified) |
-| AF-001-F2 | P1 | Banking “Sync Feed” toasts success but never consumes `transactions/modified/removed` | AI #1/#8 UI | #151 |
+| AF-001-F1 | P1 (P0 mechanism) | `/sync` advances `syncCursor` with no durable write of returned rows; the router never touches `bankLines` | AI #1 server | issue #151 (re-verified at this pin) |
+| AF-001-F2 | P1 | Banking "Sync Feed" reports success and never consumes `transactions/modified/removed` | AI #1/#8 UI | #151 |
 | AF-001-F3 | P1 | Plaid `modified`/`removed` never applied; legacy importer hardcodes `accountId:'offset-bank'` | AI #1/#8 | #151 |
-| AF-001-F4 | P2 | Healthy zero-change sync answers `success:false` | AI #1 | this audit |
-| AF-002-F1 | P2 latent | Template drops non-positive tax/discount legs → unbalanced entry if called with negatives (posting guards block reachability) | AI #1 | this audit |
-| AF-010-F1 | P2 | Two `allocateCents` with opposite contracts (coerce-to-first-slot vs throw) | AI #1 | this audit |
-| AF-010-F2 | P2 | `utils.parseAmountToCents` loses parenthesized-negative sign `(100)→+100` | AI #1 | this audit |
-| AF-010-F3 | P2 | Same helper throws raw DecimalError on malformed text; render-path callers can hit error boundaries | AI #1 | this audit |
-| AF-010-F4 | P3 | Non-Latin digits → silent 0; `Infinity` passthrough | AI #1 | this audit |
-| AF-010-F5 | P3 | CSV formula guard bypassed by a leading space | AI #8-safe? (lib) | this audit |
-| AF-010-F6 | P3 | `formatDecimal(Infinity)` → `"Infinity.NaN"` | AI #1 | this audit |
-| AF-010-F7 | P3 | `evaluateAmountExpression` loses exact cents above `Number` safe range | AI #1 | this audit |
+| AF-001-F4 | P2 | A healthy zero-change sync answers `success:false` | AI #1 | this audit |
+| **AF-011** | **P1** | A stored `YYYY-MM-DD` displays one day earlier and files in the previous tax year when the workspace zone is ahead of the device zone (`formatDate`/`parseLocalDate`/`TaxManager:200`) | AI #1 shared helper | issue #342 (executed repro, [`AF-011`](AF-011-civil-date-contracts.md)) |
+| **AF-012** | P2 latent | Override-chain answers depend on array order; a displaced rule keeps its displacement; no lint refuses chains/cycles (0 chains in the 584 shipped rules today) | AI #9 rules engine | issue #161 (executed repro, [`AF-012`](AF-012-rule-override-chains.md)) |
+| **AF-013** | P2 | Grid keeps a logical focus without `scrollToItem`; `[-1].id` is reachable after filters empty the list; Tab intercepted globally | AI #3 screens | issue #104 (source-verified, browser repro needed) |
+| **AF-014** | P2 | A failed live collection never retries itself on `online`/visible; only the manual Try again path exists | AI #2/#3 | issue #96 (source-verified, browser repro needed) |
+| **AF-015** | P3 | The P&L route answers from its 60-second cache before the workspace-membership check; the key includes the user id, so no cross-user leak — only a revoked user's own last-minute answer (`reportRoutes.ts:108–110` vs the balance sheet's authorize-then-cache at `:141`) | AI #1 | this audit |
+| AF-002-F1 | P2 latent | Template drops non-positive tax/discount legs (posting guards block reachability) | AI #1 | this audit |
+| AF-010-F1…F7 | P2 ×3, P3 ×4 | allocator contracts, amount parser sign/throw/Latin digits, CSV formula guard, `formatDecimal(Infinity)`, expression precision | AI #1 | this audit |
 
-No P0 is reachable in the **stage-A synthetic beta**: AF-001 needs real bank credentials (excluded
-by the stage-A rules), and AF-002-F1 is blocked by the `amount <= 0` posting guards. Stage B (real
-bank connections) must close AF-001-F1…F3 first — it is gate G-10.
+**Fixed at this pin (verified fix + executed test, issue still open upstream):** #141 statement period in the
+PDF (entity PDF deliberately refused with a note), #143 RMA server + browser-write trigger,
+#130 stock revaluation, #131 inventory as-of, AU-4 import acceptance screen.
 
-**GitHub write status (2026-10-25):** the session token is a fine-grained GitHub App token that can
-push the fork branch but receives `403 Resource not accessible by integration` when creating the
-cross-fork PR, issues or comments on `shmuelbiller1/ledgerflow` (fork issues are disabled). The work
-is reviewable as fork PR **[#9](https://github.com/Chaim-Richard/ledgerflow/pull/9)**; the
-one-click upstream compare URL and ready-to-paste issue/comment text are in
-[`issue-drafts/`](issue-drafts/README.md).
-
-## Tests actually executed (this environment, no DB)
+## Executed evidence at this pin
 
 ```sh
-NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic npx tsx --test \
-  src/tests/audit-af001-plaid-contract.test.ts \
-  src/tests/audit-af002-label-cents.test.ts \
-  src/tests/audit-af010-money-primitives.test.ts \
-  src/tests/audit-af010b-csv-dates.test.ts \
-  src/tests/audit-af010c-expr-csv.test.ts \
-  src/tests/audit-af010d-currency-period.test.ts
-# 27 tests, all passing (20 slice 1 + 3 slice 2 + 4 slice 3)
+# database: local Postgres 18.4 (embedded npm distribution)
+npm run db:test-setup     # stub + all 45 migrations
+npm run test:rules        # ALL RLS TESTS PASSED
+LF_TEST_DATABASE_URL=… npx tsx --test \
+  src/tests/w1-gold.test.ts src/tests/w3w4-gold.test.ts src/tests/w7-gold.test.tsx \
+  src/tests/w8-gold.test.tsx src/tests/w12-gold.test.ts src/tests/w13-gold.test.ts      # 31/31
+LF_TEST_DATABASE_URL=… npx tsx --test \
+  src/tests/aud01-statement-scope.test.tsx src/tests/statement-by-entity.test.ts \
+  src/tests/iss130-stock-revaluation.test.ts src/tests/iss131-inventory-as-of.test.tsx \
+  src/tests/au4-import-acceptance.test.tsx                                             # 51/51
+LF_TEST_DATABASE_URL=… npx tsx --test src/tests/iss143-rma-server.test.ts              # 5/5
+LF_TEST_DATABASE_URL=… npx tsx --test src/tests/eg2-payment-ledger.test.ts \
+  src/tests/eg2-payment-void.test.ts src/tests/eg2-credits-writeoffs.test.ts \
+  src/tests/eg2-client-void-retired.test.ts                                            # 29/29
+NODE_ENV=test … npx tsx --test src/tests/audit-af001-plaid-contract.test.ts \
+  src/tests/audit-af002-label-cents.test.ts src/tests/audit-af010-{money-primitives,b-csv-dates,c-expr-csv,d-currency-period}.test.ts  # 27/27
+npm run lint:types        # 0 errors
+npm run lint:eslint       # 0 errors, 61 warnings (cap 105)
 ```
 
-Full gate at the pinned SHA (this branch adds tests/docs only):
+Probes (reproduce the two new findings from a clean checkout):
 
-- `npm run lint:types` (`tsc --noEmit`): **0 errors**.
-- `npm run lint:eslint` (`--max-warnings 105`): **0 errors, 105 warnings** — at cap, new files add none.
-- Full unit suite (`npm test`, no `LF_TEST_DATABASE_URL` so DB suites skip), run with the slice-1
-  set included: **3,785 tests · 3,783 pass · 0 fail · 2 skipped · 880 suites** (the two skips are
-  pre-existing database-gated suites, unrelated to this change). Slice-2/3 test files were added
-  after that run and verified standalone (7/7), with `tsc --noEmit` clean and ESLint 0 errors /
-  105 warnings on every iteration; the full suite remains green for the committed set in CI.
-- Exploratory probes (removed before commit): 2,000 random labelled invoices (per-label balance),
-  5,000 random allocator cases (sum invariance incl. negatives), 360k document-tax cases vs an
-  independent Decimal reference (0 mismatches), parser boundary tables.
-- `node scripts/code-atlas.mjs stats` runs clean; its stored revision (`74b8318`) is stale vs the pin.
+```sh
+TZ=UTC npx tsx audit/function-audit/probes/af011-date-contracts.mjs
+npx tsx audit/function-audit/probes/af012-rule-chain-order.mjs
+npx tsx audit/function-audit/probes/af012-shipped-pack-chains.mjs
+```
 
-### Additional observations from slice 1 (no defect without a failing counterexample)
+The whole unit suite ran in four shards with the database attached: **4,616 tests · 904 suites · 0 failed ·
+0 skipped** (exit 0 on every shard). Recorded in [`../FINAL_ACCURATE_LIST_2026-10-25.md`](../FINAL_ACCURATE_LIST_2026-10-25.md) §5.
 
-- `calculateDocumentTax` uses float arithmetic for inclusive tax, but an independent Decimal
-  reference across 8 rates × 30,000 gross amounts and 4 rates × 30,000 exclusive bases found
-  **zero** disagreements; `computeTax` (taxVersion 2) explicitly reconciles the rounding cent so
-  gross = net + tax. The two net conventions (`netFromGross` vs gross-minus-tax) can differ by one
-  cent on the same gross value, but taxVersion separation prevents mixing them on one document.
-- `roundCents` tie behavior matches its “half away from zero” doc (`-2.5 → -3`); `calculateFXCents`
-  silently treats a missing/zero/negative rate as 1.0 — callers in posting validate rates first.
-- MT940/CAMT.053 direction comes from a separate debit/credit marker, never the amount string.
+## Not run here, and why
 
-## Unknowns / not yet reviewed (next batches)
+- **Browser journeys (89 specs).** No Chromium can be installed in this sandbox: playwright's CDN is blocked,
+  and a static Chromium build fails on missing `libnspr4`/`libnss3`. Marker on #104, #96, #146 and #274:
+  `needs-reproduction` until a browser run names the commit.
+- **The live deployment.** Vercel/Supabase secrets, applied migrations and deployment protection are the
+  owner's items; the repository cannot prove them.
+- **Plaid sandbox.** AF-001's real-Postgres replay/interrupt test needs a fake Plaid client and a database;
+  the recipe is written in issue #151.
 
-1. **AF-003 statement scope** — issue #141 / A-72 still open (AI #1 reserved): re-verify screen vs
-   server JSON vs PDF/export scope once the server change lands.
-2. **AF-004 tax fact authority** — `composeFacts/evaluateRules/resolveSellerProfile` graph and the
-   IL/US return builders; no function read yet.
-3. **AF-005 stock/as-of** — issues #130/#131 open; `cogsStockService`, stock-move history next.
-4. **AF-007 report cache** — revocation/freshness and role-revocation-during-TTL.
-5. **AF-009 first-hour path** — authenticated browser journey (needs running app + Postgres).
-6. Remaining ~99.6% of the function inventory: next batches will walk posting call graphs
-   (`postingCore`, shadow check, bulk commit), then report builders, then server routes.
-7. Postgres-gated reproductions (issue #151's recipe, RLS, concurrency) remain `needs-reproduction`
-   until a database is available in this environment or CI evidence is linked.
+## Proposed next batch (10 functions)
 
-## Proposed next 10-function batch
-
-`postingCore` entry builder → `ledgerBulkCommit` idempotency/dedup → posting shadow check →
-`reconcileRoutes` match/clear → `bankLineService` → `bankRuleService` → `documentMath.calculateDocumentTax`
-→ `cents.roundCents/calculateFXCents` → `currencyMinorUnits.minorUnitRate` → `reportCustomPeriod`.
+`postingCore` entry builder → `ledgerBulkCommit` (dedupe/idempotency) → posting shadow check →
+`reconcileRoutes` match/clear → `bankLineService` → `bankRuleService` → `paymentVoidService` (void of a
+settled payment) → `allocationLedger.recordAllocation/reverseAllocation` (same-transaction guarantees) →
+`periodClosingService` snapshot write → `stockClosingService` snapshot write.

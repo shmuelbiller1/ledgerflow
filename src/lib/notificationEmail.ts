@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../config/brand';
 /**
  * Notices by email (S-18): each person chooses whether the bell's notices also reach them by email:
  * not at all (the default), each one as it happens, or one summary a day of what they have not read.
@@ -21,16 +22,16 @@ export interface BuiltEmail { subject: string; html: string; text: string }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 /** Text on one line: control characters (line breaks, tabs…) become spaces. */
 const clip = (s: unknown, max: number) => [...String(s ?? '')].map(ch => { const code = ch.charCodeAt(0); return code < 32 || code === 127 ? ' ' : ch; }).join('').replace(/ {2,}/g, ' ').trim().slice(0, max);
-const footer = (appUrl: string) => `To change which emails you get: LedgerFlow → the bell → the gear (${appUrl}).`;
+const footer = (appUrl: string) => `To change which emails you get: ${BRAND_NAME} → the bell → the gear (${appUrl}).`;
 
 export function noticeEmail(notice: NoticeForEmail, appUrl: string): BuiltEmail {
   const title = clip(notice.title, 140);
   const message = clip(notice.message, 400);
-  const workspace = clip(notice.workspaceName, 80) || 'LedgerFlow';
+  const workspace = clip(notice.workspaceName, 80) || `${BRAND_NAME}`;
   return {
     subject: `${workspace}: ${title}`,
-    html: `<p><strong>${esc(title)}</strong></p><p>${esc(message)}</p><p><a href="${esc(appUrl)}">Open LedgerFlow</a></p><p style="color:#666;font-size:12px">${esc(footer(appUrl))}</p>`,
-    text: `${title}\n\n${message}\n\nOpen LedgerFlow: ${appUrl}\n\n${footer(appUrl)}`,
+    html: `<p><strong>${esc(title)}</strong></p><p>${esc(message)}</p><p><a href="${esc(appUrl)}">Open ${BRAND_NAME}</a></p><p style="color:#666;font-size:12px">${esc(footer(appUrl))}</p>`,
+    text: `${title}\n\n${message}\n\nOpen ${BRAND_NAME}: ${appUrl}\n\n${footer(appUrl)}`,
   };
 }
 
@@ -39,7 +40,7 @@ export function digestEmail(notices: NoticeForEmail[], appUrl: string): BuiltEma
   const shown = notices.slice(0, 50);
   const byWorkspace = new Map<string, NoticeForEmail[]>();
   for (const n of shown) {
-    const key = clip(n.workspaceName, 80) || 'LedgerFlow';
+    const key = clip(n.workspaceName, 80) || `${BRAND_NAME}`;
     byWorkspace.set(key, [...(byWorkspace.get(key) || []), n]);
   }
   const more = notices.length - shown.length;
@@ -51,8 +52,8 @@ export function digestEmail(notices: NoticeForEmail[], appUrl: string): BuiltEma
   }
   const count = `${notices.length} notice${notices.length === 1 ? '' : 's'} you have not read`;
   return {
-    subject: `LedgerFlow: ${count}`,
-    html: `<p>${esc(count)}:</p>${htmlParts.join('')}${more > 0 ? `<p>…and ${more} more.</p>` : ''}<p><a href="${esc(appUrl)}">Open LedgerFlow</a></p><p style="color:#666;font-size:12px">${esc(footer(appUrl))}</p>`,
-    text: `${count}:\n\n${textParts.join('\n\n')}${more > 0 ? `\n\n…and ${more} more.` : ''}\n\nOpen LedgerFlow: ${appUrl}\n\n${footer(appUrl)}`,
+    subject: `${BRAND_NAME}: ${count}`,
+    html: `<p>${esc(count)}:</p>${htmlParts.join('')}${more > 0 ? `<p>…and ${more} more.</p>` : ''}<p><a href="${esc(appUrl)}">Open ${BRAND_NAME}</a></p><p style="color:#666;font-size:12px">${esc(footer(appUrl))}</p>`,
+    text: `${count}:\n\n${textParts.join('\n\n')}${more > 0 ? `\n\n…and ${more} more.` : ''}\n\nOpen ${BRAND_NAME}: ${appUrl}\n\n${footer(appUrl)}`,
   };
 }

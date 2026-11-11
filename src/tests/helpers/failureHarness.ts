@@ -51,7 +51,7 @@ export const serverScenarios = {
   network: (): Scenario => ({ name: 'network error', reply: 'network' }),
   /** the server takes its time; the test answers with `server.answer(...)` */
   slow: (): Scenario => ({ name: 'slow', reply: 'hold' }),
-  ok: (body: unknown = { status: 'success' }): Scenario => ({ name: 'ok', reply: { status: 200, body } }),
+  ok: (body?: unknown): Scenario => ({ name: 'ok', reply: { status: 200, body: body ?? { status: 'success' } } }),
 };
 
 /** Requests that belong to a save but are not the save itself (the next number of a series, rates). */
@@ -155,7 +155,7 @@ export function assertErrorInWords(toasts: ToastLog, words: RegExp): void {
   const errors = toasts.of('error');
   assert.ok(errors.length > 0, 'an error is shown');
   assert.ok(errors.some(e => words.test(e)), `the error says why (${words}); shown: ${JSON.stringify(errors)}`);
-  for (const e of errors) assert.doesNotMatch(e, /^\{|"operationType"|\[object Object\]|undefined/, 'no raw error text');
+  for (const e of errors) assert.doesNotMatch(e, /(?:^\{)|"operationType"|\[object Object\]|undefined/, 'no raw error text');
 }
 
 export function assertNoSuccess(toasts: ToastLog, when = ''): void {

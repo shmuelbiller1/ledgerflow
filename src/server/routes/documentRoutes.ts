@@ -13,7 +13,9 @@ import { getTrustedAppUrl } from '../utils/urlHelper';
 import { zipStore } from '../utils/zip';
 import { z } from 'zod';
 import { documentPostRouter } from './documentPostRoutes';
+import { trimEndChar } from '../../lib/textShape';
 
+import { BRAND_NAME } from '../../config/brand';
 export const documentRouter = express.Router();
 // L-94 step 2: POST /:type/:id/post saves an invoice or bill and builds its entries on the server
 documentRouter.use(documentPostRouter);
@@ -70,7 +72,7 @@ async function loadDocumentForPdf(db: Firestore, type: DocType, id: string, work
   let paymentUrl: string | undefined;
   // a sent invoice has a payment page: its QR code goes on the PDF (Y-15)
   if (type === 'invoice' && typeof data.paymentToken === 'string' && data.paymentToken) {
-    try { paymentUrl = `${getTrustedAppUrl(req).replace(/\/+$/, '')}/i/${data.paymentToken}`; } catch { paymentUrl = undefined; }
+    try { paymentUrl = `${trimEndChar(getTrustedAppUrl(req), '/')}/i/${data.paymentToken}`; } catch { paymentUrl = undefined; }
   }
   return { docData: type === 'purchaseOrder' ? purchaseOrderForPdf(data) : data as PdfDocument, paymentUrl };
 }
@@ -92,7 +94,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
     const db = dbOverride || getDb();
     await validateWorkspaceMember(db, body.workspaceId, user);
     const wsSnap = await db.collection('workspaces').doc(body.workspaceId).get();
-    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: 'LedgerFlow Workspace' };
+    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
     const files: Array<{ name: string; data: Buffer }> = [];
     const used = new Set<string>();
     for (const id of [...new Set(body.ids)]) {
@@ -138,7 +140,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
 
     // Fetch workspace
     const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
-    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: 'LedgerFlow Workspace' };
+    const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
 
     let docData: PdfDocument | null = null;
     let paymentUrl: string | undefined;

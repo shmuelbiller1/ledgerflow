@@ -6,7 +6,7 @@ function effectiveOpacity(locator: Locator): Promise<number> {
     let opacity = 1;
     let node: HTMLElement | null = el as HTMLElement;
     while (node) {
-      opacity *= parseFloat(getComputedStyle(node).opacity || '1');
+      opacity *= Number.parseFloat(getComputedStyle(node).opacity || '1');
       node = node.parentElement;
     }
     return opacity;

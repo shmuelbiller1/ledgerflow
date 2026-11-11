@@ -9,6 +9,7 @@ import { notify } from '../services/notificationService';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { planFor } from '../../lib/plans';
 
+import { BRAND_NAME } from '../../config/brand';
 export const invitePublicRouter = express.Router();
 
 const inviteTokenParamsSchema = z.object({
@@ -75,7 +76,7 @@ invitePublicRouter.get('/:token', async (req, res) => {
 
     // Get workspace name for display
     const wsDoc = await db.collection('workspaces').doc(invite.workspaceId).get();
-    const workspaceName = wsDoc.exists ? (wsDoc.data()?.name || 'LedgerFlow Workspace') : 'LedgerFlow Workspace';
+    const workspaceName = wsDoc.exists ? (wsDoc.data()?.name || `${BRAND_NAME} Workspace`) : `${BRAND_NAME} Workspace`;
 
     res.json({
       status: 'success',

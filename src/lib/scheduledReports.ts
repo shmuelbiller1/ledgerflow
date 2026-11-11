@@ -6,12 +6,21 @@
  */
 import { addToDateISO } from './calendarDate';
 import { csvMoney, toCsv } from './csvExport';
+import { isEmailShape } from './textShape';
 
+import { BRAND_NAME } from '../config/brand';
 export const SCHEDULED_REPORTS = {
   'profit-and-loss': 'Profit and loss',
   'balance-sheet': 'Balance sheet',
   'receivables-aging': 'Receivables aging',
+  // R-3: the three together, in one email with a spreadsheet for each
+  'report-pack': 'Report pack (profit and loss, balance sheet, receivables aging)',
 } as const;
+
+/** The single reports a schedule's email holds, in order. */
+export function scheduleParts(kind: ScheduledReportKind): Exclude<ScheduledReportKind, 'report-pack'>[] {
+  return kind === 'report-pack' ? ['profit-and-loss', 'balance-sheet', 'receivables-aging'] : [kind];
+}
 export type ScheduledReportKind = keyof typeof SCHEDULED_REPORTS;
 export type ReportFrequency = 'weekly' | 'monthly';
 
@@ -25,16 +34,15 @@ export interface ScheduledReport {
 
 export const MAX_SCHEDULES = 10;
 export const MAX_RECIPIENTS = 10;
-const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 /** What is wrong with a schedule, or null. */
 export function scheduleProblem(s: Partial<ScheduledReport>): string | null {
-  if (!s.report || !(s.report in SCHEDULED_REPORTS)) return 'Choose a report';
+  if (!s.report || !Object.hasOwn(SCHEDULED_REPORTS, s.report)) return 'Choose a report';
   if (s.frequency !== 'weekly' && s.frequency !== 'monthly') return 'Choose weekly or monthly';
   const recipients = s.recipients || [];
   if (!recipients.length) return 'Add at least one email address';
   if (recipients.length > MAX_RECIPIENTS) return `At most ${MAX_RECIPIENTS} addresses`;
-  const bad = recipients.find(r => !EMAIL.test(r) || r.length > 254);
+  const bad = recipients.find(r => !(isEmailShape(String(r)) && !/[,;<>]/.test(String(r))) || r.length > 254);
   if (bad) return `"${bad}" is not an email address`;
   return null;
 }
@@ -124,13 +132,18 @@ export function agingTable(rows: Array<{ partyName: string; buckets: Record<stri
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** The email: a plain table (amounts in the workspace currency) and where it came from. */
-export function reportEmailHtml(table: ReportTable, meta: { workspaceName: string; currency: string; format: (cents: number) => string }): string {
+export function reportEmailHtml(table: ReportTable | ReportTable[], meta: { workspaceName: string; currency: string; format: (cents: number) => string }): string {
+  const tables = Array.isArray(table) ? table : [table];
+  const footer = `<p style="font-family:sans-serif;color:#888;font-size:12px">Sent by ${BRAND_NAME} on a schedule set in Settings → Scheduled reports. The same figures are attached as ${tables.length > 1 ? 'spreadsheets (CSV), one per report' : 'a spreadsheet (CSV)'}.</p>`;
+  return tables.map(t => reportSection(t, meta)).join('<hr style="border:none;border-top:1px solid #ddd;margin:24px 0">') + footer;
+}
+
+function reportSection(table: ReportTable, meta: { workspaceName: string; currency: string; format: (cents: number) => string }): string {
   const cell = (v: string | number, i: number) => `<td style="padding:4px 10px;${i > 0 ? 'text-align:right;' : ''}">${typeof v === 'number' ? escape(meta.format(v)) : escape(v)}</td>`;
-  const body = table.rows.map(r => `<tr${r.strong ? ' style="font-weight:bold;border-top:1px solid #ddd"' : ''}>${r.cells.map(cell).join('')}</tr>`).join('');
+  const body = table.rows.map(r => `<tr${r.strong ? ' style="font-weight:bold;border-top:1px solid #ddd"' : ''}>${r.cells.map((v, i) => cell(v, i)).join('')}</tr>`).join('');
   return `<h2 style="font-family:sans-serif">${escape(table.title)}</h2>`
     + `<p style="font-family:sans-serif;color:#555">${escape(meta.workspaceName)} · amounts in ${escape(meta.currency)}</p>`
-    + `<table style="border-collapse:collapse;font-family:sans-serif;font-size:14px"><thead><tr>${table.headers.map((h, i) => `<th style="padding:4px 10px;${i > 0 ? 'text-align:right;' : 'text-align:left;'}">${escape(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
-    + '<p style="font-family:sans-serif;color:#888;font-size:12px">Sent by LedgerFlow on a schedule set in Settings → Scheduled reports. The same figures are attached as a spreadsheet (CSV).</p>';
+    + `<table style="border-collapse:collapse;font-family:sans-serif;font-size:14px"><thead><tr>${table.headers.map((h, i) => `<th style="padding:4px 10px;${i > 0 ? 'text-align:right;' : 'text-align:left;'}">${escape(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 export function reportCsv(table: ReportTable): string {

@@ -15,6 +15,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { importEdges } from './import-edges.mjs';
 
 const root = process.cwd();
 const verbose = process.argv.includes('--verbose');
@@ -34,9 +35,6 @@ function walk(dir, out = []) {
   return out;
 }
 
-const IMPORT_EDGE =
-  /(?:import|export)\s+(?:[\w*{}\s,$]+?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\.meta\.glob\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-
 function resolveImport(importer, source) {
   if (!source.startsWith('.')) return null;
   const base = path.resolve(path.dirname(importer), source);
@@ -53,11 +51,7 @@ function buildGraph() {
   for (const file of files) {
     const code = fs.readFileSync(file, 'utf8');
     const deps = new Set();
-    let match;
-    IMPORT_EDGE.lastIndex = 0;
-    while ((match = IMPORT_EDGE.exec(code))) {
-      const source = match[1] || match[2] || match[3];
-      if (!source) continue;
+    for (const source of importEdges(file, code)) {
       if (source.includes('*')) {
         // import.meta.glob('../plugins/*.tsx') (or a directory glob): every file in that directory
         const dir = path.resolve(path.dirname(file), source.replace(/\/\*.*$/, ''));

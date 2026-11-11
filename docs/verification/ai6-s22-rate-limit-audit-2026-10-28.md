@@ -41,8 +41,8 @@ The limiter's selector prefers `req.user.uid`/`id` and falls back to `req.ip`, b
 
 The statement in merged [PR #404](https://github.com/shmuelbiller1/ledgerflow/pull/404) that `/api/ai` and `/api/v1/ai` “carry no limit at all” is too broad for the current `b4a9215` source:
 
-- Every `/api/*` request receives the app-wide `express-rate-limit` cap of 1,000 per 15 minutes per IP (`server.ts:79`; configured in `rateLimiters.ts:81–89`).
-- Every `/api/v1/*` request additionally receives the generic 100/minute per-IP `apiLimiter` (`server.ts:97–98`; `rateLimiters.ts:101–107`).
+- Requests to `/api/ai/*` and `/api/v1/ai/*` are subject to the app-wide `express-rate-limit` cap of 1,000 per 15 minutes per IP (`server.ts:79`; configured in `rateLimiters.ts:81–89`).
+- Requests to `/api/v1/ai/*` are also subject to the generic 100/minute per-IP `apiLimiter` (`server.ts:97–98`; `rateLimiters.ts:101–107`).
 - `/api/v1/brain/*` additionally receives the shared 20/minute IP limiter described above.
 - `/api/ai` and `/api/v1/ai` mount the same `aiRouter` (`server.ts:150–151`). Its `/process` handler validates a Supabase bearer token internally, but no AI-specific per-user limiter is mounted or called. `/api/v1/ai` therefore has generic IP limits, not “no limit”; `/api/ai` has the global IP limit, not an AI-specific user limit. The generic `express-rate-limit` calls do not configure a shared Postgres store in this source.
 

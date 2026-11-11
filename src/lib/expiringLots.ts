@@ -1,3 +1,4 @@
+import { byCodeUnit } from './codeUnitOrder';
 /**
  * A-113: lots with expiry dates. Lots arrive on goods receipts (GoodsReceiptItem.lotNumber with
  * lotExpiryDate); invoice lines may also record the lot a sale came from. This module groups what
@@ -130,7 +131,7 @@ export function expiringLotRows(
     if (day && day > row.lastSold) row.lastSold = day;
   }
   const rows = [...lots.values()].map(({ expirySet, ...row }) => {
-    const dates = [...expirySet].sort();
+    const dates = [...expirySet].sort(byCodeUnit);
     row.expiryDates = dates;
     if (row.status === 'sale-only') return row;
     if (dates.length === 0) {

@@ -25,6 +25,8 @@ import { addToDateISO, cn, formatCurrency, getLocalDateISO, readAmountCents } fr
 import { isPostable } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { buildLoanSchedule, nextInstallment, scheduleBalanceCents, scheduleInterestPaidCents } from '../../lib/loanSchedule';
 import type { LoanInstallment, LoanSchedule } from '../../lib/loanSchedule';
 import {
@@ -42,6 +44,7 @@ import {
 import type { Loan, LoanDraft } from '../../lib/loans';
 import type { ChartAccount, Transaction } from '../../types';
 
+import { BRAND_NAME } from '../../config/brand';
 const inputClass = 'w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
 const accountLabel = (a: ChartAccount) => (a.code ? `${a.code} · ${a.name}` : a.name);
@@ -89,7 +92,7 @@ function asDraft(form: LoanForm): LoanDraft {
  * records the payment after this resolves.
  */
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
-  const id = `tx_loan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const id = `tx_loan_${crypto.randomUUID()}`;
   const token = await getIdToken();
   const res = await fetch('/api/v1/transactions', {
     method: 'POST',
@@ -121,6 +124,7 @@ function loanSummary(loan: Loan, outstandingCents: number, money: (cents: number
 
 export default function LoansView() {
   const { loading } = useLedgerCollections('loans');
+  const dataHealth = useScreenDataHealth(['loans']);
   // selectors return the stored reference itself (a fresh `|| []` here would rebuild the memos)
   const loans = useLedgerStore(s => s.loans);
   const accounts = useLedgerStore(s => s.accounts);
@@ -253,7 +257,12 @@ export default function LoansView() {
     }
   };
 
-  if (loading) return <div className="p-8"><LoadingState what="loans" /></div>;
+  if (loading) return (
+    <div className="p-8">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="your loans" />
+      <LoadingState what="loans" />
+    </div>
+  );
 
   const addButton = canWrite && (
     <button
@@ -269,6 +278,7 @@ export default function LoansView() {
   if (!rows.length && !formOpen) {
     return (
       <div className="h-full overflow-auto p-6 md:p-8 space-y-4" id="loans-view">
+        <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="your loans" />
         {/* every screen has its page heading, the empty one too */}
         <h1 className="max-w-5xl mx-auto text-xl font-bold text-[var(--text)] flex items-center gap-2">
           <Banknote className="w-5 h-5 text-[var(--brass)]" aria-hidden="true" /> Loans
@@ -288,6 +298,7 @@ export default function LoansView() {
   return (
     <div className="h-full overflow-auto p-6 md:p-8" id="loans-view">
       <div className="max-w-5xl mx-auto space-y-6">
+        <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="your loans" />
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-[var(--text)] flex items-center gap-2">
@@ -310,7 +321,7 @@ export default function LoansView() {
                   {!liabilityAccounts.length && 'This workspace has no liability account. '}
                   {!interestAccounts.length && 'It has no expense account for the interest. '}
                   {!bankAccounts.length && 'It has no bank or cash account. '}
-                  Add one in the chart of accounts — LedgerFlow does not invent accounts.
+                  Add one in the chart of accounts — {BRAND_NAME} does not invent accounts.
                 </span>
               </p>
             )}

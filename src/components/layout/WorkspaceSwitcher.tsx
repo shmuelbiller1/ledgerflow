@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { recentWorkspaceIds, rememberWorkspace, switcherRows } from '../../lib/workspaceSwitcher';
 import { cn } from '../../lib/utils';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * The workspace switcher (K-34) in the sidebar: a button with the open workspace's name; it opens a
  * list to type in (filters by name, Hebrew too), the most recently opened first, each with your
@@ -49,7 +50,7 @@ export default function WorkspaceSwitcher({ onSelect, onNewWorkspace }: { onSele
         </span>
         <span className="flex-1 overflow-hidden">
           <span className="flex items-center justify-between">
-            <span className="text-[14px] font-bold text-[var(--text)] tracking-tight leading-none truncate"><bdi>{current?.name || 'LedgerFlow'}</bdi></span>
+            <span className="text-[14px] font-bold text-[var(--text)] tracking-tight leading-none truncate"><bdi>{current?.name || `${BRAND_NAME}`}</bdi></span>
             <ChevronDown aria-hidden="true" size={14} className="text-[var(--faint)]" />
           </span>
           <span className="block text-[10px] font-mono text-[var(--faint)] mt-1 truncate uppercase tracking-wider">Workspace<span className="sr-only">: switch</span></span>

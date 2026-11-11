@@ -24,7 +24,7 @@ for (const side of ['customer', 'vendor'] as const) {
       },
       mounts: [{ module: customer ? '/src/components/sales/Sales.tsx' : '/src/components/purchases/Purchases.tsx' }],
     });
-    const tab = customer ? page.getByRole('button', { name: 'Customers & Clients', exact: true })
+    const tab = customer ? page.getByRole('button', { name: 'Customers', exact: true })
       : page.getByRole('button', { name: /^Vendors/ });
     await tab.focus();
     await tab.press('Enter');

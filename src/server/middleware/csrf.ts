@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
+import { BRAND_NAME } from '../../config/brand';
 export interface CsrfOptions {
   isAllowedOrigin: (origin: string) => boolean;
   ignoredPaths?: RegExp[];
@@ -83,7 +84,7 @@ export function csrfProtection(options: CsrfOptions) {
       return res.status(403).json({
         status: 'error',
         code: 'CSRF_MISSING_CUSTOM_HEADER',
-        message: 'State-changing API requests require custom client header X-LedgerFlow-Request or Authorization.'
+        message: `State-changing API requests require custom client header X-${BRAND_NAME}-Request or Authorization.`
       });
     }
 

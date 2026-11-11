@@ -6,6 +6,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { rateHistory } from '../../lib/exchangeRates';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import ReportTableScroll from './ReportTableScroll';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 interface RatedDoc { currency?: string; exchangeRate?: number; date?: string }
 
@@ -31,7 +32,7 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
     ...(transactions || []).filter(t => t.type === 'journal' && (t as { originalCurrency?: string }).originalCurrency)
       .map(t => ({ currency: (t as { originalCurrency?: string }).originalCurrency, exchangeRate: t.exchangeRate, date: t.date })),
   ].filter(d => (d as { status?: string }).status !== 'void'), [invoices, bills, payments, transactions]);
-  const currencies = useMemo(() => [...new Set(docs.map(d => d.currency).filter((c): c is string => Boolean(c) && c !== home))].sort(), [docs, home]);
+  const currencies = useMemo(() => [...new Set(docs.map(d => d.currency).filter((c): c is string => Boolean(c) && c !== home))].sort(byCodeUnit), [docs, home]);
   const [chosen, setChosen] = useState('');
   const currency = currencies.includes(chosen) ? chosen : currencies[0] || '';
   const uses = useMemo(() => (valid && currency ? rateHistory(currency, docs).filter(u => u.date >= startDate && u.date <= endDate) : []), [valid, currency, docs, startDate, endDate]);

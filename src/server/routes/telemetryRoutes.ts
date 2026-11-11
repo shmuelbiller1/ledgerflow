@@ -1,4 +1,5 @@
 import express from "express";
+import { randomUUID } from "node:crypto";
 import { rateLimit as expressRateLimit } from "express-rate-limit";
 import { errorMessage } from "../auth/requestUser";
 import { optionalAuthenticate } from "../http/serverKit";
@@ -19,7 +20,7 @@ export function registerTelemetryRoutes(app: express.Express, _ctx: ServerContex
 
       const db = getDb();
       const rawData = parsed.data;
-      const errorId = rawData.id || `err_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const errorId = rawData.id || `err_${randomUUID()}`;
       const authUser = (req as AuthenticatedRequest).user;
 
       const sanitizedMessage = SecurityService.scrubPII(rawData.message).slice(0, 2000);

@@ -1,7 +1,7 @@
 import type { AutoRule, ChartAccount } from '../types';
 import type { AnalyticalPattern } from './MatchingEngine';
 /** Longest line read as one entry (Sonar S8786: the split and amount patterns are super-linear). */
-const MAX_INTENT_LINE_LENGTH = 500;
+const MAX_INTENT_LINE_LENGTH = 300;
 
 export interface ResolvedEntry { amountCents: number; description: string; dimensions: { category: string; account: string }; lines?: { accountName: string; amountCents: number }[]; date: string; type: 'actual'; isLearned?: boolean }
 import { format, startOfMonth, endOfMonth, startOfYear, subMonths, subDays } from 'date-fns';
@@ -184,8 +184,16 @@ export class IntentResolver {
             }
         }
         
+        // Every entry pattern requires an ASCII digit or comma; comma-only
+        // amounts still reach the existing amount parser and its error path.
+        if (!/[\d,]/.test(lowerInput)) continue;
+
         // 1. Check for Split Patterns: "Walmart $100 ($40 Groceries, $60 Electronics)"
-        const splitMatch = lowerInput.match(/([\p{L}\p{M}\p{N}\s.]+)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*\(([^)]+)\)/iu);
+        // A split cannot match without both delimiters. Avoid quadratic retries
+        // over an ordinary line with no parentheses; keep the original grammar.
+        const splitMatch = lowerInput.includes('(') && lowerInput.includes(')')
+            ? lowerInput.match(/([\p{L}\p{M}\p{N}\s.]+)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*\(([^)]+)\)/iu)
+            : null;
         
         if (splitMatch) {
             const store = splitMatch[1].trim();
@@ -229,7 +237,9 @@ export class IntentResolver {
         const amountRegex = /(?:spent|paid|received|deposited)?\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*(?:for|on|at|from)?\s*(\p{L}[\p{L}\p{M}\p{N}\s.]*)/iu;
         const amountSuffixRegex = /^([\p{L}\p{M}\p{N}\s.]+?)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*$/iu;
 
-        let match = lowerInput.match(amountRegex);
+        // This pattern's description must contain a Unicode letter. The
+        // suffix pattern still runs independently for numeric descriptions.
+        let match = /\p{L}/iu.test(lowerInput) ? lowerInput.match(amountRegex) : null;
         let desc = '';
         let amtStr = '';
         const isIncome = lowerInput.includes('received') || lowerInput.includes('deposited') || lowerInput.includes('income') || lowerInput.includes('sale') || lowerInput.includes('plus') || lowerInput.includes('+');

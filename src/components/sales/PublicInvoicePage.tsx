@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTimeout } from '../../hooks/useTimeout';
 
+import { BRAND_NAME } from '../../config/brand';
 /** The invoice as the public link returns it, with what is still due. */
 type PublicInvoice = Invoice & { remainingBalanceCents?: number };
 
@@ -146,7 +147,7 @@ export default function PublicInvoicePage() {
 
           </div>
           <div className="bg-gray-50 p-6 border-t border-gray-100 flex justify-between items-center text-sm text-gray-500">
-            <p>Powered by LedgerFlow</p>
+            <p>Powered by {BRAND_NAME}</p>
           </div>
         </div>
 

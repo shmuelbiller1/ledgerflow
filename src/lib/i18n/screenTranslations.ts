@@ -37,8 +37,8 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
     screenNameEn: 'Overview',
     screenNameHe: 'סקירה כללית',
     strings: [
-      { key: 'title.owner', en: 'Real-Time Financial Ledger', he: 'ספר חשבונות בזמן אמת' },
-      { key: 'title.accountant', en: 'Consolidated Double-Entry Trial Balance', he: 'מאזן בוחן כפול ומאוחד' },
+      { key: 'title.owner', en: 'Dashboard', he: 'לוח בקרה' },
+      { key: 'title.accountant', en: 'Dashboard', he: 'לוח בקרה' },
       { key: 'lens.owner', en: 'Owner Lens', he: 'תצוגת בעלים' },
       { key: 'lens.accountant', en: 'Accountant Lens', he: 'תצוגת רו״ח' },
       { key: 'action.addEntry', en: 'Add Entry', he: 'הוספת פקודה' },
@@ -63,7 +63,7 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
     screenNameEn: 'Sales',
     screenNameHe: 'מכירות',
     strings: [
-      { key: 'title', en: 'Invoicing & Customer Accounts', he: 'חשבוניות וחשבונות לקוחות' },
+      { key: 'title', en: 'Sales', he: 'מכירות' },
       { key: 'action.newInvoice', en: 'New Invoice', he: 'חשבונית חדשה' },
       { key: 'action.receivePayment', en: 'Receive Payment', he: 'קבלת תשלום' },
       { key: 'status.open', en: 'Open', he: 'פתוחה' },

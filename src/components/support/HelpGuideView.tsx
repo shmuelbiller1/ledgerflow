@@ -26,6 +26,7 @@ import FirstMonthOnboardingHub from "./FirstMonthOnboardingHub";
 import AccessibilityAndLanguagePanel from "./AccessibilityAndLanguagePanel";
 import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, searchHowToArticles } from "../../lib/helpCenterArticles";
 
+import { BRAND_NAME } from '../../config/brand';
 interface SectionDoc {
   id: string;
   title: string;
@@ -42,7 +43,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     title: "Getting Started & System Overview",
     icon: Sparkles,
     category: "Core Concepts",
-    summary: "LedgerFlow is a continuous double-entry ERP and financial ledger that enforces immutable mathematical balance and strict accounting integrity.",
+    summary: `${BRAND_NAME} is a continuous double-entry ERP and financial ledger that enforces immutable mathematical balance and strict accounting integrity.`,
     steps: [
       "Navigate modules using the sidebar or press ⌘K (Ctrl+K) to open the Command Palette.",
       "Configure Chart of Accounts in the Account Register or Ledger views.",

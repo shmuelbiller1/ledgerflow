@@ -38,6 +38,10 @@ import ReportViewsControls from './ReportViewsControls';
 import { isTransactionInDateRange } from '../../lib/txFilters';
 import { entriesForAccounts } from '../../lib/statementDrill';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import ReportNote from './ReportNote';
+
+/** R-4: these reports move their own dates, so each shows its note for the dates on screen. */
+const OWN_PERIOD_REPORTS = new Set(['pnl', 'balance-sheet']);
 
 /** The report settings in the address bar when the page opened (a shared link), if any. */
 function linkedReportParams(): URLSearchParams {
@@ -272,6 +276,8 @@ const Reports = React.memo(() => {
           compareEndDate={comparePeriod?.endDate}
         />
       </div>
+      {/* R-4: the note for this report and period, on screen and in the print / PDF */}
+      {!OWN_PERIOD_REPORTS.has(activeTab) && <ReportNote key={`${activeTab}|${period.startDate}|${period.endDate}`} report={activeTab} startDate={period.startDate} endDate={period.endDate} />}
       <section data-print-hide data-testid="reports-heading" aria-label="Reports heading" className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-[var(--text)]">Reports</h1>
@@ -324,6 +330,8 @@ const Reports = React.memo(() => {
               {(['month', 'quarter', 'year'] as const).map((t) => (
                 <button
                   key={t}
+                  type="button"
+                  aria-pressed={timeframe === t}
                   onClick={() => { setCustomPeriod(undefined); setTimeframe(t); }}
                   className={cn(
                     "px-3 py-1 rounded-md text-sm font-medium transition-all cursor-pointer",

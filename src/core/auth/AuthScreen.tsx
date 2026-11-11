@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, ShieldCheck, Mail, UserPlus, KeyRound } from 'lucide-react';
-import { passkeysSupported } from '../../lib/db/auth';
+import { microsoftSignInEnabled, passkeysSupported, signInWithMicrosoft } from '../../lib/db/auth';
 import { useBillingStore } from '../../modules/billing/BillingService';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordPolicy';
 import { createRetryableLazy } from '../../lib/lazyWithRetry';
 import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
 
+import { BRAND_NAME } from '../../config/brand';
 const LegalModal = createRetryableLazy(() => import('../../components/legal/LegalModal'));
 
 interface AuthScreenProps {
@@ -19,11 +20,13 @@ interface AuthScreenProps {
   onGuest: () => void;
   /** CC-12: sign in with a passkey; the button shows only where the browser supports passkeys */
   onPasskeyLogin?: () => Promise<void>;
+  /** whether to offer "Continue with Microsoft"; by default the build's VITE_MICROSOFT_SIGNIN setting */
+  microsoftSignIn?: boolean;
   language: string;
 }
 
 /** Sign-in, registration, guest entry, and password-reset screen with lazy legal policy modal. */
-export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, onPasskeyLogin, language: _language }: AuthScreenProps) {
+export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordReset, onGuest, onPasskeyLogin, microsoftSignIn = microsoftSignInEnabled(), language: _language }: AuthScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,6 +43,20 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
     setIsSubmitting(true);
     try {
       await onLogin();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /** true when the browser is on its way to Microsoft; false when it could not start (the person is told why) */
+  const handleMicrosoftLogin = async (): Promise<boolean> => {
+    setIsSubmitting(true);
+    try {
+      await signInWithMicrosoft();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Microsoft sign-in could not start. Try again.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -93,7 +110,7 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
           <div className="w-10 h-10 bg-white flex items-center justify-center rounded-xl shadow-lg">
             <ShieldCheck size={20} className="text-[#090D16]" />
           </div>
-          <span className="font-display font-extrabold text-xl tracking-tight text-white">LedgerFlow</span>
+          <span className="font-display font-extrabold text-xl tracking-tight text-white">{BRAND_NAME}</span>
         </div>
 
         <div className="relative z-10 max-w-md my-auto py-12">
@@ -129,7 +146,7 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                 <div className="w-10 h-10 bg-[#0A0A0A] flex items-center justify-center rounded-xl shadow-lg">
                   <ShieldCheck size={20} className="text-white" />
                 </div>
-                <span className="font-display font-extrabold text-xl text-[#0A0A0A] tracking-tight">LedgerFlow</span>
+                <span className="font-display font-extrabold text-xl text-[#0A0A0A] tracking-tight">{BRAND_NAME}</span>
               </header>
               
               <h2 className="font-display font-extrabold text-4xl tracking-tight text-[#0A0A0A] mb-2">
@@ -223,6 +240,18 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                   <LogIn size={18} className="text-[#0047AB]" aria-hidden="true" />
                   Continue with Google
                 </AsyncButton>
+
+                {microsoftSignIn && (
+                  <AsyncButton
+                    onClick={handleMicrosoftLogin}
+                    type="button"
+                    loadingText="Connecting..."
+                    className="h-12 bg-white border border-[#E5E5E5] hover:border-[#0047AB] text-[#0A0A0A] rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0047AB] focus-visible:ring-offset-2"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#F25022" /><rect x="11" y="1" width="9" height="9" fill="#7FBA00" /><rect x="1" y="11" width="9" height="9" fill="#00A4EF" /><rect x="11" y="11" width="9" height="9" fill="#FFB900" /></svg>
+                    Continue with Microsoft
+                  </AsyncButton>
+                )}
 
                 {onPasskeyLogin && !isRegistering && passkeysSupported() && (
                   <AsyncButton

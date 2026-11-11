@@ -18,6 +18,7 @@ import { setComponentWorkspace } from './helpers/componentFixtures';
 import { getSupabase } from '../lib/db/client';
 import type { Firestore } from '../server/db/pgFirestore';
 
+import { BRAND_NAME } from '../config/brand';
 const url = process.env.LF_TEST_DATABASE_URL;
 
 describe('The emails', () => {
@@ -28,7 +29,7 @@ describe('The emails', () => {
     const digest = digestEmail([
       { workspaceName: 'Acme', title: 'A', message: 'a' }, { workspaceName: 'Beta', title: 'B', message: 'b' }, { workspaceName: 'Acme', title: 'C', message: 'c' },
     ], 'https://app.example')!;
-    assert.equal(digest.subject, 'LedgerFlow: 3 notices you have not read');
+    assert.equal(digest.subject, `${BRAND_NAME}: 3 notices you have not read`);
     assert.match(digest.text, /Acme\n- A: a\n- C: c\n\nBeta\n- B: b/);
     assert.equal(digestEmail([], 'x'), null);
     assert.equal(emailMode('weekly'), 'off');

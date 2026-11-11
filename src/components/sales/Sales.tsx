@@ -1,9 +1,11 @@
+import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
+import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
-import { Plus, Users, Download, Mail, Clock, AlertCircle, Activity, ShieldCheck, TrendingUp, Trash2, DollarSign, Eye, Ban, Undo2, Bell, BellOff, Pencil } from 'lucide-react';
+import { Plus, Users, Download, Mail, AlertCircle, Activity, ShieldCheck, TrendingUp, Trash2, DollarSign, Eye, Ban, Undo2, Bell, BellOff, Pencil } from 'lucide-react';
 import { parseLocalDate, cn, formatCurrency, getLocalDateISO, safeConfirm, formatDate } from '../../lib/utils';
 import { getIdToken } from '../../firebase';
 import { isOpenInvoice } from '../../lib/txFilters';
@@ -164,6 +166,12 @@ export default function Sales() {
   const approvalSettings = useAuthStore(s => s.getCurrentWorkspace()?.invoiceApproval);
   const canDecideApproval = isApproverRole(useCurrentRole());
   const [searchTerm, setSearchTerm] = useState('');
+  useNewRecord('invoice', canEditContacts, () => {
+    setActiveSubTab('invoices'); setSelectedCustomerId(null); setNewInvoiceFor(undefined); setReceiptMode(false); setIsInvoiceModalOpen(true);
+  });
+  useNewRecord('customer', canEditContacts, () => {
+    setActiveSubTab('customers'); setSelectedCustomerId(null); setIsCustomerModalOpen(true);
+  });
   // A record link (#sales/invoice/<id>, e.g. from Data Health) shows and highlights the invoice
   const focusedInvoiceId = useRecordFocus('invoice', { ready: invoices.length > 0, onFocus: () => { setActiveSubTab('invoices'); setSearchTerm(''); } });
 
@@ -255,26 +263,15 @@ export default function Sales() {
   }
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
       {loading && (invoices.length > 0 || customers.length > 0) && (
         <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
       )}
-      {/* Rule Header with brand gold backdrop */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-[var(--brass-soft)] via-[var(--surface)]/40 to-[var(--panel)] p-6 rounded-2xl border border-[var(--brass-line)]/50 shadow-sm">
-        <div className="absolute -top-16 -left-16 w-56 h-56 bg-[var(--brass)] opacity-10 rounded-full blur-3xl hidden md:block pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--brass-soft)] border border-[var(--brass-line)]/60 text-[10px] font-mono text-[var(--brass)] font-semibold mb-2 shadow-xs">
-              <TrendingUp size={12} />
-              SALES & ACCOUNTS RECEIVABLE
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text)] tracking-tight">Invoicing & Customer Accounts</h1>
-            <p className="text-xs text-[var(--muted)] font-medium mt-1">Manage receivables, recurring billing, and client credit balances.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+      {/* header: same shape as Purchases (title, one line, tabs and actions on the right) */}
+      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title="Sales"
+        description="Invoices you send and the money customers owe you.">
             <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
 
               <button 
@@ -286,7 +283,7 @@ export default function Sales() {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
-                Invoices & AP
+                Invoices
               </button>
               <button 
                 onClick={() => setActiveSubTab('customers')}
@@ -297,7 +294,7 @@ export default function Sales() {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
-                Customers & Clients
+                Customers
               </button>
             </div>
             {activeSubTab === 'invoices' && canEditContacts && (
@@ -324,23 +321,20 @@ export default function Sales() {
               <Plus size={15} />
               {activeSubTab === 'invoices' ? 'Add Invoice' : 'Add Customer'}
             </button>
-          </div>
-        </div>
-      </div>
+      </PageHeader>
 
-      {/* Psychological Header: Aging Buckets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* what customers owe: overdue, due soon, total */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div 
           initial={{ y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
-          <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-rose-500 dark:text-[#ff495a] font-semibold mb-3 relative z-10">Critical Overdue</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">Overdue</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-rose-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.overdue)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <AlertCircle size={12} />
-             Immediate Disbursement Priority
+             Past the due date
           </div>
         </motion.div>
         
@@ -350,29 +344,14 @@ export default function Sales() {
           transition={{ delay: 0.1 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
-          <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-amber-500 font-semibold mb-3 relative z-10">Short-Term (30d)</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300 font-semibold mb-3 relative z-10">Due in the next 30 days</p>
+          <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-700 dark:text-amber-300 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <Activity size={12} />
-             Operational Inflow Expected
+             Not yet due
           </div>
         </motion.div>
 
-        <motion.div 
-          initial={{ y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
-        >
-          <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">Mid-Term (30-60d)</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight relative z-10 tabular-nums">{formatCurrency(0 /* N/A for sales */)}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
-             <Clock size={12} />
-             Liquidity Forecast Cluster
-          </div>
-        </motion.div>
 
         <motion.div 
           initial={{ y: 10 }}
@@ -380,8 +359,7 @@ export default function Sales() {
           transition={{ delay: 0.3 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--brass-line)] shadow-sm relative overflow-hidden group bg-gradient-to-b from-[var(--brass-soft)] to-[var(--panel)]"
         >
-          <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">Total Accounts Receivable</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">Total owed to you</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.total)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <ShieldCheck size={12} className="text-[var(--brass)]" />
@@ -465,7 +443,7 @@ export default function Sales() {
                         </span>
                         {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">Receipt</span>}
                         {(inv.writtenOffCents || 0) > 0 && (
-                          <span className="text-[10px] text-amber-600 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
                         )}
                       </div>
                       {inv.viewedAt && inv.status !== 'paid' && (
@@ -555,7 +533,7 @@ export default function Sales() {
                         {(inv.writtenOffCents || 0) > 0 && (
                           <button
                             onClick={() => reverseWriteOff(inv)}
-                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-amber-600 transition-all"
+                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-amber-700 dark:text-amber-300 transition-all"
                             title="Customer paid after all: reverse the bad debt write-off"
                             aria-label="Reverse the bad debt write-off"
                           >
@@ -713,7 +691,7 @@ export default function Sales() {
                               onOpen={() => setSelectedCustomerId(cust.id)} />
                             <button type="button"
                               onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
-                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-500'}`}
+                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-700 dark:text-emerald-300'}`}
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
@@ -741,7 +719,7 @@ export default function Sales() {
                     <td className="p-4 md:p-8">
                       <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all justify-end">
                         
-                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-500 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
+                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
                         {canEditContacts && <PartyRowActions side="customer" party={cust} />}
                       </div>
                     </td>

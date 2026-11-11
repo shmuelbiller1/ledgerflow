@@ -13,7 +13,6 @@ import {
   RefreshCcw,
   AlertCircle,
   Columns,
-  Sparkles,
   Copy,
   Lock,
   Edit3,
@@ -21,7 +20,7 @@ import {
   Paperclip
 } from 'lucide-react';
 import { resolveAccountName, cn, formatDate, formatSignedAmount } from '../../lib/utils';
-import { isInflow } from '../../lib/txFilters';
+import { isCashAccount, isInflow } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import AsyncButton from '../ui/AsyncButton';
 import CategoryWhyPopover from '../common/CategoryWhyPopover';
@@ -197,17 +196,18 @@ const TransactionRow = React.memo(({
             "px-4 font-bold text-[var(--text)] transition-colors text-xs h-full flex flex-col justify-center relative border-r border-[var(--line)]/50 group-hover/active:text-white", 
             isProMode && "px-2 text-[10px]",
             isFocused && focusedField === 'description' && "ring-2 ring-inset ring-indigo-600 bg-indigo-600/5",
-            "truncate"
+            "overflow-hidden"
           )} 
           dir="auto"
+          title={displayTx.description}
         >
           <>
-              <div className="text-left truncate w-full font-sans tracking-tight flex items-center gap-1.5 flex-wrap">
+              <div className="text-left w-full min-w-0 font-sans tracking-tight flex items-center gap-1.5">
                 <InlineEdit value={displayTx.description} label={`Description of ${displayTx.description || 'this entry'}`}
                   canEdit={!isLocked && !!onUpdate && tx.status !== 'void'} suggestions={descriptions}
-                  display={<HighlightMatch text={displayTx.description} match={searchTerm} />}
+                  display={<span className="line-clamp-2 break-words">{<HighlightMatch text={displayTx.description} match={searchTerm} />}</span>}
                   validate={v => (String(v).trim() ? null : 'Enter a description')}
-                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="truncate" />
+                  onSave={v => onUpdate?.(tx.id, { description: String(v) })} className="leading-tight min-w-0" />
                 {displayTx.fileUrls && displayTx.fileUrls.length > 0 && (
                   <span 
                     data-testid="attachment-badge"
@@ -240,42 +240,34 @@ const TransactionRow = React.memo(({
             isCompactMode && "px-1",
             isFocused && focusedField === 'category' && "ring-2 ring-inset ring-indigo-600 bg-indigo-600/5"
           )}>
-            <div className="flex flex-col gap-1 w-full">
-              {withOccurrenceKeys(tx.lines?.slice(0, 2) || [], line => line.id || JSON.stringify([line.accountId, line.description, line.project, line.class, line.location])).map(({ item: line, key }, idx) => (
-                <div key={key} className="flex items-center justify-between gap-1 w-full">
-                  <span 
-                    dir="auto"
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider truncate flex-1 border transition-all",
-                      line.amountCents > 0 ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20 group-hover/active:bg-emerald-500 group-hover/active:text-white group-hover/active:border-white/20" : "bg-[var(--ink)] text-slate-500 border-[var(--line)] group-hover/active:bg-[var(--surface)]/10 group-hover/active:text-white/80 group-hover/active:border-white/20",
-                    )}
-                  >
-                    {line === categoryLine ? (
-                      <InlineEdit kind="select" value={line.accountId} label={`Category of ${displayTx.description || 'this entry'}`}
-                        options={choices.some(c => c.value === line.accountId) ? choices : [{ value: line.accountId, label: resolveAccountName(accounts, line.accountId, line.accountName) }, ...choices]}
-                        display={<HighlightMatch text={resolveAccountName(accounts, line.accountId, line.accountName)} match={searchTerm} />}
-                        onSave={setCategory} className="uppercase" />
-                    ) : (
-                      <HighlightMatch text={resolveAccountName(accounts, line.accountId, line.accountName)} match={searchTerm} />
-                    )}
-                    {line.isAnalyticalTagged && (
-                      <div className="absolute -top-2 -right-2 z-20 group/spark">
-                        <Sparkles aria-hidden="true" size={10} className="text-amber-500 animate-[pulse_2s_infinite]" />
-                        <div className="absolute top-4 left-0 w-48 p-3 bg-slate-900 text-white rounded-xl text-[8px] font-medium leading-relaxed opacity-0 group-hover/spark:opacity-100 transition-opacity pointer-events-none shadow-2xl border border-white/10 italic">
-                          Analytical pattern matched: This transaction corresponds to a recurring {resolveAccountName(accounts, line.accountId, line.accountName).toLowerCase()} vector based on historical consistency.
-                        </div>
-                      </div>
-                    )}
-                  </span>
-                  {idx === 0 && (
-                    <CategoryWhyPopover 
-                      description={displayTx.description} 
-                      accountName={resolveAccountName(accounts, line.accountId, line.accountName)} 
-                    />
-                  )}
-                </div>
-              ))}
-              
+            <div className="flex flex-col gap-0.5 w-full min-w-0">
+              {(() => {
+                // one clear line: the category (the side that is not the bank account); the bank account
+                // and any further lines are in the tooltip. Two coloured boxes per entry made rows tall.
+                const lines = tx.lines || [];
+                const isCash = (accountId: string) => isCashAccount(accounts.find(a => a.id === accountId));
+                const shown = categoryLine ?? lines.find(l => !isCash(l.accountId)) ?? lines[0];
+                if (!shown) return <span className="text-[var(--faint)]">—</span>;
+                const others = lines.filter(l => l !== shown).map(l => resolveAccountName(accounts, l.accountId, l.accountName));
+                const name = resolveAccountName(accounts, shown.accountId, shown.accountName);
+                return (
+                  <div className="flex items-center gap-1 w-full min-w-0" title={others.length ? `${name} · ${others.join(', ')}` : name}>
+                    <span dir="auto" className="line-clamp-2 break-words leading-tight min-w-0 flex-1 text-xs font-medium text-[var(--text)] group-hover/active:text-[var(--surface)]">
+                      {shown === categoryLine ? (
+                        <InlineEdit kind="select" value={shown.accountId} label={`Category of ${displayTx.description || 'this entry'}`}
+                          options={choices.some(c => c.value === shown.accountId) ? choices : [{ value: shown.accountId, label: name }, ...choices]}
+                          display={<span className="line-clamp-2 break-words">{<HighlightMatch text={name} match={searchTerm} />}</span>}
+                          onSave={setCategory} className="leading-tight min-w-0" />
+                      ) : <HighlightMatch text={name} match={searchTerm} />}
+                    </span>
+                    {lines.length > 2 && <span className="shrink-0 text-[10px] text-[var(--muted)]">+{lines.length - 2}</span>}
+                    <span className="shrink-0 inline-flex md:hidden md:group-hover/active:inline-flex md:group-focus-within/active:inline-flex">
+                      <CategoryWhyPopover description={displayTx.description} accountName={name} />
+                    </span>
+                  </div>
+                );
+              })()}
+
               {tx.lines?.map(l => l.tags || []).flat().filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).map(tag => (
                 <span 
                   key={`tag-${tag}`}
@@ -346,14 +338,14 @@ const TransactionRow = React.memo(({
         )}
         <div 
           className={cn(
-            "px-4 text-right font-black font-mono transition-colors text-sm h-full flex flex-col justify-center relative overflow-hidden border-r border-[var(--line)]/50 items-end",
+            "px-3 text-right font-black font-mono transition-colors text-sm h-full flex flex-col justify-center relative overflow-hidden border-r border-[var(--line)]/50 items-end",
             isInflow(tx, accounts)
               ? "text-[var(--pos)] group-hover/active:text-emerald-400"
               : "text-[var(--neg)] group-hover/active:text-rose-400",
             isFocused && focusedField === 'amountCents' && "ring-2 ring-inset ring-indigo-600 bg-indigo-600/5"
           )}
         >
-          <span data-testid="tx-amount" className={cn("relative z-10 tabular-nums tracking-tighter truncate whitespace-nowrap", isPrivacyMode && "blur-[6px] select-none pointer-events-none opacity-20 transition-all")}>
+          <span data-testid="tx-amount" className={cn("relative z-10 tabular-nums tracking-tight whitespace-nowrap", isPrivacyMode && "blur-[6px] select-none pointer-events-none opacity-20 transition-all")}>
             {/* sign as well as colour (E-26): money in +, money out − */}
             <InlineEdit kind="money" value={displayTx.totalAmountCents} label={`Amount of ${displayTx.description || 'this entry'}`} canEdit={canEditAmount}
               display={formatSignedAmount(displayTx.totalAmountCents, isInflow(tx, accounts) ? 'in' : 'out')}

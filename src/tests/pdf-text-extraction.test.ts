@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pdfTextRuns, pdfText } from './helpers/pdfText';
+import { pdfTextRuns, pdfText, pdfTextOperators } from './helpers/pdfText';
 
 function mixedPdf(content: string) {
   return Buffer.from(`%PDF-1.7
@@ -45,4 +45,31 @@ two) Tj <3132332E3435> Tj`);
 
 test('a single-byte ToUnicode font uses its codespace instead of assuming two-byte glyphs', () => {
   assert.deepEqual(pdfTextRuns(mixedPdf('/F3 9 Tf <41> Tj (A) Tj')), ['A', 'A']);
+});
+
+
+test('PDF object scanning skips a long digit run without an object marker', () => {
+  const pdf = mixedPdf('/F3 9 Tf (A) Tj');
+  const prefix = Buffer.from('9'.repeat(200_000) + ' invalid\n');
+  assert.deepEqual(pdfTextRuns(Buffer.concat([prefix, pdf])), ['A']);
+});
+
+test('linear PDF operator scan agrees with the old grammar on varied malformed and valid streams', () => {
+  const oldOperators = (content: string) => [...content.matchAll(/\/(F\d+)\s+[-\d.]+\s+Tf|\[((?:\((?:\\[\s\S]|[^\\()])*\)|[^\]()])*)\]\s*TJ|(<[0-9a-fA-F\s]*>|\((?:\\[\s\S]|[^\\()])*\))\s*Tj/g)]
+    .map(m => m[1] ? { font: m[1] } : m[2] !== undefined ? { array: m[2] } : { scalar: m[3] });
+  const fragments = ['[', ']', '(', ')', '<', '>', '\\', ' ', '\n', 'F1', '/F1 12 Tf', 'TJ', 'Tj', 'a', '0', '-', '(a\\)b)', '<a1>', '[x] TJ'];
+  let state = 0x12345678;
+  for (let sample = 0; sample < 5000; sample++) {
+    let content = '';
+    for (let i = 0; i < 18; i++) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      content += fragments[state % fragments.length];
+    }
+    assert.deepEqual(pdfTextOperators(content), oldOperators(content), content);
+  }
+});
+
+test('PDF operator scanning handles long malformed arrays and recovers later text', () => {
+  const content = '['.repeat(200_000) + ') /F1 12 Tf (safe) Tj';
+  assert.deepEqual(pdfTextOperators(content), [{ font: 'F1' }, { scalar: '(safe)' }]);
 });

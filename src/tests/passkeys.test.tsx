@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PasskeySettings } from '../components/platform/settings/PasskeySettings';
-import { getAuth, passkeyName, signInWithPasskey, MAX_PASSKEY_NAME } from '../lib/db/auth';
+import { AuthError, getAuth, passkeyName, passkeysOff, signInWithPasskey, MAX_PASSKEY_NAME } from '../lib/db/auth';
 import { getSupabase } from '../lib/db/client';
 import { useAuthStore } from '../stores/useAuthStore';
 import { setComponentWorkspace } from './helpers/componentFixtures';
@@ -147,4 +147,28 @@ test('a passkey sign-in still asks for the authenticator code when the account h
 test('a failed or cancelled passkey sign-in throws instead of signing in', async () => {
   mock.method(auth, 'signInWithPasskey', async () => ({ data: null, error: Object.assign(new Error('No passkey'), { code: 'webauthn_failed' }) }));
   await assert.rejects(signInWithPasskey(getAuth()), /No passkey/);
+});
+
+test('A-275: passkeysOff answers on the code and on the server words, and on nothing else', () => {
+  // the code path (Supabase Auth setting off)
+  assert.equal(passkeysOff(new AuthError('auth/passkey_disabled', 'Passkeys are disabled')), true);
+  assert.equal(passkeysOff(new AuthError('auth/webauthn_not_enabled', 'WebAuthn is not enabled')), true);
+  // the words path: the server answers "Passkeys are not enabled for this project" with no matching code
+  assert.equal(passkeysOff(new Error('Passkeys are not enabled for this project')), true);
+  assert.equal(passkeysOff(new AuthError('auth/passkey-register-failed', 'Passkeys are not enabled for this project')), true);
+  // anything else is not "not turned on"
+  assert.equal(passkeysOff(new AuthError('auth/webauthn_cancelled', 'The operation was cancelled')), false);
+  assert.equal(passkeysOff(new Error('Network down')), false);
+  assert.equal(passkeysOff(null), false);
+  assert.equal(passkeysOff('Passkeys are not enabled for this project'), false);
+});
+
+test('A-275: the server words are shown as "not turned on", never as the raw server text', async () => {
+  // no code at all: the old code-only check showed the raw "Passkeys are not enabled for this project"
+  mock.method(auth, 'registerPasskey', async () => ({ data: null, error: new Error('Passkeys are not enabled for this project') }));
+  render(<PasskeySettings />);
+  await waitFor(() => assert.ok(screen.getByText('No passkeys yet.')));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add a passkey' })); });
+  await waitFor(() => assert.equal(screen.getByRole('alert').textContent, 'Passkeys are not turned on for this site yet.'));
+  assert.ok(!screen.getByRole('alert').textContent?.includes('for this project'));
 });

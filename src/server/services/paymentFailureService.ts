@@ -3,6 +3,7 @@ import { FieldValue } from '../db/firestore';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { notify } from './notificationService';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Payments that did not go through, as Stripe tells us afterwards:
  * - S-05: a customer's bank payment for an invoice (paid from its link) failed. The invoice stays
@@ -68,7 +69,7 @@ export async function recordSubscriptionPaymentFailed(db: Firestore, eventId: st
   if (!workspaceId) return 'not_found';
   const amount = typeof invoice.amount_due === 'number' ? ` (${formatCurrency(invoice.amount_due, String(invoice.currency || 'usd').toUpperCase())})` : '';
   await notify(db, {
-    workspaceId, kind: 'subscription.payment_failed', title: 'Your LedgerFlow payment failed',
+    workspaceId, kind: 'subscription.payment_failed', title: `Your ${BRAND_NAME} payment failed`,
     message: `The card for your plan could not be charged${amount}. Update it in Settings → Billing to keep the plan.`,
     eventKey: `subscription-failed:${eventId}`,
   });

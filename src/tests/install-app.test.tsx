@@ -9,7 +9,8 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import InstallAppPanel from '../components/platform/settings/InstallAppPanel';
 
-describe('Install LedgerFlow', () => {
+import { BRAND_NAME } from '../config/brand';
+describe(`Install ${BRAND_NAME}`, () => {
   afterEach(() => cleanup());
 
   test('no offer: says how; an offer made before the panel opened shows the button, which installs', async () => {
@@ -22,8 +23,8 @@ describe('Install LedgerFlow', () => {
     });
     window.dispatchEvent(offer);
     render(<InstallAppPanel />);
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Install LedgerFlow' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: `Install ${BRAND_NAME}` })); });
     assert.equal(prompted, 1);
-    assert.ok(screen.getByText('LedgerFlow is installed on this device.'));
+    assert.ok(screen.getByText(`${BRAND_NAME} is installed on this device.`));
   });
 });

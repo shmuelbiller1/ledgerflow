@@ -26,7 +26,7 @@ export function createPostingHelpers(ctx: ActionContext) {
     // Normalize to extract the core merchant/pattern (strip dates, long numbers, transaction IDs)
     let cleanDesc = normalizeLabel(description);
     cleanDesc = cleanDesc.replace(/[0-9]{3,}/g, ''); // Remove sequence of 3+ numbers
-    cleanDesc = cleanDesc.replace(/[0-9]+[a-z]+[0-9]+/g, ''); // Remove alphanumeric IDs
+    cleanDesc = cleanDesc.replace(/(?<![0-9])[0-9]+[a-z]+[0-9]+/g, ''); // Remove alphanumeric IDs
     cleanDesc = cleanDesc.replace(/[*#]/g, ''); // Remove common bank delimiters
     cleanDesc = normalizeLabel(cleanDesc);
     

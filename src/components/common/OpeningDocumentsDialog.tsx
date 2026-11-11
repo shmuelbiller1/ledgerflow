@@ -8,6 +8,7 @@ import { openingRowsCsv } from '../../lib/partyOpeningBalance';
 import type { OpenItemRow } from '../../lib/openItemImport';
 import { formatCurrency } from '../../lib/utils';
 
+import { BRAND_NAME } from '../../config/brand';
 /**
  * Opening invoices or bills (CA-08, on the EG-14 import): paste the unpaid invoices (bills) of the old system from a
  * spreadsheet — contact, number, date, due date, amount still owed — check them, and add them. The dialog makes no
@@ -92,7 +93,7 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
         </div>
         <div className="p-5 space-y-4 text-sm">
           <p className="text-xs text-[var(--muted)]">
-            The {word}s still unpaid when you start with LedgerFlow, copied from a spreadsheet: one per line, columns
+            The {word}s still unpaid when you start with {BRAND_NAME}, copied from a spreadsheet: one per line, columns
             {' '}{side === 'customer' ? 'customer' : 'vendor'} · number · date · due date (optional) · amount still owed. Dates as YYYY-MM-DD.
             {startDate ? ` Dated on or before ${startDate}, the day the books start.` : ''} Each contact must already be in your {side === 'customer' ? 'customers' : 'vendors'}. They count towards {side === 'customer' ? 'what customers owe' : 'what you owe'}, not as {side === 'customer' ? 'sales' : 'expenses'}.
           </p>

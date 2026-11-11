@@ -6,6 +6,7 @@
  */
 import { SCREEN_HELP_HE } from "./screenHelpHe";
 
+import { BRAND_NAME } from './brand';
 export const SCREEN_HELP: Record<string, Record<string, string>> = {
   main: {
     practice:
@@ -138,6 +139,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Every move of stock between locations, newest first, read back from the stock history as the pair the server wrote (moved out, moved in). A half whose pair is not in the loaded history shows on its own with the reason. Moving stock is done from an item's Stock history window; this screen only reports.",
     "kit-assembly":
       "Choose a kit (an item that is a bundle of parts) and how many: what the parts on hand can build and what building that many would take, with any shortfall named. A kit assembled on demand is built from its parts when it is needed and keeps no stock of its own. This screen records nothing: no stock is reserved, issued or posted.",
+    "standard-cost-variance":
+      "Compare each stock item's actual moving average cost against its planned standard cost. The table shows variance per unit, as a percentage, and extended across the stock on hand. A positive variance means actual cost exceeded standard. This screen is read-only and does not post entries or revalue inventory.",
     "stock-value-by-location-lot":
       "What the stock is worth where it sits, and what each received lot cost when it arrived. By location: the stock-moves ledger, valued as Inventory Valuation values it — an item its history does not explain is shown with the reason and is never split across locations. By lot: the goods receipts' lot, expiry and arrival price; how much of a lot is still on hand is not tracked and is never computed here.",
     "by-label":
@@ -151,7 +154,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
     "cash-flow":
       "Review the existing posted cash-flow statement. Compare periods and inspect included account activity. Scenario forecasts are separate from this statement.",
     "import-acceptance":
-      "After moving books in from QuickBooks or a CSV file, upload the old system's trial balance for the date of the move. Each account and the trial balance, A/R, A/P, cash and tax payable totals are set against LedgerFlow's on the same date. Every difference is named: a balance that differs, a source line with no account here, or an account here the source does not have.",
+      `After moving books in from QuickBooks or a CSV file, upload the old system's trial balance for the date of the move. Each account and the trial balance, A/R, A/P, cash and tax payable totals are set against ${BRAND_NAME}'s on the same date. Every difference is named: a balance that differs, a source line with no account here, or an account here the source does not have.`,
     "party-linked-trial-balance":
       "Review journals explicitly linked to one customer or supplier. Choose a party and inspect debits, credits and account balances. Unallocated workspace openings and unlinked journals are excluded.",
     "sales-trends":
@@ -317,6 +320,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "The self-employed National Insurance and health-insurance rates by income band and date, from the Authority's own pages, with the monthly advance and the section-345 settlement side by side because they are different figures. Type an income to see both. This is a dated reference and calculation status only: it is not the Authority's assessment (which is made on the annual figure), it does not cover a person who is also an employee, a minor or of retirement age, and nothing here posts, files or pays.",
     "israel-advance-tax":
       "Statutory Israeli advance income-tax payment (מקדמות מס הכנסה) calendar by year and frequency (monthly or bi-monthly), under Section 175 of the Income Tax Ordinance. Shows statutory due dates (15th of the month following the period) and automatic postponements when deadlines fall on Friday or Shabbat. Pulls the entity's declared advance rate from Settings → Tax profiles and calculates estimated payments on turnover. Calculation and planning status only: rates are determined by the Tax Authority, and nothing here posts, files, assesses or pays.",
+    "israel-vat-report":
+      "Periodic VAT report figures (Form 836) for Israeli VAT registrations: taxable sales, output VAT, zero-rated sales, exempt sales, and input VAT split between equipment and other purchases. Figures are calculated directly from saved documents belonging to the registration and its seller profile, in the workspace's base currency (they are not converted into ILS). A missing or expired registration is reported as a configuration state, not as a zero-liability return. Calculation and planning status only: nothing here files, posts or pays.",
     "us-nexus-watch":
       "Each US state your customers are in, from the posted invoices less credit notes: sales before sales tax and the number of sales this calendar year and last, against the state's economic-nexus threshold, with a flag at 80%. States measure differently, so this is a watch for a conversation with your accountant, never a conclusion that you must register. TX, CA, NY, WA and CO are checked and other states are shown not verified; nothing here files, posts or registers. A customer without a tax place is in no state until you add one.",
     "tax-code-suggestions":

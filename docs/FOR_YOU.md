@@ -7,22 +7,12 @@ removed from this list.
 
 Last updated: 2026-10-07.
 
+*Done and superseded items were moved to [docs/archive/FOR_YOU_DONE.md](archive/FOR_YOU_DONE.md) on 10 Nov 2026 (AI #13 cleanup). Item numbers below keep their original values.*
+
 **AI #2, 19 Oct — automatic PR creation:** the running environment's proxy rejects HTTPS CONNECT to `api.github.com` before GitHub authentication; native Git push works. I saved a network draft adding only `api.github.com` (existing package-manager preset retained). Review/save it in environment settings, then publish the environment. This has not changed the current runtime, and GitHub API authorization remains untested behind that block. Do not send credentials in chat. Earlier C-126 and C-116/C-119/C-123 branches are now confirmed merged into main `dae712e5`. The new [C-72/C-73/C-75 review branch](https://github.com/shmuelbiller1/ledgerflow/pull/new/codex/c72-c73-c75-report-follow-ups) can be opened manually while API access is blocked.
 
 ## A. Settings only you can change (a few minutes each)
 
-0. **Done (owner, 13 Oct).** **Most important: let database changes go through without you (1 minute).** Open
-   https://claude.ai/customize/connectors → **Supabase** → tool permissions → set
-   `apply_migration`, `execute_sql` and `list_migrations` to **Always allow**.
-   *Why:* these tools ask you to approve every single time, and while an approval is waiting
-   the whole session stops. That is what paused work from 26 to 28 September. Until you do
-   this, Claude calls them as rarely as possible, and the 5-hour check-in cancels any
-   approval that is still waiting so work carries on.
-   *Both waiting changes (`tax_returns`, `updated_at_indexes`) were applied on 2 Oct while you were here.*
-1. **Done (owner, 13 Oct).** **Sign-in addresses (Supabase).** supabase.com → project *ledgerflow* → Authentication → URL
-   Configuration. Site URL: `https://ledgerflow-one-pearl.vercel.app`. Redirect URLs: add
-   `https://ledgerflow-one-pearl.vercel.app/**` and `http://localhost:3000/**`.
-   Without it, sign-up confirmation and password-reset emails link to the wrong place.
 2. **Replace the four secrets Claude generated** (Vercel → project ledgerflow → Settings →
    Environment Variables): `SESSION_SECRET`, `INVITE_SECRET`, `CRON_SECRET`, `SYSTEM_SALT`.
    Put in long random values of your own. **Do `SYSTEM_SALT` before any bank is connected
@@ -55,35 +45,12 @@ Last updated: 2026-10-07.
    money, the same with the live keys. Other optional keys (currency rates, tax): tell Claude
    which ones you want. Plaid (bank feeds): Claude has no Plaid connection; the `PLAID_*` values
    in Vercel must come from your Plaid dashboard (use the sandbox first).
-9. **Done (owner, 13 Oct).** **Old settings to delete** in Vercel (unused since the move to Supabase): `FIREBASE_PROJECT_ID`,
-   `SQL_*`, `JWT_SECRET`.
 
 17. **Privacy papers (before real customers, 15 minutes + a lawyer).** Put your company name,
    address and privacy email into `docs/privacy/ROPA.md` and `docs/privacy/DPA_TEMPLATE.md`
    (Claude wrote everything else from the code), then have someone who knows the law where you
    operate read them.
 
-19. ~~**One database change to apply**~~ **Done: applied 5 Oct.** (from Y-27, 5 Oct): `supabase/migrations/
-    20261007000000_contact_delivery_method.sql`. It lets a customer record keep the new
-    `deliveryMethod` field (how they want documents: Email / Print / Post / Nothing automatic).
-    Until it is applied, saving that choice on a *customer* is refused by the database guard and
-    everything else works as before; vendors need nothing. Claude cannot reach Supabase from the
-    Arena sandbox, so it is checked in but not applied. Paste the file in Supabase → SQL editor,
-    or say so and the next Claude session runs it through the connector.
-
-20. ~~**A second database change to apply**~~ **Done: applied 5 Oct.** (from BE-04, 5 Oct): `supabase/migrations/
-    20261007010000_invoice_approval.sql`. It lets a workspace keep the new `invoiceApproval` rule —
-    the amount an invoice must exceed before an owner or an accountant has to approve it before it is
-    emailed. Until it is applied, saving that rule in Settings → Emails & Reminders is refused by the
-    database guard and every invoice goes out as it always did; nothing else is affected, and no
-    invoice field needs a migration (the approval itself is stored with the invoice). Same as item 19:
-    paste it in Supabase → SQL editor, or say so and the next session runs it through the connector.
-
-26. **Done (owner, 13 Oct).** **Password rules in Supabase too (2 minutes, 7 Oct).** The app now asks for at least 10
-    characters (not a common password, not your email name) when someone signs up or picks a new
-    password after a reset link. Make Supabase say the same, so nobody can get around it: Supabase →
-    Authentication → Providers → Email → *Minimum password length* **10**, and, if your plan has it,
-    turn on *Prevent use of leaked passwords*. *Default meanwhile: the app's own check.*
 
 49. **Turn on passkeys in Supabase (2 minutes, 7 Nov).** The app now has "Sign in with a passkey" on the
     sign-in screen and a Passkeys section in Settings → Security (CC-12). Supabase has to allow them:
@@ -134,6 +101,11 @@ Last updated: 2026-10-07.
     Some businesses build kits ahead and keep them on the shelf as finished goods (parts out, kit in, at the
     parts' cost). That is a new stock posting, so only with your say-so. *Default: built when sold.* Say
     "build kits into stock" if you need it.
+
+**⚠ 2 database changes waiting (10 Nov, from #608 monthly reports).** In Supabase → SQL editor, run one at a time:
+1. `supabase/migrations/20261110000000_report_pack_schedule.sql` (lets a schedule send the "report pack")
+2. `supabase/migrations/20261110010000_report_notes.sql` (saves report notes)
+Until they are in, a report-pack schedule and a report note cannot be saved. Everything else works.
 
 ## B. Decisions (Claude uses the default until you say otherwise)
 
@@ -190,12 +162,6 @@ not really live (everything else works). In Supabase → SQL editor, one at a ti
 8. `supabase/migrations/20261013070000_workspace_groups.sql` (item 30)
 Each is safe to run twice. Tell Claude when done, or Claude sees it at the next session and crosses these out.
 
-22. ~~**One database change to paste (5 Oct, L-191).**~~ **Done: checked 13 Oct, all applied on the live database.** `supabase/migrations/20261008000000_invoice_approval_guard.sql`
-    timed out twice through the connector (creating a trigger on the invoices table waits for it to be
-    free). Paste the whole file into Supabase → SQL editor → Run; running it twice is safe. Until then,
-    the server already refuses approvals from bookkeepers on every normal save; only a direct database
-    write around the app is not yet blocked. The two other changes from today (delivery method,
-    approval rule) are applied.
 
 23. **Closing a year (decided by default, 6 Oct).** Closing a year used to post an entry moving all
     revenue and expenses to Retained Earnings; that made the closed year's Profit & Loss show zero
@@ -204,28 +170,6 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
     entry; any old closing entries are ignored. *Default: this way.* If your accountant wants a
     classic closing entry posted anyway, say so.
 
-24. ~~**One database change for Loans**~~ **Done: applied 6 Oct.** (A-2 from the arena AI) `supabase/migrations/20261009000000_loans.sql`
-    adds the table loans are kept in (members read; owners, accountants and bookkeepers write).
-    Claude applies it through the Supabase connector right after the code is pushed; this line is
-    crossed out once it is applied. If the connector asks you to approve, approving it is all that is
-    needed. Until it is applied, saving a loan says nothing was saved, and deleting a whole workspace
-    would stop at the missing table.
-
-25. ~~**Four database changes to paste (7 Oct) — please look soon.**~~ **Done: checked 13 Oct, all applied on the live database.** The code is on main; the
-    Supabase connector timed out on all of them (the first one rebuilds the list indexes, and a
-    rebuild waits until each table is free, the same as item 22). First, in Supabase → SQL editor,
-    check nothing is stuck (a waiting index build can hold up saving on that table):
-    `select pid, now() - query_start as running, left(query, 60) from pg_stat_activity where state <> 'idle' and query ilike '%create index%';`
-    If a row has been running for minutes, stop it with `select pg_cancel_backend(<pid>);`.
-    Then paste each file, in this order, and Run (each is safe to run twice):
-    1. `supabase/migrations/20261013010000_list_order_indexes.sql` (faster long lists, L-87)
-    2. `supabase/migrations/20261013020000_pay_runs_server_only.sql` (pay runs written only by the server, U-10)
-    3. `supabase/migrations/20261013030000_private_helpers.sql` (three helper functions out of the public API, L-86)
-    4. `supabase/migrations/20261013040000_require_two_step.sql` (owners can require two-step login, Y-30)
-    *Until then:* everything works as before; payroll approval is enforced by the server but a
-    direct database write around the app is not yet blocked, and "require two-step login" is
-    enforced by the server but not yet by the database rules. Claude tries the connector again at
-    the next session; this item is crossed out once they are in.
 
 27. **Your roadmap is in (7 Oct): `docs/ROADMAP.md`.** It holds the other AI's plan, rewritten in
     plain words and checked against the tracker. Nothing was duplicated: 16 existing items were
@@ -251,12 +195,6 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
         stay hidden until a workspace uses them or you turn them on (BB-07).
       - No separate "simple" and "advanced" versions.
 
-28. ~~**One database change to paste (7 Oct, A-6 from the arena AI).**~~ **Done: applied by Claude on 7 Oct.**
-    `supabase/migrations/20261013050000_chart_account_workpapers.sql` — it allows the `workpapers`
-    field on chart accounts: the note and the review mark a month's close keeps per account and
-    month (BD-04, the Workpapers panel on Month-End Close). Safe to run twice. *Until it is
-    applied:* saving a note or a review mark is refused by the database guard and the panel says
-    so; everything else on the page works.
 
 29. **Restoring a backup made before a month was closed (7 Oct, decided by default).** The new
     end-to-end test of the main path found that once any month was closed, no backup could be
@@ -267,16 +205,6 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
     - *Default:* that stays refused, so closed books are never replaced by an older state. If you
       want an owner-only "reopen everything" that allows it, say so and Claude adds it, audited.
 
-30. ~~**Two more database changes to paste (7 Oct) — after the four in item 25.**~~ **Done: checked 13 Oct, all applied on the live database.**
-    `supabase/migrations/20261013060000_stock_moves.sql` adds the stock history: every change to an
-    item's stock with its reason (sold, returned, bought, counted, moved between locations). The
-    Supabase connector timed out on it. Paste it in Supabase → SQL editor and Run (safe to run
-    twice). *Until then:* selling, returns, counts and imports work exactly as before; the server
-    just keeps no history yet (Inventory → History shows none), and moving stock between
-    locations says it needs this update. Nothing breaks either way.
-    Then `supabase/migrations/20261013070000_workspace_groups.sql` (groups of books, DA-01: Settings →
-    Groups of books). *Until then:* that page shows no groups and saving one says groups are not available
-    yet; nothing else is affected.
 
 31. **Opening balances: which way round (8 Oct, decided by default).** An account's opening balance
     was read two ways: as you type it on the new-account form (a loan of 10,000 = 10,000) by the
@@ -351,12 +279,6 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
    pay run, for their approved time up to the pay date that no earlier run paid, at one hourly rate.
    There is no overtime rate (e.g. time and a half over 40 hours a week) yet. Say if you need overtime.
 
-41. **Done (owner, 13 Oct).** **Repository made public (11 Oct): roll one old Stripe test key — needs you, 2 minutes.** An early
-   commit (5 Jul, removed on 22 Jul) had a Stripe *test-mode* secret key starting `sk_test_51Th0cy…`.
-   It cannot move real money, but anyone can now read it. In Stripe → Developers → API keys (test mode)
-   → "Roll key", then put the new one in Vercel's `STRIPE_SECRET_KEY` if you use test mode there. No
-   other secrets were found in the history (no database passwords, service keys or live keys). CI now
-   runs on GitHub on every push to main, every helper-AI branch and every pull request.
 
 42. **Tax: what only you can do (11 Oct; plan in docs/PLAN.md).** (a) Register with the Israel Tax Authority
    for allocation numbers (free) when you want LedgerFlow to fetch them; until then it prepares the request. (b) Before
@@ -392,6 +314,8 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
 
 48. **Reminder letters for unpaid invoices (13 Oct, decided by default).** AI #3's dunning letters go out 7, 21 and 45 days
    after the due date, each firmer than the last. Say if you want other days.
+
+- **PR #583 (GitHub's automatic security fix, 9 Nov)** — not merged. It turns on the strict browser security policy in local development too; 6 checks fail on it. Default: leave it closed-out of the merge queue; the production policy already exists. Close it if you agree.
 
 ## C. Good to know (no action needed)
 
@@ -452,8 +376,6 @@ Each is safe to run twice. Tell Claude when done, or Claude sees it at the next 
 - Database changes are applied to Supabase by Claude and tested on a local copy first.
 - Progress and the full list: [TRACKER.md](TRACKER.md).
 
-## 49. While Claude is away (14–17 Oct)
-To keep the other AIs going, give each one this message: **"Read AGENTS.md and docs/COORDINATION.md, then keep working on your queue."** Give Codex this one: **"You are acting lead: follow docs/LEAD_RUNBOOK.md."** You don't need to merge anything yourself. When Claude is back, say "continue" and it picks up from docs/TRACKER.md.
 
 **Waiting on a database change (AI #3, 14 Oct):** the Custom fields feature (A-37) is checked in with
 migration `supabase/migrations/20261014020000_workspace_custom_fields.sql` (it allows the workspace's
@@ -497,13 +419,6 @@ the nested "Edit record details" drawer not closing on Escape under full-suite l
 with the exact evidence. Nothing was baselined or hidden to make anything pass.
 
 
-
-## AI #2 — CI speed batch ready for GitHub review (17 Oct)
-
-The branch `codex/ci-faster-browser-feedback` is pushed (implementation `74a8ae51`). It splits all 299 browser tests into two isolated shards, keeps every existing accounting/security/time-zone gate and the original required browser check, and provides combined reports and readable failure locations. Local types/lint, four diagnostic contracts, two actual browser smoke shards and report merging pass; five already-landed screen tasks were reconciled after 17 component cases and ten guest screenshot checks. Evidence: `docs/verification/ci-speed-and-queue-review-2026-10-17.md`.
-
-**Outside action:** [open the pull request](https://github.com/shmuelbiller1/ledgerflow/pull/new/codex/ci-faster-browser-feedback). The GitHub API returns `Forbidden` to this environment for PR creation. Native Git push succeeded and its exact remote SHA was verified, but no Actions run is visible for the branch yet. Full GitHub verification and merge remain outstanding; do not treat the local smoke subset as a full-suite pass.
-
 ## 20 Oct — Copilot "Potential fix for code scanning alert" PRs (for the owner)
 
 24 automatic fixes were opened (#205–#228); three more had been merged straight into main earlier (alerts 9, 29, 33 — reviewed afterwards, all fine). Reviewed one by one:
@@ -522,28 +437,17 @@ dismiss as *false positive*: alert 24 (payslip GET), 25 (API-key SHA-256 — key
 2. **Tax in stages A and B = user- or accountant-chosen rates, clearly marked.** The US/IL engines stay as suggestions; filing-ready automation is stage C. Real Israeli tax invoices still need allocation numbers. *Change if a pilot customer needs automated filing.*
 3. **First-hour journey test (W1) moved from AI #8 (inactive) to AI #7.**
 4. **Open question for you:** who are the stage-A testers, and when do you want to invite them? Stage A needs W1, W2–W5, W10, W14 and gates G-01/G-02 (see RELEASE_GATE "Today").
-## 20 Oct — migration to apply after ISS-130 is merged (AI #9)
 
-- **`supabase/migrations/20261020120000_inventory_cost_server_only.sql`**: refuses a browser change to an item's unit cost while it has stock on hand (the cost of stock changes only through Inventory → Revalue, which posts the difference). Tested with `npm run test:rules` on the local test database. AI #1 applies it to Supabase after reviewing the ISS-130 PR; until it is applied, the screen already locks the cost, but a direct browser write is not yet refused by the database.
-
-## 20 Oct night — ~~migration to confirm on Supabase (ISS-130, PR #259)~~ **Done: replaced by the 21 Oct change, which the owner ran.**
-
-`supabase/migrations/20261020120000_inventory_cost_server_only.sql` (browser may not change the cost of stock on hand; only the server's revaluation can) — **the Supabase connector timed out twice, so it may or may not be applied.** It is safe to run again (it replaces the function and re-creates the trigger). To apply: Supabase dashboard → SQL editor → paste the file → Run. Until it is applied the app still works; the new Revalue screen posts correctly either way, the database just doesn't yet *refuse* a direct browser cost change.
 
 ## 20 Oct — PAY-1 payroll import: provider column sets (AI #9)
 
 **Open question for you:** the payroll import accepts one column set per provider (Gusto payroll journal, ADP payroll register, Paychex payroll journal; listed in `src/lib/payrollProviderImport.ts`). I wrote them from the common column names; they are **not checked against a real export** from each provider. **Default I used:** any other column stops the import and names it, so a different export is refused rather than read wrongly. If you or a pilot customer can share a sample export (names changed), I'll match its columns exactly.
 
-## 21 Oct — ~~one database change to paste~~ **Done: run by the owner on 21 Oct ("Success. No rows returned").** (replaces the 20 Oct ISS-130 one)
-The Supabase connector timed out a third time. Paste **`supabase/migrations/20261021010000_inventory_cost_editable_at_zero.sql`** into Supabase → SQL editor → Run (1 minute). It is safe to run more than once, and it replaces the 20 Oct ISS-130 change, so you do not need to run that one separately. What it does: an item's cost can't be changed from the browser while it has stock on hand (only Inventory → Revalue changes it); items at or below zero stay editable. *Default until then:* the screen already locks the cost; only a direct browser write is not yet refused by the database.
 
 ## 21 Oct — stock costing method (DIM-2 phase 5, AI #9)
 
 **Open question for you:** the books cost stock by **moving average** (each purchase changes the average; a sale costs at the average). The stock history now keeps where each unit came from and went (Reports → Stock Sources and Uses), but it does not tie a sale to the exact purchase lot. Phase 5 of GitHub #132 would add optional **FIFO or lot-specific costing**. That changes the cost of goods sold and the stock value, so it needs your decision (and your accountant's) first. **Default I used: stay on moving average; phase 5 is not started.** Say if a customer needs FIFO or lot costing.
 
-
-## 22 Oct — ~~one database change to paste~~ **Done: run by the owner on 22 Oct.** (ISS-143, return authorizations)
-The Supabase connector timed out. Paste **`supabase/migrations/20261022000000_rma_server_only.sql`** into Supabase → SQL editor → Run (1 minute; safe to run more than once). It stops a browser from writing return-authorization (RMA) approvals directly; they now go only through the server, which checks the role and the quantities. *Default until then:* the screen already uses the server; only a direct browser write is not yet refused.
 
 ## 22 Oct — defaults AI #9 used (answer any to change it)
 
@@ -586,44 +490,6 @@ You shared a comparison of LedgerFlow with ERPNext. AI #9 checked its claims aga
 
 The full list is in COORDINATION (22 Oct, AI #9 → AI #1) for AI #1 to queue.
 
-## 23 Oct — ~~one database change to paste (L-123 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-Paste **`supabase/migrations/20261023000000_period_balances.sql`** into Supabase → SQL editor → Run.
-- It adds the table that keeps each closed year's balances (`periodBalances`), which the browser can read but never write.
-- It adds a trigger that marks a saved year stale when an entry in that year changes.
-
-*Until then:* closing a year works as before, but no year balances are saved, and the server logs once which file to apply.
-
-## 23 Oct — ~~one more database change to paste, after #359 merges (EG-1 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-Paste **`supabase/migrations/20261023010000_repost_queue.sql`** into Supabase → SQL editor → Run.
-- It adds the list of items whose stock cost needs a repair after a backdated entry (`repostQueue`, readable by members, written only by the server).
-- It adds a trigger that puts an item on that list when one of its stock moves is dated before later ones.
-
-*Until then:* the repair screen has nothing to repair; the books are unchanged.
-
-## 23 Oct — ~~one more database change to paste, after EG-3 merges (AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-Paste **`supabase/migrations/20261024000000_period_closings.sql`** into Supabase → SQL editor → Run.
-- It adds the year-end closing record (`periodClosings`): one fixed record per closed year with the profit, the transfer to retained earnings and the balance-sheet totals. It is readable by members and written only by the server.
-
-*Until then:* closing a year works as before, without the closing record.
-
-## 23 Oct — ~~one more database change to paste, after #363 merges (EG-7, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-Paste **`supabase/migrations/20261025000000_stock_closings.sql`** into Supabase → SQL editor → Run.
-- It adds the stock closing record (`stockClosings`): each item's quantity and value at a locked period end. It is readable by members and written only by the server.
-
-*Until then:* the stock checks still run, but no stock closing can be saved.
-
-## 23 Oct — ~~one more database change to paste, after #364 merges (EG-2 step 1, AI #9)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-Paste **`supabase/migrations/20261025010000_payment_allocations.sql`** into Supabase → SQL editor → Run.
-- It adds the payment ledger (`paymentAllocations`), which records which invoice or bill each payment paid, at what rate and on what date.
-- It also adds `allocationOperations`, which keeps retried payments from being recorded twice.
-- Both are readable by members and written only by the server.
-
-*Until then:* payments work as before, no ledger rows are written, and the server logs which file to apply.
-
-*New rule in #364 (default I used):* a payment dated before the invoice or bill it pays is refused. Say if you want it allowed.
-
-## 24 Oct — ~~report preferences (D-47, #370)~~ **Done: applied by Claude on 24 Oct through the Supabase connector — nothing to paste.**
-`supabase/migrations/20261023200000_report_preferences.sql`: lets each person's recent and pinned reports sync between their devices.
 
 ## 24 Oct — optional setting (1 minute): let the ESLint ratchet open its own PR
 The "ESLint warning ceiling" workflow lowers the warning cap by itself when warnings go down, by opening a small PR. It
@@ -678,3 +544,16 @@ reconnected (or I can add a one-time "register webhook" step for existing connec
 
 ## 2 Nov — API keys can no longer change workspace settings (PR #490)
 CodeRabbit found that an API key with only `read:workspaces` could change workspace settings (payment types, alerts, modules, roles…), because every `/workspaces` request mapped to that read scope. Writes there now need `write:workspaces`, which no key can be issued, so keys can read workspace settings but not change them. **Default used:** keep it locked. If an integration of yours needs to change workspace settings with a key, say so and I'll add `write:workspaces` as an issuable scope.
+
+## 10 Nov — AI #9: L-123 step 4 merged; C-19 (archive closed years) paused, your call
+**Done (#602):** a workspace with more than 20,000 entries and a closed year now loads only the open years in the
+browser; balances and reports for the closed years come from the server's year-end snapshot. Smaller workspaces load
+everything, as before.
+
+**C-19, the last item in AI #9's queue, is not started.** It would move closed years' entries into a separate
+`transactionsArchive` table. With step 4 merged, the browser no longer needs the closed years, so C-19 now only helps the
+database itself (smaller main table). It is large: 44 server files read the entries table directly (reports,
+reversals, exports, reconciliation, the repost engine), and every one of them would have to read both tables, plus a
+migration you apply.
+*Default I used:* **paused** until a real workspace gets big enough for the database to be slow (none is yet). Say
+"do C-19" and I start it as one PR.

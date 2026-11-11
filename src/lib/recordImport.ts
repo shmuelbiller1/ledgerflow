@@ -1,5 +1,6 @@
 import { normalizeSearchText } from './textNormalization';
 import { unguardCsvCell } from './csv';
+import { isEmailShape } from './textShape';
 /**
  * Bulk import of records from a spreadsheet (K-01): customers, vendors, items and accounts.
  * One set of rules used by the import screen (preview with per-row problems) and by the server
@@ -273,7 +274,7 @@ function readValue(field: ImportField, raw: string): { value?: ImportValue; erro
     case 'email':
       // Validate the trimmed view, but preserve the imported email value. E-37 cleanup is an
       // explicit user choice; this shared reader must not lowercase/trim email behind the preview.
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) && raw.length <= 200 ? { value: raw } : { error: `"${text}" is not an email address` };
+      return isEmailShape(text) && raw.length <= 200 ? { value: raw } : { error: `"${text}" is not an email address` };
     case 'money': {
       const cents = parseMoneyCents(text);
       if (cents === null) return { error: `"${text}" is not an amount` };

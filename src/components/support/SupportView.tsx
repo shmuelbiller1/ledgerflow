@@ -39,6 +39,7 @@ import {
 } from '../../lib/feedbackTriage';
 import { toast } from 'sonner';
 import { copyText } from '../../lib/clipboard';
+import { secureId } from '../../lib/secureId';
 
 export default function SupportView() {
   const formId = useId();
@@ -115,7 +116,9 @@ export default function SupportView() {
 
     setIsSending(true);
     try {
-      const ticketId = `ticket-${Math.random().toString(36).substring(2, 9)}`;
+      const ticketId = secureId('ticket-');
+      const fallbackMessageId = secureId('msg-');
+      if (!ticketId || !fallbackMessageId) throw new Error('Secure random identifiers are unavailable');
       const createdAt = new Date().toISOString();
       
       const safeSubject = maskCardNumbers(newTicketSubject);
@@ -163,7 +166,7 @@ export default function SupportView() {
       }
 
       if (!sentViaApi) {
-        const messageId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+        const messageId = fallbackMessageId;
         const newMessage: SupportMessage = {
           id: messageId,
           ticketId,
@@ -217,7 +220,8 @@ export default function SupportView() {
       }
 
       if (!sentViaApi) {
-        const messageId = `msg-${Math.random().toString(36).substring(2, 9)}`;
+        const messageId = secureId('msg-');
+        if (!messageId) throw new Error('Secure random identifiers are unavailable');
         const createdAt = new Date().toISOString();
         const newMessage: SupportMessage = {
           id: messageId,

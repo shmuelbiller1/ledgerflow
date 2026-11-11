@@ -10,6 +10,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { isCashAccount } from '../../lib/txFilters';
 import { formatTzDate } from '../../lib/calendarDate';
 import type { ChartAccount } from '../../types';
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 type WorkspaceData = ValidationContext['wsData'] & { currency?: string; timezone?: string };
 
@@ -134,7 +135,7 @@ export async function revalueStock(db: Firestore, input: StockRevaluationInput):
     if (valueCents === 0) throw new StockRevaluationError(400, `Changing ${name} from ${oldUnitCostCents} to ${input.newUnitCostCents} cents on ${quantity} units moves its value by less than a cent: nothing is revalued`);
     // #259 review: the quantity revalued is today's, so the entry may not be dated before a later stock change
     const later = (await t.get(db.collection('stockMoves').where('workspaceId', '==', workspaceId).where('itemId', '==', input.itemId))).docs
-      .map(d => String(d.data().date || '').slice(0, 10)).filter(d => d > date).sort();
+      .map(d => String(d.data().date || '').slice(0, 10)).filter(d => d > date).sort(byCodeUnit);
     if (later.length) throw new StockRevaluationError(400, `${name}'s stock changed on ${later[later.length - 1]}, after ${date}: date the revaluation on or after that day, so it revalues the stock on hand then`);
 
     const lines = [

@@ -23,6 +23,7 @@
 import { toCsv } from './csvExport';
 import { recordExportTable } from './workspaceExports';
 import type { JsonObject, ZipEntry } from './workspaceArchive';
+import { byCodeUnit } from './codeUnitOrder';
 
 /** The collections a year-end archive writes, in the order an accountant reads them. */
 export const YEAR_ARCHIVE_COLLECTIONS = [
@@ -58,7 +59,8 @@ export interface YearArchivePlan {
   manifest: JsonObject;
 }
 
-const WHOLE_COLLECTIONS = ['customers', 'vendors', 'inventory', 'chartAccounts'] as const;
+/** `accounts` is the chart of accounts as the server backup names it; `chartAccounts` is the same list under its older key. */
+const WHOLE_COLLECTIONS = ['customers', 'vendors', 'inventory', 'accounts', 'chartAccounts'] as const;
 
 /** The year a record belongs to, or null when it carries no usable date. */
 export function recordYear(record: unknown): number | null {
@@ -97,7 +99,7 @@ export function planYearArchive(
   const counts: Record<string, unknown> = {};
   const undated: Record<string, number> = {};
 
-  const collectionKeys = [...new Set([...Object.keys(collections)])].sort();
+  const collectionKeys = Object.keys(collections).sort(byCodeUnit);
   for (const key of collectionKeys) {
     const all = collections[key];
     if (!Array.isArray(all)) continue;
@@ -132,6 +134,7 @@ export function planYearArchive(
     builtFrom: 'checksum-verified server workspace backup (same source as the workspace archive)',
     collections: counts,
     invoicePdfCount: invoiceDocs.length,
+    invoicePdfsMissing: [],
     undatedRecords: undated,
     wholeCollections: [...WHOLE_COLLECTIONS],
     notes: [
@@ -162,4 +165,13 @@ export function buildYearArchiveCsvEntries(
   }
   entries.push({ path: 'manifest.json', content: JSON.stringify(plan.manifest, null, 2) });
   return entries;
+}
+
+/**
+ * The manifest as the ZIP really is: how many invoice PDFs are inside, and which invoices have none
+ * because their PDF could not be made. Replaces the planned manifest entry.
+ */
+export function withPdfOutcome(entries: readonly ZipEntry[], plan: YearArchivePlan, pdfCount: number, missing: readonly string[]): ZipEntry[] {
+  const manifest = { ...plan.manifest, invoicePdfCount: pdfCount, invoicePdfsMissing: [...missing] };
+  return entries.map(entry => (entry.path === 'manifest.json' ? { path: entry.path, content: JSON.stringify(manifest, null, 2) } : entry));
 }

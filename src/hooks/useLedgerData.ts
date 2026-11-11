@@ -11,7 +11,7 @@ import {
   orderBy,
   getDocs
 } from '../lib/db/firestore';
-import { db } from '../firebase';
+import { db, getIdToken } from '../firebase';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Transaction, ChartAccount, RecurringTransaction, Workspace, CustomTemplate, UserProfile, DimensionNode } from '../types';
@@ -24,7 +24,7 @@ import { handleFirestoreError, OperationType } from '../lib/firebaseUtils';
 import { safeAsync } from "../lib/utils";
 import { useDataNeedsStore } from "../stores/useDataNeedsStore";
 import { useUIStore } from "../stores/useUIStore";
-import { LEDGER_COLLECTIONS, keysToStart } from "../lib/ledgerCollections";
+import { LEDGER_COLLECTIONS, closedThroughFrom, entryListPartial, keysToStart } from "../lib/ledgerCollections";
 import type { LedgerCollectionSpec, LedgerKey } from "../lib/ledgerCollections";
 import { effectiveLockDate } from '../lib/periodLock';
 import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
@@ -33,6 +33,11 @@ type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
 
 /** Subscribes to workspace metadata, user profile, and on-demand ledger collections for the active session. */
+/** Owner, an assigned role, or an extra owner: the same test as the database's lf_ws_role. */
+export function isWorkspaceMember(w: Partial<Workspace> & { roles?: Record<string, unknown>; admins?: Record<string, unknown> }, uid: string): boolean {
+  return w.uid === uid || typeof w.roles?.[uid] === 'string' || w.admins?.[uid] === true;
+}
+
 export function useLedgerData() {
   const user = useAuthStore(s => s.user);
   const userUid = user?.uid;
@@ -67,9 +72,12 @@ export function useLedgerData() {
   // 1. Workspaces
   useEffect(() => {
     if (!userUid) return;
-    const q = query(collection(db, 'workspaces'), where('uid', '==', userUid));
+    // Books the user owns AND books they were invited into (roles / admins). The database's row rules
+    // already limit what can be read; the old `uid == me` filter dropped every invited book, so opening one
+    // bounced the user back to their own book on the next update (the screen emptied and redrew).
+    const q = query(collection(db, 'workspaces'));
     return onSnapshot(q, async (snapshot) => {
-      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace));
+      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace)).filter(w => isWorkspaceMember(w, userUid));
       setWorkspaces(fetched);
 
       if (fetched.length === 0) {
@@ -357,13 +365,56 @@ function toStore(key: LedgerKey, rows: StoredRow[]): void {
 
 /** One live collection of one workspace into the store; `onFailed` stops it after an error. */
 function subscribeLedgerCollection(key: LedgerKey, workspaceId: string, onFailed: () => void): () => void {
+  if (key !== 'transactions') return subscribeLedgerQuery(key, workspaceId, null, onFailed);
+  // L-123 step 4: entries of closed years stay on the server (its year-end snapshot sums them); load the ones after
+  let stop: (() => void) | null = null;
+  let cancelled = false;
+  let current: string | null | undefined;
+  // the snapshot goes stale when an entry in a closed year changes (from any session): ask again now and then and
+  // restart the list on a new day, so the opening and the loaded entries follow it
+  const start = () => closedThroughDay(workspaceId).then(day => {
+    if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
+    // no answer: keep the list as it is (on the first ask, load every entry, as before)
+    if (day === undefined && current !== undefined) return;
+    const next = day ?? null;
+    if (next === current) return;
+    current = next;
+    stop?.();
+    useLedgerStore.getState().setEntriesClosedThrough(next);
+    stop = subscribeLedgerQuery(key, workspaceId, next, onFailed);
+  });
+  const recheck = setInterval(() => { void start().catch(() => {}); }, CLOSED_THROUGH_RECHECK_MS);
+  void start().catch(err => {
+    // a subscription that could not start is a failed load, with "Try again" in the data status bar
+    if (cancelled || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
+    useDataNeedsStore.getState().markFailed(key, err instanceof Error ? err.message : String(err), err);
+    onFailed();
+  });
+  return () => { cancelled = true; clearInterval(recheck); stop?.(); };
+}
+
+/** How often the loader asks whether the closed-through day changed (a snapshot made stale elsewhere). */
+const CLOSED_THROUGH_RECHECK_MS = 5 * 60 * 1000;
+
+/** The newest fresh year-end snapshot's day; null when there is none; undefined when there is no answer (offline, a guest). */
+async function closedThroughDay(workspaceId: string): Promise<string | null | undefined> {
+  try {
+    const res = await fetch(`/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
+    return res.ok ? closedThroughFrom(await res.json().catch(() => null)) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function subscribeLedgerQuery(key: LedgerKey, workspaceId: string, closedThrough: string | null, onFailed: () => void): () => void {
   const spec: LedgerCollectionSpec = LEDGER_COLLECTIONS[key];
   const constraints = [where('workspaceId', '==', workspaceId)];
+  if (closedThrough && spec.newestFirstBy) constraints.push(where(spec.newestFirstBy, '>', closedThrough));
   if (spec.newestFirstBy) constraints.push(orderBy(spec.newestFirstBy, 'desc'));
   constraints.push(limit(spec.cap));
   return onSnapshot(query(collection(db, spec.collection), ...constraints), (snap) => {
     if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-    useLedgerStore.getState().setCollectionTruncated(spec.collection, snap.docs.length >= spec.cap);
+    useLedgerStore.getState().setCollectionTruncated(spec.collection, entryListPartial(snap.docs.length, spec.cap, closedThrough));
     toStore(key, snap.docs.map(d => ({ id: d.id, ...d.data() })));
     useDataNeedsStore.getState().markLoaded(key);
   }, (err) => {

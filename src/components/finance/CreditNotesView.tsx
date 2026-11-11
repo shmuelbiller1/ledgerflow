@@ -17,6 +17,8 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { creditTaxFrom } from '../../lib/taxCodes';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { Labelled } from '../ui/Labelled';
 import InlineEdit from '../ui/InlineEdit';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -49,6 +51,7 @@ export default function CreditNotesView() {
   const transactions = useLedgerStore(s => s.transactions || []);
   const bills = useLedgerStore(s => s.bills || []);
   const { loading } = useLedgerCollections('bills', 'creditNotes', 'customers', 'invoices', 'vendorCredits', 'vendors');
+  const dataHealth = useScreenDataHealth(['bills', 'creditNotes', 'customers', 'invoices', 'vendorCredits', 'vendors']);
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
 
   const { addEntity, updateEntity } = useEntityOperations();
@@ -191,6 +194,7 @@ export default function CreditNotesView() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

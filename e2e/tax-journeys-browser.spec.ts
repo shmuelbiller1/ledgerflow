@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+import { BRAND_NAME } from '../src/config/brand';
 /**
  * W7 and W8 (RELEASE_GATE): the two tax journeys AI #3 built, in a real browser.
  *
@@ -34,7 +35,7 @@ async function fixture(page: Page): Promise<{ errors: string[]; calls: Route[] }
   });
   await page.route('**/journey-fixture', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!doctype html><html lang="en" class="light"><head><title>LedgerFlow tax journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>',
+    body: `<!doctype html><html lang="en" class="light"><head><title>${BRAND_NAME} tax journey</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/journey-fixture');
   return { errors, calls };
