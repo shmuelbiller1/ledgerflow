@@ -81,7 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const isGuest = requested && !get().user;
     try {
       if (typeof localStorage !== "undefined") localStorage.setItem("isGuest", isGuest ? "true" : "false");
-    } catch { /* Storage preferences must not block the in-memory auth transition. */ }
+    } catch { /* Best-effort storage preference: in-memory auth must still transition when storage is blocked. */ }
     if (isGuest && !get().user) {
       startGuestDatabase();
       get().setCurrentWorkspaceId(SAMPLE_WORKSPACE_ID);
@@ -145,7 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           localStorage.removeItem('ledgerflow_current_workspace');
         }
       }
-    } catch { /* A blocked remembered-workspace preference must not retain the old workspace. */ }
+    } catch { /* Best-effort workspace preference: blocked storage must not retain the old in-memory workspace. */ }
     
     // Clear ledger store data immediately to prevent ghosting between workspaces
     if (get().currentWorkspaceId !== currentWorkspaceId) {

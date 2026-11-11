@@ -457,7 +457,7 @@ export default function EstimatesView() {
                       {canTakeDeposit && !['converted', 'declined', 'expired'].includes(est.status) && (
                         <button type="button" disabled={isGuest} title={isGuest ? 'Deposits need a signed-in workspace.' : undefined} onClick={() => { if (!isGuest) setDepositFor(est); }}
                           className="px-2.5 py-1 text-xs font-semibold border border-[var(--line)] text-[var(--text)] rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
-                          aria-label={`Deposit for estimate ${est.number || ''}`.trim()}>
+                          aria-label={`Take a deposit for estimate ${est.number || ''}`.trim()}>
                           Deposit
                         </button>
                       )}

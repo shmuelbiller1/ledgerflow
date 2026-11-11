@@ -170,7 +170,7 @@ test('sample estimates refuse server-only deposit and signature actions while si
   markComponentCollectionsLoaded('customers', 'estimates', 'payments', 'invoices');
   useLedgerStore.setState({ estimates: [{ id: 'review-estimate', uid: 'owner-sample', workspaceId: 'guest', customerId: 'customer', customerName: 'Sample customer', number: 'REVIEW-1', amountCents: 12345, date: '2026-10-01', status: 'sent', lines: [], createdAt: '2026-10-01T00:00:00Z' }] });
   render(<EstimatesView />);
-  const deposit = screen.getByRole('button', { name: 'Deposit for estimate REVIEW-1' });
+  const deposit = screen.getByRole('button', { name: 'Take a deposit for estimate REVIEW-1' });
   assert.equal((deposit as HTMLButtonElement).disabled, true);
   fireEvent.click(deposit);
   assert.equal(screen.queryByRole('dialog'), null);
@@ -178,6 +178,6 @@ test('sample estimates refuse server-only deposit and signature actions while si
   cleanup();
   setComponentWorkspace();
   render(<EstimatesView />);
-  await waitFor(() => assert.equal((screen.getByRole('button', { name: 'Deposit for estimate REVIEW-1' }) as HTMLButtonElement).disabled, false));
+  await waitFor(() => assert.equal((screen.getByRole('button', { name: 'Take a deposit for estimate REVIEW-1' }) as HTMLButtonElement).disabled, false));
   assert.ok(screen.getByRole('button', { name: /Ask the customer to sign/ }));
 });
