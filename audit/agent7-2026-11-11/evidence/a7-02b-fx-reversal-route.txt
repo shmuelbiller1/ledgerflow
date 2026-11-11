@@ -1,0 +1,40 @@
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-02b-fx-reversal-route.test.ts
+# run: 2026-11-11T18:49:42Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+(1) POST /transactions -> 200; stored: currency USD, entry rate 3.7, lines [{"amountCents":2470,"rate":1},{"amountCents":-1235,"rate":1},{"amountCents":-1235,"rate":1}]
+(1) the books (ILS, agorot): {"bank":2470,"sales":-1235,"sales2":-1235}
+(1) Bank shows 24.70 ILS for 24.70 USD at 3.7 (24.70 × 3.7 = 91.39)
+(1) DEFECT A7-02c: the entry says "USD at 3.7" and is counted as 24.70 ILS
+(1) reversal: exact (nothing left)
+▶ A7-02b a journal at a foreign rate, through the routes
+  ✔ (1) the rate on the entry only (no rate on the lines): how is 24.70 USD valued in ILS books? (112.909284ms)
+(2) POST /transactions -> 200; stored: currency USD, entry rate 3.7, lines [{"amountCents":2470,"rate":3.7,"baseAmountCents":9138},{"amountCents":-1235,"rate":3.7,"baseAmountCents":-4569},{"amountCents":-1235,"rate":3.7,"baseAmountCents":-4569}]
+(2) original in ILS: [9138,-4569,-4569]
+(2) POST /transactions/:id/reverse -> 400 {"error":"Schema validation failed: totalAmountCents: Too small: expected number to be >=0"}
+(2) the same as the owner -> 400
+(2) the books (ILS, agorot): {"bank":9138,"sales":-4569,"sales2":-4569}
+(2) DEFECT A7-02: an entry whose lines carry a settled home amount cannot be reversed with "Reverse & Correct"
+  ✔ (2) the rate on every line, one agora settled: valued at 3.7; "Reverse & Correct" is refused (76.543887ms)
+(3) POST /transactions -> 200; stored: currency USD, entry rate 3.7, lines [{"amountCents":1000,"rate":3.7},{"amountCents":-500,"rate":3.7},{"amountCents":-500,"rate":3.7}], totalAmountCents 3700
+(3) original in ILS: [3700,-1850,-1850]
+(3) POST /transactions/:id/reverse -> 400 {"error":"The entry total (3700) does not match its lines (1000)"}
+(3) DEFECT A7-02: an entry at a foreign rate cannot be reversed with "Reverse & Correct"
+(3) PUT /transactions/:id { partialUpdate: { status: "void" } } -> 200
+rate 1.1: 83483 of 325325 three-line journals (25.7%) carry a settled home amount
+rate 1.25: 121558 of 325325 three-line journals (37.4%) carry a settled home amount
+rate 3.7: 88312 of 325325 three-line journals (27.1%) carry a settled home amount
+rate 3.65: 82962 of 325325 three-line journals (25.5%) carry a settled home amount
+rate 0.85: 83184 of 325325 three-line journals (25.6%) carry a settled home amount
+rate 1.0842: 80902 of 325325 three-line journals (24.9%) carry a settled home amount
+rate 3.652: 81440 of 325325 three-line journals (25.0%) carry a settled home amount
+  ✔ (3) the rate on every line, nothing to settle: accepted, valued at 3.7; "Reverse & Correct" is refused too (50.317699ms)
+  ✔ how often a journal at a foreign rate carries a settled home amount (refusal of case 2; all the others get the refusal of case 3) (1637.003411ms)
+✔ A7-02b a journal at a foreign rate, through the routes (2991.713271ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3231.784629

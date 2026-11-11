@@ -1,0 +1,20 @@
+# pin: PR #647 head 720fc6d1c3cb91dd81e2aed98e23d0f37b1c8946 (its own migrations and server code)
+# command: npx tsx audit/agent7-2026-11-11/probes/a7-01-ledger-door-dataflow.ts
+# run: 2026-11-11T18:42:59Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+shipped scanner (scripts/bug-patterns.ts, AU-6): 0 direct ledger writes  (ledger-door-baseline.json: 0)
+this probe (one step of data flow):              14 direct ledger writes in 11 files
+  written as validated: 4   generic partial update: 1   mark-only updates: 6   UNGUARDED: 3
+  [mark-only] src/server/routes/transactions/reverseRoutes.ts:219  via txRef  t.update(txRef, {
+  [mark-only] src/server/services/assetDisposalService.ts:173  via shareTx  t.update(shareTx, { status: 'void', voidedReason: 'Partial disposal undone', voidedAt: now, upda
+  [mark-only] src/server/services/assetDisposalService.ts:188  via txRef  t.update(txRef, { status: 'void', voidedReason: 'Disposal undone', voidedAt: now, updatedAt: now
+  [mark-only] src/server/services/assetTransferService.ts:126  via entryRef  t.update(entryRef, { status: 'void', voidedReason: 'Move undone', voidedAt: now, updatedAt: now 
+  [mark-only] src/server/services/fxRevaluationService.ts:353  via scheduled  t.update(scheduled, { status: 'void', voidedReason: `Undone early, with an entry dated ${today}`
+  [mark-only] src/server/services/placeInServiceService.ts:115  via entryRef  t.update(entryRef, { status: 'void', voidedReason: 'Placing in service undone', voidedAt: now, u
+  [partial  ] src/server/routes/transactions/crudRoutes.ts:307  via txRef  t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() })
+  [UNGUARDED] src/server/routes/workspaceRoutes.ts:724  via ref  batch.set(ref, { ...tx, uid: requestUser(req).uid, workspaceId })
+  [UNGUARDED] src/server/services/paymentService.ts:493  via ledgerTxRef  tx.set(ledgerTxRef, ledgerTxData)
+  [UNGUARDED] src/server/services/recurringService.ts:261  via txRef  tx.set(txRef, {
+  [validator] src/server/routes/transactions/crudRoutes.ts:370  via txRef  t.update(txRef, { ...txToSave, updatedAt: FieldValue.serverTimestamp() })
+  [validator] src/server/routes/transactions/reconcileRoutes.ts:169  via txRef  t.update(txRef, { ...validatedTx, updatedAt: FieldValue.serverTimestamp() })
+  [validator] src/server/routes/transactions/reconcileRoutes.ts:191  via txRef  t.create(txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue
+  [validator] src/server/services/ledgerBulkCommit.ts:379  via refs  t.create(refs[j], { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.server

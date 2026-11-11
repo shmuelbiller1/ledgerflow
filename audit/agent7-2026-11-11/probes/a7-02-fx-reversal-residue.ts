@@ -12,6 +12,12 @@
  *
  * Expected for a correct system: for every account, home(original) + home(reversal) = 0.
  *
+ * SCOPE (corrected 11 Nov after running the routes, probe a7-02b): this file shows the arithmetic of the two functions
+ * only. It does NOT happen to invoices, bills, credits or payments: those are stored in the home currency at rate 1
+ * (postingCore inBaseCurrency), so their reversals are exact. For an entry whose lines carry a foreign rate, the real
+ * route never gets this far today: POST /transactions/:id/reverse refuses the reversal with a 400 (a7-02b). The
+ * residue below is what a fix of that refusal would produce unless buildReversalLines also negates `baseAmountCents`.
+ *
  * Run:  npx tsx audit/agent7-2026-11-11/probes/a7-02-fx-reversal-residue.ts
  */
 import { TransactionSchema } from '../../../src/schemas';

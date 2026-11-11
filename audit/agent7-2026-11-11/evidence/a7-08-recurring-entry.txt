@@ -1,14 +1,17 @@
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-08-recurring-entry.test.ts
+# run: 2026-11-11T18:42:33Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 (a) job: plain:2026-11-05 success
 ▶ A7-08 recurring-entry job
-  ✔ (a) control: the screen-shaped schedule posts one balanced entry (24.38898ms)
+  ✔ (a) control: the screen-shaped schedule posts one balanced entry (26.237729ms)
 (b) bookkeeper's browser saves the schedule: accepted
 (b) job: success
 (b) entries that do not balance: [{"own":0,"home":1}]
 (b) trial balance route: total debits 3000, total credits 2999, isBalanced false
 (b) Data Health findings: none
 {"savedByBrowser":true,"posted":true,"unbalanced":1}
-  ✔ (b) a template with a rate: the browser can save it, the job posts it, and it does not balance in USD (82.859381ms)
-✔ A7-08 recurring-entry job (888.431124ms)
+  ✔ (b) a template with a rate: the browser can save it, the job posts it, and it does not balance in USD (99.908994ms)
+✔ A7-08 recurring-entry job (1030.609528ms)
 ℹ tests 2
 ℹ suites 1
 ℹ pass 2
@@ -16,4 +19,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1002.491384
+ℹ duration_ms 1170.25556

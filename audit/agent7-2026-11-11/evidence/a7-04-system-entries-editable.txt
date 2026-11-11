@@ -1,26 +1,26 @@
-# pin: 39b0012881fdc78edab2479fb62b0b632234aa82
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
 # command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04-system-entries-editable.test.ts
-# run: 2026-11-11T17:35:10Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# run: 2026-11-11T18:42:28Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
 ▶ A7-04 system entries can be changed behind their documents
-  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (124.301506ms)
-PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"CEune8P4tTPiPYj04LZz"}
+  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (158.665425ms)
+PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"6ecGnICG4YL0rPU0GOH2"}
 ledger now: {"ar":50000,"sales":-50000}
 invoice: status paid, paid 50000; payment: status posted, amount 50000
 DEFECT A7-04a: ledger A/R 500.00 and Bank 0.00, while the invoice is "paid" and the payment is "posted"
-  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (16.113864ms)
-PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"46b3e484-020b-4d32-a9ed-adb168db0a22","data":{"id":"46b3e484-020b-4d32-a9ed-adb168db0a22
+  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (21.610139ms)
+PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"3a0c2fa6-49f8-4b38-87de-43ce336c6e23","data":{"id":"3a0c2fa6-49f8-4b38-87de-43ce336c6e23
 ledger now: {"ar":10000,"sales":-10000}; invoice amount 50000
 DEFECT A7-04b: Sales in the ledger 100.00, the invoice 500.00
-  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (15.378281ms)
-POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"46b3e484-020b-4d32-a9ed-adb168db0a22","reversal":{"id":"MiU7VMGZ3xKPqmUKu8CI","uid":"bookke
+  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (19.239793ms)
+POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"3a0c2fa6-49f8-4b38-87de-43ce336c6e23","reversal":{"id":"n43fIciNbtvueeBKzrNE","uid":"bookke
 ledger now: {}; invoice status paid, amount 50000
 DEFECT A7-04c: the ledger holds nothing for an invoice that is still issued and marked paid
-  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (17.479385ms)
-audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [CEune8P4tTPiPYj04LZz]."}
-audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [46b3e484-020b-4d32-a9ed-adb168db0a22]."}
+  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (19.715556ms)
+audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [3a0c2fa6-49f8-4b38-87de-43ce336c6e23]."}
+audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [6ecGnICG4YL0rPU0GOH2]."}
 DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry no before/after values
-  ✔ what the audit trail kept of the two edits: the action, not what changed (1.785811ms)
-✔ A7-04 system entries can be changed behind their documents (982.737297ms)
+  ✔ what the audit trail kept of the two edits: the action, not what changed (2.000358ms)
+✔ A7-04 system entries can be changed behind their documents (1266.239378ms)
 ℹ tests 5
 ℹ suites 1
 ℹ pass 5
@@ -28,4 +28,4 @@ DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry 
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1094.124393
+ℹ duration_ms 1416.574751
