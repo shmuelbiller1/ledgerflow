@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { seedDemoWorkspace } from '../../src/lib/demoWorkspaceSeeder';
+import { seedDemoWorkspace } from './demoWorkspaceSeeder';
 
 /** Deterministic two-entry books for tests about rows/keyboard/visuals, not the default sample year. */
 export async function installSmallSample(page: Page, empty = false) {
