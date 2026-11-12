@@ -77,7 +77,9 @@ jobs:
           NODE_ENV: test
           SYSTEM_SALT: test-ledgerflow-salt-32b-deterministic
         run: |
-          tests="$(grep -lE "docs/|[A-Za-z_]+\.md['\"\`]" src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts || true)"
+          # The database-tests-notice guard intentionally requires a running database on full CI;
+          # do not include it in a docs-only runner that has no PostgreSQL service.
+          tests="$(grep -lE "docs/|[A-Za-z_]+\.md['\"\`]" src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts | grep -v "^src/tests/database-tests-notice[.]test[.]ts$" || true)"
           echo "$tests"
           test -n "$tests"
           node_modules/.bin/tsx --test --test-force-exit $tests
