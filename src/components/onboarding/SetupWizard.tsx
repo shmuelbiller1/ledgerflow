@@ -146,6 +146,12 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
                 {preset.name}
               </label>)}
             </fieldset>
+            {/* EU-A4: people moving from another package start with their own books, not a blank set */}
+            <div className="rounded-lg border border-[var(--line)] bg-[var(--ink)] p-3 text-sm flex flex-wrap items-center gap-3" data-testid="setup-coming-from">
+              <span className="flex-1 min-w-[12rem]">Coming from QuickBooks, Xero or Wave? Bring in your customers, vendors, items, chart of accounts and opening balances; it ends by checking your trial balance matches.</span>
+              <button type="button" onClick={() => { useUIStore.getState().goToPage({ tab: 'settings', sub: 'import' }); onDone(); }}
+                className="min-h-11 px-3 rounded-lg border border-[var(--line)] font-semibold">Bring in my books</button>
+            </div>
             <p className="text-sm text-[var(--muted)]">Suggested labels: {BUSINESS_PRESETS.find(p => p.id === businessType)?.labels.map(d => d.name).join(' and ') || 'None'}. Existing labels stay unchanged. Fund is self-balancing for a new non-profit label.</p>
             <div className="space-y-1">
               <label htmlFor="setup-name" className="micro-label">Business name</label>
