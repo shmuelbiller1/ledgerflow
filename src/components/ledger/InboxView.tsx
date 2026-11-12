@@ -322,7 +322,7 @@ export default function InboxView() {
                 </div>
                 <div>
                   <h2 className="font-bold text-[var(--text)] text-lg">Check these guesses ({mediumConfidence.length})</h2>
-                  <p className="text-sm text-[var(--muted)]">An account is filled in, but no rule or history backs it. Accept each, or all. Keyboard: J/K to move, A to accept.</p>
+                  <p className="text-sm text-[var(--muted)]">An account is filled in, but no rule or history backs it. Accept each, or all. Keyboard, on a focused guess: J/K or ↓/↑ to move, A or Enter to accept.</p>
                 </div>
               </div>
               <button 

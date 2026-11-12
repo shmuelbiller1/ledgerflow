@@ -20,6 +20,11 @@ export const SCREEN_SHORTCUTS: ScreenShortcutGroup[] = [
     { keys: 'Escape', label: 'Cancel an inline cell edit, or clear the highlighted cell' },
     { keys: 'Tab', label: 'Accept the first account suggestion while editing an account' },
   ] },
+  { id: 'review', title: 'To review — focused guess', shortcuts: [
+    { keys: 'J / ↓', label: 'Move to the next guess' },
+    { keys: 'K / ↑', label: 'Move to the previous guess' },
+    { keys: 'A / Enter', label: 'Accept the focused guess and move on' },
+  ] },
   { id: 'transaction-dialog', title: 'Transaction editor', shortcuts: [
     { keys: 'mod+Enter', label: 'Save the transaction' },
     { keys: 'Escape', label: 'Close the editor' },

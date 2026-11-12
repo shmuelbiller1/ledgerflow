@@ -9,8 +9,6 @@ import { EMAILABLE_REPORTS, addMondayEmail, mondayScheduleFor } from '../../lib/
 /** EU-F3: one click to get this report every Monday (owners and accountants keep schedules; others see nothing). */
 export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const workspaces = useAuthStore(s => s.workspaces);
-  const setWorkspaces = useAuthStore(s => s.setWorkspaces);
   const email = useAuthStore(s => s.user?.email) || '';
   const role = useCurrentRole();
   const [busy, setBusy] = useState(false);
@@ -25,12 +23,17 @@ export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
     const result = addMondayEmail(schedules, kind, email, `sr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`);
     if ('problem' in result) { toast.error(result.problem); return; }
     setBusy(true);
+    const uid = useAuthStore.getState().user?.uid;
+    // a reply after a sign-out or another account changes nothing here; the list it updates is the one now kept
+    const stillSame = () => useAuthStore.getState().user?.uid === uid;
     try {
       await updateDoc(doc(db, 'workspaces', workspace.id), { scheduledReports: result.next, updatedAt: new Date().toISOString() });
-      setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, scheduledReports: result.next } : w)));
+      if (!stillSame()) return;
+      const latest = useAuthStore.getState().workspaces;
+      useAuthStore.getState().setWorkspaces(latest.map(w => (w.id === workspace.id ? { ...w, scheduledReports: result.next } : w)));
       toast.success(`You'll get this every Monday for the week before (change it in Settings → Scheduled reports)`);
     } catch {
-      toast.error('Could not save the schedule (owners and accountants can).');
+      if (stillSame()) toast.error('Could not save the schedule (owners and accountants can).');
     } finally { setBusy(false); }
   };
   return (

@@ -53,3 +53,16 @@ test('EU-F3: not offered to a viewer, nor on a report that cannot be emailed', (
   render(<EmailMeMondays reportTab="cash-flow" />);
   assert.equal(screen.queryByTestId('email-me-mondays'), null);
 });
+
+test('EU-F3: a save that finishes after the person signed out changes nothing here', async () => {
+  const ws = setComponentWorkspace('owner');
+  useAuthStore.setState({ workspaces: [{ ...ws, scheduledReports: [] } as never] });
+  let finish!: () => void;
+  globalThis.fetch = (async () => { await new Promise<void>(r => { finish = r; }); return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
+  render(<EmailMeMondays reportTab="pnl" />);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Email me this every Monday' })); });
+  await waitFor(() => assert.ok(finish));
+  useAuthStore.setState({ user: null, workspaces: [] });
+  await act(async () => { finish(); await new Promise(r => setTimeout(r, 0)); });
+  assert.deepEqual(useAuthStore.getState().workspaces, [], 'the signed-out list stays empty');
+});
