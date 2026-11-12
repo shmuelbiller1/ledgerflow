@@ -89,45 +89,33 @@ export default function LabelValuePageView() {
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-bold">Open invoices ({view.openInvoices.length})</h3>
-              {view.openInvoices.length === 0 ? <p className="text-sm text-[var(--muted)]">No open invoices with this value.</p> : (
-                <ul className="divide-y divide-[var(--line)] text-sm">
-                  {view.openInvoices.map(inv => (
-                    <li key={inv.id}><button type="button" className="w-full flex justify-between py-1.5 text-left hover:underline" onClick={() => openRecord({ type: 'invoice', id: inv.id })}>
-                      <span>{inv.number || inv.id} · {inv.customerName || ''}</span><span className="tabular-nums">{formatCurrency(calculateAmountDue(inv), inv.currency || currency)}</span>
-                    </button></li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm font-bold">Open bills ({view.openBills.length})</h3>
-              {view.openBills.length === 0 ? <p className="text-sm text-[var(--muted)]">No open bills with this value.</p> : (
-                <ul className="divide-y divide-[var(--line)] text-sm">
-                  {view.openBills.map(b => (
-                    <li key={b.id}><button type="button" className="w-full flex justify-between py-1.5 text-left hover:underline" onClick={() => openRecord({ type: 'bill', id: b.id })}>
-                      <span>{b.number || b.id} · {b.vendorName || ''}</span><span className="tabular-nums">{formatCurrency(calculateAmountDue(b), b.currency || currency)}</span>
-                    </button></li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <RecordList title={`Open invoices (${view.openInvoices.length})`} empty="No open invoices with this value."
+              rows={view.openInvoices.map(inv => ({ key: inv.id, text: `${inv.number || inv.id} · ${inv.customerName || ''}`, amount: formatCurrency(calculateAmountDue(inv), inv.currency || currency), open: () => openRecord({ type: 'invoice', id: inv.id }) }))} />
+            <RecordList title={`Open bills (${view.openBills.length})`} empty="No open bills with this value."
+              rows={view.openBills.map(b => ({ key: b.id, text: `${b.number || b.id} · ${b.vendorName || ''}`, amount: formatCurrency(calculateAmountDue(b), b.currency || currency), open: () => openRecord({ type: 'bill', id: b.id }) }))} />
           </div>
-          <div>
-            <h3 className="text-sm font-bold">Last entries</h3>
-            {view.entries.length === 0 ? <p className="text-sm text-[var(--muted)]">No posted entries with this value yet.</p> : (
-              <ul className="divide-y divide-[var(--line)] text-sm">
-                {view.entries.map(t => (
-                  <li key={t.id}><button type="button" className="w-full flex justify-between py-1.5 text-left hover:underline" onClick={() => openRecord({ type: 'transaction', id: t.id })}>
-                    <span>{formatDate(t.date)} · {t.description}</span><span className="tabular-nums">{money(t.totalAmountCents || 0)}</span>
-                  </button></li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <RecordList title="Last entries" empty="No posted entries with this value yet."
+            rows={view.entries.map(t => ({ key: t.id, text: `${formatDate(t.date)} · ${t.description}`, amount: money(t.totalAmountCents || 0), open: () => openRecord({ type: 'transaction', id: t.id }) }))} />
         </>
       )}
     </section>
+  );
+}
+
+/** One titled list of records, each opening itself, or a line saying there are none. */
+function RecordList({ title, empty, rows }: { title: string; empty: string; rows: Array<{ key: string; text: string; amount: string; open: () => void }> }) {
+  return (
+    <div>
+      <h3 className="text-sm font-bold">{title}</h3>
+      {rows.length === 0 ? <p className="text-sm text-[var(--muted)]">{empty}</p> : (
+        <ul className="divide-y divide-[var(--line)] text-sm">
+          {rows.map(r => (
+            <li key={r.key}><button type="button" className="w-full flex justify-between py-1.5 text-left hover:underline" onClick={r.open}>
+              <span>{r.text}</span><span className="tabular-nums">{r.amount}</span>
+            </button></li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

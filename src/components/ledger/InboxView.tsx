@@ -143,148 +143,19 @@ export default function InboxView() {
   };
 
   const _handleCategorize = async (transactionIds: string[], category: string, targetAccountId?: string) => {
-    if (!currentWorkspaceId || transactionIds.length === 0) return;
     let resolvedAcc = accounts.find(a => a.id === targetAccountId);
     if (!resolvedAcc && category) {
       const lowerCat = category.toLowerCase();
-      resolvedAcc = accounts.find(a => 
-        a.name.toLowerCase().includes(lowerCat) || 
-        (a.category && a.category.toLowerCase().includes(lowerCat))
-      );
+      resolvedAcc = accounts.find(a => a.name.toLowerCase().includes(lowerCat) || (a.category && a.category.toLowerCase().includes(lowerCat)));
     }
-    if (!resolvedAcc) {
-      resolvedAcc = accounts.find(a => a.type === 'expense') || accounts[0];
-    }
+    resolvedAcc = resolvedAcc || accounts.find(a => a.type === 'expense') || accounts[0];
     if (!resolvedAcc) return;
-
-    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
-    for (const id of transactionIds) {
-      const tx = transactions.find(t => t.id === id);
-      if (!tx) continue;
-
-      let updatedLines = tx.lines && tx.lines.length > 0 ? tx.lines.map(l => ({ ...l })) : [];
-      if (updatedLines.length === 0) {
-        const cashAcc = accounts.find(a => a.code === '1010' || a.category === 'Cash' || a.category === 'cash_and_equivalents' || a.type === 'asset') || accounts[0];
-        const amt = tx.totalAmountCents || 0;
-        updatedLines = [
-          { accountId: resolvedAcc.id, accountName: resolvedAcc.name, amountCents: amt, category },
-          { accountId: cashAcc?.id || resolvedAcc.id, accountName: cashAcc?.name || 'Main Checking', amountCents: -amt }
-        ];
-      } else {
-        const catLineIdx = updatedLines.findIndex(l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, tx) > 0);
-        const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
-        updatedLines[targetIdx] = {
-          ...updatedLines[targetIdx],
-          accountId: resolvedAcc.id,
-          accountName: resolvedAcc.name,
-          category: category || updatedLines[targetIdx].category
-        };
-      }
-
-      updates.push({
-        id,
-        data: { lines: updatedLines, status: 'completed', isReviewed: true }
-      });
-    }
-
-    if (updates.length === 0 || !currentWorkspaceId) return;
-    const token = await getIdToken();
-    const res = await fetch('/api/v1/transactions/batch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(body.error || body.message || 'Could not save categorized entries');
-      return;
-    }
-    const patchMap = new Map(updates.map(u => [u.id, u.data]));
-    useLedgerStore.getState().setTransactions(
-      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
-    );
-    toast.success(`Filed ${updates.length} ${updates.length === 1 ? 'entry' : 'entries'}`);
+    await fileEach(transactionIds.map(id => ({ id, accountId: resolvedAcc.id })), 'Filed');
   };
 
   const handleCalibratedAutoPost = async () => {
-    if (!currentWorkspaceId || calibratedReady.length === 0) return;
-    const cashAcc = accounts.find(a => !a.isArchived && resolveAccountRole(a) === 'cash');
-    const updates: Array<{ id: string; data: { lines: typeof transactions[number]['lines']; status: 'completed'; isReviewed: boolean } }> = [];
-    let skippedUnresolved = 0;
-
-    for (const item of calibratedReady) {
-      const targetAccId = item.calibration.suggestedAccountId;
-      const resolvedAcc = targetAccId ? accounts.find(a => a.id === targetAccId && !a.isArchived) : undefined;
-      if (!resolvedAcc) {
-        skippedUnresolved += 1;
-        continue;
-      }
-
-      let updatedLines = item.lines && item.lines.length > 0 ? item.lines.map(l => ({ ...l })) : [];
-      if (updatedLines.length === 0) {
-        if (!cashAcc || cashAcc.id === resolvedAcc.id) {
-          skippedUnresolved += 1;
-          continue;
-        }
-        const amt = item.totalAmountCents || 0;
-        updatedLines = [
-          { accountId: resolvedAcc.id, accountName: resolvedAcc.name, amountCents: amt, category: resolvedAcc.name },
-          { accountId: cashAcc.id, accountName: cashAcc.name, amountCents: -amt },
-        ];
-      } else {
-        const catLineIdx = updatedLines.findIndex(
-          l => !l.accountId || l.accountId === 'uncategorized' || l.accountId === 'unassigned' || lineAmount(l, item) > 0,
-        );
-        const targetIdx = catLineIdx !== -1 ? catLineIdx : 0;
-        updatedLines[targetIdx] = {
-          ...updatedLines[targetIdx],
-          accountId: resolvedAcc.id,
-          accountName: resolvedAcc.name,
-          category: resolvedAcc.name,
-        };
-      }
-
-      updates.push({
-        id: item.id,
-        data: {
-          lines: updatedLines,
-          status: 'completed',
-          isReviewed: true,
-        },
-      });
-    }
-
-    if (updates.length === 0) {
-      toast.error('Cannot auto-post: calibrated accounts are missing or archived in the chart of accounts.');
-      return;
-    }
-
-    const token = await getIdToken();
-    const res = await fetch('/api/v1/transactions/batch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        workspaceId: currentWorkspaceId,
-        updates,
-      }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(body.error || body.message || 'Could not auto-post calibrated entries');
-      return;
-    }
-    const patchMap = new Map(updates.map(u => [u.id, u.data]));
-    useLedgerStore.getState().setTransactions(
-      useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
-    );
-    const suffix = skippedUnresolved > 0 ? ` (${skippedUnresolved} skipped due to unresolved accounts)` : '';
-    toast.success(`Auto-posted ${updates.length} calibrated ${updates.length === 1 ? 'entry' : 'entries'}${suffix}`);
+    if (calibratedReady.length === 0) return;
+    await fileEach(calibratedReady.map(item => ({ id: item.id, accountId: item.calibration.suggestedAccountId || undefined })), 'Auto-posted calibrated');
   };
 
   const handleAutoFile = () => {

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { toast } from 'sonner';
-import { createEntryActions } from '../hooks/transactionActions/entryActions';
+import { testEntryActions } from './helpers/entryActions';
 import SelectionBar from '../components/transactions/SelectionBar';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -36,10 +36,7 @@ beforeEach(() => {
 });
 afterEach(async () => { cleanup(); globalThis.fetch = realFetch; (toast as { success: unknown }).success = realSuccess; await getSupabase().auth.dispose(); });
 
-const actions = () => createEntryActions({
-  user: { uid: 'u1', getIdToken: async () => 't' }, currentWorkspaceId: 'A', accounts,
-  setTransactions: useLedgerStore.getState().setTransactions, setIsSyncing: () => {}, recordAudit: async () => {}, isPeriodLocked: () => false,
-} as never, { recordRulePattern: async () => {}, balanceTransactionLines: (l: unknown) => l } as never, { handleAddRule: async () => {} } as never);
+const actions = () => testEntryActions('A', accounts);
 
 test('EU-E2: Property = Maui on both entries and their fuel lines; the bank lines keep theirs; Undo restores', async () => {
   await actions().handleBulkUpdate(['t1', 't2'], { labels: { property: 'maui' } });
