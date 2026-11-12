@@ -161,7 +161,7 @@ export function PartyReportLayout<T>({
       {/* Report Table */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-xs">
         {/* the table scrolls inside its box so the header (and totals) stay in view (I-14) */}
-        <div role="region" aria-label="Scrollable party report" tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible">
+        <div role="region" aria-label="Scrollable party report" tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">{title}</caption>
             <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px]">

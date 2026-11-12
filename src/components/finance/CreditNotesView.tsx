@@ -261,7 +261,7 @@ export default function CreditNotesView() {
               onAction={() => setShowCreateModal(true)}
             />
           ) : (
-            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">
+            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Credit notes</caption>
                 <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">
@@ -355,7 +355,7 @@ export default function CreditNotesView() {
               onAction={() => setShowCreateModal(true)}
             />
           ) : (
-            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">
+            <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Vendor credits</caption>
                 <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">
