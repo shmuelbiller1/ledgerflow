@@ -1,0 +1,42 @@
+# what: main 2ac666b46ca3895456ebee67ad6e01d62f49457e migrations (53) + PR #647's 20261111000000_ledger_integrity_and_rls_hardening.sql (head c2835545) + PR #640's 20261111120000_ledger_server_only_and_balance_check.sql (head f4e0b111), applied in file-name order to an empty database: what the schema would be if both pull requests merged
+# run: 2026-11-11T19:32:50Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+# command: npm run db:test-setup   (in a copy of main with the two migration files added)
+all 55 migrations applied without error
+
+## triggers on the ledger and document tables afterwards
+  bills: lf_document_settlement_guard
+  bills: lf_guard
+  bills: lf_guard_document_settlement
+  creditNotes: lf_document_settlement_guard
+  creditNotes: lf_guard
+  invoices: lf_document_settlement_guard
+  invoices: lf_guard
+  invoices: lf_guard_document_settlement
+  invoices: lf_guard_invoice_approval
+  journalEntries: lf_balanced_ledger
+  journalEntries: lf_guard
+  transactions: lf_balanced_ledger
+  transactions: lf_guard
+  transactions: lf_period_balances_stale
+  transactions: lf_transactions_ledger_integrity
+  vendorCredits: lf_document_settlement_guard
+  vendorCredits: lf_guard
+
+## each pull request's own rules test (npm run test:rules) against the combined schema
+PR #640 f4e0b111: FAIL workspaceShards: bookkeeper could not add a document
+PR #647 c2835545: ALL RLS TESTS PASSED
+
+## the same tests against each pull request's own schema (for comparison)
+PR #640 f4e0b111 on its own schema: ALL RLS TESTS PASSED
+PR #647 c2835545 on its own schema: ALL RLS TESTS PASSED
+
+## probe a7-06-residual-browser-writes.sql against the combined schema
+step: 1 | what: insert an OPEN customer credit note of 9,000.00 (never issued, no entry) | outcome: ACCEPTED
+step: 2 | what: raise what is left on an existing credit note from 40.00 to 4,000.00 | outcome: refused: Settlement and posting fields on creditNotes are written only by the server ledger
+step: 3 | what: insert an OPEN vendor credit of 7,000.00 (never issued, no entry) | outcome: ACCEPTED
+step: 4 | what: lower the total of an issued invoice from 500.00 to 5.00 (its entry stays at 500.00) | outcome: ACCEPTED
+step: 5 | what: set an issued invoice to void (its entry is not reversed) | outcome: ACCEPTED
+step: 6 | what: insert an ISSUED invoice of 12,345.00 with no entry (it will show as owed in the ageing) | outcome: ACCEPTED
+step: 7 | what: raise the total of an approved bill from 300.00 to 3,000.00 (its entry stays at 300.00) | outcome: ACCEPTED
+step: 8 | what: set "settled by records" on an invoice (a field the amount due may read) | outcome: refused: Settlement and posting fields on invoices are written only by the server ledger
+step: 9 | what: set a deposit as applied on an invoice (lowers what is due) | outcome: refused: Field "depositAppliedCents" is not allowed on invoices
