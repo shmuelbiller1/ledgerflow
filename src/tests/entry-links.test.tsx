@@ -41,8 +41,9 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'Links', members: ['owner-1', 'book-1', 'view-1'], roles: { 'book-1': 'bookkeeper', 'view-1': 'viewer' } });
-    for (const id of ['sale', 'refund']) await db.collection('transactions').doc(`${ws}_${id}`).set({ workspaceId: ws, date: '2026-10-01', description: id, status: 'posted', lines: [] });
-    await db.collection('transactions').doc(`other_${ws}`).set({ workspaceId: 'someone-else', date: '2026-10-01', description: 'x', status: 'posted', lines: [] });
+    const linkLines = [{ accountId: 'link-debit', amountCents: 1 }, { accountId: 'link-credit', amountCents: -1 }];
+    for (const id of ['sale', 'refund']) await db.collection('transactions').doc(`${ws}_${id}`).set({ workspaceId: ws, date: '2026-10-01', description: id, status: 'posted', lines: linkLines });
+    await db.collection('transactions').doc(`other_${ws}`).set({ workspaceId: 'someone-else', date: '2026-10-01', description: 'x', status: 'posted', lines: linkLines });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });

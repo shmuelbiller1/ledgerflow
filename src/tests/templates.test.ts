@@ -80,7 +80,7 @@ describe('Applying a template', { skip: !url && 'LF_TEST_DATABASE_URL not set' }
   });
 
   test('with transactions, only missing accounts are added; AI charts never set the dashboard', async () => {
-    await db.collection('transactions').doc(`${ws}_t`).set({ workspaceId: ws, date: '2026-01-01', lines: [] });
+    await db.collection('transactions').doc(`${ws}_t`).set({ workspaceId: ws, date: '2026-01-01', status: 'draft', lines: [] });
     const before = (await accounts()).length;
     const res = await apply('owner-1', { accounts: [{ name: 'Rent', type: 'expense', code: '6001' }, { name: 'Sales Revenue', type: 'revenue' }, { name: 'Bad', type: 'magic' }] });
     assert.equal(res.status, 200, JSON.stringify(res.body));

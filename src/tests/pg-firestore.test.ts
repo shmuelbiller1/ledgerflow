@@ -116,11 +116,11 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
   test('queries: filters, order (missing fields left out), limit, cursors, count', async () => {
     const batch = db.batch();
     const rows = [
-      { id: 't1', date: '2026-01-05', status: 'posted', amount: 10, tags: ['x'] },
-      { id: 't2', date: '2026-01-05', status: 'draft', amount: 20, tags: ['y'] },
-      { id: 't3', date: '2026-02-01', status: 'posted', amount: 5, tags: ['x', 'y'] },
-      { id: 't4', date: '2026-03-10', status: 'void', amount: 7, tags: [] },
-      { id: 't5', status: 'posted', amount: 1, tags: [] },
+      { id: 't1', date: '2026-01-05', status: 'posted', amount: 10, tags: ['x'], lines: [{ accountId: 'query-debit', amountCents: 0 }, { accountId: 'query-credit', amountCents: 0 }] },
+      { id: 't2', date: '2026-01-05', status: 'draft', amount: 20, tags: ['y'], lines: [] },
+      { id: 't3', date: '2026-02-01', status: 'posted', amount: 5, tags: ['x', 'y'], lines: [{ accountId: 'query-debit', amountCents: 1 }, { accountId: 'query-credit', amountCents: -1 }] },
+      { id: 't4', date: '2026-03-10', status: 'void', amount: 7, tags: [], lines: [] },
+      { id: 't5', status: 'posted', amount: 1, tags: [], lines: [{ accountId: 'query-debit', amountCents: 0 }, { accountId: 'query-credit', amountCents: 0 }] },
     ];
     for (const r of rows) {
       const { id, ...rest } = r;
