@@ -1,5 +1,5 @@
 import { reviewKeys } from '../../lib/reviewKeys';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare, Layers, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -107,10 +107,18 @@ export default function InboxView() {
   const highConfidence = pendingTransactions.filter(t => t.reason.kind === 'rule' || t.reason.kind === 'history');
   const mediumConfidence = pendingTransactions.filter(t => t.reason.kind === 'guess');
   // EU-C2: keyboard review — J/K (or ↓/↑) move between rows, A (or Enter) accepts the focused one
-  const acceptGuess = (t: (typeof mediumConfidence)[number]) => inBackground((async () => {
-    const saved = await fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted');
-    if (saved && alwaysFor.has(t.id)) await makeRuleFor(t, t.reason.accountId);
-  })());
+  // one save per entry at a time: a second key press or click while it saves does nothing
+  const accepting = useRef(new Set<string>());
+  const acceptGuess = (t: (typeof mediumConfidence)[number]) => {
+    if (accepting.current.has(t.id)) return;
+    accepting.current.add(t.id);
+    inBackground((async () => {
+      try {
+        const saved = await fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted');
+        if (saved && alwaysFor.has(t.id)) await makeRuleFor(t, t.reason.accountId);
+      } finally { accepting.current.delete(t.id); }
+    })());
+  };
   const lowConfidence = pendingTransactions.filter(t => t.reason.kind === 'none');
 
   /** EU-C1: file each entry to its own suggested account (a rule's, history's or the guess on the line). */

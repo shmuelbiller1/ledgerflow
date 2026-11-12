@@ -56,3 +56,20 @@ test('EU-C2: keys typed with Ctrl, or inside the "Always do this" box, do nothin
   if (box) await act(async () => { fireEvent.keyDown(box, { key: 'a' }); });
   assert.equal(sent.filter(s => s.url.includes('/transactions/batch')).length, 0);
 });
+
+test('EU-C2: a held A (key repeat), or A again while the save is on its way, accepts once', async () => {
+  let finish!: () => void;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    sent.push({ url: String(url), body: JSON.parse(String(init?.body || '{}')) });
+    if (String(url).includes('/transactions/batch')) await new Promise<void>(r => { finish = r; });
+    return new Response('{}', { status: 200 });
+  }) as typeof fetch;
+  useLedgerStore.setState({ transactions: [guess('cafe', 'Corner Cafe')] });
+  render(<InboxView />);
+  const [row] = screen.getAllByRole('option');
+  await act(async () => { fireEvent.keyDown(row, { key: 'a' }); });
+  await act(async () => { fireEvent.keyDown(row, { key: 'a', repeat: true }); });
+  await act(async () => { fireEvent.keyDown(row, { key: 'a' }); });
+  assert.equal(sent.filter(s => s.url.includes('/transactions/batch')).length, 1);
+  await act(async () => { finish(); });
+});

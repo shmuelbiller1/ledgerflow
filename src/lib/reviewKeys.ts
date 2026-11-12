@@ -11,7 +11,7 @@ export function reviewKeys(e: KeyboardEvent<HTMLElement>, accept: () => void): v
   const at = rows.indexOf(e.currentTarget);
   if (key === 'j' || key === 'arrowdown') { e.preventDefault(); rows[Math.min(at + 1, rows.length - 1)]?.focus(); }
   else if (key === 'k' || key === 'arrowup') { e.preventDefault(); rows[Math.max(at - 1, 0)]?.focus(); }
-  else if (key === 'a' || key === 'enter') {
+  else if ((key === 'a' || key === 'enter') && !e.repeat) { // a held key accepts once
     e.preventDefault();
     // focus moves on, so the next one is ready to accept
     (rows[at + 1] || rows[at - 1])?.focus();
