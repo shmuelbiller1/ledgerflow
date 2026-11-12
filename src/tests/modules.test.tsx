@@ -110,9 +110,10 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
 
   test('what each module still holds is counted for any member, never for an outsider (step 2)', async () => {
     await db.collection('loans').doc(`${ws}_loan1`).set({ workspaceId: ws, name: 'Van loan' });
-    await db.collection('transactions').doc(`${ws}_ic1`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: [], metadata: { isIntercompany: true } });
-    await db.collection('transactions').doc(`${ws}_pc1`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: [], metadata: { pettyCash: { kind: 'spend' } } });
-    await db.collection('transactions').doc(`${ws}_plain`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: [] });
+    const moduleLines = [{ accountId: 'module-debit', amountCents: 1 }, { accountId: 'module-credit', amountCents: -1 }];
+    await db.collection('transactions').doc(`${ws}_ic1`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: moduleLines, metadata: { isIntercompany: true } });
+    await db.collection('transactions').doc(`${ws}_pc1`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: moduleLines, metadata: { pettyCash: { kind: 'spend' } } });
+    await db.collection('transactions').doc(`${ws}_plain`).set({ workspaceId: ws, date: '2026-01-01', status: 'completed', lines: moduleLines });
     const get = async (uid: string) => {
       const res = await fetch(`${base}/api/v1/workspaces/${ws}/modules/records`, { headers: { 'x-test-uid': uid } });
       return { status: res.status, body: await res.json() as Record<string, unknown> };

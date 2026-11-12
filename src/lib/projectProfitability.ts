@@ -63,6 +63,7 @@ export interface ProjectProfitabilityInput {
   dimensionNodes?: DimensionNode[];
   startDate?: string;
   endDate?: string;
+  baseCurrency?: string;
 }
 
 function inRange(date: string | undefined, start?: string, end?: string): boolean {
@@ -76,7 +77,7 @@ function inRange(date: string | undefined, start?: string, end?: string): boolea
 const pct = (denom: number, num: number): number | null => (denom === 0 ? null : Math.round((num / denom) * 10000) / 100);
 
 export function computeProjectProfitability(input: ProjectProfitabilityInput): ProjectProfitabilityRow[] {
-  const { invoices, transactions, accounts, items = [], projects, dimensionNodes, startDate, endDate } = input;
+  const { invoices, transactions, accounts, items = [], projects, dimensionNodes, startDate, endDate, baseCurrency = 'USD' } = input;
   const itemCost = new Map(items.map(i => [i.id, i.unitCostCents]));
   const posted = postedCogsByInvoiceLine(transactions, accounts);
   type Accum = { project: string; revenueCents: number; invoiceCostCents: number; expenseCents: number; costIsEstimate: boolean };
@@ -138,7 +139,7 @@ export function computeProjectProfitability(input: ProjectProfitabilityInput): P
     for (const line of inv.items || []) {
       const project = line.dimensions?.project?.trim() || UNASSIGNED_PROJECT;
       const r = rowFor(project);
-      r.revenueCents += toBaseCents(line.amountCents || 0, inv.exchangeRate);
+      r.revenueCents += toBaseCents(line.amountCents || 0, inv.exchangeRate, inv.currency, baseCurrency);
       const cost = posted.get(`${inv.id}/${line.id}`);
       if (cost !== undefined) {
         r.invoiceCostCents += cost;

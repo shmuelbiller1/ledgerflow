@@ -35,13 +35,13 @@ async function workspaceRows<T>(db: Firestore, collection: string, workspaceId: 
 }
 
 /** Every report a schedule's email holds (one, or the three of a report pack, R-3). */
-export async function buildReports(db: Firestore, workspaceId: string, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod): Promise<Array<{ kind: string; table: ReportTable }>> {
-  return Promise.all(scheduleParts(schedule.report).map(async kind => ({ kind, table: await buildReport(db, workspaceId, { report: kind }, period) })));
+export async function buildReports(db: Firestore, workspaceId: string, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod, baseCurrency = 'USD'): Promise<Array<{ kind: string; table: ReportTable }>> {
+  return Promise.all(scheduleParts(schedule.report).map(async kind => ({ kind, table: await buildReport(db, workspaceId, { report: kind }, period, baseCurrency) })));
 }
 
 /** The email a schedule sends for `period`: its subject, body and attachments (the same for a preview, R-3). */
 export async function reportEmail(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: Pick<ScheduledReport, 'report'>, period: ReportPeriod) {
-  const parts = await buildReports(db, workspace.id, schedule, period);
+  const parts = await buildReports(db, workspace.id, schedule, period, workspace.currency || 'USD');
   const currency = workspace.currency || 'USD';
   const html = reportEmailHtml(parts.map(p => p.table), { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, workspace.moneyDisplay) });
   const title = parts.length > 1 ? `Report pack ${period.startDate} – ${period.endDate}` : parts[0].table.title;
@@ -49,14 +49,14 @@ export async function reportEmail(db: Firestore, workspace: { id: string; name?:
   return { subject: `${title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments };
 }
 
-export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod): Promise<ReportTable> {
+export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod, baseCurrency = 'USD'): Promise<ReportTable> {
   const dayAfter = addToDateISO(period.endDate, { days: 1 });
   if (schedule.report === 'receivables-aging') {
     const [customers, invoices] = await Promise.all([
       workspaceRows<Customer>(db, 'customers', workspaceId),
       workspaceRows<Invoice>(db, 'invoices', workspaceId, dayAfter),
     ]);
-    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate), [...AGING_BUCKETS], period);
+    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency), [...AGING_BUCKETS], period);
   }
   const [accounts, entries] = await Promise.all([
     workspaceRows<ChartAccount>(db, 'chartAccounts', workspaceId),

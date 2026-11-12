@@ -432,8 +432,15 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       const revaluation = revaluationEntryLock(data); // ISS-130
       if (revaluation) return res.status(409).json({ error: revaluation });
 
-      if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true) && !user.admin) {
-        return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
+      if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true || data?.reconciled === true || data?.isReconciled === true) && !user.admin) {
+        return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, reconciled, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
+      }
+      const meta = (data?.metadata || {}) as Record<string, unknown>;
+      if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
+        return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
+      }
+      if (data?.status === 'completed' && !user.admin) {
+        return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
       }
 
       // audit F3: the entry and the workspace read again inside the delete, so a period closed (or the entry
@@ -442,7 +449,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         const now = await t.get(txRef);
         if (!now.exists) return 'gone';
         const nowData = now.data();
-        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true) && !user.admin) return 'locked';
+        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
+        const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
+        if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
+        if (nowData?.status === 'completed' && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
         const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
         try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
         t.delete(txRef);

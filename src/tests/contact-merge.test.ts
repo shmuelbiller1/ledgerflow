@@ -63,7 +63,7 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     await set('estimates', 'est1', { customerId: id('dup'), customerName: 'ACME', amountCents: 300 });
     await set('creditNotes', 'cn1', { customerId: id('dup'), customerName: 'ACME', amountCents: 200 });
     await set('payments', 'pay1', { contactId: id('dup'), contactName: 'ACME', direction: 'received', amountCents: 4000, date: '2026-02-01' });
-    await set('transactions', 'tx1', { date: '2026-01-10', description: 'Invoice INV-1', totalAmountCents: 10000, status: 'completed', metadata: { invoiceId: id('inv1'), customerId: id('dup'), type: 'invoice-accrual' }, lines: [] });
+    await set('transactions', 'tx1', { date: '2026-01-10', description: 'Invoice INV-1', totalAmountCents: 10000, status: 'completed', metadata: { invoiceId: id('inv1'), customerId: id('dup'), type: 'invoice-accrual' }, lines: [{ accountId: 'merge-debit', amountCents: 10000 }, { accountId: 'merge-credit', amountCents: -10000 }] });
     await set('recurring', 'rec1', { isActive: true, invoiceTemplate: { customerId: id('dup'), customerName: 'ACME', amountCents: 100 } });
     await set('vendors', 'vkeep', { name: 'Paper Co' });
     await set('vendors', 'vdup', { name: 'Paper Company', address: '9 Mill Rd' });

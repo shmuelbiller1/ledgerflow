@@ -89,7 +89,7 @@ export function salesByTerritory(input: SalesByTerritoryInput): SalesByTerritory
       const locationName = canonical ? resolveDimensionLabel(nodes as DimensionNode[], dimensionId, raw) : NO_LOCATION_LABEL;
       const bucket = buckets.get(key) || { locationValue: canonical || undefined, locationName, salesCents: 0, invoices: new Set<string>(), lineCount: 0 };
       const amountCents = Number.isFinite(line.amountCents) ? line.amountCents : 0;
-      bucket.salesCents += toBaseCents(amountCents, invoice.exchangeRate);
+      bucket.salesCents += toBaseCents(amountCents, invoice.exchangeRate, invoice.currency, input.homeCurrency || 'USD');
       bucket.invoices.add(invoice.id);
       bucket.lineCount++;
       buckets.set(key, bucket);

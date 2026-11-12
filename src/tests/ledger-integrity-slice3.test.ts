@@ -46,6 +46,21 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     assert.ok(sql.includes('revoke update, delete on public."auditLogs" from authenticated'), 'auditLogs revoke update/delete missing');
   });
 
+  test('AF6-011: the final ledger trigger closes empty-line, FX-home-balance, and settlement transition gaps', () => {
+    const sql = migrationsSql();
+    const close = sql.slice(sql.lastIndexOf('create or replace function public.lf_enforce_balanced_ledger()'));
+    assert.match(close, /Posted ledger entry requires a JSON lines array/);
+    assert.match(close, /line_count < 2/);
+    // FX parity is explicit: line rates override the header rate and floor(x + 0.5)
+    // matches JavaScript Math.round for both positive and negative half-cents.
+    assert.match(close, /line_rate := coalesce\(\(elem->>'exchangeRate'\)::numeric, fx_rate\)/);
+    assert.match(close, /base_value := floor\(amt_cents::numeric \* line_rate \+ 0\.5\)::bigint/);
+    assert.match(close, /home-currency amounts must sum to 0 cents/);
+    assert.match(close, /'partial', 'applied'/);
+    assert.match(close, /refundedCents/);
+    assert.match(close, /immutable_keys.*array\['uid'\]/s);
+  });
+
   test('F-09c: loginAudits exposes own_read RLS policy and SecuritySettings renders sign-in activity', () => {
     const sql = migrationsSql();
     assert.ok(sql.includes('create policy own_read on public."loginAudits" for select to authenticated'), 'loginAudits own_read policy missing');

@@ -80,7 +80,7 @@ export async function portalView(db: Firestore, token: string, today: string): P
     const inv = d.data();
     if (HIDDEN.has(String(inv.status || '').toLowerCase())) continue;
     // an invoice still waiting for (or sent back by) an approver has not gone to the customer yet
-    if (holdsSending(inv as never, ws.invoiceApproval)) continue;
+    if (holdsSending(inv as never, ws.invoiceApproval, String(ws.currency || 'USD'))) continue;
     const dueCents = calculateAmountDue(inv as never);
     let payToken = typeof inv.paymentToken === 'string' ? inv.paymentToken : '';
     if (!payToken && dueCents > 0) {

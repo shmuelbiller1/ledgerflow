@@ -15,6 +15,7 @@ import { allocationThresholdCents } from './tax/ilAllocation';
 import { threshold1099Cents } from './tax/us1099Preview';
 import { isPostable, lineAmount } from './txFilters';
 import { maskRecordedTaxId } from './vendorTaxRecords';
+import { convertMinorUnits } from './currencyMinorUnits';
 
 export interface MissingLabelEntryRow {
   transactionId: string;
@@ -204,10 +205,8 @@ export function contactsMissingFilingDetails(input: {
     const vid = p.contactId || (p as unknown as { vendorId?: string }).vendorId;
     if (!vid) continue;
     const cur = paymentsByVendor.get(vid) || { paidHomeCents: 0, count: 0, withheldCents: 0 };
-    if (!p.currency || p.currency.toUpperCase() === homeCurrency) {
-      cur.paidHomeCents += p.amountCents || 0;
-      cur.count += 1;
-    }
+    cur.paidHomeCents += convertMinorUnits(p.amountCents || 0, p.exchangeRate && p.exchangeRate > 0 ? p.exchangeRate : 1, p.currency || homeCurrency, homeCurrency);
+    cur.count += 1;
     const wh = (p as unknown as { withholdingAmountCents?: number; withholdingCents?: number }).withholdingAmountCents
       ?? (p as unknown as { withholdingCents?: number }).withholdingCents ?? 0;
     cur.withheldCents += wh;
@@ -220,10 +219,10 @@ export function contactsMissingFilingDetails(input: {
     if (b.date && !b.date.startsWith(yearPrefix)) continue;
     const vid = b.vendorId;
     if (!vid) continue;
-    const cur = billsByVendor.get(vid) || { count: 0, totalCents: 0, taxCents: 0, withheldCents: 0, firstBillId: b.id, currency: b.currency || homeCurrency };
+    const cur = billsByVendor.get(vid) || { count: 0, totalCents: 0, taxCents: 0, withheldCents: 0, firstBillId: b.id, currency: homeCurrency };
     cur.count += 1;
-    cur.totalCents += b.amountCents || 0;
-    cur.taxCents += b.taxAmountCents || 0;
+    cur.totalCents += convertMinorUnits(b.amountCents || 0, b.exchangeRate && b.exchangeRate > 0 ? b.exchangeRate : 1, b.currency || homeCurrency, homeCurrency);
+    cur.taxCents += convertMinorUnits(b.taxAmountCents || 0, b.exchangeRate && b.exchangeRate > 0 ? b.exchangeRate : 1, b.currency || homeCurrency, homeCurrency);
     cur.withheldCents += (b as unknown as { withholdingAmountCents?: number }).withholdingAmountCents || 0;
     billsByVendor.set(vid, cur);
   }
@@ -244,22 +243,23 @@ export function contactsMissingFilingDetails(input: {
     if (!cid) continue;
     const cur = invoicesByCustomer.get(cid) || {
       count: 0, totalCents: 0, taxedCount: 0, exemptOrZeroCount: 0, overIlAllocationCount: 0,
-      firstInvoiceId: inv.id, currency: inv.currency || homeCurrency,
+      firstInvoiceId: inv.id, currency: homeCurrency,
     };
     cur.count += 1;
-    cur.totalCents += inv.amountCents || 0;
-    const taxCents = inv.taxAmountCents || 0;
-    const netCents = Math.max(0, (inv.amountCents || 0) - taxCents);
+    const invRate = inv.exchangeRate && inv.exchangeRate > 0 ? inv.exchangeRate : 1;
+    cur.totalCents += convertMinorUnits(inv.amountCents || 0, invRate, inv.currency || homeCurrency, homeCurrency);
+    const taxCents = convertMinorUnits(inv.taxAmountCents || 0, invRate, inv.currency || homeCurrency, homeCurrency);
+    const netCents = Math.max(0, convertMinorUnits((inv.amountCents || 0) - (inv.taxAmountCents || 0), invRate, inv.currency || homeCurrency, homeCurrency));
     if (taxCents > 0) cur.taxedCount += 1;
     const treatment = (inv as unknown as { taxTreatment?: string }).taxTreatment;
     if (treatment === 'exempt' || treatment === 'zero_rated') cur.exemptOrZeroCount += 1;
     const ilThreshold = inv.date ? allocationThresholdCents(inv.date) : undefined;
     if (ilThreshold !== undefined && taxCents > 0) {
-      const invCurrency = (inv.currency || homeCurrency).toUpperCase();
-      const netIlsCents = invCurrency === 'ILS'
-        ? netCents
-        : inv.exchangeRate
-          ? Math.round(netCents * inv.exchangeRate)
+      const invoiceCurrency = String(inv.currency || homeCurrency).trim().toUpperCase();
+      const netIlsCents = invoiceCurrency === 'ILS'
+        ? Math.max(0, (inv.amountCents || 0) - (inv.taxAmountCents || 0))
+        : homeCurrency === 'ILS'
+          ? netCents
           : 0;
       if (netIlsCents > ilThreshold) cur.overIlAllocationCount += 1;
     }
@@ -310,7 +310,7 @@ export function contactsMissingFilingDetails(input: {
       missingFields,
       filingReasons: reasons,
       activityAmountCents: (pay?.paidHomeCents || 0) || (bill?.totalCents || 0),
-      currency: pay ? homeCurrency : (bill?.currency || homeCurrency),
+      currency: homeCurrency,
       documentCount: (pay?.count || 0) + (bill?.count || 0),
       record: bill?.firstBillId ? { type: 'bill', id: bill.firstBillId } : undefined,
     });

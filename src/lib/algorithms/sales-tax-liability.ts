@@ -3,6 +3,7 @@ import { AlgorithmDefinition, AlgoResult } from './types';
 import { currencyChartValue, formatCurrency, parseLocalDate } from '../../lib/utils';
 import { lineAmount } from '../../lib/txFilters';
 import { calculateDocumentTax, calculateDocumentNet } from '../documentMath';
+import { convertMinorUnits } from '../currencyMinorUnits';
 
 /**
  * Normalizes taxRate input into a canonical decimal fraction (e.g. 8.25% -> 0.0825).
@@ -72,6 +73,7 @@ export const SALES_TAX_LIABILITY_ALGO: AlgorithmDefinition = {
     const sourcingRule = inputs['sourcingRule'] || 'destination';
     const period = inputs['period'];
     const selectedJurisdiction = inputs['jurisdiction'];
+    const baseCurrency = ctx.reportingCurrency || 'USD';
 
     let startDate: Date | null = null;
     let endDate: Date | null = null;
@@ -132,13 +134,13 @@ export const SALES_TAX_LIABILITY_ALGO: AlgorithmDefinition = {
         ? inv.amountCents 
         : undefined;
       const totalInvCents = rawAmount !== undefined
-        ? Math.round(rawAmount * (inv.exchangeRate || 1)) 
+        ? convertMinorUnits(rawAmount, inv.exchangeRate && inv.exchangeRate > 0 ? inv.exchangeRate : 1, inv.currency, baseCurrency)
         : lineAmount(inv as unknown as import("../../types").TransactionLine);
         
       let salesCents = totalInvCents;
       if (basis === 'cash') {
         const paidCents = typeof inv.amountPaidCents === 'number' 
-          ? Math.round(inv.amountPaidCents * (inv.exchangeRate || 1))
+          ? convertMinorUnits(inv.amountPaidCents, inv.exchangeRate && inv.exchangeRate > 0 ? inv.exchangeRate : 1, inv.currency, baseCurrency)
           : (inv.status === 'paid' ? totalInvCents : 0);
         salesCents = paidCents;
       }
@@ -155,16 +157,19 @@ export const SALES_TAX_LIABILITY_ALGO: AlgorithmDefinition = {
       let taxableSalesCents: number;
 
       if (basis === 'cash' && totalInvCents > 0 && typeof inv.taxAmountCents === 'number' && inv.taxAmountCents > 0) {
-        taxCents = Math.round((salesCents / totalInvCents) * inv.taxAmountCents);
+        taxCents = Math.round((salesCents / totalInvCents) * convertMinorUnits(inv.taxAmountCents, inv.exchangeRate && inv.exchangeRate > 0 ? inv.exchangeRate : 1, inv.currency, baseCurrency));
         taxableSalesCents = inv.taxInclusive ? (salesCents - taxCents) : salesCents;
       } else {
+        const invRate = inv.exchangeRate && inv.exchangeRate > 0 ? inv.exchangeRate : 1;
         const docInput = {
           amountCents: salesCents,
-          taxAmountCents: inv.taxAmountCents,
-          salesTaxCents: inv.salesTaxCents,
+          // Preserve undefined explicit-tax fields so calculateDocumentTax can use taxRate.
+          // A converted zero is still an explicit zero and must remain authoritative.
+          taxAmountCents: typeof inv.taxAmountCents === 'number' ? convertMinorUnits(inv.taxAmountCents, invRate, inv.currency, baseCurrency) : undefined,
+          salesTaxCents: typeof inv.salesTaxCents === 'number' ? convertMinorUnits(inv.salesTaxCents, invRate, inv.currency, baseCurrency) : undefined,
           taxRate: inv.taxRate,
           taxInclusive: inv.taxInclusive,
-          discountCents: inv.discountCents
+          discountCents: typeof inv.discountCents === 'number' ? convertMinorUnits(inv.discountCents, invRate, inv.currency, baseCurrency) : undefined
         };
         taxCents = calculateDocumentTax(docInput);
         taxableSalesCents = calculateDocumentNet(docInput);
@@ -184,22 +189,22 @@ export const SALES_TAX_LIABILITY_ALGO: AlgorithmDefinition = {
 
     Object.entries(jurisdictionTotals).forEach(([jur, totals]) => {
       if (totals.sales === 0) return;
-      chartData.push({ jurisdiction: jur, tax: currencyChartValue(totals.tax) });
+      chartData.push({ jurisdiction: jur, tax: currencyChartValue(totals.tax, baseCurrency) });
       rows.push({
         id: jur,
         jurisdiction: jur,
-        grossSales: formatCurrency(totals.sales),
-        taxableSales: formatCurrency(totals.taxable),
-        taxCollected: formatCurrency(totals.tax),
-        taxDue: formatCurrency(totals.tax)
+        grossSales: formatCurrency(totals.sales, baseCurrency),
+        taxableSales: formatCurrency(totals.taxable, baseCurrency),
+        taxCollected: formatCurrency(totals.tax, baseCurrency),
+        taxDue: formatCurrency(totals.tax, baseCurrency)
       });
     });
 
     return {
       metrics: [
-        { label: `Gross Sales (${basis.toUpperCase()})`, value: formatCurrency(totalSales), color: 'text-white' },
-        { label: 'Taxable Sales', value: formatCurrency(totalTaxableSales), color: 'text-indigo-400' },
-        { label: 'Tax Collected / Due', value: formatCurrency(totalTaxCollected), color: 'text-rose-400' }
+        { label: `Gross Sales (${basis.toUpperCase()})`, value: formatCurrency(totalSales, baseCurrency), color: 'text-white' },
+        { label: 'Taxable Sales', value: formatCurrency(totalTaxableSales, baseCurrency), color: 'text-indigo-400' },
+        { label: 'Tax Collected / Due', value: formatCurrency(totalTaxCollected, baseCurrency), color: 'text-rose-400' }
       ],
       charts: [
         {

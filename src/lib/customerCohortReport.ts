@@ -38,6 +38,7 @@ export function customerCohortReport(
   asOfDate: string,
   cohortWindowMonths = 12,
   ageMonths = 12,
+  baseCurrency = 'USD',
 ): CustomerCohortReport {
   if (!validCustomReportPeriod({ startDate: asOfDate, endDate: asOfDate }))
     throw new Error('Choose a valid report end date.');
@@ -57,7 +58,7 @@ export function customerCohortReport(
     }
     if (date > asOfDate) continue;
     const index = monthIndex(date);
-    const cents = toBaseCents(invoice.amountCents, invoice.exchangeRate);
+    const cents = toBaseCents(invoice.amountCents, invoice.exchangeRate, invoice.currency, baseCurrency);
     if (!Number.isSafeInteger(cents)) {
       excluded++;
       continue;

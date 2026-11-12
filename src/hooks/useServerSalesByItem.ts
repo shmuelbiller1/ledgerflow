@@ -21,6 +21,7 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const accounts = useLedgerStore(s => s.accounts);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.invoices || s.truncatedCollections?.transactions || s.truncatedCollections?.chartAccounts || s.truncatedCollections?.inventory));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const baseCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const needed = capped && !!workspaceId && !!from && !!to && from <= to;
   // an edit to any loaded entry (a range invoice's cost of goods sold may be posted or reversed before the range), to a range invoice, or to any item or account (names, SKUs, unit costs, account
   // classes: all report inputs; small, fully loaded lists, so whole), changes the server's report too
@@ -48,7 +49,7 @@ export function useServerSalesByItem(from: string | undefined, to: string | unde
   const server = key && answer?.key === key ? answer.server : null;
   return useMemo(() => {
     if (server && server.workspaceId === workspaceId) return { rows: server.rows, totals: server.totals, source: 'server' as const };
-    const own = computeSalesByItem({ invoices: invoices || [], items: items || [], transactions: transactions || [], accounts: accounts || [], startDate: from, endDate: to });
+    const own = computeSalesByItem({ invoices: invoices || [], items: items || [], transactions: transactions || [], accounts: accounts || [], baseCurrency, startDate: from, endDate: to });
     return { ...own, source: capped ? 'loaded-incomplete' as const : 'loaded' as const };
-  }, [server, workspaceId, invoices, items, transactions, accounts, from, to, capped]);
+  }, [server, workspaceId, invoices, items, transactions, accounts, baseCurrency, from, to, capped]);
 }

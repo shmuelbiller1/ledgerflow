@@ -308,6 +308,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
       const wsDoc = await db.collection("workspaces").doc(workspaceId).get();
       const wsData = wsDoc.data() || {};
+      const baseCurrency = String(wsData.currency || 'USD');
 
       const nowMs = Date.now();
       let totalRevenue = 0;
@@ -333,7 +334,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
          const txDateMs = new Date(invDateStr).getTime();
          const daysOutstanding = Math.max(0, Math.floor((nowMs - txDateMs) / (1000 * 60 * 60 * 24)));
          // still owed, in the base currency
-         const totalAmount = toBaseCents(calculateAmountDue(inv), inv.exchangeRate);
+         const totalAmount = toBaseCents(calculateAmountDue(inv), inv.exchangeRate, inv.currency, baseCurrency);
          const impliedCostOfCapitalCents = Math.round(totalAmount * (0.08 / 365) * daysOutstanding);
          return {
            invoiceId: inv.id,

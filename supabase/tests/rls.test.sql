@@ -360,7 +360,7 @@ declare
   doc text;
 begin
   foreach t in array array['transactions', 'journalEntries', 'payments', 'reconciliations', 'workspaceShards'] loop
-    doc := case when t = 'transactions'
+    doc := case when t in ('transactions', 'journalEntries')
                 then '{"workspaceId":"ws1","date":"2026-02-15","status":"completed","lines":[{"accountId":"a2","amountCents":100},{"accountId":"a-fx","amountCents":-100}]}'
                 else '{"workspaceId":"ws1"}' end;
     perform set_config('request.jwt.claims', '', true);

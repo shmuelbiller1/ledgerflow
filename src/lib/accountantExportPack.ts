@@ -233,6 +233,7 @@ function agingSection(
     documents as Array<Invoice | Bill>,
     side,
     input.asOfDate,
+    input.currency,
   );
   const total = rows.reduce((sum, row) => sum + row.total, 0);
   const buckets = rows.reduce(

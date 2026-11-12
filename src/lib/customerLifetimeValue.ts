@@ -68,6 +68,8 @@ export interface CustomerLifetimeValueInput {
   from?: string;
   /** years the average annual profit is repeated for; 1–20, default 3 */
   lifespanYears?: number;
+  /** workspace currency used for invoice and credit-note conversion */
+  baseCurrency?: string;
 }
 
 export interface CustomerLifetimeValueReport {
@@ -84,6 +86,7 @@ export function customerLifetimeValue(input: CustomerLifetimeValueInput): Custom
   if (!validCustomReportPeriod({ startDate: input.asOfDate, endDate: input.asOfDate }))
     throw new Error('Choose a valid report end date.');
   const lifespanYears = input.lifespanYears ?? DEFAULT_LIFESPAN_YEARS;
+  const baseCurrency = input.baseCurrency || 'USD';
   if (!Number.isInteger(lifespanYears) || lifespanYears < 1 || lifespanYears > 20)
     throw new Error('The lifespan must be a whole number of years between 1 and 20.');
   const names = new Map(input.customers.map(customer => [customer.id, customer.name]));
@@ -104,6 +107,7 @@ export function customerLifetimeValue(input: CustomerLifetimeValueInput): Custom
       items: input.items,
       transactions: input.transactions,
       accounts: input.accounts,
+      baseCurrency,
       startDate: from || undefined,
       endDate: input.asOfDate,
     });
@@ -112,7 +116,7 @@ export function customerLifetimeValue(input: CustomerLifetimeValueInput): Custom
     const costIsEstimate = report.rows.some(row => row.costIsEstimate);
     const creditCents = input.creditNotes
       .filter(note => note.customerId === customerId && CREDIT_NOTE_COUNTS.has(note.status) && inWindow(note.date))
-      .reduce((sum, note) => sum + toBaseCents(note.amountCents || 0, note.exchangeRate), 0);
+      .reduce((sum, note) => sum + toBaseCents(note.amountCents || 0, note.exchangeRate, note.currency, baseCurrency), 0);
     const netRevenueCents = salesCents - creditCents;
     const grossProfitCents = netRevenueCents - costCents;
     const dates = own.map(invoice => (invoice.date || '').slice(0, 10)).filter(Boolean).sort(byCodeUnit);

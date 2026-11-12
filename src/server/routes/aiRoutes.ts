@@ -5,8 +5,9 @@ import { verifyIdToken } from "../auth/supabaseAuth";
 import { AIBackendService } from "../services/aiBackendService";
 import { allowedPayload, type AiCallTrace } from "../services/aiGateway";
 import { SecurityService } from "../../services/securityService";
-import { getDb, validateWorkspaceMember } from "../db/firestore";
+import { assertWorkspaceAccess, getDb } from "../db/firestore";
 import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService";
+import { brainRateLimiter } from "../middleware/rateLimiters";
 
 export const aiRouter = express.Router();
 
@@ -45,7 +46,7 @@ const TASK_WEIGHTS: Record<string, number> = {
   'parse-business-blueprint': 400
 };
 
-aiRouter.post("/process", async (req: express.Request, res: express.Response) => {
+aiRouter.post("/process", brainRateLimiter, async (req: express.Request, res: express.Response) => {
   // 1. Standard token validation FIRST (No guest/test bypass allowed)
   // Ensures unauthenticated calls return 401 even before key check
   const authHeader = req.headers.authorization;
@@ -97,11 +98,11 @@ aiRouter.post("/process", async (req: express.Request, res: express.Response) =>
     });
   }
 
-  // 4. Workspace membership authorization & credit verification
+  // 4. Workspace membership + Two-Step Login (AAL2) authorization & credit verification
   const db = getDb();
   let wsData: Record<string, unknown> | undefined;
   try {
-    const memberValidation = await validateWorkspaceMember(db, workspaceId, decodedToken);
+    const memberValidation = await assertWorkspaceAccess(db, workspaceId, decodedToken);
     wsData = memberValidation.data;
   } catch (err) {
     return res.status(403).json({

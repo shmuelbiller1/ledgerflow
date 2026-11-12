@@ -94,6 +94,20 @@ describe('batch edits are safe (database)', { skip: !url && 'LF_TEST_DATABASE_UR
     assert.equal((await entry('b')).description, 'b');
   });
 
+  test('cleared entries allow metadata/rule marks but not line, status, or settlement-flag rewrites', async () => {
+    // Set up a complete posted row: the database trigger requires balanced lines on every write.
+    // This is fixture preparation, not the route behavior under test.
+    const beforeClear = await entry('a');
+    await db.collection('transactions').doc(id('a')).set({ ...beforeClear, isCleared: true }, { merge: true });
+    assert.equal((await batch([{ id: id('a'), data: { description: 'cleared note' } }])).status, 200);
+    assert.equal((await entry('a')).description, 'cleared note');
+    assert.equal((await batch([{ id: id('a'), data: { isCleared: false } }])).status, 400, 'clearing a settled entry cannot be undone through a batch');
+    const current = await entry('a');
+    const lines = current.lines.map(line => ({ ...line }));
+    assert.equal((await batch([{ id: id('a'), data: { lines } }])).status, 400, 'cleared line rewrites stay locked');
+    assert.equal((await batch([{ id: id('a'), data: { status: 'reviewed' } }])).status, 400, 'cleared status rewrites stay locked');
+  });
+
   test('#106: pairing two entries as a transfer is saved for both or for neither', async () => {
     const pair = (bTo: string) => [
       { id: id('a'), data: { isTransfer: true, transferDetails: { fromAccountId: 'x', toAccountId: 'y' } } },

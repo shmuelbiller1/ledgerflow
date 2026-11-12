@@ -246,6 +246,7 @@ export function runSampleYearReportBenchmark(
           invoices: fixture.invoices,
           startDate: fixture.startDate,
           endDate: fixture.endDate,
+          homeCurrency: 'USD',
         }).rows.length,
     },
     {

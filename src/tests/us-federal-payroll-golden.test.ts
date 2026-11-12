@@ -94,13 +94,13 @@ describe('US Federal Payroll & Pub 15-T Golden Tests (D-15, D-18)', () => {
     });
 
     it('Example 4: Single employee, Step 2 CHECKED (two jobs / higher rate), weekly wage $1,000 ($52,000/yr)', () => {
-      // Step 2 checked: No standard deduction adjustment ($0 reduction)
+      // Step 2 checked: Worksheet 1A Step 1f applies $0 reduction; Table 1(b) carries half of full $16,100 std deduction ($8,050 0% threshold)
       // Annual wage: $52,000 (5,200,000 cents)
-      // Table 1(b) Single Step 2 checked: Over $32,150 base tax $3,284.00 ($328,400 cents) + 22% over $32,150
-      // Excess over $32,150 = $19,850 ($1,985,000 cents)
-      // 22% of $19,850 = $4,367.00 ($436,700 cents)
-      // Total annual tax = $3,284 + $4,367 = $7,651.00 ($765,100 cents)
-      // Weekly tax = $7,651 / 52 = $147.1346... -> $147.13 (14713 cents)
+      // Table 1(b) Single Step 2 checked: Over $36,450 (($64,300 + $8,600) / 2) base tax $3,284.00 ($328,400 cents) + 22% over $36,450
+      // Excess over $36,450 = $15,550 ($1,555,000 cents)
+      // 22% of $15,550 = $3,421.00 ($342,100 cents)
+      // Total annual tax = $3,284 + $3,421 = $6,705.00 ($670,500 cents) [2 jobs * $6,705 = $13,410 == Single Std on $104,000]
+      // Weekly tax = $6,705 / 52 = $128.9423... -> $128.94 (12894 cents)
       const weeklyWageCents = 100000;
       const withholdingCents = calculateFederalIncomeTaxWithholding(
         weeklyWageCents,
@@ -109,7 +109,33 @@ describe('US Federal Payroll & Pub 15-T Golden Tests (D-15, D-18)', () => {
         'weekly',
         '2026-05-01',
       );
-      assert.equal(withholdingCents, 14713, 'Weekly Step-2-checked withholding should be $147.13 (14713 cents)');
+      assert.equal(withholdingCents, 12894, 'Weekly Step-2-checked withholding should be $128.94 (12894 cents)');
+      assert.equal(
+        2 * calculateFederalIncomeTaxWithholding(5200000, 'single', true, 'annually', '2026-05-01'),
+        calculateFederalIncomeTaxWithholding(10400000, 'single', false, 'annually', '2026-05-01'),
+        'Two equal Step-2 jobs must withhold identical annual tax to one combined Step-2-unchecked job',
+      );
+    });
+
+    it('derives every Step 2 table from the standard table and preserves the two-job identity', () => {
+      const statuses = ['single', 'married_filing_jointly', 'head_of_household'] as const;
+      const adjustment: Record<(typeof statuses)[number], number> = {
+        single: 860000,
+        married_filing_jointly: 1290000,
+        head_of_household: 860000,
+      };
+      for (const status of statuses) {
+        const standard = getFederalWithholdingTable(status, false, '2026-06-01');
+        const step2 = getFederalWithholdingTable(status, true, '2026-06-01');
+        assert.ok(standard && step2);
+        assert.equal(step2.standardDeductionAdjustmentCents, 0);
+        assert.equal(step2.brackets.length, standard.brackets.length);
+        for (let index = 1; index < standard.brackets.length; index += 1) {
+          assert.equal(step2.brackets[index].overCents, Math.round((standard.brackets[index].overCents + adjustment[status]) / 2));
+          assert.equal(step2.brackets[index].baseTaxCents, Math.round(standard.brackets[index].baseTaxCents / 2));
+          assert.equal(step2.brackets[index].rate, standard.brackets[index].rate);
+        }
+      }
     });
 
     it('Example 5: calculates withholding for 2025 dates using 2025 tax schedules', () => {

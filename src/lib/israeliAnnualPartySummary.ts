@@ -130,13 +130,13 @@ export function computeIsraeliAnnualSummary(input: {
     const cObj = inv.customerId ? customerLookup.get(inv.customerId) : undefined;
     const open = openAtEnd(inv.id, calculateAmountDue(inv), Number(inv.amountCents) || 0);
     if (open > 0 && String(inv.date || '').slice(0, 10) <= end) {
-      ensureCust(cid, inv.customerName || 'Customer', cObj).closingOpenCents += toBaseCents(open, inv.exchangeRate);
+      ensureCust(cid, inv.customerName || 'Customer', cObj).closingOpenCents += toBaseCents(open, inv.exchangeRate, inv.currency, baseCurrency);
     }
     if (!inYear(inv.date)) continue;
     const row = ensureCust(cid, inv.customerName || 'Customer', cObj);
     row.documentCount += 1;
-    const gross = toBaseCents(inv.amountCents || 0, inv.exchangeRate);
-    const vat = toBaseCents(Math.max(0, Number(inv.taxAmountCents) || 0), inv.exchangeRate);
+    const gross = toBaseCents(inv.amountCents || 0, inv.exchangeRate, inv.currency, baseCurrency);
+    const vat = toBaseCents(Math.max(0, Number(inv.taxAmountCents) || 0), inv.exchangeRate, inv.currency, baseCurrency);
     const net = gross - vat;
     row.grossBilledCents += gross;
     row.vatChargedCents += vat;
@@ -164,8 +164,8 @@ export function computeIsraeliAnnualSummary(input: {
     const cid = cn.customerId || `name:${cn.customerName || 'Customer'}`;
     const row = ensureCust(cid, cn.customerName || 'Customer', cn.customerId ? customerLookup.get(cn.customerId) : undefined);
     row.documentCount += 1;
-    const gross = toBaseCents(cn.amountCents || 0, cn.exchangeRate);
-    const vat = toBaseCents(Math.max(0, Number(cn.taxAmountCents) || 0), cn.exchangeRate);
+    const gross = toBaseCents(cn.amountCents || 0, cn.exchangeRate, cn.currency, baseCurrency);
+    const vat = toBaseCents(Math.max(0, Number(cn.taxAmountCents) || 0), cn.exchangeRate, cn.currency, baseCurrency);
     row.grossBilledCents -= gross;
     row.vatChargedCents -= vat;
     row.netSalesCents -= (gross - vat);
@@ -205,13 +205,13 @@ export function computeIsraeliAnnualSummary(input: {
     const open = openAtEnd(bill.id, bill.status === 'paid' ? 0 : (Number(bill.amountCents) || 0) - paid, Number(bill.amountCents) || 0);
     const bDate = String(bill.date || bill.issueDate || '').slice(0, 10);
     if (open > 0 && bDate <= end) {
-      ensureVend(vid, bill.vendorName || 'Vendor', vObj).closingOpenCents += toBaseCents(open, bill.exchangeRate);
+      ensureVend(vid, bill.vendorName || 'Vendor', vObj).closingOpenCents += toBaseCents(open, bill.exchangeRate, bill.currency, baseCurrency);
     }
     if (!inYear(bDate)) continue;
     const row = ensureVend(vid, bill.vendorName || 'Vendor', vObj);
     row.documentCount += 1;
-    row.grossBilledCents += toBaseCents(bill.amountCents || 0, bill.exchangeRate);
-    row.inputVatCents += toBaseCents(Math.max(0, Number(bill.taxAmountCents) || 0), bill.exchangeRate);
+    row.grossBilledCents += toBaseCents(bill.amountCents || 0, bill.exchangeRate, bill.currency, baseCurrency);
+    row.inputVatCents += toBaseCents(Math.max(0, Number(bill.taxAmountCents) || 0), bill.exchangeRate, bill.currency, baseCurrency);
     if (bill.currency && bill.currency !== baseCurrency) row.foreignDocCount += 1;
   }
 
@@ -220,8 +220,8 @@ export function computeIsraeliAnnualSummary(input: {
     const vid = vc.vendorId || `name:${vc.vendorName || 'Vendor'}`;
     const row = ensureVend(vid, vc.vendorName || 'Vendor', vc.vendorId ? vendorLookup.get(vc.vendorId) : undefined);
     row.documentCount += 1;
-    row.grossBilledCents -= toBaseCents(vc.amountCents || 0, vc.exchangeRate);
-    row.inputVatCents -= toBaseCents(Math.max(0, Number(vc.taxAmountCents) || 0), vc.exchangeRate);
+    row.grossBilledCents -= toBaseCents(vc.amountCents || 0, vc.exchangeRate, vc.currency, baseCurrency);
+    row.inputVatCents -= toBaseCents(Math.max(0, Number(vc.taxAmountCents) || 0), vc.exchangeRate, vc.currency, baseCurrency);
   }
 
   for (const p of payments || []) {
@@ -229,14 +229,14 @@ export function computeIsraeliAnnualSummary(input: {
     const pRec = p as unknown as Record<string, unknown>;
     const pDay = String(pRec.paymentDate || p.date || '').slice(0, 10);
     if (!inYear(pDay)) continue;
-    const baseAmt = toBaseCents(p.amountCents || 0, p.exchangeRate);
+    const baseAmt = toBaseCents(p.amountCents || 0, p.exchangeRate, p.currency, baseCurrency);
     if (p.direction === 'made') {
       const vid = p.contactId || `name:${p.contactName || 'Vendor'}`;
       const row = ensureVend(vid, p.contactName || 'Vendor', p.contactId ? vendorLookup.get(p.contactId) : undefined);
       row.paymentsInYearCents += baseAmt;
       // payments store the tax withheld as `withheldCents` (paymentService); the older names are still read
       const whtCents = Number(pRec.withheldCents || pRec.withholdingTaxCents || (pRec.metadata as Record<string, unknown> | undefined)?.withholdingTaxCents) || 0;
-      row.taxWithheldCents += toBaseCents(Math.max(0, whtCents), p.exchangeRate);
+      row.taxWithheldCents += toBaseCents(Math.max(0, whtCents), p.exchangeRate, p.currency, baseCurrency);
     } else if (p.direction === 'received' || (p.allocations || []).some(a => a.documentType === 'invoice')) {
       const cid = p.contactId || `name:${p.contactName || 'Customer'}`;
       const row = ensureCust(cid, p.contactName || 'Customer', p.contactId ? customerLookup.get(p.contactId) : undefined);

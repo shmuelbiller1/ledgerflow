@@ -105,8 +105,15 @@ export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'
   const lines = t.lines || [];
   if (lines.length === 0) return;
   // Some producers (including manual FX journals) already store home-currency line amounts
-  // and record baseAmountCents for reporting. Do not convert these a second time.
-  if (lines.every(l => Number.isSafeInteger(l.baseAmountCents))) {
+  // and record baseAmountCents for reporting. Do not convert these a second time. A partial set
+  // is ambiguous: accepting it would make reports depend on which lines happened to carry the
+  // optional field, so the database trigger applies the same all-or-none rule.
+  const hasBase = lines.some(l => l.baseAmountCents !== undefined && l.baseAmountCents !== null);
+  const allBase = lines.every(l => Number.isSafeInteger(l.baseAmountCents));
+  if (hasBase && !allBase) {
+    throw new Error('Validation Failed: explicit home-currency amounts must be present on every line or none');
+  }
+  if (allBase) {
     const netHome = lines.reduce((sum, l) => sum + (l.baseAmountCents as number), 0);
     if (netHome !== 0) {
       throw new Error(`Validation Failed: explicit home-currency lines do not balance (${netHome} cents)`);

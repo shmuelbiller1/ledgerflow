@@ -304,14 +304,17 @@ function buildSet(ref: RefLike, data: DocumentData, options?: SetOptions): Write
   const table = quoteIdent(ref.collectionId);
   const transforms = hasTransforms(patch);
   const fresh = transforms ? APPLY('$2::jsonb', `'{}'::jsonb`) : '$2::jsonb';
-  const merged = options?.merge
-    ? (transforms ? APPLY('public.lf_deep_merge(t.data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(t.data, $2::jsonb)')
-    : 'excluded.data';
-  const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = ${merged}`;
   const params = transforms ? [ref.id, JSON.stringify(patch.data), ...patchParams(patch)] : [ref.id, JSON.stringify(patch.data)];
+  if (options?.merge) {
+    // One INSERT ... ON CONFLICT statement is required here: an update-then-insert race turns
+    // concurrent merge writes (notably sharded counter increments) into an unretried 23505.
+    const merged = transforms ? APPLY('public.lf_deep_merge(t.data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(t.data, $2::jsonb)';
+    const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = ${merged}`;
+    return { ref, kind: 'set', sql, params };
+  }
+  const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = excluded.data`;
   return { ref, kind: 'set', sql, params };
 }
-
 function buildUpdate(ref: RefLike, dataOrField: DocumentData | string | FieldPath, more: unknown[]): WriteOp {
   const fields = toFieldMap(dataOrField, more);
   if (Object.keys(fields).length === 0) throw invalid(`update() on ${ref.path} needs at least one field`);
@@ -742,7 +745,6 @@ export class Firestore {
     const result = await this.run<{ count: string }>(tx, `select count(*) as count from (${inner}) s`, p.values, `Counting ${query.collectionId}`);
     return Number(result.rows[0]?.count || 0);
   }
-
   /** @internal Runs writes as one database transaction (a batch, or a single write). */
   async applyWrites(ops: WriteOp[]): Promise<WriteResult[]> {
     if (ops.length === 0) return [];
@@ -769,7 +771,6 @@ export class Firestore {
     const writeTime = Timestamp.now();
     return ops.map(() => ({ writeTime }));
   }
-
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
     if (state && state.failure !== undefined) {

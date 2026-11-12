@@ -27,6 +27,11 @@ export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Strip newline characters that could be used for log injection (CRLF) before writing a value to a log. */
+export function sanitizeForLog(value: string): string {
+  return value.replace(/[\r\n\u2028\u2029]/g, '');
+}
+
 /** An error that carries the HTTP status to answer with (read as `status` or `statusCode`). */
 export class HttpError extends Error {
   readonly status: number;
