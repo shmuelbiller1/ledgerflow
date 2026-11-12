@@ -4,6 +4,7 @@ import { TrendingUp, Activity, BarChart, Zap, Calendar, ShieldAlert, CheckCircle
 import { cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { StrategicEngine } from '../../services/strategicEngine';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -48,7 +49,7 @@ export default function CashFlowPredictor() {
   const effectiveAccounts = computedAccounts.length > 0 ? computedAccounts : accounts;
   const advisorLoadError = failed.invoices || failed.bills || failed.payments || '';
   const cappedAdvisorSources = useMemo(
-    () => (['transactions', 'invoices', 'bills', 'payments'] as const).filter(k => Boolean(truncated?.[k])),
+    () => (['transactions', 'invoices', 'bills', 'payments'] as const).filter(k => isCollectionCapped(truncated, k)),
     [truncated],
   );
 

@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { rangeRevision } from '../lib/serverTopLines';
+import { anyCollectionCapped } from '../lib/ledgerCollections';
 import { useLedgerCollections } from './useLedgerCollections';
 import { customerGrossProfit } from '../lib/customerGrossProfit';
 import { grossMarginByItemGroup, monthsBetween } from '../lib/grossMarginByGroup';
@@ -27,7 +28,7 @@ function useInvoiceReportInputs(from: string | undefined) {
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
   // A capped entry list can leave out cost of goods sold posted before the range (it is read at any date), and a list
   // that failed to load is as incomplete as a capped one: either way the report is asked of the server.
-  const truncatedInput = useLedgerStore(s => Boolean(['invoices', 'inventory', 'chartAccounts', 'customers', 'projects', 'transactions', 'dimensionNodes'].some(k => s.truncatedCollections?.[k])));
+  const truncatedInput = useLedgerStore(s => anyCollectionCapped(s.truncatedCollections, ['invoices', 'inventory', 'accounts', 'customers', 'projects', 'transactions']) || Boolean(s.truncatedCollections?.['dimensionNodes']));
   const failedInput = useDataNeedsStore(s => Boolean((['invoices', 'inventory', 'accounts', 'customers', 'projects', 'transactions'] as const).some(k => s.failed[k])));
   const listsCapped = truncatedInput || failedInput;
   const input = useMemo(() => {

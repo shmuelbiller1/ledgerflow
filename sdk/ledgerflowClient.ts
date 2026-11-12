@@ -45,7 +45,7 @@ export class LedgerFlowError extends Error {
   constructor(readonly status: number, message: string, readonly body: unknown) { super(message); this.name = 'LedgerFlowError'; }
 }
 
-const randomKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+const randomKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`); // NOSONAR: S2245 — non-cryptographic Math.random fallback for retry key
 
 export class LedgerFlowClient {
   private readonly base: string;

@@ -13,6 +13,7 @@
  */
 import type { Bill, CreditNote, Invoice, Transaction, VendorCredit } from '../types';
 import { isPostable, lineAmount } from './txFilters';
+import { minorUnitRate } from './currencyMinorUnits';
 
 export type PostingIssue = 'missing' | 'duplicate' | 'orphan' | 'amount';
 
@@ -72,22 +73,24 @@ function postedTotal(t: Transaction, kind: DocKind): number {
 
 /** What the receivable/payable side of the accrual should be, in base currency. An invoice's
  *  discount is booked on the same side (DR Sales Discounts), so it adds to the invoice's debits. */
-function expectedTotal(kind: DocKind, doc: { amountCents?: number; exchangeRate?: number; discountCents?: number }): number {
-  const rate = doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
+function expectedTotal(kind: DocKind, doc: { amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string }, baseCurrency?: string): number {
+  // Use the same source-to-books minor-unit factor used by canonical ledger posting.
+  const rate = minorUnitRate(doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1, doc.currency || baseCurrency, baseCurrency);
   const total = Math.round((doc.amountCents || 0) * rate);
   return kind === 'invoice' ? total + Math.round((doc.discountCents || 0) * rate) : total;
 }
 
 function check(
   kind: DocKind,
-  docs: Array<{ id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; discountCents?: number; party?: string }>,
+  docs: Array<{ id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string; party?: string }>,
   accruals: Map<string, Transaction[]>,
+  baseCurrency?: string,
 ): PostingMismatch[] {
   const out: PostingMismatch[] = [];
   for (const doc of docs) {
     const entries = accruals.get(doc.id) || [];
     const posted = entries.reduce((s, t) => s + postedTotal(t, kind), 0);
-    const expected = NOT_POSTED.has(String(doc.status)) || (doc.amountCents || 0) <= 0 ? 0 : expectedTotal(kind, doc);
+    const expected = NOT_POSTED.has(String(doc.status)) || (doc.amountCents || 0) <= 0 ? 0 : expectedTotal(kind, doc, baseCurrency);
     const base = { kind, id: doc.id, number: doc.number || doc.id, party: doc.party || '', expectedCents: expected, postedCents: posted };
     if (expected > 0 && entries.length === 0) out.push({ ...base, issue: 'missing', detail: 'Not in the ledger' });
     else if (expected === 0 && entries.length > 0) out.push({ ...base, issue: 'orphan', detail: `Still in the ledger although it is ${doc.status}` });
@@ -97,11 +100,12 @@ function check(
   return out;
 }
 
-export function findPostingMismatches(input: { invoices: Invoice[]; bills: Bill[]; creditNotes?: CreditNote[]; vendorCredits?: VendorCredit[]; transactions: Transaction[] }): PostingMismatch[] {
-  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'));
-  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'));
+export function findPostingMismatches(input: { invoices: Invoice[]; bills: Bill[]; creditNotes?: CreditNote[]; vendorCredits?: VendorCredit[]; transactions: Transaction[]; baseCurrency?: string }): PostingMismatch[] {
+  const base = input.baseCurrency || 'USD';
+  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'), base);
+  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'), base);
   // #643: an issued credit note or vendor credit is checked the same way (a draft or void one posts nothing)
-  const creditNotes = check('credit-note', (input.creditNotes || []).map(c => ({ ...c, party: c.customerName })), activeAccruals(input.transactions, 'creditNoteId', 'credit-note-issuance'));
-  const vendorCredits = check('vendor-credit', (input.vendorCredits || []).map(v => ({ ...v, party: v.vendorName })), activeAccruals(input.transactions, 'vendorCreditId', 'vendor-credit-issuance'));
+  const creditNotes = check('credit-note', (input.creditNotes || []).map(c => ({ ...c, party: c.customerName })), activeAccruals(input.transactions, 'creditNoteId', 'credit-note-issuance'), base);
+  const vendorCredits = check('vendor-credit', (input.vendorCredits || []).map(v => ({ ...v, party: v.vendorName })), activeAccruals(input.transactions, 'vendorCreditId', 'vendor-credit-issuance'), base);
   return [...invoices, ...bills, ...creditNotes, ...vendorCredits];
 }

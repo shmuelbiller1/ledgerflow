@@ -35,6 +35,7 @@ import PayrollImportDialog from './PayrollImportDialog';
 import { HourlyPayCell } from './HourlyPayCell';
 import { asPaidFor, hoursToPay, isHourly, type PayableTime } from '../../lib/hourlyPay';
 import { isEmailShape } from '../../lib/textShape';
+import { secureId } from '../../lib/secureId';
 
 const PayrollViewContent: React.FC = () => {
   const employees = useLedgerStore(s => (s.employees || []) as Employee[]);
@@ -162,7 +163,12 @@ const PayrollViewContent: React.FC = () => {
     const salaryCents = Math.round(Number.parseFloat(empSalary) * 100);
     if (!Number.isSafeInteger(salaryCents) || salaryCents < 0) { setEmployeeError('Enter a valid annual salary.'); return; }
     if (empEmail && !isEmailShape(empEmail)) { setEmployeeError('Enter a valid email address.'); return; }
-    const identity = employeeDraftIdentity.current ??= { id: `emp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString() };
+    if (!employeeDraftIdentity.current) {
+      const id = secureId('emp_');
+      if (!id) { setEmployeeError('Could not create a secure employee ID in this browser.'); return; }
+      employeeDraftIdentity.current = { id, createdAt: new Date().toISOString() };
+    }
+    const identity = employeeDraftIdentity.current;
     const newEmp: Employee = {
       id: identity.id,
       uid: session.uid,

@@ -405,7 +405,7 @@ export default function PettyCashView() {
                 <p className="text-sm text-[var(--muted)]">Nothing has touched {box.name} yet. A top-up from the bank usually comes first.</p>
               ) : (
                 // a table that can scroll sideways is a focusable, labelled region
-                <div className="overflow-x-auto rounded-xl border border-[var(--line)]" role="region" aria-label="Latest movements of the petty cash box" tabIndex={0}>
+                <div className="overflow-x-auto rounded-xl border border-[var(--line)]" role="region" aria-label="Latest movements of the petty cash box" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
                   <table className="w-full border-collapse text-sm tabular-nums">
                     <caption className="sr-only">The last {movements.length} posted entries that moved money in or out of {box.name}</caption>
                     <thead className="bg-[var(--ink)]">

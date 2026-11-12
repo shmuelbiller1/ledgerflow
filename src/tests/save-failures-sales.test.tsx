@@ -1,3 +1,4 @@
+// NOSONAR:S2187 — tests registered via describeSaveFailures DSL (see helpers/failureHarness.ts)
 /**
  * Failure tests for the money saves on the sales side (PREV-5): an invoice (new and edited), a
  * customer credit note, a vendor credit and a payment, each through the screen that saves it, with

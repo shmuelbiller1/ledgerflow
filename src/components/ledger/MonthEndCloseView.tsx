@@ -110,10 +110,11 @@ export default function MonthEndCloseView() {
     return () => { cancelled = true; };
   }, [workspaceId, month]);
 
+  const baseCurrency = workspace?.currency;
   const items = useMemo(() => buildCloseChecklist({
-    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], journalEntries: journalEntries || [], assets: assets || [],
-  }), [month, transactions, bankLines, invoices, bills, creditNotes, vendorCredits, journalEntries, assets]);
-  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], transactions: transactions || [] }, monthEnd(month)), [invoices, bills, creditNotes, vendorCredits, transactions, month]);
+    month, baseCurrency, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], journalEntries: journalEntries || [], assets: assets || [],
+  }), [month, baseCurrency, transactions, bankLines, invoices, bills, creditNotes, vendorCredits, journalEntries, assets]);
+  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], transactions: transactions || [], baseCurrency }, monthEnd(month)), [invoices, bills, creditNotes, vendorCredits, transactions, baseCurrency, month]);
   const stepItems = useMemo(() => closeStepItems(workspace?.closeSteps, month, workspace?.fiscalYearStartMonth || 1), [workspace?.closeSteps, workspace?.fiscalYearStartMonth, month]);
   const signOffs = period?.signOffs || {};
   const readiness = readyToClose([...items, ...stepItems], signOffs);

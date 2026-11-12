@@ -3,6 +3,7 @@ import { Printer, Download, Receipt } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
@@ -134,10 +135,10 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits
-    || truncated.customers || truncated.vendors || truncated.chartAccounts || truncated.accounts
-    || failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits
-    || failed.customers || failed.vendors || failed.accounts,
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits ||
+    truncated.customers || truncated.vendors || isCollectionCapped(truncated, 'accounts') ||
+    failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits ||
+    failed.customers || failed.vendors || failed.accounts
   );
 
   return <IsraelVatReportPanel

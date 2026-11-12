@@ -84,7 +84,7 @@ export function recordYear(record: unknown): number | null {
 
 /** A file-name-safe document number ("INV/2026-1" → "INV-2026-1"). */
 export function safeFilePart(value: unknown, fallback = 'document'): string {
-  const text = String(value ?? '').replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, '');
+  const text = String(value ?? '').replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, ''); // NOSONAR: S8786 — single negated character class; a linear scan, not super-linear backtracking
   return text.slice(0, 80) || fallback;
 }
 
