@@ -7,13 +7,11 @@ import assert from 'node:assert/strict';
 import { merchantKey, ruleFromDecision } from '../lib/ruleFromDecision';
 import { reviewReason } from '../lib/reviewReason';
 import { suggestFromRules } from '../lib/bankRules';
-import { makeChartAccount, makeTransaction } from './fixtures';
+import { makeTransaction } from './fixtures';
+import { expenseAccounts } from './helpers/expenseAccounts';
 import type { AutoRule } from '../types';
 
-const accounts = [
-  makeChartAccount({ id: 'bank', code: '1000', name: 'Bank', type: 'asset', category: 'Cash' }),
-  makeChartAccount({ id: 'fuel', code: '6100', name: 'Fuel', type: 'expense', category: 'Expenses' }),
-];
+const accounts = expenseAccounts('fuel');
 
 test('EU-C3: the merchant is the first real word', () => {
   assert.equal(merchantKey(undefined, 'SHELL 0042'), 'shell');

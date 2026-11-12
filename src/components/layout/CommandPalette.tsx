@@ -28,9 +28,7 @@ import { pageIndex, searchPages } from '../../config/pageIndex';
 import { pageKey, type PinnedPage } from '../../lib/pinnedPages';
 import { inBackground } from '../../lib/inBackground';
 import { planTypedEntry } from '../../lib/typedEntryPlan';
-import { db } from '../../firebase';
-import { collection, getDocs, query as dbQuery, where } from '../../lib/db/firestore';
-import type { AutoRule } from '../../types';
+import { useBankRules } from '../../hooks/useBankRules';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -72,18 +70,10 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
   // preview is in the workspace currency and is confirmed before anything posts
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
-  const [rules, setRules] = useState<AutoRule[]>([]);
   const [chosenAccountId, setChosenAccountId] = useState('');
   const [confirming, setConfirming] = useState(false);
   const workspaceId = workspace?.id;
-  useEffect(() => {
-    if (!isOpen || !workspaceId) return;
-    let current = true;
-    getDocs(dbQuery(collection(db, 'autoRules'), where('workspaceId', '==', workspaceId)))
-      .then(snap => { if (current) setRules(snap.docs.map(d => ({ id: d.id, ...d.data() } as AutoRule))); })
-      .catch(() => { if (current) setRules([]); }); // without rules the plan asks or uses history
-    return () => { current = false; };
-  }, [isOpen, workspaceId]);
+  const [rules] = useBankRules(workspaceId, isOpen);
   const plan = useMemo(() => {
     if (parsedIntent.type !== 'transaction') return null;
     return planTypedEntry({

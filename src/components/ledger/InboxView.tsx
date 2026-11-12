@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare, Layers, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { db, getIdToken } from '../../firebase';
-import { addDoc, collection, getDocs, query, where } from '../../lib/db/firestore';
+import { addDoc, collection } from '../../lib/db/firestore';
+import { useBankRules } from '../../hooks/useBankRules';
 import { merchantKey, merchantLabel, ruleFromDecision } from '../../lib/ruleFromDecision';
 import { reviewReason, type ReviewReason } from '../../lib/reviewReason';
 import type { AutoRule, ChartAccount, Transaction } from '../../types';
@@ -31,15 +32,7 @@ export default function InboxView() {
 
   const [showAllHighConfidence, setShowAllHighConfidence] = useState(false);
   // EU-C1: the workspace's bank rules, so each line can say which rule suggests its account
-  const [rules, setRules] = useState<AutoRule[]>([]);
-  useEffect(() => {
-    if (!currentWorkspaceId) return;
-    let current = true;
-    getDocs(query(collection(db, 'autoRules'), where('workspaceId', '==', currentWorkspaceId)))
-      .then(snap => { if (current) setRules(snap.docs.map(d => ({ id: d.id, ...d.data() } as AutoRule))); })
-      .catch(() => { if (current) setRules([]); }); // without rules every line still shows its history or "guess"
-    return () => { current = false; };
-  }, [currentWorkspaceId]);
+  const [rules, setRules] = useBankRules(currentWorkspaceId);
   // EU-C3: "Always do this for Shell" — the lines whose acceptance should also make a rule
   const uid = useAuthStore(s => s.user?.uid) || '';
   const [alwaysFor, setAlwaysFor] = useState<Set<string>>(new Set());

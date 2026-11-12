@@ -13,13 +13,11 @@ import { testEntryActions } from './helpers/entryActions';
 import SelectionBar from '../components/transactions/SelectionBar';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { makeChartAccount, makeTransaction } from './fixtures';
+import { makeTransaction } from './fixtures';
+import { expenseAccounts } from './helpers/expenseAccounts';
 import { getSupabase } from '../lib/db/client';
 
-const accounts = [
-  makeChartAccount({ id: 'bank', code: '1000', name: 'Bank', type: 'asset', category: 'Cash' }),
-  makeChartAccount({ id: 'fuel', code: '6100', name: 'Fuel', type: 'expense', category: 'Expenses' }),
-];
+const accounts = expenseAccounts('fuel');
 const fuel = (id: string) => makeTransaction({ id, workspaceId: 'A', description: 'Shell', totalAmountCents: 4000, dimensions: { class: 'ops' },
   lines: [{ accountId: 'fuel', amountCents: 4000 }, { accountId: 'bank', amountCents: -4000 }] });
 

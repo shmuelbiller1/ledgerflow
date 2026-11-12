@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
+import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -48,12 +48,8 @@ export default function LabelValuePageView() {
   useEffect(() => {
     if (!key) return;
     let live = true;
-    (async () => {
-      const res = await fetch(`/api/v1/reports/by-label?${key}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.columns)) throw new Error(body.message || body.error || 'The profit could not be worked out');
-      return body.columns as Array<{ value: string; netIncome: number }>;
-    })()
+    fetchProfitByLabel<{ columns: Array<{ value: string; netIncome: number }> }>(key)
+      .then(report => report.columns)
       .then(columns => { if (live) setProfit({ key, netIncome: columns.find(c => c.value === valueId)?.netIncome ?? 0 }); })
       .catch(err => { if (live) setProfit({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };

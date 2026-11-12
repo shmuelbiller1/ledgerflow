@@ -1,6 +1,6 @@
 import { displayDimensionName } from '../../lib/dimensionUtils';
 import React, { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
+import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -34,12 +34,7 @@ export default function LabelProfitReportView() {
   useEffect(() => {
     if (!key) return;
     let live = true;
-    (async () => {
-      const res = await fetch(`/api/v1/reports/by-label?${key}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.columns)) throw new Error(body.message || body.error || 'The report could not be made');
-      return body as Report;
-    })().then(report => { if (live) setResult({ key, report }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
+    fetchProfitByLabel<Report>(key).then(report => { if (live) setResult({ key, report }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };
   }, [key]);
   const shown = result && result.key === key ? result : null;

@@ -8,16 +8,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planTypedEntry, splitTyped } from '../lib/typedEntryPlan';
-import { makeChartAccount, makeTransaction } from './fixtures';
+import { makeTransaction } from './fixtures';
+import { expenseAccounts } from './helpers/expenseAccounts';
 import { formatCurrency } from '../lib/utils';
 import type { AutoRule } from '../types';
 
-const accounts = [
-  makeChartAccount({ id: 'bank', code: '1000', name: 'Bank', type: 'asset', category: 'Cash' }),
-  makeChartAccount({ id: 'office', code: '6000', name: 'Office', type: 'expense', category: 'Expenses' }),
-  makeChartAccount({ id: 'fuel', code: '6100', name: 'Fuel', type: 'expense', category: 'Expenses' }),
-  makeChartAccount({ id: 'hosting', code: '6200', name: 'Hosting', type: 'expense', category: 'Expenses' }),
-];
+const accounts = expenseAccounts('office', 'fuel', 'hosting');
 const gasRule = { id: 'r1', uid: 'u', name: 'Gas', condition: { descriptionContains: 'gas' }, action: { targetAccountId: 'fuel' }, isActive: true } as unknown as AutoRule;
 const nodes = [{ id: 'maui', dimensionId: 'property', description: 'Maui house' }];
 const ils = (c: number) => formatCurrency(c, 'ILS');

@@ -10,18 +10,14 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { reviewReason } from '../lib/reviewReason';
-import { makeChartAccount, makeTransaction } from './fixtures';
+import { makeTransaction } from './fixtures';
+import { expenseAccounts } from './helpers/expenseAccounts';
 import InboxView from '../components/ledger/InboxView';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import type { AutoRule } from '../types';
 
-const accounts = [
-  makeChartAccount({ id: 'bank', code: '1000', name: 'Bank', type: 'asset', category: 'Cash' }),
-  makeChartAccount({ id: 'fuel', code: '6100', name: 'Fuel', type: 'expense', category: 'Expenses' }),
-  makeChartAccount({ id: 'hosting', code: '6200', name: 'Hosting', type: 'expense', category: 'Expenses' }),
-  makeChartAccount({ id: 'meals', code: '6300', name: 'Meals', type: 'expense', category: 'Expenses' }),
-];
+const accounts = expenseAccounts('fuel', 'hosting', 'meals');
 const shellRule = { id: 'r1', uid: 'u', name: 'Shell', condition: { descriptionContains: 'shell' }, action: { targetCategory: 'Fuel', targetAccountId: 'fuel' }, isActive: true } as unknown as AutoRule;
 const pending = (id: string, description: string, accountId = 'uncategorized') => makeTransaction({
   id, workspaceId: 'component-workspace', date: '2026-11-10', description, payee: description, status: 'draft', totalAmountCents: 4000,
