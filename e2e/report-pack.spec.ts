@@ -34,7 +34,7 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   expect((await prepare.boundingBox())!.height).toBeGreaterThanOrEqual(44); await prepare.click();
   const print = dialog.getByRole('button', { name: 'Print pack / PDF' }); await expect(print).toBeEnabled();
   await expect(dialog.getByRole('heading', { name: /Receivables aging as of/ })).toBeVisible();
-  await expect(dialog.getByText(/It is not a historical balance at Jan 31, 2024/)).toBeVisible();
+  await expect(dialog.getByText(/It is not a historical balance at/)).toBeVisible(); // H-8 formats the selected end date using the reader's preference
   expect(calls).toHaveLength(3);
   expect(calls.find(url => url.includes('profit-and-loss'))).toContain('startDate=2024-01-01');
   expect(calls.find(url => url.includes('/aging'))).not.toContain('2024');
