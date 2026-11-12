@@ -43,7 +43,7 @@ export async function runReminders(db: Firestore, now = new Date(), baseUrl?: st
       .docs.map(d => ({ ...d.data(), id: d.id }) as ReminderInvoice);
     // BE-04: an invoice over the approval limit that nobody has signed off yet never reached the
     // customer, so chasing them for it would be wrong; it waits for the signature like the email does
-    const invoices = loaded.filter(inv => !holdsSending(inv, workspace.invoiceApproval));
+    const invoices = loaded.filter(inv => !holdsSending(inv, workspace.invoiceApproval, String(workspace.currency || 'USD')));
     const quiet = new Set((await db.collection('customers').where('workspaceId', '==', wsDoc.id).where('noReminders', '==', true).get()).docs.map(d => d.id));
     // Y-27: these customers get a printed or posted reminder instead of an email
     const paper = new Set((await db.collection('customers').where('workspaceId', '==', wsDoc.id).where('deliveryMethod', 'in', [...PAPER_DELIVERY_METHODS]).get()).docs.map(d => d.id));

@@ -304,14 +304,15 @@ function buildSet(ref: RefLike, data: DocumentData, options?: SetOptions): Write
   const table = quoteIdent(ref.collectionId);
   const transforms = hasTransforms(patch);
   const fresh = transforms ? APPLY('$2::jsonb', `'{}'::jsonb`) : '$2::jsonb';
-  const merged = options?.merge
-    ? (transforms ? APPLY('public.lf_deep_merge(t.data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(t.data, $2::jsonb)')
-    : 'excluded.data';
-  const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = ${merged}`;
   const params = transforms ? [ref.id, JSON.stringify(patch.data), ...patchParams(patch)] : [ref.id, JSON.stringify(patch.data)];
+  if (options?.merge) {
+    const merged = transforms ? APPLY('public.lf_deep_merge(data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(data, $2::jsonb)';
+    const sql = `with updated as (update public.${table} set data = ${merged} where id = $1 returning id) insert into public.${table} (id, data) select $1, ${fresh} where not exists (select 1 from updated)`;
+    return { ref, kind: 'set', sql, params };
+  }
+  const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = excluded.data`;
   return { ref, kind: 'set', sql, params };
 }
-
 function buildUpdate(ref: RefLike, dataOrField: DocumentData | string | FieldPath, more: unknown[]): WriteOp {
   const fields = toFieldMap(dataOrField, more);
   if (Object.keys(fields).length === 0) throw invalid(`update() on ${ref.path} needs at least one field`);

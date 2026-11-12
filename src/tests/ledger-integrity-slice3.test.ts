@@ -51,7 +51,10 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     const close = sql.slice(sql.lastIndexOf('create or replace function public.lf_enforce_balanced_ledger()'));
     assert.match(close, /Posted ledger entry requires a JSON lines array/);
     assert.match(close, /line_count < 2/);
-    assert.match(close, /round\(amt_cents \* fx_rate\)/);
+    // FX parity is explicit: line rates override the header rate and floor(x + 0.5)
+    // matches JavaScript Math.round for both positive and negative half-cents.
+    assert.match(close, /line_rate := coalesce\(\(elem->>'exchangeRate'\)::numeric, fx_rate\)/);
+    assert.match(close, /base_value := floor\(amt_cents::numeric \* line_rate \+ 0\.5\)::bigint/);
     assert.match(close, /home-currency amounts must sum to 0 cents/);
     assert.match(close, /'partial', 'applied'/);
     assert.match(close, /refundedCents/);

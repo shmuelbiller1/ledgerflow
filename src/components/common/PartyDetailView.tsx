@@ -6,6 +6,7 @@ import { daysOverdue, outstandingBaseCents, partyStats } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import type { Bill, Customer, Invoice, Vendor } from '../../types';
 import CustomerTaxCertificatesButton from '../sales/CustomerTaxCertificatesButton';
 import CustomerPortalLink from '../sales/CustomerPortalLink';
@@ -36,12 +37,12 @@ const ACCENT_STYLES = {
   },
 } as const;
 
-function StatCard({ label, value, valueClassName }: { label: string; value: number; valueClassName: string }) {
+function StatCard({ label, value, valueClassName, currency }: { label: string; value: number; valueClassName: string; currency: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
       <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{label}</span>
       <span className={`text-xl font-mono font-black tracking-tight block mt-1 ${valueClassName}`}>
-        {formatCurrency(value)}
+        {formatCurrency(value, currency)}
       </span>
     </div>
   );
@@ -58,6 +59,7 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
+  const baseCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   // Literal keys keep the collection-loading guard able to audit this shared, two-sided screen.
   useLedgerCollections('bills', 'customers', 'invoices', 'payments', 'vendors');
 
@@ -75,8 +77,8 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
   // Still owed, overdue, lifetime and payments are in the base currency (src/lib/aging.ts).
   const today = getLocalDateISO();
   const stats = useMemo(
-    () => partyStats(documents, partyPayments, side, today),
-    [documents, partyPayments, side, today],
+    () => partyStats(documents, partyPayments, side, today, baseCurrency),
+    [documents, partyPayments, side, today, baseCurrency],
   );
 
   const backRef = useRef<HTMLButtonElement>(null);
@@ -129,14 +131,16 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
       {side === 'customer' && <CustomerPortalLink customer={party as Customer} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label={config.detail.outstandingLabel} value={stats.outstandingCents} valueClassName="text-slate-900 dark:text-white" />
-        <StatCard label={config.detail.overdueLabel} value={stats.overdueCents} valueClassName="text-rose-600 dark:text-rose-400" />
+        <StatCard currency={baseCurrency} label={config.detail.outstandingLabel} value={stats.outstandingCents} valueClassName="text-slate-900 dark:text-white" />
+        <StatCard currency={baseCurrency} label={config.detail.overdueLabel} value={stats.overdueCents} valueClassName="text-rose-600 dark:text-rose-400" />
         <StatCard
+          currency={baseCurrency}
           label={config.detail.lifetimeLabel}
           value={stats.lifetimeCents}
           valueClassName={side === 'customer' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-500'}
         />
         <StatCard
+          currency={baseCurrency}
           label={config.detail.paymentsLabel}
           value={stats.paymentsCents}
           valueClassName={side === 'customer' ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'}
@@ -153,9 +157,9 @@ export function PartyDetailView({ partyId, side, onBack }: PartyDetailViewProps)
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[380px]">
             {documents.map(document => {
-              const isOverdue = outstandingBaseCents(document, side) > 0 && daysOverdue(document, today) > 0;
+              const isOverdue = outstandingBaseCents(document, side, baseCurrency) > 0 && daysOverdue(document, today) > 0;
               // calculateAmountDue is in the document's own currency; the cards above use base currency.
-              const outstanding = outstandingBaseCents(document, side) > 0 ? calculateAmountDue(document) : 0;
+              const outstanding = outstandingBaseCents(document, side, baseCurrency) > 0 ? calculateAmountDue(document) : 0;
               return (
                 <div key={document.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors flex items-center justify-between">
                   <div>

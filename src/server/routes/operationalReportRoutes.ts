@@ -66,12 +66,13 @@ operationalReportRouter.get('/party-aging', async (req, res) => {
   const { workspaceId, side, asOfDate } = parsed.data;
 
   try {
-    await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const { data: workspace } = await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const baseCurrency = String(workspace.currency || 'USD');
     const [parties, documents] = await Promise.all([
       streamWorkspaceCollection<Customer | Vendor>(side === 'customer' ? 'customers' : 'vendors', workspaceId),
       streamWorkspaceCollection<Invoice | Bill>(side === 'customer' ? 'invoices' : 'bills', workspaceId),
     ]);
-    const rows = computePartyAging(parties, documents, side, asOfDate);
+    const rows = computePartyAging(parties, documents, side, asOfDate, baseCurrency);
     return res.json({ rows, provenance: serverProvenance() });
   } catch (error) {
     return handleCommonError(res, error, 'Failed to generate party aging report');
@@ -87,7 +88,8 @@ operationalReportRouter.get('/party-balances', async (req, res) => {
   const { workspaceId, asOfDate } = parsed.data;
 
   try {
-    await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const { data: workspace } = await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const baseCurrency = String(workspace.currency || 'USD');
     const [customers, vendors, invoices, bills, payments, creditNotes, vendorCredits] = await Promise.all([
       streamWorkspaceCollection<Customer>('customers', workspaceId),
       streamWorkspaceCollection<Vendor>('vendors', workspaceId),
@@ -97,8 +99,8 @@ operationalReportRouter.get('/party-balances', async (req, res) => {
       streamWorkspaceCollection<CreditNote>('creditNotes', workspaceId),
       streamWorkspaceCollection<VendorCredit>('vendorCredits', workspaceId),
     ]);
-    const customerRows = computeCustomerBalanceSummary(customers, invoices, payments, creditNotes, asOfDate);
-    const vendorRows = computeVendorBalanceSummary(vendors, bills, payments, vendorCredits, asOfDate);
+    const customerRows = computeCustomerBalanceSummary(customers, invoices, payments, creditNotes, asOfDate, undefined, undefined, baseCurrency);
+    const vendorRows = computeVendorBalanceSummary(vendors, bills, payments, vendorCredits, asOfDate, undefined, undefined, baseCurrency);
     const contactRows = computeContactBalanceSummary(customerRows, vendorRows);
     return res.json({ customerRows, vendorRows, contactRows, provenance: serverProvenance() });
   } catch (error) {
@@ -121,14 +123,15 @@ operationalReportRouter.get('/payment-methods', async (req, res) => {
   }
 
   try {
-    await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const { data: workspace } = await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
+    const baseCurrency = String(workspace.currency || 'USD');
     const [customers, payments] = await Promise.all([
       streamWorkspaceCollection<Customer>('customers', workspaceId),
       streamWorkspaceCollection<Payment>('payments', workspaceId),
     ]);
-    const rows = paymentMethodSummary(customers, payments, { startDate, endDate });
+    const rows = paymentMethodSummary(customers, payments, { startDate, endDate }, baseCurrency);
     const previousRows = validCustomReportPeriod({ startDate: compareStartDate, endDate: compareEndDate })
-      ? paymentMethodSummary(customers, payments, { startDate: compareStartDate, endDate: compareEndDate })
+      ? paymentMethodSummary(customers, payments, { startDate: compareStartDate, endDate: compareEndDate }, baseCurrency)
       : [];
     return res.json({ rows, previousRows, provenance: serverProvenance() });
   } catch (error) {

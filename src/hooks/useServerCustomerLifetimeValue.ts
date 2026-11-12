@@ -22,6 +22,7 @@ export function useServerCustomerLifetimeValue(asOf: string, from: string, lifes
   { report: CustomerLifetimeValueReport | null; source: RangeReportSource } {
   useLedgerCollections('customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts');
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const baseCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const creditNotes = useLedgerStore(s => s.creditNotes);
@@ -32,8 +33,8 @@ export function useServerCustomerLifetimeValue(asOf: string, from: string, lifes
   const failed = useDataNeedsStore(s => Boolean((['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(k => s.failed[k])));
   const own = useMemo(() => {
     const scoped = <T extends { workspaceId?: string }>(rows: T[] | undefined) => (rows || []).filter(r => !workspaceId || r.workspaceId === workspaceId);
-    return { customers: scoped(customers), invoices: scoped(invoices), creditNotes: scoped(creditNotes), items: scoped(items), transactions: scoped(transactions), accounts: scoped(accounts) };
-  }, [workspaceId, customers, invoices, creditNotes, items, transactions, accounts]);
+    return { customers: scoped(customers), invoices: scoped(invoices), creditNotes: scoped(creditNotes), items: scoped(items), transactions: scoped(transactions), accounts: scoped(accounts), baseCurrency };
+  }, [workspaceId, baseCurrency, customers, invoices, creditNotes, items, transactions, accounts]);
   const loaded = useMemo(() => (enabled ? customerLifetimeValue({ ...own, asOfDate: asOf, from: from || undefined, lifespanYears }) : null), [enabled, own, asOf, from, lifespanYears]);
   const query = useMemo(() => ({ lifespan: String(lifespanYears) }), [lifespanYears]);
   const extraKey = useMemo(() => JSON.stringify([own.customers.map(c => [c.id, c.name]), own.invoices, own.creditNotes, own.items, own.accounts]), [own]);

@@ -15,15 +15,27 @@ as $$
 declare
   st text;
   lines_val jsonb;
+  settled_lines jsonb := '[]'::jsonb;
   line_count int;
+  i int;
   elem jsonb;
   amt_text text;
   base_text text;
   amt_cents bigint;
+  base_value bigint;
   net_cents bigint := 0;
+  explicit_home_cents bigint := 0;
   home_cents bigint := 0;
-  has_base boolean := false;
+  any_base boolean := false;
+  all_base boolean := true;
+  all_rate_one boolean := true;
   fx_rate numeric := 1;
+  line_rate numeric;
+  residual bigint;
+  largest_index int := 1;
+  largest_abs numeric := -1;
+  base_values bigint[] := array[]::bigint[];
+  foreign_rates numeric[] := array[]::numeric[];
 begin
   if current_user not in ('anon', 'authenticated')
      and current_setting('lf.allow_corrupt_fixture', true) = 'on' then
@@ -46,8 +58,14 @@ begin
     end if;
   end if;
 
-  if (new.data ? 'exchangeRate') and jsonb_typeof(new.data->'exchangeRate') = 'number' then
+  if new.data ? 'exchangeRate' and jsonb_typeof(new.data->'exchangeRate') not in ('number', 'null') then
+    raise exception 'Ledger exchangeRate must be a number';
+  end if;
+  if jsonb_typeof(new.data->'exchangeRate') = 'number' then
     fx_rate := coalesce((new.data->>'exchangeRate')::numeric, 1);
+  end if;
+  if fx_rate <= 0 then
+    raise exception 'Ledger exchangeRate must be positive';
   end if;
 
   lines_val := new.data->'lines';
@@ -60,6 +78,9 @@ begin
     raise exception 'Posted ledger entry requires at least two lines (got %)', line_count;
   end if;
 
+  -- Keep this calculation byte-for-byte compatible with settleHomeCurrency in src/lib/txFilters.ts:
+  -- line rates override the entry rate, conversion is ordinary Math.round-style whole-cent rounding,
+  -- and a small residual at one foreign rate is assigned to the largest converted line.
   for elem in select value from jsonb_array_elements(lines_val) loop
     amt_text := elem->>'amountCents';
     if amt_text is null or not (amt_text ~ '^-?[0-9]+$') then
@@ -68,17 +89,40 @@ begin
     amt_cents := amt_text::bigint;
     net_cents := net_cents + amt_cents;
 
-    if (elem ? 'baseAmountCents') and jsonb_typeof(elem->'baseAmountCents') <> 'null' then
+    if elem ? 'baseAmountCents' and jsonb_typeof(elem->'baseAmountCents') <> 'null' then
       base_text := elem->>'baseAmountCents';
       if base_text is null or not (base_text ~ '^-?[0-9]+$') then
         raise exception 'Every ledger line baseAmountCents must be whole cents';
       end if;
-      has_base := true;
-      home_cents := home_cents + base_text::bigint;
-    elsif fx_rate <> 1 and fx_rate > 0 then
-      home_cents := home_cents + round(amt_cents * fx_rate)::bigint;
+      any_base := true;
+      explicit_home_cents := explicit_home_cents + base_text::bigint;
     else
-      home_cents := home_cents + amt_cents;
+      all_base := false;
+    end if;
+
+    if elem ? 'exchangeRate' and jsonb_typeof(elem->'exchangeRate') not in ('number', 'null') then
+      raise exception 'Every ledger line exchangeRate must be a number';
+    end if;
+    if jsonb_typeof(elem->'exchangeRate') = 'number' then
+      line_rate := coalesce((elem->>'exchangeRate')::numeric, fx_rate);
+    else
+      line_rate := fx_rate;
+    end if;
+    if line_rate <= 0 then
+      raise exception 'Every ledger line exchangeRate must be positive';
+    end if;
+
+    if line_rate <> 1 then
+      all_rate_one := false;
+      if not (line_rate = any(foreign_rates)) then
+        foreign_rates := array_append(foreign_rates, line_rate);
+      end if;
+    end if;
+    base_value := floor(amt_cents::numeric * line_rate + 0.5)::bigint;
+    base_values := array_append(base_values, base_value);
+    if abs(base_value::numeric) > largest_abs then
+      largest_abs := abs(base_value::numeric);
+      largest_index := array_length(base_values, 1);
     end if;
   end loop;
 
@@ -86,10 +130,40 @@ begin
     raise exception 'Double-entry violation: ledger lines must sum to 0 cents (got %)', net_cents;
   end if;
 
-  if (has_base or fx_rate <> 1) and home_cents <> 0 then
-    raise exception 'Double-entry violation: home-currency amounts must sum to 0 cents (got %)', home_cents;
+  if any_base and not all_base then
+    raise exception 'Ledger baseAmountCents must be present on every line or none';
   end if;
 
+  if all_base then
+    if explicit_home_cents <> 0 then
+      raise exception 'Double-entry violation: home-currency amounts must sum to 0 cents (got %)', explicit_home_cents;
+    end if;
+    return new;
+  end if;
+
+  if all_rate_one then
+    return new;
+  end if;
+
+  for i in 1..line_count loop
+    home_cents := home_cents + base_values[i];
+  end loop;
+  if home_cents = 0 then
+    return new;
+  end if;
+
+  residual := home_cents;
+  if cardinality(foreign_rates) > 1 or abs(residual) > line_count then
+    raise exception 'Double-entry violation: home-currency amounts must sum to 0 cents (got %); add an exchange-difference line', home_cents;
+  end if;
+
+  -- This is the same residual settlement as the application: adjust the largest converted
+  -- line, then persist every settled home amount so reports cannot apply FX twice.
+  base_values[largest_index] := base_values[largest_index] - residual;
+  for i in 1..line_count loop
+    settled_lines := settled_lines || jsonb_set(lines_val->(i - 1), '{baseAmountCents}', to_jsonb(base_values[i]), true);
+  end loop;
+  new.data := jsonb_set(new.data, '{lines}', settled_lines, true);
   return new;
 end;
 $$;

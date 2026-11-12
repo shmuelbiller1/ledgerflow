@@ -94,6 +94,16 @@ describe('batch edits are safe (database)', { skip: !url && 'LF_TEST_DATABASE_UR
     assert.equal((await entry('b')).description, 'b');
   });
 
+  test('cleared entries allow metadata/rule marks but not line or status rewrites', async () => {
+    await db.collection('transactions').doc(id('a')).set({ isCleared: true }, { merge: true });
+    assert.equal((await batch([{ id: id('a'), data: { description: 'cleared note' } }])).status, 200);
+    assert.equal((await entry('a')).description, 'cleared note');
+    const current = await entry('a');
+    const lines = current.lines.map(line => ({ ...line }));
+    assert.equal((await batch([{ id: id('a'), data: { lines } }])).status, 400, 'cleared line rewrites stay locked');
+    assert.equal((await batch([{ id: id('a'), data: { status: 'reviewed' } }])).status, 400, 'cleared status rewrites stay locked');
+  });
+
   test('#106: pairing two entries as a transfer is saved for both or for neither', async () => {
     const pair = (bTo: string) => [
       { id: id('a'), data: { isTransfer: true, transferDetails: { fromAccountId: 'x', toAccountId: 'y' } } },

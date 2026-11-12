@@ -33,20 +33,21 @@ export interface ProfitabilityInput {
   dimensionNodes?: DimensionNode[];
   startDate?: string;
   endDate?: string;
+  baseCurrency?: string;
 }
 
 export function profitabilityLines(by: ProfitabilityBy, input: ProfitabilityInput): ProfitabilityLine[] {
-  const { customers, invoices, items, transactions, accounts, projects, dimensionNodes, startDate, endDate } = input;
+  const { customers, invoices, items, transactions, accounts, projects, dimensionNodes, startDate, endDate, baseCurrency } = input;
   const range = { startDate, endDate };
   if (by === 'customer') {
-    return customerGrossProfit({ customers, invoices, items, transactions, accounts, ...range })
+    return customerGrossProfit({ customers, invoices, items, transactions, accounts, baseCurrency, ...range })
       .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
   }
   if (by === 'item') {
-    return computeSalesByItem({ invoices, items, transactions, accounts, ...range }).rows
+    return computeSalesByItem({ invoices, items, transactions, accounts, baseCurrency, ...range }).rows
       .map(r => ({ label: r.name, revenueCents: r.salesCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct, estimate: r.costIsEstimate }));
   }
-  return computeProjectProfitability({ invoices, transactions, accounts, items, projects, dimensionNodes, ...range }).map(r => ({
+  return computeProjectProfitability({ invoices, transactions, accounts, items, projects, dimensionNodes, baseCurrency, ...range }).map(r => ({
     label: r.project, revenueCents: r.revenueCents, costCents: r.costCents, marginCents: r.marginCents, marginPct: r.marginPct,
     estimate: r.costIsEstimate, budgetCents: r.budgetCents, budgetRemainingCents: r.budgetRemainingCents, budgetUsedPct: r.budgetUsedPct,
   }));

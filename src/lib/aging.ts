@@ -45,9 +45,9 @@ export function agingBucket(days: number): AgingBucketKey {
 }
 
 /** What is still owed on an open document, in cents of the base currency (0 when closed). */
-export function outstandingBaseCents(doc: Invoice | Bill, side: 'customer' | 'vendor'): number {
+export function outstandingBaseCents(doc: Invoice | Bill, side: 'customer' | 'vendor', baseCurrency: string = 'USD'): number {
   if (!(side === 'customer' ? isOpenInvoice(doc) : isOpenBill(doc))) return 0;
-  return Math.max(0, toBaseCents(calculateAmountDue(doc), doc.exchangeRate));
+  return Math.max(0, toBaseCents(calculateAmountDue(doc), doc.exchangeRate, doc.currency, baseCurrency));
 }
 
 export const emptyAging = (): AgingTotals => ({ current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 });
@@ -60,13 +60,14 @@ export function computePartyAging(
   documents: Array<Invoice | Bill>,
   side: 'customer' | 'vendor',
   today: string,
+  baseCurrency: string = 'USD',
 ): PartyAgingRow[] {
   const partyOf = (d: Invoice | Bill) => (side === 'customer' ? (d as Invoice).customerId : (d as Bill).vendorId);
   const rows = new Map<string, PartyAgingRow>();
   for (const party of parties) rows.set(party.id, { partyId: party.id, partyName: party.name, buckets: emptyAging(), total: 0 });
   for (const doc of documents) {
     const row = rows.get(partyOf(doc) || '');
-    const owed = outstandingBaseCents(doc, side);
+    const owed = outstandingBaseCents(doc, side, baseCurrency);
     if (!row || owed <= 0) continue;
     row.buckets[agingBucket(daysOverdue(doc, today))] += owed;
     row.total += owed;
@@ -83,22 +84,23 @@ export interface PartyStats { outstandingCents: number; overdueCents: number; li
  */
 export function partyStats(
   documents: Array<Invoice | Bill>,
-  payments: Array<{ direction?: string; status?: string; amountCents?: number; exchangeRate?: number }>,
+  payments: Array<{ direction?: string; status?: string; amountCents?: number; exchangeRate?: number; currency?: string }>,
   side: 'customer' | 'vendor',
   today: string,
+  baseCurrency: string = 'USD',
 ): PartyStats {
   const stats: PartyStats = { outstandingCents: 0, overdueCents: 0, lifetimeCents: 0, paymentsCents: 0 };
   for (const doc of documents) {
     if (['draft', 'void', 'cancelled'].includes(doc.status || '')) continue;
-    stats.lifetimeCents += toBaseCents(doc.amountCents || 0, doc.exchangeRate);
-    const owed = outstandingBaseCents(doc, side);
+    stats.lifetimeCents += toBaseCents(doc.amountCents || 0, doc.exchangeRate, doc.currency, baseCurrency);
+    const owed = outstandingBaseCents(doc, side, baseCurrency);
     stats.outstandingCents += owed;
     if (owed > 0 && daysOverdue(doc, today) > 0) stats.overdueCents += owed;
   }
   const direction = side === 'customer' ? 'received' : 'made';
   for (const p of payments) {
     if (p.direction !== direction || p.status === 'void' || p.status === 'draft') continue;
-    stats.paymentsCents += toBaseCents(p.amountCents || 0, p.exchangeRate);
+    stats.paymentsCents += toBaseCents(p.amountCents || 0, p.exchangeRate, p.currency, baseCurrency);
   }
   return stats;
 }

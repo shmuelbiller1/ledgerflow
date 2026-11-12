@@ -39,6 +39,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   // N-12: the documents behind an aging row open themselves, add up to the row, and say when the list is partial
   const openRecord = useUIStore(s => s.openRecord);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills'] || s.truncatedCollections?.[side === 'customer' ? 'customers' : 'vendors']));
 
   const parties = isCustomer ? rawCustomers : rawVendors;
@@ -55,13 +56,13 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const serverRows = useServerOperationalReport<PartyAgingRow[]>(
     docsPartial && Boolean(workspaceId),
     agingUrl,
-    `${workspaceId}:${side}:${today}:${collectionStamp(parties, documents)}`,
+    `${workspaceId}:${side}:${today}:${currency}:${collectionStamp(parties, documents)}`,
     body => (Array.isArray(body.rows) ? (body.rows as PartyAgingRow[]) : undefined),
   );
 
   // open documents with something still owed (src/lib/aging.ts, shared with the /aging API; L-159)
-  const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side) > 0), [documents, side]);
-  const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today), [parties, documents, side, today]);
+  const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side, currency) > 0), [documents, side, currency]);
+  const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today, currency), [parties, documents, side, today, currency]);
   const agingRows = serverRows || localAgingRows;
 
   // Search filter and Sorting
@@ -150,14 +151,14 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
           <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">Total Outstanding</span>
           <span className="text-xl font-mono font-black text-slate-900 dark:text-white tracking-tight block mt-1">
-            <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal)}</bdi>
+            <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal, currency)}</bdi>
           </span>
         </div>
         {AGING_BUCKETS.map((b, i) => (
           <div key={b.key} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
             <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{b.key === 'current' ? 'Not yet due' : `${b.label} overdue`}</span>
             <span className={`text-xl font-mono font-black tracking-tight block mt-1 ${['text-emerald-600 dark:text-emerald-400', 'text-amber-600', 'text-amber-600', 'text-orange-600', 'text-rose-600 dark:text-rose-400'][i]}`}>
-              <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key])}</bdi>
+              <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi>
             </span>
           </div>
         ))}
@@ -225,11 +226,11 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                   </td>
                   {AGING_BUCKETS.map(b => (
                     <td key={b.key} className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                      <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{row.buckets[b.key] > 0 ? formatCurrency(row.buckets[b.key]) : '-'}</bdi>
+                      <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{row.buckets[b.key] > 0 ? formatCurrency(row.buckets[b.key], currency) : '-'}</bdi>
                     </td>
                   ))}
                   <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                    <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total)}</bdi>
+                    <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>
                   </td>
                   <td className="p-4 text-right">
                     <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
@@ -253,8 +254,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
               <tfoot>
                 <tr className="bg-slate-50 dark:bg-slate-800/30 font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800">
                   <td className="p-4">Grand Total</td>
-                  {AGING_BUCKETS.map(b => <td key={b.key} className="p-4 text-right font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key])}</bdi></td>)}
-                  <td className="p-4 text-right font-mono text-lg"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal)}</bdi></td>
+                  {AGING_BUCKETS.map(b => <td key={b.key} className="p-4 text-right font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi></td>)}
+                  <td className="p-4 text-right font-mono text-lg"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal, currency)}</bdi></td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -338,7 +339,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
               {selectedPartyDocs.length > 0 && (
                 <div className="flex items-center justify-between border-t border-[var(--line)] pt-3 text-sm font-semibold">
                   <span>Still owed in all ({selectedPartyDocs.length} document{selectedPartyDocs.length === 1 ? '' : 's'}, in the base currency)</span>
-                  <span className="font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(selectedPartyDocs.reduce((sum, d) => sum + outstandingBaseCents(d, side), 0))}</bdi></span>
+                  <span className="font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(selectedPartyDocs.reduce((sum, d) => sum + outstandingBaseCents(d, side, currency), 0), currency)}</bdi></span>
                 </div>
               )}
               {docsPartial && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Only part of the {isCustomer ? 'invoices' : 'bills'} is loaded on this screen, so this list and the row may be short. Load the full history to be sure.</p>}

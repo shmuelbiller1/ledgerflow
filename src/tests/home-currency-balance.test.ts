@@ -92,3 +92,14 @@ test('explicit but unbalanced home-currency lines are rejected instead of silent
   } as Transaction;
   assert.throws(() => settleHomeCurrency(tx), /explicit home-currency lines do not balance/);
 });
+
+test('partially supplied home-currency lines are rejected instead of mixing raw and settled amounts', () => {
+  const tx = {
+    exchangeRate: 1.65,
+    lines: [
+      { accountId: 'a', amountCents: 100, baseAmountCents: 165 },
+      { accountId: 'b', amountCents: -100 },
+    ],
+  } as Transaction;
+  assert.throws(() => settleHomeCurrency(tx), /present on every line or none/);
+});

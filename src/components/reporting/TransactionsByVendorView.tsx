@@ -2,6 +2,7 @@ import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { FileSpreadsheet } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
@@ -15,6 +16,7 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   useLedgerCollections('bills', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -51,9 +53,10 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
       payments,
       vendorCredits,
       startDate || undefined,
-      endDate || undefined
+      endDate || undefined,
+      currency
     );
-  }, [vendors, bills, payments, vendorCredits, startDate, endDate]);
+  }, [vendors, bills, payments, vendorCredits, startDate, endDate, currency]);
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return rows;
@@ -130,7 +133,7 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
       align: 'right',
       render: (item) => (
         <span className={`font-bold ${item.amountCents < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-900 dark:text-white'}`}>
-          {formatCurrency(item.amountCents)}
+          {formatCurrency(item.amountCents, currency)}
         </span>
       )
     }
@@ -143,6 +146,7 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
       icon={FileSpreadsheet}
       totalLabel="Total Billed Volume"
       totalAmountCents={totalBilledCents}
+      currency={currency}
       secondaryTotalLabel="Total Disbursements"
       secondaryTotalCents={totalPaidCents}
       exportFilename="transactions_by_vendor.csv"

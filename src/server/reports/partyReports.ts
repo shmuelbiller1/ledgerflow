@@ -19,10 +19,11 @@ export function toBaseCents(
   baseCurrency?: string | null,
 ): number {
   const rate = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 1;
-  if (fromCurrency && baseCurrency) {
-    return convertMinorUnits(amountCents, rate, fromCurrency, baseCurrency);
-  }
-  return Math.round(amountCents * rate);
+  // A missing currency is legacy data: treat it as the workspace/default currency. When both
+  // currencies are present, use the shared ISO minor-unit conversion (JPY/KWD are not cents).
+  const base = String(baseCurrency || 'USD').trim().toUpperCase();
+  const from = String(fromCurrency || base).trim().toUpperCase();
+  return convertMinorUnits(amountCents, rate, from, base);
 }
 
 export interface CustomerBalanceSummaryRow {
@@ -44,8 +45,10 @@ export function computeCustomerBalanceSummary(
   creditNotes: CreditNote[] = [],
   asOfDateOrStartDate?: string,
   endDate?: string,
-  timezone?: string
+  timezone?: string,
+  baseCurrency: string = 'USD'
 ): CustomerBalanceSummaryRow[] {
+  const base = String(baseCurrency || 'USD').trim().toUpperCase();
   const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return customers.map(cust => {
@@ -59,7 +62,7 @@ export function computeCustomerBalanceSummary(
     });
 
     const totalInvoicedCents = custInvoices.reduce((sum, inv) => {
-      return sum + toBaseCents(inv.amountCents || 0, inv.exchangeRate);
+      return sum + toBaseCents(inv.amountCents || 0, inv.exchangeRate, inv.currency, base);
     }, 0);
 
     const custCreditNotes = creditNotes.filter(cn => {
@@ -72,7 +75,7 @@ export function computeCustomerBalanceSummary(
 
     // a credit counts less what was paid back in cash (L-160)
     const totalCreditNotesCents = custCreditNotes.reduce((sum, cn) => {
-      return sum + toBaseCents((cn.amountCents || 0) - (cn.refundedCents || 0), cn.exchangeRate);
+      return sum + toBaseCents((cn.amountCents || 0) - (cn.refundedCents || 0), cn.exchangeRate, cn.currency, base);
     }, 0);
 
     const custPayments = payments.filter(p => {
@@ -86,7 +89,7 @@ export function computeCustomerBalanceSummary(
     });
 
     const totalPaidCents = custPayments.reduce((sum, p) => {
-      return sum + toBaseCents(p.amountCents || 0, p.exchangeRate);
+      return sum + toBaseCents(p.amountCents || 0, p.exchangeRate, p.currency, base);
     }, 0);
 
     const openInvoicesCount = custInvoices.filter(inv => inv.status !== 'paid').length;
@@ -126,8 +129,10 @@ export function computeVendorBalanceSummary(
   vendorCredits: VendorCredit[] = [],
   asOfDateOrStartDate?: string,
   endDate?: string,
-  timezone?: string
+  timezone?: string,
+  baseCurrency: string = 'USD'
 ): VendorBalanceSummaryRow[] {
+  const base = String(baseCurrency || 'USD').trim().toUpperCase();
   const end = endDate || asOfDateOrStartDate || (timezone ? getDateInTimezoneISO(new Date(), timezone) : getLocalDateISO());
 
   return vendors.map(vendor => {
@@ -141,7 +146,7 @@ export function computeVendorBalanceSummary(
     });
 
     const totalBilledCents = vendorBills.reduce((sum, b) => {
-      return sum + toBaseCents(b.amountCents || 0, b.exchangeRate);
+      return sum + toBaseCents(b.amountCents || 0, b.exchangeRate, b.currency, base);
     }, 0);
 
     const custVendorCredits = vendorCredits.filter(vc => {
@@ -153,7 +158,7 @@ export function computeVendorBalanceSummary(
     });
 
     const totalVendorCreditsCents = custVendorCredits.reduce((sum, vc) => {
-      return sum + toBaseCents((vc.amountCents || 0) - (vc.refundedCents || 0), vc.exchangeRate);
+      return sum + toBaseCents((vc.amountCents || 0) - (vc.refundedCents || 0), vc.exchangeRate, vc.currency, base);
     }, 0);
 
     const vendorPayments = payments.filter(p => {
@@ -166,7 +171,7 @@ export function computeVendorBalanceSummary(
     });
 
     const totalPaidCents = vendorPayments.reduce((sum, p) => {
-      return sum + toBaseCents(p.amountCents || 0, p.exchangeRate);
+      return sum + toBaseCents(p.amountCents || 0, p.exchangeRate, p.currency, base);
     }, 0);
 
     const openBillsCount = vendorBills.filter(b => b.status !== 'paid').length;
@@ -202,8 +207,10 @@ export function computeTransactionsByCustomer(
   payments: Payment[] = [],
   creditNotes: CreditNote[] = [],
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  baseCurrency: string = 'USD'
 ): PartyTransactionRow[] {
+  const base = String(baseCurrency || 'USD').trim().toUpperCase();
   const start = startDate || "1970-01-01";
   const end = endDate || "2099-12-31";
   const customerMap = new Map(customers.map(c => [c.id, c.name]));
@@ -222,7 +229,7 @@ export function computeTransactionsByCustomer(
       type: 'Invoice',
       reference: inv.number || inv.id,
       status: inv.status || 'pending',
-      amountCents: toBaseCents(inv.amountCents || 0, inv.exchangeRate)
+      amountCents: toBaseCents(inv.amountCents || 0, inv.exchangeRate, inv.currency, base)
     });
   }
 
@@ -239,7 +246,7 @@ export function computeTransactionsByCustomer(
       type: 'Credit Note',
       reference: cn.number || cn.id,
       status: cn.status || 'applied',
-      amountCents: -toBaseCents(cn.amountCents || 0, cn.exchangeRate)
+      amountCents: -toBaseCents(cn.amountCents || 0, cn.exchangeRate, cn.currency, base)
     });
   }
 
@@ -256,7 +263,7 @@ export function computeTransactionsByCustomer(
       type: 'Payment',
       reference: pay.reference || pay.number || pay.id,
       status: pay.status || 'posted',
-      amountCents: -toBaseCents(pay.amountCents || 0, pay.exchangeRate)
+      amountCents: -toBaseCents(pay.amountCents || 0, pay.exchangeRate, pay.currency, base)
     });
   }
 
@@ -269,8 +276,10 @@ export function computeTransactionsByVendor(
   payments: Payment[] = [],
   vendorCredits: VendorCredit[] = [],
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  baseCurrency: string = 'USD'
 ): PartyTransactionRow[] {
+  const base = String(baseCurrency || 'USD').trim().toUpperCase();
   const start = startDate || "1970-01-01";
   const end = endDate || "2099-12-31";
   const vendorMap = new Map(vendors.map(v => [v.id, v.name]));
@@ -289,7 +298,7 @@ export function computeTransactionsByVendor(
       type: 'Bill',
       reference: bill.number || bill.id,
       status: bill.status || 'pending',
-      amountCents: toBaseCents(bill.amountCents || 0, bill.exchangeRate)
+      amountCents: toBaseCents(bill.amountCents || 0, bill.exchangeRate, bill.currency, base)
     });
   }
 
@@ -306,7 +315,7 @@ export function computeTransactionsByVendor(
       type: 'Vendor Credit',
       reference: vc.number || vc.id,
       status: vc.status || 'applied',
-      amountCents: -toBaseCents(vc.amountCents || 0, vc.exchangeRate)
+      amountCents: -toBaseCents(vc.amountCents || 0, vc.exchangeRate, vc.currency, base)
     });
   }
 
@@ -323,7 +332,7 @@ export function computeTransactionsByVendor(
       type: 'Vendor Payment',
       reference: pay.reference || pay.number || pay.id,
       status: pay.status || 'posted',
-      amountCents: -toBaseCents(pay.amountCents || 0, pay.exchangeRate)
+      amountCents: -toBaseCents(pay.amountCents || 0, pay.exchangeRate, pay.currency, base)
     });
   }
 

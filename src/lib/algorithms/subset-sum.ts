@@ -1,5 +1,5 @@
 import { AlgorithmDefinition } from './types';
-import { isPostable } from '../txFilters';
+import { isPostable, lineAmount } from '../txFilters';
 import { seedPRNG } from '../algorithms';
 
 // The NP-hard subset sum problem with fee tolerance pruning
@@ -76,7 +76,7 @@ export const SUBSET_SUM_RECONCILIATION: AlgorithmDefinition = {
         .slice(0, numInvoices)
         .map(t => ({ 
           id: t.id || `TX-${t.date}`, 
-          amountCents: Math.abs(Math.round((t.totalAmountCents || 0) * (t.exchangeRate || 1))) 
+          amountCents: t.lines.reduce((sum, line) => sum + Math.max(0, lineAmount(line, t)), 0)
         }));
     }
 

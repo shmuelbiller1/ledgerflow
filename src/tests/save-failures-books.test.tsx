@@ -6,6 +6,7 @@
  * themselves are in helpers/failureHarness.ts.
  */
 import { describeSaveFailures, standardChart, WORKSPACE_A } from './helpers/failureHarness';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -34,6 +35,12 @@ function seedA() {
     payments: [],
   });
 }
+
+// Keep one directly registered test in this module: the failure cases below are registered through
+// the shared harness, while this checks the chart roles those bill, journal, and import cases need.
+test('books failure fixtures include every posting account role', () => {
+  assert.deepEqual(new Set(standardChart().map(account => account.id)), new Set(['cash', 'ar', 'ap', 'sales', 'office']));
+});
 
 const DRAFT_TEXT = 'Printer paper, 40 boxes';
 const billCollections = ['bills', 'vendors', 'recurring'] as const;

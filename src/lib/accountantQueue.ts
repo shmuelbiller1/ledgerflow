@@ -54,7 +54,7 @@ export function buildAccountantQueue(input: {
 
   // 2. Held invoices awaiting approval (BE-04)
   for (const inv of invoices || []) {
-    if (approvalStatus(inv, workspace?.invoiceApproval) !== 'awaiting') continue;
+    if (approvalStatus(inv, workspace?.invoiceApproval, home) !== 'awaiting') continue;
     items.push({
       id: `inv-app:${inv.id}`,
       kind: 'approval',

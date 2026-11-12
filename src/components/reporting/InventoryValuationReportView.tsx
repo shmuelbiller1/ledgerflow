@@ -46,6 +46,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
   const report = useMemo(() => computeInventoryValuation(inventory || [], accounts || [], transactions || [], valuationDate),
     [inventory, accounts, transactions, valuationDate]);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const ledgerPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   // a capped item list can leave out an item with stock: the stock side is then not complete
   const itemsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.inventory));
@@ -123,8 +124,8 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
         </span>
       ),
     },
-    { key: 'unitCostCents', header: 'Unit cost', align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents) },
-    { key: 'valueCents', header: 'Value', align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents)}</span> },
+    { key: 'unitCostCents', header: 'Unit cost', align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents, currency) },
+    { key: 'valueCents', header: 'Value', align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents, currency)}</span> },
     { key: 'sharePct', header: 'Share', align: 'right', render: (r) => unknown(r) || `${r.sharePct}%` },
   ];
 
@@ -138,6 +139,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
         icon={Boxes}
         totalLabel={past && asOf && !asOf.complete ? 'Stock value of the items known on the date' : 'Stock value'}
         totalAmountCents={stockValueCents}
+        currency={currency}
         totalDisplay={past && !asOf ? (historyError ? 'Not available' : 'Reading…') : undefined}
         secondaryTotalLabel="Inventory account in the books"
         secondaryTotalCents={report.ledgerValueCents}
@@ -169,7 +171,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
               ? 'The loaded entries are capped, so the Inventory account here may be incomplete and is not compared with the stock.'
               : differenceCents === 0
                 ? 'The stock list and the Inventory account agree.'
-                : `The stock list is ${formatCurrency(Math.abs(differenceCents))} ${differenceCents > 0 ? 'more' : 'less'} than the Inventory account. A purchase, stock count or sale is recorded on one side only (bills don't add stock to items yet).`}
+                : `The stock list is ${formatCurrency(Math.abs(differenceCents), currency)} ${differenceCents > 0 ? 'more' : 'less'} than the Inventory account. A purchase, stock count or sale is recorded on one side only (bills don't add stock to items yet).`}
           {negativeStockItems > 0 && ` ${negativeStockItems} item(s) have negative stock and are valued at 0.`}
         </p>
       )}

@@ -111,9 +111,9 @@ export default function MonthEndCloseView() {
   }, [workspaceId, month]);
 
   const items = useMemo(() => buildCloseChecklist({
-    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], journalEntries: journalEntries || [], assets: assets || [],
-  }), [month, transactions, bankLines, invoices, bills, creditNotes, vendorCredits, journalEntries, assets]);
-  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], transactions: transactions || [] }, monthEnd(month)), [invoices, bills, creditNotes, vendorCredits, transactions, month]);
+    month, transactions: transactions || [], bankLines: bankLines || [], invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], journalEntries: journalEntries || [], assets: assets || [], baseCurrency: workspace?.currency || 'USD',
+  }), [month, transactions, bankLines, invoices, bills, creditNotes, vendorCredits, journalEntries, assets, workspace?.currency]);
+  const mismatches = useMemo(() => postingMismatchesThrough({ invoices: invoices || [], bills: bills || [], creditNotes: creditNotes || [], vendorCredits: vendorCredits || [], transactions: transactions || [], baseCurrency: workspace?.currency || 'USD' }, monthEnd(month)), [invoices, bills, creditNotes, vendorCredits, transactions, month, workspace?.currency]);
   const stepItems = useMemo(() => closeStepItems(workspace?.closeSteps, month, workspace?.fiscalYearStartMonth || 1), [workspace?.closeSteps, workspace?.fiscalYearStartMonth, month]);
   const signOffs = period?.signOffs || {};
   const readiness = readyToClose([...items, ...stepItems], signOffs);

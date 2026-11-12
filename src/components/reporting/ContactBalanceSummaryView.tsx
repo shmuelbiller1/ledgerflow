@@ -27,6 +27,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   useLedgerCollections('bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
@@ -37,14 +38,14 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const serverRows = useServerOperationalReport<ContactBalanceSummaryRow[]>(
     isTruncated && Boolean(workspaceId),
     workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
-    `${workspaceId}:${asOfDate}:${collectionStamp(customers, vendors, invoices, bills, payments, creditNotes, vendorCredits)}`,
+    `${workspaceId}:${currency}:${asOfDate}:${collectionStamp(customers, vendors, invoices, bills, payments, creditNotes, vendorCredits)}`,
     body => (Array.isArray(body.contactRows) ? (body.contactRows as ContactBalanceSummaryRow[]) : undefined),
   );
 
   const localRows = useMemo(() => computeContactBalanceSummary(
-    computeCustomerBalanceSummary(customers, invoices, payments, creditNotes, asOfDate),
-    computeVendorBalanceSummary(vendors, bills, payments, vendorCredits, asOfDate),
-  ), [customers, vendors, invoices, bills, payments, creditNotes, vendorCredits, asOfDate]);
+    computeCustomerBalanceSummary(customers, invoices, payments, creditNotes, asOfDate, undefined, undefined, currency),
+    computeVendorBalanceSummary(vendors, bills, payments, vendorCredits, asOfDate, undefined, undefined, currency),
+  ), [customers, vendors, invoices, bills, payments, creditNotes, vendorCredits, asOfDate, currency]);
   const rows = serverRows || localRows;
 
   const shown = useMemo(() => {
@@ -73,15 +74,15 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
         </div>
       ),
     },
-    { key: 'receivableCents', header: 'They owe you', align: 'right', render: (r) => formatCurrency(r.receivableCents) },
-    { key: 'payableCents', header: 'You owe them', align: 'right', render: (r) => formatCurrency(r.payableCents) },
+    { key: 'receivableCents', header: 'They owe you', align: 'right', render: (r) => formatCurrency(r.receivableCents, currency) },
+    { key: 'payableCents', header: 'You owe them', align: 'right', render: (r) => formatCurrency(r.payableCents, currency) },
     {
       key: 'netCents',
       header: 'Net',
       align: 'right',
       render: (r) => (
         <span className={`font-bold ${r.netCents > 0 ? 'text-[var(--pos)]' : r.netCents < 0 ? 'text-[var(--neg)]' : 'text-[var(--muted)]'}`}>
-          {formatCurrency(r.netCents)}
+          {formatCurrency(r.netCents, currency)}
         </span>
       ),
     },
@@ -94,6 +95,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
       icon={Contact}
       totalLabel="Net (owed to you minus owed by you)"
       totalAmountCents={netCents}
+      currency={currency}
       exportFilename="contact_balance_summary.csv"
       onExportCSV={exportCsv}
       searchTerm={searchTerm}

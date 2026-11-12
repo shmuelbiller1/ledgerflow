@@ -31,7 +31,7 @@ export function InvoiceApprovalFlag({ invoice, settings, currency, canDecide, on
   const twoPerson = useAuthStore(s => s.getCurrentWorkspace()?.twoPersonRule === true);
   // BG-07: approving in someone's place counts as an approver
   const inPlace = useAuthStore(s => Boolean(approvesInPlace(s.getCurrentWorkspace(), s.user?.uid, getLocalDateISO())));
-  const state = approvalStatus(invoice, settings);
+  const state = approvalStatus(invoice, settings, currency || 'USD');
   if (state !== 'awaiting' && state !== 'rejected') return null;
   const mayApproveIt = mayApprove(twoPerson, uid, invoice.approval?.requestedBy || invoice.uid);
   const detail = approvalDetail(state, settings, invoice.approval, currency);

@@ -49,6 +49,7 @@ export interface CloseChecklistInput {
   vendorCredits?: VendorCredit[];
   journalEntries?: DatedDoc[];
   assets?: FixedAsset[];
+  baseCurrency?: string;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -113,7 +114,7 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
 }
 
 /** Invoices, bills, credit notes and vendor credits dated through `end` whose ledger entry doesn't match (src/lib/postingCheck.ts). */
-export function postingMismatchesThrough(input: Pick<CloseChecklistInput, 'invoices' | 'bills' | 'creditNotes' | 'vendorCredits' | 'transactions'>, end: string): PostingMismatch[] {
+export function postingMismatchesThrough(input: Pick<CloseChecklistInput, 'invoices' | 'bills' | 'creditNotes' | 'vendorCredits' | 'transactions' | 'baseCurrency'>, end: string): PostingMismatch[] {
   const through = <T extends { date?: string }>(docs: T[]) => docs.filter(d => !d.date || d.date.slice(0, 10) <= end);
   return findPostingMismatches({
     invoices: through(input.invoices),
@@ -121,6 +122,7 @@ export function postingMismatchesThrough(input: Pick<CloseChecklistInput, 'invoi
     creditNotes: through(input.creditNotes || []),
     vendorCredits: through(input.vendorCredits || []),
     transactions: input.transactions,
+    baseCurrency: input.baseCurrency,
   });
 }
 

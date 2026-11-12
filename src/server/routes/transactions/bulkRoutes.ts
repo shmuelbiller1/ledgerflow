@@ -123,11 +123,13 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
            if (typeof newDate === 'string' && newDate) assertPostingOpen(newDate, wsNow as never, user.uid);
            const revalLock = revaluationEntryLock(txData);
            if (revalLock) throw new Error(revalLock);
-           if ((txData?.status === 'certified' || txData?.status === 'void' || txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true) && !user.admin) {
-             throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
-           }
            const updateData = { ...updates[i].data } as Record<string, unknown>;
            const expectedUpdatedAt = updates[i].expectedUpdatedAt || updateData.expectedUpdatedAt;
+           const settledFlag = txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true;
+           const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined;
+           if (!user.admin && ((txData?.status === 'certified' || txData?.status === 'void') || (settledFlag && touchesAmounts))) {
+             throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
+           }
            delete updateData.expectedUpdatedAt;
            if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
              return { id, current: { ...txData, id: txDoc.id } };

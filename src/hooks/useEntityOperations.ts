@@ -52,6 +52,7 @@ async function savedRecord<T>(path: StoredDocumentPath, id: string): Promise<T |
 export function useEntityOperations() {
   const user = useAuthStore(workspaceActor);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const role = useCurrentRole();
   const analyticalPatternCache = useLedgerStore(s => s.analyticalPatternCache);
 
@@ -75,7 +76,7 @@ export function useEntityOperations() {
         const snap = await getDocs(q);
         const customerInvoices = snap.docs.map(d => d.data()).filter(isOpenInvoice);
         // what is still owed (after deposits, payments, credits), in the base currency
-        balanceCents = customerInvoices.reduce((sum, inv) => sum + toBaseCents(calculateAmountDue(inv), inv.exchangeRate), 0);
+        balanceCents = customerInvoices.reduce((sum, inv) => sum + toBaseCents(calculateAmountDue(inv), inv.exchangeRate, inv.currency, homeCurrency), 0);
       } else {
         const q = query(
           collection(db, 'bills'),
@@ -84,7 +85,7 @@ export function useEntityOperations() {
         );
         const snap = await getDocs(q);
         const vendorBills = snap.docs.map(d => d.data()).filter(isOpenBill);
-        balanceCents = vendorBills.reduce((sum, b) => sum + toBaseCents(calculateAmountDue(b), b.exchangeRate), 0);
+        balanceCents = vendorBills.reduce((sum, b) => sum + toBaseCents(calculateAmountDue(b), b.exchangeRate, b.currency, homeCurrency), 0);
       }
 
       await updateDoc(entityRef, {
@@ -146,7 +147,7 @@ export function useEntityOperations() {
     const settings = normalizeInvoiceApproval(ws?.invoiceApproval);
     if (!settings.enabled) return {};
     if (wasIssued || 'approval' in merged) return {};
-    const stamp = approvalForSave(merged, settings, { role, uid: user?.uid, now: new Date().toISOString(), twoPerson: ws?.twoPersonRule === true });
+    const stamp = approvalForSave(merged, settings, { role, uid: user?.uid, now: new Date().toISOString(), twoPerson: ws?.twoPersonRule === true }, homeCurrency);
     return stamp ? { approval: stamp } : {};
   };
 
@@ -236,7 +237,7 @@ export function useEntityOperations() {
       return false;
     }
     // BE-04: an invoice nobody has signed off yet stays inside, whoever saved it
-    if (holdsSending(invoiceData, useAuthStore.getState().getCurrentWorkspace()?.invoiceApproval)) {
+    if (holdsSending(invoiceData, useAuthStore.getState().getCurrentWorkspace()?.invoiceApproval, homeCurrency)) {
       toast.info('The invoice was saved. It is not emailed yet: it is over the approval limit (Settings → Emails & Reminders), so it waits for an owner or an accountant to approve it in the invoice list.');
       return false;
     }

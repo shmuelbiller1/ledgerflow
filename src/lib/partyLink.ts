@@ -37,12 +37,12 @@ export function linkableVendorIds(
 }
 
 /** Open invoices to the customer, open bills from the vendor, and the net (positive: they owe us on balance). */
-export function partyNetPosition(pair: PartyLinkPair, invoices: Invoice[], bills: Bill[]): PartyNetPosition {
+export function partyNetPosition(pair: PartyLinkPair, invoices: Invoice[], bills: Bill[], baseCurrency: string = 'USD'): PartyNetPosition {
   const receivableCents = invoices
     .filter(i => i.customerId === pair.customerId)
-    .reduce((sum, i) => sum + outstandingBaseCents(i, 'customer'), 0);
+    .reduce((sum, i) => sum + outstandingBaseCents(i, 'customer', baseCurrency), 0);
   const payableCents = bills
     .filter(b => b.vendorId === pair.vendorId)
-    .reduce((sum, b) => sum + outstandingBaseCents(b, 'vendor'), 0);
+    .reduce((sum, b) => sum + outstandingBaseCents(b, 'vendor', baseCurrency), 0);
   return { receivableCents, payableCents, netCents: receivableCents - payableCents };
 }

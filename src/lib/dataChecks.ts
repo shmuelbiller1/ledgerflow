@@ -72,7 +72,7 @@ export interface CheckContext {
   /** EG-2 payment-ledger rows (`paymentAllocations`); the nightly check reads them, the browser does not. */
   allocations?: Array<{ id: string; documentId?: string; documentType?: string; kind?: string; amountCents?: number; baseClearedCents?: number }>;
   /** Payment records (CB-23: each has its entry in the ledger). */
-  payments?: Array<Partial<Payment> & { id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; paymentExchangeRate?: number; paymentDate?: string; date?: string; contactName?: string; entityName?: string }>;
+  payments?: Array<Partial<Payment> & { id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; paymentExchangeRate?: number; paymentDate?: string; currency?: string; date?: string; contactName?: string; entityName?: string }>;
 }
 
 export interface DataCheck {
@@ -336,7 +336,7 @@ export const DATA_CHECKS: DataCheck[] = [
     id: 'payment-ledger',
     label: 'Payments without their entry, or with another amount (CB-23)',
     remedy: 'Open the payment: void it and record it again, or undo the entry that cancelled its posting.',
-    run: ({ payments, transactions }) => {
+    run: ({ payments, transactions, baseCurrency }) => {
       if (!payments) return [];
       const reversed = new Set(transactions.filter(t => t.metadata?.isReversal || t.metadata?.reversesTxId).map(t => String(t.metadata?.reversesTxId || t.metadata?.reversedTransactionId || '')));
       const posting = new Map<string, Transaction>();
@@ -357,7 +357,7 @@ export const DATA_CHECKS: DataCheck[] = [
         }
         // a payment at another day's rate books the difference as exchange gain or loss: not compared
         if (p.paymentExchangeRate) return [];
-        const expected = Math.round((p.amountCents || 0) * (p.exchangeRate && p.exchangeRate > 0 ? p.exchangeRate : 1));
+        const expected = convertMinorUnits(p.amountCents || 0, p.exchangeRate && p.exchangeRate > 0 ? p.exchangeRate : 1, p.currency || baseCurrency, baseCurrency);
         const booked = Math.round(Number(entry.totalAmountCents) || 0);
         if (booked === expected) return [];
         return [{ id: `payment-ledger-${p.id}`, checkId: 'payment-ledger', severity: 'high' as const,

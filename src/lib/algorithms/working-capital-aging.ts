@@ -1,7 +1,7 @@
 import { calculateAmountDue } from '../documentMath';
 import { calculateLateFee } from '../paymentTerms';
 import { toBaseCents } from '../../server/reports/partyReports';
-import { getLocalDateISO, parseLocalDate } from '../../lib/utils';
+import { currencyChartValue, formatCurrency, getLocalDateISO, parseLocalDate } from '../../lib/utils';
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { resolveAccountRole } from '../accountUtils';
 import { isPostable, lineAmount, isOpenInvoice, isOpenBill } from '../../lib/txFilters';
@@ -17,6 +17,8 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
   ],
   compute: (ctx, inputs: { "lateThresholdDays": number; [key: string]: unknown }): AlgoResult => {
     const { transactions, accounts } = ctx;
+    const baseCurrency = ctx.reportingCurrency || 'USD';
+    const money = (cents: number) => formatCurrency(cents, baseCurrency);
     let arPending = 0;
     let apPending = 0;
     let arOverdue = 0;
@@ -41,7 +43,7 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
         const dueDateStr = inv.dueDate || inv.date;
         const dueDate = dueDateStr ? parseLocalDate(dueDateStr).getTime() : now;
         const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-        const amount = toBaseCents(calculateAmountDue(inv), inv.exchangeRate); // still owed, base currency
+        const amount = toBaseCents(calculateAmountDue(inv), inv.exchangeRate, inv.currency, baseCurrency); // still owed, base currency
 
         arPending += amount;
         if (daysOverdue > thresholdDays) arOverdue += amount;
@@ -49,10 +51,10 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
           estimatedLateFeesCents += calculateLateFee(amount, dueDateStr, todayIso).lateFeeCents;
         }
 
-        if (daysOverdue <= 0) chartData[0].AR += (amount / 100);
-        else if (daysOverdue <= 30) chartData[1].AR += (amount / 100);
-        else if (daysOverdue <= 60) chartData[2].AR += (amount / 100);
-        else chartData[3].AR += (amount / 100);
+        if (daysOverdue <= 0) chartData[0].AR += currencyChartValue(amount, baseCurrency);
+        else if (daysOverdue <= 30) chartData[1].AR += currencyChartValue(amount, baseCurrency);
+        else if (daysOverdue <= 60) chartData[2].AR += currencyChartValue(amount, baseCurrency);
+        else chartData[3].AR += currencyChartValue(amount, baseCurrency);
       });
     }
 
@@ -64,14 +66,14 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
         const dueDateStr = bill.dueDate || bill.date;
         const dueDate = dueDateStr ? parseLocalDate(dueDateStr).getTime() : now;
         const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-        const amount = toBaseCents(calculateAmountDue(bill), bill.exchangeRate);
+        const amount = toBaseCents(calculateAmountDue(bill), bill.exchangeRate, bill.currency, baseCurrency);
 
         apPending += amount;
 
-        if (daysOverdue <= 0) chartData[0].AP += (amount / 100);
-        else if (daysOverdue <= 30) chartData[1].AP += (amount / 100);
-        else if (daysOverdue <= 60) chartData[2].AP += (amount / 100);
-        else chartData[3].AP += (amount / 100);
+        if (daysOverdue <= 0) chartData[0].AP += currencyChartValue(amount, baseCurrency);
+        else if (daysOverdue <= 30) chartData[1].AP += currencyChartValue(amount, baseCurrency);
+        else if (daysOverdue <= 60) chartData[2].AP += currencyChartValue(amount, baseCurrency);
+        else chartData[3].AP += currencyChartValue(amount, baseCurrency);
       });
     }
 
@@ -130,10 +132,10 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
           arPending += remaining;
           if (daysOverdue > thresholdDays) arOverdue += remaining;
 
-          if (daysOverdue <= 0) chartData[0].AR += (remaining / 100);
-          else if (daysOverdue <= 30) chartData[1].AR += (remaining / 100);
-          else if (daysOverdue <= 60) chartData[2].AR += (remaining / 100);
-          else chartData[3].AR += (remaining / 100);
+          if (daysOverdue <= 0) chartData[0].AR += currencyChartValue(remaining, baseCurrency);
+          else if (daysOverdue <= 30) chartData[1].AR += currencyChartValue(remaining, baseCurrency);
+          else if (daysOverdue <= 60) chartData[2].AR += currencyChartValue(remaining, baseCurrency);
+          else chartData[3].AR += currencyChartValue(remaining, baseCurrency);
         }
       });
 
@@ -152,10 +154,10 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
           const daysOverdue = Math.floor((now - bill.dueDate) / (1000 * 60 * 60 * 24));
           apPending += remaining;
 
-          if (daysOverdue <= 0) chartData[0].AP += (remaining / 100);
-          else if (daysOverdue <= 30) chartData[1].AP += (remaining / 100);
-          else if (daysOverdue <= 60) chartData[2].AP += (remaining / 100);
-          else chartData[3].AP += (remaining / 100);
+          if (daysOverdue <= 0) chartData[0].AP += currencyChartValue(remaining, baseCurrency);
+          else if (daysOverdue <= 30) chartData[1].AP += currencyChartValue(remaining, baseCurrency);
+          else if (daysOverdue <= 60) chartData[2].AP += currencyChartValue(remaining, baseCurrency);
+          else chartData[3].AP += currencyChartValue(remaining, baseCurrency);
         }
       });
     }
@@ -176,27 +178,27 @@ export const WORKING_CAPITAL_AGING_ALGO: AlgorithmDefinition = {
 
     return {
       metrics: [
-        { label: 'Total Pending AR', value: `$${(arPending / 100).toLocaleString()}` },
-        { label: 'Total Pending AP', value: `$${(apPending / 100).toLocaleString()}` },
-        { label: 'Severely Overdue AR', value: `$${(arOverdue / 100).toLocaleString()}`, color: arHealth },
-        { label: 'Net Working Capital (Pending)', value: `$${(netPending / 100).toLocaleString()}`, color: netPending >= 0 ? 'green' : 'orange' }
+        { label: 'Total Pending AR', value: money(arPending) },
+        { label: 'Total Pending AP', value: money(apPending) },
+        { label: 'Severely Overdue AR', value: money(arOverdue), color: arHealth },
+        { label: 'Net Working Capital (Pending)', value: money(netPending), color: netPending >= 0 ? 'green' : 'orange' }
       ],
       charts: [
         {
           config: {
             xKey: 'Bucket',
             yKeys: [
-               { key: 'AR', name: 'Accounts Receivable ($)', color: '#3b82f6', type: 'bar' },
-               { key: 'AP', name: 'Accounts Payable ($)', color: '#f43f5e', type: 'bar' }
+               { key: 'AR', name: `Accounts Receivable (${baseCurrency})`, color: '#3b82f6', type: 'bar' },
+               { key: 'AP', name: `Accounts Payable (${baseCurrency})`, color: '#f43f5e', type: 'bar' }
             ]
           },
           data: chartData
         }
       ],
       insights: [
-        `There is $${(arPending / 100).toLocaleString()} tied up in unpaid customer invoices (AR) and $${(apPending / 100).toLocaleString()} outstanding in supplier bills (AP).`,
-        arOverdue > 0 ? `WARNING: $${(arOverdue / 100).toLocaleString()} of Accounts Receivable is significantly overdue (> ${inputs.lateThresholdDays} days past due date). Immediate collection efforts recommended.` : 'Receivables collection is healthy with no severely overdue invoices.',
-        ...(estimatedLateFeesCents > 0 ? [`Contractual late-fee benchmark (18% APR + $25 flat per overdue invoice): $${(estimatedLateFeesCents / 100).toLocaleString()}.`] : []),
+        `There is ${money(arPending)} tied up in unpaid customer invoices (AR) and ${money(apPending)} outstanding in supplier bills (AP).`,
+        arOverdue > 0 ? `WARNING: ${money(arOverdue)} of Accounts Receivable is significantly overdue (> ${inputs.lateThresholdDays} days past due date). Immediate collection efforts recommended.` : 'Receivables collection is healthy with no severely overdue invoices.',
+        ...(estimatedLateFeesCents > 0 ? [`Contractual late-fee benchmark (18% APR + ${money(2500)} flat per overdue invoice): ${money(estimatedLateFeesCents)}.`] : []),
         netPending < 0 ? 'Short-term liquidity crunch: Pending payables exceed pending receivables.' : 'Working capital structure is positive.'
       ]
     };

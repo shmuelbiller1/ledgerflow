@@ -134,15 +134,15 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     const loadedOnly = dashboardComparison(scoped.accounts, scoped.transactions, period);
     return opening ? withServerBalances(loadedOnly, dashboardComparison(scoped.accounts, foldServerOpening(scoped.transactions, opening), period), period, opening.asOf) : loadedOnly;
   }, [valid, scoped, period, opening]);
-  const ar = useMemo(() => valid ? dashboardAging(scoped.customers, scoped.invoices, 'customer', period.endDate) : { rows: [], top: [] }, [scoped, valid, period.endDate]);
-  const ap = useMemo(() => valid ? dashboardAging(scoped.vendors, scoped.bills, 'vendor', period.endDate) : { rows: [], top: [] }, [scoped, valid, period.endDate]);
+  const ar = useMemo(() => valid ? dashboardAging(scoped.customers, scoped.invoices, 'customer', period.endDate, currency || 'USD') : { rows: [], top: [] }, [scoped, valid, period.endDate, currency]);
+  const ap = useMemo(() => valid ? dashboardAging(scoped.vendors, scoped.bills, 'vendor', period.endDate, currency || 'USD') : { rows: [], top: [] }, [scoped, valid, period.endDate, currency]);
   const recent = useMemo(() => scoped.transactions.filter(tx => isPostable(tx) && isTransactionInDateRange(tx, period.startDate, period.endDate)).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)).slice(0, 5), [scoped, period.startDate, period.endDate]);
   // with the server's balances folded in, entries past the loading cap no longer change the totals (only a period
   // that starts on or before the server's day still reads the loaded entries alone, and says so)
   const capCovered = !!opening && !periodBeforeOpening(period.startDate, opening);
   const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => failed[key] || (truncated[key] && !(key === 'transactions' && capCovered)));
-  const owedToYou = useMemo(() => partyStats(scoped.invoices.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'customer', period.endDate).outstandingCents, [scoped.invoices, period.endDate]);
-  const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate).outstandingCents, [scoped.bills, period.endDate]);
+  const owedToYou = useMemo(() => partyStats(scoped.invoices.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'customer', period.endDate, currency || 'USD').outstandingCents, [scoped.invoices, period.endDate, currency]);
+  const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate, currency || 'USD').outstandingCents, [scoped.bills, period.endDate, currency]);
   const summaryReady = valid && data && !loading && !partial.length && (isGuest || ['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'].every(key => loaded[key as LedgerKey]));
   const reportLink = (report: string) => dashboardReportHref(report, period.startDate, period.endDate, fiscalStart);
   const aging = (value: typeof ar, side: 'customer' | 'vendor') => <>
@@ -158,8 +158,8 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     const currentInvoices = snapshot?.invoices || scoped.invoices, currentCustomers = snapshot?.customers || scoped.customers;
     const currentBills = snapshot?.bills || scoped.bills, currentVendors = snapshot?.vendors || scoped.vendors;
     const widgetData = snapshot?.accounts || snapshot?.transactions ? dashboardComparison(currentAccounts, currentTransactions, period) : data;
-    const widgetAr = snapshot?.customers || snapshot?.invoices ? dashboardAging(currentCustomers, currentInvoices, 'customer', period.endDate) : ar;
-    const widgetAp = snapshot?.vendors || snapshot?.bills ? dashboardAging(currentVendors, currentBills, 'vendor', period.endDate) : ap;
+    const widgetAr = snapshot?.customers || snapshot?.invoices ? dashboardAging(currentCustomers, currentInvoices, 'customer', period.endDate, currency || 'USD') : ar;
+    const widgetAp = snapshot?.vendors || snapshot?.bills ? dashboardAging(currentVendors, currentBills, 'vendor', period.endDate, currency || 'USD') : ap;
     const widgetRecent = snapshot?.transactions ? currentTransactions.filter(tx => isPostable(tx) && isTransactionInDateRange(tx, period.startDate, period.endDate)).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)).slice(0, 5) : recent;
     const widgetScenarios = snapshot?.scenarios || scenarios;
     if (!widgetData) return null;

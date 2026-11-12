@@ -79,13 +79,13 @@ export const BUDGET_VS_ACTUAL_ALGO: AlgorithmDefinition = {
       totalBudget += budgetAmount;
       totalActual += actualCents;
 
-      chartData.push({ account: account ? `${account.code} - ${account.name}` : accountId, budget: currencyChartValue(budgetAmount), actual: currencyChartValue(actualCents) });
+      chartData.push({ account: account ? `${account.code} - ${account.name}` : accountId, budget: currencyChartValue(budgetAmount, ctx.reportingCurrency), actual: currencyChartValue(actualCents, ctx.reportingCurrency) });
       rows.push({
         id: budget.id,
         account: account ? `${account.code} - ${account.name}` : accountId,
-        budget: formatCurrency(budgetAmount),
-        actual: formatCurrency(actualCents),
-        variance: formatCurrency(variance),
+        budget: formatCurrency(budgetAmount, ctx.reportingCurrency),
+        actual: formatCurrency(actualCents, ctx.reportingCurrency),
+        variance: formatCurrency(variance, ctx.reportingCurrency),
         variancePct: `${variancePct > 0 ? '+' : ''}${variancePct.toFixed(1)}%`
       });
     });
@@ -94,9 +94,9 @@ export const BUDGET_VS_ACTUAL_ALGO: AlgorithmDefinition = {
 
     return {
       metrics: [
-        { label: 'Total Budget', value: formatCurrency(totalBudget), color: 'text-indigo-400' },
-        { label: 'Total Actuals', value: formatCurrency(totalActual), color: 'text-emerald-400' },
-        { label: 'Net Variance', value: formatCurrency(totalVariance), color: totalVariance >= 0 ? 'text-emerald-500' : 'text-rose-500' }
+        { label: 'Total Budget', value: formatCurrency(totalBudget, ctx.reportingCurrency), color: 'text-indigo-400' },
+        { label: 'Total Actuals', value: formatCurrency(totalActual, ctx.reportingCurrency), color: 'text-emerald-400' },
+        { label: 'Net Variance', value: formatCurrency(totalVariance, ctx.reportingCurrency), color: totalVariance >= 0 ? 'text-emerald-500' : 'text-rose-500' }
       ],
       charts: [
         {

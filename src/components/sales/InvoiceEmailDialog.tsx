@@ -38,7 +38,7 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
   // BE-04: over the approval limit the invoice may not go out on its own; the dialog says why, and
   // for someone allowed to sign, sending it *is* the approval.
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const approvalState = approvalStatus(invoice, workspace?.invoiceApproval);
+  const approvalState = approvalStatus(invoice, workspace?.invoiceApproval, workspace?.currency || 'USD');
   const held = approvalState === 'awaiting' || approvalState === 'rejected';
   const canSign = isApproverRole(useCurrentRole());
   const [to, setTo] = useState(() => String(invoice.metadata?.sentTo || customer?.email || ''));
