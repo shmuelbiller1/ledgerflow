@@ -1,0 +1,36 @@
+# pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-02b-fx-reversal-route.test.ts
+# run: 2026-11-11T20:51:29Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+(1) POST /transactions -> 200; stored: currency USD, entry rate 3.7, lines [{"amountCents":2470,"rate":1},{"amountCents":-1235,"rate":1},{"amountCents":-1235,"rate":1}]
+(1) the books (ILS, agorot): {"bank":2470,"sales":-1235,"sales2":-1235}
+(1) Bank shows 24.70 ILS for 24.70 USD at 3.7 (24.70 × 3.7 = 91.39)
+(1) DEFECT A7-02c: the entry says "USD at 3.7" and is counted as 24.70 ILS
+(1) reversal: exact (nothing left)
+▶ A7-02b a journal at a foreign rate, through the routes
+  ✔ (1) the rate on the entry only (no rate on the lines): how is 24.70 USD valued in ILS books? (85.136864ms)
+[CommandExecutor] Idempotent operation ws_a7_fxrev_90afa210:TRANSACTION_CREATE:a7-02b-2 failed: Error: The entry total (9139) does not match its lines (2470)     at checkLedgerEntry (/home/user/ledgerflow/src/server/services/ledgerDoor.ts:43:11)     at ledgerCreate (/home/user/ledgerflow/src/server/services/ledgerDoor.ts:61:3)     at budgetWarnings.length.budgetWarnings.budgetWarnings (/home/user/ledgerflow/src/server/routes/transactions/crudRoutes.ts:168:7)     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)     at async <anonymous> (/home/user/ledgerflow/src/server/utils/commandExecutor.ts:85:14)     at async <anonymous> (/home/user/ledgerflow/src/server/utils/idempotency.ts:134:20)     at async Firestore.runTransaction (/home/user/ledgerflow/src/server/db/pgFirestore.ts:547:24)     at async executeIdempotent (/home/user/ledgerflow/src/server/utils/idempotency.ts:103:10)     at async executeCommand (/home/user/ledgerflow/src/server/utils/commandExecutor.ts:84:20)
+(2) POST /transactions -> 400 {"status":"error","message":"The entry total (9139) does not match its lines (2470)"}
+(2) DEFECT A7-02 (main from 2708f47c): a journal with a rate on its lines is refused when it is created
+  ✔ (2) the rate on every line, one agora settled: valued at 3.7; "Reverse & Correct" is refused (25.86536ms)
+[CommandExecutor] Idempotent operation ws_a7_fxrev_90afa210:TRANSACTION_CREATE:a7-02b-3 failed: Error: The entry total (3700) does not match its lines (1000)     at checkLedgerEntry (/home/user/ledgerflow/src/server/services/ledgerDoor.ts:43:11)     at ledgerCreate (/home/user/ledgerflow/src/server/services/ledgerDoor.ts:61:3)     at budgetWarnings.length.budgetWarnings.budgetWarnings (/home/user/ledgerflow/src/server/routes/transactions/crudRoutes.ts:168:7)     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)     at async <anonymous> (/home/user/ledgerflow/src/server/utils/commandExecutor.ts:85:14)     at async <anonymous> (/home/user/ledgerflow/src/server/utils/idempotency.ts:134:20)     at async Firestore.runTransaction (/home/user/ledgerflow/src/server/db/pgFirestore.ts:547:24)     at async executeIdempotent (/home/user/ledgerflow/src/server/utils/idempotency.ts:103:10)     at async executeCommand (/home/user/ledgerflow/src/server/utils/commandExecutor.ts:84:20)
+(3) POST /transactions -> 400 {"status":"error","message":"The entry total (3700) does not match its lines (1000)"}
+(3) DEFECT A7-02 (main from 2708f47c): a journal with a rate on its lines is refused when it is created, even with nothing to settle
+rate 1.1: 83483 of 325325 three-line journals (25.7%) carry a settled home amount
+rate 1.25: 121558 of 325325 three-line journals (37.4%) carry a settled home amount
+rate 3.7: 88312 of 325325 three-line journals (27.1%) carry a settled home amount
+rate 3.65: 82962 of 325325 three-line journals (25.5%) carry a settled home amount
+rate 0.85: 83184 of 325325 three-line journals (25.6%) carry a settled home amount
+rate 1.0842: 80902 of 325325 three-line journals (24.9%) carry a settled home amount
+rate 3.652: 81440 of 325325 three-line journals (25.0%) carry a settled home amount
+settleHomeCurrency over 2277275 journals: not balanced in the home currency afterwards 0; largest change to one line 1 cent(s)
+  ✔ (3) the rate on every line, nothing to settle: accepted, valued at 3.7; "Reverse & Correct" is refused too (11.442127ms)
+  ✔ how often a journal at a foreign rate carries a settled home amount (refusal of case 2; all the others get the refusal of case 3) (2310.981676ms)
+✔ A7-02b a journal at a foreign rate, through the routes (3255.449485ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3387.600505

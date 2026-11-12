@@ -1,3 +1,4 @@
+// NOSONAR:S2187 — tests registered via describeSaveFailures DSL (see helpers/failureHarness.ts)
 /**
  * Failure tests for the money saves on the purchases and books side (PREV-5): a bill (new and
  * edited) on the Purchases screen, a journal entry in its dialog, and a bank statement import
@@ -6,7 +7,7 @@
  * themselves are in helpers/failureHarness.ts.
  */
 import { describeSaveFailures, standardChart, WORKSPACE_A } from './helpers/failureHarness';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -138,4 +139,15 @@ describeSaveFailures({
     assert.ok(screen.getByRole('button', { name: 'Import 2 Entries' }), 'with the same selection');
     assert.ok(screen.getByText('Payment thank you card'));
   },
+});
+
+// describeSaveFailures (helpers/failureHarness.ts) registers the test bodies above.
+// This describe block makes the suite visible to static analysis: SonarCloud S2187
+// cannot see tests that are registered only inside the DSL helper.
+describe('save failures (books side)', () => {});
+
+test('save-failures books test module loads', () => {
+  assert.ok(describeSaveFailures, 'describeSaveFailures is imported');
+  assert.ok(standardChart, 'standardChart is imported');
+  assert.ok(WORKSPACE_A, 'WORKSPACE_A is imported');
 });

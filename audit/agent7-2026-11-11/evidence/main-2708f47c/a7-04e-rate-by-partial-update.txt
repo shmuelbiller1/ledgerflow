@@ -1,0 +1,36 @@
+# pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04e-rate-by-partial-update.test.ts
+# run: 2026-11-11T20:51:37Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+stored line rates — invoice entry: [1,1]; payment entry: ["none","none"]; hand journal: [1,1]
+▶ A7-04e the entry rate as a multiplier, set by a partial update
+  ✔ setup: invoice 500.00 paid in full, and a hand journal of 70.00 (147.573375ms)
+(a) the invoice's entry: PUT … { partialUpdate: { exchangeRate: 100 } } -> 200 
+(a) the invoice's entry: books before {"sales":-50000,"bank":43000,"supplies":7000}
+(a) the invoice's entry: books after  {"sales":-50000,"bank":43000,"supplies":7000}   (unchanged)
+  ✔ (a) the invoice's entry: { partialUpdate: { exchangeRate: 100 } } as a bookkeeper (13.757427ms)
+(b) the payment's entry: PUT … { partialUpdate: { exchangeRate: 100 } } -> 200 
+(b) the payment's entry: books before {"sales":-50000,"bank":43000,"supplies":7000}
+(b) the payment's entry: books after  {"ar":-4950000,"sales":-50000,"bank":4993000,"supplies":7000}   <-- CHANGED
+(b) the payment's entry: the entry as stored: totalAmountCents 50000, lines [50000,-50000], exchangeRate 100 (lines and total untouched)
+(b) the payment's entry: trial balance route: debits 5057000, credits 5057000, isBalanced true
+(b) the payment's entry: balance sheet route: bank 4993000, isBalanced true
+(b) the payment's entry: Data Health: (medium) [control-balance] Accounts receivable is -$49,500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+(b) the payment's entry: month-end posting check: nothing found
+(b) the payment's entry: audit rows for the change: 1; details of the last: {"description":"Partial update on transaction ref [Wn36LSrmpY8nIz57QRlw]."}
+DEFECT A7-04e: one header field multiplied the value of the payment's entry by 100 in every report; its lines and total still read 500.00
+  ✔ (b) the payment's entry: { partialUpdate: { exchangeRate: 100 } } as a bookkeeper (73.489523ms)
+(c) the hand journal: PUT … { partialUpdate: { exchangeRate: 100 } } -> 200 
+(c) the hand journal: books before {"sales":-50000,"bank":43000,"supplies":7000}
+(c) the hand journal: books after  {"sales":-50000,"bank":43000,"supplies":7000}   (unchanged)
+{"(a) the invoice's entry":{"status":200,"changed":false},"(b) the payment's entry":{"status":200,"changed":true},"(c) the hand journal":{"status":200,"changed":false}}
+  ✔ (c) the hand journal: { partialUpdate: { exchangeRate: 100 } } as a bookkeeper (13.284896ms)
+  ✔ summary: what main does today (0.47903ms)
+✔ A7-04e the entry rate as a multiplier, set by a partial update (1004.194347ms)
+ℹ tests 5
+ℹ suites 1
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1120.427261
