@@ -16,6 +16,7 @@ import { LoadingState } from './ui/LoadingState';
 import SavedViewsBar from './ui/SavedViewsBar';
 import { cn } from '../lib/utils';
 import DashboardWidgets from './dashboard/DashboardWidgets';
+import FirstWeekChecklist from './dashboard/FirstWeekChecklist';
 
 import { useShallow } from 'zustand/react/shallow';
 import SinceLastVisitCard from './SinceLastVisitCard';
@@ -42,6 +43,7 @@ export default function Dashboard() {
   // First-run setup (L-19): a signed-in workspace not set up yet and without entries (once its
   // entries have loaded). The wizard stays until finished, even after it posts the first entry.
   const isGuest = useAuthStore(s => s.isGuest);
+  const currentUserId = useAuthStore(s => s.user?.uid);
   const transactionsLoaded = useDataNeedsStore(s => Boolean(s.loaded.transactions));
   const accountsLoaded = useDataNeedsStore(s => Boolean(s.loaded.accounts));
   const loadedWorkspaceId = useDataNeedsStore(s => s.loadedWorkspaceId);
@@ -141,6 +143,7 @@ export default function Dashboard() {
         <summary className="min-h-11 flex items-center gap-2 cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide<span className="ml-auto text-xs font-normal text-[var(--muted)] group-open:hidden">Show</span><span className="ml-auto text-xs font-normal text-[var(--muted)] hidden group-open:inline">Hide</span></summary>
         <FirstHourGuide />
       </details>
+      <FirstWeekChecklist key={`${currentUserId || 'guest'}:${currentWorkspaceId || 'none'}`} />
 
       <DashboardWidgets>
         <SinceLastVisitCard />
