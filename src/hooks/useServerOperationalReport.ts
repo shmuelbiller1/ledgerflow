@@ -14,7 +14,7 @@ export function collectionStamp(...collections: ReadonlyArray<ReadonlyArray<unkn
       if (!row || typeof row !== 'object') continue;
       const sig = `${row.id ?? ''}:${row.updatedAt ?? ''}:${row.status ?? ''}:${row.amountCents ?? ''}:${row.totalAmountCents ?? ''}:${row.amountPaidCents ?? ''}`;
       for (let j = 0; j < sig.length; j++) {
-        hash = Math.trunc((hash * 31) + sig.charCodeAt(j));
+        hash = (Math.imul(hash, 31) + sig.charCodeAt(j)) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for rolling collection stamp hash
       }
     }
     return `${list.length}:${hash >>> 0}`;
