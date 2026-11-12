@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { REPORT_TABS_REGISTRY } from '../../config/registry';
 import { reportQuestion } from '../../lib/reportQuestions';
+import { starredReports } from '../../lib/starredReports';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 
 type GroupId = 'Statements' | 'Sales' | 'Purchases' | 'Stock' | 'Tax' | 'Banking' | 'Analysis';
@@ -147,6 +149,9 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
   const label = (id: string) => REPORT_TABS_REGISTRY.find(r => r.id === id)?.label.en || id;
   const filtered = REPORT_TABS_REGISTRY.filter(r => `${r.label.en} ${r.label.he} ${r.id} ${reportQuestion(r.id)} ${reportQuestion(r.id, 'he')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const pinned = pins.filter(p => p.tab === 'reports' && p.sub && REPORT_TABS_REGISTRY.some(r => r.id === p.sub)).map(p => p.sub!);
+  // EU-F3: until the person pins their own, eight chosen for the kind of business
+  const businessType = useAuthStore(st => st.getCurrentWorkspace()?.businessType);
+  const starred = starredReports(businessType).filter(id => REPORT_TABS_REGISTRY.some(r => r.id === id));
   const select = (id: string) => {
     if (!REPORT_TABS_REGISTRY.some(r => r.id === id)) return;
     recordRecent(id);
@@ -169,6 +174,11 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
         </select>
       </div>
       {filtered.length === 0 && <p role="status">No reports match. Clear the search to see all reports.</p>}
+      {!query.trim() && pinned.length === 0 && <section aria-label="Starred for your business">
+        <h2 className="font-semibold">Starred for your business</h2>
+        <div className="flex flex-wrap gap-2">{starred.map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>)}</div>
+        <p className="text-xs text-[var(--muted)]">Pin your own with Alt+P on a report; they replace these.</p>
+      </section>}
       {!query.trim() && [['Pinned reports', pinned], ['Recent reports', recent]].map(([title, ids]) => <section key={title as string} aria-label={title as string}>
         <h2 className="font-semibold">{title}</h2>
         <div className="flex flex-wrap gap-2">{(ids as string[]).length ? (ids as string[]).map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>) : <p className="text-sm">{title === 'Pinned reports' ? 'Use Alt+P to pin the current report.' : 'Reports selected here appear here on this device.'}</p>}</div>

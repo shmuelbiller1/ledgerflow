@@ -30,3 +30,16 @@ test('EU-F3: "make money" finds Profit & Loss', () => {
   const options = [...(screen.getByLabelText('Choose report') as HTMLSelectElement).options].filter(o => o.value).map(o => [o.textContent, o.title]);
   assert.deepEqual(options, [['Profit & Loss', 'Did I make money?']]);
 });
+
+test('EU-F3: until the person pins reports, eight are starred for the kind of business, all real reports', async () => {
+  const { starredReports } = await import('../lib/starredReports');
+  for (const type of ['retail', 'realestate', 'nonprofit', 'custom', undefined]) {
+    const ids = starredReports(type);
+    assert.equal(ids.length, 8, String(type));
+    assert.equal(new Set(ids).size, 8);
+    for (const id of ids) assert.ok(REPORT_TABS_REGISTRY.some(r => r.id === id), id);
+  }
+  assert.ok(starredReports('realestate').includes('by-label'));
+  render(<ReportPicker activeTab="pnl" onSelect={() => {}} />);
+  assert.ok(screen.getByRole('region', { name: 'Starred for your business', hidden: true }));
+});
