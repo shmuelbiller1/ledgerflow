@@ -28,9 +28,9 @@ test('failed or skipped shards still fail the required non-cancelled gates', () 
   assert.match(browser, /test "\$SHARD_RESULT" = success/);
 });
 
-test('new PR commits cancel older runs without cancelling main-branch runs', () => {
-  assert.match(workflow, /group: ci-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}-\$\{\{ github\.ref == 'refs\/heads\/main' && github\.sha \|\| 'latest' \}\}/);
-  assert.match(workflow, /cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}/);
+test('new PR and main commits cancel superseded runs, retaining checks for the latest head', () => {
+  assert.match(workflow, /group: ci-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/);
+  assert.match(workflow, /^  cancel-in-progress: true$/m);
 });
 
 
@@ -48,7 +48,8 @@ test('browser cleanup runs after failures but not after workflow cancellation', 
 
 test('a docs-only pull request skips the long runs but still runs the tests that read a doc', () => {
   const changes = job('changes');
-  assert.match(changes, /grep -qvE '\^docs\/\|\\\.md\$'/);
+  assert.match(changes, /git diff --name-only -z/);
+  assert.match(changes, /node scripts\/ci-change-scope\.mjs >> "\$GITHUB_OUTPUT"/);
   assert.match(changes, /"\$EVENT" != pull_request \]; then echo "docs_only=false"/);
   for (const name of ['validate', 'unit', 'build', 'timezones', 'e2e_shards']) {
     assert.match(job(name), /^    if: \$\{\{ needs\.changes\.outputs\.docs_only != 'true' \}\}$/m, name);

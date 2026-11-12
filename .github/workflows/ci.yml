@@ -3,7 +3,7 @@ name: CI
 # When CI runs (owner, 13 Oct: no double runs). The repository is public, so minutes are free, but
 # double runs slow everyone down:
 #  - a pull request runs it on the PR merged with the latest main (what will actually land);
-#  - a push to main runs it once more on the real merged result;
+#  - a push to main checks the newest merged result; obsolete main runs cancel;
 #  - a push to a branch with no PR does NOT run it (helper AIs open a draft PR to get CI);
 #  - by hand any time (Actions → CI → "Run workflow").
 # Before this, every push to a helper branch with an open PR ran CI twice (push + pull_request).
@@ -13,13 +13,15 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push to the same PR stops the older run; every run on main finishes.
+# Newer commits on the same PR or main cancel obsolete checks; the newest head is tested.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'latest' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # Owner, 12 Nov: a pull request that changes only docs (docs/ or any .md file) cannot break the app, so it
+  # Only static docs (.md anywhere or static files under docs/) use fast docs checks.
+  # Source, workflow, dependency and migration changes must run the full test matrix.
+  # A pull request that changes only documentation cannot break the app, so it
   # does not wait for (or hold up) the long unit, time-zone, build and browser runs. The few tests that read a
   # doc (TRACKER, CAPABILITIES, RELEASE_GATE, help pages...) still run, in "Docs checks". Pushes to main and
   # runs by hand always run everything. The two gate checks below still report, so a docs PR can merge.
@@ -42,13 +44,9 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT" != pull_request ]; then echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0; fi
-          files="$(git diff --name-only "$BASE...$HEAD")"
-          echo "$files"
-          if [ -n "$files" ] && ! echo "$files" | grep -qvE '^docs/|\.md$'; then
-            echo "docs_only=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          fi
+          git diff --name-only "$BASE...$HEAD"
+          # NUL-delimited paths safely handle unusual filenames.
+          git diff --name-only -z "$BASE...$HEAD" | node scripts/ci-change-scope.mjs >> "$GITHUB_OUTPUT"
 
   # Docs-only pull requests: just the tests that read a doc file.
   docs_checks:
@@ -138,7 +136,7 @@ jobs:
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
       - name: Test source and CI utilities
-        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
