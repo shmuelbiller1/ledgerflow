@@ -95,7 +95,10 @@ describe('batch edits are safe (database)', { skip: !url && 'LF_TEST_DATABASE_UR
   });
 
   test('cleared entries allow metadata/rule marks but not line, status, or settlement-flag rewrites', async () => {
-    await db.collection('transactions').doc(id('a')).set({ isCleared: true }, { merge: true });
+    // Set up a complete posted row: the database trigger requires balanced lines on every write.
+    // This is fixture preparation, not the route behavior under test.
+    const beforeClear = await entry('a');
+    await db.collection('transactions').doc(id('a')).set({ ...beforeClear, isCleared: true }, { merge: true });
     assert.equal((await batch([{ id: id('a'), data: { description: 'cleared note' } }])).status, 200);
     assert.equal((await entry('a')).description, 'cleared note');
     assert.equal((await batch([{ id: id('a'), data: { isCleared: false } }])).status, 400, 'clearing a settled entry cannot be undone through a batch');
