@@ -67,7 +67,8 @@ export default function BudgetManager() {
   const [budgetLabelId, setBudgetLabelId] = useState('');
   const [budgetLabelValue, setBudgetLabelValue] = useState('');
   const labelDefs = (useAuthStore(s => s.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
-  const labelNodes = (useLedgerStore(s => s.dimensionNodes) || []).filter(n => n.dimensionId === budgetLabelId && n.status !== 'archived');
+  const allNodes = useLedgerStore(s => s.dimensionNodes) || [];
+  const labelNodes = allNodes.filter(n => n.dimensionId === budgetLabelId && n.status !== 'archived');
   const labelMeta = budgetLabelId && budgetLabelValue ? { metadata: { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } } : {};
 
   const handleAddBudget = async (e: React.FormEvent) => {
@@ -138,7 +139,7 @@ export default function BudgetManager() {
           (l.accountId === budget.targetId ||
           (matchingAccount && l.accountId === matchingAccount.id) ||
           (l.accountName || '').toLowerCase() === targetLower) &&
-          (!label || lineHasLabel(l, t, label))
+          (!label || lineHasLabel(l, t, label, allNodes))
         ) || [];
         return sum + lines.reduce((s: number, l) => s + Math.max(0, lineAmount(l, t) || 0), 0);
       }, 0);
@@ -153,7 +154,7 @@ export default function BudgetManager() {
         percentUsed
       };
     });
-  }, [budgets, transactions, accounts]);
+  }, [budgets, transactions, accounts, allNodes]);
 
   return (
     <div className="space-y-12">
