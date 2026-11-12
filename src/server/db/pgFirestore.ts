@@ -745,7 +745,6 @@ export class Firestore {
     const result = await this.run<{ count: string }>(tx, `select count(*) as count from (${inner}) s`, p.values, `Counting ${query.collectionId}`);
     return Number(result.rows[0]?.count || 0);
   }
-
   /** @internal Runs writes as one database transaction (a batch, or a single write). */
   async applyWrites(ops: WriteOp[]): Promise<WriteResult[]> {
     if (ops.length === 0) return [];
@@ -772,7 +771,6 @@ export class Firestore {
     const writeTime = Timestamp.now();
     return ops.map(() => ({ writeTime }));
   }
-
   /** @internal */
   async executeOps(ops: WriteOp[], runner: Runner, state: TxState | null): Promise<void> {
     if (state && state.failure !== undefined) {
