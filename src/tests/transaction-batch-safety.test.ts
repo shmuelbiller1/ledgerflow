@@ -94,10 +94,11 @@ describe('batch edits are safe (database)', { skip: !url && 'LF_TEST_DATABASE_UR
     assert.equal((await entry('b')).description, 'b');
   });
 
-  test('cleared entries allow metadata/rule marks but not line or status rewrites', async () => {
+  test('cleared entries allow metadata/rule marks but not line, status, or settlement-flag rewrites', async () => {
     await db.collection('transactions').doc(id('a')).set({ isCleared: true }, { merge: true });
     assert.equal((await batch([{ id: id('a'), data: { description: 'cleared note' } }])).status, 200);
     assert.equal((await entry('a')).description, 'cleared note');
+    assert.equal((await batch([{ id: id('a'), data: { isCleared: false } }])).status, 400, 'clearing a settled entry cannot be undone through a batch');
     const current = await entry('a');
     const lines = current.lines.map(line => ({ ...line }));
     assert.equal((await batch([{ id: id('a'), data: { lines } }])).status, 400, 'cleared line rewrites stay locked');

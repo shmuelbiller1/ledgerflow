@@ -255,9 +255,12 @@ export function contactsMissingFilingDetails(input: {
     if (treatment === 'exempt' || treatment === 'zero_rated') cur.exemptOrZeroCount += 1;
     const ilThreshold = inv.date ? allocationThresholdCents(inv.date) : undefined;
     if (ilThreshold !== undefined && taxCents > 0) {
-      const netIlsCents = homeCurrency === 'ILS'
-        ? netCents
-        : 0;
+      const invoiceCurrency = String(inv.currency || homeCurrency).trim().toUpperCase();
+      const netIlsCents = invoiceCurrency === 'ILS'
+        ? Math.max(0, (inv.amountCents || 0) - (inv.taxAmountCents || 0))
+        : homeCurrency === 'ILS'
+          ? netCents
+          : 0;
       if (netIlsCents > ilThreshold) cur.overIlAllocationCount += 1;
     }
     invoicesByCustomer.set(cid, cur);

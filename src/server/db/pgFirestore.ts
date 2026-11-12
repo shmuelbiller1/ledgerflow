@@ -306,8 +306,10 @@ function buildSet(ref: RefLike, data: DocumentData, options?: SetOptions): Write
   const fresh = transforms ? APPLY('$2::jsonb', `'{}'::jsonb`) : '$2::jsonb';
   const params = transforms ? [ref.id, JSON.stringify(patch.data), ...patchParams(patch)] : [ref.id, JSON.stringify(patch.data)];
   if (options?.merge) {
-    const merged = transforms ? APPLY('public.lf_deep_merge(data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(data, $2::jsonb)';
-    const sql = `with updated as (update public.${table} set data = ${merged} where id = $1 returning id) insert into public.${table} (id, data) select $1, ${fresh} where not exists (select 1 from updated)`;
+    // One INSERT ... ON CONFLICT statement is required here: an update-then-insert race turns
+    // concurrent merge writes (notably sharded counter increments) into an unretried 23505.
+    const merged = transforms ? APPLY('public.lf_deep_merge(t.data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(t.data, $2::jsonb)';
+    const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = ${merged}`;
     return { ref, kind: 'set', sql, params };
   }
   const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = excluded.data`;

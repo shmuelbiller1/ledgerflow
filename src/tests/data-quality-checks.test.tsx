@@ -161,6 +161,7 @@ describe('A-194 / A-196 / A-197: pure data-quality checks', () => {
 
     const customerRow = rows.find(r => r.contactId === 'c-il-alloc')!;
     assert.deepEqual(customerRow.missingFields, ['taxId']);
+    assert.ok(customerRow.filingReasons.some(reason => /allocation-number threshold/.test(reason)), 'an ILS invoice is checked in its own currency even in a USD workspace');
     assert.deepEqual(customerRow.record, { type: 'invoice', id: 'inv-il-big' });
   });
 

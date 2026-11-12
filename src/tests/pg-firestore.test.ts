@@ -59,6 +59,12 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
     assert.deepEqual((await ref.get()).data(), { workspaceId: ws, only: true });
   });
 
+  test('concurrent merge creates atomically apply every increment', async () => {
+    const ref = db.collection('workspaceShards').doc(`${ws}_merge_counter`);
+    await Promise.all(Array.from({ length: 6 }, () => ref.set({ workspaceId: ws, value: FieldValue.increment(1) }, { merge: true })));
+    assert.equal((await ref.get()).data()!.value, 6);
+  });
+
   test('update: dotted paths, increment, arrayUnion / arrayRemove, delete; missing doc → NOT_FOUND', async () => {
     const ref = db.collection('documents').doc(`${ws}_c`);
     await ref.set({ workspaceId: ws, stats: { views: 1, other: 'keep' }, tags: ['a', 'b'], gone: 'x' });

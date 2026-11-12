@@ -126,7 +126,9 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
            const updateData = { ...updates[i].data } as Record<string, unknown>;
            const expectedUpdatedAt = updates[i].expectedUpdatedAt || updateData.expectedUpdatedAt;
            const settledFlag = txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true;
-           const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined;
+           const unsettles = ['isCleared', 'reconciled', 'isReconciled', 'reconciledAt']
+             .some(key => key in updateData && updateData[key] !== txData?.[key]);
+           const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined || unsettles;
            if (!user.admin && ((txData?.status === 'certified' || txData?.status === 'void') || (settledFlag && touchesAmounts))) {
              throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
            }
