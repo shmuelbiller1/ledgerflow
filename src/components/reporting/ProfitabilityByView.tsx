@@ -96,7 +96,7 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
       {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
       {!loading && validPeriod && lines.length === 0 && <p className="text-sm text-[var(--muted)]">Nothing sold or spent in this period.</p>}
       {lines.length > 0 && (
-        <div role="region" aria-label="Scrollable profitability table" tabIndex={0} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+        <div role="region" aria-label="Scrollable profitability table" tabIndex={0} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-sm">
             <caption className="sr-only">Profitability by {by}</caption>
             <thead>

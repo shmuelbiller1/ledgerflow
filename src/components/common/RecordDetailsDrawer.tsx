@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { normalizeSearchText } from '../../lib/textNormalization';
 import { X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -39,7 +40,7 @@ export function RecordDetailsPanel({ initialTarget, onClose, adapter = recordDet
         {target ? <><button type="button" onClick={() => setTarget(undefined)} className="min-h-11 underline">Choose another record</button><p className="text-sm">{TITLES[target.kind]}</p><RecordDetailsForm key={`${target.kind}:${target.id}`} target={target} adapter={adapter} /></> : <>
           <label className="block text-sm">Record type<select aria-label="Record type" value={kind} onChange={event => setKind(event.target.value as DetailKind)} className="mt-1 w-full p-3 border rounded-lg bg-[var(--panel)]">{Object.keys(RECORD_DETAIL_FIELDS).map(key => <option key={key} value={key}>{TITLES[key as DetailKind]}</option>)}</select></label>
           <input aria-label="Find record details" value={search} onChange={event => setSearch(event.target.value)} dir="auto" placeholder="Find a name or Hebrew label…" className="w-full p-3 border rounded-lg bg-[var(--panel)]" />
-          {truncated[kind] && <p role="status" className="text-sm">This is a partial loaded list. A selected related record or a record ID can still load its current details.</p>}
+          {isCollectionCapped(truncated, kind) && <p role="status" className="text-sm">This is a partial loaded list. A selected related record or a record ID can still load its current details.</p>}
           <details><summary className="text-sm cursor-pointer">Open by record ID</summary><label className="block text-sm">Record ID<input aria-label="Record ID" value={recordId} onChange={event => setRecordId(event.target.value)} className="w-full p-3 border rounded-lg bg-[var(--panel)]" /></label><button type="button" disabled={!recordId.trim() || recordId.length > 500} onClick={() => setTarget({ kind, id: recordId.trim() })} className="min-h-11 px-3 underline">Load record details</button></details>
           <ul>{list.slice(0, 50).map(record => <li key={record.id}><button type="button" onClick={() => setTarget({ kind, id: record.id })} className="w-full min-h-11 p-3 text-start rounded-lg hover:bg-[var(--panel)]"><bdi>{record.name}</bdi></button></li>)}</ul>
           {list.length === 0 && <p role="status">No matching loaded records.</p>}

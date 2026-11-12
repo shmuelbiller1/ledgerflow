@@ -19,11 +19,11 @@ test('superseded runs do not enqueue post-cancellation gates', () => {
 
 test('failed or skipped shards still fail the required non-cancelled gates', () => {
   const unit = job('unit_gate'), browser = job('e2e');
-  assert.match(unit, /^    needs: unit$/m);
+  assert.match(unit, /^    needs: \[changes, unit, docs_checks\]$/m);
   assert.match(unit, /UNIT_RESULT: \$\{\{ needs\.unit\.result \}\}/);
   assert.match(unit, /test "\$UNIT_RESULT" = success/);
   assert.match(unit, /npm run coverage:gate/);
-  assert.match(browser, /^    needs: e2e_shards$/m);
+  assert.match(browser, /^    needs: \[changes, e2e_shards\]$/m);
   assert.match(browser, /SHARD_RESULT: \$\{\{ needs\.e2e_shards\.result \}\}/);
   assert.match(browser, /test "\$SHARD_RESULT" = success/);
 });
@@ -42,6 +42,17 @@ test('browser cleanup runs after failures but not after workflow cancellation', 
     ['e2e', 'Require every shard to succeed'],
   ]) {
     const config = job(name);
-    assert.ok(config.includes(`- name: ${step}\n        if: \${{ !cancelled() }}`), `${name}: ${step}`);
+    assert.match(config, new RegExp(`- name: ${step}\\n        if: \\$\\{\\{ !cancelled\\(\\)( && needs\\.changes\\.outputs\\.docs_only != 'true')? \\}\\}`), `${name}: ${step}`);
   }
+});
+
+test('a docs-only pull request skips the long runs but still runs the tests that read a doc', () => {
+  const changes = job('changes');
+  assert.match(changes, /grep -qvE '\^docs\/\|\\\.md\$'/);
+  assert.match(changes, /"\$EVENT" != pull_request \]; then echo "docs_only=false"/);
+  for (const name of ['validate', 'unit', 'build', 'timezones', 'e2e_shards']) {
+    assert.match(job(name), /^    if: \$\{\{ needs\.changes\.outputs\.docs_only != 'true' \}\}$/m, name);
+  }
+  assert.match(job('docs_checks'), /^    if: \$\{\{ needs\.changes\.outputs\.docs_only == 'true' \}\}$/m);
+  assert.match(job('unit_gate'), /if \[ "\$DOCS_ONLY" = true \]; then test "\$DOCS_RESULT" = success; else test "\$UNIT_RESULT" = success; fi/);
 });

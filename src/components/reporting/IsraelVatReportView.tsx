@@ -3,17 +3,18 @@ import { Printer, Download, Receipt } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
+import { printElementById } from '../../lib/printRoot';
 import { belongsTo, israelVatReturn, type IlVatDocument, type IlVatReturn } from '../../lib/tax/ilVatReturn';
 import { COUNTED_PURCHASES } from '../../lib/taxCodes';
 import { withEquipment } from '../../lib/tax/ilVatEquipment';
 import { ilVatRegistrations } from '../../lib/israelMonthJourney';
 import { ilVatReportCsvHeaders, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
-import { printElementById } from '../../lib/printRoot';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -135,7 +136,7 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || truncated.accounts || truncated.chartAccounts ||
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || isCollectionCapped(truncated, 'accounts') ||
     failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits || failed.accounts
   );
 
@@ -202,8 +203,7 @@ export function IsraelVatReportPanel({
 
   return (
     <section aria-label="Israel VAT Report" className="p-4 space-y-4 min-w-0 max-w-5xl mx-auto">
-      {/* H-7/AI #10: the return itself is the print root (this screen had none, so Print produced the
-          whole application shell). Controls and the on-screen pickers stay `data-print-hide`. */}
+      {/* H-7: print the VAT return without the application shell. */}
       <div id="israel-vat-return" data-print-root={embedded ? undefined : ''} className="space-y-4">
       <div data-print-hide className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
         <div className="flex items-center gap-3">

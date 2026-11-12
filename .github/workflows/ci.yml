@@ -19,8 +19,69 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Owner, 12 Nov: a pull request that changes only docs (docs/ or any .md file) cannot break the app, so it
+  # does not wait for (or hold up) the long unit, time-zone, build and browser runs. The few tests that read a
+  # doc (TRACKER, CAPABILITIES, RELEASE_GATE, help pages...) still run, in "Docs checks". Pushes to main and
+  # runs by hand always run everything. The two gate checks below still report, so a docs PR can merge.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.diff.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files="$(git diff --name-only "$BASE...$HEAD")"
+          echo "$files"
+          if [ -n "$files" ] && ! echo "$files" | grep -qvE '^docs/|\.md$'; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Docs-only pull requests: just the tests that read a doc file.
+  docs_checks:
+    name: Docs checks
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          NODE_ENV: development
+          npm_config_production: false
+          HUSKY: 0
+      - name: Tests that read a doc
+        env:
+          NODE_ENV: test
+          SYSTEM_SALT: test-ledgerflow-salt-32b-deterministic
+        run: |
+          tests="$(grep -lE "docs/|[A-Za-z_]+\.md['\"\`]" src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts || true)"
+          echo "$tests"
+          test -n "$tests"
+          node_modules/.bin/tsx --test --test-force-exit $tests
+
   validate:
     name: Lint, Typecheck, and Database rules
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -116,6 +177,8 @@ jobs:
   # waited for). Each part writes its coverage; the next job merges them and applies the same thresholds.
   unit:
     name: Unit tests ${{ matrix.shard }}/4
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -179,19 +242,24 @@ jobs:
     name: Accounting & Security Test Suites (coverage gate)
     # Run after failures/skips, but do not queue an obsolete gate after workflow cancellation.
     if: ${{ !cancelled() }}
-    needs: unit
+    needs: [changes, unit, docs_checks]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every part to pass
+      - name: Require every part to pass (docs-only PRs, the docs checks)
         env:
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           UNIT_RESULT: ${{ needs.unit.result }}
-        run: test "$UNIT_RESULT" = success
+          DOCS_RESULT: ${{ needs.docs_checks.result }}
+        run: |
+          if [ "$DOCS_ONLY" = true ]; then test "$DOCS_RESULT" = success; else test "$UNIT_RESULT" = success; fi
 
       - name: Checkout repository
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/checkout@v4
 
       - name: Collect the coverage of the four parts
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-shard-*
@@ -199,6 +267,7 @@ jobs:
           merge-multiple: true
 
       - name: Coverage gate (all parts merged)
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         run: |
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
@@ -206,6 +275,8 @@ jobs:
   # Build the exact deployable artifacts rather than relying on a separate hosting status.
   build:
     name: Production build
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -235,6 +306,8 @@ jobs:
   # job above (run one after the other they took the job past its time limit).
   timezones:
     name: Unit tests in ${{ matrix.tz }} (${{ matrix.shard }}/3)
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -288,6 +361,8 @@ jobs:
 
   e2e_shards:
     name: Browser shard ${{ matrix.shard }}/5
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -369,28 +444,33 @@ jobs:
     name: Playwright E2E Smoke Suite
     # A superseded run must stop rather than queue this report-and-gate job.
     if: ${{ !cancelled() }}
-    needs: e2e_shards
+    needs: [changes, e2e_shards]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - if: ${{ needs.changes.outputs.docs_only != 'true' }}
+        uses: actions/checkout@v4
+      - if: ${{ needs.changes.outputs.docs_only != 'true' }}
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --ignore-scripts
+      - if: ${{ needs.changes.outputs.docs_only != 'true' }}
+        run: npm ci --ignore-scripts
         env:
           HUSKY: 0
       - name: Download every shard report
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/download-artifact@v4
         with:
           pattern: playwright-shard-*
           path: playwright-reports
           merge-multiple: true
       - name: Merge browser reports
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         run: node_modules/.bin/playwright merge-reports --reporter=html playwright-reports/blob-report
       - name: Upload combined report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-combined-report
@@ -400,10 +480,10 @@ jobs:
       # question a reader has is "which file was it stuck in". The blob report survives the
       # cancellation and names the suites the shard never finished.
       - name: Say which suites a cancelled shard never reached
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
         run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
         env:
           SHARD_RESULT: ${{ needs.e2e_shards.result }}
         run: test "$SHARD_RESULT" = success
