@@ -49,9 +49,10 @@ jobs:
             printf 'docs_only=false\nbrowser_mode=full\ntargeted_specs=[]\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff --name-only "$BASE...$HEAD"
-          # NUL-delimited paths safely handle unusual filenames.
-          git diff --name-only -z "$BASE...$HEAD" | node scripts/ci-change-scope.mjs >> "$GITHUB_OUTPUT"
+          # --no-renames exposes both sides of a move (including removed application code).
+          git diff --name-status --no-renames "$BASE...$HEAD"
+          # NUL-delimited status/path pairs preserve deletions without shell parsing.
+          git diff --name-status --no-renames -z "$BASE...$HEAD" | node scripts/ci-change-scope.mjs >> "$GITHUB_OUTPUT"
 
   # Docs-only pull requests: just the tests that read a doc file.
   docs_checks:

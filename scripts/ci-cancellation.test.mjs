@@ -50,7 +50,8 @@ test('browser cleanup runs after failures but not after workflow cancellation', 
 
 test('a docs-only pull request skips the long runs but still runs the tests that read a doc', () => {
   const changes = job('changes');
-  assert.match(changes, /git diff --name-only -z/);
+  assert.match(changes, /git diff --name-status --no-renames -z/);
+  assert.match(changes, /node scripts\/ci-change-scope\.mjs >> "\$GITHUB_OUTPUT"/);
   assert.match(changes, /node scripts\/ci-change-scope\.mjs >> "\$GITHUB_OUTPUT"/);
   assert.match(changes, /"\$EVENT" != pull_request \]; then/);
   for (const name of ['validate', 'unit', 'build', 'timezones']) {

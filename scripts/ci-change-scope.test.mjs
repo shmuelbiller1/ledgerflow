@@ -3,48 +3,52 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { classifyChangedPaths, isDocsOnlyChangedPaths } from './ci-change-scope.mjs';
 
+const M = path => ({ status:'M', path });
+const D = path => ({ status:'D', path });
+const A = path => ({ status:'A', path });
 const cases = [
-  [['README.md'], 'skip', true],
-  [['docs/guide.md', 'docs/flow.svg'], 'skip', true],
-  [['audit/notes.md'], 'skip', true],
-  [['src/tests/posting-precision.test.ts'], 'skip', false],
-  [['src/tests/report-ui.test.tsx','docs/guide.md'], 'skip', false],
-  [['src/lib/compute.test.ts'], 'skip', false],
-  [['src/server/utils/access.test.ts'], 'skip', false],
-  [['e2e/reports.spec.ts'], 'targeted', false],
-  [['e2e/reports.spec.ts','e2e/ledger.spec.ts'], 'targeted', false],
-  [['e2e/reports.spec.ts','src/tests/compute.test.ts'], 'targeted', false],
-  [['src/App.tsx'], 'full', false],
-  [['src/App.tsx','docs/guide.md'], 'full', false],
-  [['src/lib/postingCheck.ts'], 'full', false],
-  [['src/server/routes/invoiceRoutes.ts'], 'full', false],
-  [['docs/test-fixture.ts'], 'full', false],
-  [['e2e/setup.ts'], 'full', false],
-  [['e2e/reports.spec.ts','playwright.config.ts'], 'full', false],
-  [['e2e/reports.spec.ts','src/lib/reportMath.ts'], 'full', false],
-  [['.github/workflows/ci.yml'], 'full', false],
-  [['scripts/ci-change-scope.mjs'], 'full', false],
-  [['package-lock.json'], 'full', false],
-  [['supabase/migrations/123.sql'], 'full', false],
-  [[], 'full', false],
+  [[M('README.md')], 'skip', true, []],
+  [[M('docs/guide.md'), M('docs/flow.svg')], 'skip', true, []],
+  [[M('audit/notes.md')], 'skip', true, []],
+  [[M('src/tests/posting.test.ts')], 'skip', false, []],
+  [[M('src/tests/report.test.tsx'), M('docs/guide.md')], 'skip', false, []],
+  [[M('src/lib/compute.test.ts')], 'skip', false, []],
+  [[M('src/server/utils/access.test.ts')], 'skip', false, []],
+  [[M('e2e/reports.spec.ts')], 'targeted', false, ['e2e/reports.spec.ts']],
+  [[A('e2e/new.spec.ts'), M('e2e/ledger.spec.ts')], 'targeted', false, ['e2e/new.spec.ts','e2e/ledger.spec.ts']],
+  [[D('e2e/old.spec.ts')], 'skip', false, []],
+  [[D('e2e/old.spec.ts'), M('e2e/new.spec.ts')], 'targeted', false, ['e2e/new.spec.ts']],
+  [[D('src/old.ts'), A('docs/old.md')], 'full', false, []],
+  [[D('e2e/old.spec.ts'), A('docs/old.md')], 'skip', false, []],
+  [[M('src/App.tsx')], 'full', false, []],
+  [[M('src/App.tsx'), M('docs/guide.md')], 'full', false, []],
+  [[D('src/lib/postingCheck.ts')], 'full', false, []],
+  [[M('src/server/routes/invoiceRoutes.ts')], 'full', false, []],
+  [[M('docs/test-fixture.ts')], 'full', false, []],
+  [[M('e2e/setup.ts')], 'full', false, []],
+  [[M('e2e/reports.spec.ts'), M('playwright.config.ts')], 'full', false, []],
+  [[M('e2e/reports.spec.ts'), M('src/lib/reportMath.ts')], 'full', false, []],
+  [[M('.github/workflows/ci.yml')], 'full', false, []],
+  [[M('scripts/ci-change-scope.mjs')], 'full', false, []],
+  [[M('package-lock.json')], 'full', false, []],
+  [[A('supabase/migrations/123.sql')], 'full', false, []],
+  [[{status:'R100',path:'docs/hidden.md'}], 'full', false, []],
+  [[], 'full', false, []],
 ];
-for (const [files, mode, docs] of cases) {
-  test('classifies ' + (files.join(', ') || 'no paths') + ' as ' + mode, () => {
+for (const [files, mode, docs, specs] of cases) {
+  test('classifies ' + (files.map(f=>f.path).join(', ') || 'no paths'), () => {
     const result = classifyChangedPaths(files);
-    assert.equal(result.browser_mode, mode);
-    assert.equal(result.docs_only, docs);
+    assert.deepEqual(result, { docs_only: docs, browser_mode: mode, targeted_specs: specs });
     assert.equal(isDocsOnlyChangedPaths(files), docs);
-    assert.deepEqual(result.targeted_specs, mode === 'targeted' ? files.filter(p => p.endsWith('.spec.ts')) : []);
   });
 }
-test('NUL-delimited CLI produces safe GitHub action outputs for each scope', () => {
-  const script = new URL('./ci-change-scope.mjs', import.meta.url);
-  for (const [files, mode, docs] of cases) {
-    const input = files.length ? files.join('\0') + '\0' : '';
-    const result = spawnSync(process.execPath, [script.pathname], { input, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    const target = classifyChangedPaths(files).targeted_specs;
-    assert.equal(result.stdout, 'docs_only=' + docs + '\n' +
-      'browser_mode=' + mode + '\n' + 'targeted_specs=' + JSON.stringify(target) + '\n');
+test('CLI parses NUL-delimited Git change-status records', () => {
+  const cli = new URL('./ci-change-scope.mjs', import.meta.url);
+  for (const [files, mode, docs, specs] of cases) {
+    const input = files.map(f => f.status + '\0' + f.path + '\0').join('');
+    const run = spawnSync(process.execPath, [cli.pathname], { input, encoding:'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'docs_only=' + docs + '\n' +
+      'browser_mode=' + mode + '\n' + 'targeted_specs=' + JSON.stringify(specs) + '\n');
   }
 });
