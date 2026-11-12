@@ -30,7 +30,7 @@ const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)]
 const PICK_CSV_HEADERS = ['Sales order', 'Customer', 'Location', 'Bin', 'SKU', 'Item', 'Quantity to pick'];
 const displayQty = (value: number) => Number(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-export default function PickPackShipPanel() {
+export default function PickPackShipPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const estimates = useLedgerStore(state => state.estimates) as Estimate[];
   const invoices = useLedgerStore(state => state.invoices) as Invoice[];
   const inventory = useLedgerStore(state => state.inventory) as InventoryItem[];
@@ -178,7 +178,7 @@ export default function PickPackShipPanel() {
         body.warehouse-packing-print [data-warehouse-packing-slip],
         body.warehouse-packing-print [data-warehouse-packing-slip] * { visibility: visible !important; }
         body.warehouse-packing-print [data-warehouse-packing-slip] {
-          position: static !important; width: 100% !important;
+          position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important;
           padding: 24px !important; background: white !important; color: black !important;
         }
       }
@@ -296,7 +296,7 @@ export default function PickPackShipPanel() {
       </ReportTableScroll>
     </div>
 
-    {showPackingSlip && order && <article id="warehouse-packing-slip" data-print-root data-warehouse-packing-slip aria-label="Warehouse packing slip" className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
+    {showPackingSlip && order && <article id="warehouse-packing-slip" data-print-root={embedded ? undefined : ''} data-warehouse-packing-slip aria-label="Warehouse packing slip" className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
       <div className="flex flex-wrap justify-between gap-3 items-start">
         <div><h4 className="text-xl font-bold">Packing slip</h4><p>Sales order: {order.number || order.id}</p><p>Customer: {order.customerName || '—'}</p><p>Location: {selectedLocation?.description || selectedLocation?.id || '—'}</p></div>
         <div><p>Printed: {today}</p><p>Goods only — prices omitted.</p></div>

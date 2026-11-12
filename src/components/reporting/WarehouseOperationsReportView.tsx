@@ -15,7 +15,7 @@ const tabs: Array<{ id: WarehouseTab; label: string }> = [
 ];
 
 /** Operational subviews hosted inside Inventory Cycle Count to avoid changing the report registry. */
-export default function WarehouseOperationsReportView() {
+export default function WarehouseOperationsReportView({ embedded = false }: { embedded?: boolean } = {}) {
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const userId = useAuthStore(state => state.user?.uid || 'anonymous');
   const [activeTab, setActiveTab] = useState<WarehouseTab>('bins');
@@ -31,7 +31,7 @@ export default function WarehouseOperationsReportView() {
       aria-labelledby={`warehouse-operations-tab-${tab.id}`} hidden={activeTab !== tab.id} tabIndex={0}>
       {activeTab === tab.id && <>
         {tab.id === 'bins' && <WarehouseBinLocationsPanel key={`${contextKey}:bins`} />}
-        {tab.id === 'pick-pack-ship' && <PickPackShipPanel key={`${contextKey}:pick-pack-ship`} />}
+        {tab.id === 'pick-pack-ship' && <PickPackShipPanel key={`${contextKey}:pick-pack-ship`} embedded={embedded} />}
         {tab.id === 'returns' && <ReturnAuthorizationsPanel key={`${contextKey}:returns`} />}
         {tab.id === 'warranties' && <WarrantyRegisterPanel key={`${contextKey}:warranties`} />}
       </>}
