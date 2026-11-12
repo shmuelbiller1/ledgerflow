@@ -35,6 +35,7 @@ import { reportStateFromParams, reportStateToParams } from '../../lib/reportPerm
 import type { ReportUrlState } from '../../lib/reportPermalink';
 import { copyReportLink } from '../../lib/reportViews';
 import ReportViewsControls from './ReportViewsControls';
+import EmailMeMondays from './EmailMeMondays';
 import { isTransactionInDateRange } from '../../lib/txFilters';
 import { entriesForAccounts } from '../../lib/statementDrill';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -401,6 +402,7 @@ const Reports = React.memo(() => {
             <div className="h-4 w-px bg-[var(--line)]" />
             
             <button className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs" onClick={() => setPackPeriod({ startDate: period.startDate, endDate: period.endDate })}>Report pack</button>
+            <EmailMeMondays reportTab={activeTab} />
             <ReportViewsControls state={reportState} onUse={next => {
               setLinked(next);
               setActiveTab(next.report);

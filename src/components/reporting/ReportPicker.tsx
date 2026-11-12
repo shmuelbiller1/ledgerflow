@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { REPORT_TABS_REGISTRY } from '../../config/registry';
+import { reportQuestion } from '../../lib/reportQuestions';
 import { useUIStore } from '../../stores/useUIStore';
 
 type GroupId = 'Statements' | 'Sales' | 'Purchases' | 'Stock' | 'Tax' | 'Banking' | 'Analysis';
@@ -144,7 +145,7 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
   const deviceError = useUIStore(s => s.reportPreferencesDeviceError);
   const pins = useUIStore(s => s.pinnedPages);
   const label = (id: string) => REPORT_TABS_REGISTRY.find(r => r.id === id)?.label.en || id;
-  const filtered = REPORT_TABS_REGISTRY.filter(r => `${r.label.en} ${r.label.he} ${r.id}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const filtered = REPORT_TABS_REGISTRY.filter(r => `${r.label.en} ${r.label.he} ${r.id} ${reportQuestion(r.id)} ${reportQuestion(r.id, 'he')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const pinned = pins.filter(p => p.tab === 'reports' && p.sub && REPORT_TABS_REGISTRY.some(r => r.id === p.sub)).map(p => p.sub!);
   const select = (id: string) => {
     if (!REPORT_TABS_REGISTRY.some(r => r.id === id)) return;
@@ -152,7 +153,7 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
     onSelect(id);
   };
   return <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] p-2">
-    <summary className="min-h-11 flex items-center gap-1 cursor-pointer text-sm focus-visible:outline-2"><span className="text-[var(--muted)]">Report:</span> <span className="font-semibold">{label(activeTab)}</span><span className="ml-auto text-xs text-[var(--muted)]">Change</span></summary>
+    <summary className="min-h-11 flex items-center gap-1 cursor-pointer text-sm focus-visible:outline-2"><span className="text-[var(--muted)]">Report:</span> <span className="font-semibold">{label(activeTab)}</span>{reportQuestion(activeTab) && <span className="text-xs text-[var(--muted)]">· {reportQuestion(activeTab)}</span>}<span className="ml-auto text-xs text-[var(--muted)]">Change</span></summary>
     <div className="space-y-3 pt-2">
       <div>
         <label htmlFor="report-picker-search" className="block">Search reports</label>
@@ -163,7 +164,7 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
         <select id="report-picker-select" value={filtered.some(r => r.id === activeTab) ? activeTab : ''} onChange={e => select(e.target.value)} className="block min-h-11 w-full max-w-full rounded border border-[var(--line)] bg-[var(--panel)] text-[var(--text)] px-2">
           <option value="" disabled>Select a report</option>
           {GROUP_ORDER.map(group => <optgroup key={group} label={group}>
-            {filtered.filter(r => (REPORT_GROUP[r.id] || 'Analysis') === group).map(r => <option key={r.id} value={r.id}>{r.label.en}</option>)}
+            {filtered.filter(r => (REPORT_GROUP[r.id] || 'Analysis') === group).map(r => <option key={r.id} value={r.id} title={reportQuestion(r.id) || undefined}>{r.label.en}</option>)}
           </optgroup>)}
         </select>
       </div>

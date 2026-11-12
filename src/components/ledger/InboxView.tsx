@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import { reviewKeys } from '../../lib/reviewKeys';
+import React, { useState, useMemo, useRef } from 'react';
 import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare, Layers, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -105,6 +106,19 @@ export default function InboxView() {
   // EU-C1: grouped by why, not by an invented percentage
   const highConfidence = pendingTransactions.filter(t => t.reason.kind === 'rule' || t.reason.kind === 'history');
   const mediumConfidence = pendingTransactions.filter(t => t.reason.kind === 'guess');
+  // EU-C2: keyboard review — J/K (or ↓/↑) move between rows, A (or Enter) accepts the focused one
+  // one save per entry at a time: a second key press or click while it saves does nothing
+  const accepting = useRef(new Set<string>());
+  const acceptGuess = (t: (typeof mediumConfidence)[number]) => {
+    if (accepting.current.has(t.id)) return;
+    accepting.current.add(t.id);
+    inBackground((async () => {
+      try {
+        const saved = await fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted');
+        if (saved && alwaysFor.has(t.id)) await makeRuleFor(t, t.reason.accountId);
+      } finally { accepting.current.delete(t.id); }
+    })());
+  };
   const lowConfidence = pendingTransactions.filter(t => t.reason.kind === 'none');
 
   /** EU-C1: file each entry to its own suggested account (a rule's, history's or the guess on the line). */
@@ -316,7 +330,7 @@ export default function InboxView() {
                 </div>
                 <div>
                   <h2 className="font-bold text-[var(--text)] text-lg">Check these guesses ({mediumConfidence.length})</h2>
-                  <p className="text-sm text-[var(--muted)]">An account is filled in, but no rule or history backs it. Accept each, or all.</p>
+                  <p className="text-sm text-[var(--muted)]">An account is filled in, but no rule or history backs it. Accept each, or all. Keyboard, on a focused guess: J/K or ↓/↑ to move, A or Enter to accept.</p>
                 </div>
               </div>
               <button 
@@ -328,9 +342,11 @@ export default function InboxView() {
               </button>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-2" role="listbox" aria-label="Guesses to review">
               {mediumConfidence.map(t => (
-                <div key={t.id} className="flex items-center justify-between p-3 hover:bg-[var(--ink)] rounded-xl transition-colors border border-transparent hover:border-[var(--line)]">
+                <div key={t.id} data-review-row tabIndex={0} role="option" aria-selected={false} aria-label={`${t.description}, ${t.reason.text}. A to accept, J and K to move`}
+                  onKeyDown={e => reviewKeys(e, () => acceptGuess(t))}
+                  className="flex items-center justify-between p-3 hover:bg-[var(--ink)] focus:outline-2 focus:outline-[#0047AB] rounded-xl transition-colors border border-transparent hover:border-[var(--line)]">
                   <div className="flex items-center gap-4">
                     <div className="w-2 h-2 rounded-full bg-[#0047AB]"></div>
                     <div>
@@ -349,10 +365,7 @@ export default function InboxView() {
                         Always do this for {merchantLabel(merchantKey(t.payee, t.description))}
                       </label>
                     )}
-                    <button type="button" onClick={() => inBackground((async () => {
-                      const saved = await fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted');
-                      if (saved && alwaysFor.has(t.id)) await makeRuleFor(t, t.reason.accountId);
-                    })())}
+                    <button type="button" onClick={() => acceptGuess(t)}
                       aria-label={`Accept ${t.description}: ${t.reason.accountName}`}
                       className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-xs font-semibold hover:border-[#0047AB]">Accept</button>
                     <p className="font-mono font-bold text-[var(--text)] tabular-nums">{formatCurrency(t.totalAmountCents)}</p>
