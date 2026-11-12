@@ -55,7 +55,7 @@ export const UPLOAD_DIR = path.join(os.tmpdir(), "ledgerflow-uploads");
 export const upload = multer({
   dest: UPLOAD_DIR,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB limit
+    fileSize: 10 * 1024 * 1024, // 10 MB limit // NOSONAR: S5693 — multer enforces a 10 MB file size (content length) limit
     files: 1
   }
 });

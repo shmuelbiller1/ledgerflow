@@ -46,9 +46,9 @@ declare
   now_text text := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
   cause text := coalesce(new.data->>'transactionId', new.id);
 begin
-  if new.workspace_id is null or coalesce(k, '') = '' or d = '' or coalesce(new.data->>'kind', '') = 'cost-repost' then return null; end if;
+  if new.workspace_id is null or coalesce(k, '') = '' or d = '' or coalesce(new.data->>'kind', '') = 'cost-repost' then return null; end if; -- NOSONAR: plsql:NullComparison — already uses IS NULL; no direct NULL comparisons
   if not exists (
-    select 1 from public."stockMoves" s
+    select 1 from public."stockMoves" s -- NOSONAR: plsql:QuotedIdentifiersCheck — quoted identifier matches mixed-case schema table name
      where s.workspace_id = new.workspace_id and s.data->>'itemId' = k and s.id <> new.id and left(s.data->>'date', 10) > d
   ) then return null; end if;
   qid := new.workspace_id || '_stock-cost_' || k;

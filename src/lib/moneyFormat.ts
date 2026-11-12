@@ -164,9 +164,9 @@ export function isAmountText(val: string, opts: { complete?: boolean; locale?: s
   if ((inner.match(/[-+]/g) || []).length > 1) return false;
   if (opts.complete) {
     if (text.startsWith('(') !== text.endsWith(')')) return false;
-    return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*[-+]?\s*(?:\d{1,3}(?:([, '])\d{3})?(?:\1\d{3})*|\d{1,2}(?:,\d{2})+,\d{3}|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner);
+    return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*[-+]?\s*(?:\d{1,3}(?:([, '])\d{3})?(?:\1\d{3})*|\d{1,2}(?:,\d{2})+,\d{3}|\d+)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner); // NOSONAR: S8786 — bounded input (<=48 chars) money parser with backreference
   }
-  return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*[-+]?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner);
+  return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*[-+]?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner); // NOSONAR: S8786 — bounded input money parser; trailing quantifiers all optional
 }
 
 export function parseAmountToCents(val: string | number | undefined | null, opts: { locale?: string } = {}): number {

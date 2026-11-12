@@ -291,7 +291,7 @@ export function StatementColumns(props: StatementColumnsProps) {
               comparisons are shown as —.
             </p>
           )}
-          <div role="region" aria-label={`${title} period table`} tabIndex={0} className="max-w-full overflow-x-auto rounded-xl border border-[var(--line)]">
+          <div role="region" aria-label={`${title} period table`} tabIndex={0} className="max-w-full overflow-x-auto rounded-xl border border-[var(--line)]">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
             <table className="w-full border-collapse text-sm tabular-nums">
               <caption className="sr-only">
                 {title} by {mode} with {showPercent ? "percentages and " : ""}

@@ -127,29 +127,29 @@ export function sha256Sync(ascii: string): string {
         const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
         const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
 
-        w[j] = ((w[j - 16] || 0) + s0 + (w[j - 7] || 0) + s1) | 0;
+        w[j] = ((w[j - 16] || 0) + s0 + (w[j - 7] || 0) + s1) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
       }
 
       const s0_h = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
       const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
-      const t2 = (s0_h + maj) | 0;
+      const t2 = (s0_h + maj) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
 
       const s1_h = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
       const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
-      const t1 = (hash[7] + s1_h + ch + k[j] + (w[j] || 0)) | 0;
+      const t1 = (hash[7] + s1_h + ch + k[j] + (w[j] || 0)) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
 
       hash[7] = hash[6];
       hash[6] = hash[5];
       hash[5] = hash[4];
-      hash[4] = (hash[3] + t1) | 0;
+      hash[4] = (hash[3] + t1) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
       hash[3] = hash[2];
       hash[2] = hash[1];
       hash[1] = hash[0];
-      hash[0] = (t1 + t2) | 0;
+      hash[0] = (t1 + t2) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
     }
 
     for (let j = 0; j < 8; j++) {
-      hash[j] = (hash[j] + oldHash[j]) | 0;
+      hash[j] = (hash[j] + oldHash[j]) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
     }
   }
 
@@ -257,7 +257,7 @@ export class MinHash {
   private simpleHash(str: string, seed: number): number {
     let hash = seed;
     for (let i = 0; i < str.length; i++) {
-        hash = (hash * 31 + str.charCodeAt(i)) | 0;
+        hash = (hash * 31 + str.charCodeAt(i)) | 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
     }
     return hash;
   }

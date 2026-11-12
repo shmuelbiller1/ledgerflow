@@ -127,12 +127,10 @@ export function TransactionGridKeyboardRegion({
   return (
     <div
       ref={regionRef}
-      tabIndex={0}
       role="region"
       aria-label={label}
       data-testid="transaction-grid-region"
-      className={cn('h-full flex flex-col outline-none', className)}
-    >
+      className={cn('h-full flex flex-col outline-none', className)} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
       {children}
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     </div>
