@@ -44,3 +44,21 @@ test('EU-E9: labels kept in the older fields (projectId, classId, locationId) ma
   const cols = labelExportColumns([{ id: 'project', name: 'Project' }], []);
   assert.deepEqual(cols.cells(legacy), ['p1']);
 });
+
+
+test('EU-E9: exported labels reflect line overrides rather than the entry default', () => {
+  const cols = labelExportColumns(labels, nodes);
+  assert.deepEqual(cols.cells({
+    dimensions: { property: 'maui' },
+    lines: [
+      { dimensions: { property: 'aspen' } },
+      { dimensions: { property: 'maui' } },
+      { dimensions: { property: 'aspen' } },
+    ],
+  }), ['Aspen cabin | Maui house', '']);
+  assert.deepEqual(cols.cells({
+    dimensions: { property: 'maui' },
+    lines: [{ dimensions: { property: 'aspen' } }],
+  }), ['Aspen cabin', ''], 'line label wins when all lines override the entry');
+  assert.deepEqual(cols.cells({ dimensions: { property: 'maui' }, lines: [] }), ['Maui house', '']);
+});
