@@ -250,6 +250,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "What the tax rule packs cover on a chosen date: every place — a country, or a state or province inside one — with how many rate, taxability, nexus, registration and filing rules it has, the packs behind them and the distinct authority pages they were read from. A place that is not listed is one this lane has written no rules for, never a statement that no tax applies there, and the gaps list names the covered places missing a kind so the next table to write is visible. Read-only: every row is 'calculation' content, and nothing here files, accrues or posts.",
     "use-tax-review":
       "Review recorded bills of the period that carry no sales tax for the use tax of the state where the purchases are used: each base splits by the item's own tax category in that state, and the estimate uses the state-level rate in force on the bill's date. The estimate never includes county, city or district additions, lines with no item or an open category are listed for a person to review instead of estimated, and bills in another currency are counted, never converted. Read-only: nothing accrues or posts, and use tax itself is reported and paid on the state's own return.",
+    "label-value":
+      "Everything about one label value on one page: its profit this year (the same figure as Profit by Label), its open invoices and bills, and its last entries. Choose the label and the value, or open it from a link. Read-only.",
     "compare":
       "Put any label against any other, by month or by payee, from the posted entries of the period you choose. Save a layout under a name to open it again. Read-only: it adds up what is already posted.",
     "gross-profit-by-customer":

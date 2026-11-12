@@ -12,3 +12,11 @@ test('Compare opens under Reports and saves a layout at 390 px', async ({ page }
   await main.getByRole('button', { name: 'Save layout' }).click();
   await expect(main.getByLabel('Saved layout')).toContainText('By payee');
 });
+
+// EU-E6: Reports → One label value (report 'label-value', view 'LabelValuePageView') opens on a phone.
+test('One label value opens under Reports at 390 px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  await installSmallSample(page);
+  await page.goto('/?report=label-value#reports');
+  await expect(page.locator('#main-content')).toContainText(/Profit this year|No labels yet|No values for this label yet/, { timeout: 20_000 });
+});
