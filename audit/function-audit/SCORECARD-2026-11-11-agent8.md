@@ -12,7 +12,7 @@
 > PR #635 and re-verified by this agent at `39b0012881fdc78edab2479fb62b0b632234aa82`**, 29 commits ahead of the pin
 > above. `af004-614-residual.ts` now passes **all eleven cases** and is the regression guard for both issues.
 > [#629](https://github.com/shmuelbiller1/ledgerflow/issues/629) (`FxService` timeout) was likewise fixed by PR #634
-> and verified. Still open: AF-004-P6 and A8-1111-F5; newly filed: [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645) (AF-007, report cache never evicts).
+> and verified. Remaining observations: AF-004-P6 and A8-1111-F5. The AF-007 cache issue [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645) was **new at this historic pin, then FIXED by merged PR #660 on 11 Nov**. Do not treat its old probe output as evidence against current main.
 >
 > **Current state:** [`../agent8-2026-11-11/ADDENDUM-39b0012-reverification.md`](../agent8-2026-11-11/ADDENDUM-39b0012-reverification.md)
 > · **Current evidence:** [`../agent8-2026-11-11/probe-output-39b0012.txt`](../agent8-2026-11-11/probe-output-39b0012.txt) (20 OK / 5 DEFECT).

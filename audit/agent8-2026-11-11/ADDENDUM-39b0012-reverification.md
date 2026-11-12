@@ -1,5 +1,7 @@
 # Agent #8 addendum — re-verification at `39b0012` (11 Nov 2026, second slice)
 
+> **Post-port status correction (12 Nov):** The AF-007 unbounded `REPORT_CACHE` finding / issue #645 was fixed by merged PR #660 after this historic pin. The historical raw probe output below is retained as dated evidence; use the rewritten `function-audit/probes/af007-report-cache-growth.ts` to test the actual current bounded cache, not the obsolete unbounded-map copy.
+
 **Supersedes the status claims in** [`../FINAL_ACCURATE_LIST_2026-11-11-agent8.md`](../FINAL_ACCURATE_LIST_2026-11-11-agent8.md)
 **and** [`../function-audit/SCORECARD-2026-11-11-agent8.md`](../function-audit/SCORECARD-2026-11-11-agent8.md),
 which were written at pin `ec3ff49`. Those two documents are left as the record of what was true at that SHA;

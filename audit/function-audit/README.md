@@ -34,14 +34,13 @@ by hand; none are produced by the function under review.
 
 ## Probes
 
-Review-only evidence scripts under [`probes/`](probes/). They print OBSERVED vs EXPECTED and exit 0 on purpose:
-they document behaviour, they do not gate CI. Run them with `npx tsx` (the `.mjs` ones import TypeScript).
+Review-only evidence scripts under [`probes/`](probes/). Historical discovery probes print OBSERVED vs EXPECTED for their pinned code; most exit 0 for documentation only. **The current AF-007 regression probe exits non-zero when the real cache fails its bounds**, and does not fall back to a copy of retired code if dependencies are missing. Run them with `npx tsx` (the `.mjs` ones import TypeScript).
 
 | Probe | Covers | Status at `ec3ff49` → at `39b0012` |
 |---|---|---|
 | `af004-614-residual.ts` | whether PR #614's fixes to `usSalesTaxReturn` reached `usQuarterJourney`, and cross-country inheritance in `resolveSellerProfile` | **7 DEFECT / 4 OK** → **11 OK (all pass)**. Filed #627/#628, fixed by PR #635; now the regression guard for both |
 | `af004-tax-authority-probe.ts` | AF-004 P1–P8 | 5 DEFECT / 3 OK → **1 DEFECT (P6 only) / 8 OK**. **P3 and P8 were corrected on 11 Nov**: they asserted the pre-#614 contract and printed DEFECT for closed issues #518 and #517. P1/P2/P7 were #628, fixed by PR #635; P4 was fixed too, with a control added during review |
-| `af007-report-cache-growth.ts` | whether `REPORT_CACHE` (`reportRoutes.ts:37`) is bounded, and whether its key can be inflated | **4 DEFECT / 1 OK** → unchanged: still live, filed as [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645). C2b (an expired entry is never *served*) is the OK case — this is unbounded growth, not stale data |
+| `af007-report-cache-growth.ts` | Current exported `REPORT_CACHE_LIMIT`, `rememberReport`, `reportCacheSize` and cache-key behaviour; historical issue [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645) | **Historical at `39b0012`: 4 DEFECT / 1 OK. Fixed by merged PR #660.** Current probe checks 2,000 real cache writes respect the 500-entry bound, an expired full cache is swept, and reports ignored-query key churn as informational. A missing dependency fails visibly; do not quote old probe output as a current result. |
 | `af004-519-customer-moves.ts` | #519 destination snapshot | holds in the return |
 | `af012-rule-chain-order.mjs` | #161 chained override order | **order-independent — fixed by #611.** It prints the applied rules in *list* order, so compare them as sets |
 | `af012-shipped-pack-chains.mjs` | whether any shipped rule pack contains a chain | 18 packs / 584 rules / 67 overrides / 0 nested chains |

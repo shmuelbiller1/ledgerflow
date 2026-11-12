@@ -16,9 +16,8 @@
 > - Also fixed the same day: [#629](https://github.com/shmuelbiller1/ledgerflow/issues/629) (`FxService` raw axios, no timeout) → **PR #634**, verified: no `axios` remains in `src/server/`, `safeFetch` with a host allowlist and a 10 s deadline, and `ratesOf` now refuses an unusable rates table.
 > - **All eleven cases of `af004-614-residual.ts` now pass**; it is the regression guard for #627/#628.
 >
-> **Still open:** AF-004-P6 (`composeFacts` verified-flag false negative, conservative) and A8-1111-F5 (stale
-> `itemReports.ts` docstring). **New this slice:** [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645)
-> (AF-007, `REPORT_CACHE` never evicts — P2).
+> **Remaining audit observations:** AF-004-P6 (`composeFacts` verified-flag false negative, conservative) and A8-1111-F5 (stale
+> `itemReports.ts` docstring). **AF-007 / [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645) was a genuine P2 finding at the pinned revision, but was subsequently FIXED by merged PR #660 on 11 Nov 2026.** The current cache has a 500-entry bound, expiry sweep and exported test seams. Do not quote AF-007 as currently open.
 >
 > Read [`agent8-2026-11-11/ADDENDUM-39b0012-reverification.md`](agent8-2026-11-11/ADDENDUM-39b0012-reverification.md)
 > for the current state. Everything below remains accurate **as a record of pin `ec3ff49`** — do not quote its
