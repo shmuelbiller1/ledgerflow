@@ -247,7 +247,7 @@ export const PurchaseOrdersView: React.FC = () => {
 
       {activeTab === 'pos' && (
         // A-276: a scrollable region a keyboard can reach (axe scrollable-region-focusable)
-        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Purchase orders table" tabIndex={0}>
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Purchase orders table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Purchase orders</caption>
             <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
@@ -370,7 +370,7 @@ export const PurchaseOrdersView: React.FC = () => {
               </div>
             ))}
           </div>
-          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="3-way match table" tabIndex={0}>
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="3-way match table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
             <table className="w-full text-left text-xs">
               <caption className="sr-only">3-way match</caption>
               <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
@@ -402,7 +402,7 @@ export const PurchaseOrdersView: React.FC = () => {
       )}
 
       {activeTab === 'receipts' && (
-        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Goods received table" tabIndex={0}>
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Goods received table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Goods received</caption>
             <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">

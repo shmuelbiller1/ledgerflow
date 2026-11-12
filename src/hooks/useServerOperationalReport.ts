@@ -14,7 +14,7 @@ export function collectionStamp(...collections: ReadonlyArray<ReadonlyArray<unkn
       if (!row || typeof row !== 'object') continue;
       const sig = `${row.id ?? ''}:${row.updatedAt ?? ''}:${row.status ?? ''}:${row.amountCents ?? ''}:${row.totalAmountCents ?? ''}:${row.amountPaidCents ?? ''}`;
       for (let j = 0; j < sig.length; j++) {
-        hash = ((hash * 31) + sig.charCodeAt(j)) | 0;
+        hash = Math.trunc((hash * 31) + sig.charCodeAt(j));
       }
     }
     return `${list.length}:${hash >>> 0}`;
