@@ -3,7 +3,7 @@ name: CI
 # When CI runs (owner, 13 Oct: no double runs). The repository is public, so minutes are free, but
 # double runs slow everyone down:
 #  - a pull request runs it on the PR merged with the latest main (what will actually land);
-#  - a push to main runs it once more on the real merged result;
+#  - a push to main checks the newest merged result; obsolete main runs cancel;
 #  - a push to a branch with no PR does NOT run it (helper AIs open a draft PR to get CI);
 #  - by hand any time (Actions → CI → "Run workflow").
 # Before this, every push to a helper branch with an open PR ran CI twice (push + pull_request).
@@ -13,14 +13,79 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push to the same PR stops the older run; every run on main finishes.
+# Newer commits on the same PR or main cancel obsolete checks; the newest head is tested.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'latest' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Only static docs (.md anywhere or static files under docs/) use fast docs checks.
+  # Source, workflow, dependency and migration changes must run the full test matrix.
+  # A pull request that changes only documentation cannot break the app, so it
+  # does not wait for (or hold up) the long unit, time-zone, build and browser runs. The few tests that read a
+  # doc (TRACKER, CAPABILITIES, RELEASE_GATE, help pages...) still run, in "Docs checks". Pushes to main and
+  # runs by hand always run everything. The two gate checks below still report, so a docs PR can merge.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.diff.outputs.docs_only }}
+      browser_mode: ${{ steps.diff.outputs.browser_mode }}
+      targeted_specs: ${{ steps.diff.outputs.targeted_specs }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            printf 'docs_only=false\nbrowser_mode=full\ntargeted_specs=[]\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # --no-renames exposes both sides of a move (including removed application code).
+          git diff --name-status --no-renames "$BASE...$HEAD"
+          # NUL-delimited status/path pairs preserve deletions without shell parsing.
+          git diff --name-status --no-renames -z "$BASE...$HEAD" | node scripts/ci-change-scope.mjs >> "$GITHUB_OUTPUT"
+
+  # Docs-only pull requests: just the tests that read a doc file.
+  docs_checks:
+    name: Docs checks
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          NODE_ENV: development
+          npm_config_production: false
+          HUSKY: 0
+      - name: Tests that read a doc
+        env:
+          NODE_ENV: test
+          SYSTEM_SALT: test-ledgerflow-salt-32b-deterministic
+        run: |
+          tests="$(grep -lE "docs/|[A-Za-z_]+\.md['\"\`]" src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts || true)"
+          echo "$tests"
+          test -n "$tests"
+          node_modules/.bin/tsx --test --test-force-exit $tests
+
   validate:
     name: Lint, Typecheck, and Database rules
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -30,7 +95,7 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
           POSTGRES_DB: lf_test
         ports:
           - 5432:5432
@@ -77,7 +142,7 @@ jobs:
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
       - name: Test source and CI utilities
-        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs
+        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -116,6 +181,8 @@ jobs:
   # waited for). Each part writes its coverage; the next job merges them and applies the same thresholds.
   unit:
     name: Unit tests ${{ matrix.shard }}/4
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -127,7 +194,7 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
           POSTGRES_DB: lf_test
         ports:
           - 5432:5432
@@ -179,19 +246,24 @@ jobs:
     name: Accounting & Security Test Suites (coverage gate)
     # Run after failures/skips, but do not queue an obsolete gate after workflow cancellation.
     if: ${{ !cancelled() }}
-    needs: unit
+    needs: [changes, unit, docs_checks]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every part to pass
+      - name: Require every part to pass (docs-only PRs, the docs checks)
         env:
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           UNIT_RESULT: ${{ needs.unit.result }}
-        run: test "$UNIT_RESULT" = success
+          DOCS_RESULT: ${{ needs.docs_checks.result }}
+        run: |
+          if [ "$DOCS_ONLY" = true ]; then test "$DOCS_RESULT" = success; else test "$UNIT_RESULT" = success; fi
 
       - name: Checkout repository
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/checkout@v4
 
       - name: Collect the coverage of the four parts
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-shard-*
@@ -199,6 +271,7 @@ jobs:
           merge-multiple: true
 
       - name: Coverage gate (all parts merged)
+        if: ${{ needs.changes.outputs.docs_only != 'true' }}
         run: |
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
@@ -206,6 +279,8 @@ jobs:
   # Build the exact deployable artifacts rather than relying on a separate hosting status.
   build:
     name: Production build
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -235,6 +310,8 @@ jobs:
   # job above (run one after the other they took the job past its time limit).
   timezones:
     name: Unit tests in ${{ matrix.tz }} (${{ matrix.shard }}/3)
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -247,7 +324,7 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
           POSTGRES_DB: lf_test
         ports:
           - 5432:5432
@@ -288,6 +365,8 @@ jobs:
 
   e2e_shards:
     name: Browser shard ${{ matrix.shard }}/5
+    needs: changes
+    if: ${{ needs.changes.outputs.browser_mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -299,7 +378,7 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
           POSTGRES_DB: lf_test
         ports:
           - 5432:5432
@@ -364,14 +443,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Preserve the original required check: skipped/cancelled/failed shards cannot pass it.
-  e2e:
-    name: Playwright E2E Smoke Suite
-    # A superseded run must stop rather than queue this report-and-gate job.
-    if: ${{ !cancelled() }}
-    needs: e2e_shards
+  # Test-only PRs run just changed Playwright specs in one runner.
+  # Shared application code, fixtures, configuration and migrations require all 5 shards.
+  e2e_targeted:
+    name: Browser tests (changed specs)
+    needs: changes
+    if: ${{ needs.changes.outputs.browser_mode == 'targeted' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — isolated ephemeral CI PostgreSQL fixture, not a production credential
+          POSTGRES_DB: lf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+      CHANGED_SPECS: ${{ needs.changes.outputs.targeted_specs }}
+      PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/playwright-results-targeted.json
+      WATCH_REPORT: test-results/playwright-live-targeted.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -380,17 +478,73 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
         env:
+          NODE_ENV: development
+          npm_config_production: false
+          HUSKY: 0
+      - run: node_modules/.bin/playwright install --with-deps chromium
+      - run: npm run db:test-setup
+      - name: Test changed browser specs only (no shell evaluation of filenames)
+        run: |
+          node --input-type=module <<'NODE'
+          import { spawnSync } from 'node:child_process';
+          const files = JSON.parse(process.env.CHANGED_SPECS || '[]');
+          if (!Array.isArray(files) || files.length === 0 ||
+              files.some(f => typeof f !== 'string' || !/^e2e\/(?:[^/]+\/)*[^/]+\.spec\.tsx?$/.test(f))) {
+            throw new Error('Expected a nonempty list of browser spec paths');
+          }
+          console.log('Testing changed browser specs:', files.join(', '));
+          const result = spawnSync('npm', ['run', 'test:e2e', '--', ...files,
+            '--reporter=list,json,blob,./scripts/playwright-live-reporter.mjs'],
+            { stdio: 'inherit', env: process.env });
+          if (result.error) throw result.error;
+          process.exitCode = result.status ?? 1;
+          NODE
+      - name: Upload changed-spec browser reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-shard-targeted
+          path: |
+            blob-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Preserve the original required check: skipped/cancelled/failed selected shards cannot pass it.
+  e2e:
+    name: Playwright E2E Smoke Suite
+    # A superseded run must stop rather than queue this report-and-gate job.
+    if: ${{ !cancelled() }}
+    needs: [changes, e2e_shards, e2e_targeted]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Browser execution skipped for unit-test-only or docs-only change
+        if: ${{ needs.changes.outputs.browser_mode == 'skip' }}
+        run: echo "No browser tests required for this safe change scope. Full E2E runs on main."
+      - if: ${{ needs.changes.outputs.browser_mode != 'skip' }}
+        uses: actions/checkout@v4
+      - if: ${{ needs.changes.outputs.browser_mode != 'skip' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - if: ${{ needs.changes.outputs.browser_mode != 'skip' }}
+        run: npm ci --ignore-scripts
+        env:
           HUSKY: 0
       - name: Download every shard report
+        if: ${{ needs.changes.outputs.browser_mode != 'skip' }}
         uses: actions/download-artifact@v4
         with:
           pattern: playwright-shard-*
           path: playwright-reports
           merge-multiple: true
       - name: Merge browser reports
+        if: ${{ needs.changes.outputs.browser_mode != 'skip' }}
         run: node_modules/.bin/playwright merge-reports --reporter=html playwright-reports/blob-report
       - name: Upload combined report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.browser_mode != 'skip' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-combined-report
@@ -400,10 +554,17 @@ jobs:
       # question a reader has is "which file was it stuck in". The blob report survives the
       # cancellation and names the suites the shard never finished.
       - name: Say which suites a cancelled shard never reached
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.browser_mode != 'skip' }}
         run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
       - name: Require every shard to succeed
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.browser_mode != 'skip' }}
         env:
           SHARD_RESULT: ${{ needs.e2e_shards.result }}
-        run: test "$SHARD_RESULT" = success
+          TARGET_RESULT: ${{ needs.e2e_targeted.result }}
+          BROWSER_MODE: ${{ needs.changes.outputs.browser_mode }}
+        run: |
+          case "$BROWSER_MODE" in
+            full) test "$SHARD_RESULT" = success ;;
+            targeted) test "$TARGET_RESULT" = success ;;
+            *) echo "::error::Invalid browser mode: $BROWSER_MODE"; exit 1 ;;
+          esac

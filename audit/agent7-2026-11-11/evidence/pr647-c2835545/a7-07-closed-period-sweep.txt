@@ -1,0 +1,72 @@
+# pin: PR #647 head c2835545d9aeb634a1d424e46d9998bfea5e1c15 (its own migrations and server code)
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-07-closed-period-sweep.test.ts
+# run: 2026-11-11T19:24:45Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+control: closing September while a draft is dated in it -> 409 "1 draft is dated in the period being closed. Post, re-date or delete it first."
+closed: lockDate = 2026-09-30
+▶ A7-07 closed-period sweep across the server writers
+  ✔ setup: a September journal of 1,000.00, an October invoice, then September is closed (hard) (279.347652ms)
+refused, period lock  400  POST /transactions (one journal)
+refused, period lock  400  POST /transactions/bulk
+refused, period lock  409  POST /transactions/batch-create
+refused, period lock  409  POST /documents/invoices/:id/post (invoice dated in the month)
+refused, period lock  409  POST /documents/bills/:id/post (bill dated in the month)
+refused, period lock  400  POST /payments (payment dated in the month, for the October invoice)
+refused, period lock  400  PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry
+refused, period lock  400  PUT /transactions/:id (rewrite the September entry)
+refused, OTHER REASON 403  DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached)
+refused, period lock  400  DELETE /transactions/:id on a September DRAFT
+refused, period lock  400  POST /transactions/:id/reverse with the reversal dated in the month
+refused, period lock  400  POST /payments/credits/refund dated in the month
+{"operationId":"ws_a7_closed_80418881_rec:2026-09-12","error":"The period of 2026-09-12 is closed","level":"warn","time":"2026-11-11T19:24:47.386Z","msg":"recurring occurrence failed"}
+refused, period lock  409  daily recurring job, entry due 2026-09-12
+ACCEPTED              200  POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+  ✔ every writer, dated in the closed month, as a bookkeeper (191.364986ms)
+September in the ledger now: {"acc_demo_bank_ws_a7_closed_80418881":300000,"acc_demo_rev_ws_a7_closed_80418881":-1500000,"acc_demo_exp_ws_a7_closed_80418881":1200000,"bank":100000,"sales":-100000}
+writers that got through the closed month: POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+DEFECT A7-07: POST /workspaces/:id/seed posts entries into a hard-closed month
+refused by the period lock: 12 of 14 writers; refused for another reason: 1 (DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached))
+  ✔ the closed month afterwards (5.21346ms)
+demo entries written: 2 (dates 2026-09-01, 2026-09-05); lines that point to no account of this workspace: 0 of 4
+demo invoice INV-DEMO-001: status sent, amount 500000; ledger entries for it: 0
+audit rows mentioning the seeding: 1; workspace.isDemoLoaded: undefined
+balance sheet route (2026-12-31): isBalanced=true, lines on unknown accounts=0, "Operating Bank Account" (demo) = 300000
+Data Health (medium) [control-balance]: Accounts receivable is $200.00, the open invoices add up to $5,200.00
+Data Health (medium) [control-balance]: Accounts payable is $0.00, the open bills add up to $1,200.00
+POST /transactions/reset (owner, confirmReset) -> 409 {"error":"Only demo data can be cleared at once. To remove real books, delete the workspace (Settings → Security): it is
+a second POST /workspaces/:id/seed -> 200; invoices numbered INV-DEMO-001 now: 2
+{"demoEntries":2,"linesOnNoAccount":0,"invoiceStatus":"sent","invoiceEntries":0,"auditRows":1,"markedAsDemo":false,"reportOrphanedLines":0,"demoBankOnBalanceSheet":300000,"missingAccountFindings":0,"resetStatus":409,"secondSeedStatus":200,"demoInvoicesAfterSecond":2}
+  ✖ what the demo-data route left in real books (108.128718ms)
+✖ A7-07 closed-period sweep across the server writers (1740.019257ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2056.83904
+✖ failing tests:
+test at audit/agent7-2026-11-11/probes/a7-07-closed-period-sweep.test.ts:115:3
+✖ what the demo-data route left in real books (108.128718ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   auditRows: 1,
+  -   auditRows: 0,
+      demoBankOnBalanceSheet: 300000,
+      demoEntries: 2,
+      demoInvoicesAfterSecond: 2,
+      invoiceEntries: 0,
+      invoiceStatus: 'sent',
+  +   linesOnNoAccount: 0,
+  -   linesOnNoAccount: 4,
+      markedAsDemo: false,
+  +   missingAccountFindings: 0,
+  -   missingAccountFindings: 4,
+      reportOrphanedLines: 0,
+      resetStatus: 409,
+      secondSeedStatus: 200
+    }
+  
+  }

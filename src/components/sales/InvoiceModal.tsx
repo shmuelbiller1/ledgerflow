@@ -32,6 +32,7 @@ import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type InvoiceEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
 import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
+import { printElementById } from '../../lib/printRoot';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -308,13 +309,13 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="relative w-full max-w-4xl bg-[var(--surface)] rounded-2xl sm:rounded-[32px] shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[96dvh] sm:max-h-[90dvh]"
       >
-        <div className="p-4 md:p-8 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/50">
+        <div data-print-hide className="p-4 md:p-8 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/50">
           <div>
             <h2 id={titleId} className="text-2xl font-black text-[var(--text)] tracking-tight">{receipt ? 'New sale receipt' : editingExisting ? `Edit invoice ${invoice.number || ''}`.trim() : 'New invoice'}</h2>
             <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Sales & Receivables</p>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => window.print()} className="min-h-11 min-w-11 flex items-center justify-center p-2 hover:bg-[var(--elevated)] rounded-full transition-colors text-zinc-400" title="Print invoice" aria-label="Print invoice">
+            <button type="button" onClick={() => printElementById('invoice-form-sheet')} className="min-h-11 min-w-11 flex items-center justify-center p-2 hover:bg-[var(--elevated)] rounded-full transition-colors text-zinc-400" title="Print invoice" aria-label="Print invoice">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
             </button>
             <button title="Close" aria-label="Close" onClick={requestClose} className="min-h-11 min-w-11 flex items-center justify-center p-2 hover:bg-[var(--elevated)] rounded-full transition-colors text-zinc-400"><X size={24} /></button>
@@ -322,7 +323,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         </div>
 
         {draft.banner}
-        <form ref={formRef} onSubmit={handleSubmit} onInvalid={e => {
+        <form id="invoice-form-sheet" data-print-root ref={formRef} onSubmit={handleSubmit} onInvalid={e => {
           const field = e.target as unknown as HTMLInputElement;
           if (field.id) setFieldErrors(prev => ({ ...prev, [field.id]: field.validationMessage }));
         }} onChange={e => {
@@ -653,7 +654,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           </DocumentMoreOptions>
         </form>
         <div className="px-3 md:px-6"><CreditLimitRefusalPanel busy={isSubmitting} onIssueAnyway={reason => handleAction(null, lastStatus.current, { reason })} /></div>
-        <div className="shrink-0 p-3 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/50 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div data-print-hide className="shrink-0 p-3 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/50 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex flex-col w-full sm:w-auto">
             <dl className="text-xs text-[var(--muted)] grid grid-cols-[auto_auto] gap-x-4 mb-1 tabular-nums" aria-label="Invoice totals">
               <dt>Subtotal</dt><dd className="text-right font-mono">{money(totals.subtotalCents)}</dd>

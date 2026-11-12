@@ -126,7 +126,7 @@ export default function WorkpapersPanel({ month, currency }: { month: string; cu
         <p className="text-sm text-[var(--muted)]">No account has a balance at the end of {monthLabel(month)} yet.</p>
       ) : (
         // a table that scrolls sideways can be reached and scrolled with the keyboard
-        <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={`Workpapers of ${monthLabel(month)}`}>
+        <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={`Workpapers of ${monthLabel(month)}`}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">
               Workpapers of {monthLabel(month)}: each account's balance at {endDate}, its note, its files and its review mark

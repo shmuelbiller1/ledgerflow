@@ -47,7 +47,7 @@ function ComparisonTable({
   const { periods } = result;
   return (
     // a table that scrolls sideways can be reached and scrolled with the keyboard
-    <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={statement.title}>
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={statement.title}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
       <table className="w-full border-collapse text-sm tabular-nums">
         <caption className="sr-only">
           {statement.title}: {monthLabel(periods.current.month)} beside {monthLabel(periods.previousMonth.month)} and{' '}

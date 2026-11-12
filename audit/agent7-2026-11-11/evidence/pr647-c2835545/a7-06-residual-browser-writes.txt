@@ -1,0 +1,12 @@
+# pin: PR #647 head c2835545d9aeb634a1d424e46d9998bfea5e1c15 (its own migrations and server code)
+# command: node audit/agent7-2026-11-11/probes/run-sql.mjs audit/agent7-2026-11-11/probes/a7-06-residual-browser-writes.sql
+# run: 2026-11-11T19:24:34Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+step: 1 | what: insert an OPEN customer credit note of 9,000.00 (never issued, no entry) | outcome: ACCEPTED
+step: 2 | what: raise what is left on an existing credit note from 40.00 to 4,000.00 | outcome: refused: Settlement and posting fields on creditNotes are written only by the server ledger
+step: 3 | what: insert an OPEN vendor credit of 7,000.00 (never issued, no entry) | outcome: ACCEPTED
+step: 4 | what: lower the total of an issued invoice from 500.00 to 5.00 (its entry stays at 500.00) | outcome: ACCEPTED
+step: 5 | what: set an issued invoice to void (its entry is not reversed) | outcome: ACCEPTED
+step: 6 | what: insert an ISSUED invoice of 12,345.00 with no entry (it will show as owed in the ageing) | outcome: ACCEPTED
+step: 7 | what: raise the total of an approved bill from 300.00 to 3,000.00 (its entry stays at 300.00) | outcome: ACCEPTED
+step: 8 | what: set "settled by records" on an invoice (a field the amount due may read) | outcome: refused: Settlement and posting fields on invoices are written only by the server ledger
+step: 9 | what: set a deposit as applied on an invoice (lowers what is due) | outcome: refused: Field "depositAppliedCents" is not allowed on invoices

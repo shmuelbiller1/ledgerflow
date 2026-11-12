@@ -1,0 +1,45 @@
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04-system-entries-editable.test.ts
+# run: 2026-11-11T19:24:17Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+▶ A7-04 system entries can be changed behind their documents
+  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (158.947688ms)
+PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"gtu54K5ko9obgPBTwUfG"}
+ledger now: {"ar":50000,"sales":-50000}
+invoice: status paid, paid 50000; payment: status posted, amount 50000
+DEFECT A7-04a: ledger A/R 500.00 and Bank 0.00, while the invoice is "paid" and the payment is "posted"
+Data Health after (a): (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (medium) [control-balance] Accounts receivable is $500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (68.824379ms)
+PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"5d62772c-c6fb-48c2-b1e2-19a10a305d40","data":{"id":"5d62772c-c6fb-48c2-b1e2-19a10a305d40
+ledger now: {"ar":10000,"sales":-10000}; invoice amount 50000
+DEFECT A7-04b: Sales in the ledger 100.00, the invoice 500.00
+month-end posting check after (b): invoice INV-9: amount (document 50000, ledger 10000)
+  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (27.741568ms)
+POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"5d62772c-c6fb-48c2-b1e2-19a10a305d40","reversal":{"id":"rhC604smRsfQMOksGNn2","uid":"bookke
+ledger now: {}; invoice status paid, amount 50000
+DEFECT A7-04c: the ledger holds nothing for an invoice that is still issued and marked paid
+Data Health after (c): (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+month-end posting check after (c): invoice INV-9: missing (document 50000, ledger 0)
+reports after (c): A/R ageing total 0; profit and loss income 0
+  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (64.248329ms)
+INV-10 posted: {"ar":20000,"sales":-20000}
+DELETE /transactions/<INV-10's entry> as a viewer -> 403 {"error":"Forbidden: changing the books requires the owner, accountant or bookkeeper role"}
+DELETE /transactions/<INV-10's entry> as a bookkeeper -> 403 {"status":"error","error":"Forbidden: Only draft documents can be deleted. Current status: completed. Posted documents must be voided, never
+DELETE /transactions/<INV-10's entry> as the owner -> 403 {"status":"error","error":"Forbidden: Only draft documents can be deleted. Current status: completed. Posted documents must be voided, never
+entry still in the ledger: true; invoice INV-10: status sent, amount 20000; ledger now: {"ar":20000,"sales":-20000}
+month-end posting check: invoice INV-9: missing (document 50000, ledger 0)
+audit rows TRANSACTION_DELETED: 0
+{"viewer":403,"bookkeeper":403,"owner":403,"stillThere":true}
+  ✔ control that holds: DELETE on a second invoice's entry is refused for a viewer, a bookkeeper and the owner (65.881799ms)
+audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [5d62772c-c6fb-48c2-b1e2-19a10a305d40]."}
+audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [gtu54K5ko9obgPBTwUfG]."}
+DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry no before/after values
+  ✔ what the audit trail kept of the two edits: the action, not what changed (3.252201ms)
+✔ A7-04 system entries can be changed behind their documents (1448.28811ms)
+ℹ tests 6
+ℹ suites 1
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1608.207781

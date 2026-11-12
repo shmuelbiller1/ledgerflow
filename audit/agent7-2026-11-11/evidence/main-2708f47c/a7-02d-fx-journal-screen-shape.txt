@@ -1,0 +1,23 @@
+# pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-02d-fx-journal-screen-shape.test.ts
+# run: 2026-11-11T20:51:32Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+(a) payload lines (agorot): [9139,-4569,-4569,-1], total 9139
+(a) POST /transactions -> 200 
+(a) the books (ILS, agorot): {"bank":9139,"sales":-4569,"sales2":-4569,"fx":-1}
+(a) POST /transactions/:id/reverse -> 200 
+(a) OK: accepted, valued at 3.7 by the screen's own arithmetic, reversed exactly
+▶ A7-02d a foreign-currency journal as the journal screen sends it
+  ✔ (a) POST /transactions with the screen's payload, then "Reverse & Correct" (92.348161ms)
+(b) PUT /transactions/:id with originalCurrency USD and rate 3.7 -> 200 
+(b) the books before {"bank":5000,"sales":-5000}, after {"bank":5000,"sales":-5000}; entry now: originalCurrency USD, rate 3.7
+(b) OK: the rate is kept as a note; the amounts in the books are unchanged
+  ✔ (b) the details window saves a currency and a rate on a home-currency entry: the amounts stay (46.806655ms)
+✔ A7-02d a foreign-currency journal as the journal screen sends it (1004.966451ms)
+ℹ tests 2
+ℹ suites 1
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1121.450996

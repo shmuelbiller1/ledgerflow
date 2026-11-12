@@ -377,7 +377,7 @@ export default function EstimatesView() {
       )}
 
       {/* Estimates Table */}
-      <div role="region" aria-label="Estimates table" tabIndex={0} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-900 shadow-2xs">
+      <div role="region" aria-label="Estimates table" tabIndex={0} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-900 shadow-2xs">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
         {loading ? <LoadingState what="estimates" /> : estimates.length === 0 ? (
           <EmptyState
             title="No estimates yet"

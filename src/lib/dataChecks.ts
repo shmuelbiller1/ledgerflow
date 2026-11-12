@@ -18,6 +18,7 @@ import { contactsMissingFilingDetails, itemsMissingPricing } from './dataQuality
 import { formatCurrency } from './moneyFormat';
 import { openingDebitCents, resolveAccountRole } from './accountUtils';
 import type { RecordType } from './recordLinks';
+import { ledgerKeyOfCollection } from './ledgerCollections';
 
 export { RECORD_TABS } from './recordLinks';
 export type { RecordType } from './recordLinks';
@@ -520,7 +521,7 @@ export const DATA_CHECKS: DataCheck[] = [
     remedy: 'Look for entries posted to the receivable or payable account by hand, or documents whose posting is missing (Month-end close → Postings).',
     run: ({ invoices, bills, accounts, transactions, allocations, baseCurrency, truncated }) => {
       // a balance over part of the entries or documents is not a difference to report
-      const cut = (truncated || []).filter(k => k === 'transactions' || k === 'accounts' || k === 'invoices' || k === 'bills');
+      const cut = (truncated || []).filter(k => k === 'transactions' || k === 'accounts' || k === 'chartAccounts' || k === 'invoices' || k === 'bills');
       const open = openDocuments(invoices, bills);
       return (['ar', 'ap'] as const).flatMap(role => {
         const controls = accounts.filter(a => resolveAccountRole(a) === role);
@@ -575,9 +576,19 @@ function paidCents(d: Invoice | Bill): number {
   return cashPostedWithDocumentCents({ ...d, settledByRecordsCents: 0 });
 }
 
-/** The browser's cut collections, by name (DataHealthView); the store's any-collection flag is not used. */
+/**
+ * The browser's cut collections as store keys (DataHealthView); the store's any-collection flag is not used.
+ *
+ * The map arrives keyed by **database collection name** (`setCollectionTruncated(spec.collection, …)`),
+ * which differs from the store key for the chart of accounts (`chartAccounts` → `accounts`). The checks
+ * below name store keys, so the names are converted here; before this, a chart of accounts cut at its cap
+ * never reached `control-balance` and the screen compared A/R and A/P over a partial chart while saying
+ * nothing. (AF-013.)
+ */
 export function truncatedInputs(truncatedCollections: Record<string, boolean> | undefined): string[] {
-  return Object.keys(truncatedCollections || {}).filter(k => truncatedCollections?.[k]);
+  return Object.keys(truncatedCollections || {})
+    .filter(k => truncatedCollections?.[k])
+    .map(ledgerKeyOfCollection);
 }
 
 function incompleteFinding(checkId: string, cut: string[]): CheckFinding {

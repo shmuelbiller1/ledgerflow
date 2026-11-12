@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 for (const preference of ['system', 'app'] as const) {
   test(`A-265 ${preference} reduced motion: invoice opens at its final appearance, delayed CSS finishes immediately`, async ({ page }) => {
+    test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: preference === 'system' ? 'reduce' : 'no-preference' });
     await page.addInitScript((appPreference) => {
       localStorage.setItem('isGuest', 'true');
@@ -14,7 +15,9 @@ for (const preference of ['system', 'app'] as const) {
     await page.route('**/api/**', route => route.fulfill({ json: {} }));
     await page.goto('/#sales');
     const open = page.locator('#main-content').getByRole('button', { name: 'Add Invoice', exact: true });
-    await expect(open).toBeVisible();
+    // Sales is lazily loaded in the guest workspace. Wait for the real screen, rather
+    // than assuming it has finished loading within Playwright's five-second assertion.
+    await expect(open).toBeVisible({ timeout: 30_000 });
     if (preference === 'app') await expect(page.locator('html')).toHaveClass(/reduce-motion/);
 
     // Sample the actual modal on its first painted frames, not after a visibility assertion has
