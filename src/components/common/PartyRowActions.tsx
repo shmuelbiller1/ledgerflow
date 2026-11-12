@@ -7,6 +7,7 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { getIdToken } from '../../firebase';
 import { isArchivedParty } from '../../lib/contacts';
 import { deleteWithUndo } from '../../lib/undoableDelete';
+import { changeWithUndo } from '../../lib/undoableChange';
 import type { Customer, Vendor } from '../../types';
 import type { PartySide } from './PartyModal';
 
@@ -23,8 +24,13 @@ export default function PartyRowActions({ side, party }: { side: PartySide; part
   const path = side === 'customer' ? 'customers' : 'vendors';
   const archived = isArchivedParty(party);
 
-  const setArchived = (on: boolean) =>
-    updateEntity(path, party.id, { status: on ? 'inactive' : 'active' }, on ? `"${party.name}" archived` : `"${party.name}" restored`);
+  /** EU-B5: archive or restore at once, then "Done · Undo" for ten seconds (src/lib/undoableChange.ts). */
+  const setArchived = (on: boolean) => changeWithUndo({
+    done: on ? `"${party.name}" archived` : `"${party.name}" restored`,
+    undone: `"${party.name}" is back as it was`,
+    before: party.status ?? 'active', after: on ? 'inactive' : 'active',
+    save: status => updateEntity(path, party.id, { status }),
+  });
 
   const remove = async () => {
     if (!workspaceId) return;

@@ -338,8 +338,10 @@ export function useEntityOperations() {
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here
       if (successMsg) announceSaved(successMsg, currentWorkspaceId);
       if (emailAfterSave) await sendInvoiceEmail(id, { ...(previousInvoice || {}), ...finalData });
+      return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${path}/${id}`);
+      return false; // the error was shown; EU-B5 callers offer Undo only after a save
     }
   };
 
