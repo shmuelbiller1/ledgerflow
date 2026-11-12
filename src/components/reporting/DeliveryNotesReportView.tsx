@@ -20,6 +20,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import type { Customer, Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { printElementById } from '../../lib/printRoot';
 
 interface SourceEntry {
   key: string;
@@ -29,13 +30,13 @@ interface SourceEntry {
   delivery: Pick<Delivery, 'deliveryId' | 'date' | 'lines'>;
 }
 
-export default function DeliveryNotesReportView() {
+export default function DeliveryNotesReportView({ embedded = false }: { embedded?: boolean } = {}) {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const userId = useAuthStore(s => s.user?.uid);
-  return <DeliveryNotesContent key={JSON.stringify([userId, workspaceId])} />;
+  return <DeliveryNotesContent key={JSON.stringify([userId, workspaceId])} embedded={embedded} />;
 }
 
-function DeliveryNotesContent() {
+function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
@@ -249,7 +250,7 @@ function DeliveryNotesContent() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => embedded ? window.print() : printElementById('delivery-note-sheet')}
             disabled={!doc}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
           >
@@ -355,6 +356,8 @@ function DeliveryNotesContent() {
 
       {doc && selected && (
         <article
+          id="delivery-note-sheet"
+          data-print-root={embedded ? undefined : ''}
           aria-label="Printable delivery note"
           dir={doc.direction}
           className="border border-[var(--line)] rounded p-5 space-y-4 bg-[var(--panel)]"
