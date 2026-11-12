@@ -11,6 +11,8 @@ import { usePagedRows } from '../../hooks/usePagedRows';
 import { ShowMoreRows } from '../common/ShowMoreRows';
 import { printElementById } from '../../lib/printRoot';
 import { useReportDates } from '../reporting/useReportDates';
+import { useReportLabelFilter } from '../reporting/ReportLabelFilter';
+import { scopeTransactionsToLabel } from '../../lib/reportLabelScope';
 
 function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['accounts'][number]['entries']) {
   const occurrences = new Map<string, number>();
@@ -130,7 +132,15 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
   const [searchTerm, setSearchTerm] = useState('');
 
   // L-123 step 5a: the server's ledger when the loaded entries are capped; one account is picked from it
-  const { ledger, source } = useServerGeneralLedger(startDate, endDate);
+  const { ledger: wholeLedger, source } = useServerGeneralLedger(startDate, endDate);
+  // EU-E4: one label's lines only. Built from the loaded entries, so it is offered only when none are left out
+  const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
+  const { filter: labelFilter, control: labelControl } = useReportLabelFilter();
+  const allTransactions = useLedgerStore(s => s.transactions);
+  const nodes = useLedgerStore(s => s.dimensionNodes);
+  const ledger = useMemo(() => (labelFilter && !capped
+    ? computeGeneralLedger(accounts, scopeTransactionsToLabel(allTransactions || [], labelFilter, nodes || []), startDate, endDate)
+    : wholeLedger), [labelFilter, capped, accounts, allTransactions, nodes, startDate, endDate, wholeLedger]);
   const glData = useMemo(() => (selectedAccountId === 'all' ? ledger : { ...ledger, accounts: ledger.accounts.filter(a => a.accountId === selectedAccountId) }),
     [ledger, selectedAccountId]);
 
@@ -220,6 +230,8 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
               </select>
             </Labelled>
           </div>
+          {/* EU-E4: hidden, not ignored, when entries are left out of this browser */}
+          {!capped && labelControl && <div className="w-full sm:w-56">{labelControl}</div>}
         </div>
 
         <div className="relative w-full sm:w-auto">

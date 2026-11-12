@@ -21,7 +21,7 @@ import type { ReportColumnMode } from '../../lib/reportColumns';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { accountGroupLayout, groupSubtotals, hasAccountGroups, toggleAccountGroup, visibleGroupRows } from '../../lib/accountGroups';
 import { AccountGroupRow, AccountGroupSubtotal } from './AccountGroupControls';
-import { lineHasLabel } from '../../lib/dimensionUtils';
+import { scopeTransactionsToLabel } from '../../lib/reportLabelScope';
 import { ReportProvenanceNote } from '../reporting/ReportProvenanceNote';
 import { STATEMENT_COLLECTIONS, useBrowserProvenance } from '../../hooks/useBrowserProvenance';
 import { provenanceFromResponse } from '../../lib/reportProvenance';
@@ -70,15 +70,8 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const [labelDimension, setLabelDimension] = useState('');
   const [labelValue, setLabelValue] = useState('');
   const labelFilter = useMemo(() => (labelDimension && labelValue.trim() ? { dimensionId: labelDimension, value: labelValue.trim() } : null), [labelDimension, labelValue]);
-  const transactions = useMemo(() => {
-    if (!labelFilter || !Array.isArray(allTransactions)) return allTransactions;
-    const scoped: Transaction[] = [];
-    for (const t of allTransactions) {
-      const lines = (t.lines || []).filter(l => lineHasLabel(l, t, labelFilter));
-      if (lines.length) scoped.push({ ...t, lines });
-    }
-    return scoped;
-  }, [allTransactions, labelFilter]);
+  // EU-E4: the same scoping every report with a label filter uses (src/lib/reportLabelScope.ts)
+  const transactions = useMemo(() => (!labelFilter || !Array.isArray(allTransactions) ? allTransactions : scopeTransactionsToLabel(allTransactions, labelFilter)), [allTransactions, labelFilter]);
   const accounts = useLedgerStore(s => s.accounts);
   useLedgerCollections('budgets'); // R-2: "compare to budget"
   const budgets = useLedgerStore(s => s.budgets);
