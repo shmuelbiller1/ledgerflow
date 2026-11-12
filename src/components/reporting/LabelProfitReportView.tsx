@@ -1,4 +1,4 @@
-import { displayDimensionName } from '../../lib/dimensionUtils';
+import { displayDimensionName, stableLabelValue } from '../../lib/dimensionUtils';
 import React, { useEffect, useState } from 'react';
 import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -123,13 +123,14 @@ export default function LabelProfitReportView() {
                 </tr>
               ))}
               {(() => {
-                const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate });
+                const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate, nodes: nodes || [] });
                 const budgeted = report.columns.map(c => budgetOf(c.value));
                 if (budgeted.every(b => b === null)) return null;
                 // values with a budget but no activity in the period count in the total too, and are named below the table
-                const shownValues = new Set(report.columns.map(c => c.value));
+                const canon = (v: string) => stableLabelValue(v, dimensionId, nodes || []);
+                const shownValues = new Set(report.columns.map(c => canon(c.value)));
                 const budgetOnly = [...new Set((budgets || []).map(bg => budgetLabel(bg)).filter(l => l?.dimensionId === dimensionId).map(l => l!.value))]
-                  .filter(v => !shownValues.has(v)).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
+                  .filter(v => !shownValues.has(canon(v))).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
                 const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0) + budgetOnly.reduce((s, v) => s + v.cents, 0);
                 return (
                   <>

@@ -51,3 +51,9 @@ test('EU-E5: an income account imported as "revenue" counts as income', () => {
   const rev = [...accounts, { id: 'rev', name: 'Sales', type: 'revenue' } as unknown as ChartAccount];
   assert.equal(budgetedResult({ budgets: [b('9', 'rev', 50000, 'monthly', 'aspen')], accounts: rev, dimensionId: 'property', value: 'aspen', start: '2026-01-01', end: '2026-01-31' }), 50000);
 });
+
+test('EU-E5: a budget saved under a value id matches a column keyed by its name (and the other way round)', () => {
+  const nodes = [{ id: 'C1', dimensionId: 'property', description: 'Operations' }] as Parameters<typeof budgetedResult>[0]['nodes'];
+  const byId = b('10', 'rent', 100000, 'monthly', 'C1');
+  assert.equal(budgetedResult({ budgets: [byId], accounts, dimensionId: 'property', value: 'Operations', start: '2026-01-01', end: '2026-01-31', nodes }), 100000);
+});

@@ -4,7 +4,8 @@
  * income budgets add, cost and expense budgets subtract, each scaled to the months the period covers (a monthly
  * budget once per month, a quarterly one a third per month, a yearly one a twelfth per month).
  */
-import type { Budget, ChartAccount } from '../types';
+import type { Budget, ChartAccount, DimensionNode } from '../types';
+import { stableLabelValue } from './dimensionUtils';
 import { isIncomeAccount } from './accountUtils';
 
 export interface BudgetLabel { dimensionId: string; value: string }
@@ -35,12 +36,15 @@ export function budgetedResult(input: {
   value: string;
   start: string;
   end: string;
+  /** the workspace's label values, so a name and an id of the same value match (stableLabelValue) */
+  nodes?: readonly DimensionNode[];
 }): number | null {
+  const same = (a: string, b: string) => stableLabelValue(a, input.dimensionId, input.nodes) === stableLabelValue(b, input.dimensionId, input.nodes);
   const tagged = input.budgets.filter(b => budgetLabel(b)?.dimensionId === input.dimensionId);
   if (!tagged.length) return null;
   let cents = 0;
   for (const b of tagged) {
-    if (budgetLabel(b)?.value !== input.value || b.targetType !== 'account') continue;
+    if (!same(budgetLabel(b)?.value || '', input.value) || b.targetType !== 'account') continue;
     // only the months where the report's period and the budget's own dates overlap
     const own = b as { startDate?: string; endDate?: string };
     const from = own.startDate && own.startDate > input.start ? own.startDate : input.start;
