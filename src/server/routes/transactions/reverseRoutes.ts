@@ -15,6 +15,7 @@ import { formatTzDate } from './helpers';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
 import { revaluationEntryLock } from '../../services/stockRevaluationService';
 import { computeIntercompanyIdentityHash } from '../../../lib/selfBalancingDimensions';
+import { documentEntryRefusal } from '../../services/ledgerEditGuards';
 
 /** Reversing an entry and intercompany transfers. Part of /api/v1/transactions (F-06), registered in the original order. */
 export function registerReverseRoutes(transactionRouter: express.Router): void {
@@ -76,6 +77,11 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
         }
         const revaluation = revaluationEntryLock(origData as never); // ISS-130
         if (revaluation) throw new HttpError(revaluation, 409);
+
+        // #652/#662: an invoice's, bill's, payment's or credit's entry is reversed through that document, so
+        // the document and the books cannot disagree. The browser already refuses this; the route did not.
+        const documentRefusal = documentEntryRefusal(origData as { metadata?: Record<string, unknown> }, Boolean(user.admin));
+        if (documentRefusal) throw new HttpError(documentRefusal, 409);
 
         // Status lock check on original
         if ((origData.status === 'certified' || origData.status === 'void') && !user.admin) {

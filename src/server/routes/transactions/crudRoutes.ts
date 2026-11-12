@@ -20,6 +20,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
+import { auditSnapshot, documentEntryRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -259,6 +260,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       // For partial updates (like flagging or voiding)
       if (partialUpdate) {
         let authoritativeWsId = '';
+        let beforeEdit: Record<string, unknown> | null = null;
+        let afterEdit: Record<string, unknown> | null = null;
         await db.runTransaction(async (t) => {
            const txRef = db.collection('transactions').doc(id);
            const doc = await t.get(txRef);
@@ -283,6 +286,15 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            if ((txData?.status === 'certified' || txData?.status === 'void') && !user.admin) {
              throw new Error(`Forbidden: Transaction status is locked (${txData?.status}).`);
            }
+
+           // #652/#662: a document's entry is changed through the document, and a posted entry is never
+           // un-posted in place (a status of failed/draft drops it from every report). Same rule as the
+           // browser's isDocumentEntry, applied where it cannot be bypassed.
+           const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin));
+           if (documentRefusal) throw new HttpError(documentRefusal, 409);
+           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin));
+           if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+           beforeEdit = auditSnapshot(txData as Partial<Transaction>);
          
            // ISS-130; EG-6 review: a partial update that changes the status, type or metadata (which could strip the
            // entry's type and with it the lock) is refused for these entries, not only a status change
@@ -304,6 +316,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            delete safePartial.id;
            delete safePartial.expectedUpdatedAt;
 
+           afterEdit = { ...(beforeEdit || {}), ...safePartial };
            t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() });
         });
 
@@ -315,7 +328,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
           entityType: "transaction",
           entityId: id,
           details: {
-            description: `Partial update on transaction ref [${id}].`
+            description: `Partial update on transaction ref [${id}].`,
+            // #652(d): an auditor needs what changed, not only that something did
+            before: beforeEdit,
+            after: afterEdit,
           }
         }, { db });
 
@@ -334,6 +350,12 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       // Load existing tx to pass to validator
       const existingTxSnap = await db.collection('transactions').doc(id).get();
       const existingTx = existingTxSnap.exists ? existingTxSnap.data() as Transaction : undefined;
+
+      // #652: a document's entry is changed through the document; the browser already refuses it.
+      const documentRefusal = documentEntryRefusal(existingTx as { metadata?: Record<string, unknown> } | undefined, Boolean(user.admin));
+      if (documentRefusal) return res.status(409).json({ error: documentRefusal });
+      let beforeEdit: Record<string, unknown> | null = null;
+      let afterEdit: Record<string, unknown> | null = null;
 
       const validatedTx = await TransactionValidator.validateAndPrepare(transaction, {
         workspaceId: transaction.workspaceId,
@@ -361,12 +383,16 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
           throw new Error('Cannot modify certified, cleared, or voided transactions');
         }
+        const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin));
+        if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+        beforeEdit = auditSnapshot(doc.data() as Partial<Transaction>);
         // audit F3: the old and the new date against the workspace as it is now, inside the save
         assertStillOpen((await t.get(db.collection('workspaces').doc(transaction.workspaceId))).data(), user, [doc.data()?.date, validatedTx.date]);
 
         const txToSave = { ...validatedTx };
         delete (txToSave as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
 
+        afterEdit = auditSnapshot(txToSave as Partial<Transaction>);
         t.update(txRef, { ...txToSave, updatedAt: FieldValue.serverTimestamp() });
       });
 
@@ -378,7 +404,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         entityType: "transaction",
         entityId: id,
         details: {
-          description: `Full update on transaction ref [${id}].`
+          description: `Full update on transaction ref [${id}].`,
+          before: beforeEdit,
+          after: afterEdit,
         }
       }, { db });
 
