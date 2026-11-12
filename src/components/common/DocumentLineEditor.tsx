@@ -300,52 +300,38 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         </td>
                       );
                     })}
-                    <td className="p-2.5">
-                      <input
-                        id={`je-line-debit-${idx}`}
-                        aria-label={`Debit amount for line ${idx + 1}`}
-                        type="number"
-                        step={amountStep(currency)}
-                        value={line.debit > 0 ? minorToMajor(line.debit, currency) : ''}
-                        onChange={e => {
-                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0', currency);
-                          updateAt(idx, current => {
-                            const nextCredit = cents > 0 ? 0 : (isJournalLine(current) ? current.credit : 0);
-                            return {
-                              ...current,
-                              debit: cents,
-                              credit: nextCredit,
-                              amountCents: cents > 0 ? cents : -nextCredit,
-                            } as T;
-                          });
-                        }}
-                        placeholder="0.00"
-                        className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] text-right font-mono font-bold text-[var(--text)]"
-                      />
-                    </td>
-                    <td className="p-2.5">
-                      <input
-                        id={`je-line-credit-${idx}`}
-                        aria-label={`Credit amount for line ${idx + 1}`}
-                        type="number"
-                        step={amountStep(currency)}
-                        value={line.credit > 0 ? minorToMajor(line.credit, currency) : ''}
-                        onChange={e => {
-                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0', currency);
-                          updateAt(idx, current => {
-                            const nextDebit = cents > 0 ? 0 : (isJournalLine(current) ? current.debit : 0);
-                            return {
-                              ...current,
-                              credit: cents,
-                              debit: nextDebit,
-                              amountCents: nextDebit > 0 ? nextDebit : -cents,
-                            } as T;
-                          });
-                        }}
-                        placeholder="0.00"
-                        className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] text-right font-mono font-bold text-[var(--text)]"
-                      />
-                    </td>
+                    {(['debit', 'credit'] as const).map(side => {
+                      const isDebit = side === 'debit';
+                      const sideValue = isDebit ? line.debit : line.credit;
+                      const labelPrefix = isDebit ? 'Debit' : 'Credit';
+                      return (
+                        <td key={side} className="p-2.5">
+                          <input
+                            id={`je-line-${side}-${idx}`}
+                            aria-label={`${labelPrefix} amount for line ${idx + 1}`}
+                            type="number"
+                            step={amountStep(currency)}
+                            value={sideValue > 0 ? minorToMajor(sideValue, currency) : ''}
+                            onChange={e => {
+                              const cents = TruthEngine.parseAmountToCents(e.target.value || '0', currency);
+                              updateAt(idx, current => {
+                                if (!isJournalLine(current)) return current;
+                                const nextDebit = isDebit ? cents : (cents > 0 ? 0 : current.debit);
+                                const nextCredit = isDebit ? (cents > 0 ? 0 : current.credit) : cents;
+                                return {
+                                  ...current,
+                                  debit: nextDebit,
+                                  credit: nextCredit,
+                                  amountCents: nextDebit > 0 ? nextDebit : -nextCredit,
+                                } as T;
+                              });
+                            }}
+                            placeholder="0.00"
+                            className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] text-right font-mono font-bold text-[var(--text)]"
+                          />
+                        </td>
+                      );
+                    })}
                     <td className="p-2.5 text-center">
                       <button
                         type="button"

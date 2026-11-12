@@ -18,54 +18,83 @@ import { maskCardNumbers } from '../lib/cardNumberMask';
 import { checkProductionConfig } from '../../scripts/check-prod-env';
 import type { Transaction } from '../types';
 
-const bank = makeChartAccount({ id: 'bank', code: '1000', name: 'Checking', type: 'asset', category: 'Cash' });
-const expense = makeChartAccount({ id: 'exp', code: '6100', name: 'Consulting Expense', type: 'expense', category: 'Expenses' });
+const cashAccount = makeChartAccount({ id: 'cash-fx', code: '1010', name: 'Operating Cash', type: 'asset', category: 'Cash' });
+const consultingAccount = makeChartAccount({ id: 'exp-fx', code: '6110', name: 'Advisory Fees', type: 'expense', category: 'Expenses' });
 
 describe('Agent #6 (2026-11-12) — Multi-Currency Journal & Auto-Reversal Integrity (AF6-003, AF6-019)', () => {
-  let posted: Transaction[] = [];
+  let capturedEntries: Transaction[] = [];
 
   beforeEach(() => {
-    posted = [];
+    capturedEntries = [];
     setComponentWorkspace('owner');
-    useLedgerStore.setState({ baseCurrency: 'AUD', transactions: [], lockDate: null, accounts: [bank, expense] });
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes('/fx/rate')) return new Response('{}', { status: 503 });
-      if (url.endsWith('/api/v1/transactions')) {
-        posted.push(JSON.parse(String(init?.body)).transaction as Transaction);
+    globalThis.fetch = (async (resource: RequestInfo | URL, options?: RequestInit) => {
+      const target = String(resource);
+      if (target.endsWith('/api/v1/transactions') && options?.body) {
+        const body = JSON.parse(String(options.body)) as { transaction: Transaction };
+        capturedEntries.push(body.transaction);
         return new Response('{}', { status: 200 });
       }
-      return new Response('{}', { status: 200 });
+      return new Response('{}', { status: target.includes('/fx/rate') ? 503 : 200 });
     }) as typeof fetch;
   });
 
   afterEach(() => cleanup());
 
-  test('AF6-003a: foreign EUR journal entry sets baseAmountCents so lineAmount never multiplies by exchangeRate²', async () => {
+  async function submitForeignJournal(opts: {
+    baseCurrency: string;
+    txCurrency: string;
+    rate: string;
+    majorAmount: string;
+    expectedStep?: string;
+    seedTransactions?: Transaction[];
+  }): Promise<Transaction> {
+    useLedgerStore.setState({
+      baseCurrency: opts.baseCurrency,
+      transactions: opts.seedTransactions ?? [],
+      lockDate: null,
+      accounts: [cashAccount, consultingAccount],
+    });
     render(
       <JournalEntryModal
         isOpen
         onClose={() => {}}
-        user={{ uid: 'test-user' } as never}
-        accounts={[bank, expense]}
+        user={{ uid: 'auditor-af6' } as never}
+        accounts={[cashAccount, consultingAccount]}
         workspaceId="component-workspace"
       />,
     );
-    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'EUR' } });
-    fireEvent.change(screen.getByLabelText('AUD for 1 EUR'), { target: { value: '1.65' } });
-    fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'exp' } });
-    fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: 'bank' } });
-    fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: opts.txCurrency } });
+    const rateLabel = `${opts.baseCurrency} for 1 ${opts.txCurrency}`;
+    await waitFor(() => assert.ok(screen.getByLabelText(rateLabel)));
+    fireEvent.change(screen.getByLabelText(rateLabel), { target: { value: opts.rate } });
+
+    const debitInput = screen.getByLabelText('Debit amount for line 1') as HTMLInputElement;
+    if (opts.expectedStep !== undefined) {
+      assert.equal(debitInput.step, opts.expectedStep);
+    }
+    fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: consultingAccount.id } });
+    fireEvent.change(debitInput, { target: { value: opts.majorAmount } });
+    fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: cashAccount.id } });
+    fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: opts.majorAmount } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /COMMIT TO LEDGER/ }));
     });
-    await waitFor(() => assert.equal(posted.length, 1));
-
-    const entry = posted[0];
+    await waitFor(() => assert.equal(capturedEntries.length, 1));
+    const entry = capturedEntries[0];
     settleHomeCurrency(entry);
     assert.doesNotThrow(() => checkLedgerEntry(entry as unknown as Record<string, unknown>));
+    return entry;
+  }
+
+  test('AF6-003a: foreign EUR journal entry sets baseAmountCents so lineAmount never multiplies by exchangeRate²', async () => {
+    const entry = await submitForeignJournal({
+      baseCurrency: 'AUD',
+      txCurrency: 'EUR',
+      rate: '1.65',
+      majorAmount: '100',
+      expectedStep: '0.01',
+    });
     // €100 @ 1.65 AUD/EUR = $165.00 AUD (16,500 cents), never $272.25 AUD (27,225 cents = 1.65²)
     assert.deepEqual(entry.lines.map(l => l.amountCents), [16500, -16500]);
     assert.deepEqual(entry.lines.map(l => l.baseAmountCents), [16500, -16500]);
@@ -73,69 +102,35 @@ describe('Agent #6 (2026-11-12) — Multi-Currency Journal & Auto-Reversal Integ
   });
 
   test('AF6-003b: zero-decimal JPY journal entry in USD books converts whole yen via minorUnitRate (¥10,000 @ 0.0067 = $67.00)', async () => {
-    useLedgerStore.setState({ baseCurrency: 'USD', transactions: [], lockDate: null, accounts: [bank, expense] });
-    render(
-      <JournalEntryModal
-        isOpen
-        onClose={() => {}}
-        user={{ uid: 'test-user' } as never}
-        accounts={[bank, expense]}
-        workspaceId="component-workspace"
-      />,
-    );
-    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'JPY' } });
-    fireEvent.change(screen.getByLabelText('USD for 1 JPY'), { target: { value: '0.0067' } });
-    assert.equal((screen.getByLabelText('Debit amount for line 1') as HTMLInputElement).step, '1');
-
-    fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'exp' } });
-    fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '10000' } });
-    fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: 'bank' } });
-    fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: '10000' } });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /COMMIT TO LEDGER/ }));
+    const entry = await submitForeignJournal({
+      baseCurrency: 'USD',
+      txCurrency: 'JPY',
+      rate: '0.0067',
+      majorAmount: '10000',
+      expectedStep: '1',
     });
-    await waitFor(() => assert.equal(posted.length, 1));
-
-    const entry = posted[0];
-    settleHomeCurrency(entry);
     assert.equal(entry.totalAmountCents, 6700);
     assert.deepEqual(entry.lines.map(l => lineAmount(l, entry)), [6700, -6700]);
   });
 
   test('AF6-003c: three-decimal KWD journal entry in USD books preserves thousandths (12.345 KWD @ 3.25 = $40.12)', async () => {
-    useLedgerStore.setState({
+    const kwdSeed = {
+      id: 'seed-kwd',
+      date: '2026-10-01',
+      originalCurrency: 'KWD',
+      currency: 'USD',
+      exchangeRate: 3.2,
+      status: 'completed',
+      lines: [],
+    } as unknown as Transaction;
+    const entry = await submitForeignJournal({
       baseCurrency: 'USD',
-      transactions: [{ id: 'seed-kwd', date: '2026-10-01', originalCurrency: 'KWD', currency: 'USD', exchangeRate: 3.2, status: 'completed', lines: [] } as unknown as Transaction],
-      lockDate: null,
-      accounts: [bank, expense],
+      txCurrency: 'KWD',
+      rate: '3.25',
+      majorAmount: '12.345',
+      expectedStep: '0.001',
+      seedTransactions: [kwdSeed],
     });
-    render(
-      <JournalEntryModal
-        isOpen
-        onClose={() => {}}
-        user={{ uid: 'test-user' } as never}
-        accounts={[bank, expense]}
-        workspaceId="component-workspace"
-      />,
-    );
-    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'KWD' } });
-    await waitFor(() => assert.ok(screen.getByLabelText('USD for 1 KWD')));
-    fireEvent.change(screen.getByLabelText('USD for 1 KWD'), { target: { value: '3.25' } });
-    assert.equal((screen.getByLabelText('Debit amount for line 1') as HTMLInputElement).step, '0.001');
-
-    fireEvent.change(screen.getByLabelText('Account for line 1'), { target: { value: 'exp' } });
-    fireEvent.change(screen.getByLabelText('Debit amount for line 1'), { target: { value: '12.345' } });
-    fireEvent.change(screen.getByLabelText('Account for line 2'), { target: { value: 'bank' } });
-    fireEvent.change(screen.getByLabelText('Credit amount for line 2'), { target: { value: '12.345' } });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /COMMIT TO LEDGER/ }));
-    });
-    await waitFor(() => assert.equal(posted.length, 1));
-
-    const entry = posted[0];
-    settleHomeCurrency(entry);
     assert.equal(entry.totalAmountCents, 4012);
     assert.deepEqual(entry.lines.map(l => lineAmount(l, entry)), [4012, -4012]);
   });
@@ -150,8 +145,8 @@ describe('Agent #6 (2026-11-12) — Multi-Currency Journal & Auto-Reversal Integ
       totalAmountCents: 16500,
       status: 'completed' as const,
       lines: [
-        { accountId: 'exp', amountCents: 16500, baseAmountCents: 16500 },
-        { accountId: 'bank', amountCents: -16500, baseAmountCents: -16500 },
+        { accountId: consultingAccount.id, amountCents: 16500, baseAmountCents: 16500 },
+        { accountId: cashAccount.id, amountCents: -16500, baseAmountCents: -16500 },
       ],
     };
     const [marked, reversal] = withReversal(accrual, '2026-11-01');
@@ -190,7 +185,6 @@ describe('Agent #6 (2026-11-12) — Security Controls & CI Ratchets (AF6-017, S-
     ]) {
       assert.ok(workflow.includes(label), `Missing secret pattern "${label}" in security-sbom.yml`);
     }
-    // Synthetic positive probes (constructed dynamically so source stays clean)
     const stripeKey = 'rk_live_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3';
     const resendKey = 're_' + 'AbCdEfGhIjKlMnOpQrStUvWxYz12';
     const googleKey = 'AIza' + 'SyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q';
