@@ -20,7 +20,7 @@ export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
   }
   const add = async () => {
     if (busy) return;
-    const result = addMondayEmail(schedules, kind, email, `sr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`);
+    const result = addMondayEmail(schedules, kind, email, `sr_${globalThis.crypto.randomUUID().slice(0, 12)}`);
     if ('problem' in result) { toast.error(result.problem); return; }
     setBusy(true);
     const uid = useAuthStore.getState().user?.uid;
