@@ -7,13 +7,13 @@
 
 ---
 
-## Executive Launch-Readiness Verdict: **`NOT READY`** *(Upgrades to **`CONDITIONALLY READY`** immediately upon merging this PR + applying Verified Patches `01`–`07` and running live PostgreSQL `test:rules`)*
+## Executive Launch-Readiness Verdict: **`NOT READY`** *(Post-review: P0 fixes are now directly on this PR branch, not deployed on `main`; other six patches and live PostgreSQL verification remain outstanding.)*
 
 ### Why `NOT READY` on `main` (`c82bead4`) Today
 While Ledgerflow's core double-entry engine (`ledgerBulkCommit`, `paymentService`, `allocationLedger`, `creditService`, `periodCloseService`, `repostService`, PostgreSQL RLS across 75+ tables, and `4,858` passing automated tests) has matured substantially, our deep source audit uncovered **two P0 Critical multi-tenant takeover/corruption vulnerabilities** and **nine P1 High accounting, tax,FX, and audit-chain defects** that block external multi-tenant production launch until applied:
 
-1. **P0 Critical — Full-Tenant Workspace Takeover (`AF6-001`, `workspaceApiRoutes.ts:58-104`)**: Any authenticated user or API key passing `"id": "<victimWorkspaceId>"` to `POST /api/v1/workspaces` overwrites the victim's `workspaces` row on the privileged Postgres pool (`ON CONFLICT DO UPDATE`), becoming sole owner of all victim tenant financial data, locking out legitimate members, and wiping `lockDate` and `requireTwoStep`. *(Turnkey fix in `Patch 01`.)*
-2. **P0 Critical — Cross-Tenant Chart-of-Accounts Hijack & System Overwrite (`AF6-002`, `developerApiRoutes.ts:151-205`)**: `POST /api/v1/ledger` executes unchecked `.doc(id).set(...)` on `chartAccounts`, re-parenting another tenant's accounts into the caller's workspace and allowing `isSystem` control accounts to be overwritten. *(Turnkey fix in `Patch 01`.)*
+1. **P0 Critical — Full-Tenant Workspace Takeover (`AF6-001`, `workspaceApiRoutes.ts:58-104`)**: Any authenticated user or API key passing `"id": "<victimWorkspaceId>"` to `POST /api/v1/workspaces` overwrites the victim's `workspaces` row on the privileged Postgres pool (`ON CONFLICT DO UPDATE`), becoming sole owner of all victim tenant financial data, locking out legitimate members, and wiping `lockDate` and `requireTwoStep`. *(Fixed directly in the post-review PR revision; the old patch is archived for reference.)*
+2. **P0 Critical — Cross-Tenant Chart-of-Accounts Hijack & System Overwrite (`AF6-002`, `developerApiRoutes.ts:151-205`)**: `POST /api/v1/ledger` executes unchecked `.doc(id).set(...)` on `chartAccounts`, re-parenting another tenant's accounts into the caller's workspace and allowing `isSystem` control accounts to be overwritten. *(Fixed directly in the post-review PR revision; the old patch is archived for reference.)*
 3. **P0/P1 High — Foreign-Currency Manual Journal `exchangeRate²` Double-Conversion & `JPY`/`KWD` Scaling (`AF6-003` + `AF6-019`)**: Foreign manual journal entries multiplied home-currency amounts by `exchangeRate` **twice** across every financial statement (`€100 @ 1.65 → $272.25 AUD` instead of `$165.00 AUD`), broke `JPY`/`KWD` minor units, and failed to negate `baseAmountCents` on auto-reversing accruals (`withReversal`). *(**FIXED DIRECTLY IN THIS PR** + 4 new regression tests.)*
 4. **P1 High — US Federal Payroll W-4 Step 2 Over-Withholding (`AF6-004`, `usFederalPayroll.ts`)**: All six 2025/2026 IRS Pub 15-T Step-2 tables halved Table 1(a) thresholds without adding half of the Step 1g deduction (`$4,300` Single/HOH, `$6,450` MFJ), over-withholding `$1,892/yr` on two equal `$52k` Single jobs. *(Turnkey fix + updated golden test in `Patch 02`.)*
 5. **P1 High — 100× `JPY`/`KRW` & 10× `KWD` FX Revaluation Error (`AF6-005`, `fxRevaluation.ts:195-196`)**: Month-end unrealized FX revaluation omitted `convertMinorUnits` (`minorUnitRate`), understating `JPY` gains/losses by `100×`. *(Turnkey fix in `Patch 03`.)*
@@ -24,12 +24,8 @@ While Ledgerflow's core double-entry engine (`ledgerBulkCommit`, `paymentService
 
 ## Path to `CONDITIONALLY READY` / `READY` (Ordered Action Checklist for Shmuel & AI #1)
 
-1. **Merge this PR (`arena/c3c0cb2e-ledgerflow`)** — Lands direct fixes for `AF6-003` (`JournalEntryModal` + `DocumentLineEditor`), `AF6-019` (`autoReversal`), `AF6-016` (`#657` variable-held `txRef` `ledgerDoor` scanner + per-file baseline), `AF6-017` (`--max-warnings 2` + 9-class CI secret scanner), and `AF6-018` (`#618` CodeRabbit audit doc updates).
-2. **Apply All 7 Pre-Verified Reserved-Lane Patches in One Command**:
-   ```bash
-   git apply audit/agent6-2026-11-12/patches/*.patch
-   ```
-   *(All 7 patches were verified together via `git apply --check` and `tsc --noEmit` with 0 errors.)*
+1. **Merge this PR (`arena/c3c0cb2e-ledgerflow`) only after fresh CI, including PostgreSQL route tests, passes** — Lands direct P0 fixes `AF6-001` and `AF6-002`, the four-line FX settlement safeguard, and original fixes for `AF6-003` (`JournalEntryModal` + `DocumentLineEditor`), `AF6-019` (`autoReversal`), `AF6-016` (`#657` variable-held `txRef` `ledgerDoor` scanner + per-file baseline), `AF6-017` (`--max-warnings 2` + 9-class CI secret scanner), and `AF6-018` (`#618` CodeRabbit audit doc updates).
+2. **Review the remaining six reserved-lane patches (`02`–`07`) separately**. Check their applicability to the latest code using `git apply --check audit/agent6-2026-11-12/patches/0[2-7]-*.patch`. Patch `01` has already been implemented, and its former `.patch` file is now a historical text reference; do not re-apply it.
 3. **Execute Live PostgreSQL 17 Migration & RLS Suite (`S-32` / `S-37..S-40`)**:
    - Apply migrations through `20261112000000_close_ledger_and_settlement_trigger_gaps.sql` on disposable Postgres 17 and run `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.test.sql` + the 6 `LF_TEST_DATABASE_URL`-gated integration suites.
 4. **Production Cutover Preflight (`S-02` / `S-03`)**:

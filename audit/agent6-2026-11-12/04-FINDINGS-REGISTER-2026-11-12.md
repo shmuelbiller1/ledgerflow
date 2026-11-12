@@ -1,3 +1,5 @@
+**POST-REVIEW UPDATE (2026-11-12):** Findings AF6-001 and AF6-002 now have direct route fixes in PR #673 (`workspaceApiRoutes.ts` and `developerApiRoutes.ts`), backed by `src/tests/tenant-create-boundary.test.ts`. They remain unmerged until approval. Patch 01 is archived as a text reference, not executable. A separate four-line explicit-home-cents settlement regression and fix were added in `txFilters.ts` and `home-currency-balance.test.ts`. Details below describe the original pinned baseline. Remaining patches 02–07 are not applied.
+
 # Ledgerflow — Agent #6 Verified Findings Register (`2026-11-12`)
 
 - **Agent**: Agent #6 (Independent Accounting, Financial-Operations, Security & Launch-Readiness Audit)

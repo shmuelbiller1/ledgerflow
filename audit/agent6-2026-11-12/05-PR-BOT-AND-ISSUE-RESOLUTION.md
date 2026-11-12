@@ -46,3 +46,8 @@ Checked against open PRs `#618, #636, #647, #660, #663, #664, #665, #667, #668, 
 ## 4. Vercel Preview Deployment Note
 
 Per project owner instructions, automatic Vercel preview deployments on PRs/merges were intentionally disabled to control costs; a red/skipped `Vercel` status check alone is expected infrastructure behavior and not a code failure. All GitHub Actions CI gates (`tsc`, ESLint ratchet, architecture layers, rule packs, tax tables, bundle checks, unit/integration shards, SBOM/secret scan) are the authoritative code-quality checks.
+
+
+## Post-review correction
+
+Owner-requested corrections for the two P0 create-route findings and the multi-line FX settlement were made directly on PR #673, together with regression tests. Patch 01 was archived as a text reference and must not be applied twice. Remaining standalone patches are 02–07. Review the current CI run and the database-backed test results before approval.

@@ -57,16 +57,27 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
 
   app.post("/api/v1/workspaces", apiAuthenticate, async (req: express.Request, res: express.Response) => {
     try {
-      const uid = (req as AuthenticatedRequest).user.uid;
+      const authReq = req as AuthenticatedRequest;
+      // A workspace-scoped API key must never provision another workspace.
+      if (authReq.user.developerWorkspaceId) {
+        return sendError(res, "Forbidden: Workspace-scoped API keys cannot create workspaces", 403);
+      }
+      const uid = authReq.user.uid;
       const validation = WorkspaceSchema.safeParse({
         ...req.body,
-        uid
+        // Creation identity and privileged state are always server-owned, even if sent by a client.
+        id: undefined,
+        uid,
+        admins: undefined,
+        isClosed: false,
+        lockDate: undefined,
+        createdAt: new Date().toISOString()
       });
       if (!validation.success) {
         return sendError(res, "Validation Error: " + validation.error.issues.map((e) => `${e.path.join('.')}: ${errorMessage(e)}`).join(', '), 400);
       }
       const db = getDb();
-      const newId = validation.data.id || `ws_${crypto.randomUUID().replace(/-/g, '')}`;
+      const newId = `ws_${crypto.randomUUID().replace(/-/g, '')}`;
       const newWorkspace = {
         // BB-07: a new workspace starts with the everyday screens; the rest is turned on when wanted
         modules: NEW_WORKSPACE_MODULES,
@@ -75,7 +86,12 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
         uid,
         createdAt: validation.data.createdAt || new Date().toISOString()
       };
-      await db.collection("workspaces").doc(newId).set(newWorkspace);
+      // The privileged DB adapter bypasses browser RLS: never overwrite an existing tenant.
+      await db.runTransaction(async (tx) => {
+        const wsRef = db.collection("workspaces").doc(newId);
+        if ((await tx.get(wsRef)).exists) throw new Error("CONFLICT: Workspace ID already exists");
+        tx.create(wsRef, newWorkspace);
+      });
       await writeServerAuditLog({
         workspaceId: newId,
         uid,
@@ -94,7 +110,11 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
         workspace: newWorkspace
       });
     } catch (err) {
-      sendError(res, errorMessage(err), 500);
+      const message = errorMessage(err);
+      if (message.includes("CONFLICT") || message.includes("ALREADY_EXISTS")) {
+        return sendError(res, "Workspace ID already exists", 409);
+      }
+      sendError(res, message, 500);
     }
   });
 

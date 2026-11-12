@@ -1,3 +1,5 @@
+HISTORICAL REFERENCE ONLY — P0 FIX NOW IMPLEMENTED DIRECTLY IN PR #673. DO NOT APPLY THIS FILE.
+
 diff --git a/src/server/routes/developerApiRoutes.ts b/src/server/routes/developerApiRoutes.ts
 index 5d9aad5..7cdb111 100644
 --- a/src/server/routes/developerApiRoutes.ts

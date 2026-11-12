@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lineAmount, settleHomeCurrency } from '../lib/txFilters';
+import { getAbsoluteTotal, lineAmount, settleHomeCurrency } from '../lib/txFilters';
+import { checkLedgerEntry } from '../server/services/ledgerDoor';
 import type { Transaction } from '../types';
 
 // BUG-07: an entry in a foreign currency balances in the home currency too.
@@ -51,4 +52,43 @@ test('home-currency entries are untouched', () => {
   const t = { lines: [{ accountId: 'a', amountCents: 100 }, { accountId: 'b', amountCents: -100 }] } as Transaction;
   settleHomeCurrency(t);
   assert.ok(t.lines.every(l => l.baseAmountCents === undefined));
+});
+
+
+// Regression for #673: already-home-currency journal lines must never be converted again.
+// For 101+101-102-100 @ 1.65, multiplying each rounded line yields a 1-cent residual;
+// the old settleHomeCurrency then rewrote supplied home amounts, corrupting reports.
+test('four-line FX journal preserves explicit home cents and posted total through server ledger checks', () => {
+  const tx = {
+    id: 'fx-four-lines',
+    workspaceId: 'ws-fx',
+    currency: 'USD',
+    originalCurrency: 'EUR',
+    exchangeRate: 1.65,
+    totalAmountCents: 202,
+    status: 'completed',
+    lines: [
+      { accountId: 'a', amountCents: 101, baseAmountCents: 101 },
+      { accountId: 'b', amountCents: 101, baseAmountCents: 101 },
+      { accountId: 'c', amountCents: -102, baseAmountCents: -102 },
+      { accountId: 'd', amountCents: -100, baseAmountCents: -100 },
+    ],
+  } as Transaction;
+  assert.equal(tx.lines.reduce((sum, l) => sum + Math.round(l.amountCents * 1.65), 0), 1, 'the old settlement path would rewrite these lines');
+  const original = structuredClone(tx.lines);
+  settleHomeCurrency(tx);
+  assert.deepEqual(tx.lines, original, 'keep the supplied home-currency figures');
+  assert.equal(getAbsoluteTotal(tx), 202);
+  assert.doesNotThrow(() => checkLedgerEntry(tx as unknown as Record<string, unknown>));
+});
+
+test('explicit but unbalanced home-currency lines are rejected instead of silently repaired', () => {
+  const tx = {
+    exchangeRate: 1.65,
+    lines: [
+      { accountId: 'a', amountCents: 100, baseAmountCents: 101 },
+      { accountId: 'b', amountCents: -100, baseAmountCents: -100 },
+    ],
+  } as Transaction;
+  assert.throws(() => settleHomeCurrency(tx), /explicit home-currency lines do not balance/);
 });

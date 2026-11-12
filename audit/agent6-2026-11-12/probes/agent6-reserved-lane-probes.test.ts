@@ -9,10 +9,10 @@ import { buildAuditLogRecord, verifyAuditHashChain } from '../../../src/server/s
 import { GENESIS_AUDIT_HASH } from '../../../src/lib/auditHashChain';
 
 describe('Agent #6 (2026-11-12) — Reserved-Lane Reproducer Probes & Patch Verification', () => {
-  test('All 7 standalone reserved-lane patches exist and pass git apply --check cleanly together', () => {
+  test('Six pending reserved-lane patches apply cleanly (P0 patch 01 is already implemented)', () => {
     const patchDir = path.resolve('audit/agent6-2026-11-12/patches');
     const patches = fs.readdirSync(patchDir).filter(f => f.endsWith('.patch')).sort();
-    assert.equal(patches.length, 7);
+    assert.equal(patches.length, 6);
     const fullPaths = patches.map(p => path.join(patchDir, p));
     execFileSync('git', ['apply', '--check', ...fullPaths], { stdio: 'pipe' });
   });

@@ -1,3 +1,5 @@
+**POST-REVIEW UPDATE (2026-11-12):** The two P0 route fixes and a four-line FX safeguard were added directly to PR #673. The original seven-patch test was superseded: patch 01 is now an archived text reference and the executable patch set is 02–07 (six files). Results below are historical. Fresh CI is required.
+
 # Test, Static-Analysis, Build & Patch Verification Log — Agent #6 (`2026-11-12`)
 
 - **Branch**: `arena/c3c0cb2e-ledgerflow`
