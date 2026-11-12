@@ -175,7 +175,7 @@ export default function Copilot() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-display font-black text-2xl uppercase tracking-tight text-[var(--text)]">AI Co-pilot</h1>
+              <h1 className="font-display font-black text-2xl uppercase tracking-tight text-[var(--text)]">Ask your books</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 border border-indigo-200 text-indigo-700">
                 {selectedModel}
               </span>

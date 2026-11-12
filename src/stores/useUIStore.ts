@@ -482,12 +482,10 @@ export const useUIStore = create<UIState>((set) => ({
     set({ theme });
   },
   setLanguage: (language) => {
-    try {
-      localStorage.setItem('lf_language', language);
-    } catch {
-      // This display preference is session-only when storage is unavailable.
-    }
-    set({ language });
+    // the choice holds for this session; when the device refuses storage it is not kept, and the flag says so
+    let reportPreferencesDeviceError = false;
+    try { localStorage.setItem('lf_language', language); } catch { reportPreferencesDeviceError = true; }
+    set({ language, reportPreferencesDeviceError });
   },
   setLexiconOverride: (key, lang, value) => set((state) => {
     const existing = state.lexiconOverrides[key] || { en: '', he: '' };

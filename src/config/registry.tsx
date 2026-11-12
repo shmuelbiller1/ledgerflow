@@ -136,7 +136,7 @@ export const APP_TABS: AppTabDefinition[] = withScreenHelp<Omit<AppTabDefinition
   { id: 'dashboard', label: { en: 'Overview', he: 'סקירה' }, icon: Home, groupId: 'dashboard' },
   { id: 'inbox', label: { en: 'To Review', he: 'לסקירה' }, icon: Inbox, groupId: 'dashboard' },
   { id: 'practice', label: { en: 'All my books', he: 'כל הספרים שלי' }, icon: Briefcase, groupId: 'dashboard' },
-  { id: 'copilot', label: { en: 'AI Co-pilot', he: 'טייס משנה' }, icon: Sparkles, groupId: 'dashboard' },
+  { id: 'copilot', label: { en: 'Ask your books', he: 'שאלו את הספרים' }, icon: Sparkles, groupId: 'dashboard' },
 
   { id: 'transactions', label: { en: 'Transactions', he: 'תנועות' }, icon: Layers, groupId: 'transactions' },
   { id: 'credit-notes', label: { en: 'Credit Notes & Vendor Credits', he: 'זיכויים וזיכויי ספק' }, icon: RotateCcw, groupId: 'transactions' },
@@ -145,7 +145,7 @@ export const APP_TABS: AppTabDefinition[] = withScreenHelp<Omit<AppTabDefinition
   { id: 'ledger', label: { en: 'Ledger & Journal', he: 'ספר ראשי ויומן' }, icon: Database, groupId: 'transactions' },
   { id: 'intercompany', label: { en: 'Intercompany', he: 'בין-חברתי' }, icon: ArrowLeftRight, groupId: 'transactions' },
   { id: 'recurring', label: { en: 'Recurring Items', he: 'פריטים מחזוריים' }, icon: RefreshCw, groupId: 'transactions' },
-  { id: 'query-builder', label: { en: 'BQL Query Builder', he: 'בונה שאילתות' }, icon: Filter, groupId: 'transactions' },
+  { id: 'query-builder', label: { en: 'Advanced search', he: 'חיפוש מתקדם' }, icon: Filter, groupId: 'transactions' },
   { id: 'banking', label: { en: 'Bank Connections', he: 'חיבורי בנק' }, icon: Building, groupId: 'transactions' },
   { id: 'audit-trail', label: { en: 'Audit Trail', he: 'יומן ביקורת' }, icon: Search, groupId: 'transactions' },
   { id: 'client-queries', label: { en: 'Questions about Entries', he: 'שאלות על תנועות' }, icon: MessageCircleQuestion, groupId: 'transactions' },
@@ -467,7 +467,7 @@ export const REPORT_COMPONENTS: Record<string, ElementType> = {
 };
 
 export const ANALYTICAL_LENSES_REGISTRY = withScreenHelp([
-  { id: 'forensics_1', label: { en: 'Forensic Anomaly Detection', he: 'זיהוי חריגות פיננסיות' }, componentName: 'ToolSandbox' },
+  { id: 'forensics_1', label: { en: 'Unusual entries', he: 'רשומות חריגות' }, componentName: 'ToolSandbox' },
   { id: 'forensics_2', label: { en: 'Categorization Consistency Checker', he: 'בדיקת עקביות סיווגים' }, componentName: 'ToolSandbox' }
 ], 'lenses');
 
@@ -681,7 +681,7 @@ export const SETTINGS_COMPONENTS: Record<string, ElementType> = {
 };
 
 export const INTELLIGENCE_TABS_REGISTRY = withScreenHelp([
-  { id: 'intelligence', label: { en: 'Intelligence', he: 'מודיעין' }, componentName: 'UnifiedIntelligenceCore' }
+  { id: 'intelligence', label: { en: 'Insights', he: 'תובנות' }, componentName: 'UnifiedIntelligenceCore' }
 ], 'intelligence');
 
 /** All route screens, including routes outside the sidebar. */
@@ -689,7 +689,7 @@ export const SCREEN_TABS_REGISTRY = [
   ...APP_TABS,
   ...withScreenHelp([
     { id: 'architecture', label: { en: 'Architecture Map', he: 'מפת ארכיטקטורה' } },
-    { id: 'audit', label: { en: 'Forensic Audit', he: 'ביקורת' } },
+    { id: 'audit', label: { en: 'Audit checks', he: 'בדיקות ביקורת' } },
     { id: 'time-machine', label: { en: 'Time Machine', he: 'מכונת זמן' } },
     { id: 'ask', label: { en: 'Ask Ledger', he: 'שאלות' } },
     { id: 'magic', label: { en: 'Assisted Entry', he: 'הזנה חכמה' } },

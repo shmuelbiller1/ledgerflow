@@ -43,7 +43,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     title: "Getting Started & System Overview",
     icon: Sparkles,
     category: "Core Concepts",
-    summary: `${BRAND_NAME} is a continuous double-entry ERP and financial ledger that enforces immutable mathematical balance and strict accounting integrity.`,
+    summary: `${BRAND_NAME} is double-entry bookkeeping for your business: every entry balances, and posted entries are corrected, never rewritten.`,
     steps: [
       "Navigate modules using the sidebar or press ⌘K (Ctrl+K) to open the Command Palette.",
       "Configure Chart of Accounts in the Account Register or Ledger views.",
@@ -171,7 +171,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
       "Time Machine (time-machine): Inspect the exact historical state of the entire financial ledger at any prior timestamp.",
       "Vault (vault): Secure, tamper-proof repository for invoices, bill receipts, tax forms, and compliance documents.",
       "Forecaster (forecaster): Monte Carlo cash flow simulation and runway projection engine.",
-      "AI Co-pilot (copilot): Natural language financial queries, pattern recognition, and ledger analysis.",
+      "Ask your books (copilot): Natural language financial queries, pattern recognition, and ledger analysis.",
       "Account Register (register): Single-account checkbook register with inline transaction recording.",
       "Audit Trail (audit-trail): Immutable forensic log of every write, reversal, and user modification.",
       "API Platform (api-hub): Manage webhook endpoints, API tokens, and programmatic integrations."

@@ -115,7 +115,7 @@ export default function AuditLogViewer() {
       <div className="bg-[var(--surface)] border border-[var(--line)] rounded-[32px] p-6 shadow-3xs">
         <div className="flex items-center gap-3 mb-6">
           <Filter aria-hidden="true" size={18} className="text-[var(--muted)]" />
-          <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Forensic Audit Filter</h2>
+          <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Audit checks filter</h2>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
