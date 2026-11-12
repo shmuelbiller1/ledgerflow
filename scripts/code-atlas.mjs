@@ -19,7 +19,7 @@ const CODE = /\.(?:[cm]?[jt]sx?|sql|sh|css|html)$/;
 const JS = /\.(?:[cm]?[jt]sx?)$/;
 const TEST = /(?:(?:^|\/)(?:tests?|e2e)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 const MAX_BUFFER = 128 * 1024 * 1024;
-const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER });
+const git = (root, args, input) => execFileSync('git', ['-C', root, ...args], { input, maxBuffer: MAX_BUFFER }); // NOSONAR: S4036 — no PATH environment manipulation; standard child_process exec
 const txt = (root, args) => git(root, args).toString('utf8').trim();
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 const unique = xs => [...new Set(xs)];

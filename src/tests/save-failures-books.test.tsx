@@ -1,3 +1,4 @@
+// NOSONAR:S2187 — tests registered via describeSaveFailures DSL (see helpers/failureHarness.ts)
 /**
  * Failure tests for the money saves on the purchases and books side (PREV-5): a bill (new and
  * edited) on the Purchases screen, a journal entry in its dialog, and a bank statement import
