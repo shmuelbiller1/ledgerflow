@@ -136,10 +136,8 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits ||
-    truncated.customers || truncated.vendors || isCollectionCapped(truncated, 'accounts') ||
-    failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits ||
-    failed.customers || failed.vendors || failed.accounts
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || isCollectionCapped(truncated, 'accounts') ||
+    failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits || failed.accounts
   );
 
   return <IsraelVatReportPanel
