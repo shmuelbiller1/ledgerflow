@@ -578,3 +578,8 @@ are fine; **3 have no shared check** (the demo-seed route — removed in PR #660
 entry). Making the check see them means **raising its baseline from 0**, which the rules leave to you.
 *Default I used:* nothing changed yet. When AI #1 has moved the recurring and payment writers through `ledgerWrite`,
 the check can be tightened at the true count. Say "raise the ledger-door baseline" if you want it done now instead.
+
+## 12 Nov — AI #9: one migration to apply, one choice
+
+- **Apply migration `supabase/migrations/20261112000000_report_schedule_send_day.sql`** (merged in #665). Until it is applied, a scheduled report set to send on any day other than Monday / the 1st cannot be saved (the database refuses the new `sendDay` field); schedules on the default day work as before.
+- **EU-I2 "Sent with …" on the customer portal** (in draft #675): built as on for everyone, with a Branding setting to turn it off. Whether turning it off should need a paid plan is your decision; default used: anyone can turn it off.
