@@ -139,9 +139,43 @@ test('#114 operationIdFor: the same payment keeps its id across retries; a chang
 });
 
 test('AU-6: ledger entries written outside the door (src/server/services/ledgerDoor.ts) never increase', () => {
-  const max = (JSON.parse(fs.readFileSync('ledger-door-baseline.json', 'utf8')) as Record<string, number>)['server-direct-ledger-write'];
+  const baseline = JSON.parse(fs.readFileSync('ledger-door-baseline.json', 'utf8')) as {
+    'server-direct-ledger-write': number;
+    sites?: Record<string, number>;
+  };
+  const max = baseline['server-direct-ledger-write'];
   const direct = scanFinancialIntegrity().filter(f => f.kind === 'server-direct-ledger-write');
   assert.ok(direct.length <= max, `${direct.length} direct ledger writes > ${max}. Use ledgerWrite() from src/server/services/ledgerDoor.ts:\n` + direct.map(f => `  ${f.file}:${f.line}`).join('\n'));
+  if (baseline.sites) {
+    const byFile: Record<string, number> = {};
+    for (const f of direct) byFile[f.file] = (byFile[f.file] || 0) + 1;
+    const siteAdditions = Object.entries(byFile)
+      .filter(([file, n]) => n > (baseline.sites?.[file] ?? 0))
+      .map(([file, n]) => `${file}: ${n} > ${baseline.sites?.[file] ?? 0}`);
+    assert.deepEqual(siteAdditions, [], 'New direct ledger write outside ledgerDoor.ts; route through ledgerWrite()/ledgerCreate()/ledgerMark()');
+  }
+});
+
+test('#657: financial scanner catches variable-held collection("transactions") doc references', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lf-door-var-'));
+  try {
+    const dest = path.join(root, 'src/server/routes/sampleRoute.ts');
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, `
+      export async function bypass(db: any, t: any, id: string) {
+        const txCol = db.collection('transactions');
+        const txRef = txCol.doc(id);
+        const directRef = db.collection('transactions').doc(id);
+        t.update(txRef, { amountCents: 100 });
+        t.create(directRef, { amountCents: 200 });
+      }
+    `);
+    const direct = scanFinancialIntegrity(root).filter(f => f.kind === 'server-direct-ledger-write');
+    assert.equal(direct.length, 2);
+    assert.deepEqual(direct.map(f => f.name), ['update', 'create']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('AU-6: the door refuses entries that could not be valid', async () => {

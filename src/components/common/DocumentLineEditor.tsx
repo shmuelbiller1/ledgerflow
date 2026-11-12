@@ -305,10 +305,10 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         id={`je-line-debit-${idx}`}
                         aria-label={`Debit amount for line ${idx + 1}`}
                         type="number"
-                        step="0.01"
-                        value={line.debit > 0 ? line.debit / 100 : ''}
+                        step={amountStep(currency)}
+                        value={line.debit > 0 ? minorToMajor(line.debit, currency) : ''}
                         onChange={e => {
-                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0');
+                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0', currency);
                           updateAt(idx, current => {
                             const nextCredit = cents > 0 ? 0 : (isJournalLine(current) ? current.credit : 0);
                             return {
@@ -328,10 +328,10 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         id={`je-line-credit-${idx}`}
                         aria-label={`Credit amount for line ${idx + 1}`}
                         type="number"
-                        step="0.01"
-                        value={line.credit > 0 ? line.credit / 100 : ''}
+                        step={amountStep(currency)}
+                        value={line.credit > 0 ? minorToMajor(line.credit, currency) : ''}
                         onChange={e => {
-                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0');
+                          const cents = TruthEngine.parseAmountToCents(e.target.value || '0', currency);
                           updateAt(idx, current => {
                             const nextDebit = cents > 0 ? 0 : (isJournalLine(current) ? current.debit : 0);
                             return {
