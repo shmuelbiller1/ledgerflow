@@ -26,7 +26,8 @@ test('a refused section keeps choices and blocks print; retry prints only a full
   assert.equal((view.getByRole('checkbox', { name: 'Receivables aging' }) as HTMLInputElement).checked, true);
   refused = false; fireEvent.click(view.getByRole('button', { name: 'Prepare pack' }));
   await waitFor(() => assert.equal(print.disabled, false));
-  assert.match(view.getByText(/It is not a historical balance/).textContent!, /2024-01-31/);
+  // H-8: the same day (31 Jan 2024), written the way the reader's date format writes it
+  assert.match(view.getByText(/It is not a historical balance/).textContent!, /Jan 31, 2024/);
   const section = view.getByRole('region', { name: 'Receivables aging' });
   assert.match(within(section).getByRole('row', { name: /Total outstanding/ }).textContent!, /123\.45/);
   assert.ok(calls.every(url => !url.includes('/aging') || !url.includes('2024')));

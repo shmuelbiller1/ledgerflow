@@ -8,6 +8,7 @@ import { RangeReportSourceNote } from '../reporting/RangeReportSourceNote';
 import { Search, BookOpen, Printer } from 'lucide-react';
 import { Labelled } from '../ui/Labelled';
 import { printElementById } from '../../lib/printRoot';
+import { useReportDates } from '../reporting/useReportDates';
 
 function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['accounts'][number]['entries']) {
   const occurrences = new Map<string, number>();
@@ -23,6 +24,7 @@ function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['ac
 
 export default function GeneralLedgerView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: { startDate?: string; endDate?: string; embedded?: boolean } = {}) {
   const accounts = useLedgerStore(s => s.accounts);
+  const reportDates = useReportDates();
 
   const [startDate, setStartDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageStartDate || undefined, '2026-01-01');
   const [endDate, setEndDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageEndDate || undefined, getLocalDateISO());
@@ -56,7 +58,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
         <h1 className="text-xl font-bold">General Ledger</h1>
         <p className="text-xs">
           {selectedAccountId === 'all' ? 'All accounts' : accounts.find(a => a.id === selectedAccountId)?.name || 'Account'}
-          {' · '}{startDate} to {endDate}
+          {' · '}{reportDates.periodText(startDate, endDate)}
         </p>
       </div>
       <RangeReportSourceNote source={source} testId="general-ledger-source" what="these balances and lines" />
@@ -206,7 +208,8 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
                     {keyedLedgerEntries(acc.entries).map(({ entry, key }) => (
                       <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                        <td className="py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">{entry.date}</td>
+                        {/* H-8 (AI #10): the row's day in the reader's format, like every other screen */}
+                        <td className="py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">{reportDates.dateText(entry.date)}</td>
                         <td className="py-2 px-4 text-slate-900 dark:text-white font-sans font-medium">{entry.description}</td>
                         <td className="py-2 px-4 text-[var(--muted)]">{entry.reference || '-'}</td>
                         <td className="py-2 px-4 text-right text-emerald-600 dark:text-emerald-400">

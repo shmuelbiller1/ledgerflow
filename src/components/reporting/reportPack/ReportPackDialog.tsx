@@ -8,6 +8,7 @@ import { formatCurrency, getLocalDateISO } from '../../../lib/utils';
 import { PACK_REPORTS, packReportUrl, packSection } from '../../../lib/reportPack';
 import type { PackReport, PackSection } from '../../../lib/reportPack';
 import { printElementById } from '../../../lib/printRoot';
+import { useReportDates } from '../useReportDates';
 
 export default function ReportPackDialog({ startDate, endDate, onClose }: { startDate: string; endDate: string; onClose: () => void }) {
   const user = useAuthStore(s => s.user);
@@ -15,6 +16,9 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
   const workspace = useAuthStore(s => s.workspaces.find(w => w.id === s.currentWorkspaceId));
   const accounts = useLedgerStore(s => s.accounts);
   const { titleId, dialogProps } = useDialog(onClose);
+  // H-8: every date a reader sees on the pack follows the reader's own date format. Declared above
+  // the lifecycle early-return below, so the hook order never depends on the context check.
+  const reportDates = useReportDates();
   const [selected, setSelected] = useState<PackReport[]>(['pl', 'bs', 'ar']);
   const [snapshot, setSnapshot] = useState<{ sections: PackSection[]; made: string; agingDate: string }>();
   const [busy, setBusy] = useState(false);
@@ -69,7 +73,7 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
   return createPortal(<div {...dialogProps} className="report-pack-overlay fixed inset-0 z-[100] bg-[var(--surface)] overflow-auto p-4 text-[var(--text)]">
     <div data-print-hide className="max-w-4xl mx-auto space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 id={titleId} className="text-xl font-bold">Report pack</h2><button className={control} onClick={onClose}>Close</button></div>
-      <p>Accrual statements: {startDate} – {endDate}. Aging uses current balances and the server’s current-day overdue buckets, separately dated when retrieved.</p>
+      <p>Accrual statements: {reportDates.periodText(startDate, endDate)}. Aging uses current balances and the server’s current-day overdue buckets, separately dated when retrieved.</p>
       <p>Choose sections, prepare the preview, then select Save as PDF in your browser’s print dialog. Other specialized reports keep their individual Print / PDF action.</p>
       <fieldset disabled={busy} className="flex flex-wrap gap-3"><legend className="font-bold">Sections</legend>
         {(Object.keys(PACK_REPORTS) as PackReport[]).map(kind => <label key={kind} className="flex items-center gap-2 min-h-11"><input type="checkbox" checked={selected.includes(kind)} onChange={e => {
@@ -86,16 +90,21 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
     </div>
     {snapshot && <article id="report-pack-sheet" data-print-root data-report-pack-print className="report-pack-paper max-w-4xl mx-auto mt-6 bg-white text-black p-4">
       <section className="report-pack-cover"><h1 className="text-3xl font-bold">Report pack</h1><h2 className="text-xl"><bdi dir="auto">{workspace?.name || workspaceId}</bdi></h2>
-        <p>Reporting period: {startDate} – {endDate}</p><p>P&L / balance sheet basis: accrual · Currency: {workspace?.currency || 'USD'}</p>
+        {/* H-8 (AI #10): the cover writes the period the way the reader's date format does, so the
+            pack and the screen reports it repeats agree on the same day. */}
+        <p>Reporting period: {reportDates.periodText(startDate, endDate)}</p><p>P&L / balance sheet basis: accrual · Currency: {workspace?.currency || 'USD'}</p>
         <p>Made: {snapshot.made}</p><ol>{snapshot.sections.map(section => <li key={section.kind}>{PACK_REPORTS[section.kind]}</li>)}</ol>
-        {snapshot.sections.some(s => s.kind === 'ar' || s.kind === 'ap') && <p>Aging shows current outstanding balances retrieved at {snapshot.made}. It is not a historical balance at {endDate}.</p>}
+        {snapshot.sections.some(s => s.kind === 'ar' || s.kind === 'ap') && <p>Aging shows current outstanding balances retrieved at {snapshot.made}. It is not a historical balance at {reportDates.dateText(endDate)}.</p>}
         {snapshot.sections.some(s => s.kind === 'budget') && <p>Budget vs actual covers one month only: {endDate.slice(0, 7)} (the month the reporting period ends in). It compares the budgets saved in the workspace with that month’s posted entries.</p>}
-        {snapshot.sections.some(s => s.kind === 'stock') && <p>Stock on hand is a position at {endDate}, from the stock-moves history; it is not a movement report for the period.</p>}
+        {snapshot.sections.some(s => s.kind === 'stock') && <p>Stock on hand is a position at {reportDates.dateText(endDate)}, from the stock-moves history; it is not a movement report for the period.</p>}
         <p>Sections are read from the existing workspace report services. Each section is read separately; refresh if the books change while preparing.</p>
       </section>
       {snapshot.sections.map(section => <section className="report-pack-section" key={section.kind} aria-label={PACK_REPORTS[section.kind]}>
-        <h2 className="text-xl font-bold">{PACK_REPORTS[section.kind]}{section.kind === 'ar' || section.kind === 'ap' ? ` as of ${snapshot.agingDate}` : section.kind === 'stock' ? ` at ${endDate}` : ''}</h2>
-        <p>{section.kind === 'ar' || section.kind === 'ap' ? `Current aging · retrieved ${snapshot.made}` : section.kind === 'bs' || section.kind === 'tb' ? `As of ${endDate} · accrual` : section.kind === 'stock' ? `Units and value on hand at ${endDate}` : section.kind === 'budget' ? `Month of ${endDate.slice(0, 7)}` : `${startDate} – ${endDate}${section.kind === 'pl' ? ' · accrual' : ''}`}</p>
+        {/* H-8 (AI #10): a section heading names its day the way the reader's format writes it. The
+            aging heading keeps the retrieval date the server reported (that is when the balances
+            were read); "Month of" keeps the stored YYYY-MM because it names a month, not a day. */}
+        <h2 className="text-xl font-bold">{PACK_REPORTS[section.kind]}{section.kind === 'ar' || section.kind === 'ap' ? ` as of ${reportDates.dateText(snapshot.agingDate)}` : section.kind === 'stock' ? ` at ${reportDates.dateText(endDate)}` : ''}</h2>
+        <p>{section.kind === 'ar' || section.kind === 'ap' ? `Current aging · retrieved ${snapshot.made}` : section.kind === 'bs' || section.kind === 'tb' ? `As of ${reportDates.dateText(endDate)} · accrual` : section.kind === 'stock' ? `Units and value on hand at ${reportDates.dateText(endDate)}` : section.kind === 'budget' ? `Month of ${endDate.slice(0, 7)}` : `${reportDates.periodText(startDate, endDate)}${section.kind === 'pl' ? ' · accrual' : ''}`}</p>
         {(section.kind === 'ar' || section.kind === 'ap') && <p>Today’s position, not the reporting period end. Buckets follow the server’s current day; the heading date is the workspace retrieval date.</p>}
         {section.warnings.map(warning => <p key={warning}>{warning}</p>)}
         <table className="w-full"><caption className="sr-only">{PACK_REPORTS[section.kind]}</caption><thead><tr><th scope="col" className="text-left">{section.kind === 'budget' ? 'Budget line / measure' : section.kind === 'stock' ? 'Item / measure' : 'Account / measure'}</th><th scope="col" className="text-right">Amount ({workspace?.currency || 'USD'})</th></tr></thead>

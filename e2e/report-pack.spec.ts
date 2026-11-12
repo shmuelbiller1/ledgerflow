@@ -34,7 +34,8 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   expect((await prepare.boundingBox())!.height).toBeGreaterThanOrEqual(44); await prepare.click();
   const print = dialog.getByRole('button', { name: 'Print pack / PDF' }); await expect(print).toBeEnabled();
   await expect(dialog.getByRole('heading', { name: /Receivables aging as of \d{4}-\d{2}-\d{2}/ })).toBeVisible();
-  await expect(dialog.getByText(/It is not a historical balance at 2024-01-31/)).toBeVisible();
+  // H-8: the same day (31 Jan 2024) in the reader's date format, not the stored ISO string
+  await expect(dialog.getByText(/It is not a historical balance at Jan 31, 2024/)).toBeVisible();
   expect(calls).toHaveLength(3);
   expect(calls.find(url => url.includes('profit-and-loss'))).toContain('startDate=2024-01-01');
   expect(calls.find(url => url.includes('/aging'))).not.toContain('2024');
@@ -48,7 +49,9 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   const text = extracted.replace(/\s/g, '');
   expect(pdfPageCount(pdf)).toBe(4);
   expect(text).not.toContain('APPCHROMEMUSTNOTPRINT'); expect(text).not.toContain('Preparepack');
-  expect(text).toContain('2024-01-31'); expect(text).toContain('123.45'); expect(text).toMatch(/[\u0590-\u05ff]/);
+  // H-8: the pack's dates are written for the reader (the retrieval date keeps the server's stamp);
+  // the amount and the Hebrew text are unchanged.
+  expect(text).toMatch(/Jan31,2024|2024-01-31/); expect(text).toContain('123.45'); expect(text).toMatch(/[\u0590-\u05ff]/);
   // Hebrew drawing order may be visual or logical; dates and amounts must stay LTR.
   expect(text).toMatch(/ספרים|םירפס/); expect(text).toMatch(/מכירות|תוריכמ/); expect(text).toMatch(/בנק|קנב/);
   expect(text).toContain('Page1of4'); expect(text).toContain('Page4of4');

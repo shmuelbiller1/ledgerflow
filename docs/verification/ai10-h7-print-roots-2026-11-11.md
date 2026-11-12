@@ -1,6 +1,8 @@
 # H-7 (AI #10) — nine screens printed the whole application shell around their document
 
-Date: 11 Nov 2026. Branch: `arena/71202919-ledgerflow`, based on `ec3ff49` (main after PR #626).
+Date: 11 Nov 2026. Branch: the Arena session branch, rebuilt on `c82bead4` (main after #666) — the
+work was first made on `ec3ff49`; the session branch moved, and the same patch was re-applied and
+re-verified on the new base rather than trusted.
 Lane: daily screens (display only — no money, posting, tax maths, statement figures or `src/server/`).
 
 ## The defect
@@ -87,12 +89,20 @@ still prints the ISO dates the filter holds (H-8 below is the locale work, delib
 | check | result |
 | --- | --- |
 | `npx tsc --noEmit -p tsconfig.json` / `npm run lint:types` | pass, 0 errors |
-| `npm run lint:eslint` (whole repo) | 0 errors, **42** warnings (cap 42, unchanged) |
+| `npm run lint:eslint` (whole repo) | 0 errors, **2** warnings — both pre-existing in `src/server`, cap on this base is 12 (ratchet lowered since the first draft of this note; nothing raised) |
 | focused suites: print-root, print-root-guard, print-layout, print-light-guard, table-a11y, icon-button-a11y, report-empty-state-coverage, israel-vat-report-view | 79/79 pass |
 | component suites touching the nine files (access-review, statement scope, delivery notes, period closing, invoice modal, GL, report pack, credit limit, layers guard) | 53/53 pass |
 | `npm run build` | pass (dist, `build/server.cjs`, `build/api.cjs`) |
-| `npm test` (whole suite) | **4664 tests: 4659 pass, 5 skipped, 0 fail**, exit 0. The 5 skips are the DB-gated tests (no `LF_TEST_DATABASE_URL` in this sandbox) — `test:rules` was **not** run, and no SQL changed. |
+| `npm test` (whole suite, this base) | **4,881 tests: 4,873 pass, 2 fail, 6 skipped**. Both failures reproduce in this sandbox with every change on this branch stashed, so they are the environment, not the patch: `r5-every-report-speed` (`GeneralLedgerView 5,837 ms` on unmodified base — this branch 5,299–5,866 ms) and `report-speed-12m` A-229 (module load 1,617–1,748 ms against a 1,500 ms budget, the standing cold-import timing noted in CURRENT_WORK). No budget or expected number was raised. |
 | `npm run test:e2e` | not runnable here (no browser); the two new cases are CI-only |
+
+## One thing this patch found about itself
+
+The first draft dated every general-ledger row through a fresh `Intl.DateTimeFormat`, which costs
+~66× a `format()` call (20,000 calls: 1,417 ms fresh, 22 ms cached). R-5 caught it: the ledger went
+to 7,144 ms. The formatter is now cached per locale (`src/lib/reportLocale.ts`), and the cost is back
+at the unmodified baseline. Left in the note because it is the kind of thing a display change can
+do to a 5,000-row screen.
 
 ## Residual risk
 

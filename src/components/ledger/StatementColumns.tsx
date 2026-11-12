@@ -1,4 +1,5 @@
 import ExportTemplateControls from '../reporting/ExportTemplateControls';
+import { useReportDates } from '../reporting/useReportDates';
 import React, { useId, useMemo, useState } from "react";
 import type { ChartAccount, Transaction } from "../../types";
 import { useAuthStore } from "../../stores/useAuthStore";
@@ -83,6 +84,7 @@ export function StatementColumns(props: StatementColumnsProps) {
     onSort,
     onDrillDown,
   } = props;
+  const reportDates = useReportDates();
   const formId = useId();
   // K-14: a group starts open, so a report with groups shows every account it showed before.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
@@ -177,7 +179,8 @@ export function StatementColumns(props: StatementColumnsProps) {
           : browserFigures;
   const drillDown = (row: StatementRow, period: ReportPeriod) =>
     onDrillDown(
-      `${row.label} · ${period.startDate} to ${period.endDate}`,
+      // H-8: the drill-down sentence names the period for a reader; the filter below keeps ISO
+      `${row.label} · ${reportDates.periodText(period.startDate, period.endDate)}`,
       transactions.filter(
         (transaction) =>
           isPostable(transaction) &&
@@ -268,7 +271,8 @@ export function StatementColumns(props: StatementColumnsProps) {
       {active && (
         <>
           <p className="text-xs text-[var(--muted)]">
-            {startDate} to {endDate} ·{" "}
+            {/* H-8 (AI #10): the reader's date format, not the stored ISO string */}
+            {reportDates.periodText(startDate, endDate)} ·{" "}
             {kind === "bs"
               ? "Closing balances at each period end"
               : "Activity inside each period"}{" "}
@@ -328,16 +332,17 @@ export function StatementColumns(props: StatementColumnsProps) {
                     >
                       {column.period.label}
                       <span className="block text-xs font-normal">
+                        {/* H-8: the column headings write the reader's layout too */}
                         {kind === "bs"
-                          ? column.period.endDate
-                          : `${column.period.startDate} – ${column.period.endDate}`}
+                          ? reportDates.dateText(column.period.endDate)
+                          : reportDates.periodText(column.period.startDate, column.period.endDate)}
                       </span>
                       {compare && column.previousPeriod && (
                         <span className="block text-xs font-normal">
                           vs{" "}
                           {kind === "bs"
-                            ? column.previousPeriod.endDate
-                            : `${column.previousPeriod.startDate} – ${column.previousPeriod.endDate}`}
+                            ? reportDates.dateText(column.previousPeriod.endDate)
+                            : reportDates.periodText(column.previousPeriod.startDate, column.previousPeriod.endDate)}
                         </span>
                       )}
                     </th>
