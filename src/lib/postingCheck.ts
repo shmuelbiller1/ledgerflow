@@ -13,7 +13,7 @@
  */
 import type { Bill, CreditNote, Invoice, Transaction, VendorCredit } from '../types';
 import { isPostable, lineAmount } from './txFilters';
-import { minorUnitRate } from './currencyMinorUnits';
+import { convertMinorUnits } from './currencyMinorUnits';
 
 export type PostingIssue = 'missing' | 'duplicate' | 'orphan' | 'amount';
 
@@ -73,18 +73,19 @@ function postedTotal(t: Transaction, kind: DocKind): number {
 
 /** What the receivable/payable side of the accrual should be, in base currency. An invoice's
  *  discount is booked on the same side (DR Sales Discounts), so it adds to the invoice's debits. */
-function expectedTotal(kind: DocKind, doc: { amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string }, baseCurrency?: string): number {
-  // Use the same source-to-books minor-unit factor used by canonical ledger posting.
-  const rate = minorUnitRate(doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1, doc.currency || baseCurrency, baseCurrency);
-  const total = Math.round((doc.amountCents || 0) * rate);
-  return kind === 'invoice' ? total + Math.round((doc.discountCents || 0) * rate) : total;
+function expectedTotal(kind: DocKind, doc: { amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string }, baseCurrency: string): number {
+  const rate = doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
+  const total = convertMinorUnits(doc.amountCents || 0, rate, doc.currency, baseCurrency);
+  const discount = convertMinorUnits(doc.discountCents || 0, rate, doc.currency, baseCurrency);
+  return kind === 'invoice' ? total + discount : total;
+
 }
 
 function check(
   kind: DocKind,
   docs: Array<{ id: string; number?: string; status?: string; amountCents?: number; exchangeRate?: number; discountCents?: number; currency?: string; party?: string }>,
   accruals: Map<string, Transaction[]>,
-  baseCurrency?: string,
+  baseCurrency: string,
 ): PostingMismatch[] {
   const out: PostingMismatch[] = [];
   for (const doc of docs) {
@@ -101,11 +102,11 @@ function check(
 }
 
 export function findPostingMismatches(input: { invoices: Invoice[]; bills: Bill[]; creditNotes?: CreditNote[]; vendorCredits?: VendorCredit[]; transactions: Transaction[]; baseCurrency?: string }): PostingMismatch[] {
-  const base = input.baseCurrency || 'USD';
-  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'), base);
-  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'), base);
+  const baseCurrency = input.baseCurrency || 'USD';
+  const invoices = check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName })), activeAccruals(input.transactions, 'invoiceId', 'invoice-accrual'), baseCurrency);
+  const bills = check('bill', input.bills.map(b => ({ ...b, party: b.vendorName })), activeAccruals(input.transactions, 'billId', 'bill-accrual'), baseCurrency);
   // #643: an issued credit note or vendor credit is checked the same way (a draft or void one posts nothing)
-  const creditNotes = check('credit-note', (input.creditNotes || []).map(c => ({ ...c, party: c.customerName })), activeAccruals(input.transactions, 'creditNoteId', 'credit-note-issuance'), base);
-  const vendorCredits = check('vendor-credit', (input.vendorCredits || []).map(v => ({ ...v, party: v.vendorName })), activeAccruals(input.transactions, 'vendorCreditId', 'vendor-credit-issuance'), base);
+  const creditNotes = check('credit-note', (input.creditNotes || []).map(c => ({ ...c, party: c.customerName })), activeAccruals(input.transactions, 'creditNoteId', 'credit-note-issuance'), baseCurrency);
+  const vendorCredits = check('vendor-credit', (input.vendorCredits || []).map(v => ({ ...v, party: v.vendorName })), activeAccruals(input.transactions, 'vendorCreditId', 'vendor-credit-issuance'), baseCurrency);
   return [...invoices, ...bills, ...creditNotes, ...vendorCredits];
 }

@@ -35,6 +35,8 @@ export interface SalesByItemInput {
   accounts: ChartAccount[];
   startDate?: string;
   endDate?: string;
+  /** workspace currency for converting each document's own minor units */
+  baseCurrency?: string;
 }
 
 function marginPct(salesCents: number, marginCents: number): number | null {
@@ -81,7 +83,7 @@ export function postedCogsByInvoiceLine(transactions: Transaction[], accounts: C
  * estimated as quantity × unit cost and the row is marked `costIsEstimate`.
  */
 export function computeSalesByItem(input: SalesByItemInput): SalesByItemReport {
-  const { invoices, items, transactions, accounts, startDate, endDate } = input;
+  const { invoices, items, transactions, accounts, startDate, endDate, baseCurrency = 'USD' } = input;
   const itemById = new Map(items.map(i => [i.id, i]));
   const posted = postedCogsByInvoiceLine(transactions, accounts);
   const rows = new Map<string, SalesByItemRow>();
@@ -108,7 +110,7 @@ export function computeSalesByItem(input: SalesByItemInput): SalesByItemReport {
       }
       const quantity = Number.isFinite(line.quantity) ? line.quantity : 0;
       row.quantity += quantity;
-      row.salesCents += toBaseCents(line.amountCents || 0, inv.exchangeRate);
+      row.salesCents += toBaseCents(line.amountCents || 0, inv.exchangeRate, inv.currency, baseCurrency);
 
       if (!line.itemId) continue;
       const postedCost = posted.get(`${inv.id}/${line.id}`);

@@ -51,14 +51,14 @@ export function withServerBalances(loaded: ReturnType<typeof dashboardComparison
   };
 }
 /** Current unpaid amounts aged at the selected date, not historical payment reconstruction. */
-export function dashboardAging(parties: Array<{ id: string; name: string }>, documents: Array<Invoice | Bill>, side: 'customer' | 'vendor', endDate: string) {
+export function dashboardAging(parties: Array<{ id: string; name: string }>, documents: Array<Invoice | Bill>, side: 'customer' | 'vendor', endDate: string, baseCurrency: string = 'USD') {
   const included = documents.filter(doc => !doc.date || doc.date.slice(0, 10) <= endDate);
   const names = new Map(parties.map(party => [party.id, party]));
   for (const doc of included) {
     const id = (side === 'customer' ? (doc as Invoice).customerId : (doc as Bill).vendorId) || '';
     if (!names.has(id)) names.set(id, { id, name: id || 'Unknown party' });
   }
-  const rows = computePartyAging([...names.values()], included, side, endDate);
+  const rows = computePartyAging([...names.values()], included, side, endDate, baseCurrency);
   const top = rows.map(row => ({ ...row, overdue: row.total - row.buckets.current })).filter(row => row.overdue > 0).sort((a, b) => b.overdue - a.overdue || a.partyId.localeCompare(b.partyId)).slice(0, 5);
   return { rows, top };
 }

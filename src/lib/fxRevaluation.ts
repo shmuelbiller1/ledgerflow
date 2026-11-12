@@ -21,7 +21,7 @@
  *   value is `toBaseCents`, the same two rules the aging and the customer balances use, so this
  *   entry and the A/R report cannot disagree.
  */
-import { toBaseCents } from '../server/reports/partyReports';
+import { convertMinorUnits } from './currencyMinorUnits';
 import { addDaysYMD } from './fiscalCalendar';
 import { monthEnd } from './periodLock';
 import { calculateAmountDue } from './documentMath';
@@ -193,8 +193,8 @@ export function planFxRevaluation(
       continue;
     }
 
-    const bookedBaseCents = toBaseCents(openCents, bookedRate);
-    const todayBaseCents = Math.round(openCents * todayRate);
+    const bookedBaseCents = convertMinorUnits(openCents, bookedRate, currency, base);
+    const todayBaseCents = convertMinorUnits(openCents, todayRate, currency, base);
     const deltaCents = todayBaseCents - bookedBaseCents;
     if (deltaCents === 0) {
       skipped.push({ ...short, reason: `already at ${rateLabel(currency)}` });

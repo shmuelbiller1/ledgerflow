@@ -33,7 +33,8 @@ export default function AgedReceivablesByRepReportView() {
     invoices: invoices.filter(i => !workspaceId || i.workspaceId === workspaceId),
     reps,
     asOf,
-  }), [customers, invoices, workspaceId, reps, asOf]);
+    baseCurrency: home,
+  }), [customers, invoices, workspaceId, reps, asOf, home]);
   const totals = rows.reduce((acc, r) => ({
     total: acc.total + r.totalCents, overdue: acc.overdue + r.overdueCents,
   }), { total: 0, overdue: 0 });

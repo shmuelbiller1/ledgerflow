@@ -44,6 +44,6 @@ export function serverApproval(existing: DocumentData | undefined, incoming: Doc
   const settings = normalizeInvoiceApproval(workspace.invoiceApproval);
   if (!settings.enabled || before) return {};
   if (existing && isIssuedForApproval(existing.status)) return {}; // it was already out before: never reached back
-  const stamp = approvalForSave({ ...(existing || {}), ...incoming }, settings, { role, uid, now, twoPerson });
+  const stamp = approvalForSave({ ...(existing || {}), ...incoming }, settings, { role, uid, now, twoPerson }, String(workspace.currency || 'USD'));
   return stamp ? { approval: stamp } : {};
 }

@@ -3,13 +3,14 @@ import { trendWindowStart } from '../../lib/documentTrends';
 import { thresholdWindowStart } from '../../lib/registrationThresholdWatch';
 import { monthsBetween } from '../../lib/spreadWaterfall';
 import express from 'express';
-import { errorMessage, requestUser, sanitizeForLog } from '../auth/requestUser';
+import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { activityOver, balancesAsOf, freshSnapshot, customerGrossProfitOver, itemGroupMarginOver, purchaseTrendsOver, registrationThresholdOver, spreadWaterfallOver, chartExplorationOver, customerLifetimeValueOver, ALL_HISTORY_FROM, generalLedgerOver, entryQueryOver, entryYearsOf, referencesOver, salesTrendsOver, expenseByCategoryOver, incomeBySourceOver, monthlyAveragesOver, profitabilityOver, tagReportOver, salesByItemOver, topLinesOver } from '../services/balanceService';
 import { ENTRY_QUERY_TEXT_MAX } from '../../lib/entryQuery';
 import { assetRegisterAsOf, depreciationLedgerOver } from '../services/assetRegisterService';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { PROFITABILITY_BY, type ProfitabilityBy } from '../../lib/profitabilityLines';
+import { logSafe, logSafeDetail } from '../utils/logSafe';
 
 /**
  * L-123 step 3 (docs/design/L-123-server-balances.md): the account balances the browser shows, read by the server.
@@ -51,7 +52,7 @@ balanceRouter.get('/', async (req, res) => {
       ...(byLabel ? { byLabel: result.byLabel || {} } : {}), snapshot: result.snapshot, entriesRead: result.entriesRead,
     });
   } catch (err) {
-    console.error('[balances] could not read the balances', sanitizeForLog(errorMessage(err)));
+    console.error('[balances] could not read the balances', logSafeDetail(err));
     res.status(500).json({ status: 'error', message: 'Could not read the balances', details: errorMessage(err) });
   }
 });
@@ -75,7 +76,7 @@ balanceRouter.get('/closed-through', async (req, res) => {
     const snapshot = big ? await freshSnapshot(db, workspaceId, new Date().toISOString().slice(0, 10)) : null;
     res.json({ status: 'success', workspaceId, closedThrough: snapshot ? snapshot.asOf : null });
   } catch (err) {
-    console.error('[balances] could not read the closed-through day', sanitizeForLog(errorMessage(err)));
+    console.error('[balances] could not read the closed-through day', logSafeDetail(err));
     res.status(500).json({ status: 'error', message: 'Could not read the closed years', details: errorMessage(err) });
   }
 });
@@ -104,7 +105,7 @@ async function answerRange(res: express.Response, what: string, read: () => Prom
   try {
     res.json({ status: 'success', ...(await read()) });
   } catch (err) {
-    console.error(`[balances] could not read ${what}`, sanitizeForLog(errorMessage(err)));
+    console.error(`[balances] could not read ${logSafe(what)}`, logSafeDetail(err));
     res.status(500).json({ status: 'error', message: `Could not read ${what}`, details: errorMessage(err) });
   }
 }
@@ -130,7 +131,7 @@ balanceRouter.get('/activity', async (req, res) => {
     const result = await activityOver(db, workspaceId, from, to, exclude || undefined, requestUser(req).uid);
     res.json({ status: 'success', workspaceId, from, to, months: result.months, entriesRead: result.entriesRead, ...(result.pendingReversal ? { pendingReversal: result.pendingReversal } : {}) });
   } catch (err) {
-    console.error('[balances] could not read the activity', sanitizeForLog(errorMessage(err)));
+    console.error('[balances] could not read the activity', logSafeDetail(err));
     res.status(500).json({ status: 'error', message: 'Could not read the activity', details: errorMessage(err) });
   }
 });
@@ -182,7 +183,7 @@ balanceRouter.get('/asset-register', async (req, res) => {
   try {
     res.json({ status: 'success', workspaceId, asOf, ...await assetRegisterAsOf(db, workspaceId, asOf) });
   } catch (err) {
-    console.error('[balances] could not read the asset register', sanitizeForLog(errorMessage(err)));
+    console.error('[balances] could not read the asset register', logSafeDetail(err));
     res.status(500).json({ status: 'error', message: 'Could not read the asset register', details: errorMessage(err) });
   }
 });

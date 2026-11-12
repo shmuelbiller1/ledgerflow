@@ -31,7 +31,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: owner, name: 'Usage', plan: 'growth', members: [owner, 'view-1'], roles: { 'view-1': 'viewer' }, currentStorageMb: 12 });
-    for (let i = 0; i < 3; i++) await db.collection('transactions').doc(`${ws}_t${i}`).set({ workspaceId: ws, date: '2026-01-01', status: i === 2 ? 'draft' : 'completed', lines: [] });
+    for (let i = 0; i < 3; i++) await db.collection('transactions').doc(`${ws}_t${i}`).set({ workspaceId: ws, date: '2026-01-01', status: i === 2 ? 'draft' : 'completed', lines: i === 2 ? [] : [{ accountId: 'usage-debit', amountCents: 1 }, { accountId: 'usage-credit', amountCents: -1 }] });
     const app = express();
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
     app.use('/api/v1/workspaces', workspaceRouter);

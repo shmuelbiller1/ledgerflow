@@ -93,11 +93,12 @@ export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
 
   // BE-04: over the approval limit, a person who cannot sign gets refused; a person who can signs.
   const settings = workspace.invoiceApproval;
-  const held = holdsSending(invoice, settings);
+  const baseCurrency = String(workspace.currency || 'USD');
+  const held = holdsSending(invoice, settings, baseCurrency);
   const approver = isApproverRole(workspaceRole(workspace, input.uid));
   if (held && !input.system) {
     if (!approver) {
-      throw new EmailSendError(409, approvalStatus(invoice, settings) === 'rejected'
+      throw new EmailSendError(409, approvalStatus(invoice, settings, baseCurrency) === 'rejected'
         ? 'An owner or an accountant sent this invoice back — fix what they wrote before it goes to the customer'
         : 'This invoice is over the approval limit: an owner or an accountant must approve it first (Settings → Emails & Reminders)');
     }

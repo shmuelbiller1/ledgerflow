@@ -53,25 +53,25 @@ export const PAYROLL_SUMMARY_ALGO: AlgorithmDefinition = {
       totalEmployerBurden += breakdown.totalEmployerTaxCents;
       totalLiability += breakdown.totalPeriodLiabilityCents;
       
-      chartData.push({ employee: emp.name, net: currencyChartValue(breakdown.netPayCents), taxes: currencyChartValue(breakdown.totalWithholdingCents), burden: currencyChartValue(breakdown.totalEmployerTaxCents) });
+      chartData.push({ employee: emp.name, net: currencyChartValue(breakdown.netPayCents, ctx.reportingCurrency), taxes: currencyChartValue(breakdown.totalWithholdingCents, ctx.reportingCurrency), burden: currencyChartValue(breakdown.totalEmployerTaxCents, ctx.reportingCurrency) });
       rows.push({
         id: emp.id,
         employee: emp.name,
         role: emp.role,
         frequency: emp.payFrequency,
-        gross: formatCurrency(breakdown.grossPayCents),
-        taxes: formatCurrency(breakdown.totalWithholdingCents),
-        net: formatCurrency(breakdown.netPayCents),
-        employerBurden: formatCurrency(breakdown.totalEmployerTaxCents)
+        gross: formatCurrency(breakdown.grossPayCents, ctx.reportingCurrency),
+        taxes: formatCurrency(breakdown.totalWithholdingCents, ctx.reportingCurrency),
+        net: formatCurrency(breakdown.netPayCents, ctx.reportingCurrency),
+        employerBurden: formatCurrency(breakdown.totalEmployerTaxCents, ctx.reportingCurrency)
       });
     });
 
     return {
       metrics: [
-        { label: 'Total Gross Pay', value: formatCurrency(totalGross), color: 'text-white' },
-        { label: 'Total Net Pay', value: formatCurrency(totalNet), color: 'text-indigo-400' },
-        { label: 'Total Employer Taxes', value: formatCurrency(totalEmployerBurden), color: 'text-amber-400' },
-        { label: 'Total Period Liability', value: formatCurrency(totalLiability), color: 'text-rose-400' }
+        { label: 'Total Gross Pay', value: formatCurrency(totalGross, ctx.reportingCurrency), color: 'text-white' },
+        { label: 'Total Net Pay', value: formatCurrency(totalNet, ctx.reportingCurrency), color: 'text-indigo-400' },
+        { label: 'Total Employer Taxes', value: formatCurrency(totalEmployerBurden, ctx.reportingCurrency), color: 'text-amber-400' },
+        { label: 'Total Period Liability', value: formatCurrency(totalLiability, ctx.reportingCurrency), color: 'text-rose-400' }
       ],
       charts: [
         {
@@ -87,7 +87,7 @@ export const PAYROLL_SUMMARY_ALGO: AlgorithmDefinition = {
         }
       ],
       insights: [
-        `Running payroll for ${activeEmployees.length} active employees will require ${formatCurrency(totalLiability)} in cash.`,
+        `Running payroll for ${activeEmployees.length} active employees will require ${formatCurrency(totalLiability, ctx.reportingCurrency)} in cash.`,
         `Employer tax burden represents ${((totalEmployerBurden / totalGross) * 100).toFixed(2)}% of gross wages.`,
         `Notice: ${PAYROLL_DISCLAIMER}`
       ],

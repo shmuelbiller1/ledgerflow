@@ -18,6 +18,7 @@ export interface PartyReportLayoutProps<T> {
   icon: LucideIcon;
   totalLabel: string;
   totalAmountCents: number;
+  currency?: string;
   /** shown instead of the amount when the total is not known (never a made-up 0) */
   totalDisplay?: string;
   secondaryTotalLabel?: string;
@@ -47,6 +48,7 @@ export function PartyReportLayout<T>({
   icon: Icon,
   totalLabel,
   totalAmountCents,
+  currency,
   totalDisplay,
   secondaryTotalLabel,
   secondaryTotalCents,
@@ -88,7 +90,7 @@ export function PartyReportLayout<T>({
               {totalLabel}
             </div>
             <div className="text-base font-mono font-bold text-neutral-900 dark:text-white">
-              {totalDisplay ?? formatCurrency(totalAmountCents)}
+              {totalDisplay ?? formatCurrency(totalAmountCents, currency)}
             </div>
           </div>
 
@@ -98,7 +100,7 @@ export function PartyReportLayout<T>({
                 {secondaryTotalLabel}
               </div>
               <div className="text-base font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                {formatCurrency(secondaryTotalCents)}
+                {formatCurrency(secondaryTotalCents, currency)}
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@ import type { AlgoResultRow } from './types';
 import { AlgorithmDefinition, AlgoResult } from './types';
 import { formatCurrency } from '../../lib/utils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 
 export const COMPLIANCE_1099_ALGO: AlgorithmDefinition = {
   id: '1099-totals',
@@ -40,6 +41,7 @@ export const COMPLIANCE_1099_ALGO: AlgorithmDefinition = {
     
     const year = inputs['year'] || '2026';
     const thresholdCents = (inputs['threshold'] ?? 600) * 100;
+    const baseCurrency = ctx.reportingCurrency || 'USD';
 
     // Filter to 1099 vendors
     const eligibleVendors = vendors.filter((v) => v.is1099);
@@ -68,7 +70,7 @@ export const COMPLIANCE_1099_ALGO: AlgorithmDefinition = {
           const paymentDateStr = bill.paidAt || bill.paymentDate || bill.paidDate || bill.date || '';
           if (paymentDateStr.startsWith(year)) {
             // what was actually paid (a part-paid bill counts its payments, not its total)
-            paidCents += Math.round((bill.amountPaidCents ?? (bill.status === 'paid' ? bill.amountCents : 0) ?? 0) * (bill.exchangeRate || 1));
+            paidCents += convertMinorUnits(bill.amountPaidCents ?? (bill.status === 'paid' ? bill.amountCents : 0) ?? 0, bill.exchangeRate && bill.exchangeRate > 0 ? bill.exchangeRate : 1, bill.currency, baseCurrency);
           }
         }
       });
@@ -107,7 +109,7 @@ export const COMPLIANCE_1099_ALGO: AlgorithmDefinition = {
           id: vendor.id,
           vendor: vendor.name,
           email: vendor.email || '-',
-          amount: formatCurrency(paidCents)
+          amount: formatCurrency(paidCents, baseCurrency)
         });
       }
     });
@@ -115,11 +117,11 @@ export const COMPLIANCE_1099_ALGO: AlgorithmDefinition = {
     return {
       metrics: [
         { label: 'Qualifying Vendors', value: qualifyingVendorCount, color: 'text-indigo-400' },
-        { label: 'Total 1099-NEC Payments', value: formatCurrency(totalEligiblePayments), color: 'text-emerald-400' }
+        { label: 'Total 1099-NEC Payments', value: formatCurrency(totalEligiblePayments, baseCurrency), color: 'text-emerald-400' }
       ],
       charts: [],
       insights: [
-        `Found ${qualifyingVendorCount} vendors exceeding the $${thresholdCents / 100} threshold for tax year ${year}.`,
+        `Found ${qualifyingVendorCount} vendors exceeding the ${formatCurrency(thresholdCents, baseCurrency)} threshold for tax year ${year}.`,
         'Ensure you have valid W-9s on file for these vendors prior to filing 1099-NEC forms.'
       ],
       rows,

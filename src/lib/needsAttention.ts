@@ -35,7 +35,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 export function needsAttention(input: {
   today: string;
-  workspace: (PeriodLockSettings & { invoiceApproval?: unknown; closeSteps?: CloseStep[]; fiscalYearStartMonth?: number }) | null | undefined;
+  workspace: (PeriodLockSettings & { invoiceApproval?: unknown; closeSteps?: CloseStep[]; fiscalYearStartMonth?: number; currency?: string }) | null | undefined;
   /** last month's sign-offs on Month-End Close, when read (for its own steps left, BD-10) */
   lastMonthSignOffs?: Record<string, unknown>;
   bankLines?: Array<{ id?: string; status?: string }>;
@@ -74,7 +74,7 @@ export function needsAttention(input: {
   const behind = (input.banks || []).filter(b => b.status === 'error' || (b.status !== 'login_required' && b.lastSyncedAt && b.lastSyncedAt.slice(0, 10) < since));
   add({ id: 'bank-sync', count: behind.length, text: behind.length === 1 ? `${behind[0].institutionName || 'A bank'} is not syncing` : `${behind.length} bank connections are not syncing`, why: `Its last sync failed, or it has not synced for more than ${STALE_DAYS} days; its history on Banking says why.`, who: BOOKKEEPING, page: { tab: 'banking' } });
 
-  const awaitingInvoices = (input.invoices || []).filter(inv => approvalStatus(inv, settings) === 'awaiting');
+  const awaitingInvoices = (input.invoices || []).filter(inv => approvalStatus(inv, settings, input.workspace?.currency || 'USD') === 'awaiting');
   const awaiting = awaitingInvoices.length;
   add({ id: 'approvals', count: awaiting, text: plural(awaiting, 'invoice waiting for approval', 'invoices waiting for approval'), why: 'They are over the approval limit and can’t be sent until someone signs them off.', who: APPROVERS, page: { tab: 'sales' }, ...only('invoice', awaitingInvoices.map(i => i.id)) });
 

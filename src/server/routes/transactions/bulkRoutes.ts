@@ -1,9 +1,10 @@
 import express from 'express';
 import { FieldValue, getDb, isWorkspaceMemberData, validateWorkspaceMember } from '../../db/firestore';
-import { DoubleEntryValidator } from '../../../kernel/validation/DoubleEntryValidator';
 import type { DimensionDefinition, DimensionNode, Transaction } from '../../../types';
 import { LedgerPostingError } from '../../services/cogsStockService';
-import { ledgerWrite } from '../../services/ledgerDoor';
+import { checkLedgerEntry, ledgerWrite } from '../../services/ledgerDoor';
+import { revaluationEntryLock } from '../../services/stockRevaluationService';
+import { settleHomeCurrency } from '../../../lib/txFilters';
 import { migrateWorkspaceDimensionNodes } from '../../../lib/dimensionUtils';
 import { z } from 'zod';
 import { assertPostingOpen } from '../../../lib/periodLock';
@@ -120,17 +121,33 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
            if (txData?.date) assertPostingOpen(txData.date, wsNow as never, user.uid);
            const newDate = (updates[i].data as { date?: unknown } | undefined)?.date;
            if (typeof newDate === 'string' && newDate) assertPostingOpen(newDate, wsNow as never, user.uid);
-           if ((txData?.status === 'certified' || txData?.status === 'void') && !user.admin) throw new Error(`Forbidden: Transaction ${id} status is locked.`);
+           const revalLock = revaluationEntryLock(txData);
+           if (revalLock) throw new Error(revalLock);
            const updateData = { ...updates[i].data } as Record<string, unknown>;
            const expectedUpdatedAt = updates[i].expectedUpdatedAt || updateData.expectedUpdatedAt;
+           const settledFlag = txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true;
+           const unsettles = ['isCleared', 'reconciled', 'isReconciled', 'reconciledAt']
+             .some(key => key in updateData && updateData[key] !== txData?.[key]);
+           const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined || unsettles;
+           if (!user.admin && ((txData?.status === 'certified' || txData?.status === 'void') || (settledFlag && touchesAmounts))) {
+             throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
+           }
            delete updateData.expectedUpdatedAt;
            if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
              return { id, current: { ...txData, id: txDoc.id } };
            }
+           const txMeta = (txData?.metadata || {}) as Record<string, unknown>;
+           if ((updateData.lines !== undefined || updateData.status !== undefined) &&
+               (txMeta.invoiceId || txMeta.billId || txMeta.paymentId || txMeta.creditNoteId || txMeta.vendorCreditId)) {
+             throw new Error(`Entry ${id} belongs to a source document; update or void the document instead.`);
+           }
            if (updateData.lines !== undefined) {
              const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
              if (!Array.isArray(lines) || lines.length < 2) throw new Error(`Entry ${id} needs at least two lines`);
-             DoubleEntryValidator.validateJournalEntry({ ...txData, ...updateData } as Transaction);
+             const settled = { ...txData, ...updateData, lines: lines.map(l => ({ ...l })) } as Transaction;
+             settleHomeCurrency(settled);
+             updateData.lines = settled.lines;
+             checkLedgerEntry(settled as unknown as Record<string, unknown>);
              const unknown = lines.filter(l => !l.accountId || !ownAccounts.has(String(l.accountId)));
              if (unknown.length) throw new Error(`Entry ${id} uses an account that is not in this workspace`);
              const total = lines.reduce((sum, l) => sum + Math.max(0, Math.round(Number(l.amountCents) || 0)), 0);

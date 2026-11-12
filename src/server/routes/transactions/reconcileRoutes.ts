@@ -1,13 +1,14 @@
 import express, { Request, Response } from 'express';
 import { FieldValue, getDb, isWorkspaceMemberData } from '../../db/firestore';
 import type { DocumentData, Firestore } from '../../db/firestore';
-import { ledgerMark } from '../../services/ledgerDoor';
+import { checkLedgerEntry, ledgerCreate, ledgerMark } from '../../services/ledgerDoor';
+import { revaluationEntryLock } from '../../services/stockRevaluationService';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../../schemas';
 import type { Transaction } from '../../../types';
 import { parseDateInTimezone } from '../../../lib/calendarDate';
-import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
+import { isPostable, getAbsoluteTotal, settleHomeCurrency } from '../../../lib/txFilters';
 import { optimizedTransactionSimilarity } from '../../../lib/algorithms';
 import { getWorkspaceUserRole } from '../workspaceRoutes';
 import { BankLineError, payFromBankLine, splitBankLine } from '../../services/bankLineService';
@@ -67,6 +68,13 @@ export async function handleReconcile(req: express.Request, res: express.Respons
      }
      
      await db.runTransaction(async (t) => {
+        // Re-read workspace inside transaction to close TOCTOU window on lockDate and member role
+        const wsSnapNow = await t.get(db.collection('workspaces').doc(workspaceId));
+        if (!wsSnapNow.exists) throw new Error('Workspace not found');
+        const wsNow = wsSnapNow.data();
+        if (!user.admin && (!wsNow || !isWorkspaceMemberData(wsNow, user, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) {
+          throw new Error('Forbidden: requires owner, accountant, or bookkeeper role');
+        }
         // STEP 1: ALL READS UPFRONT (Guarantees zero read-after-write violations)
         const bankLineSnaps = new Map<string, DocumentData>();
         for (const id of bankLineIds) {
@@ -82,10 +90,10 @@ export async function handleReconcile(req: express.Request, res: express.Respons
 
         // Closed periods (src/lib/periodLock.ts): nothing dated in them is changed or created.
         for (const snap of [...bankLineSnaps.values(), ...txSnaps.values()]) {
-          if (snap.exists && snap.data()?.date) assertPostingOpen(snap.data().date, wsData, user.uid);
+          if (snap.exists && snap.data()?.date) assertPostingOpen(snap.data().date, wsNow, user.uid);
         }
         for (const op of operations) {
-          if (op.type === 'createTransaction' && op.data?.date) assertPostingOpen(op.data.date, wsData, user.uid);
+          if ((op.type === 'createTransaction' || op.type === 'updateTransaction') && op.data?.date) assertPostingOpen(op.data.date, wsNow, user.uid);
         }
 
         // Also gather any account IDs from existing transactions that might be updated
@@ -151,20 +159,31 @@ export async function handleReconcile(req: express.Request, res: express.Respons
               throw new Error(`Transaction ${op.id} does not belong to authorized workspace`);
             }
             const existingTxData = txSnap.data() as Transaction;
+            const revalLock = revaluationEntryLock(existingTxData);
+            if (revalLock) throw new Error(revalLock);
+            if ((existingTxData.status === 'certified' || existingTxData.status === 'void') && !user.admin) {
+              throw new Error(`Forbidden: Transaction ${op.id} status is locked.`);
+            }
+            const existingMeta = (existingTxData.metadata || {}) as Record<string, unknown>;
+            if (op.data?.lines !== undefined && (existingMeta.invoiceId || existingMeta.billId || existingMeta.paymentId || existingMeta.creditNoteId || existingMeta.vendorCreditId)) {
+              throw new Error(`Transaction ${op.id} belongs to a source document; lines cannot be rewritten during reconciliation.`);
+            }
             
             const safeData = { ...op.data };
             delete safeData.workspaceId;
             delete safeData.uid;
 
-            const merged = { ...existingTxData, ...safeData };
+            const merged = { ...existingTxData, ...safeData } as Transaction;
+            settleHomeCurrency(merged);
             
             const validatedTx = await TransactionValidator.validateAndPrepare(merged, {
                 workspaceId: workspaceId,
                 user: { uid: user.uid, admin: user.admin },
-                wsData,
+                wsData: wsNow,
                 accountsMap: accMap
             }, existingTxData, t);
 
+            checkLedgerEntry(validatedTx as unknown as Record<string, unknown>);
             const txRef = db.collection('transactions').doc(op.id);
             writes.push(() => t.update(txRef, { ...validatedTx, updatedAt: FieldValue.serverTimestamp() }));
           } else if (op.type === 'createTransaction') {
@@ -179,16 +198,17 @@ export async function handleReconcile(req: express.Request, res: express.Respons
               workspaceId,
               uid: user.uid,
               createdAt: op.data?.createdAt || new Date().toISOString()
-            };
+            } as Transaction;
+            settleHomeCurrency(payload);
             const validatedTx = await TransactionValidator.validateAndPrepare(payload, {
               workspaceId,
               user: { uid: user.uid, admin: user.admin },
-              wsData,
+              wsData: wsNow,
               accountsMap: accMap
             }, undefined, t);
 
             const txRef = db.collection('transactions').doc(op.id);
-            writes.push(() => t.create(txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
+            writes.push(() => ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
           }
         }
 

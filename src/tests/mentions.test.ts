@@ -29,7 +29,7 @@ describe('Telling them (database)', { skip: !process.env.LF_TEST_DATABASE_URL &&
     db = (await import('../server/db/firestore')).getDb();
     await db.collection('workspaces').doc(ws).set({ uid: `${ws}-owner`, name: 'Mentions', currency: 'USD', members: [`${ws}-owner`, `${ws}-book`, `${ws}-view`], roles: { [`${ws}-book`]: 'bookkeeper', [`${ws}-view`]: 'viewer' } });
     for (const [who, email] of [['owner', 'boss'], ['book', 'keeper'], ['view', 'reader']]) await db.collection('users').doc(`${ws}-${who}`).set({ uid: `${ws}-${who}`, email: `${email}.${ws}@example.test` });
-    await db.collection('transactions').doc(`${ws}_tx`).set({ workspaceId: ws, date: '2026-10-01', description: 'Amazon', amountCents: 34000, status: 'posted', lines: [] });
+    await db.collection('transactions').doc(`${ws}_tx`).set({ workspaceId: ws, date: '2026-10-01', description: 'Amazon', amountCents: 34000, status: 'posted', lines: [{ accountId: 'mention-debit', amountCents: 34000 }, { accountId: 'mention-credit', amountCents: -34000 }] });
   });
   after(async () => {
     for (const table of ['clientQueries', 'documents', 'transactions', 'auditLogs', 'notifications', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);

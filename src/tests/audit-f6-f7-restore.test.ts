@@ -95,4 +95,59 @@ describe('audit F6/F7: restore refuses the whole backup', { skip: !url }, () => 
       assert.deepEqual(saved.lines.map(l => l.baseAmountCents), [11000, -11000]);
     });
   });
+
+  test('F7: the database trigger matches application FX settlement for line rates, negative halves and residuals', async () => {
+    await isolated(async (db, ws, accounts) => {
+      const put = async (id: string, exchangeRate: number, lines: Array<Record<string, unknown>>) => {
+        await db.collection('transactions').doc(`${ws}_${id}`).set({
+          workspaceId: ws,
+          date: '2026-11-01',
+          status: 'completed',
+          currency: 'EUR',
+          exchangeRate,
+          lines,
+        });
+        return (await db.collection('transactions').doc(`${ws}_${id}`).get()).data() as { lines: Array<Record<string, unknown>> };
+      };
+
+      // The line rate must win over the header rate. At 1.015, JS Math.round settles this
+      // residual to [33, 33, -66]; using the header rate 1.25 would produce a different result.
+      const lineRate = await put('line-rate', 1.25, [
+        { accountId: accounts[0].id, amountCents: 33, exchangeRate: 1.015 },
+        { accountId: accounts[1].id, amountCents: 33, exchangeRate: 1.015 },
+        { accountId: accounts[0].id, amountCents: -66, exchangeRate: 1.015 },
+      ]);
+      assert.deepEqual(lineRate.lines.map(l => l.baseAmountCents), [33, 33, -66]);
+
+      // PostgreSQL round(-1.5) is -2, whereas Math.round(-1.5) is -1. The trigger must
+      // use the application rule and persist the same one-cent residual settlement.
+      const negativeHalf = await put('negative-half', 1.5, [
+        { accountId: accounts[0].id, amountCents: 1, exchangeRate: 1.5 },
+        { accountId: accounts[1].id, amountCents: -1, exchangeRate: 1.5 },
+      ]);
+      assert.deepEqual(negativeHalf.lines.map(l => l.baseAmountCents), [1, -1]);
+
+      const commonRateResidual = await put('common-rate-residual', 1.015, [
+        { accountId: accounts[0].id, amountCents: 33 },
+        { accountId: accounts[1].id, amountCents: 33 },
+        { accountId: accounts[0].id, amountCents: -66 },
+      ]);
+      assert.deepEqual(commonRateResidual.lines.map(l => l.baseAmountCents), [33, 33, -66]);
+
+      await assert.rejects(
+        db.collection('transactions').doc(`${ws}_different-rates`).set({
+          workspaceId: ws,
+          date: '2026-11-01',
+          status: 'completed',
+          currency: 'EUR',
+          exchangeRate: 1.25,
+          lines: [
+            { accountId: accounts[0].id, amountCents: 100, exchangeRate: 1.1 },
+            { accountId: accounts[1].id, amountCents: -100, exchangeRate: 1.2 },
+          ],
+        }),
+        /exchange-difference|home-currency amounts must sum to 0/,
+      );
+    });
+  });
 });

@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { getDb, validateWorkspaceMember } from '../db/firestore';
+import { assertWorkspaceAccess, getDb } from '../db/firestore';
 import { requestUser } from '../auth/requestUser';
 import { getWorkspaceUserRole } from './workspaceRoutes';
 import { buildSelfProvingEliminations, computeMultiEntityCloseStatus } from '../../lib/selfBalancingDimensions';
@@ -30,7 +30,10 @@ consolidationRouter.post('/eliminate', async (req, res) => {
     }
 
     const db = getDb();
-    await validateWorkspaceMember(db, primaryWorkspaceId, user);
+    if (user.developerWorkspaceId && user.developerWorkspaceId !== primaryWorkspaceId) {
+      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
+    }
+    await assertWorkspaceAccess(db, primaryWorkspaceId, user);
     if (!user.admin) {
       const role = await getWorkspaceUserRole(db, primaryWorkspaceId, user.uid);
       if (!['owner', 'accountant', 'bookkeeper'].includes(role)) {
@@ -49,10 +52,19 @@ consolidationRouter.post('/eliminate', async (req, res) => {
     }
 
     const entityIds = [...new Set([parsed.data.workspaceId, ...parsed.data.entityWorkspaceIds])];
+    if (user.developerWorkspaceId && entityIds.some(id => id !== user.developerWorkspaceId)) {
+      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
+    }
     const entityData: Array<{ workspace: Workspace; transactions: Transaction[] }> = [];
 
     for (const entityId of entityIds) {
-      const { data: wsData } = await validateWorkspaceMember(db, entityId, user);
+      const { data: wsData } = await assertWorkspaceAccess(db, entityId, user);
+      if (!user.admin) {
+        const subRole = await getWorkspaceUserRole(db, entityId, user.uid);
+        if (!['owner', 'accountant', 'bookkeeper'].includes(subRole)) {
+          return res.status(403).json({ error: 'Only owners, accountants and bookkeepers can run intercompany eliminations' });
+        }
+      }
       const txSnap = await db.collection('transactions').where('workspaceId', '==', entityId).get();
       const txs = txSnap.docs.map(d => ({ ...(d.data() as Transaction), id: d.id }));
       entityData.push({
@@ -117,7 +129,10 @@ consolidationRouter.get('/close-status', async (req, res) => {
       return res.status(400).json({ error: 'workspaceId query parameter is required' });
     }
     const db = getDb();
-    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, user);
+    if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
+      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
+    }
+    const { data: wsData } = await assertWorkspaceAccess(db, workspaceId, user);
     const txSnap = await db.collection('transactions').where('workspaceId', '==', workspaceId).get();
     const txs = txSnap.docs.map(d => ({ ...(d.data() as Transaction), id: d.id }));
     const closeStatus = computeMultiEntityCloseStatus(

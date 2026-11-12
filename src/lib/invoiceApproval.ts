@@ -124,15 +124,15 @@ export const isApproverRole = (role: string | null | undefined): boolean =>
   (APPROVER_ROLES as readonly string[]).includes(String(role));
 
 /** The invoice total in the workspace's currency (1 is the rate of an invoice already in it). */
-export function invoiceTotalInWorkspaceCurrency(doc: ApprovalDoc): number {
-  return toBaseCents(doc.amountCents || 0, doc.exchangeRate);
+export function invoiceTotalInWorkspaceCurrency(doc: ApprovalDoc, baseCurrency = 'USD'): number {
+  return toBaseCents(doc.amountCents || 0, doc.exchangeRate, (doc as ApprovalDoc & { currency?: string }).currency, baseCurrency);
 }
 
 /** The rule applies to this invoice right now: it is issued, the rule is on, and it is over the limit. */
-export function needsApproval(doc: ApprovalDoc, settings: unknown): boolean {
+export function needsApproval(doc: ApprovalDoc, settings: unknown, baseCurrency = 'USD'): boolean {
   const { enabled, thresholdCents } = normalizeInvoiceApproval(settings);
   if (!enabled || NOT_SENT.has(String(doc.status))) return false;
-  return invoiceTotalInWorkspaceCurrency(doc) > thresholdCents;
+  return invoiceTotalInWorkspaceCurrency(doc, baseCurrency) > thresholdCents;
 }
 
 /** Evidence that a customer already has this document: it is marked sent, or a send is recorded. */
@@ -150,9 +150,9 @@ export function hasAlreadyGoneOut(doc: ApprovalDoc): boolean {
  * until then would otherwise stop getting its reminders and could not be emailed again, as if
  * somebody had broken the rule. Approval is about a document that has not gone out yet.
  */
-export function approvalStatus(doc: ApprovalDoc, settings: unknown): ApprovalStatus {
+export function approvalStatus(doc: ApprovalDoc, settings: unknown, baseCurrency = 'USD'): ApprovalStatus {
   if (!normalizeInvoiceApproval(settings).enabled) return 'off';
-  if (!needsApproval(doc, settings)) return 'not_needed';
+  if (!needsApproval(doc, settings, baseCurrency)) return 'not_needed';
   if (!doc.approval && hasAlreadyGoneOut(doc)) return 'not_needed';
   return doc.approval?.state ?? 'awaiting';
 }
@@ -161,8 +161,8 @@ export function approvalStatus(doc: ApprovalDoc, settings: unknown): ApprovalSta
 export const isIssuedForApproval = (status: string | null | undefined): boolean => !NOT_SENT.has(String(status));
 
 /** True when the invoice must not reach the customer yet — the gate the email paths ask. */
-export function holdsSending(doc: ApprovalDoc, settings: unknown): boolean {
-  const status = approvalStatus(doc, settings);
+export function holdsSending(doc: ApprovalDoc, settings: unknown, baseCurrency = 'USD'): boolean {
+  const status = approvalStatus(doc, settings, baseCurrency);
   return status === 'awaiting' || status === 'rejected';
 }
 
@@ -186,8 +186,8 @@ const stampTime = (now?: string): string => now || new Date().toISOString();
  * issued), or null to write nothing. The caller skips it when the save carries an approval of its
  * own — the Approve and Send back buttons in the invoice list write their own.
  */
-export function approvalForSave(doc: ApprovalDoc, settings: unknown, actor: ApprovalActor): InvoiceApprovalRecord | null {
-  if (!needsApproval(doc, settings)) return null;
+export function approvalForSave(doc: ApprovalDoc, settings: unknown, actor: ApprovalActor, baseCurrency = 'USD'): InvoiceApprovalRecord | null {
+  if (!needsApproval(doc, settings, baseCurrency)) return null;
   const { thresholdCents } = normalizeInvoiceApproval(settings);
   if (isApproverRole(actor.role) && !actor.twoPerson) {
     return { state: 'approved', thresholdCents, decidedAt: stampTime(actor.now), ...(actor.uid ? { decidedBy: actor.uid } : {}) };

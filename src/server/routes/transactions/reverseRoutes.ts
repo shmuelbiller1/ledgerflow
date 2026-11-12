@@ -285,6 +285,9 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
       if (!sourceWorkspaceId || !targetWorkspaceId || !amountCents) {
         return res.status(400).json({ error: 'Missing required intercompany parameters (source, target, amount)' });
       }
+      if (sourceWorkspaceId === targetWorkspaceId) {
+        return res.status(400).json({ error: 'Intercompany transfer requires two distinct workspaces; use an internal bank transfer within the same workspace.' });
+      }
 
       const user = requestUser(req);
       const db = getDb();
@@ -322,8 +325,7 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
       let sourceClearing = sourceAccounts.find(a => a.role === 'intercompany' || (a.name || '').toLowerCase().includes('intercompany'));
       let targetClearing = targetAccounts.find(a => a.role === 'intercompany' || (a.name || '').toLowerCase().includes('intercompany'));
 
-      // Create clearing accounts if missing
-      const batch = db.batch();
+      // Create clearing accounts if missing (persisted inside the atomic runTransaction below)
       if (!sourceClearing) {
         const ref = db.collection('chartAccounts').doc();
         sourceClearing = {
@@ -337,7 +339,6 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
           balanceCents: 0,
           createdAt: new Date().toISOString()
         };
-        batch.set(ref, sourceClearing);
       }
 
       if (!targetClearing) {
@@ -353,7 +354,6 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
           balanceCents: 0,
           createdAt: new Date().toISOString()
         };
-        batch.set(ref, targetClearing);
       }
 
       // 3. Prepare Reciprocal Transactions
@@ -416,9 +416,9 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
         metadata: { isIntercompany: true, sourceWorkspaceId, sourceTxId, sharedIdentityHash },
         lines: [
           {
-            accountId: targetAccountId || targetAccounts.find(a => a.type === 'expense' || a.type === 'asset')?.id,
+            accountId: targetAccountId || targetAccounts.find(a => a.role === 'cash' || a.subtype === 'cash')?.id,
             accountName: 'Target Account',
-            amountCents: targetCents, // Debit Asset/Expense (Asset Up / Expense Up)
+            amountCents: targetCents, // Debit Cash/Specified Target Account
             description: `Intercompany Receipt`
           },
           {
@@ -440,11 +440,17 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
         TransactionValidator.validateAndPrepare(targetTx, { workspaceId: targetWorkspaceId, user, wsData: targetWsData, accountsMap: accountsOf(targetAccounts, targetClearing as DocumentData & { id: string }) })
       ]);
 
-      // 5. Commit Atomically
-      await ledgerWrite(batch, db.collection('transactions').doc(sourceTxId), { ...validSource, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-      await ledgerWrite(batch, db.collection('transactions').doc(targetTxId), { ...validTarget, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    
-      await batch.commit();
+      // 5. Commit Atomically across both entities in a single database transaction
+      await db.runTransaction(async (tx) => {
+        if (!sourceAccounts.some(a => a.id === sourceClearing!.id)) {
+          tx.set(db.collection('chartAccounts').doc(sourceClearing!.id), sourceClearing!);
+        }
+        if (!targetAccounts.some(a => a.id === targetClearing!.id)) {
+          tx.set(db.collection('chartAccounts').doc(targetClearing!.id), targetClearing!);
+        }
+        await ledgerWrite(tx, db.collection('transactions').doc(sourceTxId), { ...validSource, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        await ledgerWrite(tx, db.collection('transactions').doc(targetTxId), { ...validTarget, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      });
       await Promise.all([
         writeServerAuditLog({
           workspaceId: sourceWorkspaceId,

@@ -48,7 +48,7 @@ describe('Tags across the workspace (database)', { skip: !url && 'LF_TEST_DATABA
     await db.collection('customers').doc(id('c2')).set({ workspaceId: ws, name: 'Beta', tags: ['vip'] });
     await db.collection('vendors').doc(id('v1')).set({ workspaceId: ws, name: 'Paper Co', tags: ['Key account'] });
     await db.collection('invoices').doc(id('inv')).set({ workspaceId: ws, number: 'INV-1', amountCents: 5000, status: 'sent', date: '2026-10-01', tags: ['VIP'] });
-    await db.collection('transactions').doc(id('tx')).set({ workspaceId: ws, date: '2026-10-01', description: 'Sale', totalAmountCents: 5000, status: 'completed', lines: [], tags: ['vip'] });
+    await db.collection('transactions').doc(id('tx')).set({ workspaceId: ws, date: '2026-10-01', description: 'Sale', totalAmountCents: 5000, status: 'completed', lines: [{ accountId: 'tag-debit', amountCents: 5000 }, { accountId: 'tag-credit', amountCents: -5000 }], tags: ['vip'] });
     await db.collection('customers').doc(`${other}_c`).set({ workspaceId: other, name: 'Elsewhere', tags: ['VIP'] });
     const app = express();
     app.use(express.json());

@@ -135,6 +135,21 @@ function makeBrackets(tuples: BracketTuple[]): TaxBracket[] {
   return tuples.map(([overCents, baseTaxCents, rate]) => ({ overCents, baseTaxCents, rate }));
 }
 
+// IRS Pub 15-T Section 1 Table 1(b) (Form W-4 Step 2 checked): Worksheet 1A Step 1f applies $0
+// adjustment, so each Step-2 threshold equals half of (Table 1(a) threshold + Step 1g adjustment)
+// and baseTaxCents equals half of Table 1(a) baseTaxCents, preserving 2 * Step2(W/2) === Std(W).
+function makeStep2Brackets(std: TaxBracket[], step1gAdjustmentCents: number): TaxBracket[] {
+  return std.map((b, idx) =>
+    idx === 0
+      ? { overCents: 0, baseTaxCents: 0, rate: b.rate }
+      : {
+          overCents: Math.round((b.overCents + step1gAdjustmentCents) / 2),
+          baseTaxCents: Math.round(b.baseTaxCents / 2),
+          rate: b.rate,
+        },
+  );
+}
+
 // 2026 Tax Brackets from IRS Publication 15-T (Section 1: Percentage Method Tables for Automated Payroll Systems)
 // Table 1(a): Standard withholding (Form W-4 Step 2 box NOT checked)
 const B2026_SINGLE_STD = makeBrackets([
@@ -171,38 +186,9 @@ const B2026_HOH_STD = makeBrackets([
 ]);
 
 // Table 1(b): Higher withholding (Form W-4 Step 2 box IS checked)
-const B2026_SINGLE_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [375000, 0, 10],
-  [995000, 62000, 12],
-  [3215000, 328400, 22],
-  [6150000, 974100, 24],
-  [11250000, 2198100, 32],
-  [14250000, 3158100, 35],
-  [34250000, 10158100, 37],
-]);
-
-const B2026_MFJ_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [745000, 0, 10],
-  [1985000, 124000, 12],
-  [6425000, 656800, 22],
-  [12295000, 1948200, 24],
-  [22495000, 4396200, 32],
-  [28495000, 6316200, 35],
-  [40995000, 10691200, 37],
-]);
-
-const B2026_HOH_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [635000, 0, 10],
-  [1662500, 102750, 12],
-  [4400000, 431250, 22],
-  [6250000, 838250, 24],
-  [11350000, 2062250, 32],
-  [14350000, 3022250, 35],
-  [34350000, 10022250, 37],
-]);
+const B2026_SINGLE_STEP2 = makeStep2Brackets(B2026_SINGLE_STD, 860000);
+const B2026_MFJ_STEP2 = makeStep2Brackets(B2026_MFJ_STD, 1290000);
+const B2026_HOH_STEP2 = makeStep2Brackets(B2026_HOH_STD, 860000);
 
 // 2025 Tax Brackets from IRS Publication 15-T (2025)
 // Table 1(a): Standard withholding (Form W-4 Step 2 box NOT checked)
@@ -240,38 +226,9 @@ const B2025_HOH_STD = makeBrackets([
 ]);
 
 // Table 1(b): Higher withholding (Form W-4 Step 2 box IS checked)
-const B2025_SINGLE_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [355000, 0, 10],
-  [950000, 59500, 12],
-  [3075000, 314500, 22],
-  [5900000, 936000, 24],
-  [10750000, 2100000, 32],
-  [13600000, 3012000, 35],
-  [32700000, 9697000, 37],
-]);
-
-const B2025_MFJ_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [710000, 0, 10],
-  [1900000, 119000, 12],
-  [6150000, 629000, 22],
-  [11800000, 1872000, 24],
-  [21500000, 4200000, 32],
-  [27200000, 6024000, 35],
-  [39150000, 10206500, 37],
-]);
-
-const B2025_HOH_STEP2 = makeBrackets([
-  [0, 0, 0],
-  [605000, 0, 10],
-  [1590000, 98500, 12],
-  [4210000, 412900, 22],
-  [5975000, 801200, 24],
-  [10850000, 1971200, 32],
-  [13700000, 2883200, 35],
-  [32800000, 9568200, 37],
-]);
+const B2025_SINGLE_STEP2 = makeStep2Brackets(B2025_SINGLE_STD, 860000);
+const B2025_MFJ_STEP2 = makeStep2Brackets(B2025_MFJ_STD, 1290000);
+const B2025_HOH_STEP2 = makeStep2Brackets(B2025_HOH_STD, 860000);
 
 function buildYearTables(
   year: number,

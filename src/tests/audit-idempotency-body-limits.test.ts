@@ -224,4 +224,20 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     assert.deepEqual(verifyAuditHashChain([r1, r2]), { valid: true });
     assert.deepEqual(verifyAuditHashChain([r1, { ...r2, action: 'TAMPERED' }]), { valid: false, brokenAtId: 'aud-2' });
   });
+
+  it('F-06 regression: verifies server records linked by entryHash, not only the legacy chainHash', async () => {
+    const { buildAuditLogRecord, verifyAuditHashChain, AUDIT_CHAIN_GENESIS } = await import('../server/services/auditLogService');
+    const first = buildAuditLogRecord({
+      workspaceId: 'ws-entry-chain', uid: 'u1', action: 'FIRST', entityType: 'test', entityId: 'one',
+      details: { description: 'First entry' }, timestamp: '2026-11-11T11:00:00.000Z',
+    }, 'entry-1', AUDIT_CHAIN_GENESIS);
+    const second = buildAuditLogRecord({
+      workspaceId: 'ws-entry-chain', uid: 'u1', action: 'SECOND', entityType: 'test', entityId: 'two',
+      details: { description: 'Second entry' }, timestamp: '2026-11-11T11:01:00.000Z',
+    }, 'entry-2', { seq: 2, prevHash: first.entryHash });
+
+    assert.equal(second.prevHash, first.entryHash);
+    assert.deepEqual(verifyAuditHashChain([first, second]), { valid: true });
+    assert.deepEqual(verifyAuditHashChain([first, { ...second, details: { description: 'tampered' } }]), { valid: false, brokenAtId: 'entry-2' });
+  });
 });

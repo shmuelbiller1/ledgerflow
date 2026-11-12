@@ -18,6 +18,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const creditNotes = useLedgerStore(s => s.creditNotes);
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
@@ -25,7 +26,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const serverRows = useServerOperationalReport<CustomerBalanceSummaryRow[]>(
     isTruncated && Boolean(workspaceId),
     workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
-    `${workspaceId}:${asOfDate}:${collectionStamp(customers, invoices, payments, creditNotes)}`,
+    `${workspaceId}:${currency}:${asOfDate}:${collectionStamp(customers, invoices, payments, creditNotes)}`,
     body => (Array.isArray(body.customerRows) ? (body.customerRows as CustomerBalanceSummaryRow[]) : undefined),
   );
 
@@ -35,9 +36,12 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       invoices,
       payments,
       creditNotes,
-      asOfDate
+      asOfDate,
+      undefined,
+      undefined,
+      currency
     );
-  }, [customers, invoices, payments, creditNotes, asOfDate]);
+  }, [customers, invoices, payments, creditNotes, asOfDate, currency]);
   const customerRows = serverRows || localCustomerRows;
 
   const filteredRows = useMemo(() => {
@@ -97,7 +101,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       key: 'totalInvoicedCents',
       header: 'Total Invoiced',
       align: 'right',
-      render: (item) => formatCurrency(item.totalInvoicedCents)
+      render: (item) => formatCurrency(item.totalInvoicedCents, currency)
     },
     {
       key: 'totalPaidCents',
@@ -105,7 +109,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       align: 'right',
       render: (item) => (
         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-          {formatCurrency(item.totalPaidCents)}
+          {formatCurrency(item.totalPaidCents, currency)}
         </span>
       )
     },
@@ -115,7 +119,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       align: 'right',
       render: (item) => (
         <span className={`font-bold ${item.balanceCents > 0 ? 'text-rose-600 dark:text-rose-400' : item.balanceCents < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500'}`}>
-          {formatCurrency(item.balanceCents)}
+          {formatCurrency(item.balanceCents, currency)}
         </span>
       )
     }
@@ -128,6 +132,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       icon={Users}
       totalLabel="Total Receivables Due"
       totalAmountCents={totalOutstandingCents}
+      currency={currency}
       secondaryTotalLabel="Cumulative Invoiced"
       secondaryTotalCents={totalInvoicedAllCents}
       exportFilename="customer_balance_summary.csv"

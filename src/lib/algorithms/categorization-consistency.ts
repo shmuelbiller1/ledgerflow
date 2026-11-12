@@ -1,4 +1,5 @@
 import { ChartAccount } from '../../types';
+import { lineAmount } from '../../lib/txFilters';
 import { AlgorithmDefinition } from './types';
 
 function normalize(description: string): string {
@@ -45,7 +46,7 @@ export const CATEGORIZATION_CONSISTENCY_ALGO: AlgorithmDefinition = {
           description: tx.description,
           accountId: targetLine.accountId,
           txId: tx.id,
-          amountCents: Math.round((tx.totalAmountCents || 0) * (tx.exchangeRate || 1)),
+          amountCents: tx.lines.reduce((sum, line) => sum + Math.max(0, lineAmount(line, tx)), 0),
           date: tx.date
         });
       }

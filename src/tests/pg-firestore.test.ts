@@ -59,6 +59,12 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
     assert.deepEqual((await ref.get()).data(), { workspaceId: ws, only: true });
   });
 
+  test('concurrent merge creates atomically apply every increment', async () => {
+    const ref = db.collection('workspaceShards').doc(`${ws}_merge_counter`);
+    await Promise.all(Array.from({ length: 6 }, () => ref.set({ workspaceId: ws, value: FieldValue.increment(1) }, { merge: true })));
+    assert.equal((await ref.get()).data()!.value, 6);
+  });
+
   test('update: dotted paths, increment, arrayUnion / arrayRemove, delete; missing doc → NOT_FOUND', async () => {
     const ref = db.collection('documents').doc(`${ws}_c`);
     await ref.set({ workspaceId: ws, stats: { views: 1, other: 'keep' }, tags: ['a', 'b'], gone: 'x' });
@@ -116,11 +122,11 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
   test('queries: filters, order (missing fields left out), limit, cursors, count', async () => {
     const batch = db.batch();
     const rows = [
-      { id: 't1', date: '2026-01-05', status: 'posted', amount: 10, tags: ['x'] },
-      { id: 't2', date: '2026-01-05', status: 'draft', amount: 20, tags: ['y'] },
-      { id: 't3', date: '2026-02-01', status: 'posted', amount: 5, tags: ['x', 'y'] },
-      { id: 't4', date: '2026-03-10', status: 'void', amount: 7, tags: [] },
-      { id: 't5', status: 'posted', amount: 1, tags: [] },
+      { id: 't1', date: '2026-01-05', status: 'posted', amount: 10, tags: ['x'], lines: [{ accountId: 'query-debit', amountCents: 0 }, { accountId: 'query-credit', amountCents: 0 }] },
+      { id: 't2', date: '2026-01-05', status: 'draft', amount: 20, tags: ['y'], lines: [] },
+      { id: 't3', date: '2026-02-01', status: 'posted', amount: 5, tags: ['x', 'y'], lines: [{ accountId: 'query-debit', amountCents: 1 }, { accountId: 'query-credit', amountCents: -1 }] },
+      { id: 't4', date: '2026-03-10', status: 'void', amount: 7, tags: [], lines: [] },
+      { id: 't5', status: 'posted', amount: 1, tags: [], lines: [{ accountId: 'query-debit', amountCents: 0 }, { accountId: 'query-credit', amountCents: 0 }] },
     ];
     for (const r of rows) {
       const { id, ...rest } = r;

@@ -19,6 +19,7 @@ import { useServerRangeReport, type RangeReportSource } from './useServerRangeRe
 function useInvoiceReportInputs(from: string | undefined) {
   useLedgerCollections('customers', 'inventory', 'invoices');
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const baseCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const items = useLedgerStore(s => s.inventory);
@@ -41,8 +42,9 @@ function useInvoiceReportInputs(from: string | undefined) {
       accounts: own(accounts),
       projects: own(projects),
       dimensionNodes: own(dimensionNodes as Array<(typeof dimensionNodes)[number] & { workspaceId?: string }>),
+      baseCurrency,
     };
-  }, [workspaceId, customers, invoices, items, transactions, accounts, projects, dimensionNodes]);
+  }, [workspaceId, baseCurrency, customers, invoices, items, transactions, accounts, projects, dimensionNodes]);
   const extraKey = useMemo(() => JSON.stringify([rangeRevision(input.transactions, ''), input.invoices.filter(i => !from || (i.date || '') >= from), input.items, input.accounts, input.customers, input.projects, input.dimensionNodes]),
     [input, from]);
   return { input: input as Omit<ProfitabilityInput, 'startDate' | 'endDate'>, listsCapped, extraKey };

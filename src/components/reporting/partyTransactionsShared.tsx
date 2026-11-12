@@ -4,6 +4,7 @@ import { LucideIcon } from 'lucide-react';
 import type { LedgerState } from '../../stores/useLedgerStore';
 import type { LedgerKey } from '../../lib/ledgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
@@ -52,6 +53,7 @@ export interface TransactionsByPartyConfig<P, D1, D2> {
     docs2: D2[],
     startDate?: string,
     endDate?: string,
+    baseCurrency?: string,
   ) => PartyTransactionRow[];
   /** Tailwind colour classes per transaction type string. */
   typeColors: Record<string, string>;
@@ -92,6 +94,7 @@ export function TransactionsByPartyView<P, D1, D2>({
   const docs1 = useLedgerStore(docStore1);
   const payments = useLedgerStore(paymentStore);
   const docs2 = useLedgerStore(docStore2);
+  const currency = useAuthStore((s) => s.getCurrentWorkspace()?.currency) || 'USD';
   useLedgerCollections(...collections);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -129,8 +132,8 @@ export function TransactionsByPartyView<P, D1, D2>({
   };
 
   const rows = useMemo<PartyTransactionRow[]>(() => {
-    return computeFn(parties, docs1, payments, docs2, startDate || undefined, endDate || undefined);
-  }, [parties, docs1, payments, docs2, startDate, endDate, computeFn]);
+    return computeFn(parties, docs1, payments, docs2, startDate || undefined, endDate || undefined, currency);
+  }, [parties, docs1, payments, docs2, startDate, endDate, computeFn, currency]);
 
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return rows;

@@ -64,23 +64,40 @@ export function verifyAuditHashChain(
     action: string;
     entityType: string;
     entityId: string;
+    details?: Record<string, unknown>;
     timestamp: string;
+    seq?: number;
     prevHash?: string;
     chainHash?: string;
+    entryHash?: string;
   }>,
 ): { valid: boolean; brokenAtId?: string } {
-  let expectedPrev = AUDIT_CHAIN_GENESIS;
+  let expectedPrevChain: string | null = null;
+  let expectedPrevEntry: string | null = null;
   for (const entry of entries) {
-    if (!entry.chainHash) continue;
+    if (!entry.chainHash && !entry.entryHash) continue;
     const prevHash = entry.prevHash || AUDIT_CHAIN_GENESIS;
-    if (expectedPrev !== AUDIT_CHAIN_GENESIS && prevHash !== expectedPrev) {
-      return { valid: false, brokenAtId: entry.id };
+    if (expectedPrevChain !== null || expectedPrevEntry !== null) {
+      const matchesChain = expectedPrevChain !== null && prevHash === expectedPrevChain;
+      const matchesEntry = expectedPrevEntry !== null && prevHash === expectedPrevEntry;
+      if (!matchesChain && !matchesEntry) {
+        return { valid: false, brokenAtId: entry.id };
+      }
     }
-    const recomputed = computeAuditChainHash({ ...entry, prevHash });
-    if (recomputed !== entry.chainHash) {
-      return { valid: false, brokenAtId: entry.id };
+    if (entry.chainHash) {
+      const recomputed = computeAuditChainHash({ ...entry, prevHash });
+      if (recomputed !== entry.chainHash) {
+        return { valid: false, brokenAtId: entry.id };
+      }
     }
-    expectedPrev = entry.chainHash;
+    if (entry.entryHash && typeof entry.seq === 'number') {
+      const recomputedEntry = computeAuditEntryHash(entry, entry.seq, prevHash);
+      if (recomputedEntry !== entry.entryHash) {
+        return { valid: false, brokenAtId: entry.id };
+      }
+    }
+    expectedPrevChain = entry.chainHash ?? null;
+    expectedPrevEntry = entry.entryHash ?? null;
   }
   return { valid: true };
 }
@@ -205,10 +222,11 @@ export async function writeServerAuditLog(
       return auditRef.id;
     }
     return serializeWorkspaceAudit(input.workspaceId, async () => {
-      const cached = chainHeadsByWorkspace.get(input.workspaceId);
-      const chainHead = cached ? { seq: cached.seq + 1, prevHash: cached.prevHash } : { seq: 1, prevHash: GENESIS_AUDIT_HASH };
+      // Do not cache speculative seq/prevHash across an uncommitted caller transaction:
+      // if the outer runTransaction rolls back, a cached head would break all later entries.
+      chainHeadsByWorkspace.delete(input.workspaceId);
+      const chainHead = await resolveNextChainHead(db, input.workspaceId, true);
       const record = buildAuditLogRecord(input, auditRef.id, chainHead);
-      chainHeadsByWorkspace.set(input.workspaceId, { seq: chainHead.seq, prevHash: record.entryHash });
       tx.set(auditRef, record);
       return auditRef.id;
     });

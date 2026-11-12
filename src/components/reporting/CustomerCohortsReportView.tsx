@@ -22,8 +22,8 @@ export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: 
   const valid = validCustomReportPeriod({ startDate: endDate, endDate });
   const partial = Boolean(truncated.invoices || failed.invoices);
   const report = useMemo(() => valid && !loading
-    ? customerCohortReport(invoices.filter(invoice => !workspaceId || invoice.workspaceId === workspaceId), endDate, windowMonths, ageMonths)
-    : null, [invoices, workspaceId, endDate, windowMonths, ageMonths, valid, loading]);
+    ? customerCohortReport(invoices.filter(invoice => !workspaceId || invoice.workspaceId === workspaceId), endDate, windowMonths, ageMonths, currency || 'USD')
+    : null, [invoices, workspaceId, endDate, windowMonths, ageMonths, currency, valid, loading]);
   const headers = ['First invoice month', 'Customers', ...Array.from({ length: ageMonths }, (_, age) => `Month ${age}`)];
   const show = (cell: NonNullable<typeof report>['rows'][number]['months'][number]) => {
     if (cell.activeCustomers === null) return '—';

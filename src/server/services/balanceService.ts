@@ -413,10 +413,11 @@ export async function topLinesOver(db: Firestore, workspaceId: string, from: str
  */
 async function invoiceSalesInputs(db: Firestore, workspaceId: string, from: string, to: string) {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A sales range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
-  const [accountsSnap, itemsSnap, invoicesSnap] = await Promise.all([
+  const [accountsSnap, itemsSnap, invoicesSnap, workspaceSnap] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
     db.collection('inventory').where('workspaceId', '==', workspaceId).get(),
     db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+    db.collection('workspaces').doc(workspaceId).get(),
   ]);
   const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
   const items = itemsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as InventoryItem);
@@ -431,12 +432,13 @@ async function invoiceSalesInputs(db: Firestore, workspaceId: string, from: stri
   for (const ids of chunks(cogs.map(t => t.id))) {
     reversals.push(...(await tx().where('metadata.reversesTxId', 'in', ids).get()).docs.map(entryOf));
   }
-  return { accounts, items, invoices, transactions: [...cogs, ...reversals] };
+  const baseCurrency = String((workspaceSnap.data() as { currency?: unknown } | undefined)?.currency || 'USD');
+  return { accounts, items, invoices, transactions: [...cogs, ...reversals], baseCurrency };
 }
 
 export async function salesByItemOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<SalesByItemReport & { invoicesRead: number }> {
-  const { accounts, items, invoices, transactions } = await invoiceSalesInputs(db, workspaceId, from, to);
-  return { ...computeSalesByItem({ invoices, items, transactions, accounts, startDate: from, endDate: to }), invoicesRead: invoices.length };
+  const { accounts, items, invoices, transactions, baseCurrency } = await invoiceSalesInputs(db, workspaceId, from, to);
+  return { ...computeSalesByItem({ invoices, items, transactions, accounts, baseCurrency, startDate: from, endDate: to }), invoicesRead: invoices.length };
 }
 
 /**
@@ -553,13 +555,14 @@ export async function salesTrendsOver(db: Firestore, workspaceId: string, group:
  */
 export async function purchaseTrendsOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ rows: TrendRow[]; billsRead: number }> {
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(`A purchase range is two YYYY-MM-DD dates, from ≤ to (got "${from}", "${to}")`);
-  const [vendorsSnap, billsSnap] = await Promise.all([
+  const [vendorsSnap, billsSnap, workspaceSnap] = await Promise.all([
     db.collection('vendors').where('workspaceId', '==', workspaceId).get(),
     db.collection('bills').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+    db.collection('workspaces').doc(workspaceId).get(),
   ]);
   const vendors = vendorsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Vendor);
   const bills = billsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Bill);
-  return { rows: purchaseTrendsByVendor(vendors, bills, to), billsRead: bills.length };
+  return { rows: purchaseTrendsByVendor(vendors, bills, to, String((workspaceSnap.data() as { currency?: unknown } | undefined)?.currency || 'USD')), billsRead: bills.length };
 }
 
 /**
@@ -607,12 +610,14 @@ export async function spreadWaterfallOver(db: Firestore, workspaceId: string, si
  * the range (expenseChartLeaves) and the amount-vs-days-to-pay points of the range's paid invoices (invoicePaymentPoints).
  */
 export async function chartExplorationOver(db: Firestore, workspaceId: string, from: string, to: string): Promise<{ leaves: ExpenseChartLeaf[]; points: ReturnType<typeof invoicePaymentPoints>; entriesRead: number; invoicesRead: number }> {
-  const [{ accounts, entries }, invoicesSnap] = await Promise.all([
+  const [{ accounts, entries }, invoicesSnap, workspaceSnap] = await Promise.all([
     accountsAndEntriesFrom(db, workspaceId, from, to, true),
     db.collection('invoices').where('workspaceId', '==', workspaceId).where('date', '>=', from).where('date', '<', nextDay(to)).get(),
+    db.collection('workspaces').doc(workspaceId).get(),
   ]);
   const invoices = invoicesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Invoice);
-  return { leaves: expenseChartLeaves(accounts, entries as unknown as Transaction[], from, to), points: invoicePaymentPoints(invoices), entriesRead: entries.length, invoicesRead: invoices.length };
+  const baseCurrency = String((workspaceSnap.data() as { currency?: unknown } | undefined)?.currency || 'USD');
+  return { leaves: expenseChartLeaves(accounts, entries as unknown as Transaction[], from, to), points: invoicePaymentPoints(invoices, baseCurrency), entriesRead: entries.length, invoicesRead: invoices.length };
 }
 
 /** L-123 step 4q: the first day "all recorded history" stands for when Customer lifetime value has no start date. */

@@ -34,9 +34,11 @@ export function agedReceivablesByRep(input: {
   reps: SalesRep[];
   /** today, YYYY-MM-DD: the day the aging is read at */
   asOf: string;
+  /** workspace base currency for document minor-unit conversion */
+  baseCurrency?: string;
 }): RepAgingRow[] {
-  const { customers, invoices, reps, asOf } = input;
-  const byCustomer = computePartyAging(customers, invoices, 'customer', asOf);
+  const { customers, invoices, reps, asOf, baseCurrency = 'USD' } = input;
+  const byCustomer = computePartyAging(customers, invoices, 'customer', asOf, baseCurrency);
 
   // one rep per customer; the first rep listing a customer wins
   const repOf = new Map<string, SalesRep>();

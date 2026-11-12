@@ -38,8 +38,12 @@ describe('Workspace purge (database)', { skip: !url && 'LF_TEST_DATABASE_URL not
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'Gone', status: 'pending_deletion', scheduledPurgeAt: '2026-01-01T00:00:00.000Z' });
     await db.collection('workspaces').doc(other).set({ uid: 'owner-2', name: 'Kept' });
     for (const t of tables) {
-      await db.collection(t).doc(`${ws}_${t}`).set({ workspaceId: ws, note: 'purge me' });
-      await db.collection(t).doc(`${other}_${t}`).set({ workspaceId: other, note: 'keep me' });
+      await db.collection(t).doc(`${ws}_${t}`).set(t === 'transactions'
+        ? { workspaceId: ws, status: 'draft', lines: [], note: 'purge me' }
+        : { workspaceId: ws, note: 'purge me' });
+      await db.collection(t).doc(`${other}_${t}`).set(t === 'transactions'
+        ? { workspaceId: other, status: 'draft', lines: [], note: 'keep me' }
+        : { workspaceId: other, note: 'keep me' });
     }
     await db.collection('auditLogs').doc(`${ws}_log`).set({ workspaceId: ws, action: 'X', timestamp: '2026-01-01T00:00:00Z' });
   });

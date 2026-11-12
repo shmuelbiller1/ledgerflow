@@ -14,10 +14,10 @@ export function expenseChartLeaves(accounts: ChartAccount[], transactions: Trans
     return { id, label: figure.name, cents: figure.balance, path: [...path, ...parents] };
   });
 }
-export function invoicePaymentPoints(invoices: Invoice[]) {
+export function invoicePaymentPoints(invoices: Invoice[], baseCurrency = 'USD') {
   return invoices.flatMap(invoice => {
     const issued = (invoice.date || '').slice(0, 10), paid = (invoice.paymentDate || invoice.paidAt || '').slice(0, 10);
     if (invoice.status !== 'paid' || !validCustomReportPeriod({ startDate: issued, endDate: paid })) return [];
-    return [{ id: invoice.id, label: `${invoice.number || invoice.id} · ${issued} → ${paid}`, days: daysOverdue({ dueDate: issued }, paid), cents: toBaseCents(invoice.amountCents, invoice.exchangeRate) }];
+    return [{ id: invoice.id, label: `${invoice.number || invoice.id} · ${issued} → ${paid}`, days: daysOverdue({ dueDate: issued }, paid), cents: toBaseCents(invoice.amountCents, invoice.exchangeRate, invoice.currency, baseCurrency) }];
   });
 }

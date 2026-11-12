@@ -2,8 +2,9 @@ import { takeCopyMark } from '../services/copyMarkService';
 import type { TaxProfiles } from '../../lib/tax/profile';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
-import { getDb, validateWorkspaceMember } from '../db/firestore';
+import { assertWorkspaceAccess, getDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
+import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { generateDocumentPdf } from '../services/pdfService';
 import type { PdfDocument, PdfDocumentType, PdfWorkspace } from '../services/pdfService';
 import { loadStatement, statementDate, StatementScopeError } from '../services/statementService';
@@ -92,9 +93,10 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
     const user = requestUser(req);
     const body = ZipSchema.parse(req.body);
     const db = dbOverride || getDb();
-    await validateWorkspaceMember(db, body.workspaceId, user);
+    await assertWorkspaceAccess(db, body.workspaceId, user);
     const wsSnap = await db.collection('workspaces').doc(body.workspaceId).get();
     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
+    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
     const files: Array<{ name: string; data: Buffer }> = [];
     const used = new Set<string>();
     for (const id of [...new Set(body.ids)]) {
@@ -104,7 +106,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
       let name = `${base}.pdf`;
       for (let n = 2; used.has(name); n++) name = `${base}_${n}.pdf`;
       used.add(name);
-      const copyMark = await takeCopyMark(db, body.type, id, workspace as { taxProfiles?: TaxProfiles });
+      const copyMark = await takeCopyMark(db, body.type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy });
       files.push({ name, data: await generateDocumentPdf(body.type, loaded.docData, workspace, { paymentUrl: loaded.paymentUrl, ...(await contactStyle(db, workspace, loaded.docData, body.workspaceId)), ...(copyMark ? { copyMark } : {}) }) });
     }
     if (files.length === 0) return res.status(404).json({ status: 'error', message: 'None of these documents were found' });
@@ -136,11 +138,12 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
     }
 
     const db = dbOverride || getDb();
-    await validateWorkspaceMember(db, workspaceId, user);
+    await assertWorkspaceAccess(db, workspaceId, user);
 
     // Fetch workspace
     const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
+    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
 
     let docData: PdfDocument | null = null;
     let paymentUrl: string | undefined;
@@ -166,7 +169,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
       style = { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact) };
     }
 
-    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles });
+    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy });
     const pdfBuffer = await generateDocumentPdf(type, docData, workspace, { paymentUrl, ...(style || await contactStyle(db, workspace, docData, workspaceId)), ...(copyMark ? { copyMark } : {}) });
 
     if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
@@ -194,7 +197,7 @@ const CHEQUE_ROLES = new Set(['owner', 'accountant', 'bookkeeper']);
 async function handleChequeRequest(req: express.Request, res: express.Response, paymentId: string, workspaceId: string, dbOverride?: Firestore) {
   const user = requestUser(req);
   const db = dbOverride || getDb();
-  await validateWorkspaceMember(db, workspaceId, user);
+  await assertWorkspaceAccess(db, workspaceId, user);
   const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
   const ws = (wsSnap.data() || {}) as { uid?: string; roles?: Record<string, string>; name?: string; companyName?: string };
   const role = ws.uid === user.uid ? 'owner' : ws.roles?.[user.uid] || 'viewer';

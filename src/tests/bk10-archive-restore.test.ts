@@ -112,7 +112,7 @@ describe('BK-10 workspace archive → restore (database)', { skip: !url && 'LF_T
     });
     await db.collection('bills').doc(id('b1')).set({ workspaceId: ws, number: 'B-1', vendorId: id('v1'), status: 'approved', date: '2026-02-15', dueDate: '2026-03-15', taxRate: 10, taxAmountCents: 800, amountCents: 8800 });
     await db.collection('payments').doc(id('p1')).set({ workspaceId: ws, invoiceId: id('inv1'), amountCents: 33000, date: '2026-02-20' });
-    await db.collection('journalEntries').doc(id('je1')).set({ workspaceId: ws, number: 'JE-1', date: '2026-02-28', transactionId: id('e5') });
+    await db.collection('journalEntries').doc(id('je1')).set({ workspaceId: ws, number: 'JE-1', date: '2026-02-28', transactionId: id('e5'), status: 'draft', lines: [] });
     await db.collection('dimensionNodes').doc(id('north')).set({ workspaceId: ws, dimension: 'Region', name: 'North' });
     await db.collection('customTemplates').doc(id('tpl')).set({ workspaceId: ws, name: 'Blue invoice' });
     await db.collection('loans').doc(id('loan')).set({ workspaceId: ws, name: 'Van loan', principalCents: 500000 });

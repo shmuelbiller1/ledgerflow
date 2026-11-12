@@ -78,13 +78,14 @@ export default function Sales() {
   // receivable postings whose text mentioned the name, and fell back to a stored balance.
   const payments = useLedgerStore(s => s.payments);
   const creditNotes = useLedgerStore(s => s.creditNotes);
+  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const customerBalances = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const row of computeCustomerBalanceSummary(customers || [], invoices || [], payments || [], creditNotes || [])) {
+    for (const row of computeCustomerBalanceSummary(customers || [], invoices || [], payments || [], creditNotes || [], undefined, undefined, undefined, homeCurrency)) {
       map[row.customerId] = row.balanceCents;
     }
     return map;
-  }, [customers, invoices, payments, creditNotes]);
+  }, [customers, invoices, payments, creditNotes, homeCurrency]);
   /** Ensures invoice dimension labels exist in the workspace, then creates or updates the invoice, receipt payment, and attachments. */
   const onAddInvoice = async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
     // files picked for a new invoice (K-07) and receipt cash account (K-03) are handled after save
@@ -161,7 +162,6 @@ export default function Sales() {
   const [previewPdfInvoice, setPreviewPdfInvoice] = useState<Invoice | null>(null);
   const [emailInvoice, setEmailInvoice] = useState<Invoice | null>(null);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
-  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   // BE-04: the approval rule of this workspace, and whether the signed-in person may sign off.
   const approvalSettings = useAuthStore(s => s.getCurrentWorkspace()?.invoiceApproval);
   const canDecideApproval = isApproverRole(useCurrentRole());
@@ -193,9 +193,9 @@ export default function Sales() {
     }
   };
 
-  // what is still owed on an invoice (after deposit, payments, credits), in the base currency
-  const owedInBase = (i: Invoice) => toBaseCents(calculateAmountDue(i), i.exchangeRate);
   const agingBuckets = useMemo(() => {
+    // what is still owed on an invoice (after deposit, payments, credits), in the workspace currency
+    const owedInBase = (i: Invoice) => toBaseCents(calculateAmountDue(i), i.exchangeRate, i.currency, homeCurrency);
     const now = new Date();
     return {
       overdue: invoices.filter(i => isOpenInvoice(i) && (i.status === 'overdue' || parseLocalDate(i.dueDate) < now)).reduce((sum, i) => sum + owedInBase(i), 0),
@@ -206,7 +206,7 @@ export default function Sales() {
       }).reduce((sum, i) => sum + owedInBase(i), 0),
       total: invoices.filter(isOpenInvoice).reduce((sum, i) => sum + owedInBase(i), 0)
     };
-  }, [invoices]);
+  }, [invoices, homeCurrency]);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((i: Invoice) => {

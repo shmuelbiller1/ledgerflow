@@ -65,10 +65,11 @@ export function grossMarginByItemGroup(input: {
   items: InventoryItem[];
   transactions: Transaction[];
   accounts: ChartAccount[];
+  baseCurrency?: string;
   /** YYYY-MM months to show, in order (kept to at most 36) */
   months: string[];
 }): { months: string[]; rows: GroupMarginRow[]; totals: GroupMonth[] } {
-  const { invoices, items, transactions, accounts } = input;
+  const { invoices, items, transactions, accounts, baseCurrency } = input;
   const months = input.months.filter(m => /^\d{4}-\d{2}$/.test(m)).slice(0, 36);
   const groupOf = new Map(items.map(item => [item.id, (item.category || '').trim()]));
 
@@ -87,7 +88,7 @@ export function grossMarginByItemGroup(input: {
 
   months.forEach((month, index) => {
     const { startDate, endDate } = monthRange(month);
-    const { rows } = computeSalesByItem({ invoices, items, transactions, accounts, startDate, endDate });
+    const { rows } = computeSalesByItem({ invoices, items, transactions, accounts, baseCurrency, startDate, endDate });
     for (const itemRow of rows) {
       const group = itemRow.key === NO_ITEM_KEY || !itemRow.itemId
         ? NO_ITEM_NAME

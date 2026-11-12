@@ -39,6 +39,12 @@ function seedA() {
   });
 }
 
+// Keep one directly registered test in this module: the failure cases below are registered through
+// the shared harness, while this checks the chart roles used by invoice, credit, and payment posting.
+test('sales failure fixtures include every posting account role', () => {
+  assert.deepEqual(new Set(standardChart().map(account => account.id)), new Set(['cash', 'ar', 'ap', 'sales', 'office']));
+});
+
 let paymentDialogClosed = 0;
 const DRAFT_TEXT = 'Logo design, second round';
 

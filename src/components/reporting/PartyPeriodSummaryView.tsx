@@ -25,8 +25,8 @@ function PartyPeriodSummaryView({kind,startDate='',endDate='',compareStartDate='
   const valid=validCustomReportPeriod(period),compared=validCustomReportPeriod(compare);
   const input=useMemo(()=>{
     const scoped=<T extends {workspaceId?:string}>(rows:T[])=>rows.filter(row=>!workspace || row.workspaceId===workspace);
-    return {customers:scoped(customers),vendors:scoped(vendors),invoices:scoped(invoices),bills:scoped(bills),payments:scoped(payments),creditNotes:scoped(creditNotes),vendorCredits:scoped(vendorCredits)};
-  },[customers,vendors,invoices,bills,payments,creditNotes,vendorCredits,workspace]);
+    return {customers:scoped(customers),vendors:scoped(vendors),invoices:scoped(invoices),bills:scoped(bills),payments:scoped(payments),creditNotes:scoped(creditNotes),vendorCredits:scoped(vendorCredits),baseCurrency:currency || 'USD'};
+  },[customers,vendors,invoices,bills,payments,creditNotes,vendorCredits,workspace,currency]);
   const rows=useMemo(()=>valid&&!loading?partyPeriodSummary(kind,input,{startDate,endDate}):[],[kind,input,valid,loading,startDate,endDate]);
   const previous=useMemo(()=>new Map(compared&&!loading?partyPeriodSummary(kind,input,{startDate:compareStartDate,endDate:compareEndDate}).map(row=>[row.id,row.closingCents]):[]),[kind,input,compared,loading,compareStartDate,compareEndDate]);
   const visible=rows.filter(row=>normalizeSearchText(row.name).includes(normalizeSearchText(search)));

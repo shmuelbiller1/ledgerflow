@@ -93,7 +93,7 @@ describe('audit F3: a close between preparation and the save', { skip: !url }, (
   test('delete: refused when the month is closed before the delete; the entry stays', async () => {
     await isolated(async (ws, accounts) => {
       const id = `${ws}_e`;
-      await getDb().collection('transactions').doc(id).set({ ...entry(ws, accounts), id, uid: 'owner', totalAmountCents: 100 });
+      await getDb().collection('transactions').doc(id).set({ ...entry(ws, accounts), id, uid: 'owner', status: 'draft', totalAmountCents: 100 });
       closeBeforeTheSave(ws);
       const { out, res } = response();
       await handlerFor('delete', '/:id')(req({}, { params: { id }, query: { workspaceId: ws } }), res);

@@ -3,6 +3,7 @@ import { Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { useUIStore } from '../../stores/useUIStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
@@ -17,6 +18,7 @@ import { RangeReportSourceNote } from './RangeReportSourceNote';
  */
 export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate?: string }> = ({ startDate: pageStartDate, endDate: pageEndDate }) => {
   const openRecord = useUIStore(s => s.openRecord);
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const periodKey = JSON.stringify([pageStartDate, pageEndDate]);
   const [startDate, setStartDate] = usePageSyncedState(periodKey, pageStartDate || undefined, () => getFiscalYearBounds().startDate);
   const [endDate, setEndDate] = usePageSyncedState(periodKey, pageEndDate || undefined, () => getFiscalYearBounds().endDate);
@@ -54,7 +56,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
       ),
     },
     { key: 'source', header: 'From', render: (r) => <span className="text-[var(--muted)]">{r.source}</span> },
-    { key: 'amountCents', header: 'Amount', align: 'right', render: (r) => formatCurrency(r.amountCents) },
+    { key: 'amountCents', header: 'Amount', align: 'right', render: (r) => formatCurrency(r.amountCents, currency) },
   ];
 
   return (
@@ -65,6 +67,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
         icon={Hash}
         totalLabel="Total of the entries listed"
         totalAmountCents={shown.reduce((sum, r) => sum + r.amountCents, 0)}
+        currency={currency}
         exportFilename="transactions_by_reference.csv"
         onExportCSV={exportCsv}
         searchTerm={searchTerm}
