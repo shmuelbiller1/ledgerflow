@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PageHeader } from './ui/PageHeader';
 import NeedsAttentionCard from './dashboard/NeedsAttentionCard';
 import BooksSafeCard from './dashboard/BooksSafeCard';
+import InviteAccountantCard from './dashboard/InviteAccountantCard';
 import { Plus, CheckCircle2, Layers, UploadCloud, Sparkles, X } from 'lucide-react';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
@@ -150,6 +151,7 @@ export default function Dashboard() {
         <SinceLastVisitCard />
         <NeedsAttentionCard />
         <BooksSafeCard />
+        <InviteAccountantCard />
       {/* Setup Checklist Guidance Banner (when setup is incomplete) */}
       {isSetupIncomplete && (
         <div className="bg-[var(--panel)] border border-[var(--line)] rounded-2xl p-4 sm:p-5 relative">
