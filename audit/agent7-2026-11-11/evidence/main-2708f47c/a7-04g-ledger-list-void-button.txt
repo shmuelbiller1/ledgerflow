@@ -1,0 +1,42 @@
+# pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04g-ledger-list-void-button.test.ts
+# run: 2026-11-11T20:51:40Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+▶ A7-04g the ledger list's "Reverse transaction" button, as the server sees it
+  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (130.570051ms)
+(a) the payment's entry: PUT … { partialUpdate: { status: 'failed', deletedAt } } -> 200 
+(a) the payment's entry: books before {"bank":50000,"sales":-50000}
+(a) the payment's entry: books after  {"ar":50000,"sales":-50000}
+(a) the payment's entry: entries in the ledger before 2, after 2 (a reversal would have added one)
+(a) the payment's entry: invoice: status paid, paid 50000; payment: status posted, amount 50000
+(a) the payment's entry: Data Health: (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (medium) [control-balance] Accounts receivable is $500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+(a) the payment's entry: month-end posting check: nothing found
+(a) the payment's entry: "Undo" (full PUT with the entry as it was) -> 200 
+(a) the payment's entry: books after "Undo" {"ar":50000,"sales":-50000}   <-- NOT restored
+(a) the payment's entry: the entry as stored after "Undo": status completed, deletedAt still set
+(a) the payment's entry: (probe housekeeping) owner sets status and deletedAt back by partial update -> 200; books {"bank":50000,"sales":-50000}
+  ✔ (a) the payment's entry: the button's request, then the toast's "Undo" (89.721475ms)
+(b) the invoice's entry: PUT … { partialUpdate: { status: 'failed', deletedAt } } -> 200 
+(b) the invoice's entry: books before {"bank":50000,"sales":-50000}
+(b) the invoice's entry: books after  {"bank":50000,"ar":-50000}
+(b) the invoice's entry: entries in the ledger before 2, after 2 (a reversal would have added one)
+(b) the invoice's entry: invoice: status paid, paid 50000; payment: status posted, amount 50000
+(b) the invoice's entry: Data Health: (medium) [control-balance] Accounts receivable is -$500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+(b) the invoice's entry: month-end posting check: invoice INV-9: missing
+(b) the invoice's entry: "Undo" (full PUT with the entry as it was) -> 200 
+(b) the invoice's entry: books after "Undo" {"bank":50000,"ar":-50000}   <-- NOT restored
+(b) the invoice's entry: the entry as stored after "Undo": status completed, deletedAt still set
+(b) the invoice's entry: (probe housekeeping) owner sets status and deletedAt back by partial update -> 200; books {"bank":50000,"sales":-50000}
+{"(a) the payment's entry":{"button":200,"leftTheBooks":true,"undo":200,"restored":false},"(b) the invoice's entry":{"button":200,"leftTheBooks":true,"undo":200,"restored":false}}
+DEFECT A7-04h: "Undo" answers 200 and the entry stays out of the books (the full update does not clear deletedAt)
+DEFECT A7-04g: the request behind the ledger list's "Reverse transaction" button takes the entry of a payment or an invoice out of the books; nothing is reversed and the document is not told
+  ✔ (b) the invoice's entry: the button's request, then the toast's "Undo" (52.379601ms)
+  ✔ summary: what main does today (0.668775ms)
+✔ A7-04g the ledger list's "Reverse transaction" button, as the server sees it (1135.857853ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1252.651215

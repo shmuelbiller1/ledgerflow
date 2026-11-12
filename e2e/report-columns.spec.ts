@@ -157,7 +157,7 @@ for (const kind of ["pl", "bs"] as const) {
     ).toBeVisible();
     await columns.selectOption("total");
     await expect(
-      screen.getByRole("columnheader", { name: kind === "pl" ? /Total.*2024-02-01/ : /Total.*2024-03-31/ }),
+      screen.getByRole("columnheader", { name: kind === "pl" ? /Total.*Feb 1, 2024/ : /Total.*Mar 31, 2024/ }),
     ).toBeVisible();
   });
 }

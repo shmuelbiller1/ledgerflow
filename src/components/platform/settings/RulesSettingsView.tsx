@@ -228,7 +228,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
           onAction={autoRules.length === 0 && canEditRules ? openCreateModal : undefined}
         />
       ) : (
-        <div role="region" aria-label="Automation rules table" tabIndex={0} className="bg-white border border-neutral-200 rounded-lg overflow-x-auto shadow-xs">
+        <div role="region" aria-label="Automation rules table" tabIndex={0} className="bg-white border border-neutral-200 rounded-lg overflow-x-auto shadow-xs">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Automation rules</caption>
             <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">

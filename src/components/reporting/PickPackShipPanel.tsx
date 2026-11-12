@@ -30,7 +30,7 @@ const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)]
 const PICK_CSV_HEADERS = ['Sales order', 'Customer', 'Location', 'Bin', 'SKU', 'Item', 'Quantity to pick'];
 const displayQty = (value: number) => Number(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-export default function PickPackShipPanel() {
+export default function PickPackShipPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const estimates = useLedgerStore(state => state.estimates) as Estimate[];
   const invoices = useLedgerStore(state => state.invoices) as Invoice[];
   const inventory = useLedgerStore(state => state.inventory) as InventoryItem[];
@@ -171,6 +171,9 @@ export default function PickPackShipPanel() {
   return <section aria-label="Pick, pack and ship" className="space-y-4 min-w-0">
     <style>{`
       @media print {
+        /* H-7 (AI #10): the slip is the print root, so the shared rules in src/index.css narrow the
+           paper to it. The body class is kept for the one thing those rules do not do here — the
+           slip's own white paper box — and as a fallback for an engine without :has(). */
         body.warehouse-packing-print * { visibility: hidden !important; }
         body.warehouse-packing-print [data-warehouse-packing-slip],
         body.warehouse-packing-print [data-warehouse-packing-slip] * { visibility: visible !important; }
@@ -293,7 +296,7 @@ export default function PickPackShipPanel() {
       </ReportTableScroll>
     </div>
 
-    {showPackingSlip && order && <article data-warehouse-packing-slip aria-label="Warehouse packing slip" className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
+    {showPackingSlip && order && <article id="warehouse-packing-slip" data-print-root={embedded ? undefined : ''} data-warehouse-packing-slip aria-label="Warehouse packing slip" className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
       <div className="flex flex-wrap justify-between gap-3 items-start">
         <div><h4 className="text-xl font-bold">Packing slip</h4><p>Sales order: {order.number || order.id}</p><p>Customer: {order.customerName || '—'}</p><p>Location: {selectedLocation?.description || selectedLocation?.id || '—'}</p></div>
         <div><p>Printed: {today}</p><p>Goods only — prices omitted.</p></div>

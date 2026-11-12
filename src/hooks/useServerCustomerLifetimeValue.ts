@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
+import { anyCollectionCapped } from '../lib/ledgerCollections';
 import { useLedgerCollections } from './useLedgerCollections';
 import { customerLifetimeValue, type CustomerLifetimeValueReport } from '../lib/customerLifetimeValue';
 import { useServerRangeReport, type RangeReportSource } from './useServerRangeReport';
@@ -28,7 +29,7 @@ export function useServerCustomerLifetimeValue(asOf: string, from: string, lifes
   const items = useLedgerStore(s => s.inventory);
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const capped = useLedgerStore(s => Boolean(['transactions', 'invoices', 'creditNotes', 'inventory', 'chartAccounts', 'customers'].some(k => s.truncatedCollections?.[k])));
+  const capped = useLedgerStore(s => anyCollectionCapped(s.truncatedCollections, ['transactions', 'invoices', 'creditNotes', 'inventory', 'accounts', 'customers']));
   const failed = useDataNeedsStore(s => Boolean((['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(k => s.failed[k])));
   const own = useMemo(() => {
     const scoped = <T extends { workspaceId?: string }>(rows: T[] | undefined) => (rows || []).filter(r => !workspaceId || r.workspaceId === workspaceId);

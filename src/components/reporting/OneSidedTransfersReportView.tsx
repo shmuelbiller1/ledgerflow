@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { oneSidedTransfers } from '../../lib/oneSidedTransfers';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
@@ -17,7 +18,7 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
   const openRecord = useUIStore(s => s.openRecord);
   const { loading } = useLedgerCollections('accounts', 'transactions', 'bankLines');
   const valid = validCustomReportPeriod({ startDate: endDate, endDate });
-  const partial = (['accounts', 'transactions', 'bankLines'] as const).some(key => truncated[key] || failed[key]);
+  const partial = (['accounts', 'transactions', 'bankLines'] as const).some(key => isCollectionCapped(truncated, key) || failed[key]);
   const rows = useMemo(() => valid && !loading ? oneSidedTransfers(
     accounts.filter(r => !workspace || r.workspaceId === workspace),
     transactions.filter(r => !workspace || r.workspaceId === workspace),

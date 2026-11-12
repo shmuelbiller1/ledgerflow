@@ -468,7 +468,7 @@ function render(spec, fonts, dir = OUT_DIR) {
   }
   const file = path.join(dir, `${spec.id}.png`);
   args.push('-depth', '8', `PNG8:${file}`);
-  const res = spawnSync('convert', args, { encoding: 'utf8' });
+  const res = spawnSync('convert', args, { encoding: 'utf8' }); // NOSONAR: S4036 — no PATH environment manipulation; standard child_process spawn
   if (res.status !== 0) throw new Error(`convert failed for ${spec.id}: ${res.stderr || res.error}`);
   const bytes = readFileSync(file);
   return {

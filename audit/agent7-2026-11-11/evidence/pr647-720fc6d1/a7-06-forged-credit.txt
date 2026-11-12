@@ -1,0 +1,27 @@
+# pin: PR #647 head 720fc6d1c3cb91dd81e2aed98e23d0f37b1c8946 (its own migrations and server code)
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-06-forged-credit.test.ts
+# run: 2026-11-11T18:43:08Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+▶ A7-06 a credit note forged from the browser is applied and refunded by the server
+  ✔ setup: invoice 500.00 issued through the server (109.012964ms)
+browser insert into creditNotes: ACCEPTED
+POST /payments/credits/apply -> 200 {"status":"success","data":{"creditRemainingCents":0,"documentAmountDueCents":0}}
+invoice INV-1: status paid, paid 50000 of 50000
+A/R ageing report total: 0; ledger: {"ar":50000,"sales":-50000}
+DEFECT A7-06a: invoice "paid" by a credit that was never issued; ledger A/R still 500.00, ageing 0.00
+  ✔ the bookkeeper's browser inserts an open credit note of 500.00; the server applies it and the invoice is "paid" (40.294271ms)
+POST /payments/credits/refund -> 200 {"status":"success","data":{"transactionId":"LNYvZmyZXXdgFjDnVHMM","creditRemainingCents":0}}
+ledger: {"ar":80000,"bank":-30000,"sales":-50000}
+DEFECT A7-06b: the bank is credited 300.00 (a refund) against a credit note that was never issued
+  ✔ a second forged credit of 300.00 is refunded from the bank by the server: Bank -300.00 (27.2712ms)
+Data Health (medium) [control-balance]: Accounts receivable is $800.00, the open invoices add up to $0.00
+Data Health (low) [empty-invoice]: Invoice INV-1: 1 line(s) have no income account (posted to the default one)
+  ✔ what the app's own Data Health checks say afterwards (39.186051ms)
+✔ A7-06 a credit note forged from the browser is applied and refunded by the server (1179.44308ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1303.468955

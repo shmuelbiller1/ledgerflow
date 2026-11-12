@@ -4,6 +4,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { anyCollectionCapped } from '../../lib/ledgerCollections';
 import { useUIStore } from '../../stores/useUIStore';
 import {
   evaluateFirstWeekChecklist,
@@ -73,7 +74,7 @@ export default function FirstWeekChecklist() {
           <X size={16} aria-hidden="true" />
         </button>
       </div>
-      {(['accounts', 'customers', 'invoices', 'payments'] as const).some(key => truncated[key]) && <p role="note" className="mt-3 text-xs text-[var(--muted)]">Some older records are outside the loaded list. Unfinished steps may already be complete.</p>}
+      {anyCollectionCapped(truncated, ['accounts', 'customers', 'invoices', 'payments']) && <p role="note" className="mt-3 text-xs text-[var(--muted)]">Some older records are outside the loaded list. Unfinished steps may already be complete.</p>}
       <ol className="mt-3 divide-y divide-[var(--line)]">
         {steps.map(step => (
           <li key={step.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">

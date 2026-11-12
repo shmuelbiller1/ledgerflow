@@ -70,7 +70,7 @@ test('Playwright loads the reporter and exposes the current test before onEnd', 
   const dir = fixture(), report = path.join(dir, 'live.json');
   try {
     fs.writeFileSync(path.join(dir, 'playwright.config.js'), `export default { testDir: ${JSON.stringify(dir)}, outputDir: ${JSON.stringify(path.join(dir, 'output'))}, workers: 1 };`);
-    fs.writeFileSync(path.join(dir, 'live.spec.js'), `import { test, expect } from '@playwright/test';\nimport fs from 'node:fs';\ntest('sees live state', async () => { const report = JSON.parse(fs.readFileSync(process.env.WATCH_REPORT, 'utf8')); expect(report.active.map(x => x.title).join(' ')).toContain('sees live state'); });`);
+    fs.writeFileSync(path.join(dir, 'live.spec.js'), `import { test, expect } from '@playwright/test';\nimport fs from 'node:fs';\ntest('sees live state', async () => { await expect.poll(() => { try { const report = JSON.parse(fs.readFileSync(process.env.WATCH_REPORT, 'utf8')); return report.active.map(x => x.title).join(' '); } catch { return ''; } }, { timeout: 5000 }).toContain('sees live state'); });`);
     const result = spawnSync(process.execPath, ['node_modules/playwright/cli.js', 'test', '--config', path.join(dir, 'playwright.config.js'), '--reporter=list,json,blob,./scripts/playwright-live-reporter.mjs'], { cwd: root, env: { ...process.env, WATCH_REPORT: report, PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(dir, 'final.json'), PLAYWRIGHT_BLOB_OUTPUT_DIR: path.join(dir, 'blob') }, encoding: 'utf8', timeout: 30_000 });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.deepEqual(readLive(report).active, []);

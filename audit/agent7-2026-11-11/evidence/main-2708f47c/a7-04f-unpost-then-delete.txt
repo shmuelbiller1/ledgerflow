@@ -1,0 +1,33 @@
+# pin: 2708f47cb40711e57032bf6d3d4acc9f10f1061d
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04f-unpost-then-delete.test.ts
+# run: 2026-11-11T20:51:38Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+▶ A7-04f a posted entry set back to draft, then deleted
+  ✔ setup: invoice 500.00 paid in full, and a hand journal of 70.00 (144.551299ms)
+(a) the hand journal: DELETE while posted -> 403 {"status":"error","error":"Forbidden: Only draft documents can be deleted. Current status: completed. Posted documents must be voided, never deleted."
+(a) the hand journal: PUT … { partialUpdate: { status: 'draft' } } -> 200 
+(a) the hand journal: books with the entry as a draft: {"sales":-50000,"bank":50000}
+(a) the hand journal: DELETE after that -> 200 {"status":"ok","deletedId":"ws_a7_unpost_3f073d0a_hand"}
+(a) the hand journal: the entry still exists: false; books now: {"sales":-50000,"bank":50000}
+(a) the hand journal: audit rows for it: TRANSACTION_CREATED, TRANSACTION_DELETED (keeps a copy of what was deleted), TRANSACTION_UPDATED_PARTIAL
+  ✔ (a) the hand journal: DELETE refused while posted; then status → draft; then DELETE (33.379712ms)
+(b) the payment's entry: DELETE while posted -> 403 {"status":"error","error":"Forbidden: Only draft documents can be deleted. Current status: completed. Posted documents must be voided, never deleted."
+(b) the payment's entry: PUT … { partialUpdate: { status: 'draft' } } -> 200 
+(b) the payment's entry: books with the entry as a draft: {"ar":50000,"sales":-50000}
+(b) the payment's entry: DELETE after that -> 200 {"status":"ok","deletedId":"XnqBmSBV0lIlu99t91pz"}
+(b) the payment's entry: the entry still exists: false; books now: {"ar":50000,"sales":-50000}
+(b) the payment's entry: audit rows for it: TRANSACTION_DELETED (keeps a copy of what was deleted), TRANSACTION_UPDATED_PARTIAL
+  ✔ (b) the payment's entry: DELETE refused while posted; then status → draft; then DELETE (28.677699ms)
+invoice: status paid, paid 50000; payment: status posted, amount 50000
+Data Health: (high) [payment-ledger] Payment PMT-2026-0001 has no entry in the ledger | (medium) [control-balance] Accounts receivable is $500.00, the open invoices add up to $0.00 | (low) [empty-invoice] Invoice INV-9: 1 line(s) have no income account (posted to the default one)
+{"(a) the hand journal":{"deleteWhilePosted":403,"toDraft":200,"deleteAfter":200,"stillExists":false},"(b) the payment's entry":{"deleteWhilePosted":403,"toDraft":200,"deleteAfter":200,"stillExists":false}}
+DEFECT A7-04f: a posted entry — a hand journal and a payment's entry — is deleted in two requests by a bookkeeper
+  ✔ what the documents and the app's own checks say afterwards (37.422778ms)
+✔ A7-04f a posted entry set back to draft, then deleted (1051.256795ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1155.847302

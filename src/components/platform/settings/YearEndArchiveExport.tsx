@@ -1,12 +1,12 @@
 /**
- * J-8 (Agent #11): Settings → Backup & Export → "Download everything for <year>".
+ * J-8 / J-9 (Agent #11): Settings → Backup & Export → "Download everything for <year>".
  *
  * A ZIP of that year's CSV exports plus the PDFs of that year's invoices, for a year-end hand-over to
  * an accountant. It is built only from exports that already exist: the checksum-verified server backup
  * (the same source as the workspace archive, never the browser cache), the shared CSV writer, the
- * existing invoice PDF route and the existing stored-ZIP writer. The plan — which files, which rows —
- * is computed by `planYearArchive` in src/lib/yearEndArchive.ts, so the file list can be tested without
- * a browser.
+ * existing `POST /api/v1/documents/zip` batch PDF route (J-9), `readStoredZip`, and `makeStoredZip`.
+ * The plan — which files, which rows — is computed by `planYearArchive` in src/lib/yearEndArchive.ts,
+ * so the file list can be tested without a browser.
  *
  * Honest limits, said on the screen: the plan is shown before anything downloads; a record with no date
  * is counted, not silently included; members, API keys, bank connections and the audit trail are not in
@@ -21,36 +21,9 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { BRAND } from '../../../config/brand';
 import { verifiedBackupCollections, makeStoredZip } from '../../../lib/workspaceArchive';
 import type { ZipEntry } from '../../../lib/workspaceArchive';
-import { buildYearArchiveCsvEntries, pdfRetryDelayMs, planYearArchive, withPdfOutcome, type YearArchivePlan } from '../../../lib/yearEndArchive';
-
-/** Waits, or returns false at once when the work is cancelled. */
-const pause = (ms: number, signal: AbortSignal) => new Promise<boolean>(resolve => {
-  if (signal.aborted) { resolve(false); return; }
-  const done = () => { clearTimeout(timer); resolve(false); };
-  const timer = setTimeout(() => { signal.removeEventListener('abort', done); resolve(true); }, ms);
-  signal.addEventListener('abort', done, { once: true });
-});
-
-/**
- * The invoice PDF, from the route the invoice screen itself uses (src/services/documentDownloads.ts).
- * The server makes only a few PDFs a minute; "too many requests" means wait and ask again, not "no PDF".
- */
-async function fetchInvoicePdf(workspaceId: string, documentId: string, getToken: () => Promise<string>, signal: AbortSignal, onWait: () => void): Promise<Blob | null> {
-  const query = new URLSearchParams({ workspaceId });
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    // a fresh sign-in token for every request: a long archive can outlive the one it started with
-    const token = await getToken();
-    const response = await fetch(
-      `/api/v1/documents/invoice/${encodeURIComponent(documentId)}/pdf?${query.toString()}`,
-      { headers: { Authorization: `Bearer ${token}` }, signal },
-    );
-    if (response.ok) return response.blob();
-    if (response.status !== 429) return null;
-    onWait();
-    if (!(await pause(pdfRetryDelayMs(response.headers), signal))) return null;
-  }
-  return null;
-}
+import {
+  buildYearArchiveCsvEntries, fetchYearArchivePdfBatches, planYearArchive, withPdfOutcome, type YearArchivePlan,
+} from '../../../lib/yearEndArchive';
 
 const thisYear = () => Number(getLocalDateISO().slice(0, 4));
 
@@ -75,6 +48,13 @@ function YearEndArchiveExportBody() {
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
+  const cancel = () => {
+    abortRef.current?.abort();
+    pending.current = false;
+    setBusy(false);
+    setProgress('');
+  };
+
   /** Reads the verified backup and posts the plan, so the owner sees the file list before downloading. */
   const preview = async () => {
     if (pending.current || !allowed) return;
@@ -82,6 +62,11 @@ function YearEndArchiveExportBody() {
     const selectedId = auth.currentWorkspaceId;
     const user = auth.user;
     if (!selectedId || !user) return;
+    const startedUid = user.uid;
+    const stillSameScope = () => {
+      const live = useAuthStore.getState();
+      return !controller.signal.aborted && live.currentWorkspaceId === selectedId && live.user?.uid === startedUid;
+    };
     pending.current = true;
     setBusy(true);
     setError('');
@@ -94,6 +79,7 @@ function YearEndArchiveExportBody() {
       });
       if (!response.ok) throw new Error('The server backup could not be read, so nothing was planned. No partial archive was made.');
       const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      if (!stillSameScope()) return;
       setPlan(planYearArchive(collections, { year }));
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not plan the archive.');
@@ -109,6 +95,11 @@ function YearEndArchiveExportBody() {
     const selectedId = auth.currentWorkspaceId;
     const user = auth.user;
     if (!selectedId || !user) return;
+    const startedUid = user.uid;
+    const stillSameScope = () => {
+      const live = useAuthStore.getState();
+      return !controller.signal.aborted && live.currentWorkspaceId === selectedId && live.user?.uid === startedUid;
+    };
     pending.current = true;
     setBusy(true);
     setError('');
@@ -121,30 +112,30 @@ function YearEndArchiveExportBody() {
       });
       if (!response.ok) throw new Error('The server backup could not be read. No incomplete archive was downloaded.');
       const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      if (!stillSameScope()) return;
       const current = planYearArchive(collections, { year });
       let entries: ZipEntry[] = buildYearArchiveCsvEntries(collections, current);
 
-      // the invoices of the year, as the same PDF the invoice screen prints
-      let pdfs = 0;
-      const failed: string[] = [];
-      const pdfTotal = current.files.filter(file => file.kind === 'pdf' && file.documentId).length;
-      for (const file of current.files) {
-        if (file.kind !== 'pdf' || !file.documentId) continue;
-        if (controller.signal.aborted) return;
-        const at = `Invoice PDF ${pdfs + failed.length + 1} of ${pdfTotal}`;
-        setProgress(`${at}…`);
-        const blob = await fetchInvoicePdf(selectedId, file.documentId, () => user.getIdToken(), controller.signal,
-          () => setProgress(`${at}: the server makes about 10 PDFs a minute, waiting to continue…`));
-        if (!blob) { failed.push(file.documentNumber || file.documentId); continue; }
-        // raw bytes: a PDF is binary and must not go through the text encoder
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        if (controller.signal.aborted) return;
-        entries.push({ path: file.path, bytes });
-        pdfs += 1;
-      }
-      // the workspace changed or the screen closed while the files were read: download nothing
-      if (controller.signal.aborted) return;
-      entries = withPdfOutcome(entries, current, pdfs, failed);
+      // J-9: fetch the year's invoice PDFs in bounded batches via POST /api/v1/documents/zip and unpack with readStoredZip
+      const batchResult = await fetchYearArchivePdfBatches({
+        workspaceId: selectedId,
+        plan: current,
+        getToken: async () => {
+          const live = useAuthStore.getState();
+          if (live.currentWorkspaceId !== selectedId || live.user?.uid !== startedUid || !live.user) {
+            controller.abort();
+            return '';
+          }
+          return live.user.getIdToken();
+        },
+        signal: controller.signal,
+        onProgress: line => { if (stillSameScope()) setProgress(line); },
+      });
+
+      // cancelled, workspace changed, or screen closed while reading: download nothing
+      if (batchResult.aborted || !stillSameScope()) return;
+      entries.push(...batchResult.entries);
+      entries = withPdfOutcome(entries, current, batchResult.pdfCount, batchResult.missing);
 
       const blob = makeStoredZip(entries);
       const url = URL.createObjectURL(blob);
@@ -154,8 +145,8 @@ function YearEndArchiveExportBody() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-      toast.success(`Archived ${year}: ${entries.length - 1 - pdfs} CSV file(s) and ${pdfs} invoice PDF(s).${failed.length ? ` ${failed.length} invoice PDF(s) could not be made and are listed in manifest.json.` : ''}`);
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(`Archived ${year}: ${entries.length - 1 - batchResult.pdfCount} CSV file(s) and ${batchResult.pdfCount} invoice PDF(s).${batchResult.missing.length ? ` ${batchResult.missing.length} invoice PDF(s) could not be made and are listed in manifest.json.` : ''}`);
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not build the archive.');
     } finally {
@@ -190,6 +181,12 @@ function YearEndArchiveExportBody() {
           className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-40">
           <Download size={16} aria-hidden="true" /> {busy ? 'Preparing…' : `Download everything for ${year}`}
         </button>
+        {busy && (
+          <button type="button" onClick={cancel}
+            className="flex min-h-11 items-center justify-center rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--text)]">
+            Cancel
+          </button>
+        )}
       </div>
 
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}

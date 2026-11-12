@@ -91,6 +91,34 @@ export function keysToStart(asked: readonly string[], active: ReadonlySet<string
 }
 
 /**
+ * Is the collection behind this key cut at its cap (or, for entries, left to the server)?
+ *
+ * `useLedgerStore.truncatedCollections` is keyed by **database collection name**
+ * (`setCollectionTruncated(spec.collection, …)` in src/hooks/useLedgerData.ts), which is not always
+ * the store key: `accounts` is loaded from `chartAccounts`. A screen that writes
+ * `truncated.accounts` therefore never sees the cap and shows a figure taken from a cut list with
+ * no warning — so screens ask through this function rather than indexing the map themselves.
+ */
+export function isCollectionCapped(truncated: Record<string, boolean> | undefined, key: LedgerKey): boolean {
+  return Boolean(truncated?.[LEDGER_COLLECTIONS[key].collection]);
+}
+
+/** Is any of these collections cut? The usual per-screen completeness check. */
+export function anyCollectionCapped(truncated: Record<string, boolean> | undefined, keys: readonly LedgerKey[]): boolean {
+  return keys.some(key => isCollectionCapped(truncated, key));
+}
+
+/**
+ * The store key behind a cut collection name, for screens that carry collection names rather than keys
+ * (`truncatedInputs` in src/lib/dataChecks.ts). A collection the app does not load in the browser (a
+ * server-only list) is returned unchanged, so nothing is silently dropped.
+ */
+export function ledgerKeyOfCollection(collection: string): LedgerKey | string {
+  const key = (Object.keys(LEDGER_COLLECTIONS) as LedgerKey[]).find(k => LEDGER_COLLECTIONS[k].collection === collection);
+  return key ?? collection;
+}
+
+/**
  * L-123 step 4: the entry list is partial when the cap is reached, or when the closed years are left to the server
  * (`closedThrough`: the newest fresh year-end snapshot's day). Either way the screens that read every entry fall back
  * to the server's figures, as they do for a capped list.

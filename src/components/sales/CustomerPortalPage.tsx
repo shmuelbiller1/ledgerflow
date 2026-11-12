@@ -154,7 +154,7 @@ export default function CustomerPortalPage() {
             {filteredInvoices.length === 0 ? (
               <p className="text-sm text-[var(--muted)]">No invoices match this filter.</p>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]" role="region" aria-label="Your invoices" tabIndex={0}>
+              <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]" role="region" aria-label="Your invoices" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
                 <table className="w-full text-sm">
                   <caption className="sr-only">Invoices from {data.business} for {data.customer}</caption>
                   <thead>
