@@ -1,4 +1,5 @@
 import type { Firestore } from '../db/firestore';
+import { budgetLabel } from '../../lib/budgetByLabel';
 import type { ChartAccount, Transaction } from '../../types';
 import { balancesAsOf, sumEntries } from './balanceService';
 import { budgetMonthAmount, type SavedBudget } from '../../lib/budgetActual';
@@ -64,7 +65,9 @@ export async function budgetWarningsFor(db: Firestore, workspaceId: string, work
   if (budgetControlOf(workspace) === 'off' || entries.length === 0) return [];
   const budgets = (await db.collection('budgets').where('workspaceId', '==', workspaceId).get()).docs
     .map(d => ({ ...d.data(), id: d.id }) as SavedBudget)
-    .filter(b => b.targetType === 'account' && typeof b.targetId === 'string');
+    // EU-E5: a budget for one label value (metadata.label) is not an account-wide limit; it is compared in Profit
+    // by Label only, until enforcement can be scoped to the label
+    .filter(b => b.targetType === 'account' && typeof b.targetId === 'string' && !budgetLabel(b as { metadata?: unknown }));
   if (budgets.length === 0) return [];
   const touched = new Set(entries.flatMap(tx => (tx.lines || []).map(l => l?.accountId)).filter(Boolean));
   const accounts = (await db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get()).docs

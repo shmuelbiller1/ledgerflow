@@ -4,7 +4,7 @@ import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { budgetedResult } from '../../lib/budgetByLabel';
+import { budgetedResult, budgetLabel } from '../../lib/budgetByLabel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 
@@ -123,9 +123,14 @@ export default function LabelProfitReportView() {
                 </tr>
               ))}
               {(() => {
-                const budgeted = report.columns.map(c => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value: c.value, start: startDate, end: endDate }));
+                const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate });
+                const budgeted = report.columns.map(c => budgetOf(c.value));
                 if (budgeted.every(b => b === null)) return null;
-                const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0);
+                // values with a budget but no activity in the period count in the total too, and are named below the table
+                const shownValues = new Set(report.columns.map(c => c.value));
+                const budgetOnly = [...new Set((budgets || []).map(bg => budgetLabel(bg)).filter(l => l?.dimensionId === dimensionId).map(l => l!.value))]
+                  .filter(v => !shownValues.has(v)).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
+                const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0) + budgetOnly.reduce((s, v) => s + v.cents, 0);
                 return (
                   <>
                     <tr data-testid="label-budget-row">
@@ -138,6 +143,11 @@ export default function LabelProfitReportView() {
                       {report.columns.map((c, i) => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c.netIncome - (budgeted[i] || 0), currency)}</td>)}
                       <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total.netIncome - total, currency)}</td>
                     </tr>
+                    {budgetOnly.length > 0 && (
+                      <tr><td colSpan={report.columns.length + 2} className="text-xs text-[var(--muted)] pt-1" data-testid="label-budget-only">
+                        Budgeted with no activity in this period (in the total): {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}
+                      </td></tr>
+                    )}
                   </>
                 );
               })()}
