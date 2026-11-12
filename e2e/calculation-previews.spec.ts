@@ -12,6 +12,9 @@ const tools = [
 test("all seven registered previews open in the real sandbox on a phone with typed inputs, help and local table scrolling", async ({
   page,
 }) => {
+  // seven dialogs, each opened, typed into and scanned by axe: about 20-25 s locally and more on CI runners,
+  // so the default 30 s left no margin once the app it loads behind them grew (main went red after #675)
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 850 });
   await page.addInitScript(() => {
     localStorage.setItem("isGuest", "true");
