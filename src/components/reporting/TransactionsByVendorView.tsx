@@ -1,6 +1,6 @@
 import { FileSpreadsheet } from 'lucide-react';
 import { computeTransactionsByVendor } from '../../server/reports/partyReports';
-import { TransactionsByPartyView } from './TransactionsByPartyView';
+import { TransactionsByPartyView } from './partyTransactionsShared';
 
 /**
  * Itemized chronological register of bills, vendor credits, and disbursement

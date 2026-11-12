@@ -1,6 +1,6 @@
 import { FileText } from 'lucide-react';
 import { computeTransactionsByCustomer } from '../../server/reports/partyReports';
-import { TransactionsByPartyView } from './TransactionsByPartyView';
+import { TransactionsByPartyView } from './partyTransactionsShared';
 
 /**
  * Itemized chronological ledger of invoices, receipts, and credits attributed
