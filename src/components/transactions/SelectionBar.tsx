@@ -35,7 +35,12 @@ export default function SelectionBar({
     || choices.find(c => accounts.find(a => a.id === c.value)?.name.toLowerCase() === typed);
   const match = pick ? accounts.find(a => a.id === pick.value) : undefined;
   // the typed account stays if the save was refused (the save already said why)
-  const apply = () => { if (match) void Promise.resolve(onBulkUpdate({ accountId: match.id })).then(() => setText(''), () => undefined); };
+  const [accountBusy, setAccountBusy] = useState(false);
+  const apply = () => {
+    if (!match || accountBusy) return; // one save at a time
+    setAccountBusy(true);
+    void Promise.resolve(onBulkUpdate({ accountId: match.id })).then(() => setText(''), () => undefined).finally(() => setAccountBusy(false));
+  };
   // EU-E2: "Set label" — one label and its value on every selected entry (through the same bulk save and Undo)
   const labelDefs = (useAuthStore(state => state.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
   const nodes = useLedgerStore(state => state.dimensionNodes) || [];
@@ -90,7 +95,7 @@ export default function SelectionBar({
             ))}
           </datalist>
         </div>
-        <button type="button" onClick={apply} disabled={!match}
+        <button type="button" onClick={apply} disabled={!match || accountBusy}
           className="px-3 py-2 rounded-xl bg-indigo-600 text-[10px] font-bold uppercase tracking-wider disabled:opacity-30">
           Apply
         </button>
