@@ -326,6 +326,8 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
                     if (key === 'updatedAt') data[key] = new Date().toISOString(); // the undo is a change of its own
                     else if (key.startsWith('dimensions.')) data[key] = oldState.dimensions?.[key.slice('dimensions.'.length)] ?? null;
                     else if (key === 'dimensions') data[key] = oldState.dimensions ?? {};
+                    // an entry that had no lines keeps the balanced lines it was given: the route needs two or more
+                    else if (key === 'lines') { if ((oldState.lines?.length ?? 0) >= 2) data[key] = oldState.lines; }
                     else data[key] = (oldState as unknown as Record<string, unknown>)[key] ?? null;
                   }
                   undoPayload.push({ id, data: data as Partial<Transaction> });
