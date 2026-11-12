@@ -6,6 +6,18 @@
 **Raw evidence:** [`../agent8-2026-11-11/probe-output.txt`](../agent8-2026-11-11/probe-output.txt)
 **New issues filed:** [#627](https://github.com/shmuelbiller1/ledgerflow/issues/627) (quarter-journey residual of #614) · [#628](https://github.com/shmuelbiller1/ledgerflow/issues/628) (cross-country inheritance)
 
+> ## ⚠ SUPERSEDED — read the addendum before using any row below
+>
+> All three findings in this scorecard (A8-1111-F1/F2 = #627, A8-1111-F3 = #628) were **fixed the same day by
+> PR #635 and re-verified by this agent at `39b0012881fdc78edab2479fb62b0b632234aa82`**, 29 commits ahead of the pin
+> above. `af004-614-residual.ts` now passes **all eleven cases** and is the regression guard for both issues.
+> [#629](https://github.com/shmuelbiller1/ledgerflow/issues/629) (`FxService` timeout) was likewise fixed by PR #634
+> and verified. Remaining observations: AF-004-P6 and A8-1111-F5. The AF-007 cache issue [#645](https://github.com/shmuelbiller1/ledgerflow/issues/645) was **new at this historic pin, then FIXED by merged PR #660 on 11 Nov**. Do not treat its old probe output as evidence against current main.
+>
+> **Current state:** [`../agent8-2026-11-11/ADDENDUM-39b0012-reverification.md`](../agent8-2026-11-11/ADDENDUM-39b0012-reverification.md)
+> · **Current evidence:** [`../agent8-2026-11-11/probe-output-39b0012.txt`](../agent8-2026-11-11/probe-output-39b0012.txt) (20 OK / 5 DEFECT).
+> The "Beta readiness" verdict below was written for pin `ec3ff49` and no longer applies.
+
 ## What this slice was
 
 Agent #7's 10 Nov scorecard proposed the next batch verbatim: *"Re-verify the tax-attribution family at the fix."*

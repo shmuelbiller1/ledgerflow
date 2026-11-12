@@ -29,7 +29,7 @@ const CSV_HEADERS = ['Item', 'SKU', 'Expected', 'Counted', 'Difference', 'Unit c
  * their own (AI #1's lane, asked under Messages). Everything the screen shows — expected quantities,
  * differences, values — is computed by `src/lib/cycleCounts.ts` and shown as it is.
  */
-export default function CycleCountReportView({ endDate = '', loadMoves = loadWorkspaceStockMoves }: { endDate?: string; loadMoves?: (workspaceId: string) => Promise<StockMove[]> }) {
+export default function CycleCountReportView({ endDate = '', loadMoves = loadWorkspaceStockMoves, embedded = false }: { endDate?: string; loadMoves?: (workspaceId: string) => Promise<StockMove[]>; embedded?: boolean }) {
   const items = useLedgerStore(state => state.inventory);
   const nodes = useLedgerStore(state => state.dimensionNodes || []);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
@@ -121,7 +121,7 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
         { id: 'warehouse', label: 'Warehouse operations', panelId: 'inventory-workflow-panel' },
       ]} />
     <div role="tabpanel" id="inventory-workflow-panel" aria-labelledby={activeWorkflow === 'cycle-count' ? 'inventory-tab-cycle-count' : 'inventory-tab-warehouse'}>
-    {activeWorkflow === 'warehouse' ? <WarehouseOperationsReportView /> : <section aria-label="Inventory cycle count" className="p-4 space-y-4 min-w-0">
+    {activeWorkflow === 'warehouse' ? <WarehouseOperationsReportView embedded={embedded} /> : <section aria-label="Inventory cycle count" className="p-4 space-y-4 min-w-0">
     <h2>Inventory cycle count</h2>
     <p className="text-sm text-[var(--muted)]">A count sheet for one place: the ledger's expected quantity, what was counted, and the variance in units and at each item's own cost. {COUNT_POSTING_NOTE}</p>
     <p className="text-sm text-[var(--muted)]">A row left blank is never read as zero — it is listed as not counted. A row whose stock history does not explain its quantity is marked, so a difference is not blamed on the count before the history is checked. Expected quantities come from the stock-moves ledger (per Location); an item with no history uses its own quantity on hand and says so.</p>
