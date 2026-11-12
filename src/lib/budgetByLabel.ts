@@ -1,0 +1,49 @@
+/**
+ * EU-E5: budgets by label. A budget may carry one label value (kept in its `metadata.label`, a field budgets
+ * already allow — no database change). Profit by Label then shows each value's budgeted result next to its actual:
+ * income budgets add, cost and expense budgets subtract, each scaled to the months the period covers (a monthly
+ * budget once per month, a quarterly one a third per month, a yearly one a twelfth per month).
+ */
+import type { Budget, ChartAccount } from '../types';
+
+export interface BudgetLabel { dimensionId: string; value: string }
+
+export function budgetLabel(budget: Pick<Budget, never> & { metadata?: unknown }): BudgetLabel | null {
+  const label = (budget.metadata as { label?: Partial<BudgetLabel> } | undefined)?.label;
+  return label && typeof label.dimensionId === 'string' && typeof label.value === 'string' && label.dimensionId && label.value
+    ? { dimensionId: label.dimensionId, value: label.value } : null;
+}
+
+/** Calendar months touched by start..end (both YYYY-MM-DD), at least 1. */
+export function monthsCovered(start: string, end: string): number {
+  const [y1, m1] = start.slice(0, 7).split('-').map(Number);
+  const [y2, m2] = end.slice(0, 7).split('-').map(Number);
+  return Math.max(1, (y2 - y1) * 12 + (m2 - m1) + 1);
+}
+
+const PER_MONTH: Record<string, number> = { monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+
+/**
+ * The budgeted result (income − costs, integer cents) of one label value over start..end, or null when no budget
+ * carries this label at all (then the report shows no budget row).
+ */
+export function budgetedResult(input: {
+  budgets: ReadonlyArray<Budget & { metadata?: unknown }>;
+  accounts: readonly ChartAccount[];
+  dimensionId: string;
+  value: string;
+  start: string;
+  end: string;
+}): number | null {
+  const tagged = input.budgets.filter(b => budgetLabel(b)?.dimensionId === input.dimensionId);
+  if (!tagged.length) return null;
+  const months = monthsCovered(input.start, input.end);
+  let cents = 0;
+  for (const b of tagged) {
+    if (budgetLabel(b)?.value !== input.value || b.targetType !== 'account') continue;
+    const account = input.accounts.find(a => a.id === b.targetId);
+    const sign = account?.type === 'income' ? 1 : account && ['expense', 'cost_of_goods'].includes(account.type) ? -1 : 0;
+    cents += sign * Math.round((b.amountCents || 0) * months * (PER_MONTH[b.period] ?? 1));
+  }
+  return cents;
+}

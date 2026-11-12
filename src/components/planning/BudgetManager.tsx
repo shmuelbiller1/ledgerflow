@@ -29,6 +29,8 @@ import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { Labelled } from '../ui/Labelled';
+import { displayDimensionName } from '../../lib/dimensionUtils';
+import { budgetLabel } from '../../lib/budgetByLabel';
 import BudgetControlSetting from './BudgetControlSetting';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
@@ -61,6 +63,12 @@ export default function BudgetManager() {
     period: 'monthly',
     startDate: getLocalDateISO()
   });
+  // EU-E5: an optional label value on the budget (kept in metadata.label; budgets already allow metadata)
+  const [budgetLabelId, setBudgetLabelId] = useState('');
+  const [budgetLabelValue, setBudgetLabelValue] = useState('');
+  const labelDefs = (useAuthStore(s => s.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
+  const labelNodes = (useLedgerStore(s => s.dimensionNodes) || []).filter(n => n.dimensionId === budgetLabelId && n.status !== 'archived');
+  const labelMeta = budgetLabelId && budgetLabelValue ? { metadata: { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } } : {};
 
   const handleAddBudget = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,12 +88,14 @@ export default function BudgetManager() {
           amountCents: newBudget.amountCents,
           period: newBudget.period,
           startDate: newBudget.startDate || getLocalDateISO(),
+          ...labelMeta,
           updatedAt: new Date().toISOString()
         });
         toast.success('Objective Updated');
       } else {
         await addDoc(collection(db, 'budgets'), {
           ...newBudget,
+          ...labelMeta,
           workspaceId,
           uid: user?.uid || "",
           createdAt: new Date().toISOString()
@@ -94,6 +104,7 @@ export default function BudgetManager() {
       }
       setIsAdding(false);
       setEditingBudget(null);
+      setBudgetLabelId(''); setBudgetLabelValue('');
       setNewBudget({
         targetId: '',
         targetType: 'account',
@@ -208,7 +219,7 @@ export default function BudgetManager() {
                         period: b.period,
                         startDate: b.startDate || getLocalDateISO()
                       });
-                      setEditingBudget(b.id);
+                      setEditingBudget(b.id); setBudgetLabelId(budgetLabel(b)?.dimensionId || ''); setBudgetLabelValue(budgetLabel(b)?.value || '');
                       setIsAdding(true);
                     }}
                     className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg p-2 text-[var(--muted)] hover:text-indigo-600 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
@@ -293,7 +304,7 @@ export default function BudgetManager() {
                        period: b.period,
                        startDate: b.startDate || getLocalDateISO()
                      });
-                     setEditingBudget(b.id);
+                     setEditingBudget(b.id); setBudgetLabelId(budgetLabel(b)?.dimensionId || ''); setBudgetLabelValue(budgetLabel(b)?.value || '');
                      setIsAdding(true);
                    }}
                    className="w-10 h-10 bg-[var(--ink)] rounded-xl flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-all border border-[var(--line)] group-hover:scale-110" 
@@ -398,6 +409,27 @@ export default function BudgetManager() {
                     </Labelled>
                   </div>
                 </div>
+
+                {labelDefs.length > 0 && (
+                  <div className="grid grid-cols-2 gap-8">
+                    <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-widest truncate opacity-50" label="Label (optional)">
+                      <select value={budgetLabelId} onChange={e => { setBudgetLabelId(e.target.value); setBudgetLabelValue(''); }}
+                        className="w-full min-h-11 px-4 py-3 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-[var(--text)]">
+                        <option value="">None</option>
+                        {labelDefs.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
+                      </select>
+                    </Labelled>
+                    {budgetLabelId && (
+                      <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-widest truncate opacity-50" label="Label value">
+                        <select value={budgetLabelValue} onChange={e => setBudgetLabelValue(e.target.value)}
+                          className="w-full min-h-11 px-4 py-3 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-[var(--text)]">
+                          <option value="">Choose…</option>
+                          {labelNodes.map(n => <option key={n.id} value={n.id}>{n.description}</option>)}
+                        </select>
+                      </Labelled>
+                    )}
+                  </div>
+                )}
 
                 <div className="pt-6 flex gap-6">
                   <button 

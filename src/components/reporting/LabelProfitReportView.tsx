@@ -4,6 +4,8 @@ import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { budgetedResult } from '../../lib/budgetByLabel';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 
 type Section = 'income' | 'cogs' | 'expense';
@@ -21,6 +23,10 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
 export default function LabelProfitReportView() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes);
+  // EU-E5: budgets that carry a value of this label give a budget row and a "vs budget" row
+  const budgets = useLedgerStore(s => s.budgets);
+  const ledgerAccounts = useLedgerStore(s => s.accounts);
+  useLedgerCollections('budgets', 'accounts');
   const dimensions = workspace?.dimensions || [];
   const [picked, setPicked] = useState('');
   const dimensionId = picked || dimensions[0]?.id || '';
@@ -116,6 +122,25 @@ export default function LabelProfitReportView() {
                   <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total[k], currency)}</td>
                 </tr>
               ))}
+              {(() => {
+                const budgeted = report.columns.map(c => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value: c.value, start: startDate, end: endDate }));
+                if (budgeted.every(b => b === null)) return null;
+                const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0);
+                return (
+                  <>
+                    <tr data-testid="label-budget-row">
+                      <th scope="row" className="text-left py-1">Budgeted result</th>
+                      {budgeted.map((b, i) => <td key={report.columns[i].value} className="text-right font-mono py-1 px-2">{formatCurrency(b || 0, currency)}</td>)}
+                      <td className="text-right font-mono py-1 px-2">{formatCurrency(total, currency)}</td>
+                    </tr>
+                    <tr className="font-semibold">
+                      <th scope="row" className="text-left py-1">Net income vs budget</th>
+                      {report.columns.map((c, i) => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c.netIncome - (budgeted[i] || 0), currency)}</td>)}
+                      <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total.netIncome - total, currency)}</td>
+                    </tr>
+                  </>
+                );
+              })()}
             </tfoot>
           </table>
         </div>
