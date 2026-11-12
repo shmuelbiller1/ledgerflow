@@ -139,7 +139,8 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
   const allTransactions = useLedgerStore(s => s.transactions);
   const nodes = useLedgerStore(s => s.dimensionNodes);
   const ledger = useMemo(() => (labelFilter && !capped
-    ? computeGeneralLedger(accounts, scopeTransactionsToLabel(allTransactions || [], labelFilter, nodes || []), startDate, endDate)
+    // the chart's opening balance belongs to the whole company, not to one label: it is left out here
+    ? computeGeneralLedger(accounts.map(a => ({ ...a, openingBalanceCents: 0 })), scopeTransactionsToLabel(allTransactions || [], labelFilter, nodes || []), startDate, endDate)
     : wholeLedger), [labelFilter, capped, accounts, allTransactions, nodes, startDate, endDate, wholeLedger]);
   const glData = useMemo(() => (selectedAccountId === 'all' ? ledger : { ...ledger, accounts: ledger.accounts.filter(a => a.accountId === selectedAccountId) }),
     [ledger, selectedAccountId]);

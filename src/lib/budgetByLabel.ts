@@ -37,10 +37,15 @@ export function budgetedResult(input: {
 }): number | null {
   const tagged = input.budgets.filter(b => budgetLabel(b)?.dimensionId === input.dimensionId);
   if (!tagged.length) return null;
-  const months = monthsCovered(input.start, input.end);
   let cents = 0;
   for (const b of tagged) {
     if (budgetLabel(b)?.value !== input.value || b.targetType !== 'account') continue;
+    // only the months where the report's period and the budget's own dates overlap
+    const own = b as { startDate?: string; endDate?: string };
+    const from = own.startDate && own.startDate > input.start ? own.startDate : input.start;
+    const to = own.endDate && own.endDate < input.end ? own.endDate : input.end;
+    if (from > to) continue;
+    const months = monthsCovered(from, to);
     const account = input.accounts.find(a => a.id === b.targetId);
     const sign = account?.type === 'income' ? 1 : account && ['expense', 'cost_of_goods'].includes(account.type) ? -1 : 0;
     cents += sign * Math.round((b.amountCents || 0) * months * (PER_MONTH[b.period] ?? 1));

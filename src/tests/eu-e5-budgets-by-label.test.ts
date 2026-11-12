@@ -30,3 +30,11 @@ test('EU-E5: Maui house Jan–Mar budgeted result 1,800.00; Aspen 0; an unbudget
   assert.deepEqual(budgetLabel(budgets[0]), { dimensionId: 'property', value: 'maui' });
   assert.equal(budgetLabel(budgets[3]), null);
 });
+
+test('EU-E5: only months where the budget and the period overlap count', () => {
+  const later = { ...b('6', 'rent', 100000, 'monthly', 'aspen'), startDate: '2026-06-01' } as Budget & { metadata?: unknown };
+  const ended = { ...b('7', 'rent', 100000, 'monthly', 'aspen'), startDate: '2025-01-01', endDate: '2026-01-31' } as Budget & { metadata?: unknown };
+  const at = (list: Array<Budget & { metadata?: unknown }>) => budgetedResult({ budgets: list, accounts, dimensionId: 'property', value: 'aspen', start: '2026-01-01', end: '2026-03-31' });
+  assert.equal(at([later]), 0, 'starts in June: nothing in Jan–Mar');
+  assert.equal(at([ended]), 100000, 'ends in January: one month');
+});

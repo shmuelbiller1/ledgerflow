@@ -88,7 +88,11 @@ export default function BudgetManager() {
           amountCents: newBudget.amountCents,
           period: newBudget.period,
           startDate: newBudget.startDate || getLocalDateISO(),
-          ...labelMeta,
+          // EU-E5: the budget's metadata as it was, with the label set, changed or taken away
+          metadata: (() => {
+            const { label: _old, ...rest } = ((budgets.find(x => x.id === editingBudget) as { metadata?: Record<string, unknown> } | undefined)?.metadata || {}) as Record<string, unknown>;
+            return { ...rest, ...(budgetLabelId && budgetLabelValue ? { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } : {}) };
+          })(),
           updatedAt: new Date().toISOString()
         });
         toast.success('Objective Updated');

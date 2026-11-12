@@ -56,3 +56,14 @@ test('EU-E4: not offered when entries are left out of this browser', () => {
   const view = render(<GeneralLedgerView startDate="2026-03-01" endDate="2026-03-31" />);
   assert.equal(view.queryByLabelText('Label kind'), null);
 });
+
+test('EU-E4: the chart opening balance (whole company, no label) is left out of a label-scoped ledger', async () => {
+  useLedgerStore.setState({ accounts: chart.map(a => (a.id === 'cash' ? { ...a, openingBalanceCents: 1000000 } : a)) });
+  const view = render(<GeneralLedgerView startDate="2026-03-01" endDate="2026-03-31" />);
+  await waitFor(() => assert.ok(view.queryAllByText('$10,000.00').length > 0, 'unfiltered: the company opening balance'));
+  fireEvent.change(view.getByLabelText('Label kind'), { target: { value: 'location' } });
+  fireEvent.change(view.getByLabelText('Label value'), { target: { value: 'Tel Aviv' } });
+  await waitFor(() => assert.equal(view.queryAllByText('$10,000.00').length, 0));
+  // Tel Aviv cash: +300.00 then -100.00 from zero
+  assert.ok(view.queryAllByText('$200.00').length > 0);
+});
