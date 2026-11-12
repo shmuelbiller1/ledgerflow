@@ -36,3 +36,11 @@ test('EU-E9: export columns — one per label, descriptions, the entry first, th
   assert.deepEqual(cols.cells({ dimensions: { property: 'maui' } }), ['Maui house', '']);
   assert.deepEqual(cols.cells({ lines: [{ dimensions: { property: 'maui' } }, { dimensions: { property: 'aspen', class: 'ops' } }, { dimensions: { property: 'maui' } }] }), ['Maui house | Aspen cabin', 'ops']);
 });
+
+test('EU-E9: labels kept in the older fields (projectId, classId, locationId) match and export too', () => {
+  const legacy = { projectId: 'p1', lines: [{ dimensions: {} as Record<string, string> }] } as unknown as Parameters<typeof matchesLabelFilters>[0];
+  assert.equal(matchesLabelFilters(legacy, { project: 'p1' }), true);
+  assert.equal(matchesLabelFilters(legacy, { project: 'p2' }), false);
+  const cols = labelExportColumns([{ id: 'project', name: 'Project' }], []);
+  assert.deepEqual(cols.cells(legacy), ['p1']);
+});

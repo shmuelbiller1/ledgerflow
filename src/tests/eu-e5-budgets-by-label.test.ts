@@ -38,3 +38,11 @@ test('EU-E5: only months where the budget and the period overlap count', () => {
   assert.equal(at([later]), 0, 'starts in June: nothing in Jan–Mar');
   assert.equal(at([ended]), 100000, 'ends in January: one month');
 });
+
+test('EU-E5: a budget saved under the account name (the form\'s list) counts; an ambiguous name does not', () => {
+  const byName = { ...b('8', 'Rent income', 100000, 'monthly', 'aspen') } as Budget & { metadata?: unknown };
+  const at = (list: Array<Budget & { metadata?: unknown }>, accts = accounts) => budgetedResult({ budgets: list, accounts: accts, dimensionId: 'property', value: 'aspen', start: '2026-01-01', end: '2026-01-31' });
+  assert.equal(at([byName]), 100000);
+  const twin = [...accounts, { id: 'rent2', name: 'Rent income', type: 'income' } as unknown as ChartAccount];
+  assert.equal(at([byName], twin), 0);
+});

@@ -46,7 +46,10 @@ export function budgetedResult(input: {
     const to = own.endDate && own.endDate < input.end ? own.endDate : input.end;
     if (from > to) continue;
     const months = monthsCovered(from, to);
-    const account = input.accounts.find(a => a.id === b.targetId);
+    // the account by id, else by name or code when exactly one matches (as computeBudgetActual resolves it)
+    const key = String(b.targetId || '').toLocaleLowerCase();
+    const matches = input.accounts.filter(a => a.id === b.targetId || a.name?.toLocaleLowerCase() === key || a.code?.toLocaleLowerCase() === key);
+    const account = matches.find(a => a.id === b.targetId) || (matches.length === 1 ? matches[0] : undefined);
     const sign = account?.type === 'income' ? 1 : account && ['expense', 'cost_of_goods'].includes(account.type) ? -1 : 0;
     cents += sign * Math.round((b.amountCents || 0) * months * (PER_MONTH[b.period] ?? 1));
   }

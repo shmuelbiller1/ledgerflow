@@ -3,6 +3,9 @@
  * case); the value is a label value id. An entry matches when the entry or any of its lines carries that value.
  * An unknown label name is refused with a message, never ignored.
  */
+import type { Transaction, TransactionLine } from '../types';
+import { getLineDimension } from './dimensionUtils';
+
 export interface LabelDef { id: string; name?: string }
 
 export class LabelFilterError extends Error {}
@@ -24,10 +27,25 @@ export function parseLabelFilters(query: Record<string, unknown>, labels: readon
 
 interface Taggable { dimensions?: Record<string, string> | null; lines?: Array<{ dimensions?: Record<string, string> | null }> | null }
 
+/** The entry's own value for a label: its dimensions, else the older fields (projectId, classId, locationId). */
+function entryValue(tx: Taggable, id: string): string {
+  const own = tx.dimensions?.[id];
+  if (own) return own;
+  const legacy = tx as Record<string, unknown>;
+  const field = id === 'project' ? legacy.projectId ?? legacy.project : id === 'class' ? legacy.classId ?? legacy.class : id === 'location' ? legacy.locationId : undefined;
+  return typeof field === 'string' ? field : '';
+}
+
+/** A line's value: the shared rule every report uses (getLineDimension: the line's own label, aliases, else the entry's). */
+const lineValue = (line: object, tx: Taggable, id: string) => {
+  const v = getLineDimension(line as TransactionLine, tx as Transaction, id);
+  return v === 'Unassigned' ? '' : v; // the helper's word for "none"
+};
+
 /** Every filter matched by the entry itself or by one of its lines. */
 export function matchesLabelFilters(tx: Taggable, filters: Record<string, string>): boolean {
   return Object.entries(filters).every(([id, value]) =>
-    tx.dimensions?.[id] === value || (tx.lines || []).some(l => l.dimensions?.[id] === value));
+    entryValue(tx, id) === value || (tx.lines || []).some(l => lineValue(l, tx, id) === value));
 }
 
 /**
@@ -41,8 +59,9 @@ export function labelExportColumns(labels: readonly LabelDef[], nodes: readonly 
   return {
     headers: own.map(l => l.name || l.id),
     cells: (tx: Taggable): string[] => own.map(l => {
-      if (tx.dimensions?.[l.id]) return describe(l.id, tx.dimensions[l.id]);
-      const values = [...new Set((tx.lines || []).map(line => line.dimensions?.[l.id]).filter((v): v is string => Boolean(v)))];
+      const own = entryValue(tx, l.id);
+      if (own) return describe(l.id, own);
+      const values = [...new Set((tx.lines || []).map(line => lineValue(line, tx, l.id)).filter((v): v is string => Boolean(v)))];
       return values.map(v => describe(l.id, v)).join(' | ');
     }),
   };
