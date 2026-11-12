@@ -1,6 +1,8 @@
 import type { Transaction, ChartAccount } from '../../types';
 import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { displayDimensionName } from '../../lib/dimensionUtils';
 import { categoryChoices } from '../../lib/accountChoices';
 import { motion } from 'motion/react';
 import { Clipboard, X } from 'lucide-react';
@@ -11,7 +13,7 @@ interface SelectionBarProps {
   avgAmount: number;
   onCopy: () => void;
   onClear: () => void;
-  onBulkUpdate: (updates: Partial<Transaction> & { accountId?: string }) => void;
+  onBulkUpdate: (updates: Partial<Transaction> & { accountId?: string; labels?: Record<string, string> }) => void;
   accounts: ChartAccount[];
   formatCurrency: (cents: number) => string;
 }
@@ -33,6 +35,20 @@ export default function SelectionBar({
     || choices.find(c => accounts.find(a => a.id === c.value)?.name.toLowerCase() === typed);
   const match = pick ? accounts.find(a => a.id === pick.value) : undefined;
   const apply = () => { if (match) { onBulkUpdate({ accountId: match.id }); setText(''); } };
+  // EU-E2: "Set label" — one label and its value on every selected entry (through the same bulk save and Undo)
+  const labelDefs = (useAuthStore(state => state.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
+  const nodes = useLedgerStore(state => state.dimensionNodes) || [];
+  const [labelId, setLabelId] = useState('');
+  const [valueText, setValueText] = useState('');
+  const chosenLabel = labelDefs.find(d => d.id === labelId) || labelDefs[0];
+  const labelValues = nodes.filter(n => n.dimensionId === chosenLabel?.id && n.status !== 'archived');
+  const typedValue = valueText.trim();
+  const valueId = labelValues.find(n => n.description.toLowerCase() === typedValue.toLowerCase())?.id || typedValue;
+  const applyLabel = () => {
+    if (!chosenLabel || !valueId) return;
+    onBulkUpdate({ labels: { [chosenLabel.id]: valueId } });
+    setValueText('');
+  };
   return (
     <motion.div 
       initial={{ y: 100 }}
@@ -74,6 +90,25 @@ export default function SelectionBar({
           Apply
         </button>
         
+        {chosenLabel && (
+          <div className="flex items-center gap-2 border-l border-zinc-800 pl-3">
+            <select aria-label="Label to set" value={chosenLabel.id} onChange={e => setLabelId(e.target.value)}
+              className="bg-zinc-800 text-[10px] font-medium px-2 py-2.5 rounded-xl text-zinc-300">
+              {labelDefs.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
+            </select>
+            <input aria-label="Set label" list="selection-label-values" placeholder="Set label…" value={valueText}
+              onChange={e => setValueText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyLabel(); } }}
+              className="w-36 bg-zinc-800 text-[10px] font-medium px-3 py-2.5 rounded-xl outline-none text-zinc-300 focus:ring-1 focus:ring-indigo-500 placeholder:text-zinc-600" />
+            <datalist id="selection-label-values">
+              {labelValues.map(n => <option key={n.id} value={n.description} />)}
+            </datalist>
+            <button type="button" onClick={applyLabel} disabled={!typedValue}
+              className="px-3 py-2 rounded-xl bg-indigo-600 text-[10px] font-bold uppercase tracking-wider disabled:opacity-30">
+              Set
+            </button>
+          </div>
+        )}
         <button type="button" aria-label="Copy Text" onClick={onCopy} className="p-2.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors" title="Copy Text">
           <Clipboard aria-hidden="true" size={16} />
         </button>

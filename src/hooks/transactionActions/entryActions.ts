@@ -15,6 +15,7 @@ import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
 import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions';
 import { isDocumentEntry } from '../../lib/transactionEdits';
+import { resolveAccountRole } from '../../lib/accountUtils';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
 /**
@@ -207,6 +208,8 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         (updates.accountId && a.id === updates.accountId) || 
         (updates.accountName && a.name === updates.accountName)
       );
+      // EU-E2: a label value typed for the first time is added to the label once, before the entries change
+      if (updates.labels) updates = { ...updates, labels: (await ensureTransactionDimensionNodes({ dimensions: updates.labels })).dimensions || updates.labels };
       const accId = targetAccount?.id || updates.accountId;
       const accName = targetAccount?.name || updates.accountName;
       const projId = updates.project || updates.projectId;
@@ -243,6 +246,17 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
               // Balance from scratch if previously unlined
               updateData.lines = balanceTransactionLines([], tx.totalAmountCents);
             }
+          }
+
+          // EU-E2: "Set label" on the selection — the entry and its category lines; money in or out of the bank keeps its own
+          if (updates.labels && Object.keys(updates.labels).length) {
+            const withLabels = (d?: Record<string, string>) => ({ ...(d || {}), ...updates.labels });
+            const isBank = (accountId?: string) => {
+              const account = accounts.find(a => a.id === accountId);
+              return account ? resolveAccountRole(account) === 'cash' : false;
+            };
+            updateData.dimensions = withLabels(tx.dimensions);
+            updateData.lines = (updateData.lines || tx.lines || []).map(l => (isBank(l.accountId) ? l : { ...l, dimensions: withLabels(l.dimensions) }));
           }
 
           updatesMap.set(id, updateData);
