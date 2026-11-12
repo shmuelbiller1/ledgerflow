@@ -18,6 +18,7 @@
  *  - nothing here removes a row: filtering only decides what is shown.
  */
 import type { CloudDocument } from '../model/operations';
+import { byCodeUnit } from './codeUnitOrder';
 
 export type DocumentFileType = 'pdf' | 'image' | 'spreadsheet' | 'document' | 'other';
 
@@ -130,17 +131,17 @@ export function applyDocumentFilters<T extends DocumentLike>(
   const sortKey = (doc: DocumentLike) => String(doc.createdAt || '');
   rows.sort((a, b) => {
     const keyA = sortKey(a), keyB = sortKey(b);
-    if (!keyA && !keyB) return String(a.name || '').localeCompare(String(b.name || ''));
+    if (!keyA && !keyB) return byCodeUnit(String(a.name || ''), String(b.name || ''));
     if (!keyA) return 1;
     if (!keyB) return -1;
-    return keyB.localeCompare(keyA); // newest first
+    return byCodeUnit(keyB, keyA); // newest first
   });
   return { rows, undated: rows.filter(doc => documentMonth(doc) === null).length };
 }
 
 /** The months present in the data, newest first, for the month picker (`YYYY-MM`). */
 export function documentMonths(documents: readonly DocumentLike[]): string[] {
-  return [...new Set(documents.map(documentMonth).filter((m): m is string => m !== null))].sort((a, b) => b.localeCompare(a));
+  return [...new Set(documents.map(documentMonth).filter((m): m is string => m !== null))].sort((a, b) => byCodeUnit(b, a));
 }
 
 /** Is this file attached to anything (a record, a record id, or a ledger entry)? */
