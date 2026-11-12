@@ -6,6 +6,7 @@ import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/u
 import { computeStatement } from '../../server/reports/computeReports';
 import { FileText, Printer, Eye, Download } from 'lucide-react';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
+import { printElementById } from '../../lib/printRoot';
 import { downloadDocumentPdf } from '../../services/documentDownloads';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import type { Bill, CreditNote, Invoice, Payment, VendorCredit } from '../../types';
@@ -120,14 +121,17 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
     );
   }, [selectedContact, scoped, scopeStart, scopeEnd, type]);
 
+  // H-7/AI #10: print the statement sheet, not the application shell around it. Until this change
+  // the statement had no print root, so `window.print()` produced the sidebar, the header, the
+  // on-screen filters and the statement — while the sheet itself carried `print:hidden` markers.
   const handlePrint = () => {
-    window.print();
+    printElementById('statement-sheet');
   };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 print:hidden">
+      <div data-print-hide className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 print:hidden">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
             <FileText className="w-6 h-6" />
@@ -175,7 +179,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
       </div>
 
       {/* Filter Options */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 print:hidden">
+      <div data-print-hide className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 print:hidden">
         <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-200 dark:bg-slate-800 rounded-lg">
           <button
             type="button"
@@ -282,7 +286,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
           Please select a {type === 'customer' ? 'customer' : 'vendor'} to view statement.
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-8 space-y-6 sm:space-y-8 shadow-sm">
+        <div id="statement-sheet" data-print-root className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-8 space-y-6 sm:space-y-8 shadow-sm">
           {/* Statement Header Card */}
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start border-b border-slate-200 dark:border-slate-800 pb-6">
             <div>

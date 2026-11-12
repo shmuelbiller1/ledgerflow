@@ -20,6 +20,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import type { Customer, Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { printElementById } from '../../lib/printRoot';
 
 interface SourceEntry {
   key: string;
@@ -249,7 +250,7 @@ function DeliveryNotesContent() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printElementById('delivery-note-sheet')}
             disabled={!doc}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
           >
@@ -355,6 +356,8 @@ function DeliveryNotesContent() {
 
       {doc && selected && (
         <article
+          id="delivery-note-sheet"
+          data-print-root
           aria-label="Printable delivery note"
           dir={doc.direction}
           className="border border-[var(--line)] rounded p-5 space-y-4 bg-[var(--panel)]"

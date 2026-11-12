@@ -7,6 +7,7 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../../lib/utils';
 import { PACK_REPORTS, packReportUrl, packSection } from '../../../lib/reportPack';
 import type { PackReport, PackSection } from '../../../lib/reportPack';
+import { printElementById } from '../../../lib/printRoot';
 
 export default function ReportPackDialog({ startDate, endDate, onClose }: { startDate: string; endDate: string; onClose: () => void }) {
   const user = useAuthStore(s => s.user);
@@ -76,10 +77,14 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
         }} />{PACK_REPORTS[kind]}</label>)}
       </fieldset>
       <div className="flex flex-wrap gap-3"><button className={control} disabled={busy || !selected.length || !user || !workspaceId} onClick={() => void prepare()}>{busy ? 'Preparing…' : snapshot ? 'Refresh pack' : 'Prepare pack'}</button>
-        <button className={control} disabled={!snapshot || busy} onClick={() => window.print()}>Print pack / PDF</button></div>
+        {/* H-7/AI #10: the prepared pack is the print root. `reportPack.css` scopes the paper to
+            `[data-report-pack-print]`, but nothing told the app-wide print rules in `src/index.css`
+            which element owned the page, so Print also produced the application shell behind the
+            overlay. */}
+        <button className={control} disabled={!snapshot || busy} onClick={() => printElementById('report-pack-sheet')}>Print pack / PDF</button></div>
       {busy && <><p role="status">Reading all selected reports…</p><ReportSkeleton rows={6} columns={2} label="Reading the selected reports for the pack" /></>}{error && <p role="alert">{error}</p>}
     </div>
-    {snapshot && <article data-report-pack-print className="report-pack-paper max-w-4xl mx-auto mt-6 bg-white text-black p-4">
+    {snapshot && <article id="report-pack-sheet" data-print-root data-report-pack-print className="report-pack-paper max-w-4xl mx-auto mt-6 bg-white text-black p-4">
       <section className="report-pack-cover"><h1 className="text-3xl font-bold">Report pack</h1><h2 className="text-xl"><bdi dir="auto">{workspace?.name || workspaceId}</bdi></h2>
         <p>Reporting period: {startDate} – {endDate}</p><p>P&L / balance sheet basis: accrual · Currency: {workspace?.currency || 'USD'}</p>
         <p>Made: {snapshot.made}</p><ol>{snapshot.sections.map(section => <li key={section.kind}>{PACK_REPORTS[section.kind]}</li>)}</ol>
