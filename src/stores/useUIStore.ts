@@ -75,6 +75,7 @@ interface UIState {
   isOnline: boolean;
   isSyncing: boolean;
   language: 'en' | 'he';
+  setLanguage: (language: 'en' | 'he') => void;
   filterCriteria: FilterCriteria | null;
   parsingQueue: ParsingItem[];
   splittingTxId: string | null;
@@ -209,7 +210,7 @@ export const useUIStore = create<UIState>((set) => ({
   isShortcutOverlayOpen: false,
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
   isSyncing: false,
-  language: 'en',
+  language: storedChoice('lf_language', ['en', 'he'] as const, 'en'),
   filterCriteria: {
     startDate: `${new Date().getFullYear()}-01-01`,
     endDate: `${new Date().getFullYear()}-12-31`
@@ -479,6 +480,12 @@ export const useUIStore = create<UIState>((set) => ({
       // Ignore storage error
     }
     set({ theme });
+  },
+  setLanguage: (language) => {
+    // the choice holds for this session; when the device refuses storage it is not kept, and the flag says so
+    let reportPreferencesDeviceError = false;
+    try { localStorage.setItem('lf_language', language); } catch { reportPreferencesDeviceError = true; }
+    set({ language, reportPreferencesDeviceError });
   },
   setLexiconOverride: (key, lang, value) => set((state) => {
     const existing = state.lexiconOverrides[key] || { en: '', he: '' };

@@ -39,6 +39,8 @@ import { ensureInvoiceDimensionNodes } from '../../lib/dimensionNodeActions';
 import ReceivePaymentModal from './ReceivePaymentModal';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useUIStore } from '../../stores/useUIStore';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import { computeCustomerBalanceSummary, toBaseCents } from '../../server/reports/partyReports';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -58,6 +60,8 @@ import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
+  const language = useUIStore(s => s.language);
+  const salesText = (key: string, fallback: string) => translateScreenString('sales', key, language, fallback);
   const user = useAuthStore(s => s.user);
   const invoices = useLedgerStore(s => s.invoices);
   const customers = useLedgerStore(s => s.customers);
@@ -94,16 +98,18 @@ export default function Sales() {
     // A customer typed in the invoice that isn't on the list yet is added first
     if (typeof data.customerId === 'string' && data.customerId.startsWith('new-')) {
       const name = String(data.customerName || '').trim();
-      if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); return; }
+      // nothing saved: throw (the toast says why) so the invoice form and its kept draft stay open (EU-B3)
+      if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); throw new Error('No customer name'); }
       const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
-      if (!created) return;
+      if (!created) throw new Error('Customer not saved');
       data = { ...data, customerId: created.id };
     }
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;
     if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
-      res = await addEntity('invoices', data); 
+      res = await addEntity('invoices', data);
+      if (!res) throw new Error('Invoice not saved'); // the save said why; the form and draft stay
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;
       if (res && uid && Array.isArray(attachmentFiles) && attachmentFiles.length) {
@@ -263,15 +269,15 @@ export default function Sales() {
   }
 
   return (
-    <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+    <div dir={language === 'he' ? 'rtl' : 'ltr'} lang={language} className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
       <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
       {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
       {loading && (invoices.length > 0 || customers.length > 0) && (
-        <p role="status" className="text-xs text-[var(--muted)] px-1">Refreshing this screen…</p>
+        <p role="status" className="text-xs text-[var(--muted)] px-1">{salesText('status.refreshing', 'Refreshing this screen…')}</p>
       )}
       {/* header: same shape as Purchases (title, one line, tabs and actions on the right) */}
-      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title="Sales"
-        description="Invoices you send and the money customers owe you.">
+      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title={salesText('title', 'Sales')}
+        description={salesText('description', 'Invoices you send and the money customers owe you.')}>
             <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
 
               <button 
@@ -283,7 +289,7 @@ export default function Sales() {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
-                Invoices
+                {salesText('tab.invoices', 'Invoices')}
               </button>
               <button 
                 onClick={() => setActiveSubTab('customers')}
@@ -294,7 +300,7 @@ export default function Sales() {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
-                Customers
+                {salesText('tab.customers', 'Customers')}
               </button>
             </div>
             {activeSubTab === 'invoices' && canEditContacts && (
@@ -304,14 +310,14 @@ export default function Sales() {
                 className="flex items-center gap-1.5 px-4 py-2 border border-[var(--line)] text-[var(--text)] rounded-xl text-xs font-bold hover:bg-[var(--ink)] transition-all cursor-pointer"
               >
                 <Plus size={15} />
-                Sale receipt
+                {salesText('action.saleReceipt', 'Sale receipt')}
               </button>
             )}
             {activeSubTab === 'invoices' && canEditContacts && (
               <button type="button" onClick={() => setOpeningOpen(true)}
                 title="The invoices still unpaid when you started: paste them from a spreadsheet"
                 className="px-3 py-2 text-[var(--muted)] rounded-xl text-xs font-semibold hover:text-[var(--text)] hover:underline">
-                Opening invoices
+                {salesText('action.openingInvoices', 'Opening invoices')}
               </button>
             )}
             <button 
@@ -319,7 +325,7 @@ export default function Sales() {
               className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black rounded-xl text-xs font-bold hover:opacity-95 transition-all shadow-md hover:shadow-lg cursor-pointer active:scale-95"
             >
               <Plus size={15} />
-              {activeSubTab === 'invoices' ? 'Add Invoice' : 'Add Customer'}
+              {activeSubTab === 'invoices' ? salesText('action.addInvoice', 'Add Invoice') : salesText('action.addCustomer', 'Add Customer')}
             </button>
       </PageHeader>
 
@@ -330,11 +336,11 @@ export default function Sales() {
           animate={{ opacity: 1, y: 0 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">Overdue</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">{salesText('summary.overdue', 'Overdue')}</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-rose-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.overdue)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <AlertCircle size={12} />
-             Past the due date
+             {salesText('summary.pastDue', 'Past the due date')}
           </div>
         </motion.div>
         
@@ -344,11 +350,11 @@ export default function Sales() {
           transition={{ delay: 0.1 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
         >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300 font-semibold mb-3 relative z-10">Due in the next 30 days</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300 font-semibold mb-3 relative z-10">{salesText('summary.dueSoon', 'Due in the next 30 days')}</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-700 dark:text-amber-300 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <Activity size={12} />
-             Not yet due
+             {salesText('summary.notDue', 'Not yet due')}
           </div>
         </motion.div>
 
@@ -359,11 +365,11 @@ export default function Sales() {
           transition={{ delay: 0.3 }}
           className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--brass-line)] shadow-sm relative overflow-hidden group bg-gradient-to-b from-[var(--brass-soft)] to-[var(--panel)]"
         >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">Total owed to you</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">{salesText('summary.totalOwed', 'Total owed to you')}</p>
           <p className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.total)}</p>
           <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
              <ShieldCheck size={12} className="text-[var(--brass)]" />
-             Unpaid invoices, all customers
+             {salesText('summary.unpaid', 'Unpaid invoices, all customers')}
           </div>
         </motion.div>
       </div>
@@ -380,21 +386,21 @@ export default function Sales() {
             <ListColumnChooser scope="sales-invoices" label="Invoices"
               columns={['Selection', 'Number', 'Customer', 'Date', 'Due', 'Amount', 'State', 'Actions']} />
             <table className="w-full border-collapse min-w-[700px]">
-              <caption className="sr-only">Invoices</caption>
+              <caption className="sr-only">{salesText('tab.invoices', 'Invoices')}</caption>
               <thead className="sticky top-0 z-10 bg-[var(--surface)]">
                 <tr className="text-left border-b border-[var(--line)]/50">
                   <th scope="col" className="pl-4 md:pl-8 w-8">
-                    <input type="checkbox" aria-label="Select all invoices shown"
+                    <input type="checkbox" aria-label={salesText('table.selectAll', 'Select all invoices shown')}
                       checked={visibleInvoices.length > 0 && visibleInvoices.every(i => pickedInvoices.has(i.id))}
                       onChange={e => setPickedInvoices(e.target.checked ? new Set(visibleInvoices.map(i => i.id)) : new Set())} />
                   </th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Number</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Customer</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Date</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Due</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Amount</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-center">State</th>
-                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.number', 'Number')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.customer', 'Customer')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.date', 'Date')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.due', 'Due')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">{salesText('table.amount', 'Amount')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-center">{salesText('table.state', 'State')}</th>
+                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">{salesText('table.actions', 'Actions')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ledger-line/30">
@@ -425,7 +431,7 @@ export default function Sales() {
                           className={cn("font-bold text-[var(--text)]", inv.status === 'overdue' && "text-rose-600")} />
                         {inv.status === 'pending' && (
                           <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 opacity-50">
-                            {differenceInDays(parseLocalDate(inv.dueDate), new Date())} T-Days Left
+                            {differenceInDays(parseLocalDate(inv.dueDate), new Date())} {salesText('status.daysLeft', 'T-Days Left')}
                           </span>
                         )}
                       </div>
@@ -439,16 +445,16 @@ export default function Sales() {
                           "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border shadow-sm",
                           getStatusColor(inv.status)
                         )}>
-                          {inv.status}
+                          {salesText(`status.${inv.status}`, inv.status)}
                         </span>
-                        {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">Receipt</span>}
+                        {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">{salesText('status.receipt', 'Receipt')}</span>}
                         {(inv.writtenOffCents || 0) > 0 && (
-                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>written off {formatCurrency(inv.writtenOffCents || 0)}</span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>{salesText('status.writtenOff', 'written off')} {formatCurrency(inv.writtenOffCents || 0)}</span>
                         )}
                       </div>
                       {inv.viewedAt && inv.status !== 'paid' && (
                         <div className="mt-1 text-center text-[10px] text-[var(--muted)]" title={inv.lastViewedAt ? `Last opened ${formatDate(inv.lastViewedAt.slice(0, 10))}${(inv.viewCount || 0) > 1 ? `, ${inv.viewCount} times` : ''}` : undefined}>
-                          Opened by the customer {formatDate(inv.viewedAt.slice(0, 10))}
+                          {salesText('status.openedByCustomer', 'Opened by the customer')} {formatDate(inv.viewedAt.slice(0, 10))}
                         </div>
                       )}
                       {inv.revenueSchedule && <div className="mt-1 text-center text-[10px] text-[var(--muted)]">{spreadProgress(inv.revenueSchedule, getLocalDateISO())}</div>}
@@ -457,8 +463,8 @@ export default function Sales() {
                         canDecide={canDecideApproval} onDecide={d => decideApproval(inv, d)} />
                       {inv.metadata?.cogsPending && (
                         <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-[var(--neg)]">
-                          <span title="The cost of the items sold was not recorded: add an Inventory and a Cost of Goods Sold account, then retry.">Cost not recorded</span>
-                          <button type="button" onClick={() => updateEntity('invoices', inv.id, {}, 'Invoice re-posted')} className="underline font-bold">Retry</button>
+                          <span title={salesText('help.costNotRecorded', 'The cost of the items sold was not recorded: add an Inventory and a Cost of Goods Sold account, then retry.')}>{salesText('status.costNotRecorded', 'Cost not recorded')}</span>
+                          <button type="button" onClick={() => updateEntity('invoices', inv.id, {}, 'Invoice re-posted')} className="underline font-bold">{salesText('action.retry', 'Retry')}</button>
                         </div>
                       )}
                     </td>
@@ -505,7 +511,7 @@ export default function Sales() {
                               className="px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                               aria-label={`Apply the estimate's deposit to invoice ${inv.number || ''}`.trim()}
                             >
-                              Apply deposit {formatCurrency(Math.min(deposit.unappliedCents, due), inv.currency)}
+                              {salesText('action.applyDeposit', 'Apply deposit')} {formatCurrency(Math.min(deposit.unappliedCents, due), inv.currency)}
                             </button>
                           );
                         })()}
@@ -518,7 +524,7 @@ export default function Sales() {
                             className="px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--text)] rounded-xl"
                             aria-label={`Undo the spread of invoice ${inv.number || ''}`.trim()}
                           >
-                            Undo spread
+                            {salesText('action.undoSpread', 'Undo spread')}
                           </button>
                         ) : (
                           <button type="button"
@@ -527,7 +533,7 @@ export default function Sales() {
                             title="Income earned over time (a subscription, a retainer): spread it over the months it covers"
                             aria-label={`Spread invoice ${inv.number || ''} over months`.replace('  ', ' ')}
                           >
-                            Spread
+                            {salesText('action.spread', 'Spread')}
                           </button>
                         ))}
                         {(inv.writtenOffCents || 0) > 0 && (
@@ -619,7 +625,7 @@ export default function Sales() {
                         onClick={() => setInvoiceLimit(n => n + 200)}
                         className="min-h-11 px-4 py-2 text-xs font-bold text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-xl hover:bg-[var(--ink)]/50 transition-all"
                       >
-                        Show more invoices ({visibleInvoices.length} of {filteredInvoices.length})
+                        {salesText('action.showMoreInvoices', 'Show more invoices')} ({visibleInvoices.length} {salesText('common.of', 'of')} {filteredInvoices.length})
                       </button>
                     </td>
                   </tr>
@@ -629,9 +635,9 @@ export default function Sales() {
                     <td colSpan={8} className="p-12">
                       {loading ? <LoadingState what="invoices" /> : (
                         <EmptyState
-                          title={searchTerm ? 'No invoices match your search' : 'No invoices yet'}
-                          description={searchTerm ? 'Try another name or number.' : 'Create your first invoice to bill a customer.'}
-                          actionLabel="Create invoice"
+                          title={searchTerm ? salesText('empty.noInvoiceMatches', 'No invoices match your search') : salesText('empty.noInvoices', 'No invoices yet')}
+                          description={searchTerm ? salesText('empty.tryAnotherSearch', 'Try another name or number.') : salesText('empty.createFirstInvoice', 'Create your first invoice to bill a customer.')}
+                          actionLabel={salesText('empty.createInvoice', 'Create invoice')}
                           onAction={() => setIsInvoiceModalOpen(true)}
                         />
                       )}
@@ -660,13 +666,13 @@ export default function Sales() {
                 existing={customers.map(c => c.name)} onAdd={name => addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`)} />
             )}
             <table className="w-full border-collapse min-w-[700px]">
-              <caption className="sr-only">Customers</caption>
+              <caption className="sr-only">{salesText('tab.customers', 'Customers')}</caption>
               <thead>
                 <tr className="text-left border-b border-[var(--line)]/50">
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Customer Profile</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Contact</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">Net Receivable</th>
-                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.profile', 'Customer Profile')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.contact', 'Contact')}</th>
+                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">{salesText('customer.table.receivable', 'Net Receivable')}</th>
+                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">{salesText('table.actions', 'Actions')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ledger-line/30">
@@ -695,7 +701,7 @@ export default function Sales() {
                               aria-pressed={!cust.noReminders}
                               title="Automatic payment reminders (Settings → Emails & Reminders)">
                                {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
-                               {cust.noReminders ? 'No reminders' : 'Reminders on'}
+                               {cust.noReminders ? salesText('action.remindersOff', 'No reminders') : salesText('action.remindersOn', 'Reminders on')}
                             </button>
                           </div>
                        </div>
@@ -730,9 +736,9 @@ export default function Sales() {
                     <td colSpan={4} className="p-6">
                       {loading ? <LoadingState what="customers" /> : (
                         <EmptyState
-                          title={customers.length === 0 ? 'No customers yet' : 'No customers match these filters'}
-                          description={customers.length === 0 ? 'Add a customer before creating their first invoice.' : 'Choose another tag or show archived customers.'}
-                          actionLabel={customers.length === 0 ? 'Add first customer' : undefined}
+                          title={customers.length === 0 ? salesText('empty.noCustomers', 'No customers yet') : salesText('empty.noCustomerMatches', 'No customers match these filters')}
+                          description={customers.length === 0 ? salesText('empty.addCustomerFirst', 'Add a customer before creating their first invoice.') : salesText('empty.changeCustomerFilters', 'Choose another tag or show archived customers.')}
+                          actionLabel={customers.length === 0 ? salesText('empty.addFirstCustomer', 'Add first customer') : undefined}
                           onAction={customers.length === 0 ? () => setIsCustomerModalOpen(true) : undefined}
                         />
                       )}

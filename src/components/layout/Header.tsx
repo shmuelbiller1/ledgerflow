@@ -57,7 +57,6 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
 
 
-  useUIStore(s => s.language);
   const isAdmin = useAuthStore(state => state.isAdmin);
   const developerMode = useUIStore(state => state.developerMode);
   const setActiveTab = useUIStore(state => state.setActiveTab);

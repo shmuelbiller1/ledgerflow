@@ -138,6 +138,8 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'three-way-match',
     'customer-lifetime-value',
     'subscription-plans',
+    'compare',
+    'label-value',
     'gross-profit-by-customer',
     'inactive-items',
     'account-balances-as-of',

@@ -43,4 +43,5 @@ export const BrandingSchema = z.object({
   style: z.enum(['classic', 'bold', 'minimal']).optional(),
   /** Y-11: leave out the quantity column (a service business billing amounts) */
   hideQuantity: z.boolean().optional(),
+  hidePoweredBy: z.boolean().optional(),
 }).strict();

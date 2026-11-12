@@ -20,6 +20,7 @@ import { useReportPreferencesSync } from './hooks/useReportPreferencesSync';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useVisibilityPolling } from './hooks/useVisibilityPolling';
 import { useBillingStore } from './modules/billing/BillingService';
+import { applyUiLanguage } from './lib/i18n/uiLanguage';
 
 // Core Architectural Imports
 import { AuthScreen } from './core/auth/AuthScreen';
@@ -221,9 +222,8 @@ export default function App() {
   const isQuietMode = useUIStore(state => state.isQuietMode);
 
   useEffect(() => {
-    document.documentElement.dir = 'ltr';
-    document.documentElement.lang = 'en';
-  }, []);
+    applyUiLanguage(language, document.documentElement);
+  }, [language]);
   const setActiveTabStore = useUIStore(state => state.setActiveTab);
   const navigateToolStore = useUIStore(state => state.navigateTool);
   const isCommandPaletteOpen = useUIStore(state => state.isCommandPaletteOpen);
@@ -493,7 +493,8 @@ const shortcutMap = useMemo(() => {
   if (window.location.pathname.startsWith('/c/')) {
     return (
       <Suspense fallback={<InitializationScreen language={language} />}>
-        <CustomerPortalPage />
+        {/* the portal is in English whatever this browser's app language is */}
+        <div lang="en" dir="ltr"><CustomerPortalPage /></div>
       </Suspense>
     );
   }

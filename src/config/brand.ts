@@ -14,6 +14,8 @@ export const BRAND = {
   nameHe: 'לדג׳רפלואו',
   /** one short line under the name (emails, link previews, the installed app) */
   tagline: 'Bookkeeping for your business',
+  /** the same line in Hebrew */
+  taglineHe: 'הנהלת חשבונות לעסק שלך',
   /** a longer line for search engines and link previews */
   description: 'Bookkeeping for small businesses: invoices, bills, bank reconciliation, VAT and reports.',
   /** lowercase, no spaces: the start of downloaded file names (e.g. `ledgerflow_transactions_2026-11-10.csv`) */

@@ -41,7 +41,8 @@ describe('On a bill', () => {
     useAuthStore.setState({ currentWorkspaceId: 'w1', workspaces: [{ id: 'w1', name: 'W', currency: 'USD' } as Workspace] });
     useLedgerStore.setState({ bills: [{ id: 'old', vendorId: 'v9', currency: 'EUR', exchangeRate: 1.09, date: '2026-03-01', amountCents: 1, dueDate: '2026-03-01', status: 'paid' } as Bill], transactions: [], taxRates: [] });
   });
-  afterEach(() => cleanup());
+  // EU-B3: each test opens a fresh bill; a draft typed in the previous one would be offered again
+  afterEach(() => { cleanup(); localStorage.clear(); });
   const open = () => render(<BillModal isOpen onClose={() => {}} onSave={() => {}} vendors={[makeVendor({ id: 'v1', name: 'Paper Co' })]}
     accounts={[makeChartAccount({ id: 'exp', name: 'Supplies', type: 'expense' })]} />);
   const rate = () => (screen.getByLabelText('1 EUR = ? USD') as HTMLInputElement).value;

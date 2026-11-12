@@ -25,7 +25,7 @@ import {
   Target, Briefcase, Sparkles, 
   TrendingUp, TrendingDown, DollarSign, Calendar, Sliders, SlidersHorizontal,
   Home, CreditCard, Clock, FileSignature, Zap, ShoppingCart, Headphones, Search, Package, CalendarDays, Globe, Truck, Handshake, ClipboardCheck, GitMerge, Scale, Barcode, RotateCcw, Coins, Wallet, Filter, MailWarning, Blocks, PackageCheck, ArrowLeftRight
-, Receipt, Tag , PieChart, Inbox, BookOpen, FileSpreadsheet, Upload, Mail, Palette, Hash, MessageCircleQuestion, BellRing, FolderTree, MessageSquareText, Split, BadgePercent, UserCheck, ListChecks, MapPin } from 'lucide-react';
+, Receipt, Tag , PieChart, Inbox, BookOpen, FileSpreadsheet, Upload, Mail, Palette, Hash, MessageCircleQuestion, BellRing, FolderTree, MessageSquareText, Split, BadgePercent, UserCheck, ListChecks, MapPin, LayoutGrid } from 'lucide-react';
 
 // Plugin Discovery Engine (Upgraded to dynamic code-splitting and bundle optimization - Point 5)
 // Vite replaces the call at build time; outside Vite (unit tests) there are simply no plugins.
@@ -136,7 +136,7 @@ export const APP_TABS: AppTabDefinition[] = withScreenHelp<Omit<AppTabDefinition
   { id: 'dashboard', label: { en: 'Overview', he: 'סקירה' }, icon: Home, groupId: 'dashboard' },
   { id: 'inbox', label: { en: 'To Review', he: 'לסקירה' }, icon: Inbox, groupId: 'dashboard' },
   { id: 'practice', label: { en: 'All my books', he: 'כל הספרים שלי' }, icon: Briefcase, groupId: 'dashboard' },
-  { id: 'copilot', label: { en: 'AI Co-pilot', he: 'טייס משנה' }, icon: Sparkles, groupId: 'dashboard' },
+  { id: 'copilot', label: { en: 'Ask your books', he: 'שאלו את הספרים' }, icon: Sparkles, groupId: 'dashboard' },
 
   { id: 'transactions', label: { en: 'Transactions', he: 'תנועות' }, icon: Layers, groupId: 'transactions' },
   { id: 'credit-notes', label: { en: 'Credit Notes & Vendor Credits', he: 'זיכויים וזיכויי ספק' }, icon: RotateCcw, groupId: 'transactions' },
@@ -145,7 +145,7 @@ export const APP_TABS: AppTabDefinition[] = withScreenHelp<Omit<AppTabDefinition
   { id: 'ledger', label: { en: 'Ledger & Journal', he: 'ספר ראשי ויומן' }, icon: Database, groupId: 'transactions' },
   { id: 'intercompany', label: { en: 'Intercompany', he: 'בין-חברתי' }, icon: ArrowLeftRight, groupId: 'transactions' },
   { id: 'recurring', label: { en: 'Recurring Items', he: 'פריטים מחזוריים' }, icon: RefreshCw, groupId: 'transactions' },
-  { id: 'query-builder', label: { en: 'BQL Query Builder', he: 'בונה שאילתות' }, icon: Filter, groupId: 'transactions' },
+  { id: 'query-builder', label: { en: 'Advanced search', he: 'חיפוש מתקדם' }, icon: Filter, groupId: 'transactions' },
   { id: 'banking', label: { en: 'Bank Connections', he: 'חיבורי בנק' }, icon: Building, groupId: 'transactions' },
   { id: 'audit-trail', label: { en: 'Audit Trail', he: 'יומן ביקורת' }, icon: Search, groupId: 'transactions' },
   { id: 'client-queries', label: { en: 'Questions about Entries', he: 'שאלות על תנועות' }, icon: MessageCircleQuestion, groupId: 'transactions' },
@@ -431,6 +431,8 @@ export const REPORT_COMPONENTS: Record<string, ElementType> = {
   'QuoteVersionsReportView': lazy(() => import('../components/reporting/QuoteVersionsReportView')),
   'BlanketOrdersReportView': lazy(() => import('../components/reporting/BlanketOrdersReportView')),
   'CustomerGrossProfitView': lazy(() => import('../components/reporting/CustomerGrossProfitView')),
+  'CompareReportView': lazy(() => import('../components/reporting/CompareReportView')),
+  'LabelValuePageView': lazy(() => import('../components/reporting/LabelValuePageView')),
   'InactiveItemsReportView': lazy(() => import('../components/reporting/InactiveItemsReportView')),
   'AccountBalancesAsOfView': lazy(() => import('../components/reporting/EverydayReportViews').then(module => ({default:module.AccountBalancesAsOfView}))),
   'PaymentPeriodByInvoiceDateView': lazy(() => import('../components/reporting/EverydayReportViews').then(module => ({default:module.PaymentPeriodByInvoiceDateView}))),
@@ -467,7 +469,7 @@ export const REPORT_COMPONENTS: Record<string, ElementType> = {
 };
 
 export const ANALYTICAL_LENSES_REGISTRY = withScreenHelp([
-  { id: 'forensics_1', label: { en: 'Forensic Anomaly Detection', he: 'זיהוי חריגות פיננסיות' }, componentName: 'ToolSandbox' },
+  { id: 'forensics_1', label: { en: 'Unusual entries', he: 'רשומות חריגות' }, componentName: 'ToolSandbox' },
   { id: 'forensics_2', label: { en: 'Categorization Consistency Checker', he: 'בדיקת עקביות סיווגים' }, componentName: 'ToolSandbox' }
 ], 'lenses');
 
@@ -507,6 +509,7 @@ export const REPORT_TABS_REGISTRY = withScreenHelp([
   { id: 'three-way-match', label: { en: 'Three-Way Match Review', he: 'בדיקת התאמה תלת-כיוונית' }, componentName: 'ThreeWayMatchReviewView', icon: ListChecks },
   { id: 'customer-lifetime-value', label: { en: 'Customer Lifetime Value', he: 'שווי חיי לקוח' }, componentName: 'CustomerLifetimeValueReportView', icon: Users },
   { id: 'subscription-plans', label: { en: 'Subscription Plans', he: 'תוכניות מנוי' }, componentName: 'SubscriptionPlansReportView', icon: RefreshCw },
+  { id: 'compare', label: { en: 'Compare', he: 'השוואה' }, componentName: 'CompareReportView', icon: LayoutGrid },
   { id: 'gross-profit-by-customer', label: { en: 'Gross Profit by Customer', he: 'רווח גולמי לפי לקוח' }, componentName: 'CustomerGrossProfitView', icon: TrendingUp },
   { id: 'inactive-items', label: { en: 'Inactive Items', he: 'פריטים ללא מכירה' }, componentName: 'InactiveItemsReportView', icon: Package },
   { id: 'account-balances-as-of', label: { en: 'Account Balances as of Date', he: 'יתרות חשבון לתאריך' }, componentName: 'AccountBalancesAsOfView', icon: BookOpen },
@@ -544,6 +547,7 @@ export const REPORT_TABS_REGISTRY = withScreenHelp([
   { id: 'top-expenses-income', label: { en: 'Top Line Items', he: 'הוצאות והכנסות מובילות' }, componentName: 'TopExpensesIncomeReportView', icon: BarChart3 },
   { id: 'monthly-averages', label: { en: 'Monthly Averages', he: 'ממוצעים חודשיים' }, componentName: 'AverageMonthlyReportView', icon: Calendar },
   { id: 'by-label', label: { en: 'Profit by Label', he: 'רווח לפי תגית' }, componentName: 'LabelProfitReportView', icon: Tag },
+  { id: 'label-value', label: { en: 'One label value', he: 'ערך תווית אחד' }, componentName: 'LabelValuePageView', icon: Tag },
   { id: 'balance-sheet-by-label', label: { en: 'Balance Sheet by Label', he: 'מאזן לפי תגית' }, componentName: 'LabelBalanceSheetReportView', icon: Tag },
   { id: 'tag-breakdown', label: { en: 'Tag Breakdown', he: 'דוח תגיות' }, componentName: 'TagBreakdownReportView', icon: Tag },
   { id: 'ar-aging', label: { en: 'A/R Aging', he: 'גיול לקוחות' }, componentName: 'ARAgingReportView', icon: Users },
@@ -681,7 +685,7 @@ export const SETTINGS_COMPONENTS: Record<string, ElementType> = {
 };
 
 export const INTELLIGENCE_TABS_REGISTRY = withScreenHelp([
-  { id: 'intelligence', label: { en: 'Intelligence', he: 'מודיעין' }, componentName: 'UnifiedIntelligenceCore' }
+  { id: 'intelligence', label: { en: 'Insights', he: 'תובנות' }, componentName: 'UnifiedIntelligenceCore' }
 ], 'intelligence');
 
 /** All route screens, including routes outside the sidebar. */
@@ -689,7 +693,7 @@ export const SCREEN_TABS_REGISTRY = [
   ...APP_TABS,
   ...withScreenHelp([
     { id: 'architecture', label: { en: 'Architecture Map', he: 'מפת ארכיטקטורה' } },
-    { id: 'audit', label: { en: 'Forensic Audit', he: 'ביקורת' } },
+    { id: 'audit', label: { en: 'Audit checks', he: 'בדיקות ביקורת' } },
     { id: 'time-machine', label: { en: 'Time Machine', he: 'מכונת זמן' } },
     { id: 'ask', label: { en: 'Ask Ledger', he: 'שאלות' } },
     { id: 'magic', label: { en: 'Assisted Entry', he: 'הזנה חכמה' } },

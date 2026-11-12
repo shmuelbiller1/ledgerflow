@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Accessibility, CheckCircle2, Languages } from 'lucide-react';
 import { auditScreenTranslations, SCREEN_TRANSLATION_TABLE } from '../../lib/i18n/screenTranslations';
+import { useUIStore } from '../../stores/useUIStore';
 
 interface AccessibilityAndLanguagePanelProps {
   onOpenSupport?: () => void;
 }
 
 export default function AccessibilityAndLanguagePanel({ onOpenSupport }: AccessibilityAndLanguagePanelProps) {
-  const [language, setLanguage] = useState<'en' | 'he'>('en');
+  const language = useUIStore(state => state.language);
+  const setLanguage = useUIStore(state => state.setLanguage);
   const [selectedScreen, setSelectedScreen] = useState<string>(SCREEN_TRANSLATION_TABLE[0].screenId);
   const auditRows = useMemo(() => auditScreenTranslations(), []);
   const activeBundle =

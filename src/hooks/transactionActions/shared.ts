@@ -21,6 +21,8 @@ export type TransactionUpdates = Partial<Transaction> & {
   category?: string;
   'dimensions.category'?: string;
   'dimensions.project'?: string;
+  /** EU-E2: labels to set (label id → value) on the entry and on its category lines; bank lines keep theirs */
+  labels?: Record<string, string>;
 };
 export type TransactionConflictError = Error & { isConflict?: boolean; currentTransaction?: Transaction };
 export type ReconcileOperation =

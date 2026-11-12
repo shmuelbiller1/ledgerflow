@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../../../config/brand';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Palette, FileText, Trash2 } from 'lucide-react';
@@ -33,6 +34,12 @@ async function failure(res: Response, fallback: string): Promise<string> {
 
 /** Workspace document branding settings editor (logo, color, address, footer, terms, and PDF preview). */
 export default function BrandingSettings() {
+  // a new workspace starts a new editor: its draft is never the previous workspace's
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  return <BrandingSettingsContent key={workspaceId || 'none'} />;
+}
+
+function BrandingSettingsContent() {
   const formId = useId();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaces = useAuthStore(s => s.workspaces);
@@ -162,6 +169,10 @@ export default function BrandingSettings() {
         <label className="flex items-center gap-2 text-sm text-[var(--text)]">
           <input type="checkbox" checked={draft.hideQuantity === true} onChange={e => set({ hideQuantity: e.target.checked })} />
           Leave out the quantity column (for amounts-only billing)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[var(--text)]">
+          <input type="checkbox" checked={draft.hidePoweredBy !== true} onChange={e => set({ hidePoweredBy: !e.target.checked })} />
+          Show a small &ldquo;Sent with {BRAND_NAME}&rdquo; line on the customer portal
         </label>
         <div>
           <label htmlFor={`${formId}-language`} className="block text-xs font-semibold mb-1 text-[var(--text)]">Language of the printed words (titles, labels, totals)</label>

@@ -33,6 +33,8 @@ export interface WorkspaceBranding {
   style?: 'classic' | 'bold' | 'minimal';
   /** Y-11: leave out the quantity column (a service business billing amounts) */
   hideQuantity?: boolean;
+  /** EU-I2: leave out the small "Sent with …" line on the customer portal */
+  hidePoweredBy?: boolean;
 }
 
 export const DEFAULT_BRAND_COLOR = '#1F2937';

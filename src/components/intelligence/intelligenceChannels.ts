@@ -26,7 +26,7 @@ export const CHANNELS: { group: Record<string, string>; items: ChannelItem[] }[]
   {
     group: { en: 'Financial Core', he: 'פיננסים' },
     items: [
-      { id: 'pivot', icon: LayoutGrid, label: { en: 'Pivot Sheet', he: 'גיליון ציר' }, desc: { en: 'Advanced pivot tables for transactions', he: 'טבלאות ציר מתקדמות לתנועות' } },
+      { id: 'pivot', icon: LayoutGrid, label: { en: 'Compare', he: 'השוואה' }, desc: { en: 'Any label against any other, by month or payee', he: 'כל תווית מול כל תווית, לפי חודש או משלם' } },
       { id: 'budgets', icon: DollarSign, label: { en: 'Budget Analysis', he: 'ניתוח תקציב' }, desc: { en: 'Budget vs Actual variance reporting', he: 'דוחות סטיות של תקציב מול מציאות' } },
       { id: 'nexus', icon: ShieldCheck, label: { en: 'Tax Nexus', he: 'מיסוי מקומי' }, desc: { en: 'Identify tax liabilities across jurisdictions', he: 'זיהוי חבויות מס ברחבי המדינות' } },
       { id: 'entities', icon: Building, label: { en: 'Entity Consolidation', he: 'איחוד ישויות' }, desc: { en: 'Multi-company ledger aggregation', he: 'ריכוז ואיחוד ספרי הנהלת חשבונות' } },

@@ -1,9 +1,9 @@
-import { BRAND_NAME } from '../config/brand';
+import { BRAND, BRAND_NAME } from '../config/brand';
 export type SupportedLocale = 'en' | 'es' | 'fr' | 'de' | 'he';
 
 export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
   en: {
-    'app.title': `${BRAND_NAME} ERP & Financial Engine`,
+    'app.title': `${BRAND_NAME} — ${BRAND.tagline}`,
     'common.transactions': 'Transactions',
     'common.accounts': 'Chart of Accounts',
     'common.reports': 'Reports & Analytics',
@@ -16,7 +16,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Balance'
   },
   es: {
-    'app.title': `${BRAND_NAME} ERP y Motor Financiero`,
+    'app.title': `${BRAND_NAME} — Contabilidad para tu negocio`,
     'common.transactions': 'Transacciones',
     'common.accounts': 'Plan de Cuentas',
     'common.reports': 'Informes y Analítica',
@@ -29,7 +29,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Saldo'
   },
   fr: {
-    'app.title': `${BRAND_NAME} ERP & Moteur Financier`,
+    'app.title': `${BRAND_NAME} — La comptabilité de votre entreprise`,
     'common.transactions': 'Transactions',
     'common.accounts': 'Plan Comptable',
     'common.reports': 'Rapports et Analyses',
@@ -42,7 +42,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Solde'
   },
   de: {
-    'app.title': `${BRAND_NAME} ERP & Finanz-Engine`,
+    'app.title': `${BRAND_NAME} — Buchhaltung für Ihr Unternehmen`,
     'common.transactions': 'Transaktionen',
     'common.accounts': 'Kontenrahmen',
     'common.reports': 'Berichte & Analysen',
@@ -55,7 +55,7 @@ export const DICTIONARY: Record<SupportedLocale, Record<string, string>> = {
     'common.balance': 'Saldo'
   },
   he: {
-    'app.title': `${BRAND_NAME} מנוע פיננסי ו-ERP`,
+    'app.title': `${BRAND.nameHe} — ${BRAND.taglineHe}`,
     'common.transactions': 'תנועות',
     'common.accounts': 'לוח חשבונות',
     'common.reports': 'דוחות וניתוחים',

@@ -58,7 +58,7 @@ export async function revokePortalLink(db: Firestore, input: Actor): Promise<voi
 }
 
 export interface PortalInvoice { number: string; date: string; dueDate: string; totalCents: number; dueCents: number; currency: string; status: 'open' | 'overdue' | 'paid'; payPath: string }
-export interface PortalView { business: string; customer: string; currency: string; owedCents: number; invoices: PortalInvoice[] }
+export interface PortalView { business: string; customer: string; currency: string; owedCents: number; invoices: PortalInvoice[]; /** EU-I2: show "Sent with …" (off when the business turned it off) */ poweredBy: boolean }
 
 const HIDDEN = new Set(['draft', 'void', 'voided', 'cancelled']);
 
@@ -99,6 +99,7 @@ export async function portalView(db: Firestore, token: string, today: string): P
   const currency = String(ws.currency || 'USD');
   return {
     business: String(ws.name || ''), customer: String(customer.name || ''), currency,
+    poweredBy: (ws.branding as { hidePoweredBy?: boolean } | undefined)?.hidePoweredBy !== true,
     owedCents: rows.filter(r => r.currency === currency).reduce((s, r) => s + r.dueCents, 0),
     invoices: rows.filter(r => r.status !== 'paid' || r.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`),
   };

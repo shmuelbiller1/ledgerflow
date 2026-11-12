@@ -15,6 +15,7 @@ import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
 import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions';
 import { isDocumentEntry } from '../../lib/transactionEdits';
+import { resolveAccountRole } from '../../lib/accountUtils';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
 /**
@@ -207,6 +208,8 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         (updates.accountId && a.id === updates.accountId) || 
         (updates.accountName && a.name === updates.accountName)
       );
+      // EU-E2: a label value typed for the first time is added to the label once, before the entries change
+      if (updates.labels) updates = { ...updates, labels: (await ensureTransactionDimensionNodes({ dimensions: updates.labels })).dimensions || updates.labels };
       const accId = targetAccount?.id || updates.accountId;
       const accName = targetAccount?.name || updates.accountName;
       const projId = updates.project || updates.projectId;
@@ -243,6 +246,17 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
               // Balance from scratch if previously unlined
               updateData.lines = balanceTransactionLines([], tx.totalAmountCents);
             }
+          }
+
+          // EU-E2: "Set label" on the selection — the entry and its category lines; money in or out of the bank keeps its own
+          if (updates.labels && Object.keys(updates.labels).length) {
+            const withLabels = (d?: Record<string, string>) => ({ ...(d || {}), ...updates.labels });
+            const isBank = (accountId?: string) => {
+              const account = accounts.find(a => a.id === accountId);
+              return account ? resolveAccountRole(account) === 'cash' : false;
+            };
+            updateData.dimensions = withLabels(tx.dimensions);
+            updateData.lines = (updateData.lines || tx.lines || []).map(l => (isBank(l.accountId) ? l : { ...l, dimensions: withLabels(l.dimensions) }));
           }
 
           updatesMap.set(id, updateData);
@@ -284,7 +298,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           const merged = { ...t, ...u };
           if (u['dimensions.category'] !== undefined || u['dimensions.project'] !== undefined) {
             merged.dimensions = {
-              ...t.dimensions,
+              ...merged.dimensions, // EU-E2: labels set in the same update stay
               ...(u['dimensions.category'] !== undefined ? { category: u['dimensions.category'] } : {}),
               ...(u['dimensions.project'] !== undefined ? { project: u['dimensions.project'] } : {})
             };
@@ -303,8 +317,20 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
               const undoPayload: { id: string; data: Partial<Transaction> }[] = [];
               for (const id of ids) {
                 const oldState = oldStates.get(id);
-                if (oldState) {
-                  undoPayload.push({ id, data: oldState });
+                const forward = updatesMap.get(id);
+                if (oldState && forward) {
+                  // only what the update wrote, back to its old value: the batch route refuses every other key
+                  // (identity, date, totals), and a label map the entry did not have goes back to empty
+                  const data: Record<string, unknown> = {};
+                  for (const key of Object.keys(forward)) {
+                    if (key === 'updatedAt') data[key] = new Date().toISOString(); // the undo is a change of its own
+                    else if (key.startsWith('dimensions.')) data[key] = oldState.dimensions?.[key.slice('dimensions.'.length)] ?? null;
+                    else if (key === 'dimensions') data[key] = oldState.dimensions ?? {};
+                    // an entry that had no lines keeps the balanced lines it was given: the route needs two or more
+                    else if (key === 'lines') { if ((oldState.lines?.length ?? 0) >= 2) data[key] = oldState.lines; }
+                    else data[key] = (oldState as unknown as Record<string, unknown>)[key] ?? null;
+                  }
+                  undoPayload.push({ id, data: data as Partial<Transaction> });
                 }
               }
               if (undoPayload.length > 0) {

@@ -1,6 +1,7 @@
 
 
 import { useState, useMemo } from 'react';
+import { needYouFirst, reconciliationSummary } from '../../lib/reconciliationSummary';
 import { CreateFromBankLine } from './CreateFromBankLine';
 import { ArrowLeftRight, Sparkles, Search, AlertCircle, ArrowRight, ShieldCheck, Zap, RefreshCw, Link as LinkIcon, X, Check, Loader2, Lock, History, Info, Layers, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -23,15 +24,18 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
  const batchDialog = useDialog<HTMLDivElement>(() => setShowAutoConfirm(false), showAutoConfirm);
  const [bankLimit, setBankLimit] = useState(100);
  const [ledgerLimit, setLedgerLimit] = useState(100);
+ // EU-C5: start from what is done; the lines that need the person come first
+ const summary = useMemo(() => reconciliationSummary(matchedBankLines.length, unmatchedBankLines.map(b => b.id), optimizedMatches), [matchedBankLines.length, unmatchedBankLines, optimizedMatches]);
+ const orderedBankFeed = useMemo(() => (viewMode === 'pending' ? needYouFirst(filteredBankFeed, optimizedMatches) : filteredBankFeed), [filteredBankFeed, optimizedMatches, viewMode]);
  const visibleBankFeed = useMemo(() => {
-   if (filteredBankFeed.length <= bankLimit) return filteredBankFeed;
-   const sliced = filteredBankFeed.slice(0, bankLimit);
+   if (orderedBankFeed.length <= bankLimit) return orderedBankFeed;
+   const sliced = orderedBankFeed.slice(0, bankLimit);
    if (selectedBankId && !sliced.some(b => b.id === selectedBankId)) {
-     const selected = filteredBankFeed.find(b => b.id === selectedBankId);
+     const selected = orderedBankFeed.find(b => b.id === selectedBankId);
      if (selected) sliced.push(selected);
    }
    return sliced;
- }, [filteredBankFeed, bankLimit, selectedBankId]);
+ }, [orderedBankFeed, bankLimit, selectedBankId]);
  const visibleLedgerEntries = useMemo(() => {
    if (filteredLedgerEntries.length <= ledgerLimit) return filteredLedgerEntries;
    const sliced = filteredLedgerEntries.slice(0, ledgerLimit);
@@ -58,7 +62,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
             <h1 className="text-xl md:text-2xl font-bold text-[var(--text)] tracking-tight leading-tight">Smart Matching & Bank Reconciliation</h1>
             <p className="text-sm text-[var(--muted)] mt-1 flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-[var(--pos)]" />
-              {reconciledPercent}% of bank lines matched
+              <span data-testid="reconciliation-summary">{summary.text} · {reconciledPercent}% of bank lines matched</span>
             </p>
           </div>
         </div>
