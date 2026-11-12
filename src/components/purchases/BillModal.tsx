@@ -8,6 +8,7 @@ import { documentCurrencies } from '../../lib/exchangeRates';
 import { latestDocumentFor } from '../../lib/repeatDocument';
 import { isArchivedParty } from '../../lib/contacts';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useFormDraft } from '../../hooks/useFormDraft';
 import { X, Save, CreditCard } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Bill, Vendor, ChartAccount } from '../../types';
@@ -260,6 +261,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         // files picked for a new bill are kept with it once it has an id (Purchases.tsx)
         ...(attachments.length > 0 && !bill.id ? { attachmentFiles: attachments } : {}),
       });
+      draft.clear();
       return true;
     } catch (err) {
       // PREV-5: the save already said why it failed (its own message); the dialog stays open with
@@ -283,8 +285,17 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
+  const draftValue = { bill, splits, memo };
+  const restoreDraft = (kept: typeof draftValue) => {
+    setBill(kept.bill); setSplits(kept.splits); setMemo(kept.memo); setDirty(true);
+  };
+  const draft = useFormDraft({
+    form: 'bill', label: 'bill', workspaceId: useAuthStore.getState().currentWorkspaceId, documentId: initialBill?.id, open: isOpen, dirty,
+    value: draftValue, restore: restoreDraft,
+  });
   const requestClose = () => {
-    if (!dirty || safeConfirm('Discard your changes to this bill?')) onClose();
+    if (!dirty || safeConfirm('Discard your changes to this bill?')) { draft.clear(); onClose(); }
   };
 
   const { dialogProps, titleId } = useDialog(requestClose, isOpen);
@@ -319,6 +330,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
           <button aria-label="Close" title="Close" onClick={requestClose} className="min-h-11 min-w-11 flex items-center justify-center p-2 hover:bg-[var(--elevated)] rounded-full transition-colors text-[var(--muted)]"><X size={24} /></button>
         </div>
 
+        {draft.banner}
         <form ref={formRef} onSubmit={handleSubmit} onInvalid={e => {
           const field = e.target as unknown as HTMLInputElement;
           if (field.id) setFieldErrors(prev => ({ ...prev, [field.id]: field.validationMessage }));

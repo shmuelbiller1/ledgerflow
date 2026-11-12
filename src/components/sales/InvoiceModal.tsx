@@ -10,6 +10,7 @@ import { calculateDueDate, isFixedTerm, termOptions, termsForCustomer } from '..
 import { isArchivedParty } from '../../lib/contacts';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useFormDraft } from '../../hooks/useFormDraft';
 import { isIncomeAccount, isUndepositedFundsAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { X, Save, Download, Eye } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -254,6 +255,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         // files picked for a new invoice are kept with it once it has an id (Sales.tsx)
         ...(attachments.length > 0 && !invoice.id ? { attachmentFiles: attachments } : {}),
       });
+      draft.clear();
       return true;
     } catch (err) { console.warn('Invoice not saved (PREV-5: the save said why; the draft stays open):', err); return false; }
     finally { setIsSubmitting(false); }
@@ -271,8 +273,19 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
+  const draftValue = { invoice, items, memo, terms };
+  const restoreDraft = (kept: typeof draftValue) => {
+    // a new invoice keeps the number it was just given; the kept one may have been used since
+    setInvoice(prev => ({ ...kept.invoice, ...(prev.id ? {} : { number: prev.number }) }));
+    setItems(kept.items); setMemo(kept.memo); setTerms(kept.terms); setDirty(true);
+  };
+  const draft = useFormDraft({
+    form: receipt ? 'sale-receipt' : 'invoice', label: receipt ? 'sale receipt' : 'invoice', workspaceId: currentWorkspaceId,
+    documentId: initialInvoice?.id, open: isOpen, dirty, value: draftValue, restore: restoreDraft,
+  });
   const requestClose = () => {
-    if (!dirty || safeConfirm('Discard your changes to this invoice?')) onClose();
+    if (!dirty || safeConfirm('Discard your changes to this invoice?')) { draft.clear(); onClose(); }
   };
 
   const { dialogProps, titleId } = useDialog(requestClose, isOpen);
@@ -307,6 +320,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
           </div>
         </div>
 
+        {draft.banner}
         <form ref={formRef} onSubmit={handleSubmit} onInvalid={e => {
           const field = e.target as unknown as HTMLInputElement;
           if (field.id) setFieldErrors(prev => ({ ...prev, [field.id]: field.validationMessage }));

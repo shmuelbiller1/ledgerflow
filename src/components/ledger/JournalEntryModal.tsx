@@ -1,6 +1,7 @@
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useFormDraft } from '../../hooks/useFormDraft';
 import { User } from '../../lib/db/auth';
 import { ChartAccount, JournalLine } from '../../types';
 import { 
@@ -153,6 +154,14 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     }
   };
 
+  // EU-B3: a typed entry is kept in this browser until it is recorded or discarded (closing keeps it)
+  const draftValue = { description, date, reference, lines };
+  const draft = useFormDraft({
+    form: 'journal-entry', label: 'journal entry', workspaceId, open: isOpen,
+    dirty: Boolean(description.trim() || reference.trim() || lines.some(l => l.accountId || Number(l.debit) || Number(l.credit))),
+    value: draftValue,
+    restore: (kept: typeof draftValue) => { setDescription(kept.description); setDate(kept.date); setReference(kept.reference); setLines(kept.lines); },
+  });
   const { dialogProps, titleId } = useDialog(onClose, isOpen);
 
   const transactions = useLedgerStore(s => s.transactions);
@@ -363,6 +372,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
       // PREV-5: another workspace was opened while the entry was on its way: say where it went
       if (workspaceChangedSince(workspaceId)) toast.info(savedInOtherWorkspace('The journal entry', workspaceId));
       else toast.success(autoReverse ? `Journal entry recorded; it reverses on ${reverseOn}` : 'Journal entry recorded');
+      draft.clear();
       onClose();
       // Reset form
       setAutoReverse(false);
@@ -415,6 +425,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             </div>
 
             {/* Form Content */}
+            {draft.banner}
             <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
               {isLocked && (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-start gap-3">
