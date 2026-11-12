@@ -1,3 +1,4 @@
+import { BRAND } from '../../config/brand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Building2 } from 'lucide-react';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -29,6 +30,8 @@ interface PortalData {
   invoices: PortalInvoice[];
   estimates?: Estimate[];
   quotes?: Array<CustomerQuoteItem & { signToken?: string }>;
+  /** EU-I2: the business left "Sent with …" on (the default) */
+  poweredBy?: boolean;
 }
 
 type InvoiceFilter = 'all' | 'due' | 'paid';
@@ -227,6 +230,9 @@ export default function CustomerPortalPage() {
               </section>
             )}
           </>
+        )}
+        {data && data.poweredBy !== false && (
+          <p className="pt-6 text-center text-xs text-[var(--muted)]">Sent with <a href={`https://${BRAND.domain}`} target="_blank" rel="noopener noreferrer" className="underline">{BRAND.name}</a></p>
         )}
       </div>
     </main>

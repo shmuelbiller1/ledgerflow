@@ -31,6 +31,7 @@ function compact(branding: WorkspaceBranding): WorkspaceBranding {
   if (branding.language && branding.language !== 'en') out.language = branding.language;
   if (branding.style && branding.style !== 'classic') out.style = branding.style;
   if (branding.hideQuantity === true) out.hideQuantity = true;
+  if (branding.hidePoweredBy === true) out.hidePoweredBy = true;
   return out;
 }
 
