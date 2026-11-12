@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { partyPeriodSummary, type PartyPeriodRow } from '../../lib/partyPeriodSummary';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
@@ -30,7 +31,7 @@ function PartyPeriodSummaryView({kind,startDate='',endDate='',compareStartDate='
   const previous=useMemo(()=>new Map(compared&&!loading?partyPeriodSummary(kind,input,{startDate:compareStartDate,endDate:compareEndDate}).map(row=>[row.id,row.closingCents]):[]),[kind,input,compared,loading,compareStartDate,compareEndDate]);
   const visible=rows.filter(row=>normalizeSearchText(row.name).includes(normalizeSearchText(search)));
   const keys=kind==='customer'?(['customers','invoices','payments','creditNotes'] as const):(['vendors','bills','payments','vendorCredits'] as const);
-  const partial=keys.some(key=>truncated[key]||failed[key]);
+  const partial=keys.some(key=>isCollectionCapped(truncated,key)||failed[key]);
   const title=kind==='customer'?'Customer period ledger summary':'Supplier period ledger summary';
   const exportRows=()=>{if(partial||loading||!valid)return;downloadCsv(`${kind}_period_${startDate}_${endDate}.csv`,['Party',...columns.map(column=>column.label)],visible.map(row=>[row.name,...columns.map(column=>csvMoney(row[column.key]))]));};
   return <section className="space-y-4 p-4 min-w-0" aria-label={title}>
