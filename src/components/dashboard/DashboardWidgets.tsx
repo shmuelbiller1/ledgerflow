@@ -140,7 +140,9 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
   // with the server's balances folded in, entries past the loading cap no longer change the totals (only a period
   // that starts on or before the server's day still reads the loaded entries alone, and says so)
   const capCovered = !!opening && !periodBeforeOpening(period.startDate, opening);
-  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => failed[key] || (truncated[key] && !(key === 'transactions' && capCovered)));
+  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(
+    key => failed[key] || ((truncated[LEDGER_COLLECTIONS[key].collection] || truncated[key]) && !(key === 'transactions' && capCovered)),
+  );
   const owedToYou = useMemo(() => partyStats(scoped.invoices.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'customer', period.endDate).outstandingCents, [scoped.invoices, period.endDate]);
   const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate).outstandingCents, [scoped.bills, period.endDate]);
   const summaryReady = valid && data && !loading && !partial.length && (isGuest || ['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'].every(key => loaded[key as LedgerKey]));

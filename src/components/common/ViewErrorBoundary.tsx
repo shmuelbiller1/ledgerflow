@@ -2,6 +2,8 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { reportClientError } from '../../lib/errorTracker';
 import { isChunkLoadFailure, reloadForNewVersionUnlessUnsaved } from '../../lib/chunkReload';
+import { hasUnsavedDocumentWork } from '../../lib/pwaUpdateManager';
+import { safeConfirm } from '../../lib/utils';
 
 import { BRAND_NAME } from '../../config/brand';
 interface Props {
@@ -15,6 +17,15 @@ interface State {
   error: Error | null;
   /** The telemetry id for this crash, shown to the user so a report can point at it (F-03). */
   errorRef?: string;
+}
+
+function confirmReloadWhenUnsaved(): boolean {
+  try {
+    if (!hasUnsavedDocumentWork()) return true;
+  } catch {
+    return true;
+  }
+  return safeConfirm('You have an open form or unsaved edits on screen. Reloading now will discard unsaved changes. Reload anyway?');
 }
 
 export class ViewErrorBoundary extends Component<Props, State> {
@@ -44,13 +55,26 @@ export class ViewErrorBoundary extends Component<Props, State> {
     }
   };
 
+  private handleReload = (goToDashboard = false) => {
+    if (!confirmReloadWhenUnsaved()) return;
+    if (goToDashboard) window.location.hash = '#dashboard';
+    window.location.reload();
+  };
+
   public render() {
     if (this.state.hasError) {
       if (isChunkLoadFailure(this.state.error)) {
+        const unsaved = (() => {
+          try { return hasUnsavedDocumentWork(); } catch { return false; }
+        })();
         return (
           <div role="status" className="p-8 max-w-xl mx-auto my-12 text-center space-y-4">
-            <p className="text-sm text-[var(--text)]">A new version of {BRAND_NAME} is available. Updating…</p>
-            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => window.location.reload()}>Reload now</button>
+            <p className="text-sm text-[var(--text)]">
+              {unsaved
+                ? `A new version of ${BRAND_NAME} is available. Automatic reload was paused so you can finish or copy any unsaved edits first.`
+                : `A new version of ${BRAND_NAME} is available. Updating…`}
+            </p>
+            <button type="button" className="btn-primary min-h-11 px-4" onClick={() => this.handleReload()}>Reload now</button>
           </div>
         );
       }
@@ -89,13 +113,13 @@ export class ViewErrorBoundary extends Component<Props, State> {
               <span>Retry Rendering</span>
             </button>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => this.handleReload()}
               className="px-5 py-2.5 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--text)] font-bold text-xs rounded-xl border border-[var(--line)] transition-all"
             >
               Reload Page
             </button>
             <button
-              onClick={() => { window.location.hash = '#dashboard'; window.location.reload(); }}
+              onClick={() => this.handleReload(true)}
               className="px-5 py-2.5 bg-[var(--surface)] hover:bg-[var(--ink)] text-[var(--muted)] hover:text-[var(--text)] font-semibold text-xs rounded-xl border border-[var(--line)] flex items-center gap-2 transition-all"
             >
               <LayoutDashboard size={14} />

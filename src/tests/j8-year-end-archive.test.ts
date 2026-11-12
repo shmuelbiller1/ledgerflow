@@ -1,16 +1,16 @@
 /**
- * J-8 (Agent #11): "Download everything for <year>" plans the right files.
- *
- * The plan is pure (`planYearArchive`), so the file list the queue asks a test to check can be checked
- * without a browser or a database. The ZIP writer it feeds is the one the workspace archive already
- * uses (E-21) and is covered by that suite.
+ * J-8 / J-9 (Agent #11): "Download everything for <year>" plans the right files and fetches invoice
+ * PDFs in bounded batches via `POST /api/v1/documents/zip`.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  YEAR_ARCHIVE_COLLECTIONS, buildYearArchiveCsvEntries, pdfRetryDelayMs, planYearArchive, recordYear, safeFilePart, withPdfOutcome,
+  YEAR_ARCHIVE_COLLECTIONS, YEAR_ARCHIVE_PDF_BATCH_SIZE, buildYearArchiveCsvEntries,
+  chunkYearArchivePdfBatches, fetchYearArchivePdfBatches, pdfRetryDelayMs, planYearArchive,
+  recordYear, safeFilePart, unpackInvoicePdfBatch, withPdfOutcome,
 } from '../lib/yearEndArchive';
 import { makeStoredZip, readStoredZip } from '../lib/workspaceArchive';
+import { zipStore } from '../server/utils/zip';
 
 const collections: Record<string, unknown[]> = {
   transactions: [
@@ -156,4 +156,136 @@ test('"too many requests" for a PDF means wait as long as the server says (bound
   assert.equal(pdfRetryDelayMs(headers({ 'Retry-After': '30' })), 31_000);
   assert.equal(pdfRetryDelayMs(headers({})), 61_000);
   assert.equal(pdfRetryDelayMs(headers({ 'RateLimit-Reset': '9999' })), 65_000);
+});
+
+describe('J-9 year archive batched invoice PDFs via POST /api/v1/documents/zip', () => {
+  test('more invoices than one batch (120 invoices = 3 batches of 50/50/20): unpacks server stored ZIPs, retries 429 with fresh token, and lists missing PDFs in manifest.json', async () => {
+    const invoices = Array.from({ length: 120 }, (_, idx) => {
+      const n = idx + 1;
+      const number = n === 55 ? 'INV/2026-55' : `INV-${1000 + n}`;
+      return { id: `inv-${n}`, number, date: '2026-06-15', totalAmountCents: n * 100 };
+    });
+    const data = { invoices, customers: [{ id: 'c1', name: 'Acme' }] };
+    const plan = planYearArchive(data, { year: 2026 });
+
+    const batches = chunkYearArchivePdfBatches(plan.files);
+    assert.equal(YEAR_ARCHIVE_PDF_BATCH_SIZE, 50);
+    assert.deepEqual(batches.map(b => b.length), [50, 50, 20]);
+
+    const numberById = new Map(invoices.map(inv => [inv.id, inv.number]));
+    const progressLines: string[] = [];
+    const requestedBatches: string[][] = [];
+    const seenTokens: string[] = [];
+    let tokenCounter = 0;
+    let throttledThirdBatchOnce = false;
+    const waits: number[] = [];
+
+    const fakeFetch: typeof fetch = async (input, init) => {
+      assert.equal(String(input), '/api/v1/documents/zip');
+      assert.equal(init?.method, 'POST');
+      const authHeader = (init?.headers as Record<string, string>)?.Authorization ?? '';
+      seenTokens.push(authHeader);
+      const body = JSON.parse(String(init?.body ?? '{}')) as { workspaceId: string; type: string; ids: string[] };
+      assert.equal(body.workspaceId, 'ws-j9');
+      assert.equal(body.type, 'invoice');
+      requestedBatches.push(body.ids);
+
+      if (body.ids[0] === 'inv-101' && !throttledThirdBatchOnce) {
+        throttledThirdBatchOnce = true;
+        return new Response(JSON.stringify({ status: 'error' }), { status: 429, headers: { 'Retry-After': '4' } });
+      }
+
+      // Mirror handleZipRequest in src/server/routes/documentRoutes.ts, omitting inv-77 as missing on server
+      const used = new Set<string>();
+      const files: Array<{ name: string; data: Buffer }> = [];
+      for (const id of body.ids) {
+        if (id === 'inv-77') continue;
+        const docNo = numberById.get(id) ?? id;
+        const base = `invoice_${String(docNo).replace(/[^\p{L}\p{N}._-]+/gu, '-')}`;
+        let name = `${base}.pdf`;
+        for (let suffix = 2; used.has(name); suffix += 1) name = `${base}_${suffix}.pdf`;
+        used.add(name);
+        files.push({ name, data: Buffer.from(`%PDF-1.7-${id}\xff`, 'latin1') });
+      }
+      const zipped = zipStore(files);
+      return new Response(new Uint8Array(zipped), { status: 200, headers: { 'Content-Type': 'application/zip' } });
+    };
+
+    const controller = new AbortController();
+    const outcome = await fetchYearArchivePdfBatches({
+      workspaceId: 'ws-j9',
+      plan,
+      getToken: async () => `tok-${++tokenCounter}`,
+      signal: controller.signal,
+      onProgress: line => progressLines.push(line),
+      fetchImpl: fakeFetch,
+      pauseImpl: async (ms) => { waits.push(ms); return true; },
+    });
+
+    assert.equal(outcome.aborted, false);
+    assert.equal(requestedBatches.length, 4, '3 batches plus 1 retry after 429 on batch 3');
+    assert.deepEqual(requestedBatches.map(b => b.length), [50, 50, 20, 20]);
+    assert.deepEqual(waits, [5_000], 'Retry-After: 4 waits (4 + 1)s');
+    assert.deepEqual(seenTokens, ['Bearer tok-1', 'Bearer tok-2', 'Bearer tok-3', 'Bearer tok-4'], 'fresh token per request including retry');
+    assert.ok(progressLines.includes('Invoice PDFs 1–50 of 120…'));
+    assert.ok(progressLines.includes('Invoice PDFs 51–100 of 120…'));
+    assert.ok(progressLines.includes('Invoice PDFs 101–120 of 120…'));
+    assert.ok(progressLines.some(line => line.includes('waiting to continue')));
+
+    assert.equal(outcome.pdfCount, 119);
+    assert.deepEqual(outcome.missing, ['INV-1077']);
+
+    const fullEntries = withPdfOutcome([...buildYearArchiveCsvEntries(data, plan), ...outcome.entries], plan, outcome.pdfCount, outcome.missing);
+    const archiveBytes = new Uint8Array(await makeStoredZip(fullEntries).arrayBuffer());
+    const unpackedArchive = readStoredZip(archiveBytes);
+    assert.ok(unpackedArchive.has('invoices/INV-2026-55-inv-55.pdf'), 'slash-containing invoice number unpacked to safe planned path');
+    assert.ok(!unpackedArchive.has('invoices/INV-1077-inv-77.pdf'), 'missing invoice omitted cleanly');
+    assert.deepEqual(
+      Array.from(unpackedArchive.get('invoices/INV-1120-inv-120.pdf') || []),
+      Array.from(Buffer.from('%PDF-1.7-inv-120\xff', 'latin1')),
+    );
+    const manifest = JSON.parse(new TextDecoder().decode(unpackedArchive.get('manifest.json')));
+    assert.equal(manifest.invoicePdfCount, 119);
+    assert.deepEqual(manifest.invoicePdfsMissing, ['INV-1077']);
+  });
+
+  test('cancelling mid-archive stops before requesting the next batch', async () => {
+    const invoices = Array.from({ length: 60 }, (_, idx) => ({
+      id: `inv-${idx + 1}`, number: `INV-${idx + 1}`, date: '2026-05-01',
+    }));
+    const plan = planYearArchive({ invoices }, { year: 2026 });
+    const controller = new AbortController();
+    let calls = 0;
+
+    const outcome = await fetchYearArchivePdfBatches({
+      workspaceId: 'ws-cancel',
+      plan,
+      getToken: async () => 'tok',
+      signal: controller.signal,
+      fetchImpl: async (_url, init) => {
+        calls += 1;
+        const body = JSON.parse(String(init?.body ?? '{}')) as { ids: string[] };
+        const zipped = zipStore(body.ids.map(id => ({ name: `invoice_INV-${id.slice(4)}.pdf`, data: Buffer.from('%PDF') })));
+        controller.abort();
+        return new Response(new Uint8Array(zipped), { status: 200 });
+      },
+    });
+
+    assert.equal(outcome.aborted, true);
+    assert.equal(calls, 1, 'second batch is never requested once cancelled');
+  });
+
+  test('duplicate invoice numbers in one batch claim _2.pdf in order without collision', () => {
+    const zipped = new Uint8Array(zipStore([
+      { name: 'invoice_INV-DUP.pdf', data: Buffer.from('first-pdf') },
+      { name: 'invoice_INV-DUP_2.pdf', data: Buffer.from('second-pdf') },
+    ]));
+    const unpacked = unpackInvoicePdfBatch([
+      { path: 'invoices/INV-DUP-i1.pdf', kind: 'pdf', documentId: 'i1', documentNumber: 'INV-DUP' },
+      { path: 'invoices/INV-DUP-i2.pdf', kind: 'pdf', documentId: 'i2', documentNumber: 'INV-DUP' },
+    ], zipped);
+    assert.deepEqual(unpacked.missing, []);
+    assert.equal(new TextDecoder().decode(unpacked.entries[0].bytes), 'first-pdf');
+    assert.equal(new TextDecoder().decode(unpacked.entries[1].bytes), 'second-pdf');
+  });
 });

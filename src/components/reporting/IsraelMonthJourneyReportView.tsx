@@ -62,22 +62,34 @@ export default function IsraelMonthJourneyReportView() {
   const [typedDealerId, setTypedDealerId] = useState<string | null>(null);
   // the returns the server has recorded for this workspace, so "recorded as filed" is a fact, not a guess
   const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string }> | null>(null);
+  const [filedLoadFailed, setFiledLoadFailed] = useState(false);
   const [filedReload, setFiledReload] = useState(0);
   const currency = workspace?.currency || 'ILS';
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        if (!workspaceId) { if (!cancelled) setFiledPeriods([]); return; }
+        if (!workspaceId) { if (!cancelled) { setFiledPeriods([]); setFiledLoadFailed(false); } return; }
         const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns`, {
           headers: { Authorization: `Bearer ${await getIdToken()}` },
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
+        if (!res.ok) {
+          setFiledLoadFailed(true);
+          setFiledPeriods([]);
+          return;
+        }
+        setFiledLoadFailed(false);
         setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string }>)
           .filter(r => typeof r.startDate === 'string' && typeof r.endDate === 'string')
           .map(r => ({ startDate: r.startDate!, endDate: r.endDate!, ...(typeof r.registration === 'string' ? { registration: r.registration } : {}) })));
-      } catch { if (!cancelled) setFiledPeriods([]); }
+      } catch {
+        if (!cancelled) {
+          setFiledLoadFailed(true);
+          setFiledPeriods([]);
+        }
+      }
     };
     void load();
     return () => { cancelled = true; };
@@ -97,8 +109,12 @@ export default function IsraelMonthJourneyReportView() {
     if (!res.ok) throw new Error(data.message || 'The return could not be recorded');
     if (useAuthStore.getState().currentWorkspaceId === asked) setFiledReload(n => n + 1);
   };
-  const partial = Boolean(truncated.invoices || truncated.bills || truncated.creditNotes
-    || failed.invoices || failed.bills || failed.creditNotes || failed.customers || failed.vendors);
+  const partial = Boolean(
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits
+    || truncated.customers || truncated.vendors || truncated.chartAccounts || truncated.accounts
+    || failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits
+    || failed.customers || failed.vendors || failed.accounts || filedLoadFailed,
+  );
 
   const journey = useMemo(() => {
     if (!MONTH_TEXT.test(monthText) || !filedPeriods) return null;

@@ -130,7 +130,7 @@ export default function AccountantExportPackView({ startDate: pageStartDate, end
   const currency = workspace?.currency || 'USD';
   const validPeriod = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
   const capped = useMemo(() => isGuest || loading ? [] : ([...COLLECTIONS, 'transactions', 'accounts'] as LedgerKey[])
-    .filter(key => truncated[key] || failed[key] || !loaded[key]), [isGuest, loading, truncated, failed, loaded]);
+    .filter(key => truncated[LEDGER_COLLECTIONS[key].collection] || truncated[key] || failed[key] || !loaded[key]), [isGuest, loading, truncated, failed, loaded]);
   const blockers = useMemo(() => [
     ...(isGuest ? ['This is the demo workspace: sign in to a real workspace to download an accountant pack.'] : []),
     ...(!workspaceId ? ['Choose a workspace before preparing a pack.'] : []),

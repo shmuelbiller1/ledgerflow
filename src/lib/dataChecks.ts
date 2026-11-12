@@ -520,7 +520,7 @@ export const DATA_CHECKS: DataCheck[] = [
     remedy: 'Look for entries posted to the receivable or payable account by hand, or documents whose posting is missing (Month-end close → Postings).',
     run: ({ invoices, bills, accounts, transactions, allocations, baseCurrency, truncated }) => {
       // a balance over part of the entries or documents is not a difference to report
-      const cut = (truncated || []).filter(k => k === 'transactions' || k === 'accounts' || k === 'invoices' || k === 'bills');
+      const cut = (truncated || []).filter(k => k === 'transactions' || k === 'accounts' || k === 'chartAccounts' || k === 'invoices' || k === 'bills');
       const open = openDocuments(invoices, bills);
       return (['ar', 'ap'] as const).flatMap(role => {
         const controls = accounts.filter(a => resolveAccountRole(a) === role);
