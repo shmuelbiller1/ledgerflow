@@ -1,1 +1,14 @@
-{ "server-direct-ledger-write": 0 }
+{
+  "server-direct-ledger-write": 13,
+  "sites": {
+    "src/server/routes/transactions/crudRoutes.ts": 2,
+    "src/server/routes/transactions/reconcileRoutes.ts": 3,
+    "src/server/routes/transactions/reverseRoutes.ts": 1,
+    "src/server/services/assetDisposalService.ts": 2,
+    "src/server/services/assetTransferService.ts": 1,
+    "src/server/services/fxRevaluationService.ts": 1,
+    "src/server/services/paymentService.ts": 1,
+    "src/server/services/placeInServiceService.ts": 1,
+    "src/server/services/recurringService.ts": 1
+  }
+}

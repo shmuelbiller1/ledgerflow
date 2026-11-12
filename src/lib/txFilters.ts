@@ -103,8 +103,18 @@ export function lineAmount(l: TransactionLine, t?: Transaction): number {
  */
 export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'>): void {
   const lines = t.lines || [];
+  if (lines.length === 0) return;
+  // Some producers (including manual FX journals) already store home-currency line amounts
+  // and record baseAmountCents for reporting. Do not convert these a second time.
+  if (lines.every(l => Number.isSafeInteger(l.baseAmountCents))) {
+    const netHome = lines.reduce((sum, l) => sum + (l.baseAmountCents as number), 0);
+    if (netHome !== 0) {
+      throw new Error(`Validation Failed: explicit home-currency lines do not balance (${netHome} cents)`);
+    }
+    return;
+  }
   const rateOf = (l: TransactionLine) => l.exchangeRate ?? t.exchangeRate ?? 1;
-  if (lines.length === 0 || lines.every(l => rateOf(l) === 1)) return;
+  if (lines.every(l => rateOf(l) === 1)) return;
   const base = lines.map(l => Math.round((l.amountCents || 0) * rateOf(l)));
   const residual = base.reduce((a, b) => a + b, 0);
   if (residual === 0) return;

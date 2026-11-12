@@ -13,6 +13,12 @@ and AI #1's.
   below re-verified against the current source through the GitHub API (exact files read, quotes and
   mount lines reproduced). No test suite was executed in session 2 — the executed-suite evidence is
   session 1's, and the two pins are named separately so nothing is overstated.
+- Session 3 Addendum (`2026-11-12`, upstream `main` `c82bead475d9184248265e6f22229813b251a3b2`):
+  re-verified all findings below with full 4-shard test execution (`4,858/4,864` pass, `0` fail) and
+  addressed CodeRabbit review clarifications from PR `#618` (`S-19` `LF_ALLOW_GUEST_AUTH=1` dev flag,
+  `S-20` `orphan-scan` missing `requireAdmin`, `S-24`/`S-27` `.gitleaks.toml` valid TOML + CI secret
+  scan in `security-sbom.yml`, `S-30` CSV upload scope, and `F-06` resolved by migration `20261111000000`).
+  See `audit/agent6-2026-11-12/` for the complete 2026-11-12 repository-wide audit and Findings Register.
 
 ## 1. Verified controls (spot-checked at `7550f2b`, all present)
 
@@ -106,10 +112,12 @@ AI #1's lane.
 | S-02 prod settings check, S-03 restore drill script, S-04 SBOM, S-05 idempotency audit | Merged 21 Oct (#266–#270) |
 | S-23 CSP tightened report-only | Done (S-22 review confirmed live) |
 | S-22 per-user limits on sign-in/reset/AI | **Open — F-02 is the concrete delta** (no dedicated AI-route limiter; `authRateLimiter` unmounted) |
-| S-24 gitleaks in CI | Open (`.gitleaks.toml` from #396 does not parse and had no workflow; worth its own small PR) |
-| S-25 npm-audit CI gate | Confirmed present in `.github/workflows/ci.yml` (session 1); S-25 can be ticked when CI-visible |
-| S-26 admin action audit rows | Verified PASS in code at `7550f2b` |
-| S-27…S-36 | Open (S-30 partially delivered via `validateUploadedFile` on the CSV upload path) |
+| S-24 / S-27 secret scan in CI | Delivered via `.gitleaks.toml` (valid Gitleaks TOML rule set) + tracked-file secret scan enforced in `.github/workflows/security-sbom.yml` (expanded on `2026-11-12` to cover all `.gitleaks.toml` secret classes) |
+| S-19 guest-auth opt-in guard | Verified PASS: `authenticate` refuses guest bypass unless `NODE_ENV !== 'production'` **and** `LF_ALLOW_GUEST_AUTH=1` (`check:prod-env` rejects production overrides) |
+| S-20 admin route authorization | Partial: all `/api/v1/admin/*` routes use `authenticate, requireAdmin` **except** `POST /api/v1/admin/integrity/orphan-scan` (workspace-member gated via `authorizeWorkspace`, tracked as `F-03`) |
+| S-25 npm-audit CI gate | Confirmed present in `.github/workflows/ci.yml` (`npm audit --audit-level=high` = 0 findings on `2026-11-12`) |
+| S-26 admin action audit rows | Verified PASS in code at `7550f2b` and `c82bead4` |
+| S-28…S-36 | S-30 delivered on `POST /api/upload-bank-csv` (`validateUploadedFile` content inspection + temp-file unlink on every exit path; JSON attachment routes use size-bounded body parsers); S-12 hash-chained audit logs merged in `auditLogService.ts` + `auditHashChain.ts` (verifier mismatch tracked as `AF6-006`) |
 | S-37…S-40 (AUD-09 access tests) | Preflight done 21 Oct; real-Postgres adversarial matrices still to run (session 1 re-ran the RLS suite green; the four route-level matrices are not yet executed as tests) — plus F-01's coverage gap |
 
 ## 4. Honest statement of what was and was not run

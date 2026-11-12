@@ -1,0 +1,148 @@
+diff --git a/src/lib/tax/usFederalPayroll.ts b/src/lib/tax/usFederalPayroll.ts
+index 91c56da..edc9fff 100644
+--- a/src/lib/tax/usFederalPayroll.ts
++++ b/src/lib/tax/usFederalPayroll.ts
+@@ -135,6 +135,21 @@ function makeBrackets(tuples: BracketTuple[]): TaxBracket[] {
+   return tuples.map(([overCents, baseTaxCents, rate]) => ({ overCents, baseTaxCents, rate }));
+ }
+ 
++// IRS Pub 15-T Section 1 Table 1(b) (Form W-4 Step 2 checked): Worksheet 1A Step 1f applies $0
++// adjustment, so each Step-2 threshold equals half of (Table 1(a) threshold + Step 1g adjustment)
++// and baseTaxCents equals half of Table 1(a) baseTaxCents, preserving 2 * Step2(W/2) === Std(W).
++function makeStep2Brackets(std: TaxBracket[], step1gAdjustmentCents: number): TaxBracket[] {
++  return std.map((b, idx) =>
++    idx === 0
++      ? { overCents: 0, baseTaxCents: 0, rate: b.rate }
++      : {
++          overCents: Math.round((b.overCents + step1gAdjustmentCents) / 2),
++          baseTaxCents: Math.round(b.baseTaxCents / 2),
++          rate: b.rate,
++        },
++  );
++}
++
+ // 2026 Tax Brackets from IRS Publication 15-T (Section 1: Percentage Method Tables for Automated Payroll Systems)
+ // Table 1(a): Standard withholding (Form W-4 Step 2 box NOT checked)
+ const B2026_SINGLE_STD = makeBrackets([
+@@ -171,38 +186,9 @@ const B2026_HOH_STD = makeBrackets([
+ ]);
+ 
+ // Table 1(b): Higher withholding (Form W-4 Step 2 box IS checked)
+-const B2026_SINGLE_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [375000, 0, 10],
+-  [995000, 62000, 12],
+-  [3215000, 328400, 22],
+-  [6150000, 974100, 24],
+-  [11250000, 2198100, 32],
+-  [14250000, 3158100, 35],
+-  [34250000, 10158100, 37],
+-]);
+-
+-const B2026_MFJ_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [745000, 0, 10],
+-  [1985000, 124000, 12],
+-  [6425000, 656800, 22],
+-  [12295000, 1948200, 24],
+-  [22495000, 4396200, 32],
+-  [28495000, 6316200, 35],
+-  [40995000, 10691200, 37],
+-]);
+-
+-const B2026_HOH_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [635000, 0, 10],
+-  [1662500, 102750, 12],
+-  [4400000, 431250, 22],
+-  [6250000, 838250, 24],
+-  [11350000, 2062250, 32],
+-  [14350000, 3022250, 35],
+-  [34350000, 10022250, 37],
+-]);
++const B2026_SINGLE_STEP2 = makeStep2Brackets(B2026_SINGLE_STD, 860000);
++const B2026_MFJ_STEP2 = makeStep2Brackets(B2026_MFJ_STD, 1290000);
++const B2026_HOH_STEP2 = makeStep2Brackets(B2026_HOH_STD, 860000);
+ 
+ // 2025 Tax Brackets from IRS Publication 15-T (2025)
+ // Table 1(a): Standard withholding (Form W-4 Step 2 box NOT checked)
+@@ -240,38 +226,9 @@ const B2025_HOH_STD = makeBrackets([
+ ]);
+ 
+ // Table 1(b): Higher withholding (Form W-4 Step 2 box IS checked)
+-const B2025_SINGLE_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [355000, 0, 10],
+-  [950000, 59500, 12],
+-  [3075000, 314500, 22],
+-  [5900000, 936000, 24],
+-  [10750000, 2100000, 32],
+-  [13600000, 3012000, 35],
+-  [32700000, 9697000, 37],
+-]);
+-
+-const B2025_MFJ_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [710000, 0, 10],
+-  [1900000, 119000, 12],
+-  [6150000, 629000, 22],
+-  [11800000, 1872000, 24],
+-  [21500000, 4200000, 32],
+-  [27200000, 6024000, 35],
+-  [39150000, 10206500, 37],
+-]);
+-
+-const B2025_HOH_STEP2 = makeBrackets([
+-  [0, 0, 0],
+-  [605000, 0, 10],
+-  [1590000, 98500, 12],
+-  [4210000, 412900, 22],
+-  [5975000, 801200, 24],
+-  [10850000, 1971200, 32],
+-  [13700000, 2883200, 35],
+-  [32800000, 9568200, 37],
+-]);
++const B2025_SINGLE_STEP2 = makeStep2Brackets(B2025_SINGLE_STD, 860000);
++const B2025_MFJ_STEP2 = makeStep2Brackets(B2025_MFJ_STD, 1290000);
++const B2025_HOH_STEP2 = makeStep2Brackets(B2025_HOH_STD, 860000);
+ 
+ function buildYearTables(
+   year: number,
+diff --git a/src/tests/us-federal-payroll-golden.test.ts b/src/tests/us-federal-payroll-golden.test.ts
+index 5c4f95d..b65b214 100644
+--- a/src/tests/us-federal-payroll-golden.test.ts
++++ b/src/tests/us-federal-payroll-golden.test.ts
+@@ -94,13 +94,13 @@ describe('US Federal Payroll & Pub 15-T Golden Tests (D-15, D-18)', () => {
+     });
+ 
+     it('Example 4: Single employee, Step 2 CHECKED (two jobs / higher rate), weekly wage $1,000 ($52,000/yr)', () => {
+-      // Step 2 checked: No standard deduction adjustment ($0 reduction)
++      // Step 2 checked: Worksheet 1A Step 1f applies $0 reduction; Table 1(b) carries half of full $16,100 std deduction ($8,050 0% threshold)
+       // Annual wage: $52,000 (5,200,000 cents)
+-      // Table 1(b) Single Step 2 checked: Over $32,150 base tax $3,284.00 ($328,400 cents) + 22% over $32,150
+-      // Excess over $32,150 = $19,850 ($1,985,000 cents)
+-      // 22% of $19,850 = $4,367.00 ($436,700 cents)
+-      // Total annual tax = $3,284 + $4,367 = $7,651.00 ($765,100 cents)
+-      // Weekly tax = $7,651 / 52 = $147.1346... -> $147.13 (14713 cents)
++      // Table 1(b) Single Step 2 checked: Over $36,450 (($64,300 + $8,600) / 2) base tax $3,284.00 ($328,400 cents) + 22% over $36,450
++      // Excess over $36,450 = $15,550 ($1,555,000 cents)
++      // 22% of $15,550 = $3,421.00 ($342,100 cents)
++      // Total annual tax = $3,284 + $3,421 = $6,705.00 ($670,500 cents) [2 jobs * $6,705 = $13,410 == Single Std on $104,000]
++      // Weekly tax = $6,705 / 52 = $128.9423... -> $128.94 (12894 cents)
+       const weeklyWageCents = 100000;
+       const withholdingCents = calculateFederalIncomeTaxWithholding(
+         weeklyWageCents,
+@@ -109,7 +109,12 @@ describe('US Federal Payroll & Pub 15-T Golden Tests (D-15, D-18)', () => {
+         'weekly',
+         '2026-05-01',
+       );
+-      assert.equal(withholdingCents, 14713, 'Weekly Step-2-checked withholding should be $147.13 (14713 cents)');
++      assert.equal(withholdingCents, 12894, 'Weekly Step-2-checked withholding should be $128.94 (12894 cents)');
++      assert.equal(
++        2 * calculateFederalIncomeTaxWithholding(5200000, 'single', true, 'annually', '2026-05-01'),
++        calculateFederalIncomeTaxWithholding(10400000, 'single', false, 'annually', '2026-05-01'),
++        'Two equal Step-2 jobs must withhold identical annual tax to one combined Step-2-unchecked job',
++      );
+     });
+ 
+     it('Example 5: calculates withholding for 2025 dates using 2025 tax schedules', () => {

@@ -1,0 +1,244 @@
+diff --git a/src/server/routes/aiRoutes.ts b/src/server/routes/aiRoutes.ts
+index 3cd1a96..e544221 100644
+--- a/src/server/routes/aiRoutes.ts
++++ b/src/server/routes/aiRoutes.ts
+@@ -5,8 +5,9 @@ import { verifyIdToken } from "../auth/supabaseAuth";
+ import { AIBackendService } from "../services/aiBackendService";
+ import { allowedPayload, type AiCallTrace } from "../services/aiGateway";
+ import { SecurityService } from "../../services/securityService";
+-import { getDb, validateWorkspaceMember } from "../db/firestore";
++import { assertWorkspaceAccess, getDb } from "../db/firestore";
+ import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService";
++import { brainRateLimiter } from "../middleware/rateLimiters";
+ 
+ export const aiRouter = express.Router();
+ 
+@@ -45,7 +46,7 @@ const TASK_WEIGHTS: Record<string, number> = {
+   'parse-business-blueprint': 400
+ };
+ 
+-aiRouter.post("/process", async (req: express.Request, res: express.Response) => {
++aiRouter.post("/process", brainRateLimiter, async (req: express.Request, res: express.Response) => {
+   // 1. Standard token validation FIRST (No guest/test bypass allowed)
+   // Ensures unauthenticated calls return 401 even before key check
+   const authHeader = req.headers.authorization;
+@@ -97,11 +98,11 @@ aiRouter.post("/process", async (req: express.Request, res: express.Response) =>
+     });
+   }
+ 
+-  // 4. Workspace membership authorization & credit verification
++  // 4. Workspace membership + Two-Step Login (AAL2) authorization & credit verification
+   const db = getDb();
+   let wsData: Record<string, unknown> | undefined;
+   try {
+-    const memberValidation = await validateWorkspaceMember(db, workspaceId, decodedToken);
++    const memberValidation = await assertWorkspaceAccess(db, workspaceId, decodedToken);
+     wsData = memberValidation.data;
+   } catch (err) {
+     return res.status(403).json({
+diff --git a/src/server/routes/consolidationRoutes.ts b/src/server/routes/consolidationRoutes.ts
+index 6c7e6a3..f14badb 100644
+--- a/src/server/routes/consolidationRoutes.ts
++++ b/src/server/routes/consolidationRoutes.ts
+@@ -1,6 +1,6 @@
+ import express from 'express';
+ import { z } from 'zod';
+-import { getDb, validateWorkspaceMember } from '../db/firestore';
++import { assertWorkspaceAccess, getDb } from '../db/firestore';
+ import { requestUser } from '../auth/requestUser';
+ import { getWorkspaceUserRole } from './workspaceRoutes';
+ import { buildSelfProvingEliminations, computeMultiEntityCloseStatus } from '../../lib/selfBalancingDimensions';
+@@ -30,7 +30,10 @@ consolidationRouter.post('/eliminate', async (req, res) => {
+     }
+ 
+     const db = getDb();
+-    await validateWorkspaceMember(db, primaryWorkspaceId, user);
++    if (user.developerWorkspaceId && user.developerWorkspaceId !== primaryWorkspaceId) {
++      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
++    }
++    await assertWorkspaceAccess(db, primaryWorkspaceId, user);
+     if (!user.admin) {
+       const role = await getWorkspaceUserRole(db, primaryWorkspaceId, user.uid);
+       if (!['owner', 'accountant', 'bookkeeper'].includes(role)) {
+@@ -49,10 +52,19 @@ consolidationRouter.post('/eliminate', async (req, res) => {
+     }
+ 
+     const entityIds = [...new Set([parsed.data.workspaceId, ...parsed.data.entityWorkspaceIds])];
++    if (user.developerWorkspaceId && entityIds.some(id => id !== user.developerWorkspaceId)) {
++      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
++    }
+     const entityData: Array<{ workspace: Workspace; transactions: Transaction[] }> = [];
+ 
+     for (const entityId of entityIds) {
+-      const { data: wsData } = await validateWorkspaceMember(db, entityId, user);
++      const { data: wsData } = await assertWorkspaceAccess(db, entityId, user);
++      if (!user.admin) {
++        const subRole = await getWorkspaceUserRole(db, entityId, user.uid);
++        if (!['owner', 'accountant', 'bookkeeper'].includes(subRole)) {
++          return res.status(403).json({ error: 'Only owners, accountants and bookkeepers can run intercompany eliminations' });
++        }
++      }
+       const txSnap = await db.collection('transactions').where('workspaceId', '==', entityId).get();
+       const txs = txSnap.docs.map(d => ({ ...(d.data() as Transaction), id: d.id }));
+       entityData.push({
+@@ -117,7 +129,10 @@ consolidationRouter.get('/close-status', async (req, res) => {
+       return res.status(400).json({ error: 'workspaceId query parameter is required' });
+     }
+     const db = getDb();
+-    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, user);
++    if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
++      return res.status(403).json({ error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
++    }
++    const { data: wsData } = await assertWorkspaceAccess(db, workspaceId, user);
+     const txSnap = await db.collection('transactions').where('workspaceId', '==', workspaceId).get();
+     const txs = txSnap.docs.map(d => ({ ...(d.data() as Transaction), id: d.id }));
+     const closeStatus = computeMultiEntityCloseStatus(
+diff --git a/src/server/routes/documentRoutes.ts b/src/server/routes/documentRoutes.ts
+index 8023aa0..d31d429 100644
+--- a/src/server/routes/documentRoutes.ts
++++ b/src/server/routes/documentRoutes.ts
+@@ -2,8 +2,9 @@ import { takeCopyMark } from '../services/copyMarkService';
+ import type { TaxProfiles } from '../../lib/tax/profile';
+ import { errorMessage, requestUser } from '../auth/requestUser';
+ import express from 'express';
+-import { getDb, validateWorkspaceMember } from '../db/firestore';
++import { assertWorkspaceAccess, getDb } from '../db/firestore';
+ import type { Firestore } from '../db/firestore';
++import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
+ import { generateDocumentPdf } from '../services/pdfService';
+ import type { PdfDocument, PdfDocumentType, PdfWorkspace } from '../services/pdfService';
+ import { loadStatement, statementDate, StatementScopeError } from '../services/statementService';
+@@ -92,9 +93,10 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
+     const user = requestUser(req);
+     const body = ZipSchema.parse(req.body);
+     const db = dbOverride || getDb();
+-    await validateWorkspaceMember(db, body.workspaceId, user);
++    await assertWorkspaceAccess(db, body.workspaceId, user);
+     const wsSnap = await db.collection('workspaces').doc(body.workspaceId).get();
+     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
++    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
+     const files: Array<{ name: string; data: Buffer }> = [];
+     const used = new Set<string>();
+     for (const id of [...new Set(body.ids)]) {
+@@ -104,7 +106,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
+       let name = `${base}.pdf`;
+       for (let n = 2; used.has(name); n++) name = `${base}_${n}.pdf`;
+       used.add(name);
+-      const copyMark = await takeCopyMark(db, body.type, id, workspace as { taxProfiles?: TaxProfiles });
++      const copyMark = await takeCopyMark(db, body.type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy });
+       files.push({ name, data: await generateDocumentPdf(body.type, loaded.docData, workspace, { paymentUrl: loaded.paymentUrl, ...(await contactStyle(db, workspace, loaded.docData, body.workspaceId)), ...(copyMark ? { copyMark } : {}) }) });
+     }
+     if (files.length === 0) return res.status(404).json({ status: 'error', message: 'None of these documents were found' });
+@@ -136,11 +138,12 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
+     }
+ 
+     const db = dbOverride || getDb();
+-    await validateWorkspaceMember(db, workspaceId, user);
++    await assertWorkspaceAccess(db, workspaceId, user);
+ 
+     // Fetch workspace
+     const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
+     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
++    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
+ 
+     let docData: PdfDocument | null = null;
+     let paymentUrl: string | undefined;
+@@ -166,7 +169,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
+       style = { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact) };
+     }
+ 
+-    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles });
++    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy });
+     const pdfBuffer = await generateDocumentPdf(type, docData, workspace, { paymentUrl, ...(style || await contactStyle(db, workspace, docData, workspaceId)), ...(copyMark ? { copyMark } : {}) });
+ 
+     if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
+@@ -194,7 +197,7 @@ const CHEQUE_ROLES = new Set(['owner', 'accountant', 'bookkeeper']);
+ async function handleChequeRequest(req: express.Request, res: express.Response, paymentId: string, workspaceId: string, dbOverride?: Firestore) {
+   const user = requestUser(req);
+   const db = dbOverride || getDb();
+-  await validateWorkspaceMember(db, workspaceId, user);
++  await assertWorkspaceAccess(db, workspaceId, user);
+   const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
+   const ws = (wsSnap.data() || {}) as { uid?: string; roles?: Record<string, string>; name?: string; companyName?: string };
+   const role = ws.uid === user.uid ? 'owner' : ws.roles?.[user.uid] || 'viewer';
+diff --git a/src/server/services/copyMarkService.ts b/src/server/services/copyMarkService.ts
+index c11edb3..1e8b1eb 100644
+--- a/src/server/services/copyMarkService.ts
++++ b/src/server/services/copyMarkService.ts
+@@ -15,9 +15,20 @@ export function marksOriginals(workspace: { taxProfiles?: TaxProfiles } | null |
+   return books?.place?.country === 'IL' || Boolean(books?.registrations?.some(r => r.kind === 'vat' && r.place.country === 'IL'));
+ }
+ 
+-export async function takeCopyMark(db: Firestore, type: string, id: string, workspace: { taxProfiles?: TaxProfiles } | null | undefined): Promise<'original' | 'copy' | undefined> {
++export async function takeCopyMark(
++  db: Firestore,
++  type: string,
++  id: string,
++  workspace: { taxProfiles?: TaxProfiles } | null | undefined,
++  options?: { readOnly?: boolean },
++): Promise<'original' | 'copy' | undefined> {
+   const collection = MARKED[type];
+   if (!collection || !marksOriginals(workspace)) return undefined;
++  if (options?.readOnly) {
++    const doc = (await db.collection(collection).doc(id).get()).data();
++    if (!doc || doc.status === 'draft' || doc.status === 'void') return undefined;
++    return 'copy';
++  }
+   return db.runTransaction(async t => {
+     const ref = db.collection(collection).doc(id);
+     const doc = (await t.get(ref)).data();
+diff --git a/src/server/services/recurringService.ts b/src/server/services/recurringService.ts
+index dc15b32..bf34028 100644
+--- a/src/server/services/recurringService.ts
++++ b/src/server/services/recurringService.ts
+@@ -10,13 +10,16 @@
+  *    workspace and balance; otherwise nothing is written and the schedule shows the problem.
+  * Before this, invoice schedules wrote ledger entries with blank accounts and no workspace.
+  */
+-import { getDb, FieldValue } from '../db/firestore';
++import { getDb, FieldValue, isWorkspaceMemberData } from '../db/firestore';
+ import type { DocumentData, Firestore } from '../db/firestore';
+ import type { Bill, Estimate, Invoice, RecurringTransaction, Transaction } from '../../types';
+ import { nextEstimateDraft } from '../../lib/recurringEstimates';
+ import { findDueRecurring } from '../../lib/recurringEngine';
+ import { addDaysYMD } from '../../lib/fiscalCalendar';
+ import { assertPostingOpen } from '../../lib/periodLock';
++import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
++import { settleHomeCurrency } from '../../lib/txFilters';
++import { ledgerWrite } from './ledgerDoor';
+ import { allocateNextNumber } from '../routes/workspaceRoutes';
+ import { allocateInTransaction } from './numberingService';
+ import { notify } from './notificationService';
+@@ -254,21 +257,28 @@ async function generateEntry(db: Firestore, rule: RecurringTransaction, generate
+   }
+   const txRef = db.collection('transactions').doc();
+   await db.runTransaction(async (tx) => {
++    const wsNow = (await tx.get(db.collection('workspaces').doc(rule.workspaceId))).data() || {};
++    if (!isWorkspaceMemberData(wsNow, { uid: rule.uid }, rule.workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, rule.uid))) {
++      throw new Error(`Schedule owner ${rule.uid} no longer holds writer permissions in workspace ${rule.workspaceId}`);
++    }
++    assertPostingOpen(date, wsNow, rule.uid);
+     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
+     const existing = await tx.get(db.collection('transactions').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
+     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
+     if (!existing.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
+-    tx.set(txRef, {
++    const entryToPost = {
+       ...generated,
+       id: txRef.id,
+       workspaceId: rule.workspaceId,
+       uid: rule.uid,
+-      currency: rule.template?.currency || workspace.currency || 'USD',
++      currency: rule.template?.currency || wsNow.currency || 'USD',
+       exchangeRate: rule.template?.exchangeRate ?? 1,
+-      lines: rule.template?.lines,
++      lines: rule.template?.lines?.map(l => ({ ...l })),
+       totalAmountCents: rule.template!.lines!.reduce((sum, l) => sum + Math.max(0, l.amountCents), 0),
+       createdAt: new Date().toISOString(),
+-    });
++    } as Transaction;
++    settleHomeCurrency(entryToPost);
++    await ledgerWrite(tx, txRef, entryToPost as unknown as Record<string, unknown>);
+     tx.update(db.collection('recurring').doc(rule.id), {
+       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
+       lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),

@@ -1,0 +1,53 @@
+diff --git a/src/lib/fxRevaluation.ts b/src/lib/fxRevaluation.ts
+index d00156e..201c8d7 100644
+--- a/src/lib/fxRevaluation.ts
++++ b/src/lib/fxRevaluation.ts
+@@ -21,7 +21,7 @@
+  *   value is `toBaseCents`, the same two rules the aging and the customer balances use, so this
+  *   entry and the A/R report cannot disagree.
+  */
+-import { toBaseCents } from '../server/reports/partyReports';
++import { convertMinorUnits } from './currencyMinorUnits';
+ import { addDaysYMD } from './fiscalCalendar';
+ import { monthEnd } from './periodLock';
+ import { calculateAmountDue } from './documentMath';
+@@ -193,8 +193,8 @@ export function planFxRevaluation(
+       continue;
+     }
+ 
+-    const bookedBaseCents = toBaseCents(openCents, bookedRate);
+-    const todayBaseCents = Math.round(openCents * todayRate);
++    const bookedBaseCents = convertMinorUnits(openCents, bookedRate, currency, base);
++    const todayBaseCents = convertMinorUnits(openCents, todayRate, currency, base);
+     const deltaCents = todayBaseCents - bookedBaseCents;
+     if (deltaCents === 0) {
+       skipped.push({ ...short, reason: `already at ${rateLabel(currency)}` });
+diff --git a/src/server/reports/partyReports.ts b/src/server/reports/partyReports.ts
+index b0665dd..02628a6 100644
+--- a/src/server/reports/partyReports.ts
++++ b/src/server/reports/partyReports.ts
+@@ -1,5 +1,6 @@
+ import type { Invoice, Bill, Payment, CreditNote, VendorCredit, Customer, Vendor } from "../../types";
+ import { getDateInTimezoneISO, getLocalDateISO } from "../../lib/calendarDate";
++import { convertMinorUnits } from "../../lib/currencyMinorUnits";
+ 
+ /** Invoice statuses treated as issued for customer balance and party statement reporting. */
+ export const INVOICE_IS_ISSUED = new Set<Invoice['status']>([
+@@ -11,8 +12,16 @@ export const BILL_IS_ISSUED = new Set<Bill['status']>([
+   'pending', 'approved', 'unpaid', 'overdue', 'partially_paid', 'paid'
+ ]);
+ 
+-export function toBaseCents(amountCents: number = 0, exchangeRate?: number): number {
++export function toBaseCents(
++  amountCents: number = 0,
++  exchangeRate?: number,
++  fromCurrency?: string | null,
++  baseCurrency?: string | null,
++): number {
+   const rate = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 1;
++  if (fromCurrency && baseCurrency) {
++    return convertMinorUnits(amountCents, rate, fromCurrency, baseCurrency);
++  }
+   return Math.round(amountCents * rate);
+ }
+ 

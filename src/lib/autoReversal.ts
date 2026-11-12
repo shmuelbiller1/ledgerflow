@@ -30,7 +30,11 @@ export function withReversal<E extends Entry>(entry: E, reverseOn: string): [E &
     id: reversalId,
     date: reverseOn,
     description: `Reversal of: ${entry.description || 'journal entry'}`,
-    lines: entry.lines.map(l => ({ ...l, amountCents: -l.amountCents })),
+    lines: entry.lines.map(l => ({
+      ...l,
+      amountCents: -l.amountCents,
+      ...(typeof l.baseAmountCents === 'number' ? { baseAmountCents: -l.baseAmountCents } : {}),
+    })),
     metadata: { isReversal: true, reversesTxId: entry.id, autoReversal: true },
   };
   return [marked, reversal];

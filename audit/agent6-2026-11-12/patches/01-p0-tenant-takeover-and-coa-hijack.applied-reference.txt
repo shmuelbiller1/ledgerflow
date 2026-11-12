@@ -1,0 +1,86 @@
+HISTORICAL REFERENCE ONLY — P0 FIX NOW IMPLEMENTED DIRECTLY IN PR #673. DO NOT APPLY THIS FILE.
+
+diff --git a/src/server/routes/developerApiRoutes.ts b/src/server/routes/developerApiRoutes.ts
+index 5d9aad5..7cdb111 100644
+--- a/src/server/routes/developerApiRoutes.ts
++++ b/src/server/routes/developerApiRoutes.ts
+@@ -182,7 +182,20 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
+         createdAt: new Date().toISOString()
+       };
+ 
+-      await db.collection("chartAccounts").doc(newId).set(newAccount);
++      await db.runTransaction(async (tx) => {
++        const accRef = db.collection("chartAccounts").doc(newId);
++        const existing = await tx.get(accRef);
++        if (existing.exists) {
++          const prev = existing.data() || {};
++          if (prev.workspaceId !== workspaceId) {
++            throw new Error("FORBIDDEN: Chart account belongs to another workspace");
++          }
++          if (prev.isSystem === true) {
++            throw new Error("FORBIDDEN: Cannot overwrite system chart account");
++          }
++        }
++        tx.set(accRef, newAccount);
++      });
+       await writeServerAuditLog({
+         workspaceId,
+         uid: authReq.user?.uid || 'api_user',
+@@ -203,7 +216,14 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
+         account: newAccount
+       });
+     } catch (err) {
+-      sendError(res, errorMessage(err), 500);
++      const msg = errorMessage(err);
++      if (msg === "FORBIDDEN" || msg.includes("FORBIDDEN") || msg.includes("Forbidden") || msg.includes("Requires writer role")) {
++        return sendError(res, msg === "FORBIDDEN" ? "Forbidden workspace access" : msg, 403);
++      }
++      if (msg === "NOT_FOUND" || msg.includes("NOT_FOUND")) {
++        return sendError(res, "Workspace not found", 404);
++      }
++      sendError(res, msg, 500);
+     }
+   });
+ 
+diff --git a/src/server/routes/workspaceApiRoutes.ts b/src/server/routes/workspaceApiRoutes.ts
+index 37af609..3a41c3e 100644
+--- a/src/server/routes/workspaceApiRoutes.ts
++++ b/src/server/routes/workspaceApiRoutes.ts
+@@ -57,16 +57,21 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
+ 
+   app.post("/api/v1/workspaces", apiAuthenticate, async (req: express.Request, res: express.Response) => {
+     try {
+-      const uid = (req as AuthenticatedRequest).user.uid;
++      const authReq = req as AuthenticatedRequest;
++      if (authReq.user.developerWorkspaceId) {
++        return sendError(res, "Forbidden: Workspace-scoped API keys cannot create workspaces", 403);
++      }
++      const uid = authReq.user.uid;
+       const validation = WorkspaceSchema.safeParse({
+         ...req.body,
++        id: undefined,
+         uid
+       });
+       if (!validation.success) {
+         return sendError(res, "Validation Error: " + validation.error.issues.map((e) => `${e.path.join('.')}: ${errorMessage(e)}`).join(', '), 400);
+       }
+       const db = getDb();
+-      const newId = validation.data.id || `ws_${crypto.randomUUID().replace(/-/g, '')}`;
++      const newId = `ws_${crypto.randomUUID().replace(/-/g, '')}`;
+       const newWorkspace = {
+         // BB-07: a new workspace starts with the everyday screens; the rest is turned on when wanted
+         modules: NEW_WORKSPACE_MODULES,
+@@ -75,7 +80,12 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
+         uid,
+         createdAt: validation.data.createdAt || new Date().toISOString()
+       };
+-      await db.collection("workspaces").doc(newId).set(newWorkspace);
++      await db.runTransaction(async (tx) => {
++        const wsRef = db.collection("workspaces").doc(newId);
++        const existing = await tx.get(wsRef);
++        if (existing.exists) throw new Error("CONFLICT: Workspace ID already exists");
++        tx.create(wsRef, newWorkspace);
++      });
+       await writeServerAuditLog({
+         workspaceId: newId,
+         uid,

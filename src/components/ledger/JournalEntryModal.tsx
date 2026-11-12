@@ -17,6 +17,7 @@ import { getIdToken } from '../../firebase';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { isPostable } from '../../lib/txFilters';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 import AsyncButton from '../ui/AsyncButton';
 import { MatchingEngine } from '../../lib/MatchingEngine';
 import { SpellChecker } from '../../lib/algorithms';
@@ -256,11 +257,23 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
       }
 
       const workspaceProjects = useLedgerStore.getState().projects || [];
-      const mappedLines = [];
+      const mappedLines: Array<{
+        accountId: string;
+        accountName: string;
+        amountCents: number;
+        baseAmountCents?: number;
+        class: string | undefined;
+        location: string | undefined;
+        project: string | undefined;
+        dimensions: Record<string, string> | undefined;
+      }> = [];
       for (const l of filteredLines) {
         const debitCents = l.debit || 0;
         const creditCents = l.credit || 0;
-        const baseCents = Math.round((debitCents > 0 ? debitCents : -creditCents) * appliedRate);
+        const signedMinor = debitCents > 0 ? debitCents : -creditCents;
+        const baseCents = isForeignCurrency
+          ? convertMinorUnits(signedMinor, appliedRate, transactionCurrency, baseCurrency)
+          : signedMinor;
         const rawDims = l.dimensions || {};
         const seedDims: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawDims)) {
@@ -283,6 +296,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           accountId: l.accountId,
           accountName: l.accountName,
           amountCents: baseCents,
+          ...(isForeignCurrency ? { baseAmountCents: baseCents } : {}),
           class: dims.class || undefined,
           location: dims.location || undefined,
           project: matchedProjectId ?? (dims.project || undefined),
@@ -302,16 +316,19 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           accountId: roundingAccount.id,
           accountName: roundingAccount.name,
           amountCents: -netImbalanceCents,
+          ...(isForeignCurrency ? { baseAmountCents: -netImbalanceCents } : {}),
           class: undefined,
           location: undefined,
           project: undefined,
           dimensions: undefined
-        } as unknown as { accountId: string; accountName: string; amountCents: number; class: string | undefined; location: string | undefined; project: string | undefined; dimensions: Record<string, string> | undefined; });
+        });
       }
 
       const totalAmountCents = mappedLines
         .filter(l => l.amountCents > 0)
-        .reduce((sum, l) => sum + l.amountCents, 0) || Math.round(totals.debit * appliedRate);
+        .reduce((sum, l) => sum + l.amountCents, 0) || (isForeignCurrency
+          ? convertMinorUnits(totals.debit, appliedRate, transactionCurrency, baseCurrency)
+          : totals.debit);
 
       const entryId = `tx_je_${crypto.randomUUID()}`;
       const payload = {
