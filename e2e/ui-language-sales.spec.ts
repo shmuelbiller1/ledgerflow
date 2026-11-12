@@ -5,7 +5,8 @@ for (const width of [390, 1280]) test(`Accessibility & language sets Hebrew and 
   await page.addInitScript(() => {
     localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
     localStorage.setItem('has_seen_onboarding', 'true');
-    localStorage.removeItem('lf_language');
+    // start in English once; the reload below must keep the choice, so this runs on the first load only
+    if (!sessionStorage.getItem('lf_language_reset')) { localStorage.removeItem('lf_language'); sessionStorage.setItem('lf_language_reset', '1'); }
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Continue as Guest', exact: true }).click();
