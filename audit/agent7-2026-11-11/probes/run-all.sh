@@ -5,7 +5,8 @@
 set -u
 cd "$(dirname "$0")/../../.."
 PIN="${1:-$(git merge-base HEAD upstream/main 2>/dev/null || git rev-parse HEAD)}"
-OUT="${2:-audit/agent7-2026-11-11/evidence}"
+# Never overwrite checked-in historical evidence when rerunning against another commit.
+OUT="${2:-audit/agent7-2026-11-11/evidence/main-${PIN:0:8}}"
 P=audit/agent7-2026-11-11/probes
 mkdir -p "$OUT"
 : "${LF_TEST_DATABASE_URL:?set LF_TEST_DATABASE_URL to a disposable local test database}"
@@ -17,8 +18,21 @@ quiet() { grep -v -E '^$|^\s+at |^\s+[\]\}\{\[],?$|^\s+(code|path|message|expect
 status=0
 run() { # name, command…
   local name="$1"; shift
-  { head3 "$*"; "$@" 2>&1 | quiet; } > "$OUT/$name.txt"
-  if grep -q -E '^ℹ fail [1-9]|^SQL error|ERR_MODULE_NOT_FOUND' "$OUT/$name.txt"; then status=1; echo "PROBE DID NOT COMPLETE AS WRITTEN: $name"; else echo "ok  $name"; fi
+  local rc=0
+  # Preserve the real probe's exit code: quiet/grep can succeed after a crashed
+  # probe or a timeout (124), and a missing test-summary line is not a pass.
+  {
+    head3 "$*"
+    "$@" 2>&1 | quiet
+    rc=${PIPESTATUS[0]}
+    printf '# exit: %s\n' "$rc"
+  } > "$OUT/$name.txt"
+  if [ "$rc" -ne 0 ] || grep -q -E '^ℹ fail [1-9]|^SQL error|ERR_MODULE_NOT_FOUND' "$OUT/$name.txt"; then
+    status=1
+    echo "PROBE DID NOT COMPLETE AS WRITTEN: $name (exit $rc)"
+  else
+    echo "ok  $name"
+  fi
 }
 run a7-01-ledger-door-dataflow      npx tsx $P/a7-01-ledger-door-dataflow.ts
 run a7-02-fx-reversal-residue       npx tsx $P/a7-02-fx-reversal-residue.ts
