@@ -26,6 +26,25 @@ describe('Truncation key space: store keys vs database collection names', () => 
     return /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name) ? [path] : [];
   });
 
+  /** Catch direct access to a store key on the database-keyed truncation map. */
+  const directlyReadsWrongTruncationKey = (source: string, key: string): boolean => {
+    const dot = new RegExp(`(?:truncated\\w*|truncatedCollections)\\??\\.${key}\\b`);
+    const bracket = new RegExp(`(?:truncated\\w*|truncatedCollections)(?:\\?\\.)?\\[\\s*['"]${key}['"]\\s*\\]`);
+    return dot.test(source) || bracket.test(source);
+  };
+
+  test('the guard recognizes both dot and quoted-bracket access (including optional chaining)', () => {
+    for (const candidate of [
+      'truncated.accounts', 'truncated?.accounts',
+      's.truncatedCollections.accounts', "truncated['accounts']",
+      'truncated?.["accounts"]', 'truncatedCollections["accounts"]',
+    ]) {
+      assert.equal(directlyReadsWrongTruncationKey(candidate, 'accounts'), true, candidate);
+    }
+    assert.equal(directlyReadsWrongTruncationKey('truncated.chartAccounts', 'accounts'), false);
+    assert.equal(directlyReadsWrongTruncationKey('truncated.accounting', 'accounts'), false);
+  });
+
   test('the helper reads the database collection name, so chartAccounts is not missed', () => {
     assert.equal(isCollectionCapped({ chartAccounts: true }, 'accounts'), true);
     assert.equal(isCollectionCapped({ accounts: true }, 'accounts'), false, 'nobody writes the store key');
@@ -43,9 +62,8 @@ describe('Truncation key space: store keys vs database collection names', () => 
     for (const file of [...files('src/components'), ...files('src/hooks')]) {
       const source = readFileSync(file, 'utf-8');
       for (const key of differing) {
-        // a literal index, e.g. truncated.accounts / truncated['accounts'] / truncated?.['accounts']
-        const literal = new RegExp(`(?:truncated\\w*|truncatedCollections)\\??\\.\\[?['"]${key}['"]?\\]?`);
-        if (literal.test(source)) offenders.push(`${file}: ${key}`);
+        // Detect both dot-property and literal bracket-property access.
+        if (directlyReadsWrongTruncationKey(source, key)) offenders.push(`${file}: ${key}`);
       }
       // a variable index over a list of store keys: the call must go through the helper
       for (const line of source.split('\n')) {
