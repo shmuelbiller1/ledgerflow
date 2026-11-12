@@ -1,0 +1,26 @@
+# pin: PR #647 head 720fc6d1c3cb91dd81e2aed98e23d0f37b1c8946 (its own migrations and server code)
+# command: npx tsx audit/agent7-2026-11-11/probes/a7-02-fx-reversal-residue.ts
+# run: 2026-11-11T18:43:02Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+Example 1 — two revenue lines of 150.00 and a receivable of 300.00, rate 1.11
+  entry (foreign cents) [300,-150,-150] at rate 1.11
+  original in home currency: [334,-167,-167] (sum 0)
+  reversal in home currency: [-334,167,167] (sum 0)
+  left in each account after the reversal: [0,0,0]  OK
+Example 2 — receivable 3.00, revenue 1.50 + 1.50, rate 1.11
+  entry (foreign cents) [300,-150,-150] at rate 1.11
+  original in home currency: [334,-167,-167] (sum 0)
+  reversal in home currency: [-334,167,167] (sum 0)
+  left in each account after the reversal: [0,0,0]  OK
+Example 3 — receivable 24.70, revenue 12.35 + 12.35, rate 3.7
+  entry (foreign cents) [2470,-1235,-1235] at rate 3.7
+  original in home currency: [9138,-4569,-4569] (sum 0)
+  reversal in home currency: [-9140,4570,4570] (sum 0)
+  left in each account after the reversal: [-2,1,1]  DEFECT: not zero
+rate 1.1   : 936 of 17160 entries leave cents behind after their reversal (5.45%), worst 1 cent(s) in one account
+rate 1.11  : 48 of 17160 entries leave cents behind after their reversal (0.28%), worst 1 cent(s) in one account
+rate 1.25  : 7494 of 17160 entries leave cents behind after their reversal (43.67%), worst 2 cent(s) in one account
+rate 3.7   : 3014 of 17160 entries leave cents behind after their reversal (17.56%), worst 2 cent(s) in one account
+rate 3.65  : 1543 of 17160 entries leave cents behind after their reversal (8.99%), worst 2 cent(s) in one account
+rate 0.85  : 1543 of 17160 entries leave cents behind after their reversal (8.99%), worst 2 cent(s) in one account
+rate 1.0842: 24 of 17160 entries leave cents behind after their reversal (0.14%), worst 1 cent(s) in one account
+rate 3.652 : 48 of 17160 entries leave cents behind after their reversal (0.28%), worst 1 cent(s) in one account

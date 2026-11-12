@@ -1,0 +1,80 @@
+# what: other agents' probes that are in the repository, re-run unchanged.
+#       - af004-tax-authority-probe.ts prints OK or DEFECT for each case.
+#       - the agent6 probes ASSERT THE DEFECT: "pass" (✔) = the defect is still reproduced; "fail" (✖) = it is no longer
+#         reproduced, which means either fixed or that the code changed shape and the probe is stale (not conclusive alone).
+# pins: main 2ac666b46ca3895456ebee67ad6e01d62f49457e ; PR #647 head c2835545d9aeb634a1d424e46d9998bfea5e1c15
+# run: 2026-11-11 about 19:28 UTC, Node v24.22.2
+# commands: npx tsx audit/function-audit/probes/af004-tax-authority-probe.ts
+#           npx tsx --test --test-force-exit audit/agent6-2026-11-10/probes/<name>.test.ts
+
+################ main 2ac666b
+## audit/function-audit/probes/af004-tax-authority-probe.ts
+OK     AF-004-P1 place merge across countries: expected place of an Israeli entity to carry no US state; observed {"country":"IL"} (from ["world:il","books"])
+OK     AF-004-P2 Israeli sale leaks into Texas return: expected 0 documents in the Texas permit return; observed documentCount=0, grossSalesCents=0
+OK     AF-004-P3 #518 guard: a US sale with no state is reported in `unplaced`, in no state return: expected documentCount=0 with unplaced 1 doc / 10000 net / 825 tax; ob
+OK     AF-004-P4 non-US buyer: state return vs quarter journey disagree: usSalesTaxReturn documentCount=0 for this Canadian buyer; real usQuarterJourney certificate step 
+OK     AF-004-P4 control: absent buyer destination falls back to seller state in both consumers: expected TX return=1 and certificate zero-tax sales=1; observed return=1,
+OK     AF-004-P7 US branch sale lands in the Israeli VAT return: expected 0 documents in the IL VAT return for a US-labelled sale; observed documentCount=0, taxableSalesC
+OK     AF-004-P5 control: conflicting legalForm reported as conflict: conflicts=1, chosen=llc (first dimension in order)
+DEFECT AF-004-P6 duplicate verified/declared set value stays unverified: verified=false although a verified copy of the same value exists (conservative: a false negative,
+OK     AF-004-P8 #517 guard: the US return honours the first line's entity label: expected the Israeli-branch invoice (label on items[0]) to be outside the Texas return; 
+## audit/agent6-2026-11-10/probes/af004-taxplace-key-mismatch.test.ts: tests 4 pass 4 fail 0 
+✔ DEFECT: the US quarter journey reports 0.00 due for the same Texas sale
+✔ DEFECT: the same Texas sale written as region=TX (the sample book's and journey's shape) is dropped
+✔ control: a customer place written with state=TX is counted
+✔ control: the sample book's own workspace taxProfiles use region and are therefore unusable by the return
+## audit/agent6-2026-11-10/probes/af012-rule-chain-order.test.ts: tests 2 pass 0 fail 2 
+✖ AF-012 / #161: a two-rule cycle resolves order-dependently instead of being refused
+✖ AF-012 / #161: three chained overrides resolve differently per input order
+## audit/agent6-2026-11-10/probes/f8-tax-return-two-universes.test.ts: tests 4 pass 4 fail 0 
+✔ F-08: one filed return for the quarter marks BOTH states as filed
+✔ F-08: the screen drops the registration before it compares, so a VAT return would count too
+✔ F-08: the server can never file a US sales-tax permit — the helper only accepts kind "vat"
+✔ F-08: without any filing neither state reads filed (the control)
+## audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts: tests 3 pass 3 fail 0 
+✔ F-09a: most money-writing handlers never write an audit entry
+✔ F-09b: the server never writes the USER_LOGIN row the security screens read
+✔ F-09c: loginAudits has no reader and no policy: the one real sign-in record is write-only
+## audit/agent6-2026-11-10/probes/f10-handwritten-idempotency.test.ts: tests 3 pass 3 fail 0 
+✔ F-10a: the three handwritten idempotency records carry no status and no payload hash
+✔ F-10b: the shared helper does bind a request to the key, which is the contrast
+✔ F-10c: the failure bodies those three handlers can answer are stable, and one of them is the stock check
+## audit/agent6-2026-11-10/probes/s7-route-guards.test.ts: tests 4 pass 4 fail 0 
+✔ every adminRoutes.ts registration carries authenticate + requireAdmin, except the documented cron-secret pair
+✔ route-policy-coverage.test.ts cannot see the difference: it passes on file-level words
+✔ the admin integrity scan (orphan-scan) is behind authenticate but NOT requireAdmin
+✔ the two unguarded routes do authorise in-handler (this is why they are P3, not P0)
+
+################ PR #647 c2835545
+## audit/function-audit/probes/af004-tax-authority-probe.ts
+OK     AF-004-P1 place merge across countries: expected place of an Israeli entity to carry no US state; observed {"country":"IL"} (from ["world:il","books"])
+OK     AF-004-P2 Israeli sale leaks into Texas return: expected 0 documents in the Texas permit return; observed documentCount=0, grossSalesCents=0
+OK     AF-004-P3 #518 guard: a US sale with no state is reported in `unplaced`, in no state return: expected documentCount=0 with unplaced 1 doc / 10000 net / 825 tax; ob
+OK     AF-004-P4 non-US buyer: state return vs quarter journey disagree: usSalesTaxReturn documentCount=0 for this Canadian buyer; real usQuarterJourney certificate step 
+OK     AF-004-P4 control: absent buyer destination falls back to seller state in both consumers: expected TX return=1 and certificate zero-tax sales=1; observed return=1,
+OK     AF-004-P7 US branch sale lands in the Israeli VAT return: expected 0 documents in the IL VAT return for a US-labelled sale; observed documentCount=0, taxableSalesC
+OK     AF-004-P5 control: conflicting legalForm reported as conflict: conflicts=1, chosen=llc (first dimension in order)
+OK     AF-004-P6 duplicate verified/declared set value stays unverified: verified=true although a verified copy of the same value exists (conservative: a false negative, 
+OK     AF-004-P8 #517 guard: the US return honours the first line's entity label: expected the Israeli-branch invoice (label on items[0]) to be outside the Texas return; 
+## audit/agent6-2026-11-10/probes/af004-taxplace-key-mismatch.test.ts: tests 4 pass 1 fail 3 
+✔ control: a customer place written with state=TX is counted
+✖ DEFECT: the US quarter journey reports 0.00 due for the same Texas sale
+✖ DEFECT: the same Texas sale written as region=TX (the sample book's and journey's shape) is dropped
+✖ control: the sample book's own workspace taxProfiles use region and are therefore unusable by the return
+## audit/agent6-2026-11-10/probes/f8-tax-return-two-universes.test.ts: tests 4 pass 1 fail 3 
+✔ F-08: without any filing neither state reads filed (the control)
+✖ F-08: one filed return for the quarter marks BOTH states as filed
+✖ F-08: the screen drops the registration before it compares, so a VAT return would count too
+✖ F-08: the server can never file a US sales-tax permit — the helper only accepts kind "vat"
+## audit/agent6-2026-11-10/probes/f9-audit-trail-coverage.test.ts: tests 2 pass 0 fail 2 
+✖ F-09a: most money-writing handlers never write an audit entry
+✖ F-09b: the server never writes the USER_LOGIN row the security screens read
+## audit/agent6-2026-11-10/probes/f10-handwritten-idempotency.test.ts: tests 3 pass 1 fail 2 
+✔ F-10b: the shared helper does bind a request to the key, which is the contrast
+✖ F-10a: the three handwritten idempotency records carry no status and no payload hash
+✖ F-10c: the failure bodies those three handlers can answer are stable, and one of them is the stock check
+## audit/agent6-2026-11-10/probes/s7-route-guards.test.ts: tests 4 pass 0 fail 4 
+✖ every adminRoutes.ts registration carries authenticate + requireAdmin, except the documented cron-secret pair
+✖ route-policy-coverage.test.ts cannot see the difference: it passes on file-level words
+✖ the admin integrity scan (orphan-scan) is behind authenticate but NOT requireAdmin
+✖ the two unguarded routes do authorise in-handler (this is why they are P3, not P0)

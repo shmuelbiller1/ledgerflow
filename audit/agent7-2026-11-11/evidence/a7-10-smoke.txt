@@ -1,0 +1,16 @@
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-10-smoke.test.ts
+# run: 2026-11-11T19:24:25Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+trial-balance route: 200 {"accounts":[{"id":"ws_a7_smoke_56886e49_ap","name":"Accounts Payable","code":"2000","type":"liability","debit":0,"credit":0,"netSigned":0},{"id":"ws_a7_smoke_56886e49_ar","name":"Accounts Receivable","code":"1100","type":"asset","debit":33000,"credit":0,"netSigned":33000},{"id":"ws_a7_smoke_56886e49_bank","name":"Bank","code":"1000","type":"asset","debit":0,"credit":0,"netSigned":0},{"id":"ws_a7_smoke_56886e49_deposits","name":"Customer Deposits","code":"2300","type":"liability","debit":0,"credit":0,"netSigned":0},{"id":"ws_a7_smoke_56886e49_fx","name":"Exchange gain or loss","code":"7900","t
+balance-sheet route: 200 {"assets":{"ws_a7_smoke_56886e49_ar":33000,"ws_a7_smoke_56886e49_bank":0,"ws_a7_smoke_56886e49_vatin":0},"liabilities":{"ws_a7_smoke_56886e49_ap":0,"ws_a7_smoke_56886e49_deposits":0,"ws_a7_smoke_56886e49_vat":3000},"equity":{"ws_a7_smoke_56886e49_obe":0},"totalAssets":33000,"totalLiabilities":3000,"totalEquity":0,"netIncome":30000,"totalClaims":33000,"isBalanced":true,"orphanedLines":[],"provenance":{"source":"server","completeness":"complete"}}
+▶ A7 harness smoke
+  ✔ an invoice of 330.00 posts A/R +330.00, Sales -300.00, VAT -30.00 and every entry balances (150.38013ms)
+✔ A7 harness smoke (1366.314819ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1556.101783

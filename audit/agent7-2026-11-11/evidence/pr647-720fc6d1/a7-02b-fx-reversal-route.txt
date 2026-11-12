@@ -1,0 +1,42 @@
+# pin: PR #647 head 720fc6d1c3cb91dd81e2aed98e23d0f37b1c8946 (its own migrations and server code)
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-02b-fx-reversal-route.test.ts
+# run: 2026-11-11T18:49:46Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+(1) POST /transactions -> 200; stored: currency USD, entry rate 3.7, lines [{"amountCents":2470,"rate":1},{"amountCents":-1235,"rate":1},{"amountCents":-1235,"rate":1}]
+(1) the books (ILS, agorot): {"bank":2470,"sales":-1235,"sales2":-1235}
+(1) Bank shows 24.70 ILS for 24.70 USD at 3.7 (24.70 × 3.7 = 91.39)
+(1) DEFECT A7-02c: the entry says "USD at 3.7" and is counted as 24.70 ILS
+(1) reversal: exact (nothing left)
+▶ A7-02b a journal at a foreign rate, through the routes
+  ✔ (1) the rate on the entry only (no rate on the lines): how is 24.70 USD valued in ILS books? (112.484601ms)
+  ✖ (2) the rate on every line, one agora settled: valued at 3.7; "Reverse & Correct" is refused (34.808349ms)
+rate 1.1: 83483 of 325325 three-line journals (25.7%) carry a settled home amount
+rate 1.25: 121558 of 325325 three-line journals (37.4%) carry a settled home amount
+rate 3.7: 88312 of 325325 three-line journals (27.1%) carry a settled home amount
+rate 3.65: 82962 of 325325 three-line journals (25.5%) carry a settled home amount
+rate 0.85: 83184 of 325325 three-line journals (25.6%) carry a settled home amount
+rate 1.0842: 80902 of 325325 three-line journals (24.9%) carry a settled home amount
+rate 3.652: 81440 of 325325 three-line journals (25.0%) carry a settled home amount
+  ✖ (3) the rate on every line, nothing to settle: accepted, valued at 3.7; "Reverse & Correct" is refused too (27.525692ms)
+  ✔ how often a journal at a foreign rate carries a settled home amount (refusal of case 2; all the others get the refusal of case 3) (1613.400184ms)
+✖ A7-02b a journal at a foreign rate, through the routes (2946.217157ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 2
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3165.302703
+✖ failing tests:
+test at audit/agent7-2026-11-11/probes/a7-02b-fx-reversal-route.test.ts:57:3
+✖ (2) the rate on every line, one agora settled: valued at 3.7; "Reverse & Correct" is refused (34.808349ms)
+  AssertionError [ERR_ASSERTION]: {"status":"error","message":"The entry total (9139) does not match its lines (2470)"}
+  
+  400 !== 200
+  
+test at audit/agent7-2026-11-11/probes/a7-02b-fx-reversal-route.test.ts:76:3
+✖ (3) the rate on every line, nothing to settle: accepted, valued at 3.7; "Reverse & Correct" is refused too (27.525692ms)
+  AssertionError [ERR_ASSERTION]: {"status":"error","message":"The entry total (3700) does not match its lines (1000)"}
+  
+  400 !== 200
+  

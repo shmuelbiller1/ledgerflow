@@ -1,0 +1,49 @@
+# pin: PR #647 head 720fc6d1c3cb91dd81e2aed98e23d0f37b1c8946 (its own migrations and server code)
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-07-closed-period-sweep.test.ts
+# run: 2026-11-11T18:43:10Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+closed: lockDate = 2026-09-30
+▶ A7-07 closed-period sweep across the server writers
+  ✔ setup: a September journal of 1,000.00, an October invoice, then September is closed (hard) (170.398579ms)
+refused  400  POST /transactions (one journal)
+refused  400  POST /transactions/bulk
+refused  409  POST /transactions/batch-create
+refused  409  POST /documents/invoices/:id/post (invoice dated in the month)
+refused  409  POST /documents/bills/:id/post (bill dated in the month)
+refused  400  POST /payments (payment dated in the month, for the October invoice)
+refused  400  PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry
+refused  400  PUT /transactions/:id (rewrite the September entry)
+refused  403  DELETE /transactions/:id on the September entry
+refused  400  POST /transactions/:id/reverse with the reversal dated in the month
+refused  400  POST /payments/credits/refund dated in the month
+{"operationId":"ws_a7_closed_55cf7b88_rec:2026-09-12","error":"The period of 2026-09-12 is closed","level":"warn","time":"2026-11-11T18:43:12.460Z","msg":"recurring occurrence failed"}
+refused  409  daily recurring job, entry due 2026-09-12 (failed: The period of 2026-09-12 is closed)
+ACCEPTED 200  POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+  ✔ every writer, dated in the closed month, as a bookkeeper (149.283463ms)
+September in the ledger now: {"acc_demo_bank_ws_a7_closed_55cf7b88":300000,"acc_demo_rev_ws_a7_closed_55cf7b88":-1500000,"acc_demo_exp_ws_a7_closed_55cf7b88":1200000,"bank":100000,"sales":-100000}
+writers that got through the closed month: POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+DEFECT A7-07: POST /workspaces/:id/seed posts entries into a hard-closed month
+  ✔ the closed month afterwards (2.269326ms)
+demo entries written: 2 (dates 2026-09-01, 2026-09-05); lines that point to no account of this workspace: 0 of 4
+demo invoice INV-DEMO-001: status sent, amount 500000; ledger entries for it: 0
+audit rows mentioning the seeding: 1; workspace.isDemoLoaded: undefined
+balance sheet route (2026-12-31): isBalanced=true, lines on unknown accounts=0, "Operating Bank Account" (demo) = 300000
+Data Health (medium) [control-balance]: Accounts receivable is $200.00, the open invoices add up to $5,200.00
+Data Health (medium) [control-balance]: Accounts payable is $0.00, the open bills add up to $1,200.00
+  ✖ what the demo-data route left in real books (45.959457ms)
+✖ A7-07 closed-period sweep across the server writers (1361.163463ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1494.705856
+✖ failing tests:
+test at audit/agent7-2026-11-11/probes/a7-07-closed-period-sweep.test.ts:91:3
+✖ what the demo-data route left in real books (45.959457ms)
+  AssertionError [ERR_ASSERTION]: every line of the two demo entries points to an account id that does not exist
+  
+  0 !== 4
+  
+  }
