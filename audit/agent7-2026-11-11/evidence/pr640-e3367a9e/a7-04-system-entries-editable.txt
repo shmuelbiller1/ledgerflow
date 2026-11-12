@@ -1,0 +1,31 @@
+# pin: PR #640 head e3367a9e89750bd23fcc083fd6c9f68772138204 (its own migrations and server code)
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-04-system-entries-editable.test.ts
+# run: 2026-11-11T18:43:23Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+▶ A7-04 system entries can be changed behind their documents
+  ✔ setup: invoice 500.00 paid in full — Bank +500.00, A/R 0.00, Sales -500.00 (151.163391ms)
+PUT /transactions/<payment entry> { partialUpdate: { status: 'void' } } -> 200 {"status":"ok","transactionId":"yac0vzHI3uYXAsuybovv"}
+ledger now: {"ar":50000,"sales":-50000}
+invoice: status paid, paid 50000; payment: status posted, amount 50000
+DEFECT A7-04a: ledger A/R 500.00 and Bank 0.00, while the invoice is "paid" and the payment is "posted"
+  ✔ a bookkeeper voids the payment's entry with the generic route: the ledger loses the money, the documents keep it (15.956131ms)
+PUT /transactions/<invoice entry> (lines rewritten to 100.00) -> 200 {"status":"ok","transactionId":"c783f9a0-b514-44e9-9cbc-b4d3ea99999c","data":{"id":"c783f9a0-b514-44e9-9cbc-b4d3ea99999c
+ledger now: {"ar":10000,"sales":-10000}; invoice amount 50000
+DEFECT A7-04b: Sales in the ledger 100.00, the invoice 500.00
+  ✔ a bookkeeper rewrites the invoice's entry to 100.00 with the generic route: the invoice still says 500.00 (17.410779ms)
+POST /transactions/<invoice entry>/reverse -> 200 {"status":"ok","originalId":"c783f9a0-b514-44e9-9cbc-b4d3ea99999c","reversal":{"id":"cvMzAdivRScNZzMwsYUS","uid":"bookke
+ledger now: {}; invoice status paid, amount 50000
+DEFECT A7-04c: the ledger holds nothing for an invoice that is still issued and marked paid
+  ✔ "Reverse & Correct" on the invoice's entry is accepted too: the invoice stays issued with nothing in the ledger (18.401684ms)
+audit: TRANSACTION_UPDATED {"description":"Full update on transaction ref [c783f9a0-b514-44e9-9cbc-b4d3ea99999c]."}
+audit: TRANSACTION_UPDATED_PARTIAL {"description":"Partial update on transaction ref [yac0vzHI3uYXAsuybovv]."}
+DEFECT A7-04d: the audit entries for an in-place change of a posted entry carry no before/after values
+  ✔ what the audit trail kept of the two edits: the action, not what changed (1.429653ms)
+✔ A7-04 system entries can be changed behind their documents (1015.328879ms)
+ℹ tests 5
+ℹ suites 1
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1142.674445

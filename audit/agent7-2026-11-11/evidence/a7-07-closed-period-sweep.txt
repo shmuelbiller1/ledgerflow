@@ -1,0 +1,51 @@
+# pin: 2ac666b46ca3895456ebee67ad6e01d62f49457e
+# command: timeout 170 npx tsx --test --test-force-exit audit/agent7-2026-11-11/probes/a7-07-closed-period-sweep.test.ts
+# run: 2026-11-11T19:24:21Z, Node v24.22.2, PostgreSQL 17.11 (disposable local)
+control: closing September while a draft is dated in it -> 409 "1 draft is dated in the period being closed. Post, re-date or delete it first."
+closed: lockDate = 2026-09-30
+▶ A7-07 closed-period sweep across the server writers
+  ✔ setup: a September journal of 1,000.00, an October invoice, then September is closed (hard) (227.541655ms)
+refused, period lock  400  POST /transactions (one journal)
+refused, period lock  400  POST /transactions/bulk
+refused, period lock  409  POST /transactions/batch-create
+refused, period lock  409  POST /documents/invoices/:id/post (invoice dated in the month)
+refused, period lock  409  POST /documents/bills/:id/post (bill dated in the month)
+refused, period lock  400  POST /payments (payment dated in the month, for the October invoice)
+refused, period lock  400  PUT /transactions/:id { partialUpdate: { status: "void" } } on the September entry
+refused, period lock  400  PUT /transactions/:id (rewrite the September entry)
+refused, OTHER REASON 403  DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached)
+refused, period lock  400  DELETE /transactions/:id on a September DRAFT
+refused, period lock  400  POST /transactions/:id/reverse with the reversal dated in the month
+refused, period lock  400  POST /payments/credits/refund dated in the month
+{"operationId":"ws_a7_closed_1938035f_rec:2026-09-12","error":"The period of 2026-09-12 is closed","level":"warn","time":"2026-11-11T19:24:23.657Z","msg":"recurring occurrence failed"}
+refused, period lock  409  daily recurring job, entry due 2026-09-12
+ACCEPTED              200  POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+  ✔ every writer, dated in the closed month, as a bookkeeper (243.6799ms)
+September in the ledger now: {"bank":100000,"sales":-100000,"acc_demo_bank_ws_a7_closed_1938035f":300000,"acc_demo_rev_ws_a7_closed_1938035f":-1500000,"acc_demo_exp_ws_a7_closed_1938035f":1200000}
+writers that got through the closed month: POST /workspaces/:workspaceId/seed (demo data: entries dated 2026-09-01 and 2026-09-05)
+DEFECT A7-07: POST /workspaces/:id/seed posts entries into a hard-closed month
+refused by the period lock: 12 of 14 writers; refused for another reason: 1 (DELETE /transactions/:id on the September entry (posted: refused by the never-delete rule before the lock is reached))
+  ✔ the closed month afterwards (5.578202ms)
+demo entries written: 2 (dates 2026-09-01, 2026-09-05); lines that point to no account of this workspace: 4 of 4
+demo invoice INV-DEMO-001: status sent, amount 500000; ledger entries for it: 0
+audit rows mentioning the seeding: 0; workspace.isDemoLoaded: undefined
+balance sheet route (2026-12-31): isBalanced=true, lines on unknown accounts=0, "Operating Bank Account" (demo) = 300000
+Data Health (high) [missing-account]: Entry Acme Enterprise Software Renewal uses a missing account
+Data Health (high) [missing-account]: Entry Acme Enterprise Software Renewal uses a missing account
+Data Health (high) [missing-account]: Entry AWS September Hosting Fee uses a missing account
+Data Health (high) [missing-account]: Entry AWS September Hosting Fee uses a missing account
+Data Health (medium) [control-balance]: Accounts receivable is $200.00, the open invoices add up to $5,200.00
+Data Health (medium) [control-balance]: Accounts payable is $0.00, the open bills add up to $1,200.00
+POST /transactions/reset (owner, confirmReset) -> 409 {"error":"Only demo data can be cleared at once. To remove real books, delete the workspace (Settings → Security): it is
+a second POST /workspaces/:id/seed -> 200; invoices numbered INV-DEMO-001 now: 2
+{"demoEntries":2,"linesOnNoAccount":4,"invoiceStatus":"sent","invoiceEntries":0,"auditRows":0,"markedAsDemo":false,"reportOrphanedLines":0,"demoBankOnBalanceSheet":300000,"missingAccountFindings":4,"resetStatus":409,"secondSeedStatus":200,"demoInvoicesAfterSecond":2}
+  ✔ what the demo-data route left in real books (108.315814ms)
+✔ A7-07 closed-period sweep across the server writers (1754.438439ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1919.712395
