@@ -1,3 +1,4 @@
+import { currentLabelColumns } from '../../lib/currentLabelColumns';
 import { TransactionGridView } from './TransactionGridView';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { identityScope } from '../../lib/serverAction';
@@ -339,9 +340,10 @@ function useTransactionGridModel() {
   const signedCents = (t: Transaction) => (isInflow(t, accounts) ? 1 : -1) * (t.totalAmountCents || 0);
 
   const handleExportCSV = () => {
+    const labelCols = currentLabelColumns();
     downloadCsv(`ledger_export_${getLocalDateISO()}.csv`,
-      ['Date', 'Description', 'Category', 'Project', 'Amount', 'Currency', 'Status'],
-      transactionsWithBalance.map(t => [t.date, t.description, resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || 'General', csvMoney(signedCents(t)), t.currency || '', t.status]));
+      ['Date', 'Description', 'Category', 'Project', 'Amount', 'Currency', 'Status', ...labelCols.headers],
+      transactionsWithBalance.map(t => [t.date, t.description, resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || 'General', csvMoney(signedCents(t)), t.currency || '', t.status, ...labelCols.cells(t)]));
     toast.success('Transactions exported');
   };
 
