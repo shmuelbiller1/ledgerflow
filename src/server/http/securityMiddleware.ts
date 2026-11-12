@@ -33,25 +33,36 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
   app.set("trust proxy", 1); 
   app.use(compression());
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    contentSecurityPolicy: {
       // S-23 stage three: once the report-only summary is empty, CSP_TIGHTEN=enforce makes the
       // tightened policy the one the browser obeys (no 'unsafe-inline' script, form-action 'self').
       // It keeps reporting, so a directive that turns out to block something still says so.
-      directives: rollout === 'enforce'
-        ? helmetDirectives(tightenedCspDirectives({ ...tightened, reportUri: CSP_REPORT_PATH })) : {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.plaid.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        // The configured Supabase project(s): data/auth (https) and live updates (wss) — AUD-12
-        connectSrc: connectSources(configuredSupabaseConnectSources(process.env, supabaseUrl())),
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        frameSrc: ["'self'", "https://*.stripe.com", "https://cdn.plaid.com"],
-        frameAncestors: aiStudioProxy ? ["*"] : ["'self'"]
-      }
-    } : false,
+      directives: process.env.NODE_ENV === 'production'
+        ? (rollout === 'enforce'
+          ? helmetDirectives(tightenedCspDirectives({ ...tightened, reportUri: CSP_REPORT_PATH })) : {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.plaid.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            // The configured Supabase project(s): data/auth (https) and live updates (wss) — AUD-12
+            connectSrc: connectSources(configuredSupabaseConnectSources(process.env, supabaseUrl())),
+            fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+            frameSrc: ["'self'", "https://*.stripe.com", "https://cdn.plaid.com"],
+            frameAncestors: aiStudioProxy ? ["*"] : ["'self'"]
+          })
+        : {
+            defaultSrc: ["*"],
+            scriptSrc: ["*","'unsafe-inline'","'unsafe-eval'"],
+            styleSrc: ["*","'unsafe-inline'"],
+            imgSrc: ["*","data:","blob:"],
+            connectSrc: ["*"],
+            fontSrc: ["*","data:"],
+            frameSrc: ["*"],
+            frameAncestors: ["*"]
+          }
+    },
     crossOriginEmbedderPolicy: false,
-    frameguard: aiStudioProxy ? false : { action: 'sameorigin' },
+    frameguard: { action: 'sameorigin' },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
