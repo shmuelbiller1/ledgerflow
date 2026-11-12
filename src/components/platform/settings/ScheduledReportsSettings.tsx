@@ -6,7 +6,7 @@ import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { db, getIdToken } from '../../../firebase';
 import { doc, updateDoc } from '../../../lib/db/firestore';
 import {
-  MAX_SCHEDULES, SCHEDULED_REPORTS, lastFinishedPeriod, parseRecipients, scheduleProblem,
+  MAX_SCHEDULES, SCHEDULED_REPORTS, WEEKDAYS, lastFinishedPeriod, parseRecipients, scheduleProblem, sendDayLabel,
   type ReportFrequency, type ScheduledReport, type ScheduledReportKind,
 } from '../../../lib/scheduledReports';
 import { getLocalDateISO } from '../../../lib/utils';
@@ -29,6 +29,7 @@ export default function ScheduledReportsSettings() {
   const schedules = workspace?.scheduledReports || [];
   const [report, setReport] = useState<ScheduledReportKind>('profit-and-loss');
   const [frequency, setFrequency] = useState<ReportFrequency>('monthly');
+  const [sendDay, setSendDay] = useState(1); // C-86: Monday / the 1st
   const [recipients, setRecipients] = useState(userEmail);
   const [busy, setBusy] = useState('');
   // R-3: the email the new schedule would send for its last finished period, before saving it
@@ -80,11 +81,11 @@ export default function ScheduledReportsSettings() {
   };
 
   const add = async () => {
-    const schedule: ScheduledReport = { id: `sr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, report, frequency, recipients: parseRecipients(recipients) };
+    const schedule: ScheduledReport = { id: `sr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, report, frequency, recipients: parseRecipients(recipients), ...(sendDay !== 1 ? { sendDay } : {}) };
     const problem = scheduleProblem(schedule);
     if (problem) { toast.error(problem); return; }
     if (schedules.length >= MAX_SCHEDULES) { toast.error(`At most ${MAX_SCHEDULES} scheduled reports`); return; }
-    await save([...schedules, schedule], `${SCHEDULED_REPORTS[report]} will be emailed ${frequency === 'weekly' ? 'every Monday' : 'on the 1st of each month'}`);
+    await save([...schedules, schedule], `${SCHEDULED_REPORTS[report]} will be emailed ${sendDayLabel(schedule)}`);
   };
 
   const sendNow = async (s: ScheduledReport) => {
@@ -108,7 +109,7 @@ export default function ScheduledReportsSettings() {
 
   const nextLabel = (s: ScheduledReport) => {
     const p = lastFinishedPeriod(s.frequency, getLocalDateISO());
-    return s.frequency === 'weekly' ? `weekly, Monday to Sunday (last: ${p.label})` : `monthly (last: ${p.label})`;
+    return s.frequency === 'weekly' ? `weekly, Monday to Sunday, sent ${sendDayLabel(s)} (last: ${p.label})` : `monthly, sent ${sendDayLabel(s)} (last: ${p.label})`;
   };
 
   return (
@@ -155,9 +156,17 @@ export default function ScheduledReportsSettings() {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted)]">How often</span>
-              <select value={frequency} onChange={e => { dropPreview(); setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly'); }} className={field}>
-                <option value="monthly">Monthly (on the 1st, for the month before)</option>
-                <option value="weekly">Weekly (on Monday, for the week before)</option>
+              <select value={frequency} onChange={e => { dropPreview(); setFrequency(e.target.value === 'weekly' ? 'weekly' : 'monthly'); setSendDay(1); }} className={field}>
+                <option value="monthly">Monthly (for the month before)</option>
+                <option value="weekly">Weekly (for the week before, Monday to Sunday)</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-[var(--muted)]">Send on</span>
+              <select value={sendDay} onChange={e => setSendDay(Number(e.target.value))} className={field}>
+                {frequency === 'weekly'
+                  ? WEEKDAYS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)
+                  : Array.from({ length: 28 }, (_, i) => <option key={i + 1} value={i + 1}>{sendDayLabel({ frequency: 'monthly', sendDay: i + 1 }).replace(' of each month', '').replace('on the ', 'the ')}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1 flex-1 min-w-[14rem]">

@@ -187,6 +187,38 @@ export function scanFinancialIntegrity(root = process.cwd()): FinancialFinding[]
     const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
     const relative = path.relative(root, file).split(path.sep).join('/');
     const line = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+    // #657: resolve collection('transactions') references held in local variables so
+    // `const txRef = db.collection('transactions').doc(id); t.update(txRef, ...)` cannot evade AU-6.
+    const txColVars = new Set<string>();
+    const txDocVars = new Set<string>();
+    const collectTxVars = (n: ts.Node) => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
+        const init = n.initializer.getText(sf);
+        if (/collection\(\s*['"]transactions['"]\s*\)\s*$/.test(init)) {
+          txColVars.add(n.name.text);
+        } else if (/collection\(\s*['"]transactions['"]\s*\)\s*\.doc\(/.test(init)) {
+          txDocVars.add(n.name.text);
+        } else {
+          for (const col of txColVars) {
+            if (new RegExp(`\\b${col}\\.doc\\(`).test(init)) txDocVars.add(n.name.text);
+          }
+        }
+      }
+      ts.forEachChild(n, collectTxVars);
+    };
+    collectTxVars(sf);
+    const isTransactionsTarget = (exprText: string, methodName: string): boolean => {
+      if (/collection\(\s*['"]transactions['"]\s*\)/.test(exprText)) return true;
+      for (const col of txColVars) {
+        if ((methodName === 'add' && exprText === col) || exprText.startsWith(`${col}.doc(`)) return true;
+      }
+      if (methodName !== 'add') {
+        for (const docVar of txDocVars) {
+          if (exprText === docVar || exprText === `${docVar}.ref`) return true;
+        }
+      }
+      return false;
+    };
     const visit = (n: ts.Node) => {
       if (ts.isCallExpression(n)) {
         const name = calleeName(n);
@@ -204,7 +236,7 @@ export function scanFinancialIntegrity(root = process.cwd()): FinancialFinding[]
         if (['set', 'update', 'create', 'add'].includes(name) && !relative.endsWith('/services/ledgerDoor.ts')) {
           const target = ts.isPropertyAccessExpression(n.expression) ? n.expression.expression.getText(sf) : '';
           const first = n.arguments[0]?.getText(sf) ?? '';
-          if (/collection\(\s*['"]transactions['"]\s*\)/.test(target) || /collection\(\s*['"]transactions['"]\s*\)/.test(first)) {
+          if (isTransactionsTarget(target, name) || (name !== 'add' && isTransactionsTarget(first, name))) {
             findings.push({ kind: 'server-direct-ledger-write', file: relative, line: line(n), name });
           }
         }

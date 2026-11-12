@@ -1,0 +1,259 @@
+diff --git a/src/server/routes/transactions/bulkRoutes.ts b/src/server/routes/transactions/bulkRoutes.ts
+index 1f71aea..58d83bc 100644
+--- a/src/server/routes/transactions/bulkRoutes.ts
++++ b/src/server/routes/transactions/bulkRoutes.ts
+@@ -3,7 +3,9 @@ import { FieldValue, getDb, isWorkspaceMemberData, validateWorkspaceMember } fro
+ import { DoubleEntryValidator } from '../../../kernel/validation/DoubleEntryValidator';
+ import type { DimensionDefinition, DimensionNode, Transaction } from '../../../types';
+ import { LedgerPostingError } from '../../services/cogsStockService';
+-import { ledgerWrite } from '../../services/ledgerDoor';
++import { checkLedgerEntry, ledgerWrite } from '../../services/ledgerDoor';
++import { revaluationEntryLock } from '../../services/stockRevaluationService';
++import { settleHomeCurrency } from '../../../lib/txFilters';
+ import { migrateWorkspaceDimensionNodes } from '../../../lib/dimensionUtils';
+ import { z } from 'zod';
+ import { assertPostingOpen } from '../../../lib/periodLock';
+@@ -120,17 +122,29 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
+            if (txData?.date) assertPostingOpen(txData.date, wsNow as never, user.uid);
+            const newDate = (updates[i].data as { date?: unknown } | undefined)?.date;
+            if (typeof newDate === 'string' && newDate) assertPostingOpen(newDate, wsNow as never, user.uid);
+-           if ((txData?.status === 'certified' || txData?.status === 'void') && !user.admin) throw new Error(`Forbidden: Transaction ${id} status is locked.`);
++           const revalLock = revaluationEntryLock(txData);
++           if (revalLock) throw new Error(revalLock);
++           if ((txData?.status === 'certified' || txData?.status === 'void' || txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true) && !user.admin) {
++             throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
++           }
+            const updateData = { ...updates[i].data } as Record<string, unknown>;
+            const expectedUpdatedAt = updates[i].expectedUpdatedAt || updateData.expectedUpdatedAt;
+            delete updateData.expectedUpdatedAt;
+            if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
+              return { id, current: { ...txData, id: txDoc.id } };
+            }
++           const txMeta = (txData?.metadata || {}) as Record<string, unknown>;
++           if ((updateData.lines !== undefined || updateData.status !== undefined) &&
++               (txMeta.invoiceId || txMeta.billId || txMeta.paymentId || txMeta.creditNoteId || txMeta.vendorCreditId)) {
++             throw new Error(`Entry ${id} belongs to a source document; update or void the document instead.`);
++           }
+            if (updateData.lines !== undefined) {
+              const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
+              if (!Array.isArray(lines) || lines.length < 2) throw new Error(`Entry ${id} needs at least two lines`);
+-             DoubleEntryValidator.validateJournalEntry({ ...txData, ...updateData } as Transaction);
++             const settled = { ...txData, ...updateData, lines: lines.map(l => ({ ...l })) } as Transaction;
++             settleHomeCurrency(settled);
++             updateData.lines = settled.lines;
++             checkLedgerEntry(settled as unknown as Record<string, unknown>);
+              const unknown = lines.filter(l => !l.accountId || !ownAccounts.has(String(l.accountId)));
+              if (unknown.length) throw new Error(`Entry ${id} uses an account that is not in this workspace`);
+              const total = lines.reduce((sum, l) => sum + Math.max(0, Math.round(Number(l.amountCents) || 0)), 0);
+diff --git a/src/server/routes/transactions/crudRoutes.ts b/src/server/routes/transactions/crudRoutes.ts
+index f07cf7b..c2284ec 100644
+--- a/src/server/routes/transactions/crudRoutes.ts
++++ b/src/server/routes/transactions/crudRoutes.ts
+@@ -432,8 +432,15 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+       const revaluation = revaluationEntryLock(data); // ISS-130
+       if (revaluation) return res.status(409).json({ error: revaluation });
+ 
+-      if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true) && !user.admin) {
+-        return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
++      if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true || data?.reconciled === true || data?.isReconciled === true) && !user.admin) {
++        return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, reconciled, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
++      }
++      const meta = (data?.metadata || {}) as Record<string, unknown>;
++      if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
++        return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
++      }
++      if (data?.status === 'completed' && !user.admin) {
++        return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
+       }
+ 
+       // audit F3: the entry and the workspace read again inside the delete, so a period closed (or the entry
+@@ -442,7 +449,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+         const now = await t.get(txRef);
+         if (!now.exists) return 'gone';
+         const nowData = now.data();
+-        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true) && !user.admin) return 'locked';
++        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
++        const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
++        if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
++        if (nowData?.status === 'completed' && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
+         const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
+         try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
+         t.delete(txRef);
+diff --git a/src/server/routes/transactions/reconcileRoutes.ts b/src/server/routes/transactions/reconcileRoutes.ts
+index 1af177c..3a8beed 100644
+--- a/src/server/routes/transactions/reconcileRoutes.ts
++++ b/src/server/routes/transactions/reconcileRoutes.ts
+@@ -1,13 +1,14 @@
+ import express, { Request, Response } from 'express';
+ import { FieldValue, getDb, isWorkspaceMemberData } from '../../db/firestore';
+ import type { DocumentData, Firestore } from '../../db/firestore';
+-import { ledgerMark } from '../../services/ledgerDoor';
++import { checkLedgerEntry, ledgerCreate, ledgerMark } from '../../services/ledgerDoor';
++import { revaluationEntryLock } from '../../services/stockRevaluationService';
+ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
+ import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
+ import { BankLineUpdateSchema } from '../../../schemas';
+ import type { Transaction } from '../../../types';
+ import { parseDateInTimezone } from '../../../lib/calendarDate';
+-import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
++import { isPostable, getAbsoluteTotal, settleHomeCurrency } from '../../../lib/txFilters';
+ import { optimizedTransactionSimilarity } from '../../../lib/algorithms';
+ import { getWorkspaceUserRole } from '../workspaceRoutes';
+ import { BankLineError, payFromBankLine, splitBankLine } from '../../services/bankLineService';
+@@ -67,6 +68,13 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+      }
+      
+      await db.runTransaction(async (t) => {
++        // Re-read workspace inside transaction to close TOCTOU window on lockDate and member role
++        const wsSnapNow = await t.get(db.collection('workspaces').doc(workspaceId));
++        if (!wsSnapNow.exists) throw new Error('Workspace not found');
++        const wsNow = wsSnapNow.data();
++        if (!user.admin && (!wsNow || !isWorkspaceMemberData(wsNow, user, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) {
++          throw new Error('Forbidden: requires owner, accountant, or bookkeeper role');
++        }
+         // STEP 1: ALL READS UPFRONT (Guarantees zero read-after-write violations)
+         const bankLineSnaps = new Map<string, DocumentData>();
+         for (const id of bankLineIds) {
+@@ -82,10 +90,10 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+ 
+         // Closed periods (src/lib/periodLock.ts): nothing dated in them is changed or created.
+         for (const snap of [...bankLineSnaps.values(), ...txSnaps.values()]) {
+-          if (snap.exists && snap.data()?.date) assertPostingOpen(snap.data().date, wsData, user.uid);
++          if (snap.exists && snap.data()?.date) assertPostingOpen(snap.data().date, wsNow, user.uid);
+         }
+         for (const op of operations) {
+-          if (op.type === 'createTransaction' && op.data?.date) assertPostingOpen(op.data.date, wsData, user.uid);
++          if ((op.type === 'createTransaction' || op.type === 'updateTransaction') && op.data?.date) assertPostingOpen(op.data.date, wsNow, user.uid);
+         }
+ 
+         // Also gather any account IDs from existing transactions that might be updated
+@@ -151,20 +159,31 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+               throw new Error(`Transaction ${op.id} does not belong to authorized workspace`);
+             }
+             const existingTxData = txSnap.data() as Transaction;
++            const revalLock = revaluationEntryLock(existingTxData);
++            if (revalLock) throw new Error(revalLock);
++            if ((existingTxData.status === 'certified' || existingTxData.status === 'void') && !user.admin) {
++              throw new Error(`Forbidden: Transaction ${op.id} status is locked.`);
++            }
++            const existingMeta = (existingTxData.metadata || {}) as Record<string, unknown>;
++            if (op.data?.lines !== undefined && (existingMeta.invoiceId || existingMeta.billId || existingMeta.paymentId || existingMeta.creditNoteId || existingMeta.vendorCreditId)) {
++              throw new Error(`Transaction ${op.id} belongs to a source document; lines cannot be rewritten during reconciliation.`);
++            }
+             
+             const safeData = { ...op.data };
+             delete safeData.workspaceId;
+             delete safeData.uid;
+ 
+-            const merged = { ...existingTxData, ...safeData };
++            const merged = { ...existingTxData, ...safeData } as Transaction;
++            settleHomeCurrency(merged);
+             
+             const validatedTx = await TransactionValidator.validateAndPrepare(merged, {
+                 workspaceId: workspaceId,
+                 user: { uid: user.uid, admin: user.admin },
+-                wsData,
++                wsData: wsNow,
+                 accountsMap: accMap
+             }, existingTxData, t);
+ 
++            checkLedgerEntry(validatedTx as unknown as Record<string, unknown>);
+             const txRef = db.collection('transactions').doc(op.id);
+             writes.push(() => t.update(txRef, { ...validatedTx, updatedAt: FieldValue.serverTimestamp() }));
+           } else if (op.type === 'createTransaction') {
+@@ -179,16 +198,17 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+               workspaceId,
+               uid: user.uid,
+               createdAt: op.data?.createdAt || new Date().toISOString()
+-            };
++            } as Transaction;
++            settleHomeCurrency(payload);
+             const validatedTx = await TransactionValidator.validateAndPrepare(payload, {
+               workspaceId,
+               user: { uid: user.uid, admin: user.admin },
+-              wsData,
++              wsData: wsNow,
+               accountsMap: accMap
+             }, undefined, t);
+ 
+             const txRef = db.collection('transactions').doc(op.id);
+-            writes.push(() => t.create(txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
++            writes.push(() => ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
+           }
+         }
+ 
+diff --git a/src/server/routes/transactions/reverseRoutes.ts b/src/server/routes/transactions/reverseRoutes.ts
+index 6621798..65ce643 100644
+--- a/src/server/routes/transactions/reverseRoutes.ts
++++ b/src/server/routes/transactions/reverseRoutes.ts
+@@ -285,6 +285,9 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+       if (!sourceWorkspaceId || !targetWorkspaceId || !amountCents) {
+         return res.status(400).json({ error: 'Missing required intercompany parameters (source, target, amount)' });
+       }
++      if (sourceWorkspaceId === targetWorkspaceId) {
++        return res.status(400).json({ error: 'Intercompany transfer requires two distinct workspaces; use an internal bank transfer within the same workspace.' });
++      }
+ 
+       const user = requestUser(req);
+       const db = getDb();
+@@ -322,8 +325,7 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+       let sourceClearing = sourceAccounts.find(a => a.role === 'intercompany' || (a.name || '').toLowerCase().includes('intercompany'));
+       let targetClearing = targetAccounts.find(a => a.role === 'intercompany' || (a.name || '').toLowerCase().includes('intercompany'));
+ 
+-      // Create clearing accounts if missing
+-      const batch = db.batch();
++      // Create clearing accounts if missing (persisted inside the atomic runTransaction below)
+       if (!sourceClearing) {
+         const ref = db.collection('chartAccounts').doc();
+         sourceClearing = {
+@@ -337,7 +339,6 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+           balanceCents: 0,
+           createdAt: new Date().toISOString()
+         };
+-        batch.set(ref, sourceClearing);
+       }
+ 
+       if (!targetClearing) {
+@@ -353,7 +354,6 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+           balanceCents: 0,
+           createdAt: new Date().toISOString()
+         };
+-        batch.set(ref, targetClearing);
+       }
+ 
+       // 3. Prepare Reciprocal Transactions
+@@ -416,9 +416,9 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+         metadata: { isIntercompany: true, sourceWorkspaceId, sourceTxId, sharedIdentityHash },
+         lines: [
+           {
+-            accountId: targetAccountId || targetAccounts.find(a => a.type === 'expense' || a.type === 'asset')?.id,
++            accountId: targetAccountId || targetAccounts.find(a => a.role === 'cash' || a.subtype === 'cash')?.id,
+             accountName: 'Target Account',
+-            amountCents: targetCents, // Debit Asset/Expense (Asset Up / Expense Up)
++            amountCents: targetCents, // Debit Cash/Specified Target Account
+             description: `Intercompany Receipt`
+           },
+           {
+@@ -440,11 +440,17 @@ export function registerReverseRoutes(transactionRouter: express.Router): void {
+         TransactionValidator.validateAndPrepare(targetTx, { workspaceId: targetWorkspaceId, user, wsData: targetWsData, accountsMap: accountsOf(targetAccounts, targetClearing as DocumentData & { id: string }) })
+       ]);
+ 
+-      // 5. Commit Atomically
+-      await ledgerWrite(batch, db.collection('transactions').doc(sourceTxId), { ...validSource, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+-      await ledgerWrite(batch, db.collection('transactions').doc(targetTxId), { ...validTarget, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+-    
+-      await batch.commit();
++      // 5. Commit Atomically across both entities in a single database transaction
++      await db.runTransaction(async (tx) => {
++        if (!sourceAccounts.some(a => a.id === sourceClearing!.id)) {
++          tx.set(db.collection('chartAccounts').doc(sourceClearing!.id), sourceClearing!);
++        }
++        if (!targetAccounts.some(a => a.id === targetClearing!.id)) {
++          tx.set(db.collection('chartAccounts').doc(targetClearing!.id), targetClearing!);
++        }
++        await ledgerWrite(tx, db.collection('transactions').doc(sourceTxId), { ...validSource, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
++        await ledgerWrite(tx, db.collection('transactions').doc(targetTxId), { ...validTarget, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
++      });
+       await Promise.all([
+         writeServerAuditLog({
+           workspaceId: sourceWorkspaceId,

@@ -182,7 +182,12 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
         createdAt: new Date().toISOString()
       };
 
-      await db.collection("chartAccounts").doc(newId).set(newAccount);
+      // A create API must not overwrite an account already owned by this or another tenant.
+      await db.runTransaction(async (tx) => {
+        const accRef = db.collection("chartAccounts").doc(newId);
+        if ((await tx.get(accRef)).exists) throw new Error("CONFLICT: Chart account ID already exists");
+        tx.create(accRef, newAccount);
+      });
       await writeServerAuditLog({
         workspaceId,
         uid: authReq.user?.uid || 'api_user',
@@ -203,7 +208,13 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
         account: newAccount
       });
     } catch (err) {
-      sendError(res, errorMessage(err), 500);
+      const message = errorMessage(err);
+      if (message.includes("CONFLICT") || message.includes("ALREADY_EXISTS")) {
+        return sendError(res, "Chart account ID already exists", 409);
+      }
+      if (message.includes("FORBIDDEN")) return sendError(res, "Forbidden workspace access", 403);
+      if (message.includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+      sendError(res, message, 500);
     }
   });
 
