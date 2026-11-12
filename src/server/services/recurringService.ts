@@ -10,13 +10,16 @@
  *    workspace and balance; otherwise nothing is written and the schedule shows the problem.
  * Before this, invoice schedules wrote ledger entries with blank accounts and no workspace.
  */
-import { getDb, FieldValue } from '../db/firestore';
+import { getDb, FieldValue, isWorkspaceMemberData } from '../db/firestore';
 import type { DocumentData, Firestore } from '../db/firestore';
 import type { Bill, Estimate, Invoice, RecurringTransaction, Transaction } from '../../types';
 import { nextEstimateDraft } from '../../lib/recurringEstimates';
 import { findDueRecurring } from '../../lib/recurringEngine';
 import { addDaysYMD } from '../../lib/fiscalCalendar';
 import { assertPostingOpen } from '../../lib/periodLock';
+import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
+import { settleHomeCurrency } from '../../lib/txFilters';
+import { ledgerWrite } from './ledgerDoor';
 import { allocateNextNumber } from '../routes/workspaceRoutes';
 import { allocateInTransaction } from './numberingService';
 import { notify } from './notificationService';
@@ -254,21 +257,28 @@ async function generateEntry(db: Firestore, rule: RecurringTransaction, generate
   }
   const txRef = db.collection('transactions').doc();
   await db.runTransaction(async (tx) => {
+    const wsNow = (await tx.get(db.collection('workspaces').doc(rule.workspaceId))).data() || {};
+    if (!isWorkspaceMemberData(wsNow, { uid: rule.uid }, rule.workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, rule.uid))) {
+      throw new Error(`Schedule owner ${rule.uid} no longer holds writer permissions in workspace ${rule.workspaceId}`);
+    }
+    assertPostingOpen(date, wsNow, rule.uid);
     const ruleSnap = await tx.get(db.collection('recurring').doc(rule.id));
     const existing = await tx.get(db.collection('transactions').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
     if (!existing.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
-    tx.set(txRef, {
+    const entryToPost = {
       ...generated,
       id: txRef.id,
       workspaceId: rule.workspaceId,
       uid: rule.uid,
-      currency: rule.template?.currency || workspace.currency || 'USD',
+      currency: rule.template?.currency || wsNow.currency || 'USD',
       exchangeRate: rule.template?.exchangeRate ?? 1,
-      lines: rule.template?.lines,
+      lines: rule.template?.lines?.map(l => ({ ...l })),
       totalAmountCents: rule.template!.lines!.reduce((sum, l) => sum + Math.max(0, l.amountCents), 0),
       createdAt: new Date().toISOString(),
-    });
+    } as Transaction;
+    settleHomeCurrency(entryToPost);
+    await ledgerWrite(tx, txRef, entryToPost as unknown as Record<string, unknown>);
     tx.update(db.collection('recurring').doc(rule.id), {
       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
       lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),

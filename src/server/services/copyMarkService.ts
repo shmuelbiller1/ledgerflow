@@ -15,9 +15,20 @@ export function marksOriginals(workspace: { taxProfiles?: TaxProfiles } | null |
   return books?.place?.country === 'IL' || Boolean(books?.registrations?.some(r => r.kind === 'vat' && r.place.country === 'IL'));
 }
 
-export async function takeCopyMark(db: Firestore, type: string, id: string, workspace: { taxProfiles?: TaxProfiles } | null | undefined): Promise<'original' | 'copy' | undefined> {
+export async function takeCopyMark(
+  db: Firestore,
+  type: string,
+  id: string,
+  workspace: { taxProfiles?: TaxProfiles } | null | undefined,
+  options?: { readOnly?: boolean },
+): Promise<'original' | 'copy' | undefined> {
   const collection = MARKED[type];
   if (!collection || !marksOriginals(workspace)) return undefined;
+  if (options?.readOnly) {
+    const doc = (await db.collection(collection).doc(id).get()).data();
+    if (!doc || doc.status === 'draft' || doc.status === 'void') return undefined;
+    return 'copy';
+  }
   return db.runTransaction(async t => {
     const ref = db.collection(collection).doc(id);
     const doc = (await t.get(ref)).data();

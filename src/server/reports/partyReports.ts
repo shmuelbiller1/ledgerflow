@@ -1,5 +1,6 @@
 import type { Invoice, Bill, Payment, CreditNote, VendorCredit, Customer, Vendor } from "../../types";
 import { getDateInTimezoneISO, getLocalDateISO } from "../../lib/calendarDate";
+import { convertMinorUnits } from "../../lib/currencyMinorUnits";
 
 /** Invoice statuses treated as issued for customer balance and party statement reporting. */
 export const INVOICE_IS_ISSUED = new Set<Invoice['status']>([
@@ -11,8 +12,16 @@ export const BILL_IS_ISSUED = new Set<Bill['status']>([
   'pending', 'approved', 'unpaid', 'overdue', 'partially_paid', 'paid'
 ]);
 
-export function toBaseCents(amountCents: number = 0, exchangeRate?: number): number {
+export function toBaseCents(
+  amountCents: number = 0,
+  exchangeRate?: number,
+  fromCurrency?: string | null,
+  baseCurrency?: string | null,
+): number {
   const rate = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 1;
+  if (fromCurrency && baseCurrency) {
+    return convertMinorUnits(amountCents, rate, fromCurrency, baseCurrency);
+  }
   return Math.round(amountCents * rate);
 }
 

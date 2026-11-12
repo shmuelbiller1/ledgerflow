@@ -57,6 +57,18 @@ describe('what the revaluation is about', () => {
     assert.match(revaluationSummary(result, money), /unrealized loss of \$80\.00/);
   });
 
+  test('uses each currency\'s ISO minor units for JPY and KWD revaluation', () => {
+    const yen = plan([doc({ id: 'j1', number: 'JPY-1', currency: 'JPY', amountCents: 10_000, exchangeRate: 0.0067 })], { JPY: 0.0072 });
+    assert.equal(yen.details[0].bookedBaseCents, 6_700, '10,000 yen at 0.0067 is 6,700 USD cents');
+    assert.equal(yen.details[0].todayBaseCents, 7_200, '10,000 yen at 0.0072 is 7,200 USD cents');
+    assert.equal(lineFor(yen.lines, 'ar'), 500);
+
+    const dinar = plan([doc({ id: 'k1', number: 'KWD-1', currency: 'KWD', amountCents: 12_345, exchangeRate: 3.25 })], { KWD: 3.30 });
+    assert.equal(dinar.details[0].bookedBaseCents, 4_012, '12.345 KWD at 3.25 rounds to 4,012 USD cents');
+    assert.equal(dinar.details[0].todayBaseCents, 4_074, '12.345 KWD at 3.30 rounds to 4,074 USD cents');
+    assert.equal(lineFor(dinar.lines, 'ar'), 62);
+  });
+
   test('a bill is the other way round: the payable is what moves', () => {
     const result = plan([doc({ id: 'b1', side: 'vendor', number: 'BILL-9', partyName: 'Globex', status: 'pending', ...AP })]);
     assert.equal(result.details[0].deltaCents, 12000, 'the bill costs 120.00 more than was booked');
