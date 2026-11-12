@@ -19,8 +19,7 @@ import { DimensionNode } from '../../types';
 import { getLocalDateISO, resolveAccountName, formatCurrency } from '../../lib/utils';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
-import { resolveAccountRole } from '../../lib/accountUtils';
-import { isCashAccount, isPostable, lineAmount } from '../../lib/txFilters';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useTimeout } from '../../hooks/useTimeout';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useDialog } from '../../hooks/useDialog';
@@ -28,6 +27,10 @@ import { focusOnMount } from '../../lib/focusOnMount';
 import { pageIndex, searchPages } from '../../config/pageIndex';
 import { pageKey, type PinnedPage } from '../../lib/pinnedPages';
 import { inBackground } from '../../lib/inBackground';
+import { planTypedEntry } from '../../lib/typedEntryPlan';
+import { db } from '../../firebase';
+import { collection, getDocs, query as dbQuery, where } from '../../lib/db/firestore';
+import type { AutoRule } from '../../types';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -65,43 +68,63 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
     return parseNaturalLanguageEntry(query);
   }, [query]);
 
-  // Execute Natural Language Intent
-  // Execute Natural Language Intent
+  // EU-B6: the account comes from the bank rules or the payee's history, never "the first expense account"; the
+  // preview is in the workspace currency and is confirmed before anything posts
+  const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
+  const [rules, setRules] = useState<AutoRule[]>([]);
+  const [chosenAccountId, setChosenAccountId] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const workspaceId = workspace?.id;
+  useEffect(() => {
+    if (!isOpen || !workspaceId) return;
+    let current = true;
+    getDocs(dbQuery(collection(db, 'autoRules'), where('workspaceId', '==', workspaceId)))
+      .then(snap => { if (current) setRules(snap.docs.map(d => ({ id: d.id, ...d.data() } as AutoRule))); })
+      .catch(() => { if (current) setRules([]); }); // without rules the plan asks or uses history
+    return () => { current = false; };
+  }, [isOpen, workspaceId]);
+  const plan = useMemo(() => {
+    if (parsedIntent.type !== 'transaction') return null;
+    return planTypedEntry({
+      text: query, amountCents: parsedIntent.amountCents || 0, isExpense: parsedIntent.action === 'expense',
+      description: parsedIntent.description || '', parsedPayee: parsedIntent.payee, accounts: ledger.accounts, rules,
+      history: ledger.transactions, nodes: dimensionNodes || [], labelNames: Object.fromEntries((workspace?.dimensions || []).map(d => [d.id, d.name])),
+      format: cents => formatCurrency(cents, workspace?.currency || 'USD'), chosenAccountId,
+    });
+  }, [parsedIntent, query, ledger.accounts, ledger.transactions, rules, dimensionNodes, workspace, chosenAccountId]);
+  const typedAccounts = ledger.accounts.filter(a => !a.isArchived && (plan?.isExpense ? ['expense', 'cost_of_goods'] : ['income']).includes(a.type));
+
   const handleExecuteIntent = async () => {
     if (!parsedIntent || parsedIntent.type === 'unknown') return;
     if (parsedIntent.type === 'transaction') {
-      const amountCents = parsedIntent.amountCents || 0;
-      const isExpense = parsedIntent.action === 'expense';
-      const cashAccount = ledger.accounts.find(a => resolveAccountRole(a) === 'cash') || ledger.accounts.find(a => isCashAccount(a)) || ledger.accounts[0];
-      const categoryAccount = ledger.accounts.find(a => resolveAccountRole(a) === (isExpense ? 'expense' : 'revenue')) || ledger.accounts.find(a => a.type === (isExpense ? 'expense' : 'income')) || ledger.accounts[0];
-      if (!cashAccount || !categoryAccount) {
-        toast.error('Cannot post transaction: No chart of accounts available.');
-        return;
-      }
-      const cashAccountId = cashAccount.id;
-      const categoryAccountId = categoryAccount.id;
-      const cashAccountName = cashAccount.name;
-      const categoryAccountName = categoryAccount.name;
+      if (!plan || plan.question || !plan.accountId || !plan.cashAccountId) { toast.error(plan?.question || 'Choose the account first.'); return; }
+      if (!confirming) { setConfirming(true); return; } // first Enter shows the line to confirm
+      const { amountCents, isExpense } = plan;
+      const labels = Object.keys(plan.labels).length ? plan.labels : undefined;
       await handleQuickAdd({
         date: parsedIntent.dateStr || getLocalDateISO(),
-        description: parsedIntent.description || 'Natural Language Entry',
+        description: plan.description,
+        ...(plan.payee ? { payee: plan.payee } : {}),
         totalAmountCents: amountCents,
+        ...(labels ? { dimensions: labels } : {}),
         lines: [
           {
-            accountId: categoryAccountId,
-            accountName: categoryAccountName,
+            accountId: plan.accountId,
+            accountName: plan.accountName,
             amountCents: isExpense ? amountCents : -amountCents,
-            description: parsedIntent.description || 'NL line'
+            description: plan.description,
+            ...(labels ? { dimensions: labels } : {}),
           },
           {
-            accountId: cashAccountId,
-            accountName: cashAccountName,
+            accountId: plan.cashAccountId,
+            accountName: plan.cashAccountName,
             amountCents: isExpense ? -amountCents : amountCents,
             description: 'Payment settlement'
           }
         ]
       });
-      setQuery('');
+      setQuery(''); setConfirming(false); setChosenAccountId('');
       onClose();
     } else if (parsedIntent.type === 'project' && parsedIntent.projectName) {
       await addEntity('projects', {
@@ -438,7 +461,7 @@ const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? []
                 className="flex-1 bg-transparent border-none outline-none text-gray-900 placeholder-gray-400 text-xl font-medium"
                 placeholder='Type $40 gas cash, paid Maria 150, new project: Aspen, or search...'
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => { setQuery(e.target.value); setConfirming(false); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && parsedIntent.type !== 'unknown') {
                     e.preventDefault();
@@ -465,14 +488,27 @@ const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? []
                       </div>
                       <div>
                         <p className="text-sm font-bold tracking-wide uppercase text-indigo-200">Instant Command Execution (Press Enter)</p>
-                        <p className="text-base font-semibold">{parsedIntent.displaySummary}</p>
+                        <p className="text-base font-semibold" data-testid="typed-entry-preview">{plan ? plan.preview : parsedIntent.displaySummary}</p>
+                        {plan && (plan.because || plan.question || plan.unknownLabels.length > 0) && (
+                          <p className="text-xs text-indigo-100">{plan.question || `${plan.because}${plan.unknownLabels.length ? ` · no label value "${plan.unknownLabels.join('", "')}"` : ''}${confirming ? ' · press Enter again to post' : ''}`}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-bold bg-white/20 px-3 py-1.5 rounded-lg group-hover:bg-white/30 transition-colors">
-                      <span>Execute</span>
+                      <span>{plan ? (confirming ? 'Confirm' : 'Check') : 'Execute'}</span>
                       <ArrowRight aria-hidden="true" size={14} />
                     </div>
                   </button>
+                  {plan && !plan.accountId && plan.amountCents > 0 && (
+                    <label className="mt-2 flex items-center gap-2 text-sm text-indigo-900">
+                      Account
+                      <select aria-label="Account for the typed entry" value={chosenAccountId} onChange={e => setChosenAccountId(e.target.value)}
+                        className="flex-1 rounded-lg border border-indigo-200 bg-white px-2 py-1.5">
+                        <option value="">Choose…</option>
+                        {typedAccounts.map(a => <option key={a.id} value={a.id}>{a.code ? `${a.code} ` : ''}{a.name}</option>)}
+                      </select>
+                    </label>
+                  )}
                 </div>
               )}
 
