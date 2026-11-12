@@ -111,7 +111,7 @@ export default function IsraelMonthJourneyReportView() {
   };
   const partial = Boolean(
     truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits
-    || truncated.customers || truncated.vendors || truncated.chartAccounts || truncated.accounts
+    || truncated.customers || truncated.vendors || truncated.chartAccounts
     || failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits
     || failed.customers || failed.vendors || failed.accounts || filedLoadFailed,
   );
