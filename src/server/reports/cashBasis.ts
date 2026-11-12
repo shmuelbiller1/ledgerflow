@@ -24,6 +24,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { reversedTransactionIds } from '../../lib/postingCheck';
 import { computeBalanceSheet, isCashFlowCashAccount } from './computeReports';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 
 export interface CashBasisPayment {
   id: string;
@@ -32,6 +33,8 @@ export interface CashBasisPayment {
   date?: string;
   /** document currency → base, as the payment cleared the receivable or payable */
   exchangeRate?: number;
+  /** BM-04: the payment's own currency (¥ has no decimals, KWD three); missing legacy data is the books' currency */
+  currency?: string;
   allocations?: Array<{ documentId: string; documentType: 'invoice' | 'bill'; amountCents: number }>;
 }
 
@@ -58,7 +61,7 @@ export function shareOfLines<L extends { amountCents: number }>(lines: L[], shar
   return out;
 }
 
-export function cashBasisEntries(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[]): CashBasisEntries {
+export function cashBasisEntries(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[], baseCurrency = 'USD'): CashBasisEntries {
   const byId = new Map(accounts.map(a => [a.id, a]));
   const role = (id: string) => { const a = byId.get(id); return a ? resolveAccountRole(a) : 'unknown'; };
   const notTrade = (id: string) => NOT_TRADE.test(String(byId.get(id)?.name || ''));
@@ -82,7 +85,9 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
       const kind = key === 'invoiceId' ? 'invoice' : 'bill';
       accruals.set(`${kind}:${String(meta[key])}`, tx);
       // cash in the posting itself (a document marked paid) counts on its own date
-      const lines = (tx.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, tx), exchangeRate: 1 }));
+      // the lines are now in the books' cents at rate 1, so the accrual's own baseAmountCents is dropped:
+      // `lineAmount` prefers it, and a share of these lines would then be read at the whole document's value
+      const lines = (tx.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, tx), baseAmountCents: undefined, exchangeRate: 1 }));
       const cash = lines.filter(isCash).reduce((s, l) => s + (kind === 'invoice' ? Math.max(0, l.amountCents) : Math.max(0, -l.amountCents)), 0);
       const owed = owedOn(lines, kind);
       // its cash lines stay (the balance sheet's bank balance), with the paid share of the rest
@@ -108,10 +113,15 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
     for (const a of p.allocations || []) {
       const accrual = accruals.get(`${a.documentType}:${a.documentId}`);
       if (!accrual || !date || !(a.amountCents > 0)) continue;
-      const lines = (accrual.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, accrual), exchangeRate: 1 }));
+      const lines = (accrual.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, accrual), baseAmountCents: undefined, exchangeRate: 1 }));
       const owed = owedOn(lines, a.documentType);
       if (owed === 0) continue;
-      const share = Math.min(1, (a.amountCents * rate) / owed);
+      // BM-04 (#651): both sides of this share must be in the books' cents. The allocation is in the
+      // payment's minor units, so it is converted with the rate AND the minor-unit shift; `owed` is the
+      // accrual's own posting, which is already base cents. Without the shift a fully paid ¥100,000
+      // invoice at 0.0067 recognised 670 of 67,000 (1% of its revenue).
+      const paidBaseCents = convertMinorUnits(a.amountCents, rate, p.currency, baseCurrency);
+      const share = Math.min(1, paidBaseCents / owed);
       entries.push({
         ...accrual, id: `${accrual.id}:paid:${p.id}`, date, exchangeRate: 1,
         description: `${accrual.description || ''} (paid ${date})`, lines: shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), share),
@@ -134,9 +144,9 @@ export function tradeAccountIds(accounts: ChartAccount[]): Set<string> {
  * liabilities (`notApplied`), so the sheet still balances. Books that don't balance on accrual basis
  * are shown as they are, without that line.
  */
-export function cashBasisBalanceSheet(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[], endDate?: string) {
+export function cashBasisBalanceSheet(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[], endDate?: string, baseCurrency = 'USD') {
   const accrual = computeBalanceSheet(accounts, transactions, endDate);
-  const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments);
+  const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments, baseCurrency);
   const trade = tradeAccountIds(accounts);
   const kept = accounts.filter(a => !trade.has(a.id));
   const without = entries.map(t => ({ ...t, lines: (t.lines || []).filter(l => !trade.has(l.accountId)) }));
