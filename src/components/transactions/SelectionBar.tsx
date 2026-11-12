@@ -34,7 +34,8 @@ export default function SelectionBar({
   const pick = choices.find(c => c.label.toLowerCase() === typed || c.value === text)
     || choices.find(c => accounts.find(a => a.id === c.value)?.name.toLowerCase() === typed);
   const match = pick ? accounts.find(a => a.id === pick.value) : undefined;
-  const apply = () => { if (match) { onBulkUpdate({ accountId: match.id }); setText(''); } };
+  // the typed account stays if the save was refused (the save already said why)
+  const apply = () => { if (match) void Promise.resolve(onBulkUpdate({ accountId: match.id })).then(() => setText(''), () => undefined); };
   // EU-E2: "Set label" — one label and its value on every selected entry (through the same bulk save and Undo)
   const labelDefs = (useAuthStore(state => state.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
   const nodes = useLedgerStore(state => state.dimensionNodes) || [];
