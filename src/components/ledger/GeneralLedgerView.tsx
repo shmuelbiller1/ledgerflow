@@ -144,6 +144,10 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
     );
   }, [glData.accounts, searchTerm]);
 
+  // Row pagination resets when the requested period or account search changes.
+  // This is an internal hook key; it is never displayed as a reader-facing date.
+  const paginationKey = [startDate, endDate, searchTerm].join('|');
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div id="general-ledger-sheet" data-print-root={embedded ? undefined : ''} className="space-y-6">
@@ -232,7 +236,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
 
       {/* Account Ledgers List */}
       <div className="space-y-6">
-        {filteredAccounts.map(acc => <AccountLedgerCard key={acc.accountId} acc={acc} resetKey={`${startDate}|${endDate}|${searchTerm}`} dateText={reportDates.dateText} />)}
+        {filteredAccounts.map(acc => <AccountLedgerCard key={acc.accountId} acc={acc} resetKey={paginationKey} dateText={reportDates.dateText} />)}
       </div>
       </div>
     </div>
