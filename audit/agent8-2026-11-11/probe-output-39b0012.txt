@@ -1,0 +1,70 @@
+# Agent #8 probe output at upstream main 39b0012881fdc78edab2479fb62b0b632234aa82 (2026-11-11)
+# Re-verification after PR #635 (fixes #627, #628) and PR #634 (fixes #629).
+
+==== af004-614-residual.ts — the acceptance test named in #627/#628 ====
+=== R1: #519 destination snapshot — state return vs the journey certificate step ===
+OK     R1a #519 holds in usSalesTaxReturn: the July California sale stays in the CA return after the customer moves: documentCount 1 -> 1, exemptSalesCents 10000 -> 10000
+OK     R1b the journey certificate step honours the same saved destination: customer in CA: status=not-applicable; customer moved to TX: status=not-applicable — the step's answer does not change when the customer moves, because the sale's own destination is still California.
+OK     R1c product-exempt sale remains certificate-not-applicable after customer move: the CA return counts this sale as an exempt California sale in both cases (documentCount=1) and the certificate step stays "not-applicable" both times, so no certificate is demanded that the sale's own destination state never required.
+
+=== R2: #517 seller entity label — state return vs the journey certificate step ===
+OK     R2a #517 holds in usSalesTaxReturn: the Israeli branch's sale is not in the California permit's return: documentCount=0
+OK     R2b the journey certificate step reads the same seller label: usSalesTaxReturn counts 0 document(s) for this sale under the CA permit and the journey's certificate step counts 0 zero-tax US sale(s): the two agree, because the step resolves the seller from the first line's labels exactly as the return does.
+OK     R2c control: the same sale with no entity label IS counted (proves R2b is not vacuous): unlabelled sale -> certificate step counts 1 zero-tax US sale(s); first-line-labelled IL sale -> 0. Both are the same money, the same customer, the same date.
+
+=== R3: cross-country inheritance in resolveSellerProfile (never covered by #517/#518/#519) ===
+OK     R3a an Israeli entity does not inherit a US state: resolveSellerProfile returned place {"country":"IL"} from ["world:il","books"]: an Israeli entity carries no US state, so the country border stops the inheritance.
+OK     R3b an Israeli branch sale is not counted in a US state return: the IL-labelled over-the-counter sale is outside the California return: documentCount=0, grossSalesCents=0.
+
+=== R3c: the repository's OWN tax-profile fixture, resolved at the level no test resolves ===
+OK     R3c "Acme US" is not situated in Tel Aviv and does not hold an Israeli VAT number: resolveSellerProfile(world:us) -> place {"country":"US"}, vat registrations [] (from ["world:us","books"]): a US entity under Israeli books keeps neither the Israeli city nor the Israeli VAT number, so ilVatReturn.belongsTo (which matches on registrationKey) cannot count its invoices.
+OK     R3d a Texas entity with no own city does not inherit a foreign one: resolveSellerProfile(world:us/texas) -> place {"country":"US","state":"TX"}: no foreign city. This place is what Settings -> Tax profiles shows as the entity's inherited place, and what the over-the-counter buyer-state fallback uses.
+OK     R3e scope control: the invoice rate suggestion is NOT wrong-country (resolveLineTax branches on country): resolveLineTax for Acme US returned reason=not-registered rate=0: the country is correct, so the harm was in the RETURNS (which match on registrationKey), not in the suggested rate.
+
+all cases OK — #627 and #628 hold at this SHA
+
+==== af004-tax-authority-probe.ts (P1-P8) ====
+OK     AF-004-P1 place merge across countries: expected place of an Israeli entity to carry no US state; observed {"country":"IL"} (from ["world:il","books"])
+OK     AF-004-P2 Israeli sale leaks into Texas return: expected 0 documents in the Texas permit return; observed documentCount=0, grossSalesCents=0
+OK     AF-004-P3 #518 guard: a US sale with no state is reported in `unplaced`, in no state return: expected documentCount=0 with unplaced 1 doc / 10000 net / 825 tax; observed documentCount=0, unplaced={"documentCount":1,"netCents":10000,"taxCents":825,"documents":1}
+OK     AF-004-P4 non-US buyer: state return vs quarter journey disagree: usSalesTaxReturn documentCount=0 for this Canadian buyer; real usQuarterJourney certificate step counts not found zero-tax sale(s) to a US customer (seller state fallback)
+OK     AF-004-P4 control: absent buyer destination falls back to seller state in both consumers: expected TX return=1 and certificate zero-tax sales=1; observed return=1, journey=1
+OK     AF-004-P7 US branch sale lands in the Israeli VAT return: expected 0 documents in the IL VAT return for a US-labelled sale; observed documentCount=0, taxableSalesCents=0
+OK     AF-004-P5 control: conflicting legalForm reported as conflict: conflicts=1, chosen=llc (first dimension in order)
+DEFECT AF-004-P6 duplicate verified/declared set value stays unverified: verified=false although a verified copy of the same value exists (conservative: a false negative, not an unsafe pass)
+OK     AF-004-P8 #517 guard: the US return honours the first line's entity label: expected the Israeli-branch invoice (label on items[0]) to be outside the Texas return; observed documentCount=0
+
+==== af007-report-cache-growth.ts — NEW finding, filed as issue #645 (still live) ====
+key function under test: the real getCacheKey exported from src/server/routes/reportRoutes.ts:50
+
+=== C1: a query parameter the report ignores still makes a new cache key ===
+DEFECT C1 an ignored query parameter does not change the cache key: four requests that compute the SAME report (identical workspaceId/startDate/endDate, one with no extra parameter and three with n=1,2,3) produced 4 distinct keys. Each is a cache miss, so each recomputes the whole report and each stores a new entry: keys a8a22941, 9168b942, 60e6e959, no-extra 2693afc1.
+DEFECT C1b the documented parameters alone bound the key space: varying only endDate over one year of valid YYYY-MM-DD values gives 365 distinct keys. Both the extra-parameter route and the ordinary date-range route grow the Map; the second needs no crafted input at all.
+
+=== C2: entries are never removed, so peak size is permanent ===
+DEFECT C2 expired entries are evicted: 2000 entries stored during the burst; after every one expired, the read correctly returned nothing (stale data is NOT served) but the Map still holds 2000 entries. Nothing deletes them: no delete, no clear, no sweep, no size cap. The memory is retained for the life of the process, and each further distinct query adds to it.
+OK     C2b stale data is never served (the TTL itself works — this part is correct): the expiry check at lines 113-114/146-147 does its job: an expired entry is not returned. The defect is that it is also never removed, so correctness of the answer is not what is at risk here — availability is.
+       scale: a stand-in body of 200 account rows is 7188 bytes; a real P&L or balance sheet for a busy workspace is larger. 2000 such entries ≈ 13.7 MB retained from one burst, and the burst can be repeated with new parameter values indefinitely.
+
+=== C3 control: every other in-process cache in this server IS bounded ===
+       bounded: src/server/http/cspViolations.ts:43,130-133 — MAX_VIOLATION_GROUPS = 200, then counted as `dropped` and not stored (src/tests/csp-report-only.test.ts:352-358 pushes cap+50 and asserts groups.length === cap)
+       bounded: src/server/auth/supabaseAuth.ts:92 — `if (authenticatorCache.size > 10_000) authenticatorCache.clear()` before each insert (not tested)
+       bounded: src/server/auth/supabaseAuth.ts:112 — `if (twoStepCache.size > 10_000) twoStepCache.clear()` before each insert (not tested)
+       bounded: src/server/routes/plaidWebhookRoutes.ts:30-43 — an unknown `kid` throws at line 37 BEFORE the set at line 43, so only real Plaid key ids are ever cached; plus plaidWebhookLimiter (clearPlaidWebhookKeysForTests seam exists)
+DEFECT C3 REPORT_CACHE follows the same convention as its four siblings: it is the only module-level cache in src/server/ with no cap, no delete and no sweep. Its own comment at line 49 explains that the snapshot is part of the key "so a stale or rebuilt one is never answered from the cache" — the author was thinking carefully about staleness here, which is why the absence of any eviction looks like an oversight rather than a decision. Note the key is per-user (line 51 includes requestUser(req)?.uid), so this is NOT cross-tenant data exposure: it is unbounded growth, not a leak of figures.
+
+4 case(s) reported DEFECT
+
+==== af012 chain-order and shipped packs (#161 guard) ====
+order A,B,C -> applied A,C | displaced B by A
+order B,A,C -> applied A,C | displaced B by A
+order C,B,A -> applied C,A | displaced B by A
+packs: 18, rules: 584, overrides: 67
+override targets that are themselves overrides: 0
+dangling targets: 0
+
+==== af004-519-customer-moves.ts ====
+snapshot written on issue: {"taxPlace":{"country":"US","state":"TX"}}
+customer still in TX: documentCount=1 grossSalesCents=10000 taxCollectedCents=825
+customer moved to CA: documentCount=1 grossSalesCents=10000 taxCollectedCents=825
+EXPECTED per the #255 contract (usNexusWatch reads the invoice snapshot): the July sale stays in the TX return either way.

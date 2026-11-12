@@ -5,8 +5,8 @@
  *
  * Purpose: PR #614 (merged 2026-11-10T17:37Z) closed #517, #518 and #519 by rewriting
  * `usSalesTaxReturn`. It changed only `src/lib/tax/usSalesTaxReturn.ts` and `src/lib/usQuarterJourney.ts`'s
- * unplaced reporting. This probe re-runs the REAL libraries at this SHA and checks whether the two
- * consumers of the same quarter now agree.
+ * unplaced reporting. This probe re-runs the REAL libraries and checks whether the two consumers of the
+ * same quarter agree, and whether `resolveSellerProfile` inherits across a country border.
  *
  * `src/lib/usQuarterJourney.ts` states its own contract twice:
  *   - file header: "Every figure is computed by the existing pure library the screen already uses, so
@@ -15,16 +15,32 @@
  *     seller's permit, the buyer's state with the seller's place as the over-the-counter fallback), so
  *     the two counts agree"
  *
+ * HISTORY — read this before interpreting the output:
+ *   At `ec3ff49336c53eeed531a79ac32cc08d1574ec96` this probe reported 7 DEFECT / 4 OK. Those defects were
+ *   filed as issues #627 (R1b, R1c, R2b) and #628 (R3a-R3d) and fixed by PR #635
+ *   (`claude/tax-profile-borders`, merged 2026-11-11T17:27Z), which extracted one exported
+ *   `usSaleDestination` used by both the return and the journey, moved the journey's seller to
+ *   `documentEntityLabels`, and stopped `resolveSellerProfile` inheriting place, registrations and
+ *   advance-tax settings from a level in a different country.
+ *   At `39b0012881fdc78edab2479fb62b0b632234aa82` ALL ELEVEN CASES PASS. This file is now the regression
+ *   guard for #627 and #628: if any case below prints DEFECT, one of those fixes has been undone.
+ *
  * Each case prints OBSERVED vs EXPECTED. "DEFECT" = observed differs from the contract the source
- * itself states. Exit code is 0 on purpose: the probe documents behaviour, it does not gate CI.
+ * itself states. The diagnosis of WHY a case fails is printed only on the failing line, so an OK line
+ * never carries failure text that could be misread as a live defect.
+ * Exit code is 0 on purpose: the probe documents behaviour, it does not gate CI.
  */
 import { usSalesTaxReturn } from '../../../src/lib/tax/usSalesTaxReturn';
 import { usQuarterJourney } from '../../../src/lib/usQuarterJourney';
 import { registrationKey, registrationsOn, resolveSellerProfile, type TaxProfiles } from '../../../src/lib/tax/profile';
 import { resolveLineTax } from '../../../src/lib/tax/resolveLineTax';
 
-const report = (id: string, ok: boolean, detail: string) =>
-  console.log(`${ok ? 'OK    ' : 'DEFECT'} ${id}: ${detail}`);
+let failures = 0;
+/** `detail` is always printed; `why` (the diagnosis) is printed only when the case fails. */
+const report = (id: string, ok: boolean, detail: string, why?: string) => {
+  if (!ok) failures++;
+  console.log(`${ok ? 'OK    ' : 'DEFECT'} ${id}: ${detail}${ok || !why ? '' : `\n         why: ${why}`}`);
+};
 
 const QUARTER = '2026-Q3';
 const TODAY = '2026-11-11';
@@ -102,19 +118,23 @@ console.log('=== R1: #519 destination snapshot — state return vs the journey c
   report(
     'R1b the journey certificate step honours the same saved destination',
     stepBefore.status === stepAfter.status && stepBefore.detail === stepAfter.detail,
-    `customer in CA: status=${stepBefore.status} (${stepBefore.detail.slice(0, 120)}); ` +
-      `customer moved to TX: status=${stepAfter.status} (${stepAfter.detail.slice(0, 120)}). ` +
-      `The journey re-derives the buyer's state from the customer's place TODAY (usQuarterJourney.ts:330-331), ` +
-      `so exemptByProduct is looked up in the wrong state's table.`,
+    `customer in CA: status=${stepBefore.status}; customer moved to TX: status=${stepAfter.status} — the step's ` +
+      `answer does not change when the customer moves, because the sale's own destination is still California.`,
+    `the journey re-derived the buyer's state from the customer's place TODAY instead of the sale's saved ` +
+      `destination, so exemptByProduct was looked up in the wrong state's table (digital-goods: CA exempt, TX ` +
+      `taxable) and the step flipped to "${stepAfter.status}" (${stepAfter.detail.slice(0, 120)}).`,
   );
 
   // Product-exempt sales are counted in the return but excluded from the certificate worklist.
   report(
     'R1c product-exempt sale remains certificate-not-applicable after customer move',
     stepBefore.status === 'not-applicable' && stepAfter.status === 'not-applicable',
-    `the CA return counts this sale as an exempt California sale in both cases (documentCount=${after.documentCount}); ` +
-      `the certificate step says "${stepAfter.status}" once the customer moves, demanding a certificate the sale's own ` +
-      `destination state never required.`,
+    `the CA return counts this sale as an exempt California sale in both cases (documentCount=${after.documentCount}) ` +
+      `and the certificate step stays "${stepAfter.status}" both times, so no certificate is demanded that the ` +
+      `sale's own destination state never required.`,
+    `the certificate step said "${stepAfter.status}" once the customer moved, demanding a certificate for a sale ` +
+      `whose destination state exempts the product — the two counts no longer agreed, contrary to the invariant ` +
+      `usQuarterJourney.ts:304-306 states about itself.`,
   );
 }
 
@@ -162,15 +182,15 @@ console.log('=== R2: #517 seller entity label — state return vs the journey ce
   const step = (journey as unknown as { steps: Array<{ id: string; status: string; detail: string; figures?: Array<{ label: string; count: number }> }> })
     .steps.find(s => s.id === 'certificates');
   const zeroTax = step?.figures?.find(f => f.label === 'Zero-tax sales')?.count ?? 0;
-  // usQuarterJourney.ts:327 still reads doc.dimensions, which this invoice does not carry; it therefore falls
-  // back to the books and counts the Israeli branch's sale in the US quarter's certificate worklist.
   report(
     'R2b the journey certificate step reads the same seller label',
     zeroTax === 0,
-    `usSalesTaxReturn counts ${ret.documentCount} document(s) for this sale under the CA permit, but the journey's ` +
-      `certificate step counts ${zeroTax} zero-tax US sale(s) — it resolves the seller from doc.dimensions ` +
-      `(usQuarterJourney.ts:327) instead of documentEntityLabels (usSalesTaxReturn.ts:78, ilVatReturn.ts:54), ` +
-      `so the first line's entity label is invisible to it.`,
+    `usSalesTaxReturn counts ${ret.documentCount} document(s) for this sale under the CA permit and the journey's ` +
+      `certificate step counts ${zeroTax} zero-tax US sale(s): the two agree, because the step resolves the seller ` +
+      `from the first line's labels exactly as the return does.`,
+    `the two disagreed (return ${ret.documentCount}, journey ${zeroTax}) because the step resolved the seller from ` +
+      `doc.dimensions instead of documentEntityLabels (usSalesTaxReturn.ts:78, ilVatReturn.ts:54), so the first ` +
+      `line's entity label was invisible to it and the sale fell back to the books' CA permit.`,
   );
 
   // Control: the very same sale with no entity label anywhere belongs to the books, so it MUST be counted.
@@ -192,21 +212,24 @@ console.log('=== R2: #517 seller entity label — state return vs the journey ce
     controlZeroTax === 1,
     `unlabelled sale -> certificate step counts ${controlZeroTax} zero-tax US sale(s); ` +
       `first-line-labelled IL sale -> ${zeroTax}. Both are the same money, the same customer, the same date.`,
+    `the control counted ${controlZeroTax}, not 1, so the step is not counting anything at all — R2b's zero would ` +
+      `be vacuous and this probe would be proving nothing.`,
   );
 }
 
 console.log('');
 console.log('=== R3: cross-country inheritance in resolveSellerProfile (never covered by #517/#518/#519) ===');
 {
-  // profile.ts:99 merges a place field-by-field across the whole chain, and profile.ts:98 lets a label with no
-  // registrations inherit the books'. Neither line was touched by #614.
+  // A label in a different country from the books must not take the books' place fields or registrations.
   const ilBranch: TaxProfiles = { books, labels: { 'world:il': { name: 'Acme Israel branch', place: { country: 'IL' } } } };
   const seller = resolveSellerProfile(ilBranch, { world: 'il' }, order);
   report(
     'R3a an Israeli entity does not inherit a US state',
     !(seller.place?.country === 'IL' && seller.place?.state === 'CA'),
     `resolveSellerProfile returned place ${JSON.stringify(seller.place)} from ${JSON.stringify(seller.from)}: ` +
-      `the books' state survives into a different country (profile.ts:99).`,
+      `an Israeli entity carries no US state, so the country border stops the inheritance.`,
+    `the books' state survived into a different country (place ${JSON.stringify(seller.place)}), because ` +
+      `profile.ts merged the place field-by-field across the whole chain with no country check.`,
   );
 
   const counterSale = {
@@ -220,10 +243,11 @@ console.log('=== R3: cross-country inheritance in resolveSellerProfile (never co
   report(
     'R3b an Israeli branch sale is not counted in a US state return',
     ret.documentCount === 0,
-    `the IL-labelled over-the-counter sale inherits the books' CA permit (profile.ts:98) and the books' state via ` +
-      `the merged place (profile.ts:99), so it lands in the California return: documentCount=${ret.documentCount}, ` +
-      `grossSalesCents=${ret.grossSalesCents}. No open issue covers this: #517/#518/#519 were closed by #614, ` +
-      `which did not change profile.ts.`,
+    `the IL-labelled over-the-counter sale is outside the California return: documentCount=${ret.documentCount}, ` +
+      `grossSalesCents=${ret.grossSalesCents}.`,
+    `the sale landed in the California return (documentCount=${ret.documentCount}, grossSalesCents=${ret.grossSalesCents}) ` +
+      `because the IL label inherited the books' CA permit and, through the merged place, the books' state — which ` +
+      `usSalesTaxReturn then used as the over-the-counter fallback.`,
   );
 }
 
@@ -256,8 +280,11 @@ console.log('=== R3c: the repository\'s OWN tax-profile fixture, resolved at the
     'R3c "Acme US" is not situated in Tel Aviv and does not hold an Israeli VAT number',
     us.place?.city !== 'Tel Aviv' && usVat.length === 0,
     `resolveSellerProfile(world:us) -> place ${JSON.stringify(us.place)}, vat registrations ${JSON.stringify(usVat)} ` +
-      `(from ${JSON.stringify(us.from)}). ilVatReturn.belongsTo matches on registrationKey, so an invoice labelled ` +
-      `world=us is counted in the ISRAELI VAT return (see P7).`,
+      `(from ${JSON.stringify(us.from)}): a US entity under Israeli books keeps neither the Israeli city nor the ` +
+      `Israeli VAT number, so ilVatReturn.belongsTo (which matches on registrationKey) cannot count its invoices.`,
+    `the US entity inherited the books' city and VAT number (place ${JSON.stringify(us.place)}, vat ` +
+      `${JSON.stringify(usVat)}), and because ilVatReturn.belongsTo matches on registrationKey an invoice labelled ` +
+      `world=us was counted in the ISRAELI VAT return (see af004-tax-authority-probe.ts P7).`,
   );
 
   // The same leak one level down: a Texas LLC that records no city of its own.
@@ -269,9 +296,12 @@ console.log('=== R3c: the repository\'s OWN tax-profile fixture, resolved at the
   report(
     'R3d a Texas entity with no own city does not inherit a foreign one',
     tx.place?.city !== 'Tel Aviv',
-    `resolveSellerProfile(world:us/texas) -> place ${JSON.stringify(tx.place)}: the books' city survives into another ` +
-      `country. This place is what Settings -> Tax profiles shows as the entity's inherited place, and what ` +
-      `usSalesTaxReturn.ts:91 / usQuarterJourney.ts:331 use as the over-the-counter buyer-state fallback.`,
+    `resolveSellerProfile(world:us/texas) -> place ${JSON.stringify(tx.place)}: no foreign city. This place is what ` +
+      `Settings -> Tax profiles shows as the entity's inherited place, and what the over-the-counter buyer-state ` +
+      `fallback uses.`,
+    `the books' city survived into another country (place ${JSON.stringify(tx.place)}), so Settings showed a Texas ` +
+      `entity as inherited-placed in Tel Aviv and the over-the-counter fallback in usSalesTaxReturn / ` +
+      `usQuarterJourney used a foreign sub-country field.`,
   );
 
   // Honest scoping: the leaked sub-country fields do NOT make the invoice suggest a wrong-country RATE,
@@ -282,6 +312,12 @@ console.log('=== R3c: the repository\'s OWN tax-profile fixture, resolved at the
     'R3e scope control: the invoice rate suggestion is NOT wrong-country (resolveLineTax branches on country)',
     lineTax.reason === 'not-registered' || lineTax.reason === 'no-rate-table' || lineTax.rate === 0,
     `resolveLineTax for Acme US returned reason=${lineTax.reason} rate=${lineTax.rate}: the country is correct, so ` +
-      `the harm is in the RETURNS (which match on registrationKey), not in the suggested rate.`,
+      `the harm was in the RETURNS (which match on registrationKey), not in the suggested rate.`,
   );
 }
+
+console.log('');
+console.log(failures === 0
+  ? 'all cases OK — #627 and #628 hold at this SHA'
+  : `${failures} case(s) reported DEFECT — a #627/#628 fix has been undone, or the contract moved`);
+process.exit(0);
