@@ -28,3 +28,15 @@ test('EU-B5: a save that failed shows no Done and no Undo', async () => {
   assert.equal(await changeWithUndo({ done: 'x', undone: 'y', before: 1, after: 2, save: async () => false }), false);
   assert.equal(shown, 0);
 });
+
+test('EU-B5: a save that throws (handleFirestoreError reports, then throws) is "not saved", also on Undo', async () => {
+  const shown: Array<{ text: string; undo?: () => void }> = [];
+  (toast as { success: unknown }).success = (text: string, opts?: { action?: { onClick: () => void } }) => { shown.push({ text, undo: opts?.action?.onClick }); return 1; };
+  assert.equal(await changeWithUndo({ done: 'x', undone: 'y', before: 1, after: 2, save: async () => { throw new Error('refused'); } }), false);
+  assert.equal(shown.length, 0);
+  let calls = 0;
+  await changeWithUndo({ done: 'x', undone: 'y', before: 1, after: 2, save: async () => { calls++; if (calls > 1) throw new Error('refused'); return true; } });
+  shown[0].undo!();
+  await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(shown.map(s => s.text), ['x'], 'a failed Undo says nothing more and rejects nothing');
+});

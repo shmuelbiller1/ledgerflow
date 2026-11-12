@@ -97,16 +97,18 @@ export default function Sales() {
     // A customer typed in the invoice that isn't on the list yet is added first
     if (typeof data.customerId === 'string' && data.customerId.startsWith('new-')) {
       const name = String(data.customerName || '').trim();
-      if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); return; }
+      // nothing saved: throw (the toast says why) so the invoice form and its kept draft stay open (EU-B3)
+      if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); throw new Error('No customer name'); }
       const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
-      if (!created) return;
+      if (!created) throw new Error('Customer not saved');
       data = { ...data, customerId: created.id };
     }
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;
     if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
-      res = await addEntity('invoices', data); 
+      res = await addEntity('invoices', data);
+      if (!res) throw new Error('Invoice not saved'); // the save said why; the form and draft stay
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;
       if (res && uid && Array.isArray(attachmentFiles) && attachmentFiles.length) {

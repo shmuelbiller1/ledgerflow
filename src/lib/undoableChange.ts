@@ -17,7 +17,9 @@ export async function changeWithUndo<V>(opts: {
   /** saves a value; false (or a throw) means it was not saved and the save already said why */
   save: (value: V) => Promise<boolean>;
 }): Promise<boolean> {
-  const { done, undone, before, after, save } = opts;
+  const { done, undone, before, after } = opts;
+  // a save that throws has already shown why (handleFirestoreError); here it only means "not saved"
+  const save = (value: V) => opts.save(value).catch(() => false);
   if (!(await save(after))) return false;
   toast.success(done, {
     duration: UNDO_MS,
