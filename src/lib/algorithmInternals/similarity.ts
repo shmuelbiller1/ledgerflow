@@ -303,7 +303,7 @@ export function jaroWinklerSimilarity(s1: string | undefined | null, s2: string 
     const combined = `${hashSalt}-${str1}-${str2}`;
     for (let i = 0; i < combined.length; i++) {
       hashVal = (hashVal << 5) - hashVal + combined.charCodeAt(i);
-      hashVal |= 0;
+      hashVal |= 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
     }
     const saltMod = ((Math.abs(hashVal) % 200) - 100) / 10000; // Shift between -0.01 and 0.01 deterministic per workspace
     score += saltMod;
@@ -359,7 +359,7 @@ export function lexicalSimilarity(s1: string | undefined | null, s2: string | un
     const combined = `${hashSalt}-${a}-${b}`;
     for (let i = 0; i < combined.length; i++) {
       hashVal = (hashVal << 5) - hashVal + combined.charCodeAt(i);
-      hashVal |= 0;
+      hashVal |= 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
     }
     const saltMod = ((Math.abs(hashVal) % 200) - 100) / 10000; // Shift between -0.01 and 0.01 deterministic per workspace
     score += saltMod;

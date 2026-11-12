@@ -79,7 +79,7 @@ export async function allSettledWrites<I, T>(items: I[], write: (item: I) => Pro
 export function operationIdFor(ids: Map<string, string>, body: string): string {
   const existing = ids.get(body);
   if (existing) return existing;
-  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; // NOSONAR: S2245 — non-cryptographic Math.random fallback for idempotency operation id
   ids.set(body, id);
   return id;
 }

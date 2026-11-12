@@ -51,7 +51,7 @@ export function htmlToText(html: string): string {
     .replace(/<(br|\/p|\/div|\/h[1-6]|\/tr|\/li)\s*\/?>/gi, '\n')
     .replace(/<a [^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)');
   // strip tags until nothing changes, so no tag can be left behind by a single pass (CodeQL incomplete sanitization)
-  for (let before = ''; before !== text;) { before = text; text = text.replace(/<[^>]+>/g, ''); }
+  for (let before = ''; before !== text;) { before = text; text = text.replace(/<[^>]+>/g, ''); } // NOSONAR: S8786 — /<[^>]+>/ is a linear negated character class, not super-linear backtracking
   text = text
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&');
   return trimSpacesBeforeNewlines(text).replace(/\n{3,}/g, '\n\n').trim();

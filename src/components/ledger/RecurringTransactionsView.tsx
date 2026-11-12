@@ -159,7 +159,7 @@ export default function RecurringTransactionsView() {
       {/* Content: nothing scheduled is said once, above, with the action that fills it */}
       {(!loading && recurring.length === 0) ? null : (
       <div className="flex-1 overflow-auto p-6 pt-0">
-        <div role="region" aria-label="Scrollable recurring templates" tabIndex={0} className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl overflow-x-auto shadow-sm">
+        <div role="region" aria-label="Scrollable recurring templates" tabIndex={0} className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl overflow-x-auto shadow-sm">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left border-collapse">
             <caption className="sr-only">Recurring Transactions</caption>
             <thead>

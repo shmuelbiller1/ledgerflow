@@ -434,7 +434,7 @@ export default function TaxManager({
 
           <div className="bg-[var(--surface)] rounded-[32px] border border-[var(--line)] overflow-hidden shadow-sm relative group">
             <div className="absolute technical-grid inset-0 opacity-[0.01] pointer-events-none" />
-            <div className="overflow-x-auto" role="region" aria-label="Tax liability accounts" tabIndex={0}>
+            <div className="overflow-x-auto" role="region" aria-label="Tax liability accounts" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
               <table className="w-full text-left relative z-10 min-w-[700px]">
                 <caption className="sr-only">Tax liability accounts</caption>
               <thead>

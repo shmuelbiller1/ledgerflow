@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { type SpreadSide } from '../../lib/spreadWaterfall';
 import { useServerSpreadWaterfall } from '../../hooks/useServerSpreadWaterfall';
@@ -48,7 +49,7 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
       </label>
       {waiting && <p role="status">Loading entries…</p>}
       {!valid && <p role="alert">Choose a valid report period.</p>}
-      {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => truncated[k] || failed[k]) && <p role="alert">Loaded ledger history is incomplete or failed. These figures are provisional.</p>}
+      {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => isCollectionCapped(truncated, k) || failed[k]) && <p role="alert">Loaded ledger history is incomplete or failed. These figures are provisional.</p>}
       <RangeReportSourceNote source={source} testId="spread-waterfall-source" what="these figures" />
       {result && (
         <ReportTableScroll>

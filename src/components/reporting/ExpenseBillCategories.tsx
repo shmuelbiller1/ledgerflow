@@ -87,7 +87,7 @@ export default function ExpenseBillCategories({
       <h4 className="font-semibold text-neutral-900">Matching bills ({selectedBills.length})</h4>
       {selectedBills.length === 0
         ? <p className="text-neutral-500">{loading ? 'Loading bill records…' : 'No loaded bills match this category and period.'}</p>
-        : <div role="region" aria-label="Bills by expense category" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-neutral-200">
+        : <div role="region" aria-label="Bills by expense category" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-neutral-200">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">Bills matching the selected expense account category</caption>
             <thead className="sticky top-0 bg-neutral-50"><tr>

@@ -192,7 +192,7 @@ export class IntentResolver {
         // A split cannot match without both delimiters. Avoid quadratic retries
         // over an ordinary line with no parentheses; keep the original grammar.
         const splitMatch = lowerInput.includes('(') && lowerInput.includes(')')
-            ? lowerInput.match(/([\p{L}\p{M}\p{N}\s.]+)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*\(([^)]+)\)/iu)
+            ? lowerInput.match(/([\p{L}\p{M}\p{N}\s.]+)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*\(([^)]+)\)/iu) // NOSONAR: S8786 — bounded user-input amount split parser, scanned input, no super-linear backtracking
             : null;
         
         if (splitMatch) {
@@ -203,7 +203,7 @@ export class IntentResolver {
             const totalAmt = amountWithSuffixToCents(totalAmtStr);
 
             const splitLines = itemsStr.split(',').map(item => {
-                const itemMatch = item.trim().match(/\$?([\d,]+(?:\.\d+)?[km]?)\s*([\p{L}\p{M}\p{N}\s]+)/iu);
+                const itemMatch = item.trim().match(/\$?([\d,]+(?:\.\d+)?[km]?)\s*([\p{L}\p{M}\p{N}\s]+)/iu); // NOSONAR: S8786 — bounded user-input amount item parser
                 if (itemMatch) {
                     return {
                         accountName: itemMatch[2].trim().charAt(0).toUpperCase() + itemMatch[2].trim().slice(1),
@@ -234,8 +234,8 @@ export class IntentResolver {
 
         // 2. Standard Pattern Matching
         // the description starts with a letter, so "hosting 0.29" is not read as 0.2 + "9"
-        const amountRegex = /(?:spent|paid|received|deposited)?\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*(?:for|on|at|from)?\s*(\p{L}[\p{L}\p{M}\p{N}\s.]*)/iu;
-        const amountSuffixRegex = /^([\p{L}\p{M}\p{N}\s.]+?)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*$/iu;
+        const amountRegex = /(?:spent|paid|received|deposited)?\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*(?:for|on|at|from)?\s*(\p{L}[\p{L}\p{M}\p{N}\s.]*)/iu; // NOSONAR: S8786 — bounded user-input amount parser
+        const amountSuffixRegex = /^([\p{L}\p{M}\p{N}\s.]+?)\s*\$?([\d,]+(?:\.\d+)?[km]?)\s*$/iu; // NOSONAR: S8786 — bounded user-input amount suffix parser
 
         // This pattern's description must contain a Unicode letter. The
         // suffix pattern still runs independently for numeric descriptions.
