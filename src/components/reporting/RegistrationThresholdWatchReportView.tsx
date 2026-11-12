@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useServerRegistrationThreshold } from '../../hooks/useServerRegistrationThreshold';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
@@ -48,7 +49,7 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
   const { report, source } = useServerRegistrationThreshold(input);
   // A capped entry list stays provisional even when it seems to cover the windows: an edit that moves a loaded entry
   // before them leaves the cap unrefilled, so in-window entries can be missing (CodeRabbit on #507).
-  const partial = source !== 'server' && ((['accounts', 'transactions'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.dimensionNodes || truncated.chartAccounts));
+  const partial = source !== 'server' && (Boolean(truncated.dimensionNodes) || (['accounts', 'transactions'] as const).some(key => isCollectionCapped(truncated, key) || failed[key]));
 
   const setEntityDimension = (entity: string) => setDimensionSelection({
     key: selectionKey,

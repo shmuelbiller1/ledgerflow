@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
+import { anyCollectionCapped } from '../lib/ledgerCollections';
 import { useLedgerCollections } from './useLedgerCollections';
 import { spreadWaterfall, type SpreadSide, type Waterfall } from '../lib/spreadWaterfall';
 import { rangeRevision } from '../lib/serverTopLines';
@@ -26,7 +27,7 @@ export function useServerSpreadWaterfall(side: SpreadSide, from: string, to: str
   const transactions = useLedgerStore(s => s.transactions);
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
-  const capped = useLedgerStore(s => Boolean(['transactions', 'invoices', 'bills'].some(k => s.truncatedCollections?.[k])));
+  const capped = useLedgerStore(s => anyCollectionCapped(s.truncatedCollections, ['transactions', 'invoices', 'bills']));
   const failed = useDataNeedsStore(s => Boolean(s.failed.transactions || s.failed.invoices || s.failed.bills));
   const own = useMemo(() => {
     const scoped = <T extends { workspaceId?: string }>(rows: T[] | undefined) => (rows || []).filter(r => !workspaceId || !r.workspaceId || r.workspaceId === workspaceId);

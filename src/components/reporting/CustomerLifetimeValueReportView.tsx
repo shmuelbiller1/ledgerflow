@@ -4,6 +4,7 @@ import { useServerCustomerLifetimeValue } from '../../hooks/useServerCustomerLif
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { customerLifetimeValueCsvRows, CUSTOMER_LIFETIME_VALUE_CSV_HEADERS, DEFAULT_LIFESPAN_YEARS } from '../../lib/customerLifetimeValue';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
@@ -40,7 +41,7 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
   const waiting = loading && !settled;
   const { report, source } = useServerCustomerLifetimeValue(asOf, from, usableLifespan ? lifespanYears : DEFAULT_LIFESPAN_YEARS, valid && usableLifespan && !waiting);
 
-  const partial = source !== 'server' && ((['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(key => truncated[key] || failed[key]) || Boolean(truncated.chartAccounts));
+  const partial = source !== 'server' && (['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(key => isCollectionCapped(truncated, key) || failed[key]);
   const currency = workspace?.currency || 'USD';
 
   return <section aria-label="Customer lifetime value" className="p-4 space-y-4 min-w-0">
