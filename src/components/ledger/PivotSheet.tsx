@@ -7,7 +7,7 @@ import { getLineDimension, DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimens
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { PivotSheetView } from './PivotSheetView';
-import { deleteLayout, readLayouts, saveLayout, type CompareLayout } from '../../lib/compareLayouts';
+import { deleteLayout, layoutScope, readLayouts, saveLayout, type CompareLayout } from '../../lib/compareLayouts';
 interface PivotSheetProps {
   transactions: Transaction[];
   isEmbedded?: boolean;
@@ -40,8 +40,9 @@ function usePivotSheetModel({ transactions, isEmbedded = false }: PivotSheetProp
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  // EU-E8: layouts a person saved for Compare, per workspace (src/lib/compareLayouts.ts)
-  const layoutWorkspace = currentWorkspace?.id || '';
+  // EU-E8: layouts a person saved for Compare, per person and workspace (src/lib/compareLayouts.ts)
+  const uid = useAuthStore(s => s.user?.uid || 'guest');
+  const layoutWorkspace = currentWorkspace?.id ? layoutScope(uid, currentWorkspace.id) : '';
   const [layouts, setLayouts] = useState<CompareLayout[]>(() => (layoutWorkspace ? readLayouts(layoutWorkspace) : []));
   const saveCurrentLayout = (name: string): boolean => {
     if (!layoutWorkspace) return false;

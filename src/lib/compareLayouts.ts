@@ -1,10 +1,12 @@
 /**
  * EU-E8: saved layouts for Compare (the pivot). A layout is the view, rows, columns, grouping and period a person
- * named; kept in this browser per workspace. Storage that refuses keeps nothing — Compare works as before.
+ * named; kept in this browser per person and workspace (the scope is `layoutScope(uid, workspaceId)`). Storage that refuses keeps nothing — Compare works as before.
  */
 export interface CompareLayout { name: string; pivotMode: 'flat' | 'matrix'; rowDim: string; colDim: string; groupBy: string; period: string }
 
-export const layoutsKey = (workspaceId: string) => `lf_compare_layouts:${workspaceId}`;
+/** one person's layouts in one workspace: two people sharing a browser never overwrite each other's */
+export const layoutScope = (uid: string, workspaceId: string) => `${uid}:${workspaceId}`;
+export const layoutsKey = (scope: string) => `lf_compare_layouts:${scope}`;
 export const MAX_LAYOUTS = 20;
 
 export function readLayouts(workspaceId: string): CompareLayout[] {

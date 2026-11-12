@@ -298,7 +298,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           const merged = { ...t, ...u };
           if (u['dimensions.category'] !== undefined || u['dimensions.project'] !== undefined) {
             merged.dimensions = {
-              ...t.dimensions,
+              ...merged.dimensions, // EU-E2: labels set in the same update stay
               ...(u['dimensions.category'] !== undefined ? { category: u['dimensions.category'] } : {}),
               ...(u['dimensions.project'] !== undefined ? { project: u['dimensions.project'] } : {})
             };
@@ -317,8 +317,18 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
               const undoPayload: { id: string; data: Partial<Transaction> }[] = [];
               for (const id of ids) {
                 const oldState = oldStates.get(id);
-                if (oldState) {
-                  undoPayload.push({ id, data: oldState });
+                const forward = updatesMap.get(id);
+                if (oldState && forward) {
+                  // only what the update wrote, back to its old value: the batch route refuses every other key
+                  // (identity, date, totals), and a label map the entry did not have goes back to empty
+                  const data: Record<string, unknown> = {};
+                  for (const key of Object.keys(forward)) {
+                    if (key === 'updatedAt') data[key] = new Date().toISOString(); // the undo is a change of its own
+                    else if (key.startsWith('dimensions.')) data[key] = oldState.dimensions?.[key.slice('dimensions.'.length)] ?? null;
+                    else if (key === 'dimensions') data[key] = oldState.dimensions ?? {};
+                    else data[key] = (oldState as unknown as Record<string, unknown>)[key] ?? null;
+                  }
+                  undoPayload.push({ id, data: data as Partial<Transaction> });
                 }
               }
               if (undoPayload.length > 0) {

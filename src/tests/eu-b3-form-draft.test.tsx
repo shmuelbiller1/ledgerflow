@@ -15,7 +15,8 @@ afterEach(() => cleanup());
 
 function Form({ ws, open, onSaved }: { ws: string; open: boolean; onSaved?: () => void }) {
   const [text, setText] = useState('');
-  const draft = useFormDraft({ form: 'invoice', label: 'invoice', workspaceId: ws, open, dirty: text !== '', value: { text }, restore: (k: { text: string }) => setText(k.text) });
+  const draft = useFormDraft({ form: 'invoice', label: 'invoice', workspaceId: ws, open, dirty: text !== '', value: { text }, restore: (k: { text: string }) => setText(k.text),
+    valid: (v: unknown): v is { text: string } => typeof (v as { text?: unknown } | null)?.text === 'string' });
   if (!open) return null;
   return (
     <div>
@@ -61,4 +62,11 @@ test('EU-B3: a draft older than two weeks is not offered', () => {
   render(<Form ws="w1" open />);
   assert.equal(screen.queryByText(/Continue your unsaved/), null);
   assert.equal(localStorage.getItem(draftKey('invoice', 'w1')), null, 'and it is removed');
+});
+
+test('EU-B3: a kept value of the wrong shape is removed, never offered', () => {
+  localStorage.setItem(draftKey('invoice', 'w1'), JSON.stringify({ savedAt: Date.now(), value: null }));
+  render(<Form ws="w1" open />);
+  assert.equal(screen.queryByText(/Continue your unsaved/), null);
+  assert.equal(localStorage.getItem(draftKey('invoice', 'w1')), null);
 });

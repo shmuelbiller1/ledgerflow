@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { readFileSync } from 'node:fs';
 import { REPORT_TABS_REGISTRY } from '../config/registry';
 import CompareReportView from '../components/reporting/CompareReportView';
-import { layoutsKey, readLayouts, saveLayout } from '../lib/compareLayouts';
+import { layoutScope, layoutsKey, readLayouts, saveLayout } from '../lib/compareLayouts';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -40,8 +40,9 @@ test('EU-E8: on the screen — save a layout, and it is offered again', async ()
   render(<CompareReportView />);
   fireEvent.change(screen.getByLabelText('Layout name'), { target: { value: 'By payee' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save layout' })); });
-  const ws = useAuthStore.getState().currentWorkspaceId!;
-  assert.deepEqual(readLayouts(ws).map(l => l.name), ['By payee']);
+  const { currentWorkspaceId, user } = useAuthStore.getState();
+  assert.deepEqual(readLayouts(layoutScope(user?.uid || 'guest', currentWorkspaceId!)).map(l => l.name), ['By payee']);
+  assert.deepEqual(readLayouts(layoutScope('someone-else', currentWorkspaceId!)), [], 'another person in the same browser sees none of them');
   assert.ok(screen.getByRole('option', { name: 'By payee' }));
 });
 

@@ -31,3 +31,7 @@ test('EU-C3: the rule carries the account and the labels, and the next Shell lin
   assert.equal(reviewReason({ tx: line, rules: [saved], accounts }).text, 'rule: Shell → Fuel');
   assert.equal(ruleFromDecision({ description: '0042', accountId: 'fuel' }), null, 'no merchant, no rule');
 });
+
+test('EU-C3: a vocalized Hebrew merchant (niqqud) still gives a rule, keeping the text as written', () => {
+  assert.equal(merchantKey('שָׁלוֹם 0042'), 'שָׁלוֹם');
+});

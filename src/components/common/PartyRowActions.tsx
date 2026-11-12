@@ -24,13 +24,20 @@ export default function PartyRowActions({ side, party }: { side: PartySide; part
   const path = side === 'customer' ? 'customers' : 'vendors';
   const archived = isArchivedParty(party);
 
-  /** EU-B5: archive or restore at once, then "Done · Undo" for ten seconds (src/lib/undoableChange.ts). */
-  const setArchived = (on: boolean) => changeWithUndo({
-    done: on ? `"${party.name}" archived` : `"${party.name}" restored`,
-    undone: `"${party.name}" is back as it was`,
-    before: party.status ?? 'active', after: on ? 'inactive' : 'active',
-    save: status => updateEntity(path, party.id, { status }),
-  });
+  const [changing, setChanging] = useState(false);
+  /** EU-B5: archive or restore at once, then "Done · Undo"; a second click while it saves does nothing. */
+  const setArchived = async (on: boolean) => {
+    if (changing) return false;
+    setChanging(true);
+    try {
+      return await changeWithUndo({
+        done: on ? `"${party.name}" archived` : `"${party.name}" restored`,
+        undone: `"${party.name}" is back as it was`,
+        before: party.status ?? 'active', after: on ? 'inactive' : 'active',
+        save: status => updateEntity(path, party.id, { status }),
+      });
+    } finally { setChanging(false); }
+  };
 
   const remove = async () => {
     if (!workspaceId) return;
@@ -71,7 +78,7 @@ export default function PartyRowActions({ side, party }: { side: PartySide; part
   const button = 'inline-flex items-center justify-center min-h-11 min-w-11 p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--ink)] disabled:opacity-50';
   return (
     <span className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()} role="presentation">
-      <button type="button" className={button} onClick={() => setArchived(!archived)}
+      <button type="button" className={button} disabled={changing} onClick={() => { void setArchived(!archived); }}
         aria-label={`${archived ? 'Restore' : 'Archive'} ${party.name}`} title={archived ? 'Restore (show in lists again)' : 'Archive (hide from lists; records keep it)'}>
         {archived ? <ArchiveRestore aria-hidden="true" className="w-4 h-4" /> : <Archive aria-hidden="true" className="w-4 h-4" />}
       </button>

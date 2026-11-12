@@ -28,7 +28,9 @@ const bills = [{ id: 'b1', number: 'B-1', status: 'pending', vendorName: 'Roofer
 const transactions = [entry('march', '2026-03-01', maui), entry('april', '2026-04-01', maui), entry('aspen', '2026-04-02', { property: 'aspen' })];
 
 const realFetch = globalThis.fetch;
-afterEach(() => { cleanup(); globalThis.fetch = realFetch; window.history.pushState({}, '', '/'); });
+// the stores this test changes go back as they were, also when an assertion fails
+const authBefore = useAuthStore.getState(), ledgerBefore = useLedgerStore.getState();
+afterEach(() => { cleanup(); globalThis.fetch = realFetch; window.history.pushState({}, '', '/'); useAuthStore.setState(authBefore, true); useLedgerStore.setState(ledgerBefore, true); });
 
 test('EU-E6: the open documents and last entries of Maui house, newest first', () => {
   const v = labelValueView({ label: 'property', value: 'maui', transactions, invoices, bills });

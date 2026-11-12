@@ -39,8 +39,10 @@ export function clearFormDraft(key: string): boolean {
  * `value` is what to keep (only while `dirty`); `restore` puts a kept value back into the form.
  * Returns the offer to show (or null) and `clear()` for after a save or a discard.
  */
-export function useFormDraft<T>(opts: { form: string; label: string; workspaceId?: string | null; documentId?: string; open: boolean; dirty: boolean; value: T; restore: (value: T) => void }) {
-  const { form, label, workspaceId, documentId, open, dirty, value, restore } = opts;
+export function useFormDraft<T>(opts: { form: string; label: string; workspaceId?: string | null; documentId?: string; open: boolean; dirty: boolean; value: T; restore: (value: T) => void;
+  /** a kept value this form can take back; one that is not (an older shape, a hand edit) is removed, never offered */
+  valid: (value: unknown) => value is T }) {
+  const { form, label, workspaceId, documentId, open, dirty, value, restore, valid } = opts;
   const key = workspaceId ? draftKey(form, workspaceId, documentId) : '';
   const [offer, setOffer] = useState<Stored<T> | null>(null);
   // the offer is made once per opening (adjusting state during render), before anything typed now is kept over it
@@ -48,7 +50,9 @@ export function useFormDraft<T>(opts: { form: string; label: string; workspaceId
   const want = open && key ? key : '';
   if (offeredFor !== want) {
     setOfferedFor(want);
-    setOffer(want ? read<T>(want) : null);
+    const kept = want ? read<T>(want) : null;
+    if (kept && !valid(kept.value)) clearFormDraft(want);
+    setOffer(kept && valid(kept.value) ? kept : null);
   }
 
   useEffect(() => {
@@ -63,8 +67,8 @@ export function useFormDraft<T>(opts: { form: string; label: string; workspaceId
   const banner = offer ? (
     <div role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
       <span className="flex-1">Continue your unsaved {label}? (kept in this browser {new Date(offer.savedAt).toLocaleString()})</span>
-      <button type="button" onClick={accept} className="rounded border border-amber-400 bg-white px-2.5 py-1 font-semibold">Continue</button>
-      <button type="button" onClick={decline} className="rounded px-2.5 py-1 font-semibold underline">Discard</button>
+      <button type="button" onClick={accept} className="min-h-11 min-w-11 rounded border border-amber-400 bg-white px-2.5 py-1 font-semibold">Continue</button>
+      <button type="button" onClick={decline} className="min-h-11 min-w-11 rounded px-2.5 py-1 font-semibold underline">Discard</button>
     </div>
   ) : null;
 

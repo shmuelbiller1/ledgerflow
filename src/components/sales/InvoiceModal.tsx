@@ -283,6 +283,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const draft = useFormDraft({
     form: receipt ? 'sale-receipt' : 'invoice', label: receipt ? 'sale receipt' : 'invoice', workspaceId: currentWorkspaceId,
     documentId: initialInvoice?.id, open: isOpen, dirty, value: draftValue, restore: restoreDraft,
+    valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && typeof (v as { invoice?: unknown }).invoice === 'object' && (v as { invoice?: unknown }).invoice !== null && Array.isArray((v as { items?: unknown }).items),
   });
   const requestClose = () => {
     if (!dirty || safeConfirm('Discard your changes to this invoice?')) { draft.clear(); onClose(); }

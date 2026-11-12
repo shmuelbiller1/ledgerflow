@@ -44,17 +44,17 @@ export default function LabelValuePageView() {
 
   const today = getLocalDateISO();
   const key = workspace && labelId && valueId ? new URLSearchParams({ workspaceId: workspace.id, dimensionId: labelId, startDate: `${today.slice(0, 4)}-01-01`, endDate: today }).toString() : '';
-  const [profit, setProfit] = useState<{ key: string; netIncome?: number; error?: string } | null>(null);
+  const [profit, setProfit] = useState<{ key: string; valueId: string; netIncome?: number; error?: string } | null>(null);
   useEffect(() => {
     if (!key) return;
     let live = true;
     fetchProfitByLabel<{ columns: Array<{ value: string; netIncome: number }> }>(key)
       .then(report => report.columns)
-      .then(columns => { if (live) setProfit({ key, netIncome: columns.find(c => c.value === valueId)?.netIncome ?? 0 }); })
-      .catch(err => { if (live) setProfit({ key, error: err instanceof Error ? err.message : String(err) }); });
+      .then(columns => { if (live) setProfit({ key, valueId, netIncome: columns.find(c => c.value === valueId)?.netIncome ?? 0 }); })
+      .catch(err => { if (live) setProfit({ key, valueId, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };
   }, [key, valueId]);
-  const profitNow = profit?.key === key ? profit : null;
+  const profitNow = profit?.key === key && profit.valueId === valueId ? profit : null; // never the previous value's profit
 
   if (!labels.length) {
     return <p data-report-empty-state className="p-6 text-sm text-[var(--muted)]">No labels yet. Add one in Settings → Labels, then choose a value to see its page.</p>;

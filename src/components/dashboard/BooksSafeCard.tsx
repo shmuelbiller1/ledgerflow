@@ -38,7 +38,7 @@ export default function BooksSafeCard() {
       <ul className="mt-2 divide-y divide-[var(--line)]">
         {rows.map(row => (
           <li key={row.id}>
-            <button type="button" onClick={() => goToPage(row.page)} className="w-full flex items-center justify-between gap-3 py-2 text-left hover:bg-[var(--elevated)] rounded">
+            <button type="button" onClick={() => goToPage(row.page)} className="w-full flex items-center justify-between gap-3 min-h-11 py-2 text-left hover:bg-[var(--elevated)] rounded">
               <span className={`text-sm ${row.ok ? 'text-[var(--text)]' : 'font-semibold text-amber-700'}`}>{row.text}</span>
               <ChevronRight aria-hidden="true" size={16} className="shrink-0 text-[var(--muted)]" />
             </button>

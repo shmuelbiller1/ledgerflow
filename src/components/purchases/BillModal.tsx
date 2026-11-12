@@ -286,13 +286,14 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
-  const draftValue = { bill, splits, memo };
+  const draftValue = { bill, splits, memo, repeat };
   const restoreDraft = (kept: typeof draftValue) => {
-    setBill(kept.bill); setSplits(kept.splits); setMemo(kept.memo); setDirty(true);
+    setBill(kept.bill); setSplits(kept.splits); setMemo(kept.memo); setRepeat(kept.repeat || ''); setDirty(true);
   };
   const draft = useFormDraft({
     form: 'bill', label: 'bill', workspaceId: useAuthStore.getState().currentWorkspaceId, documentId: initialBill?.id, open: isOpen, dirty,
     value: draftValue, restore: restoreDraft,
+    valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && typeof (v as { bill?: unknown }).bill === 'object' && (v as { bill?: unknown }).bill !== null && Array.isArray((v as { splits?: unknown }).splits),
   });
   const requestClose = () => {
     if (!dirty || safeConfirm('Discard your changes to this bill?')) { draft.clear(); onClose(); }

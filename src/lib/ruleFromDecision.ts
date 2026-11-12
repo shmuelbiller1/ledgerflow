@@ -11,7 +11,8 @@ const NOISE = new Set(['pos', 'card', 'debit', 'credit', 'purchase', 'payment', 
 /** "SHELL 0042" → "shell"; "POS PURCHASE Corner Cafe" → "corner"; nothing usable → "". */
 export function merchantKey(payee?: string, description?: string): string {
   const text = (payee || description || '').toLowerCase().replace(/\*/g, ' ');
-  const word = text.split(/[^\p{L}]+/u).find(w => w.length >= 3 && !NOISE.has(w));
+  // Hebrew vowel marks (niqqud) belong to the word they sit on: "שָׁלוֹם" is one word of four letters
+  const word = text.split(/[^\p{L}\p{M}]+/u).find(w => w.replace(/\p{M}/gu, '').length >= 3 && !NOISE.has(w));
   return word || '';
 }
 

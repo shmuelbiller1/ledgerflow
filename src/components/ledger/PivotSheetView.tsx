@@ -486,19 +486,19 @@ function CompareLayouts({ layouts, onSave, onApply, onRemove }: { layouts: Pivot
       {layouts.length > 0 && (
         <>
           <select aria-label="Saved layout" value={chosen} onChange={e => { setChosen(e.target.value); if (e.target.value) onApply(e.target.value); }}
-            className="px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+            className="min-h-11 px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
             <option value="">Saved layouts…</option>
             {layouts.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
           </select>
-          {chosen && <button type="button" onClick={() => { onRemove(chosen); setChosen(''); }} className="text-xs underline text-[var(--muted)]">Forget</button>}
+          {chosen && <button type="button" onClick={() => { onRemove(chosen); setChosen(''); }} className="min-h-11 min-w-11 px-2 text-xs underline text-[var(--muted)]">Forget</button>}
         </>
       )}
       <input aria-label="Layout name" value={name} onChange={e => setName(e.target.value)} placeholder="Name this layout"
-        className="px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs w-36" />
+        className="min-h-11 px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs w-36" />
       <button type="button" disabled={!name.trim()} onClick={() => {
         if (onSave(name)) { toast.success(`Layout "${name.trim()}" saved`); setChosen(name.trim()); setName(''); }
         else toast.error('This browser could not keep the layout');
-      }} className="px-2.5 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold disabled:opacity-40">Save layout</button>
+      }} className="min-h-11 px-2.5 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold disabled:opacity-40">Save layout</button>
     </div>
   );
 }

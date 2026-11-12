@@ -162,6 +162,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     dirty: Boolean(description.trim() || reference.trim() || lines.some(l => l.accountId || Number(l.debit) || Number(l.credit))),
     value: draftValue,
     restore: (kept: typeof draftValue) => { setDescription(kept.description); setDate(kept.date); setReference(kept.reference); setLines(kept.lines); },
+    valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && Array.isArray((v as { lines?: unknown }).lines) && (v as { lines: unknown[] }).lines.length > 0,
   });
   const { dialogProps, titleId } = useDialog(onClose, isOpen);
 
@@ -650,7 +651,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             <div className="p-4 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/30 flex flex-col sm:flex-row gap-3">
               <button 
                 type="button"
-                onClick={onClose}
+                onClick={() => { draft.clear(); onClose(); }}
                 className="py-3 px-4 bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] rounded-xl font-bold hover:bg-[var(--ink)] hover:text-[var(--text)] transition-all order-2 sm:order-1 sm:flex-1 cursor-pointer text-xs uppercase tracking-wider"
                aria-label="Discard Entry">
                 Discard Entry

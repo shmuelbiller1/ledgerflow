@@ -13,7 +13,7 @@ interface SelectionBarProps {
   avgAmount: number;
   onCopy: () => void;
   onClear: () => void;
-  onBulkUpdate: (updates: Partial<Transaction> & { accountId?: string; labels?: Record<string, string> }) => void;
+  onBulkUpdate: (updates: Partial<Transaction> & { accountId?: string; labels?: Record<string, string> }) => void | Promise<unknown>;
   accounts: ChartAccount[];
   formatCurrency: (cents: number) => string;
 }
@@ -44,10 +44,14 @@ export default function SelectionBar({
   const labelValues = nodes.filter(n => n.dimensionId === chosenLabel?.id && n.status !== 'archived');
   const typedValue = valueText.trim();
   const valueId = labelValues.find(n => n.description.toLowerCase() === typedValue.toLowerCase())?.id || typedValue;
+  const [labelBusy, setLabelBusy] = useState(false);
+  /** the typed value stays until the save went through (a refused save already said why); one save at a time */
   const applyLabel = () => {
-    if (!chosenLabel || !valueId) return;
-    onBulkUpdate({ labels: { [chosenLabel.id]: valueId } });
-    setValueText('');
+    if (!chosenLabel || !valueId || labelBusy) return;
+    setLabelBusy(true);
+    void Promise.resolve(onBulkUpdate({ labels: { [chosenLabel.id]: valueId } }))
+      .then(() => setValueText(''), () => undefined)
+      .finally(() => setLabelBusy(false));
   };
   return (
     <motion.div 
@@ -103,7 +107,7 @@ export default function SelectionBar({
             <datalist id="selection-label-values">
               {labelValues.map(n => <option key={n.id} value={n.description} />)}
             </datalist>
-            <button type="button" onClick={applyLabel} disabled={!typedValue}
+            <button type="button" onClick={applyLabel} disabled={!typedValue || labelBusy}
               className="px-3 py-2 rounded-xl bg-indigo-600 text-[10px] font-bold uppercase tracking-wider disabled:opacity-30">
               Set
             </button>

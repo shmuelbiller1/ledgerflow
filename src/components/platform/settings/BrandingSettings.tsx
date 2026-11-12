@@ -34,6 +34,12 @@ async function failure(res: Response, fallback: string): Promise<string> {
 
 /** Workspace document branding settings editor (logo, color, address, footer, terms, and PDF preview). */
 export default function BrandingSettings() {
+  // a new workspace starts a new editor: its draft is never the previous workspace's
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  return <BrandingSettingsContent key={workspaceId || 'none'} />;
+}
+
+function BrandingSettingsContent() {
   const formId = useId();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaces = useAuthStore(s => s.workspaces);

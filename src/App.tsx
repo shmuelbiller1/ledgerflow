@@ -493,7 +493,8 @@ const shortcutMap = useMemo(() => {
   if (window.location.pathname.startsWith('/c/')) {
     return (
       <Suspense fallback={<InitializationScreen language={language} />}>
-        <CustomerPortalPage />
+        {/* the portal is in English whatever this browser's app language is */}
+        <div lang="en" dir="ltr"><CustomerPortalPage /></div>
       </Suspense>
     );
   }
