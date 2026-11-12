@@ -7,7 +7,7 @@ import DrillDownModal from '../layout/DrillDownModal';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import type { PivotSheetModel, PeriodFilter } from './PivotSheet';
 
-export function PivotSheetView({ transactions, isEmbedded, accounts, activeDimensions, pivotMode, setPivotMode, rowDim, setRowDim, colDim, setColDim, groupBy, setGroupBy, searchTerm, setSearchTerm, period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, expandedGroups, drillDownTarget, setDrillDownTarget, toggleGroup, scopedTransactions, formatDimensionDisplay, groupedData, matrixData }: PivotSheetModel) {
+export function PivotSheetView({ layouts, saveCurrentLayout, applyLayout, removeLayout, transactions, isEmbedded, accounts, activeDimensions, pivotMode, setPivotMode, rowDim, setRowDim, colDim, setColDim, groupBy, setGroupBy, searchTerm, setSearchTerm, period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, expandedGroups, drillDownTarget, setDrillDownTarget, toggleGroup, scopedTransactions, formatDimensionDisplay, groupedData, matrixData }: PivotSheetModel) {
   return (
     <div className={cn(
       "flex flex-col h-full bg-[var(--surface)] animate-fadeIn text-left",
@@ -21,9 +21,10 @@ export function PivotSheetView({ transactions, isEmbedded, accounts, activeDimen
                 <TableIcon aria-hidden="true" size={16} />
              </div>
              <div>
-                <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-tight leading-none">Spreadsheet Pivot Matrix</h2>
-                <p className="text-[9.5px] text-[var(--muted)] font-mono tracking-tight mt-1">Compare labels</p>
+                <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-tight leading-none">Compare</h2>
+                <p className="text-[9.5px] text-[var(--muted)] font-mono tracking-tight mt-1">Any label against any other, by month or payee</p>
              </div>
+             <CompareLayouts layouts={layouts} onSave={saveCurrentLayout} onApply={applyLayout} onRemove={removeLayout} />
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
@@ -472,6 +473,32 @@ export function PivotSheetView({ transactions, isEmbedded, accounts, activeDimen
           formatCurrency={formatCurrency}
         />
       )}
+    </div>
+  );
+}
+
+/** EU-E8: save the current Compare layout under a name, or open one saved before. */
+function CompareLayouts({ layouts, onSave, onApply, onRemove }: { layouts: PivotSheetModel['layouts']; onSave: (name: string) => boolean; onApply: (name: string) => void; onRemove: (name: string) => void }) {
+  const [name, setName] = React.useState('');
+  const [chosen, setChosen] = React.useState('');
+  return (
+    <div className="flex flex-wrap items-center gap-2 ml-2">
+      {layouts.length > 0 && (
+        <>
+          <select aria-label="Saved layout" value={chosen} onChange={e => { setChosen(e.target.value); if (e.target.value) onApply(e.target.value); }}
+            className="px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+            <option value="">Saved layouts…</option>
+            {layouts.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
+          </select>
+          {chosen && <button type="button" onClick={() => { onRemove(chosen); setChosen(''); }} className="text-xs underline text-[var(--muted)]">Forget</button>}
+        </>
+      )}
+      <input aria-label="Layout name" value={name} onChange={e => setName(e.target.value)} placeholder="Name this layout"
+        className="px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs w-36" />
+      <button type="button" disabled={!name.trim()} onClick={() => {
+        if (onSave(name)) { toast.success(`Layout "${name.trim()}" saved`); setChosen(name.trim()); setName(''); }
+        else toast.error('This browser could not keep the layout');
+      }} className="px-2.5 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold disabled:opacity-40">Save layout</button>
     </div>
   );
 }

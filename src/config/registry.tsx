@@ -25,7 +25,7 @@ import {
   Target, Briefcase, Sparkles, 
   TrendingUp, TrendingDown, DollarSign, Calendar, Sliders, SlidersHorizontal,
   Home, CreditCard, Clock, FileSignature, Zap, ShoppingCart, Headphones, Search, Package, CalendarDays, Globe, Truck, Handshake, ClipboardCheck, GitMerge, Scale, Barcode, RotateCcw, Coins, Wallet, Filter, MailWarning, Blocks, PackageCheck, ArrowLeftRight
-, Receipt, Tag , PieChart, Inbox, BookOpen, FileSpreadsheet, Upload, Mail, Palette, Hash, MessageCircleQuestion, BellRing, FolderTree, MessageSquareText, Split, BadgePercent, UserCheck, ListChecks, MapPin } from 'lucide-react';
+, Receipt, Tag , PieChart, Inbox, BookOpen, FileSpreadsheet, Upload, Mail, Palette, Hash, MessageCircleQuestion, BellRing, FolderTree, MessageSquareText, Split, BadgePercent, UserCheck, ListChecks, MapPin, LayoutGrid } from 'lucide-react';
 
 // Plugin Discovery Engine (Upgraded to dynamic code-splitting and bundle optimization - Point 5)
 // Vite replaces the call at build time; outside Vite (unit tests) there are simply no plugins.
@@ -431,6 +431,7 @@ export const REPORT_COMPONENTS: Record<string, ElementType> = {
   'QuoteVersionsReportView': lazy(() => import('../components/reporting/QuoteVersionsReportView')),
   'BlanketOrdersReportView': lazy(() => import('../components/reporting/BlanketOrdersReportView')),
   'CustomerGrossProfitView': lazy(() => import('../components/reporting/CustomerGrossProfitView')),
+  'CompareReportView': lazy(() => import('../components/reporting/CompareReportView')),
   'InactiveItemsReportView': lazy(() => import('../components/reporting/InactiveItemsReportView')),
   'AccountBalancesAsOfView': lazy(() => import('../components/reporting/EverydayReportViews').then(module => ({default:module.AccountBalancesAsOfView}))),
   'PaymentPeriodByInvoiceDateView': lazy(() => import('../components/reporting/EverydayReportViews').then(module => ({default:module.PaymentPeriodByInvoiceDateView}))),
@@ -507,6 +508,7 @@ export const REPORT_TABS_REGISTRY = withScreenHelp([
   { id: 'three-way-match', label: { en: 'Three-Way Match Review', he: 'בדיקת התאמה תלת-כיוונית' }, componentName: 'ThreeWayMatchReviewView', icon: ListChecks },
   { id: 'customer-lifetime-value', label: { en: 'Customer Lifetime Value', he: 'שווי חיי לקוח' }, componentName: 'CustomerLifetimeValueReportView', icon: Users },
   { id: 'subscription-plans', label: { en: 'Subscription Plans', he: 'תוכניות מנוי' }, componentName: 'SubscriptionPlansReportView', icon: RefreshCw },
+  { id: 'compare', label: { en: 'Compare', he: 'השוואה' }, componentName: 'CompareReportView', icon: LayoutGrid },
   { id: 'gross-profit-by-customer', label: { en: 'Gross Profit by Customer', he: 'רווח גולמי לפי לקוח' }, componentName: 'CustomerGrossProfitView', icon: TrendingUp },
   { id: 'inactive-items', label: { en: 'Inactive Items', he: 'פריטים ללא מכירה' }, componentName: 'InactiveItemsReportView', icon: Package },
   { id: 'account-balances-as-of', label: { en: 'Account Balances as of Date', he: 'יתרות חשבון לתאריך' }, componentName: 'AccountBalancesAsOfView', icon: BookOpen },

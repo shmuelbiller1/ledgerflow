@@ -7,6 +7,7 @@ import { getLineDimension, DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimens
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { PivotSheetView } from './PivotSheetView';
+import { deleteLayout, readLayouts, saveLayout, type CompareLayout } from '../../lib/compareLayouts';
 interface PivotSheetProps {
   transactions: Transaction[];
   isEmbedded?: boolean;
@@ -39,6 +40,22 @@ function usePivotSheetModel({ transactions, isEmbedded = false }: PivotSheetProp
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // EU-E8: layouts a person saved for Compare, per workspace (src/lib/compareLayouts.ts)
+  const layoutWorkspace = currentWorkspace?.id || '';
+  const [layouts, setLayouts] = useState<CompareLayout[]>(() => (layoutWorkspace ? readLayouts(layoutWorkspace) : []));
+  const saveCurrentLayout = (name: string): boolean => {
+    if (!layoutWorkspace) return false;
+    const next = saveLayout(layoutWorkspace, { name, pivotMode, rowDim, colDim, groupBy, period });
+    if (next) setLayouts(next);
+    return Boolean(next);
+  };
+  const applyLayout = (name: string) => {
+    const layout = layouts.find(l => l.name === name);
+    if (!layout) return;
+    setPivotMode(layout.pivotMode); setRowDim(layout.rowDim); setColDim(layout.colDim); setGroupBy(layout.groupBy);
+    setPeriod(layout.period as PeriodFilter);
+  };
+  const removeLayout = (name: string) => { if (!layoutWorkspace) return; const next = deleteLayout(layoutWorkspace, name); if (next) setLayouts(next); };
   const [drillDownTarget, setDrillDownTarget] = useState<{ title: string; transactions: Transaction[] } | null>(null);
 
   const toggleGroup = (groupId: string) => {
@@ -258,7 +275,7 @@ function usePivotSheetModel({ transactions, isEmbedded = false }: PivotSheetProp
 
   }, [scopedTransactions, pivotMode, rowDim, colDim, searchTerm, getLineDimensionValue]);
 
-  return { transactions, isEmbedded, accounts, activeDimensions, pivotMode, setPivotMode, rowDim, setRowDim, colDim, setColDim, groupBy, setGroupBy, searchTerm, setSearchTerm, period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, expandedGroups, drillDownTarget, setDrillDownTarget, toggleGroup, scopedTransactions, formatDimensionDisplay, groupedData, matrixData };
+  return { layouts, saveCurrentLayout, applyLayout, removeLayout, transactions, isEmbedded, accounts, activeDimensions, pivotMode, setPivotMode, rowDim, setRowDim, colDim, setColDim, groupBy, setGroupBy, searchTerm, setSearchTerm, period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate, expandedGroups, drillDownTarget, setDrillDownTarget, toggleGroup, scopedTransactions, formatDimensionDisplay, groupedData, matrixData };
 }
 
 export type PivotSheetModel = NonNullable<ReturnType<typeof usePivotSheetModel>>;
