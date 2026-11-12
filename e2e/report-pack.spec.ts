@@ -33,7 +33,7 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   const prepare = dialog.getByRole('button', { name: 'Prepare pack' });
   expect((await prepare.boundingBox())!.height).toBeGreaterThanOrEqual(44); await prepare.click();
   const print = dialog.getByRole('button', { name: 'Print pack / PDF' }); await expect(print).toBeEnabled();
-  await expect(dialog.getByRole('heading', { name: /Receivables aging as of \d{4}-\d{2}-\d{2}/ })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: /Receivables aging as of/ })).toBeVisible();
   await expect(dialog.getByText(/It is not a historical balance at 2024-01-31/)).toBeVisible();
   expect(calls).toHaveLength(3);
   expect(calls.find(url => url.includes('profit-and-loss'))).toContain('startDate=2024-01-01');

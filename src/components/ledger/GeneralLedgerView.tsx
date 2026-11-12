@@ -9,6 +9,8 @@ import { Search, BookOpen, Printer } from 'lucide-react';
 import { Labelled } from '../ui/Labelled';
 import { usePagedRows } from '../../hooks/usePagedRows';
 import { ShowMoreRows } from '../common/ShowMoreRows';
+import { printElementById } from '../../lib/printRoot';
+import { useReportDates } from '../reporting/useReportDates';
 
 function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['accounts'][number]['entries']) {
   const occurrences = new Map<string, number>();
@@ -25,7 +27,7 @@ function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['ac
 type LedgerAccount = ReturnType<typeof computeGeneralLedger>['accounts'][number];
 
 /** One account's ledger. #642: a busy account (the bank) draws its first page of lines at once; printing draws them all. */
-function AccountLedgerCard({ acc, resetKey }: { acc: LedgerAccount; resetKey: string }) {
+function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; resetKey: string; dateText: (date: string) => string }) {
   const keyed = useMemo(() => keyedLedgerEntries(acc.entries), [acc.entries]);
   // fifty lines per account at first: a ledger of forty accounts would otherwise draw thousands of rows at once
   const paged = usePagedRows(keyed, resetKey, undefined, 50);
@@ -94,7 +96,7 @@ function AccountLedgerCard({ acc, resetKey }: { acc: LedgerAccount; resetKey: st
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
               {paged.visible.map(({ entry, key }) => (
                 <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">{entry.date}</td>
+                  <td className="py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">{dateText(entry.date)}</td>
                   <td className="py-2 px-4 text-slate-900 dark:text-white font-sans font-medium">{entry.description}</td>
                   <td className="py-2 px-4 text-[var(--muted)]">{entry.reference || '-'}</td>
                   <td className="py-2 px-4 text-right text-emerald-600 dark:text-emerald-400">
@@ -119,6 +121,7 @@ function AccountLedgerCard({ acc, resetKey }: { acc: LedgerAccount; resetKey: st
 
 export default function GeneralLedgerView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: { startDate?: string; endDate?: string; embedded?: boolean } = {}) {
   const accounts = useLedgerStore(s => s.accounts);
+  const reportDates = useReportDates();
 
   const [startDate, setStartDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageStartDate || undefined, '2026-01-01');
   const [endDate, setEndDate] = usePageSyncedState(JSON.stringify([pageStartDate, pageEndDate]), pageEndDate || undefined, getLocalDateISO());
@@ -143,9 +146,14 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <div id="general-ledger-sheet" data-print-root={embedded ? undefined : ''} className="space-y-6">
+        <div className="hidden print:block">
+          <h1 className="text-xl font-bold">General Ledger</h1>
+          <p className="text-xs">{selectedAccountId === 'all' ? 'All accounts' : accounts.find(a => a.id === selectedAccountId)?.name || 'Account'} · {reportDates.periodText(startDate, endDate)}</p>
+        </div>
       <RangeReportSourceNote source={source} testId="general-ledger-source" what="these balances and lines" />
       {/* Header */}
-      <div className="flex flex-wrap items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+      <div data-print-hide className="flex flex-wrap items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
             <BookOpen aria-hidden="true" className="w-6 h-6" />
@@ -161,7 +169,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
         </div>
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={() => embedded ? window.print() : printElementById('general-ledger-sheet')}
           className="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-lg transition-colors print:hidden"
         >
           <Printer aria-hidden="true" className="w-4 h-4" />
@@ -170,7 +178,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div data-print-hide className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-3">
           <div>
             <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="From">
@@ -224,7 +232,8 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
 
       {/* Account Ledgers List */}
       <div className="space-y-6">
-        {filteredAccounts.map(acc => <AccountLedgerCard key={acc.accountId} acc={acc} resetKey={`${startDate}|${endDate}|${searchTerm}`} />)}
+        {filteredAccounts.map(acc => <AccountLedgerCard key={acc.accountId} acc={acc} resetKey={`${startDate}|${endDate}|${searchTerm}`} dateText={reportDates.dateText} />)}
+      </div>
       </div>
     </div>
   );

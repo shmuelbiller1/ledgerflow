@@ -1,16 +1,15 @@
 import React from 'react';
-import { useUIStore } from '../../stores/useUIStore';
-import { useAuthStore } from '../../stores/useAuthStore';
-import { reportDateText, reportPeriodText, resolveReportLocale } from '../../lib/reportLocale';
+import { useReportDates } from './useReportDates';
 
 /**
  * A-220: the line under a report's title that says which period the figures cover, written the
  * way the reader's locale writes dates (`Oct 1, 2026 – Oct 31, 2026`, `1 Oct 2026 – 31 Oct 2026`,
  * `1 באוק׳ 2026 – 31 באוק׳ 2026`).
  *
- * The workspace's saved money format decides the locale (so dates and amounts on the same report
- * agree); with none saved, a Hebrew interface reads Hebrew dates. The stored dates and every CSV
- * stay ISO — this is the printed and on-screen label only.
+ * The reader's own Date Display Format decides the layout (H-8), then the workspace's saved money
+ * format decides the locale (so dates and amounts on the same report agree); with neither, a Hebrew
+ * interface reads Hebrew dates. The stored dates and every CSV stay ISO — this is the printed and
+ * on-screen label only.
  */
 export function ReportPeriodHeading({
   title,
@@ -32,17 +31,16 @@ export function ReportPeriodHeading({
   as?: 'p' | 'h2' | 'div' | 'span';
   asOf?: boolean;
 }) {
-  const language = useUIStore(state => state.language);
-  const savedLocale = useAuthStore(state => state.getCurrentWorkspace()?.moneyDisplay?.locale);
-  const locale = resolveReportLocale({ moneyDisplayLocale: savedLocale, language });
+  const reportDates = useReportDates();
+  const { locale } = reportDates;
   const period = asOf
-    ? `As of ${reportDateText(endDate, locale)}`
-    : reportPeriodText(startDate, endDate, locale);
+    ? `As of ${reportDates.dateText(endDate)}`
+    : reportDates.periodText(startDate, endDate);
   const comparison =
     compareStartDate && compareEndDate
       ? asOf
-        ? reportDateText(compareEndDate, locale)
-        : reportPeriodText(compareStartDate, compareEndDate, locale)
+        ? reportDates.dateText(compareEndDate)
+        : reportDates.periodText(compareStartDate, compareEndDate)
       : '';
 
   const Element = as;

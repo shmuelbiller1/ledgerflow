@@ -13,6 +13,7 @@ import { withEquipment } from '../../lib/tax/ilVatEquipment';
 import { ilVatRegistrations } from '../../lib/israelMonthJourney';
 import { ilVatReportCsvHeaders, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
+import { printElementById } from '../../lib/printRoot';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -201,7 +202,10 @@ export function IsraelVatReportPanel({
 
   return (
     <section aria-label="Israel VAT Report" className="p-4 space-y-4 min-w-0 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
+      {/* H-7/AI #10: the return itself is the print root (this screen had none, so Print produced the
+          whole application shell). Controls and the on-screen pickers stay `data-print-hide`. */}
+      <div id="israel-vat-return" data-print-root className="space-y-4">
+      <div data-print-hide className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
         <div className="flex items-center gap-3">
           <Receipt className="w-6 h-6 text-[var(--brass)]" aria-hidden="true" />
           <div>
@@ -216,7 +220,7 @@ export function IsraelVatReportPanel({
         <div className="flex items-center gap-2" data-print-hide>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printElementById('israel-vat-return')}
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2"
           >
             <Printer size={16} aria-hidden="true" />
@@ -401,6 +405,7 @@ export function IsraelVatReportPanel({
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }
