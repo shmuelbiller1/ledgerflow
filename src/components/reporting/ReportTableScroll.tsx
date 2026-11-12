@@ -105,7 +105,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    <ReportEmptyState title="Nothing to show in this table yet"
     description="Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows." />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label="Scrollable report table" tabIndex={0}>
+  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label="Scrollable report table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky left-0 flex flex-wrap gap-2 mb-2">
     <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>Scroll table left</button>

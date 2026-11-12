@@ -581,5 +581,5 @@ the check can be tightened at the true count. Say "raise the ledger-door baselin
 
 ## 12 Nov — AI #9: one migration to apply, one choice
 
-- **Apply migration `supabase/migrations/20261112000000_report_schedule_send_day.sql`** (merged in #665). Until it is applied, a scheduled report set to send on any day other than Monday / the 1st cannot be saved (the database refuses the new `sendDay` field); schedules on the default day work as before.
+- ~~**Apply migration `supabase/migrations/20261112000000_report_schedule_send_day.sql`** (merged in #665).~~ **Done 12 Nov** — applied by the owner, together with `20261111120000_ledger_server_only_and_balance_check.sql`; a check query confirmed all of 20261110000000…20261112000000 are live. Until it is applied, a scheduled report set to send on any day other than Monday / the 1st cannot be saved (the database refuses the new `sendDay` field); schedules on the default day work as before.
 - **EU-I2 "Sent with …" on the customer portal** (in draft #675): built as on for everyone, with a Branding setting to turn it off. Whether turning it off should need a paid plan is your decision; default used: anyone can turn it off.

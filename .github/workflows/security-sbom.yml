@@ -14,7 +14,8 @@ permissions:
 
 concurrency:
   group: sbom-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Newer main and PR commits supersede these results; scan only the latest head.
+  cancel-in-progress: true
 
 jobs:
   dependency-sbom:

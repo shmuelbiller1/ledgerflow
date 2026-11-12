@@ -354,3 +354,74 @@ test('A-277: the journal prints on A4 then US Letter — the paper changes, noth
 
   expect(errors).toEqual([]);
 });
+
+/**
+ * H-7 (AI #10): the nine surfaces that had no print root.
+ *
+ * Each of these printed the whole application shell — sidebar, header, pinned-page bar, banners —
+ * around and over its document, and on screen nothing looked wrong (the Print button itself carries
+ * `print:hidden`), so no browser check ever caught it. The unit guard
+ * (`src/tests/print-root-guard.test.ts`) proves each file marks a root; this test proves the reader
+ * gets that root as the page.
+ *
+ * Run in CI (`npm run test:e2e`); it cannot run in the audit sandbox because the Chromium download
+ * is blocked there.
+ */
+test.describe('H-7: the general ledger, the statement in a dialog and the packing slip print their own sheet', () => {
+  /** What the reader gets on paper: the shell is gone and one sheet is the page. */
+  async function printedSheet(page: Page) {
+    await page.emulateMedia({ media: 'print' });
+    const printed = await page.evaluate(() => {
+      const visible = (el: Element) => {
+        const style = getComputedStyle(el as HTMLElement);
+        const box = (el as HTMLElement).getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && box.height > 0 && box.width > 0;
+      };
+      const roots = [...document.querySelectorAll('[data-print-root]')].filter(visible);
+      const root = roots[0] as HTMLElement | undefined;
+      return {
+        roots: roots.length,
+        nav: [...document.querySelectorAll('nav, [role="navigation"], header, [data-print-hide]')].filter(visible).length,
+        buttons: [...document.querySelectorAll('button')].filter(visible).length,
+        width: root ? Math.round(root.getBoundingClientRect().width) : -1,
+        pageWidth: Math.round(document.documentElement.clientWidth),
+        // the sheet is not clipped by a dialog's own scroll box: its full height is on the paper
+        clips: root ? getComputedStyle(root.parentElement as HTMLElement).overflow : '',
+      };
+    });
+    await page.emulateMedia({ media: 'screen' });
+    return printed;
+  }
+
+  test('the general ledger prints the ledger, not the window around it', async ({ page }) => {
+    test.setTimeout(180_000);
+    await signInAsGuest(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/?report=general-ledger#reports');
+    await expect(page.locator('#general-ledger-sheet')).toBeVisible({ timeout: 60_000 });
+    const printed = await printedSheet(page);
+    expect(printed.roots).toBe(1);
+    expect(printed.nav).toBe(0);
+    expect(printed.buttons).toBe(0);
+    // the sheet fills the paper instead of a scroll box's on-screen width or height
+    expect(printed.width).toBeGreaterThanOrEqual(printed.pageWidth - 2);
+    expect(printed.clips).toBe('visible');
+  });
+
+  test('the account statement prints the statement, not the window around it', async ({ page }) => {
+    test.setTimeout(180_000);
+    await signInAsGuest(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/?report=statement#reports');
+    // the statement's own sheet is the print root
+    await expect(page.locator('#statement-sheet')).toBeVisible({ timeout: 60_000 });
+    const printed = await printedSheet(page);
+    expect(printed.roots).toBe(1);
+    expect(printed.nav).toBe(0);
+    expect(printed.buttons).toBe(0);
+    // the sheet's own containers release their scroll box, so the paper is not cut off after one
+    // screen (the second half of the defect: the sheet was the only visible thing and still ended
+    // at the container's on-screen height)
+    expect(printed.clips).toBe('visible');
+  });
+});

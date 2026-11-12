@@ -31,7 +31,7 @@ export default function ConsignmentStockPanel({ items, currency }: { items: Cons
           Download CSV
         </button>
       </div>
-      <div className="overflow-x-auto" role="region" aria-label="Consignment stock rows" tabIndex={0}>
+      <div className="overflow-x-auto" role="region" aria-label="Consignment stock rows" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
         <table className="w-full text-left border-collapse">
           <caption className="sr-only">Consignment stock: item, direction, quantity and value at cost</caption>
           <thead>

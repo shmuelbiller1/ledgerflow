@@ -5,6 +5,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { anyCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { linkableVendorIds, linkedPair, partyNetPosition } from '../../lib/partyLink';
 import { formatCurrency } from '../../lib/utils';
@@ -30,7 +31,7 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const [pending, setPending] = useState<string | null>(null);
   // the browser holds at most a capped slice of each list: say so instead of presenting a partial answer as complete
   const truncated = useLedgerStore(s => s.truncatedCollections);
-  const incomplete = ['customers', 'vendors', 'invoices', 'bills'].some(c => truncated[c]);
+  const incomplete = anyCollectionCapped(truncated, ['customers', 'vendors', 'invoices', 'bills']);
   // until every input has arrived (or while one failed) an empty list is not a zero: withhold the totals
   const { loading } = useLedgerCollections('customers', 'vendors', 'invoices', 'bills');
   const failed = useDataNeedsStore(s => ['customers', 'vendors', 'invoices', 'bills'].some(c => s.failed[c as 'bills']));

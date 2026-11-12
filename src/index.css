@@ -221,6 +221,15 @@
   body:has([data-print-preview]) [data-print-root]:not([data-print-preview]),
   body:has([data-print-preview]) [data-print-root]:not([data-print-preview]) *:not([data-print-preview]):not([data-print-preview] *) { visibility: hidden; }
   [data-print-hide] { display: none !important; }
+  /* H-7 (AI #10): a sheet that lives inside a dialog (a statement, an invoice form, a report pack)
+     was clipped by the dialog's own `overflow-hidden` / `max-height` boxes: visibility was right and
+     the paper was still cut off after one screen. Every ancestor carries `:has()` so the app shell's
+     scroll area, the dialog's overlay and the dialog itself all release their box for the paper. */
+  body:has([data-print-root]) :has([data-print-root]) {
+    overflow: visible !important; max-height: none !important; height: auto !important;
+    position: static !important; transform: none !important; filter: none !important;
+    backdrop-filter: none !important; background: transparent !important; box-shadow: none !important;
+  }
 }
 
 /* Y-19: paper is white whatever the screen theme (the dark theme's light text would print faint on

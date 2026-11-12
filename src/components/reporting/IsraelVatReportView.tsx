@@ -3,10 +3,12 @@ import { Printer, Download, Receipt } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
+import { printElementById } from '../../lib/printRoot';
 import { belongsTo, israelVatReturn, type IlVatDocument, type IlVatReturn } from '../../lib/tax/ilVatReturn';
 import { COUNTED_PURCHASES } from '../../lib/taxCodes';
 import { withEquipment } from '../../lib/tax/ilVatEquipment';
@@ -134,7 +136,7 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
   }) : 0, [mixed, activeReg, workspace?.taxProfiles, registrationOrder, startDate, endDate]);
 
   const partial = Boolean(
-    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || truncated.accounts || truncated.chartAccounts ||
+    truncated.invoices || truncated.bills || truncated.creditNotes || truncated.vendorCredits || isCollectionCapped(truncated, 'accounts') ||
     failed.invoices || failed.bills || failed.creditNotes || failed.vendorCredits || failed.accounts
   );
 
@@ -201,7 +203,9 @@ export function IsraelVatReportPanel({
 
   return (
     <section aria-label="Israel VAT Report" className="p-4 space-y-4 min-w-0 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
+      {/* H-7: print the VAT return without the application shell. */}
+      <div id="israel-vat-return" data-print-root={embedded ? undefined : ''} className="space-y-4">
+      <div data-print-hide className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
         <div className="flex items-center gap-3">
           <Receipt className="w-6 h-6 text-[var(--brass)]" aria-hidden="true" />
           <div>
@@ -216,7 +220,7 @@ export function IsraelVatReportPanel({
         <div className="flex items-center gap-2" data-print-hide>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => embedded ? window.print() : printElementById('israel-vat-return')}
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2"
           >
             <Printer size={16} aria-hidden="true" />
@@ -401,6 +405,7 @@ export function IsraelVatReportPanel({
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

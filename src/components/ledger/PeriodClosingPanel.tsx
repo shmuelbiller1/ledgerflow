@@ -3,6 +3,7 @@ import { FileCheck2, Printer } from 'lucide-react';
 import { getIdToken } from '../../firebase';
 import { formatCurrency } from '../../lib/utils';
 import type { ClosingLine, PeriodClosing } from '../../server/services/periodClosingService';
+import { printElementById } from '../../lib/printRoot';
 
 /**
  * EG-3 (docs/design/EG-3-period-closing.md): the period-closing documents the server wrote when each year was closed,
@@ -47,19 +48,21 @@ export default function PeriodClosingPanel({ workspaceId, currency, onOpenMonth 
     <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-0.5">Total {title.toLowerCase()}</th><td className="text-right tabular-nums font-semibold">{money(g.total)}</td></tr>
   </tbody>;
 
-  return <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 print:border-0" aria-labelledby="period-closing">
+  // H-7/AI #10: the closing document is the print root (it had none, so Print produced the whole
+  // application shell). The picker and the navigation link stay off the paper.
+  return <section id="period-closing-sheet" data-print-root className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 print:border-0" aria-labelledby="period-closing">
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <h2 id="period-closing" className="text-lg font-medium text-[var(--text)] flex items-center gap-2"><FileCheck2 className="w-5 h-5" aria-hidden="true" /> Period-closing document</h2>
         <p className="text-sm text-[var(--muted)] mt-1">Written by the server when the year was closed. Read-only. No closing entry is posted: the profit stays in retained earnings on the balance sheet.</p>
       </div>
-      <div className="flex items-end gap-2 print:hidden">
+      <div data-print-hide className="flex items-end gap-2 print:hidden">
         <label className="text-xs font-semibold text-[var(--muted)]">Document
           <select value={doc.id} onChange={e => setChosen(e.target.value)} className="block mt-1 px-2 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]">
             {closings.map(c => <option key={c.id} value={c.id}>{c.yearEnd} · version {c.version}{c.status === 'superseded' ? ' (superseded)' : ''}</option>)}
           </select>
         </label>
-        <button type="button" onClick={() => window.print()} className="px-3 py-2 rounded-lg border border-[var(--line)] text-sm text-[var(--text)] inline-flex items-center gap-2">
+        <button type="button" onClick={() => printElementById('period-closing-sheet')} className="px-3 py-2 rounded-lg border border-[var(--line)] text-sm text-[var(--text)] inline-flex items-center gap-2">
           <Printer className="w-4 h-4" aria-hidden="true" /> Print
         </button>
       </div>
@@ -103,7 +106,7 @@ export default function PeriodClosingPanel({ workspaceId, currency, onOpenMonth 
     <p className="text-xs text-[var(--muted)] break-all">
       Agrees with balance snapshot {doc.snapshot.id} ({doc.snapshot.entryCount} entries, checksum {doc.snapshot.checksum.slice(0, 16)}…).
     </p>
-    <p className="text-sm print:hidden">
+    <p data-print-hide className="text-sm print:hidden">
       <button type="button" onClick={() => onOpenMonth?.(month)} className="text-xs font-semibold text-[var(--brass)] hover:underline">
         Open the close checklist and close package for {month}
       </button>

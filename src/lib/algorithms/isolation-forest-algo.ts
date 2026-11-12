@@ -7,7 +7,7 @@ function hashCategory(cat: string): number {
   let hash = 0;
   for (let i = 0; i < cat.length; i++) {
     hash = (hash << 5) - hash + cat.charCodeAt(i);
-    hash |= 0;
+    hash |= 0; // NOSONAR: S7767 — intentional 32-bit wrap for hash/PRNG state; Math.trunc would break modular arithmetic
   }
   return Math.abs(hash % 1000) / 1000;
 }

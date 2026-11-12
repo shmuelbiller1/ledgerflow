@@ -15,6 +15,8 @@ import { NO_LOCATION, orderedMoves, STOCK_MOVE_LABEL, stockByLocation, stockHist
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { getIdToken } from '../../firebase';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
+import type { LedgerKey } from '../../lib/ledgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import { toast } from 'sonner';
@@ -58,7 +60,7 @@ export default function StockHistoryDialog({ item, workspaceId, currency, onClos
   // #260 review: each list's own completeness, and the trail worked out once per change of its inputs
   const trail = useMemo(() => {
     if (!moves || moves.length === 0) return null;
-    const cut = (k: string) => docsLoading || Boolean(truncatedCollections?.[k]);
+    const cut = (k: LedgerKey) => docsLoading || isCollectionCapped(truncatedCollections, k);
     return stockTrail(moves, {
       bills, invoices, creditNotes, vendorCredits, orders, purchaseOrders: purchaseOrders || [], transactions, vendors, customers,
       partial: {

@@ -600,7 +600,7 @@ export class Firestore {
           broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
         }
         if (isRetryable(err) && attempt < maxAttempts) {
-          await sleep(Math.min(1000, 10 * 2 ** attempt) * (0.5 + Math.random()));
+          await sleep(Math.min(1000, 10 * 2 ** attempt) * (0.5 + Math.random())); // NOSONAR: S2245 — Math.random used only for retry backoff jitter
           continue;
         }
         throw translateError(err, 'Transaction');

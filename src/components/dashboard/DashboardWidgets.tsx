@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { collection, getDocs, limit, orderBy, query, where } from '../../lib/db/firestore';
 import { db } from '../../firebase';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import type { LedgerKey, LedgerCollectionSpec } from '../../lib/ledgerCollections';
 import type { ChartAccount, Transaction, Invoice, Bill, Customer, Vendor } from '../../types';
@@ -140,7 +141,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
   // with the server's balances folded in, entries past the loading cap no longer change the totals (only a period
   // that starts on or before the server's day still reads the loaded entries alone, and says so)
   const capCovered = !!opening && !periodBeforeOpening(period.startDate, opening);
-  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => failed[key] || (truncated[key] && !(key === 'transactions' && capCovered)));
+  const partial = (['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'] as const).filter(key => failed[key] || (isCollectionCapped(truncated, key) && !(key === 'transactions' && capCovered)));
   const owedToYou = useMemo(() => partyStats(scoped.invoices.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'customer', period.endDate, currency || 'USD').outstandingCents, [scoped.invoices, period.endDate, currency]);
   const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate, currency || 'USD').outstandingCents, [scoped.bills, period.endDate, currency]);
   const summaryReady = valid && data && !loading && !partial.length && (isGuest || ['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'].every(key => loaded[key as LedgerKey]));

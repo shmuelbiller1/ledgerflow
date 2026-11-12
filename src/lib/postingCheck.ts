@@ -78,6 +78,7 @@ function expectedTotal(kind: DocKind, doc: { amountCents?: number; exchangeRate?
   const total = convertMinorUnits(doc.amountCents || 0, rate, doc.currency, baseCurrency);
   const discount = convertMinorUnits(doc.discountCents || 0, rate, doc.currency, baseCurrency);
   return kind === 'invoice' ? total + discount : total;
+
 }
 
 function check(
