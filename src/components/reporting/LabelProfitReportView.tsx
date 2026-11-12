@@ -124,13 +124,26 @@ export default function LabelProfitReportView() {
               ))}
               {(() => {
                 const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate, nodes: nodes || [] });
-                const budgeted = report.columns.map(c => budgetOf(c.value));
-                if (budgeted.every(b => b === null)) return null;
-                // values with a budget but no activity in the period count in the total too, and are named below the table
-                const canon = (v: string) => stableLabelValue(v, dimensionId, nodes || []);
-                const shownValues = new Set(report.columns.map(c => canon(c.value)));
+                // Old imports can supply descriptions while new entries carry node IDs.
+                // Give the canonical label's budget to its first actual column only.
+                const canon = (v: string) => stableLabelValue(v, dimensionId, nodes || []).normalize('NFC').toLowerCase();
+                const counted = new Set<string>();
+                const budgeted = report.columns.map(c => {
+                  const key = canon(c.value);
+                  if (counted.has(key)) return 0;
+                  counted.add(key);
+                  return budgetOf(c.value);
+                });
+                // A value with a budget but no activity still contributes once, even if
+                // multiple saved budgets refer to it by both description and node ID.
                 const budgetOnly = [...new Set((budgets || []).map(bg => budgetLabel(bg)).filter(l => l?.dimensionId === dimensionId).map(l => l!.value))]
-                  .filter(v => !shownValues.has(canon(v))).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
+                  .filter(v => {
+                    const key = canon(v);
+                    if (counted.has(key)) return false;
+                    counted.add(key);
+                    return true;
+                  }).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
+                if (budgeted.every(b => b === null) && budgetOnly.length === 0) return null;
                 const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0) + budgetOnly.reduce((s, v) => s + v.cents, 0);
                 return (
                   <>
