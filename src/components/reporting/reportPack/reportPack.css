@@ -12,6 +12,10 @@
   .report-pack-paper,
   .report-pack-cover,
   .report-pack-section { background: #FFFFFF !important; color: #0E2229 !important; }
+  /* Generic report isolation positions print roots absolutely. Named @page margin-box counters
+     need the report pack to participate in normal paged flow. Keep it as the isolated root,
+     but let CSS fragmentation produce its page footer on each sheet. */
+  [data-report-pack-print] { position: static !important; inset: auto !important; }
   .report-pack-paper { page: ledgerflow-pack; margin: 0 !important; padding: 0 !important; max-width: none !important; }
   .report-pack-cover { break-after: page; }
   .report-pack-section { break-before: page; margin: 0; }

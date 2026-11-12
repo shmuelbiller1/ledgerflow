@@ -8,6 +8,7 @@ import { downloadCsv } from '../../../lib/csvExport';
 import { getLocalDateISO } from '../../../lib/utils';
 import { EmptyState } from '../../ui/EmptyState';
 import { LoadingState } from '../../ui/LoadingState';
+import { printElementById } from '../../../lib/printRoot';
 
 /**
  * Settings → Security → Access review (BJ-03 / C-35). Read-only: who is in the workspace, their
@@ -43,7 +44,9 @@ function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
   const exportCsv = () => downloadCsv(`access-review-${getLocalDateISO()}.csv`, [...ACCESS_REVIEW_HEADERS], accessReviewCsvRows(review.rows));
 
   return (
-    <section aria-labelledby="access-review-title" className="p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-5">
+    // H-7/AI #10: this panel is the printed sheet (it had no print root, so Print produced the whole
+    // application shell). The heading and the table print; the buttons and notices do not.
+    <section id="access-review-sheet" data-print-root aria-labelledby="access-review-title" className="p-6 md:p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1 min-w-0">
           <h2 id="access-review-title" className="text-base font-black text-[var(--text)] flex items-center gap-2">
@@ -60,7 +63,7 @@ function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
             className="min-h-11 px-4 border border-[var(--line)] rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
             <Download aria-hidden="true" size={14} /> Export CSV
           </button>
-          <button type="button" onClick={() => window.print()} disabled={review.status !== 'ready'}
+          <button type="button" onClick={() => printElementById('access-review-sheet')} disabled={review.status !== 'ready'}
             className="min-h-11 px-4 border border-[var(--line)] rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50">
             <Printer aria-hidden="true" size={14} /> Print
           </button>

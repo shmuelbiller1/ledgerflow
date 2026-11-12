@@ -14,8 +14,11 @@ import {
   REPORT_LOCALES,
   reportAmountText,
   reportDateText,
+  reportDateTextFor,
   reportHeadingText,
+  reportLocaleFor,
   reportPeriodText,
+  reportPeriodTextIn,
   resolveReportLocale,
 } from '../lib/reportLocale';
 import { ReportPeriodHeading } from '../components/reporting/ReportPeriodHeading';
@@ -27,7 +30,7 @@ const plain = (text: string) => text.replace(/[\u200e\u200f\u061c]/g, '').replac
 
 afterEach(() => {
   cleanup();
-  useUIStore.setState({ language: 'en' });
+  useUIStore.setState({ language: 'en', dateFormatPref: 'MMM DD, YYYY' });
 });
 
 test('A-220: the three locales the owner named, and the locale a workspace resolves to', () => {
@@ -118,4 +121,73 @@ test('A-220: with no saved format the interface language picks the dates', () =>
   render(React.createElement(ReportPeriodHeading, { startDate: '2026-10-01', endDate: '2026-10-31' }));
   assert.equal(screen.getByTestId('report-period-heading').getAttribute('data-report-locale'), 'he-IL');
   assert.equal(screen.getByTestId('report-period-heading').textContent, '1 באוק׳ 2026 – 31 באוק׳ 2026');
+});
+
+
+test("H-8: the reader's own date format wins on a report header, so the page writes one day one way", () => {
+  // Preferences → Date Display Format. Before H-8 the header ignored it and said "Oct 1, 2026"
+  // while the rows under it (formatDate, the transaction grid) said "2026-10-01" or "01/10/2026".
+  assert.equal(reportDateTextFor('2026-10-01', 'en-US', 'YYYY-MM-DD'), '2026-10-01');
+  assert.equal(reportDateTextFor('2026-10-01', 'en-US', 'MM/DD/YYYY'), '10/01/2026');
+  assert.equal(reportDateTextFor('2026-10-01', 'en-US', 'DD/MM/YYYY'), '01/10/2026');
+  // the month-name layout keeps the country's own month names
+  assert.equal(reportDateTextFor('2026-10-01', 'en-GB', 'MMM DD, YYYY'), '1 Oct 2026');
+  // and with no choice the locale decides exactly as before
+  assert.equal(reportDateTextFor('2026-10-01', 'en-GB', null), '1 Oct 2026');
+  assert.equal(reportPeriodTextIn('2026-10-01', '2026-10-31', 'en-US', 'DD/MM/YYYY'), '01/10/2026 – 31/10/2026');
+  // a single day is still written once, and a half-open range keeps its wording
+  assert.equal(reportPeriodTextIn('2026-10-01', '2026-10-01', 'en-US', 'YYYY-MM-DD'), '2026-10-01');
+  assert.equal(reportPeriodTextIn('', '2026-10-31', 'en-US', 'YYYY-MM-DD'), 'until 2026-10-31');
+});
+
+test('H-8: only a format the app actually offers is honoured', () => {
+  assert.equal(reportLocaleFor({ dateFormat: 'YYYY-MM-DD' }).dateFormat, 'YYYY-MM-DD');
+  // an unknown value (an older saved preference, a hand-edited store) falls back to the locale
+  // instead of printing a layout nobody selected
+  assert.equal(reportLocaleFor({ dateFormat: 'dd.mm.yy' }).dateFormat, null);
+  assert.equal(reportLocaleFor({ dateFormat: undefined, language: 'he' }).locale, 'he-IL');
+});
+
+test("H-8: the heading on the page follows the reader's format as well as the workspace", () => {
+  useAuthStore.setState({
+    workspaces: [{ id: 'ws-1', name: 'Books', moneyDisplay: { locale: 'en-GB' } }] as never,
+    currentWorkspaceId: 'ws-1',
+  } as never);
+  useUIStore.setState({ language: 'en', dateFormatPref: 'YYYY-MM-DD' });
+  const { rerender } = render(
+    React.createElement(ReportPeriodHeading, { startDate: '2026-10-01', endDate: '2026-10-31' }),
+  );
+  assert.equal(screen.getByTestId('report-period-heading').textContent, '2026-10-01 – 2026-10-31');
+
+  // an as-of header (balance sheet) names the one day in the chosen layout
+  rerender(React.createElement(ReportPeriodHeading, { asOf: true, startDate: '2026-10-01', endDate: '2026-10-31' }));
+  assert.equal(screen.getByTestId('report-period-heading').textContent, 'As of 2026-10-31');
+
+  // back to the default: the locale writes it again, unchanged from A-220
+  useUIStore.setState({ dateFormatPref: 'MMM DD, YYYY' });
+  rerender(React.createElement(ReportPeriodHeading, { startDate: '2026-10-01', endDate: '2026-10-31' }));
+  assert.equal(screen.getByTestId('report-period-heading').textContent, '1 Oct 2026 – 31 Oct 2026');
+});
+
+test("H-8: a statement header writes its period in the reader's format, not the stored ISO string", async () => {
+  useUIStore.setState({ language: 'en', dateFormatPref: 'DD/MM/YYYY' });
+  useAuthStore.setState({
+    workspaces: [{ id: 'ws-1', name: 'Books', moneyDisplay: { locale: 'en-GB' } }] as never,
+    currentWorkspaceId: 'ws-1',
+  } as never);
+  const { StatementColumns } = await import('../components/ledger/StatementColumns');
+  render(React.createElement(StatementColumns, {
+    kind: 'pl' as never,
+    title: 'Profit and loss',
+    accounts: [], transactions: [],
+    startDate: '2026-10-01', endDate: '2026-10-31',
+    compare: false, mode: 'months' as never, onModeChange: () => {},
+    showPercent: false, onPercentChange: () => {},
+    totalData: null, previousTotalData: null, totalAuthoritative: false,
+    formatMoney: (cents: number) => String(cents),
+    sortBy: 'name', sortDir: 'asc', onSort: () => {},
+  } as never));
+  const line = screen.getByText(/Activity inside each period/);
+  assert.match(line.textContent || '', /01\/10\/2026 – 31\/10\/2026/);
+  assert.doesNotMatch(line.textContent || '', /2026-10-01 to/);
 });

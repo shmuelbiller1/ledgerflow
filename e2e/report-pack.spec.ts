@@ -33,8 +33,8 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   const prepare = dialog.getByRole('button', { name: 'Prepare pack' });
   expect((await prepare.boundingBox())!.height).toBeGreaterThanOrEqual(44); await prepare.click();
   const print = dialog.getByRole('button', { name: 'Print pack / PDF' }); await expect(print).toBeEnabled();
-  await expect(dialog.getByRole('heading', { name: /Receivables aging as of \d{4}-\d{2}-\d{2}/ })).toBeVisible();
-  await expect(dialog.getByText(/It is not a historical balance at 2024-01-31/)).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: /Receivables aging as of/ })).toBeVisible();
+  await expect(dialog.getByText(/It is not a historical balance at/)).toBeVisible(); // H-8 formats the selected end date using the reader's preference
   expect(calls).toHaveLength(3);
   expect(calls.find(url => url.includes('profit-and-loss'))).toContain('startDate=2024-01-01');
   expect(calls.find(url => url.includes('/aging'))).not.toContain('2024');
@@ -48,7 +48,10 @@ test('report pack: phone focus, period/current aging, Hebrew PDF, page numbers a
   const text = extracted.replace(/\s/g, '');
   expect(pdfPageCount(pdf)).toBe(4);
   expect(text).not.toContain('APPCHROMEMUSTNOTPRINT'); expect(text).not.toContain('Preparepack');
-  expect(text).toContain('2024-01-31'); expect(text).toContain('123.45'); expect(text).toMatch(/[\u0590-\u05ff]/);
+  // The PDF follows the workspace's Hebrew date preference; PDF extraction may present RTL glyph order.
+  // Preserve the date's actual day, month, and year (not just the year) without requiring ISO spelling.
+  expect(text).toMatch(/2024-01-31|312024[׳']וניב|2024[׳']וניב31/);
+  expect(text).toContain('123.45'); expect(text).toMatch(/[\u0590-\u05ff]/);
   // Hebrew drawing order may be visual or logical; dates and amounts must stay LTR.
   expect(text).toMatch(/ספרים|םירפס/); expect(text).toMatch(/מכירות|תוריכמ/); expect(text).toMatch(/בנק|קנב/);
   expect(text).toContain('Page1of4'); expect(text).toContain('Page4of4');
