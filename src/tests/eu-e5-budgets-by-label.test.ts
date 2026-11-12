@@ -46,3 +46,8 @@ test('EU-E5: a budget saved under the account name (the form\'s list) counts; an
   const twin = [...accounts, { id: 'rent2', name: 'Rent income', type: 'income' } as unknown as ChartAccount];
   assert.equal(at([byName], twin), 0);
 });
+
+test('EU-E5: an income account imported as "revenue" counts as income', () => {
+  const rev = [...accounts, { id: 'rev', name: 'Sales', type: 'revenue' } as unknown as ChartAccount];
+  assert.equal(budgetedResult({ budgets: [b('9', 'rev', 50000, 'monthly', 'aspen')], accounts: rev, dimensionId: 'property', value: 'aspen', start: '2026-01-01', end: '2026-01-31' }), 50000);
+});

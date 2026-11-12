@@ -49,6 +49,7 @@ test('EU-E4: General Ledger narrowed to Location = Tel Aviv', async () => {
   fireEvent.change(view.getByLabelText('Label value'), { target: { value: 'Tel Aviv' } });
   await waitFor(() => assert.equal(view.queryAllByText('Haifa sale').length, 0));
   assert.ok(view.queryAllByText('TA sale').length > 0 && view.queryAllByText('TA rent').length > 0);
+  assert.ok(view.getByText(/Only location = Tel Aviv; opening balances not carried by a label are left out\./), 'the printed header says which label');
 });
 
 test('EU-E4: not offered when entries are left out of this browser', () => {

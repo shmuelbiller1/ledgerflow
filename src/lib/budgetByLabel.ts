@@ -5,6 +5,7 @@
  * budget once per month, a quarterly one a third per month, a yearly one a twelfth per month).
  */
 import type { Budget, ChartAccount } from '../types';
+import { isIncomeAccount } from './accountUtils';
 
 export interface BudgetLabel { dimensionId: string; value: string }
 
@@ -50,7 +51,7 @@ export function budgetedResult(input: {
     const key = String(b.targetId || '').toLocaleLowerCase();
     const matches = input.accounts.filter(a => a.id === b.targetId || a.name?.toLocaleLowerCase() === key || a.code?.toLocaleLowerCase() === key);
     const account = matches.find(a => a.id === b.targetId) || (matches.length === 1 ? matches[0] : undefined);
-    const sign = account?.type === 'income' ? 1 : account && ['expense', 'cost_of_goods'].includes(account.type) ? -1 : 0;
+    const sign = isIncomeAccount(account) ? 1 : account && ['expense', 'cost_of_goods'].includes(account.type) ? -1 : 0;
     cents += sign * Math.round((b.amountCents || 0) * months * (PER_MONTH[b.period] ?? 1));
   }
   return cents;

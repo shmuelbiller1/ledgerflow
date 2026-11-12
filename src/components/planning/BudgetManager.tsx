@@ -29,7 +29,7 @@ import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { Labelled } from '../ui/Labelled';
-import { displayDimensionName } from '../../lib/dimensionUtils';
+import { displayDimensionName, lineHasLabel } from '../../lib/dimensionUtils';
 import { budgetLabel } from '../../lib/budgetByLabel';
 import BudgetControlSetting from './BudgetControlSetting';
 import { EmptyState } from '../ui/EmptyState';
@@ -132,10 +132,13 @@ export default function BudgetManager() {
       );
 
       const actualCents = (transactions || []).filter(isPostable).reduce((sum: number, t) => {
+        // EU-E5: a label budget counts only the lines carrying its label value
+        const label = budgetLabel(budget);
         const lines = t.lines?.filter((l) =>
-          l.accountId === budget.targetId || 
+          (l.accountId === budget.targetId ||
           (matchingAccount && l.accountId === matchingAccount.id) ||
-          (l.accountName || '').toLowerCase() === targetLower
+          (l.accountName || '').toLowerCase() === targetLower) &&
+          (!label || lineHasLabel(l, t, label))
         ) || [];
         return sum + lines.reduce((s: number, l) => s + Math.max(0, lineAmount(l, t) || 0), 0);
       }, 0);

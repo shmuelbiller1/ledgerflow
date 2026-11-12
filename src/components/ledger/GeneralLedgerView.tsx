@@ -165,6 +165,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
         <div className="hidden print:block">
           <h1 className="text-xl font-bold">General Ledger</h1>
           <p className="text-xs">{selectedAccountId === 'all' ? 'All accounts' : accounts.find(a => a.id === selectedAccountId)?.name || 'Account'} · {reportDates.periodText(startDate, endDate)}</p>
+          {labelFilter && !capped && <p className="text-xs">Only {labelFilter.dimensionId} = {labelFilter.value}; opening balances not carried by a label are left out.</p>}
         </div>
       <RangeReportSourceNote source={source} testId="general-ledger-source" what="these balances and lines" />
       {/* Header */}
