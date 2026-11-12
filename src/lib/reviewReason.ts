@@ -48,7 +48,8 @@ export function reviewReason(input: {
   if (ruled && ruleAccount) {
     const rule = rules.find(r => r.id === ruled.ruleIds[0]);
     const name = rule?.name || rule?.condition.vendor || rule?.condition.descriptionContains || 'a rule';
-    return { kind: 'rule', accountId: ruleAccount.id, accountName: ruleAccount.name, text: `rule: ${name} → ${ruleAccount.name}` };
+    // a rule named after its decision ("Shell → Fuel", EU-C3) already says where it goes
+    return { kind: 'rule', accountId: ruleAccount.id, accountName: ruleAccount.name, text: name.includes('→') ? `rule: ${name}` : `rule: ${name} → ${ruleAccount.name}` };
   }
 
   const historyAccount = live(calibration?.suggestedAccountId);

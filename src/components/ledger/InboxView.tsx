@@ -5,7 +5,8 @@ import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { db, getIdToken } from '../../firebase';
-import { collection, getDocs, query, where } from '../../lib/db/firestore';
+import { addDoc, collection, getDocs, query, where } from '../../lib/db/firestore';
+import { merchantKey, merchantLabel, ruleFromDecision } from '../../lib/ruleFromDecision';
 import { reviewReason, type ReviewReason } from '../../lib/reviewReason';
 import type { AutoRule, ChartAccount, Transaction } from '../../types';
 import { HandOver } from '../collaboration/HandOver';
@@ -39,6 +40,25 @@ export default function InboxView() {
       .catch(() => { if (current) setRules([]); }); // without rules every line still shows its history or "guess"
     return () => { current = false; };
   }, [currentWorkspaceId]);
+  // EU-C3: "Always do this for Shell" — the lines whose acceptance should also make a rule
+  const uid = useAuthStore(s => s.user?.uid) || '';
+  const [alwaysFor, setAlwaysFor] = useState<Set<string>>(new Set());
+  const toggleAlways = (id: string) => setAlwaysFor(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  /** EU-C3: saves the rule for an accepted line (account and labels); the list then says "rule: …" for the next ones. */
+  const makeRuleFor = async (t: Transaction, accountId?: string) => {
+    const account = accounts.find(a => a.id === accountId);
+    const categoryLine = (t.lines || []).find(l => l.accountId === accountId) || t.lines?.[0];
+    const rule = account ? ruleFromDecision({ payee: t.payee, description: t.description, accountId: account.id, accountName: account.name, labels: { ...(t.dimensions || {}), ...(categoryLine?.dimensions || {}) } }) : null;
+    if (!rule || !currentWorkspaceId || !uid) return;
+    try {
+      const saved = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString() };
+      const ref = await addDoc(collection(db, 'autoRules'), saved);
+      setRules(prev => [...prev, { ...saved, id: ref.id } as AutoRule]);
+      toast.success(`Rule saved: ${rule.name}`);
+    } catch (err) {
+      toast.error('The entry was accepted, but the rule was not saved', { description: err instanceof Error ? err.message : String(err) });
+    }
+  };
   const [exprInput, setExprInput] = useState('');
   const exprResult = useMemo(() => (exprInput.trim() ? tryEvaluateAmountInput(exprInput) : null), [exprInput]);
 
@@ -95,8 +115,8 @@ export default function InboxView() {
   const lowConfidence = pendingTransactions.filter(t => t.reason.kind === 'none');
 
   /** EU-C1: file each entry to its own suggested account (a rule's, history's or the guess on the line). */
-  const fileEach = async (items: Array<{ id: string; accountId?: string }>, what: string) => {
-    if (!currentWorkspaceId) return;
+  const fileEach = async (items: Array<{ id: string; accountId?: string }>, what: string): Promise<boolean> => {
+    if (!currentWorkspaceId) return false;
     const updates: Array<{ id: string; data: { lines: Transaction['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     for (const item of items) {
       const tx = transactions.find(t => t.id === item.id);
@@ -105,7 +125,7 @@ export default function InboxView() {
       const lines = filedLines(tx, account, accounts);
       if (lines) updates.push({ id: tx.id, data: { lines, status: 'completed', isReviewed: true } });
     }
-    if (!updates.length) { toast.error('Nothing to accept: the suggested accounts are missing or archived.'); return; }
+    if (!updates.length) { toast.error('Nothing to accept: the suggested accounts are missing or archived.'); return false; }
     const token = await getIdToken();
     const res = await fetch('/api/v1/transactions/batch', {
       method: 'POST',
@@ -113,12 +133,13 @@ export default function InboxView() {
       body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(body.error || body.message || 'Could not save the accepted entries'); return; }
+    if (!res.ok) { toast.error(body.error || body.message || 'Could not save the accepted entries'); return false; }
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(
       useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),
     );
     toast.success(`${what}: ${updates.length} ${updates.length === 1 ? 'entry' : 'entries'}`);
+    return true;
   };
 
   const _handleCategorize = async (transactionIds: string[], category: string, targetAccountId?: string) => {
@@ -458,7 +479,16 @@ export default function InboxView() {
                       <p className="text-xs text-[var(--muted)] mb-0.5">Suggested</p>
                       <p className="text-sm font-medium text-[#0047AB] bg-blue-50 px-2 py-0.5 rounded-md">{t.reason.text}</p>
                     </div>
-                    <button type="button" onClick={() => inBackground(fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted'))}
+                    {merchantKey(t.payee, t.description) && (
+                      <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
+                        <input type="checkbox" checked={alwaysFor.has(t.id)} onChange={() => toggleAlways(t.id)} />
+                        Always do this for {merchantLabel(merchantKey(t.payee, t.description))}
+                      </label>
+                    )}
+                    <button type="button" onClick={() => inBackground((async () => {
+                      const saved = await fileEach([{ id: t.id, accountId: t.reason.accountId }], 'Accepted');
+                      if (saved && alwaysFor.has(t.id)) await makeRuleFor(t, t.reason.accountId);
+                    })())}
                       aria-label={`Accept ${t.description}: ${t.reason.accountName}`}
                       className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-xs font-semibold hover:border-[#0047AB]">Accept</button>
                     <p className="font-mono font-bold text-[var(--text)] tabular-nums">{formatCurrency(t.totalAmountCents)}</p>
