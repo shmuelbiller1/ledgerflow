@@ -361,11 +361,11 @@ describe('AF11-07 & AF11-08: SWIFT MT940 and ISO 20022 CAMT.053 parser correctne
     `;
     const parsed = parseCamt053Statement(xml);
     assert.equal(parsed.length, 2);
-    assert.equal(parsed[0].type, 'debit');
-    assert.equal(parsed[0].amountCents, -125050);
+    assert.equal(parsed[0].type, 'credit');
+    assert.equal(parsed[0].amountCents, 125050);
     assert.equal(parsed[0].currency, 'EUR');
-    assert.equal(parsed[1].type, 'credit');
-    assert.equal(parsed[1].amountCents, 4025);
+    assert.equal(parsed[1].type, 'debit');
+    assert.equal(parsed[1].amountCents, -4025);
 
     assert.throws(
       () => parseCamt053Statement('<Ntry><Amt>10.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt>2026-02-30</Dt></Ntry>'),

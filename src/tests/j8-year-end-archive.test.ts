@@ -275,6 +275,23 @@ describe('J-9 year archive batched invoice PDFs via POST /api/v1/documents/zip',
     assert.equal(calls, 1, 'second batch is never requested once cancelled');
   });
 
+  test('a missing invoice in a duplicate-number group never misfiles another invoice PDF', () => {
+    // The ZIP endpoint skips i1 before assigning filenames: it returns only i2 as
+    // invoice_INV-DUP.pdf. Number-only matching must not put i2's bytes under i1.
+    const zipped = new Uint8Array(zipStore([
+      { name: 'invoice_INV-DUP.pdf', data: Buffer.from('pdf-for-i2') },
+      { name: 'invoice_INV-UNIQUE.pdf', data: Buffer.from('pdf-for-i3') },
+    ]));
+    const unpacked = unpackInvoicePdfBatch([
+      { path: 'invoices/INV-DUP-i1.pdf', kind: 'pdf', documentId: 'i1', documentNumber: 'INV-DUP' },
+      { path: 'invoices/INV-DUP-i2.pdf', kind: 'pdf', documentId: 'i2', documentNumber: 'INV-DUP' },
+      { path: 'invoices/INV-UNIQUE-i3.pdf', kind: 'pdf', documentId: 'i3', documentNumber: 'INV-UNIQUE' },
+    ], zipped);
+    assert.deepEqual(unpacked.missing, ['INV-DUP', 'INV-DUP']);
+    assert.deepEqual(unpacked.entries.map(e => e.path), ['invoices/INV-UNIQUE-i3.pdf']);
+    assert.equal(new TextDecoder().decode(unpacked.entries[0].bytes), 'pdf-for-i3');
+  });
+
   test('duplicate invoice numbers in one batch claim _2.pdf in order without collision', () => {
     const zipped = new Uint8Array(zipStore([
       { name: 'invoice_INV-DUP.pdf', data: Buffer.from('first-pdf') },

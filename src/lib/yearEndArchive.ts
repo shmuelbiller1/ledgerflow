@@ -221,8 +221,32 @@ export function unpackInvoicePdfBatch(
   const claimed = new Set<string>();
   const entries: ZipEntry[] = [];
   const missing: string[] = [];
+  // The server names PDFs by document number (not ID), and skips missing documents.
+  // When multiple documents have the same number, a missing earlier invoice shifts the
+  // numbered ZIP filenames. Without an ID in the response there is no safe way to tell
+  // which invoice the remaining PDF belongs to. Conservatively mark the entire ambiguous
+  // number group as missing rather than misfile a different invoice's PDF.
+  const plannedCounts = new Map<string, number>();
   for (const file of batch) {
     const base = serverZipInvoiceBaseName(file);
+    plannedCounts.set(base, (plannedCounts.get(base) || 0) + 1);
+  }
+  const ambiguousBases = new Set<string>();
+  for (const [base, count] of plannedCounts) {
+    if (count <= 1) continue;
+    let returned = 0;
+    for (let n = 1; n <= count; n += 1) {
+      if (stored.has(n === 1 ? `${base}.pdf` : `${base}_${n}.pdf`)) returned += 1;
+    }
+    if (returned !== count) ambiguousBases.add(base);
+  }
+
+  for (const file of batch) {
+    const base = serverZipInvoiceBaseName(file);
+    if (ambiguousBases.has(base)) {
+      missing.push(file.documentNumber || String(file.documentId || file.path));
+      continue;
+    }
     let matchedName: string | null = null;
     for (let n = 1; n <= stored.size + 1; n += 1) {
       const candidate = n === 1 ? `${base}.pdf` : `${base}_${n}.pdf`;

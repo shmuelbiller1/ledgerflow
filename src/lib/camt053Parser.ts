@@ -172,9 +172,9 @@ export function parseCamt053Statement(content: string): Camt053ParsedLine[] {
     if (ind !== 'CRDT' && ind !== 'DBIT') {
       throw new Error(`CAMT.053 entry has an unsupported CdtDbtInd ("${ind.slice(0, 16)}").`);
     }
-    const rawRvsl = firstLeafText(entryXml, 'RvslInd')?.trim().toLowerCase();
-    const reversed = rawRvsl === 'true' || rawRvsl === '1';
-    const isCredit = reversed ? ind === 'DBIT' : ind === 'CRDT';
+    // ISO 20022: CdtDbtInd is the direction of THIS booked entry.
+    // RvslInd says it undoes an earlier, opposite-direction entry; do not invert its sign.
+    const isCredit = ind === 'CRDT';
     const rawDesc = firstLeafText(entryXml, 'Ustrd') ?? firstLeafText(entryXml, 'AddtlNtryInf');
 
     lines.push({
