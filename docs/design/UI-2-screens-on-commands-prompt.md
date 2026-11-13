@@ -72,9 +72,12 @@ Business type chooses the modules that start switched on.
 
 ### 7. Assistant proposals (after CMD-1 part 3)
 
-A "Waiting for you" list of proposals: each row shows the command's preview, with Accept, Edit
-(opens the normal form filled in) and Reject, and "Accept all" for a group. Nothing in this list has
-changed the books yet, and the screen says so.
+A "Waiting for you" list of proposals. Each row shows the command's preview, deletes and voids
+included, with Accept, Edit (opens the normal form filled in) and Reject, and "Accept all" for a
+group. A switch shows "the books with this applied" using the server's overlay, so the person can
+open any list or report and see the effect first. High-risk rows are accepted one at a time after
+the two-step confirmation. After accepting, the result offers Undo. Nothing in this list has changed
+the books yet, and the screen says so.
 
 ## Ratchets, so it can only improve
 
