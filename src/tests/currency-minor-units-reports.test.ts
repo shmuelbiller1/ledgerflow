@@ -9,9 +9,9 @@
  *    divided an un-adjusted document conversion by the accrual's base cents, so a fully paid ¥100,000
  *    invoice recognised 670 of 67,000 (1 %) instead of all of it.
  *
- * Every expected figure below is worked by hand from the ISO minor units and the rate, not taken from
- * either library. The controls use the same economic amount in USD so the currency can be the only
- * difference, and a missing currency keeps the old rate-only reading (legacy rows are books-currency).
+ * Every expected figure below is worked by hand from ISO minor units and the rate, not taken from either library.
+ * The foreign-currency controls use the same economic amount in USD. When a legacy payment has no saved currency,
+ * its allocation is in the books' currency and must keep that currency's minor-unit scale, including JPY and KWD.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -85,8 +85,8 @@ test('commission: a foreign payment is converted with its minor units, not the r
   assert.equal(commissionLines([rep], [kwd], [kwdPayment], '2026-10-01', '2026-10-31', [], 'USD')[0].commissionCents, 3_250);
 });
 
-test('commission: a row with no saved currency keeps the old rate-only reading', () => {
-  // Legacy data: EUR 100.00 (10,000 cents) at 1.1 = 11,000 cents. No currency field, so no shift.
+test('commission: a row with no saved currency keeps the two-decimal USD reading', () => {
+  // Legacy data: EUR 100.00 (10,000 cents) at 1.1 = 11,000 cents in USD books; no minor-unit shift.
   const eur = invoice('inv-eur', 'EUR', 1.1, 10_000);
   const payment = {
     id: 'pay-eur', status: 'posted', date: '2026-10-05', exchangeRate: 1.1,
@@ -95,6 +95,21 @@ test('commission: a row with no saved currency keeps the old rate-only reading',
   const [line] = commissionLines([rep], [eur], [payment], '2026-10-01', '2026-10-31', [], 'USD');
   assert.equal(line.paidCents, 11_000);
   assert.equal(line.commissionCents, 1_100);
+});
+
+test('commission: a missing payment currency uses the books minor units for JPY and KWD', () => {
+  for (const currency of ['JPY', 'KWD'] as const) {
+    const amount = 100_000;
+    const id = currency.toLowerCase();
+    const inv = invoice(`inv-${id}`, currency, 1, amount);
+    const payment = {
+      id: `pay-${id}`, status: 'posted', date: '2026-10-05', exchangeRate: 1,
+      allocations: [{ documentId: `inv-${id}`, documentType: 'invoice', amountCents: amount }],
+    };
+    const [line] = commissionLines([rep], [inv], [payment], '2026-10-01', '2026-10-31', [], currency);
+    assert.equal(line.paidCents, amount, `the allocation remains ${amount} ${currency} minor units`);
+    assert.equal(line.commissionCents, 10_000, '10 % commission is 10,000 book minor units');
+  }
 });
 
 test('cash basis: a fully paid foreign invoice recognises all of its revenue', () => {
@@ -135,7 +150,7 @@ test('cash basis: a part payment recognises its share, in the books cents on bot
   assert.equal(computeProfitAndLoss(accounts, cashBasisEntries(accounts, [kwdTx], kwdPayments, 'USD').entries, '2026-10-01', '2026-10-31').income.total, 13_000);
 });
 
-test('cash basis: a payment with no saved currency keeps the old rate-only reading', () => {
+test('cash basis: a payment with no saved currency keeps the two-decimal USD reading', () => {
   // Legacy row: EUR 100.00 (10,000 cents) at 1.1 against an 11,000-cent accrual is the whole document.
   const tx = accrual('tx-eur', 'inv-eur', 11_000);
   const payments: CashBasisPayment[] = [{
@@ -143,4 +158,22 @@ test('cash basis: a payment with no saved currency keeps the old rate-only readi
     allocations: [{ documentId: 'inv-eur', documentType: 'invoice', amountCents: 10_000 }],
   }];
   assert.equal(computeProfitAndLoss(accounts, cashBasisEntries(accounts, [tx], payments, 'USD').entries, '2026-10-01', '2026-10-31').income.total, 11_000);
+});
+
+test('cash basis: a missing payment currency uses the books minor units for JPY and KWD', () => {
+  const cases = [
+    { currency: 'JPY', allocation: 50_000, expectedIncome: 50_000 },
+    { currency: 'KWD', allocation: 40_000, expectedIncome: 40_000 },
+  ] as const;
+  for (const { currency, allocation, expectedIncome } of cases) {
+    const id = currency.toLowerCase();
+    const tx = accrual(`tx-${id}`, `inv-${id}`, 100_000);
+    const payments: CashBasisPayment[] = [{
+      id: `pay-${id}`, status: 'posted', date: '2026-10-05', exchangeRate: 1,
+      allocations: [{ documentId: `inv-${id}`, documentType: 'invoice', amountCents: allocation }],
+    }];
+    const { entries } = cashBasisEntries(accounts, [tx], payments, currency);
+    const pl = computeProfitAndLoss(accounts, entries, '2026-10-01', '2026-10-31');
+    assert.equal(pl.income.total, expectedIncome, `${currency} payment recognizes its exact book-unit share`);
+  }
 });

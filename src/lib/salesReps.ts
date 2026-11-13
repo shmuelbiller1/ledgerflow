@@ -164,7 +164,7 @@ export function commissionLines(
       const tax = Math.max(0, Number(inv.taxAmountCents) || 0);
       // BM-04: the allocation is in the payment's minor units, the report is in the books'. ¥100,000 at
       // 0.0067 in USD books is $670.00 = 67,000 cents, not 670 (issue #651).
-      const paidCents = convertMinorUnits(a.amountCents, rate, p.currency, baseCurrency);
+      const paidCents = convertMinorUnits(a.amountCents, rate, p.currency || baseCurrency, baseCurrency);
       // the tax in what was paid is the invoice's share of tax
       const netCents = total > 0 ? Math.round(paidCents * (total - Math.min(tax, total)) / total) : paidCents;
       const commissionCents = computeLineCommissionCents(rep, inv, netCents, categoryByItemId);

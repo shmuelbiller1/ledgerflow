@@ -120,7 +120,7 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
       // payment's minor units, so it is converted with the rate AND the minor-unit shift; `owed` is the
       // accrual's own posting, which is already base cents. Without the shift a fully paid ¥100,000
       // invoice at 0.0067 recognised 670 of 67,000 (1% of its revenue).
-      const paidBaseCents = convertMinorUnits(a.amountCents, rate, p.currency, baseCurrency);
+      const paidBaseCents = convertMinorUnits(a.amountCents, rate, p.currency || baseCurrency, baseCurrency);
       const share = Math.min(1, paidBaseCents / owed);
       entries.push({
         ...accrual, id: `${accrual.id}:paid:${p.id}`, date, exchangeRate: 1,
