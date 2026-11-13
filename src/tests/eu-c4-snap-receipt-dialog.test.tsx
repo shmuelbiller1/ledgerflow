@@ -110,6 +110,21 @@ describe('EU-C4: Snap a receipt', () => {
     assert.equal((calls[1][1][0] as { amountCents: number }).amountCents, 700);
   });
 
+  test('while saving, Close and Esc keep the dialog open so the result is seen', async () => {
+    let finishBill: (id: string) => void = () => {};
+    const writes = { ...stubWrites(calls), saveBill: () => new Promise<string>(resolve => { finishBill = resolve; }) } as ReceiptWrites;
+    render(<SnapReceiptDialog onClose={() => { closed++; }} writes={writes} />);
+    await fillIn();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); });
+    const close = screen.getByRole('button', { name: 'Close' }) as HTMLButtonElement;
+    assert.equal(close.disabled, true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    assert.equal(closed, 0, 'still open while saving');
+    await act(async () => { finishBill('bill-1'); });
+    await waitFor(() => assert.equal(closed, 1, 'closes once the save is done'));
+  });
+
   test('a save that finishes after the dialog was closed does not close the next one', async () => {
     let finishBill: (id: string) => void = () => {};
     const writes = { ...stubWrites(calls), saveBill: () => new Promise<string>(resolve => { finishBill = resolve; }) } as ReceiptWrites;

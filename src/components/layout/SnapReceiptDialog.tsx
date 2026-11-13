@@ -43,7 +43,11 @@ export interface ReceiptWrites {
 }
 
 export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => void; writes?: ReceiptWrites }) {
-  const { dialogProps, titleId } = useDialog(onClose, true);
+  // while a save is under way the dialog stays open, so its result always shows here (no second
+  // save of the same receipt because the first one's outcome was never seen)
+  const savingRef = useRef(false);
+  const requestClose = () => { if (!savingRef.current) onClose(); };
+  const { dialogProps, titleId } = useDialog(requestClose, true);
   // the signed-in person, or the sample company's local editor (the same actor addEntity uses)
   const user = useAuthStore(workspaceActor);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -125,6 +129,7 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
     if (problem || !file || amountCents === null || !vendor) return;
     if (!user || !workspace?.id) { setError('Sign in to save receipts.'); return; }
     setBusy('saving');
+    savingRef.current = true;
     setError('');
     let receiptDocId = '';
     try {
@@ -159,6 +164,7 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
         ? `The photo is saved in Documents, but ${why}. Open Documents to try again.`
         : `Not saved: ${why}.`);
     } finally {
+      savingRef.current = false;
       setBusy('');
     }
   };
@@ -168,7 +174,7 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
       <div className="w-full max-w-sm rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 id={titleId} className="font-semibold">Snap a receipt</h2>
-          <button type="button" aria-label="Close" className="min-h-11 min-w-11 flex items-center justify-center" onClick={onClose}>
+          <button type="button" aria-label="Close" disabled={busy === 'saving'} className="min-h-11 min-w-11 flex items-center justify-center disabled:opacity-50" onClick={requestClose}>
             <X aria-hidden="true" size={20} />
           </button>
         </div>
