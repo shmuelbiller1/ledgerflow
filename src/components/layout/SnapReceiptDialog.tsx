@@ -15,6 +15,7 @@ import { db } from '../../firebase';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { workspaceActor } from '../../lib/guestActor';
+import { isArchivedParty } from '../../lib/contacts';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -34,7 +35,14 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) {
+/** The writes this dialog makes. Injectable so a component test can stub the database boundary. */
+export interface ReceiptWrites {
+  saveDocument(data: Record<string, unknown>): Promise<string>;
+  saveBill(bill: ReturnType<typeof receiptDraftBill>): Promise<string | null>;
+  linkDocument(docId: string, link: { linkedCollection: 'bills'; linkedId: string; linkedLabel: string }): Promise<void>;
+}
+
+export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => void; writes?: ReceiptWrites }) {
   const { dialogProps, titleId } = useDialog(onClose, true);
   // the signed-in person, or the sample company's local editor (the same actor addEntity uses)
   const user = useAuthStore(workspaceActor);
@@ -42,6 +50,11 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
   const vendors = useLedgerStore(s => s.vendors);
   useLedgerCollections('vendors');
   const { addEntity } = useEntityOperations();
+  const io: ReceiptWrites = writes || {
+    saveDocument: async data => (await addDoc(collection(db, 'documents'), data)).id,
+    saveBill: async bill => (await addEntity('bills', bill))?.id ?? null,
+    linkDocument: async (docId, link) => { await updateDoc(doc(db, 'documents', docId), link); },
+  };
   const ids = { photo: useId(), vendor: useId(), amount: useId(), date: useId() };
 
   const [file, setFile] = useState<File | null>(null);
@@ -111,7 +124,7 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
     setError('');
     let receiptDocId = '';
     try {
-      const ref = await addDoc(collection(db, 'documents'), {
+      receiptDocId = await io.saveDocument({
         uid: user.uid,
         workspaceId: workspace.id,
         name: receiptFileName(date, file.name),
@@ -121,16 +134,15 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
         tags: ['Receipt'],
         createdAt: new Date().toISOString(),
       });
-      receiptDocId = ref.id;
-      const billRef = await addEntity('bills', receiptDraftBill({
+      const billId = await io.saveBill(receiptDraftBill({
         vendorId: vendor.id, vendorName: vendor.name, amountCents, date,
         currency, receiptDocId,
       }));
-      if (!billRef) throw new Error('the draft bill was not saved');
+      if (!billId) throw new Error('the draft bill was not saved');
       // the bill exists now: a failed link must not invite a second save (and a second bill)
       try {
-        await updateDoc(doc(db, 'documents', receiptDocId), {
-          linkedCollection: 'bills', linkedId: billRef.id, linkedLabel: `${vendor.name} receipt (draft)`,
+        await io.linkDocument(receiptDocId, {
+          linkedCollection: 'bills', linkedId: billId, linkedLabel: `${vendor.name} receipt (draft)`,
         });
         toast.success('Receipt saved as a draft bill. Nothing is posted until it is approved.');
       } catch (linkErr) {
@@ -175,7 +187,7 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
           </div>
           <select id={ids.vendor} value={vendorId} onChange={e => setVendorId(e.target.value)} className="w-full min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2">
             <option value="">Choose a vendor</option>
-            {vendors.filter(v => v.status !== 'inactive' && v.status !== 'blocked').map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {vendors.filter(v => !isArchivedParty(v) && v.status !== 'blocked').map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-2">

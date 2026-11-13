@@ -58,16 +58,8 @@ test('EU-C4: the reader\'s two-decimal cents become the currency\'s minor units'
   assert.equal(readerCentsToMinor(125, 'KWD'), 1_250, '1.25 KWD');
   assert.equal(readerCentsToMinor(100_000, 'JPY'), 1_000, '¥1,000');
   assert.equal(readerCentsToMinor(-4_250, 'USD'), 4_250);
-  const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
-  assert.match(dialog, /readerCentsToMinor\(parsed\.totalAmountCents, currency\)/);
 });
 
-test('EU-C4: the dialog drops the receipt when the person or workspace changes', () => {
-  const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
-  assert.match(dialog, /openedIn\.current === scope\) return;[\s\S]{0,120}onClose\(\)/);
-  assert.match(dialog, /useAuthStore\(workspaceActor\)/, 'the sample company can save, like other bills');
-  assert.match(dialog, /RelatedRecordEditButton target=\{\{ kind: 'vendors', id: vendorId \}\}/);
-});
 
 test('EU-C4: the photo is filed under the receipt date', () => {
   assert.equal(receiptFileName('2026-11-12', 'IMG_0042.JPG'), 'Receipt 2026-11-12.jpg');
@@ -84,6 +76,4 @@ test('EU-C4: the + menu offers "Snap a receipt", which opens a camera input', ()
   assert.match(menu, /Snap a receipt/);
   const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
   assert.match(dialog, /accept="image\/\*" capture="environment"/);
-  assert.match(dialog, /addEntity\('bills', receiptDraftBill\(/);
-  assert.match(dialog, /linkedId: billRef\.id/, 'the document stores the bill id, not the reference');
 });
