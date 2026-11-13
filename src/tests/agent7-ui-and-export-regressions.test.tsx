@@ -331,10 +331,34 @@ test('entryActions: a successful flag toggle never invents updatedAt when the se
   assert.deepEqual(requests[0].partialUpdate, { isFlagged: true });
   assert.equal(useLedgerStore.getState().transactions[0].updatedAt, serverUpdatedAt);
   assert.equal(useLedgerStore.getState().transactions[0].isFlagged, true);
-  await actions.handleToggleFlag(tx.id);
-  assert.equal(requests[1].expectedUpdatedAt, serverUpdatedAt,
-    'the next edit must use the authoritative version, not a browser-generated timestamp');
-  assert.equal(useLedgerStore.getState().transactions[0].isFlagged, false);
+  // No realtime notification for the second toggle: the browser must fetch
+  // the committed transaction version before allowing the next journal edit.
+  const refetchedUpdatedAt = '2026-11-13T16:00:03.000Z';
+  const supabase = getSupabase() as unknown as { from: (table: string) => unknown };
+  const originalFrom = supabase.from;
+  supabase.from = ((table: string) => {
+    if (table !== 'transactions') return originalFrom.call(supabase, table);
+    return {
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: { id: tx.id, data: { ...tx, updatedAt: refetchedUpdatedAt, isFlagged: false } },
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }) as typeof supabase.from;
+  try {
+    await actions.handleToggleFlag(tx.id);
+    assert.equal(requests[1].expectedUpdatedAt, serverUpdatedAt,
+      'the second toggle must use the timestamp supplied by realtime');
+    assert.equal(useLedgerStore.getState().transactions[0].updatedAt, refetchedUpdatedAt,
+      'when realtime lags, refresh the actual server version before the next edit');
+    assert.equal(useLedgerStore.getState().transactions[0].isFlagged, false);
+  } finally {
+    supabase.from = originalFrom;
+  }
 });
 
 test('entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok', async () => {
