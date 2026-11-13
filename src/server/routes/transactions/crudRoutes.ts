@@ -389,7 +389,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
           throw new Error('Cannot modify certified, cleared, or voided transactions');
         }
         const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin)) ||
-          postedDeletionRefusal(doc.data() as Partial<Transaction>, validatedTx, Boolean(user.admin));
+          postedDeletionRefusal(doc.data() as Partial<Transaction>, transaction as Partial<Transaction>, Boolean(user.admin));
         if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
         beforeEdit = auditSnapshot(doc.data() as Partial<Transaction>);
         // audit F3: the old and the new date against the workspace as it is now, inside the save
