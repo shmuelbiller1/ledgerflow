@@ -14,6 +14,7 @@ import { addDoc, collection, doc, updateDoc } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { workspaceActor } from '../../lib/guestActor';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -35,7 +36,8 @@ function readAsDataUrl(file: File): Promise<string> {
 
 export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) {
   const { dialogProps, titleId } = useDialog(onClose, true);
-  const user = useAuthStore(s => s.user);
+  // the signed-in person, or the sample company's local editor (the same actor addEntity uses)
+  const user = useAuthStore(workspaceActor);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const vendors = useLedgerStore(s => s.vendors);
   useLedgerCollections('vendors');

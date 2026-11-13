@@ -57,6 +57,7 @@ test('EU-C4: amounts use the currency\'s own decimals', () => {
 test('EU-C4: the dialog drops the receipt when the person or workspace changes', () => {
   const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
   assert.match(dialog, /openedIn\.current === scope\) return;[\s\S]{0,120}onClose\(\)/);
+  assert.match(dialog, /useAuthStore\(workspaceActor\)/, 'the sample company can save, like other bills');
   assert.match(dialog, /RelatedRecordEditButton target=\{\{ kind: 'vendors', id: vendorId \}\}/);
 });
 
