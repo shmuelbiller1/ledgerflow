@@ -38,7 +38,8 @@ carried forward without saying so.
 - **What (from #652, reproduced by AI #7 through the real routers against PostgreSQL):** a bookkeeper could `PUT { partialUpdate: { status: 'void' } }` on a payment's entry, rewrite an invoice's entry lines, or `POST /:id/reverse` it, and each answered 200 while the invoice still read `paid` and the payment `posted` — the books and the documents then disagree, with nothing to reconstruct what the entry was.
 - **Client side already refused this** (`src/lib/transactionEdits.ts` `isDocumentEntry`, used by `TransactionRow.tsx:466` and `entryActions.ts:41`); the server enforced none of it, so the API was the way around the UI.
 - **Fix:** `src/server/services/ledgerEditGuards.ts` — `documentEntryRefusal()` applies the same predicate server-side; `PUT /:id` passes the changed keys so that **flagging, notes and other annotations still save** (the ledger list's flag button PUTs `{ isFlagged }` on every row) while status, figures, date, `metadata`/`metadata.*`, `exchangeRate`, `currency`, the reconciliation locks, `deletedAt`, `uid` and `workspaceId` are refused (409, pointing at the document); a whole-record rewrite and a reversal are refused outright. A platform admin keeps the existing override, exactly as the certified/cleared locks already do.
-- **Test:** `src/tests/ledger-edit-guards.test.ts` — the six metadata shapes the product writes, the hand entry / bank line / import batch that stay editable, flag-only and mixed partial updates, ten financial keys, `metadata.*` paths, admin, plus a wiring check that both routes call the guards. **Endpoint-level proof needs PostgreSQL and runs in CI**, not claimed here.
+- **Correction made after a real PostgreSQL run (commit `9824a43`, and a finding in its own right):** the first version reused the browser's `isDocumentEntry`, which counts *any* metadata `type`, so it also refused to reverse a COGS entry (the documented way stock comes back, `reverseRoutes.ts:213`) and a payroll-import entry (how a corrected file is re-imported). `invoice-cogs` and `pay1-payroll-import` failed 200 → 409 against PostgreSQL. The server rule is now `isDocumentPosting()`: a document link (invoice, bill, payment, credit note, vendor credit, estimate, expense, deposit, purchase order) **and** either no `type` or one of the nine posting types the document postings write. System runs stay reversible.
+- **Test:** `src/tests/ledger-edit-guards.test.ts` (9/9) — the document shapes, four system-run shapes that must stay reversible, the hand entry / bank line / import batch that stay editable, flag-only and mixed partial updates, ten financial keys, `metadata.*` paths, admin, plus a wiring check that both routes call the guards; and **`src/tests/ledger-edit-guards-db.test.ts` (4/4, PostgreSQL)**, which drives the real router: void/un-post/re-link/rewrite → 409 with the row untouched, flag and note → 200, flag+status → 409, reverse of the document entry → 409 with no `reversalEventId`, reverse of a hand entry → not 409, un-post of a posted hand entry → 409.
 
 ### AF6B-005 (P2, ledger integrity — same root) — a posted entry could be **un-posted in place** (`status → failed | draft`), and "Undo" answered 200 — issue **#662** — **FIXED on this branch**
 
@@ -50,6 +51,13 @@ carried forward without saying so.
 
 - **Where:** `crudRoutes.ts` `TRANSACTION_UPDATED_PARTIAL` / `TRANSACTION_UPDATED` details were `{ description }` only.
 - **Fix:** `auditSnapshot()` records status, date, total, description, line count, currency and rate, and both actions now write `before` and `after`. (The rows are still written after the caller's transaction commits, as #652(d) also notes; moving them inside the transaction is an AI #1 design decision and is not claimed here.)
+
+### AF6B-007 (P3, API contract) — the entry route answered every refusal with 400 — **FIXED on this branch**
+
+- **Where:** `src/server/routes/transactions/crudRoutes.ts`, the `PUT /:id` catch-all (`res.status(400).json(...)`).
+- **What:** the handler carried the correct status in its `HttpError`s (409 for a version conflict, a locked field, the new document refusal) but the catch mapped everything to 400, so a client could not tell "you sent something invalid" from "this entry is locked by a document". Found while writing the endpoint test, which expected 409 and got 400.
+- **Fix:** after the existing `version_conflict` / `Not found` / `Forbidden` branches, an error carrying a 4xx `status` is answered with it. Only the route's own `HttpError`s carry a status, so nothing else changes.
+- **Test:** the endpoint test above asserts 409 for each document refusal.
 
 ## B. Verified as already fixed at this pin (not re-fixed, evidence given)
 

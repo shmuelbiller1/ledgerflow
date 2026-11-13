@@ -42,9 +42,9 @@
 |---|---|
 | Node / npm | v22.22.3 / 10.9.8, 2 vCPU, 3.9 GB |
 | `node_modules` | installed with `npm ci` at the pin |
-| PostgreSQL (`LF_TEST_DATABASE_URL`) | **absent** — every DB-gated suite and `supabase/tests/rls.test.sql` skips; no Docker either |
+| PostgreSQL (`LF_TEST_DATABASE_URL`) | **absent at first, obtained later**: the `pgserver` wheel from PyPI (PostgreSQL 16.2) plus a small TCP proxy onto its socket; `npm run db:test-setup` applied the stub and all 24 migrations, so `npm run test:rules`, the DB-gated unit tests and the new endpoint test were run for real (see `03-TEST-AND-EVIDENCE.md`). No Docker |
 | Playwright browsers | **absent** — browser suites cannot run here |
-| Google Drive | **no connector in this session** (`list_connector_tools` → `disconnected`); nothing was uploaded, and no Drive claim is made. Everything is preserved in the branch on GitHub, which is the recovery path this session used. |
+| Google Drive | **not connected to this account** (the owner confirmed it and directed that everything be preserved through GitHub only). Nothing was uploaded and nothing is claimed to be on Drive. |
 
 ## 4. What was already fixed before this session started (verified, not assumed)
 

@@ -8,7 +8,7 @@
 | Branch | `arena/b33f6cd0-ledgerflow` — pushed to `origin` (fork `Chaim-Richard/ledgerflow`); based **exactly** on upstream `main` |
 | Commits | `d390685` report minor units (#651) · `d58ecca` document-entry guards (#652/#662) · `6b8260e` flag/annotate refinement · docs commit |
 | PR | fork PR (body in `PR-BODY.md`); the fork token is refused `createPullRequest` on `shmuelbiller1/ledgerflow`, so the upstream PR needs the one-click compare link |
-| Drive | **not used this session — the connector is disconnected**; nothing was uploaded and no Drive claim is made |
+| Drive | **not used** — not connected to this account, and the owner directed GitHub-only preservation. Nothing is claimed to be on Drive |
 
 ## What is finished
 
@@ -29,9 +29,9 @@
 
 | Item | Why |
 |---|---|
-| DB/RLS gates (`npm test` DB suites, `supabase/tests/rls.test.sql`, `npm run test:rules`) | no PostgreSQL in the sandbox |
+| ~~DB/RLS gates~~ | **done**: PostgreSQL 16.2 via the `pgserver` wheel; `npm run test:rules` → ALL RLS TESTS PASSED; shard 4/4 with the database → 777 tests, 0 failures; the new endpoint test → 4/4 |
 | Playwright browser suites | no browsers in the sandbox |
-| Endpoint-level proof of the new 409 refusals (PUT/reverse) | needs the DB; the unit + wiring tests are here, the endpoint cases run in CI |
+| ~~Endpoint-level proof~~ | **done** in `src/tests/ledger-edit-guards-db.test.ts` against PostgreSQL |
 | #653 (0.01 FX instalment residue), #654 (recurring 0.01), #646 (browser credit-note writes), #650/#661 | AI #1's money/server lane; each needs the DB-backed probe the issue itself carries |
 | Google Drive backup / MASTER_RECOVERY_INDEX update | connector disconnected |
 

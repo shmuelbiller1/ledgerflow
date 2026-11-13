@@ -42,14 +42,27 @@ New file: `src/server/services/ledgerEditGuards.ts`. The rule is the browser's o
 | Suite | Result |
 |---|---|
 | `src/tests/currency-minor-units-reports.test.ts` (new, 5 worked-figure cases: JPY, KWD, USD control, legacy row, part payment) | **5/5** |
-| `src/tests/ledger-edit-guards.test.ts` (new, 8 cases incl. flag-only and mixed partial updates, wiring) | **8/8** |
+| `src/tests/ledger-edit-guards.test.ts` (new, 9 cases incl. flag-only and mixed partial updates, system-run scoping, wiring) | **9/9** |
+| `src/tests/ledger-edit-guards-db.test.ts` (new, **against a real PostgreSQL**) | **4/4** — 409 on void/un-post/re-link/rewrite and on reverse of an invoice's accrual, the row untouched; 200 on the flag and the note; 409 on a flag riding with a status change; a hand entry still reverses and still takes a memo |
+| `npm run test:rules` (RLS script, PostgreSQL 16.2) | **ALL RLS TESTS PASSED** |
+| `TEST_SHARD=4/4 npm run test:shard` with the database | **777 tests, 0 failures** |
+| `src/tests/invoice-cogs.test.ts` + `src/tests/pay1-payroll-import.test.ts` (PostgreSQL) | **25/25** |
 | `src/tests/cash-basis.test.ts` + `sales-reps*.test.tsx` (neighbours) | **15/15** |
 | `npx tsc --noEmit` | 0 errors |
 | ESLint on every touched file | 0 errors, 0 warnings |
 | `audit/function-audit/probes/af008-641-aging-vs-ledger.ts` | **20/20 OK** (V7/V8 were DEFECT before this branch) |
 
-**Not run here:** the DB-gated suites, `npm run test:rules` and Playwright — this sandbox has no PostgreSQL and no
-browsers. The endpoint-level proof of the new 409s belongs to the Postgres CI job.
+**Not run here:** Playwright only (no browsers in this sandbox). The database work was run for real: the `pgserver`
+wheel provided PostgreSQL 16.2, `npm run db:test-setup` applied the stub and all 24 migrations, and the RLS script,
+shard 4/4 and the new endpoint test all passed.
+
+**One correction worth reading.** The first version of the guard reused the browser's `isDocumentEntry`, which counts
+*any* metadata `type`. Against PostgreSQL that refused two reversals the product relies on — reversing a
+cost-of-goods-sold entry (how stock comes back, `reverseRoutes.ts:213`) and reversing a payroll import's entry (how a
+corrected file is re-imported). `invoice-cogs` and `pay1-payroll-import` answered 409 instead of 200. The server rule
+is now `isDocumentPosting()` — a document link plus no type, or one of the nine document-posting types — so system
+runs stay reversible while the invoice, bill, payment and credit postings are protected. The route's catch-all also
+mapped every refusal to 400; it now honours the `HttpError` status, so a document entry answers 409.
 
 ## Re-verified at this pin (no change needed)
 

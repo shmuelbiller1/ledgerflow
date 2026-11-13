@@ -15,7 +15,7 @@ different, smaller set:
 | 2 | Sales-rep commission and cash-basis revenue were 100×/10× out for a foreign payment, and a part-paid foreign invoice recognised its whole posting (**#651** + AF6B-003) | P1 (reporting, feeds tax) | **fixed on this branch** with worked figures |
 | 3 | A foreign invoice paid in instalments leaves a permanent cent in A/R (#653) and a recurring job can post a cent out of balance (#654) | P2 | **open**, AI #1's lane, not re-executed here (needs PostgreSQL) |
 | 4 | Credit notes/vendor credits were writable from the browser and a forged credit could be applied and refunded (#646) | P1 | partly closed by migration `20261112100000` and `creditService`'s status gate; **not executed here** (no PostgreSQL) |
-| 5 | The database gates (RLS suite, `npm run test:rules`, the DB-gated integration suites) and the browser suites have **not been executed in this session**; CI's Postgres and browser jobs are the only place they run | gate | unverified here, green in CI at the pin per the last merged PR's run |
+| 5 | The database gates are now **run**, not deferred: with a local PostgreSQL 16.2, `npm run test:rules` reports ALL RLS TESTS PASSED, unit shard 4/4 (777 tests) is clean and the new endpoint test proves the 409s. Browser suites ran only in CI (5/5 pass) | gate | **verified** (browsers only in CI) |
 
 ## What supports the "conditionally ready" half
 
@@ -41,8 +41,8 @@ different, smaller set:
 - That CI is green *for this branch*: the branch has not been pushed through GitHub Actions yet; the local gates
   (`tsc`, ESLint on touched files, the focused suites, one unit shard) are recorded in
   `03-TEST-AND-EVIDENCE.md`.
-- That the database layer is sound at this pin: without PostgreSQL, the RLS suite and the DB-gated probes cannot
-  run here, and the migrations' trigger logic was read, not executed.
+- That every DB-gated suite is green: only shards 2/4 and 4/4 were run against PostgreSQL here (both clean after
+  the fixes), and the RLS script passed; the remaining DB-gated tests run in CI.
 
 ## Recommended order to close the gap
 
