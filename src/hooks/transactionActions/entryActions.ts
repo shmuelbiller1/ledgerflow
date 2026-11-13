@@ -470,7 +470,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       metadata: _metadata,
       ...txData
     } = tx as Transaction & Record<string, unknown>;
-    const cleanLines = tx.lines?.map(({ id: _lineId, baseAmountCents: _base, ...line }) => ({ ...line }));
+    // Copy the settled home-currency amounts along with the unchanged journal figures.
+    // Removing baseAmountCents would apply FX again and silently change the duplicate.
+    const cleanLines = tx.lines?.map(({ id: _lineId, ...line }) => ({ ...line }));
     const ok = await handleQuickAdd({
       ...(txData as Partial<Transaction>),
       ...(cleanLines ? { lines: cleanLines } : {}),
