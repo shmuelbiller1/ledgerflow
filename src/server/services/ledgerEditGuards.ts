@@ -27,14 +27,35 @@ export function isPostedEntry(tx: Partial<Transaction> | null | undefined): bool
 }
 
 /**
+ * The fields a document's entry must not have changed behind the document's back: its status, its
+ * figures, the date, the metadata that carries the document link, and the locks.
+ */
+const FINANCIAL_FIELDS = new Set([
+  'status', 'type', 'date', 'lines', 'amountCents', 'totalAmountCents', 'exchangeRate', 'currency',
+  'baseAmountCents', 'metadata', 'reversalEventId', 'isCleared', 'reconciled', 'isReconciled',
+  'isDeleted', 'deletedAt', 'uid', 'workspaceId',
+]);
+
+/** True when a partial update touches a financial field of the entry (a `metadata.x` path counts). */
+export function touchesFinancialField(keys: string[]): boolean {
+  return keys.some(key => FINANCIAL_FIELDS.has(key) || key.startsWith('metadata.'));
+}
+
+/**
  * The refusal for an entry that belongs to a document or a system run, or null when it may be changed
  * here. `isDocumentEntry` is the shared predicate (metadata document ids, `type`, `isReversal`).
+ *
+ * `changedKeys`, when given, is a partial update: flagging a document's entry for review, or adding a
+ * note to it, is not a change to the books and stays allowed; a status, a figure, a date or the
+ * metadata is refused. A whole-record rewrite (no `changedKeys`) is always refused.
  */
 export function documentEntryRefusal(
   tx: Pick<Transaction, 'metadata'> | null | undefined,
   admin = false,
+  changedKeys?: string[],
 ): string | null {
   if (!tx || admin || !isDocumentEntry(tx)) return null;
+  if (changedKeys && !touchesFinancialField(changedKeys)) return null;
   return 'This entry belongs to a document or a system run. Change it through that document — void or credit the invoice, bill or payment it came from — instead of editing the ledger entry.';
 }
 

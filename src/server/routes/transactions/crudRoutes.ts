@@ -290,7 +290,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            // #652/#662: a document's entry is changed through the document, and a posted entry is never
            // un-posted in place (a status of failed/draft drops it from every report). Same rule as the
            // browser's isDocumentEntry, applied where it cannot be bypassed.
-           const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin));
+           const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
            if (documentRefusal) throw new HttpError(documentRefusal, 409);
            const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin));
            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);

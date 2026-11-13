@@ -21,6 +21,7 @@ import {
   documentEntryRefusal,
   isPostedEntry,
   postedStatusRefusal,
+  touchesFinancialField,
 } from '../server/services/ledgerEditGuards';
 
 test('a document entry is refused, with a pointer to the document', () => {
@@ -37,6 +38,21 @@ test('a document entry is refused, with a pointer to the document', () => {
     assert.ok(refusal, `${JSON.stringify(metadata)} must be refused`);
     assert.match(refusal, /through that document/);
   }
+});
+
+test('flagging or annotating a document entry stays allowed; its figures, status and link do not', () => {
+  const invoiceEntry = { metadata: { type: 'invoice-accrual', invoiceId: 'inv1' } };
+  // the ledger list's "flag for review" button works on every row, document entries included
+  assert.equal(documentEntryRefusal(invoiceEntry, false, ['isFlagged']), null);
+  assert.equal(documentEntryRefusal(invoiceEntry, false, ['isFlagged', 'notes']), null);
+  // anything that changes the books, the period or the document link is refused
+  for (const keys of [['status'], ['lines'], ['amountCents'], ['date'], ['metadata.invoiceId'], ['isCleared'], ['reconciled'], ['exchangeRate'], ['currency'], ['deletedAt']]) {
+    assert.ok(documentEntryRefusal(invoiceEntry, false, keys), `${keys.join(',')} must be refused on a document entry`);
+  }
+  // mixed: a flag plus a status change is a status change
+  assert.ok(documentEntryRefusal(invoiceEntry, false, ['isFlagged', 'status']));
+  // a whole-record rewrite is refused whether or not it names a financial field
+  assert.ok(documentEntryRefusal(invoiceEntry, false));
 });
 
 test('a hand entry, a bank line and an import batch are still editable', () => {
@@ -84,6 +100,12 @@ test('isPostedEntry and auditSnapshot read the fields an auditor asks about', ()
     lineCount: 2, currency: 'EUR', exchangeRate: 1.0842,
   });
   assert.equal(auditSnapshot(undefined), null);
+});
+
+test('touchesFinancialField classifies the partial-update keys', () => {
+  assert.equal(touchesFinancialField(['isFlagged', 'notes']), false);
+  assert.equal(touchesFinancialField(['status']), true);
+  assert.equal(touchesFinancialField(['metadata.anything']), true, 'a metadata path can strip the document link');
 });
 
 test('both generic entry routes call the guards (wiring, not only the helper)', () => {
