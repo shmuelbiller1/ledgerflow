@@ -319,6 +319,8 @@ test('TransactionEditModal never double-converts home-native FX journal amounts'
     fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
   });
   assert.equal(writes, 1);
+  assert.equal(saved?.currency, 'ILS', 'home-native journal must remain denominated in books currency');
+  assert.equal(saved?.originalCurrency, 'USD', 'retain the historical foreign-currency reference');
   assert.deepEqual(saved?.lines?.map(l => l.amountCents), [17000, -17000]);
   assert.deepEqual(saved?.lines?.map(l => l.baseAmountCents), [17000, -17000]);
   assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [undefined, undefined],
