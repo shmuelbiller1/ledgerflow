@@ -1,9 +1,11 @@
-import { displayDimensionName } from '../../lib/dimensionUtils';
+import { displayDimensionName, stableLabelValue } from '../../lib/dimensionUtils';
 import React, { useEffect, useState } from 'react';
 import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { budgetedResult, budgetLabel } from '../../lib/budgetByLabel';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 
 type Section = 'income' | 'cogs' | 'expense';
@@ -21,6 +23,10 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
 export default function LabelProfitReportView() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes);
+  // EU-E5: budgets that carry a value of this label give a budget row and a "vs budget" row
+  const budgets = useLedgerStore(s => s.budgets);
+  const ledgerAccounts = useLedgerStore(s => s.accounts);
+  useLedgerCollections('budgets', 'accounts');
   const dimensions = workspace?.dimensions || [];
   const [picked, setPicked] = useState('');
   const dimensionId = picked || dimensions[0]?.id || '';
@@ -116,6 +122,49 @@ export default function LabelProfitReportView() {
                   <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total[k], currency)}</td>
                 </tr>
               ))}
+              {(() => {
+                const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate, nodes: nodes || [] });
+                // Old imports can supply descriptions while new entries carry node IDs.
+                // Give the canonical label's budget to its first actual column only.
+                const canon = (v: string) => stableLabelValue(v, dimensionId, nodes || []).normalize('NFC').toLowerCase();
+                const counted = new Set<string>();
+                const budgeted = report.columns.map(c => {
+                  const key = canon(c.value);
+                  if (counted.has(key)) return null;
+                  counted.add(key);
+                  return budgetOf(c.value);
+                });
+                // A value with a budget but no activity still contributes once, even if
+                // multiple saved budgets refer to it by both description and node ID.
+                const budgetOnly = [...new Set((budgets || []).map(bg => budgetLabel(bg)).filter(l => l?.dimensionId === dimensionId).map(l => l!.value))]
+                  .filter(v => {
+                    const key = canon(v);
+                    if (counted.has(key)) return false;
+                    counted.add(key);
+                    return true;
+                  }).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
+                if (budgeted.every(b => b === null) && budgetOnly.length === 0) return null;
+                const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0) + budgetOnly.reduce((s, v) => s + v.cents, 0);
+                return (
+                  <>
+                    <tr data-testid="label-budget-row">
+                      <th scope="row" className="text-left py-1">Budgeted result</th>
+                      {budgeted.map((b, i) => <td key={report.columns[i].value} className="text-right font-mono py-1 px-2">{formatCurrency(b || 0, currency)}</td>)}
+                      <td className="text-right font-mono py-1 px-2">{formatCurrency(total, currency)}</td>
+                    </tr>
+                    <tr className="font-semibold">
+                      <th scope="row" className="text-left py-1">Net income vs budget</th>
+                      {report.columns.map((c, i) => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c.netIncome - (budgeted[i] || 0), currency)}</td>)}
+                      <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total.netIncome - total, currency)}</td>
+                    </tr>
+                    {budgetOnly.length > 0 && (
+                      <tr><td colSpan={report.columns.length + 2} className="text-xs text-[var(--muted)] pt-1" data-testid="label-budget-only">
+                        Budgeted with no activity in this period (in the total): {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}
+                      </td></tr>
+                    )}
+                  </>
+                );
+              })()}
             </tfoot>
           </table>
         </div>

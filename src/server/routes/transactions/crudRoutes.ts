@@ -1,4 +1,5 @@
 import express from 'express';
+import { LabelFilterError, matchesLabelFilters, parseLabelFilters, type LabelDef } from '../../../lib/labelQueryFilter';
 import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from '../../services/budgetGuard';
 import { revaluationEntryLock } from '../../services/stockRevaluationService';
 import { ledgerCreate } from '../../services/ledgerDoor';
@@ -59,6 +60,14 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         throw err;
       }
 
+      // EU-E9: ?label.<name>=<value>, the workspace's own labels only
+      let labelFilters: Record<string, string>;
+      try { labelFilters = parseLabelFilters(req.query as Record<string, unknown>, ((wsDoc.data()?.dimensions || []) as LabelDef[]).filter(d => d && d.id !== 'category')); } catch (err) {
+        if (err instanceof LabelFilterError) return res.status(400).json({ error: err.message });
+        throw err;
+      }
+      const filtering = Boolean(accountId) || Object.keys(labelFilters).length > 0;
+
       let queryFn = db.collection("transactions").where("workspaceId", "==", workspaceId);
     
       // HushLedger-style cursor + ledger revision pagination
@@ -75,7 +84,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       }
     
       const maxLimit = Number.parseInt(limit as string, 10) || 100;
-      const fetchLimit = accountId ? 1000 : Math.min(maxLimit, 1000);
+      const fetchLimit = filtering ? 1000 : Math.min(maxLimit, 1000);
       queryFn = queryFn.limit(fetchLimit);
 
       const transactionsSnap = await queryFn.get();
@@ -83,6 +92,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
 
       if (accountId) {
         transactions = transactions.filter((t: DocumentData) => t.lines?.some((l: TransactionLine) => l.accountId === accountId));
+      }
+      if (Object.keys(labelFilters).length) {
+        transactions = transactions.filter((t: DocumentData) => matchesLabelFilters(t, labelFilters));
       }
 
       const nextCursor = transactionsSnap.docs.length === fetchLimit 

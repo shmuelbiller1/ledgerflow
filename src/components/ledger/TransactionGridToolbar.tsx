@@ -1,3 +1,4 @@
+import { currentLabelColumns } from '../../lib/currentLabelColumns';
 import { useDialog } from '../../hooks/useDialog';
 
 
@@ -25,9 +26,11 @@ export function TransactionGridToolbar({ model }: { model: TransactionGridModel 
  const btn = "min-h-11 md:min-h-0 md:h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)] shrink-0 cursor-pointer";
  const menuItem = "w-full text-left px-3 py-2 text-sm rounded-md hover:bg-[var(--ink)] flex items-center justify-between gap-3";
  const exportCsv = () => {
+   // EU-E9: one column per label, after the fixed ones
+   const labelCols = currentLabelColumns();
    downloadCsv(`${BRAND.fileSlug}_transactions_${getLocalDateISO()}.csv`,
-     ['Date', 'Description', 'Amount', 'Currency', 'Account', 'Project', 'Notes'],
-     transactionsWithBalance.map(t => [t.date, t.description, csvMoney(signedCents(t)), t.currency || 'USD', resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || '', t.notes || '']));
+     ['Date', 'Description', 'Amount', 'Currency', 'Account', 'Project', 'Notes', ...labelCols.headers],
+     transactionsWithBalance.map(t => [t.date, t.description, csvMoney(signedCents(t)), t.currency || 'USD', resolveAccountName(accounts, t.lines?.[0]?.accountId, t.lines?.[0]?.accountName), t.project || '', t.notes || '', ...labelCols.cells(t)]));
    toast.success('Transactions exported to CSV.');
  };
  return (<div className="px-4 py-2.5 border-b border-[var(--line)] bg-[var(--surface)] space-y-2">
