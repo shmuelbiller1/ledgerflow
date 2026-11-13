@@ -290,6 +290,11 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            // #652/#662: a document's entry is changed through the document, and a posted entry is never
            // un-posted in place (a status of failed/draft drops it from every report). Same rule as the
            // browser's isDocumentEntry, applied where it cannot be bypassed.
+           // ISS-130 is a more specific lock; preserve its existing refusal
+           // and response code before applying the general posted-entry guards.
+           const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
+           const revaluation = lockedField ? revaluationEntryLock(txData) : null;
+           if (revaluation) throw new Error(revaluation);
            const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
            if (documentRefusal) throw new HttpError(documentRefusal, 409);
            const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
@@ -297,11 +302,6 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
            beforeEdit = auditSnapshot(txData as Partial<Transaction>);
          
-           // ISS-130; EG-6 review: a partial update that changes the status, type or metadata (which could strip the
-           // entry's type and with it the lock) is refused for these entries, not only a status change
-           const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
-           const revaluation = lockedField ? revaluationEntryLock(txData) : null;
-           if (revaluation) throw new Error(revaluation);
            if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
              throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
            }
