@@ -18,6 +18,7 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
   const ws = `ws_guard_${crypto.randomBytes(4).toString('hex')}`;
   const docId = `${ws}_doc`;
   const handId = `${ws}_hand`;
+  const reconciledId = `${ws}_reconciled`;
   let db: Firestore;
   let server: Server;
   let base = '';
@@ -41,6 +42,7 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     });
     await db.collection('transactions').doc(docId).set(entry(docId, { invoiceId: `${ws}_inv`, type: 'invoice-accrual' }));
     await db.collection('transactions').doc(handId).set(entry(handId, {}));
+    await db.collection('transactions').doc(reconciledId).set({ ...entry(reconciledId, {}), status: 'reconciled' });
     const express = (await import('express')).default;
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const app = express();
@@ -73,9 +75,12 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
       assert.ok(res.status >= 400, `${JSON.stringify(body)} → ${res.status}`);
     }
     assert.equal(((await read(docId)) as { lines: unknown[] }).lines.length, 2);
-    // a whole-record rewrite is refused too (the double-entry guard answers before the document guard here)
-    const rewrite = await send('PUT', `/api/v1/transactions/${docId}`, { ...(await read(docId)), description: 'Rewritten' });
-    assert.ok(rewrite.status >= 400, await rewrite.text());
+    // Send the actual full-update request shape, not a flat payload that the
+    // middleware rejects before reaching the document-posting guard.
+    const rewrite = await send('PUT', `/api/v1/transactions/${docId}`, {
+      transaction: { ...(await read(docId)), id: docId, description: 'Rewritten' },
+    });
+    assert.equal(rewrite.status, 409, await rewrite.text());
     assert.equal((await read(docId))?.description, 'Entry');
   });
 
@@ -101,8 +106,20 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
   });
 
   test('a posted hand entry is not un-posted in place either; a memo is fine', async () => {
-    const unpost = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate: { status: 'failed' } });
-    assert.equal(unpost.status, 409, await unpost.text());
+    for (const partialUpdate of [
+      { status: 'failed' }, { status: 'draft' }, { status: 'void' },
+      { deletedAt: '2026-11-13T00:00:00.000Z' }, { isDeleted: true },
+    ]) {
+      const unpost = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate });
+      assert.equal(unpost.status, 409, `${JSON.stringify(partialUpdate)}: ${await unpost.text()}`);
+      assert.equal((await read(handId))?.status, 'completed');
+      assert.equal((await read(handId))?.deletedAt, undefined);
+    }
+    for (const partialUpdate of [{ status: 'failed' }, { status: 'void' }, { deletedAt: '2026-11-13T00:00:00.000Z' }]) {
+      const refused = await send('PUT', `/api/v1/transactions/${reconciledId}`, { partialUpdate });
+      assert.equal(refused.status, 409, `reconciled ${JSON.stringify(partialUpdate)}: ${await refused.text()}`);
+      assert.equal((await read(reconciledId))?.status, 'reconciled');
+    }
     assert.equal((await read(handId))?.status, 'completed');
     const memo = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate: { memo: 'Team coffee' } });
     assert.equal(memo.status, 200, await memo.text());
