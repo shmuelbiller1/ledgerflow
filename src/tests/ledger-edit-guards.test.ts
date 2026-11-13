@@ -20,6 +20,7 @@ import {
   auditSnapshot,
   documentEntryRefusal,
   isPostedEntry,
+  postedDeletionRefusal,
   postedStatusRefusal,
   touchesFinancialField,
 } from '../server/services/ledgerEditGuards';
@@ -103,7 +104,7 @@ test('a platform admin keeps the existing override', () => {
 });
 
 test('a posted entry is not un-posted in place', () => {
-  for (const status of ['failed', 'draft']) {
+  for (const status of ['failed', 'draft', 'void']) {
     const refusal = postedStatusRefusal({ status: 'completed' }, status);
     assert.ok(refusal, `completed → ${status} must be refused`);
     assert.match(refusal, /reversing entry/);
@@ -112,6 +113,8 @@ test('a posted entry is not un-posted in place', () => {
   assert.equal(postedStatusRefusal({ status: 'draft' }, 'completed'), null);
   // cleared and reconciled entries count as posted even when their status is not `completed`
   assert.ok(postedStatusRefusal({ status: 'reconciled', isCleared: true }, 'failed'));
+  assert.ok(postedStatusRefusal({ status: 'reconciled' }, 'failed'), 'status reconciled alone is posted');
+  assert.ok(postedStatusRefusal({ status: 'pending', isReconciled: true }, 'void'), 'reconciliation flag alone is posted');
   // flags and review marks are not un-posting
   assert.equal(postedStatusRefusal({ status: 'completed' }, 'flagged'), null);
   assert.equal(postedStatusRefusal({ status: 'completed' }, 'reviewed'), null);
@@ -120,8 +123,32 @@ test('a posted entry is not un-posted in place', () => {
   assert.equal(postedStatusRefusal(null, 'failed'), null);
 });
 
+
+test('posted entry cannot acquire deletion marker without reversing; an admin retains override', () => {
+  const tx = { status: 'completed' } as const;
+  assert.match(postedDeletionRefusal(tx, { deletedAt: '2026-11-13T00:00:00Z' }) || '', /reversing entry/);
+  assert.ok(postedDeletionRefusal(tx, { isDeleted: true } as never));
+  assert.ok(postedDeletionRefusal({ status: 'reconciled' }, { deletedAt: '2026-11-13T00:00:00Z' }));
+  assert.equal(postedDeletionRefusal(tx, { isFlagged: true }), null);
+  assert.equal(postedDeletionRefusal(tx, { deletedAt: '2026-11-13T00:00:00Z' }, true), null);
+  assert.equal(postedDeletionRefusal({ status: 'draft' }, { deletedAt: '2026-11-13T00:00:00Z' }), null);
+});
+
+test('partial audit snapshots retain the same keys and show annotation changes', () => {
+  const original = { status: 'completed' as const, description: 'Memo', isFlagged: false };
+  const before = auditSnapshot(original);
+  const after = auditSnapshot({ ...original, isFlagged: true });
+  assert.deepEqual(Object.keys(before || {}), Object.keys(after || {}));
+  assert.equal(before?.isFlagged, false);
+  assert.equal(after?.isFlagged, true);
+});
+
 test('isPostedEntry and auditSnapshot read the fields an auditor asks about', () => {
   assert.equal(isPostedEntry({ status: 'completed' }), true);
+  assert.equal(isPostedEntry({ status: 'reconciled' }), true);
+  assert.equal(isPostedEntry({ status: 'pending', isReconciled: true }), true);
+  assert.equal(isPostedEntry({ status: 'pending', isCleared: true }), true);
+  assert.equal(isPostedEntry({ status: 'pending', reconciled: true }), true);
   assert.equal(isPostedEntry({ status: 'void' }), false);
   assert.equal(isPostedEntry({ status: 'void', reconciled: true }), true);
   const snapshot = auditSnapshot({
@@ -130,7 +157,7 @@ test('isPostedEntry and auditSnapshot read the fields an auditor asks about', ()
   });
   assert.deepEqual(snapshot, {
     status: 'completed', date: '2026-10-31', totalAmountCents: 12500, description: 'Sales',
-    lineCount: 2, currency: 'EUR', exchangeRate: 1.0842,
+    lineCount: 2, currency: 'EUR', exchangeRate: 1.0842, isFlagged: null, notes: null,
   });
   assert.equal(auditSnapshot(undefined), null);
 });
@@ -146,10 +173,12 @@ test('both generic entry routes call the guards (wiring, not only the helper)', 
   const crud = read('crudRoutes.ts');
   const reverse = read('reverseRoutes.ts');
   // the partial update branch, the full update branch and the reverse route each refuse a document entry
-  assert.equal((crud.match(/documentEntryRefusal\(/g) || []).length, 2, 'PUT /:id must guard both branches');
+  assert.equal((crud.match(/documentEntryRefusal\(/g) || []).length, 3, 'PUT /:id must recheck full updates inside the database transaction');
   assert.equal((crud.match(/postedStatusRefusal\(/g) || []).length, 2, 'PUT /:id must refuse un-posting in both branches');
+  assert.equal((crud.match(/postedDeletionRefusal\(/g) || []).length, 2, 'PUT /:id must refuse in-place deletion on both update paths');
   assert.equal((reverse.match(/documentEntryRefusal\(/g) || []).length, 1, 'POST /:id/reverse must refuse a document entry');
   // and the audit rows now carry before/after
   assert.match(crud, /before: beforeEdit/);
   assert.match(crud, /after: afterEdit/);
+  assert.match(crud, /afterEdit = auditSnapshot\(\{ \.\.\.txData, \.\.\.safePartial \}/, 'partial-update audit fields must match before snapshot');
 });
