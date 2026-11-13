@@ -109,4 +109,15 @@ describe('EU-C4: Snap a receipt', () => {
     assert.equal(documentData.workspaceId, SAMPLE_WORKSPACE_ID);
     assert.equal((calls[1][1][0] as { amountCents: number }).amountCents, 700);
   });
+
+  test('a save that finishes after the dialog was closed does not close the next one', async () => {
+    let finishBill: (id: string) => void = () => {};
+    const writes = { ...stubWrites(calls), saveBill: () => new Promise<string>(resolve => { finishBill = resolve; }) } as ReceiptWrites;
+    const first = render(<SnapReceiptDialog onClose={() => { closed++; }} writes={writes} />);
+    await fillIn();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); });
+    first.unmount(); // closed while saving; a new receipt may be open by now
+    await act(async () => { finishBill('bill-late'); });
+    assert.equal(closed, 0, 'the late save did not call onClose');
+  });
 });

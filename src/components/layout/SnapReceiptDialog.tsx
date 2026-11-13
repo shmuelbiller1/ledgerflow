@@ -70,6 +70,10 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
   // a receipt belongs to the books it was snapped in: a change of person or workspace drops it
   const scope = `${user?.uid || ''}:${workspace?.id || ''}`;
   const openedIn = useRef(scope);
+  // a save that finishes after this dialog was closed (or replaced by a new one) must not close
+  // the newer dialog or announce itself in other books
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   useEffect(() => {
     if (openedIn.current === scope) return;
     currentPhoto.current = null; // any reading still under way is now stale
@@ -144,11 +148,11 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
         await io.linkDocument(receiptDocId, {
           linkedCollection: 'bills', linkedId: billId, linkedLabel: `${vendor.name} receipt (draft)`,
         });
-        toast.success('Receipt saved as a draft bill. Nothing is posted until it is approved.');
+        if (mounted.current) toast.success('Receipt saved as a draft bill. Nothing is posted until it is approved.');
       } catch (linkErr) {
-        toast.warning(`Receipt saved as a draft bill, but the photo could not be linked to it (${linkErr instanceof Error ? linkErr.message : String(linkErr)}). The photo is in Documents.`);
+        if (mounted.current) toast.warning(`Receipt saved as a draft bill, but the photo could not be linked to it (${linkErr instanceof Error ? linkErr.message : String(linkErr)}). The photo is in Documents.`);
       }
-      onClose();
+      if (mounted.current) onClose();
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
       setError(receiptDocId
