@@ -132,6 +132,23 @@ test('posted entry cannot acquire deletion marker without reversing; an admin re
   assert.equal(postedDeletionRefusal(tx, { isFlagged: true }), null);
   assert.equal(postedDeletionRefusal(tx, { deletedAt: '2026-11-13T00:00:00Z' }, true), null);
   assert.equal(postedDeletionRefusal({ status: 'draft' }, { deletedAt: '2026-11-13T00:00:00Z' }), null);
+  for (const status of ['flagged', 'pending', 'reviewed', 'approved', 'overdue'] as const) {
+    assert.ok(postedDeletionRefusal({ status }, { deletedAt: '2026-11-13T00:00:00Z' }),
+      `${status} cannot be deleted after a status-only change`);
+    assert.ok(postedStatusRefusal({ status }, 'void'), `${status} cannot be voided in place`);
+  }
+});
+
+test('two-request status bypass cannot un-post a journal counted in reports', () => {
+  // A generic status change can preserve postability, but it must not remove
+  // the protection that refuses the next request to void or soft-delete the row.
+  for (const intermediateStatus of ['flagged', 'pending', 'approved', 'reviewed', 'overdue'] as const) {
+    const intermediate = { status: intermediateStatus };
+    assert.equal(isPostedEntry(intermediate), true);
+    assert.ok(postedStatusRefusal(intermediate, 'failed'));
+    assert.ok(postedStatusRefusal(intermediate, 'void'));
+    assert.ok(postedDeletionRefusal(intermediate, { deletedAt: '2026-11-13T00:00:00Z' }));
+  }
 });
 
 test('partial audit snapshots retain the same keys and show annotation changes', () => {
@@ -149,6 +166,12 @@ test('isPostedEntry and auditSnapshot read the fields an auditor asks about', ()
   assert.equal(isPostedEntry({ status: 'pending', isReconciled: true }), true);
   assert.equal(isPostedEntry({ status: 'pending', isCleared: true }), true);
   assert.equal(isPostedEntry({ status: 'pending', reconciled: true }), true);
+  for (const status of ['pending', 'flagged', 'reviewed', 'approved', 'overdue', 'certified'] as const) {
+    assert.equal(isPostedEntry({ status }), true, `${status} remains in financial reports`);
+  }
+  assert.equal(isPostedEntry({ status: 'draft' }), false);
+  assert.equal(isPostedEntry({ status: 'void' }), false);
+  assert.equal(isPostedEntry({ status: 'failed' }), false);
   assert.equal(isPostedEntry({ status: 'void' }), false);
   assert.equal(isPostedEntry({ status: 'void', reconciled: true }), true);
   const snapshot = auditSnapshot({
