@@ -48,7 +48,7 @@ function ScopedTrend({
           setSelected(null);
           setHovered(null);
         }}
-        className="min-h-11 px-3 border border-[var(--line)] rounded-lg"
+        className="option-state min-h-11 px-3 border border-[var(--line)] rounded-lg"
       >
         {label}
       </button>

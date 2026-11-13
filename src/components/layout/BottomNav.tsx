@@ -50,7 +50,7 @@ export default function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             className={cn(
               "flex flex-col items-center justify-center flex-1 min-w-[44px] h-16 gap-1 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--text)]",
               tab === activeTab
-                ? "text-[var(--text)] font-semibold"
+                ? "text-[var(--text)] font-semibold bg-[var(--brass-soft)] shadow-[inset_0_3px_0_var(--brass)]"
                 : "text-[var(--muted)]",
             )}
           >
