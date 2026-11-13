@@ -200,7 +200,12 @@ function useTransactionEditModalModel({
     const currentNodes = useLedgerStore.getState().dimensionNodes || [];
     const workspaceProjects = useLedgerStore.getState().projects || [];
     const isForeignCurrency = Boolean(originalCurrency && originalCurrency !== baseCurrency);
-    const finalLines = lines.map(l => {
+    const originalLinesByKey = new Map<string, TransactionLine>(
+      withOccurrenceKeys(transaction.lines || [], line =>
+        line.id || JSON.stringify([line.accountId, line.description, line.amountCents, line.project, line.class, line.location])
+      ).map(({ item, key }) => [`existing-${key}`, item] as const),
+    );
+    const finalLines = lines.map((l, index) => {
       const acc = accounts.find(a => a.id === l.accountId);
       const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
       const rawLineProject = l.project || project.trim() || undefined;
@@ -210,8 +215,13 @@ function useTransactionEditModalModel({
           : undefined;
       const cleanedBase = { ...l } as TransactionLine & { currency?: string };
       if (isForeignCurrency) {
-        delete cleanedBase.baseAmountCents;
-        cleanedBase.exchangeRate = exchangeRate;
+        if (cleanedBase.exchangeRate === undefined) cleanedBase.exchangeRate = exchangeRate;
+        const originalLine = originalLinesByKey.get(lineKeys[index]);
+        const originalExchangeRate = originalLine?.exchangeRate ?? transaction.exchangeRate ?? 1.0;
+        const currentExchangeRate = cleanedBase.exchangeRate ?? exchangeRate;
+        if (!originalLine || l.amountCents !== originalLine.amountCents || currentExchangeRate !== originalExchangeRate) {
+          delete cleanedBase.baseAmountCents;
+        }
       } else if (cleanedBase.exchangeRate !== undefined || cleanedBase.baseAmountCents !== undefined || cleanedBase.currency !== undefined) {
         delete cleanedBase.exchangeRate;
         delete cleanedBase.baseAmountCents;

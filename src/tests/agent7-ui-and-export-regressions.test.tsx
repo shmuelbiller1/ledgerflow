@@ -234,7 +234,97 @@ test('TransactionEditModal respects workspace baseCurrency, shows balanced journ
   assert.equal((screen.getByRole('button', { name: 'Record synchronized changes' }) as HTMLButtonElement).disabled, true);
 });
 
-test('entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok', async () => {
+test('TransactionEditModal preserves manual FX amounts and per-line rates on a description-only edit', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ links: [], questions: [] }), { status: 200 })) as typeof fetch;
+  const ws = setComponentWorkspace('owner');
+  useAuthStore.setState({ workspaces: [{ ...ws, currency: 'ILS' }] });
+  useLedgerStore.setState({ baseCurrency: 'ILS', accounts: chartAccounts, transactions: [] });
+  const tx: Transaction = {
+    id: 'tx_manual_fx_description',
+    uid: 'u_1',
+    workspaceId: ws.id,
+    date: '2026-10-12',
+    description: 'Manual USD journal',
+    status: 'completed',
+    type: 'actual',
+    currency: 'USD',
+    originalCurrency: 'USD',
+    exchangeRate: 4,
+    totalAmountCents: 5000,
+    lines: [
+      { id: 'fx-expense', accountId: 'acc_exp', accountName: 'Cloud Hosting', amountCents: 5000, exchangeRate: 3.75, baseAmountCents: 18750 },
+      { id: 'fx-bank', accountId: 'acc_bank', accountName: 'Operating Bank', amountCents: -5000, exchangeRate: 3.75, baseAmountCents: -18750 },
+    ],
+  } as Transaction;
+  let savedUpdates: Partial<Transaction> | undefined;
+  render(
+    <TransactionEditModal
+      isOpen
+      transaction={tx}
+      accounts={chartAccounts}
+      onClose={() => {}}
+      onUpdate={(_id, updates) => { savedUpdates = updates; }}
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated manual USD journal' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+
+  assert.equal(savedUpdates?.description, 'Updated manual USD journal');
+  assert.deepEqual(savedUpdates?.lines?.map(line => ({ baseAmountCents: line.baseAmountCents, exchangeRate: line.exchangeRate })), [
+    { baseAmountCents: 18750, exchangeRate: 3.75 },
+    { baseAmountCents: -18750, exchangeRate: 3.75 },
+  ]);
+});
+
+test('TransactionEditModal preserves a rate-1 FX gain/loss line beside foreign-rate lines', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ links: [], questions: [] }), { status: 200 })) as typeof fetch;
+  const ws = setComponentWorkspace('owner');
+  useAuthStore.setState({ workspaces: [{ ...ws, currency: 'ILS' }] });
+  useLedgerStore.setState({ baseCurrency: 'ILS', accounts: chartAccounts, transactions: [] });
+  const tx: Transaction = {
+    id: 'tx_fx_gain_loss_rate_one',
+    uid: 'u_1',
+    workspaceId: ws.id,
+    date: '2026-10-12',
+    description: 'USD journal with FX gain',
+    status: 'completed',
+    type: 'actual',
+    currency: 'USD',
+    originalCurrency: 'USD',
+    exchangeRate: 3.75,
+    totalAmountCents: 10000,
+    lines: [
+      { id: 'fx-expense', accountId: 'acc_exp', accountName: 'Cloud Hosting', amountCents: 10000, exchangeRate: 3.75, baseAmountCents: 37500 },
+      { id: 'fx-bank', accountId: 'acc_bank', accountName: 'Operating Bank', amountCents: -9900, exchangeRate: 3.75, baseAmountCents: -37125 },
+      { id: 'fx-gain', accountId: 'acc_rev', accountName: 'SaaS Revenue', amountCents: -100, exchangeRate: 1, baseAmountCents: -100 },
+    ],
+  } as Transaction;
+  let savedUpdates: Partial<Transaction> | undefined;
+  render(
+    <TransactionEditModal
+      isOpen
+      transaction={tx}
+      accounts={chartAccounts}
+      onClose={() => {}}
+      onUpdate={(_id, updates) => { savedUpdates = updates; }}
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated USD journal with FX gain' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+
+  assert.equal(savedUpdates?.lines?.[0]?.exchangeRate, 3.75);
+  assert.equal(savedUpdates?.lines?.[1]?.exchangeRate, 3.75);
+  assert.equal(savedUpdates?.lines?.[2]?.exchangeRate, 1);
+  assert.equal(savedUpdates?.lines?.[2]?.baseAmountCents, -100);
+});
+
+test('entryActions: handleDuplicateTransaction strips metadata and successful flag toggles preserve the realtime version', async () => {
   const sourceTx: Transaction = {
     id: 'tx_doc_rec_1',
     workspaceId: 'ws_1',
@@ -259,11 +349,22 @@ test('entryActions: handleDuplicateTransaction strips document/reconcile/reversa
   useLedgerStore.setState({ transactions: [sourceTx], accounts: chartAccounts });
 
   const postedBodies: Array<{ url: string; body: Record<string, unknown> }> = [];
+  let flagRequestCount = 0;
+  const realtimeUpdatedAt = '2026-09-02T12:00:00.000Z';
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const parsed = init?.body ? JSON.parse(String(init.body)) : {};
     postedBodies.push({ url: String(url), body: parsed });
     if (String(url).endsWith('/tx_doc_rec_1')) {
-      return new Response(JSON.stringify({ error: 'version_conflict' }), { status: 409 });
+      flagRequestCount += 1;
+      if (flagRequestCount === 1) {
+        return new Response(JSON.stringify({ error: 'version_conflict' }), { status: 409 });
+      }
+      useLedgerStore.setState(state => ({
+        transactions: state.transactions.map(t =>
+          t.id === 'tx_doc_rec_1' ? { ...t, isFlagged: true, updatedAt: realtimeUpdatedAt } : t,
+        ),
+      }));
+      return new Response(JSON.stringify({ status: 'ok', transactionId: 'tx_doc_rec_1' }), { status: 200 });
     }
     return new Response(JSON.stringify({ status: 'success', data: { id: 'tx_copy_1' } }), { status: 201 });
   }) as typeof fetch;
@@ -287,10 +388,17 @@ test('entryActions: handleDuplicateTransaction strips document/reconcile/reversa
 
   await actions.handleToggleFlag('tx_doc_rec_1');
   assert.equal(postedBodies[0].body.expectedUpdatedAt, '2026-09-01T00:00:00.000Z');
+  assert.deepEqual(postedBodies[0].body.partialUpdate, { isFlagged: true });
   assert.equal(useLedgerStore.getState().transactions[0].isFlagged, false, 'rejected 409 flag toggle must not mutate store');
 
+  await actions.handleToggleFlag('tx_doc_rec_1');
+  assert.equal(postedBodies[1].body.expectedUpdatedAt, '2026-09-01T00:00:00.000Z');
+  assert.deepEqual(postedBodies[1].body.partialUpdate, { isFlagged: true }, 'flag update must not submit a client timestamp');
+  assert.equal(useLedgerStore.getState().transactions[0].isFlagged, true);
+  assert.equal(useLedgerStore.getState().transactions[0].updatedAt, realtimeUpdatedAt, 'a successful response without data must preserve the newer realtime record version');
+
   await actions.handleDuplicateTransaction('tx_doc_rec_1');
-  const dupPayload = postedBodies[1]?.body?.transaction as Record<string, unknown>;
+  const dupPayload = postedBodies[2]?.body?.transaction as Record<string, unknown>;
   assert.ok(dupPayload);
   assert.equal(dupPayload.invoiceId, undefined);
   assert.equal(dupPayload.metadata, undefined);

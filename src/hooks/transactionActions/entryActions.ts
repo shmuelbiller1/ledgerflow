@@ -380,12 +380,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
     const nextFlagged = !tx.isFlagged;
-    const nextUpdatedAt = new Date().toISOString();
     const res = await fetch(`/api/v1/transactions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
       body: JSON.stringify({
-        partialUpdate: { isFlagged: nextFlagged, updatedAt: nextUpdatedAt },
+        partialUpdate: { isFlagged: nextFlagged },
         expectedUpdatedAt: tx.updatedAt,
       }),
     });
@@ -398,10 +397,10 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     }
     const body = await res.json().catch(() => null);
     if (!scope.isCurrent()) return;
-    const persistedUpdatedAt = body?.data?.updatedAt || nextUpdatedAt;
+    const persistedUpdatedAt = body?.data?.updatedAt;
     setTransactions(
       useLedgerStore.getState().transactions.map(t =>
-        t.id === id ? { ...t, isFlagged: nextFlagged, updatedAt: persistedUpdatedAt } : t,
+        t.id === id ? { ...t, isFlagged: nextFlagged, ...(persistedUpdatedAt ? { updatedAt: persistedUpdatedAt } : {}) } : t,
       ),
     );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
