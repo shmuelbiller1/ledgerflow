@@ -277,6 +277,16 @@ test('TransactionEditModal preserves per-line FX rates and precomputed home amou
   });
   assert.ok(saved?.lines?.every(l => l.baseAmountCents === undefined));
   assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [3.75, 3.75, 1, 1]);
+
+  // Header changes must propagate to lines using the previous header rate,
+  // but not to rate-1 exchange-difference lines.
+  fireEvent.change(screen.getByLabelText(/Historical Exchange Rate Offset/i), { target: { value: '4.00' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+  assert.equal(saved?.exchangeRate, 4);
+  assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [4, 4, 1, 1]);
+  assert.ok(saved?.lines?.every(l => l.baseAmountCents === undefined));
   view.unmount();
 });
 
