@@ -20,7 +20,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
-import { auditSnapshot, documentEntryRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+import { auditSnapshot, documentEntryRefusal, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -292,7 +292,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            // browser's isDocumentEntry, applied where it cannot be bypassed.
            const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
            if (documentRefusal) throw new HttpError(documentRefusal, 409);
-           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin));
+           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
+             postedDeletionRefusal(txData as Partial<Transaction>, partialUpdate as Partial<Transaction>, Boolean(user.admin));
            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
            beforeEdit = auditSnapshot(txData as Partial<Transaction>);
          
@@ -316,7 +317,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            delete safePartial.id;
            delete safePartial.expectedUpdatedAt;
 
-           afterEdit = { ...(beforeEdit || {}), ...safePartial };
+           afterEdit = auditSnapshot({ ...txData, ...safePartial } as Partial<Transaction>);
            t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() });
         });
 
@@ -378,12 +379,17 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         }
 
         if (doc.data()?.workspaceId !== transaction.workspaceId) throw new Error('Workspace mismatch');
+        // Recheck against the row read inside this same database transaction: an
+        // entry can acquire a document link after the earlier validation read.
+        const currentDocumentRefusal = documentEntryRefusal(doc.data() as { metadata?: Record<string, unknown> }, Boolean(user.admin));
+        if (currentDocumentRefusal) throw new HttpError(currentDocumentRefusal, 409);
         const revaluation = revaluationEntryLock(doc.data()); // ISS-130
         if (revaluation) throw new Error(revaluation);
         if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
           throw new Error('Cannot modify certified, cleared, or voided transactions');
         }
-        const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin));
+        const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin)) ||
+          postedDeletionRefusal(doc.data() as Partial<Transaction>, validatedTx, Boolean(user.admin));
         if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
         beforeEdit = auditSnapshot(doc.data() as Partial<Transaction>);
         // audit F3: the old and the new date against the workspace as it is now, inside the save
