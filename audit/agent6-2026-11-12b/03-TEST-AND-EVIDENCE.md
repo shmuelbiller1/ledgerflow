@@ -41,11 +41,13 @@ deferred. Nothing below is an estimate.
 | Local `TEST_SHARD=2/4` **without** a database | 583 tests, 1 failure: `R-5 all 151 report views open under 1000 ms` (`TopPartiesReportView` 1082.38 ms) — the standing 2-vCPU speed flake |
 | Local `TEST_SHARD=4/4` **without** a database | 0 failures |
 | Local `TEST_SHARD=4/4` **with PostgreSQL** (after the scoping correction) | **777 tests, 0 failures** |
-| Local `TEST_SHARD=2/4` **with PostgreSQL** | see the session summary; the run was started after the fixes |
+| Local `TEST_SHARD=2/4` **with PostgreSQL** | **815 tests, 0 failures** |
 | Local `TEST_SHARD=1/4`, `3/4` | not run to completion on this 2-vCPU box (1/4 had ~470 tests and no failure when abandoned); CI runs them |
 | `npm run build` | **exit 0** — client built in 30.1 s, `build/server.cjs` / `build/api.cjs` 6.7 MB each, PWA 92 precache entries |
 | CI run 1 (fork PR #28, commit `9917cd0`) | `Lint, Typecheck, and Database rules` **pass**, `Production build` **pass**, `CodeQL` **pass**, `SonarCloud` **pass**, `Produce CycloneDX inventory` **pass**, browser shards 5/5 **pass**, `Unit tests 1/4` **pass**; `Unit tests 2/4`, `4/4` and 4 of 6 time-zone shards **failed** |
-| CI run 2 (commit `44b0f51`) | same jobs failed again — consistent, not random |
+| CI run 2 (commit `44b0f51`) | the same unit jobs failed again — consistent, not random |
+| CI run 3 (commit `4c52366`, after the fix) | **Unit tests 1/4–4/4 all pass**, all six time-zone shards pass, all five browser shards pass, `Playwright E2E Smoke`, `Lint/Typecheck/Database rules`, `Production build`, `CodeQL`, `SonarCloud` and the coverage gate pass; only `Produce CycloneDX inventory` failed |
+| CycloneDX cause | the job's first step reads every tracked path; a **symlinked `node_modules`** (a local `npm ci` shortcut) had slipped into the commit through `git add -A`, and `.gitignore`'s `node_modules/` does not match a symlink. Removed from the index and ignored as a bare name in `10ed33c` |
 | **Cause, found by reproducing locally with PostgreSQL** | the first version of the #652 guard reused the client's `isDocumentEntry`, which counts any `metadata.type`; it therefore refused to reverse a **cost-of-goods-sold** entry (`invoice-cogs`, the documented way stock comes back) and a **payroll import** entry (how a corrected file is re-imported). `invoice-cogs` and `pay1-payroll-import` answered 409 instead of 200. Fixed in `9824a43`; both suites are 25/25 now and shard 4/4 with PostgreSQL is clean |
 | CI failure logs | **not readable from this sandbox** (`gh run view --log-failed` and the job-logs API redirect to `*.blob.core.windows.net`, outside the allowed network); the failures were diagnosed by running the same shards against a local PostgreSQL instead of by reading CI output |
 
