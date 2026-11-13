@@ -9,6 +9,10 @@ import { SCREEN_TRANSLATION_TABLE, translateScreenString } from '../lib/i18n/scr
 const path = fileURLToPath(new URL('../components/purchases/Purchases.tsx', import.meta.url));
 const sourceText = fs.readFileSync(path, 'utf8');
 
+test('Purchases has no English-only aria-label text', () => {
+  assert.deepEqual([...sourceText.matchAll(/aria-label=("[^"]*[A-Za-z][^"]*"|\{`[^`]*`)/g)].map(m => m[1]), [], 'route aria-labels through purchasesText');
+});
+
 test('Purchases screen has no untranslated literal JSX text nodes', () => {
   const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const untranslated: string[] = [];
@@ -34,5 +38,8 @@ test('every purchasesText key has an English and a Hebrew entry', () => {
     assert.match(entry!.he, /[֐-׿]/, `${key} has Hebrew`);
   }
   assert.equal(translateScreenString('purchases', 'col.dueDate', 'he', 'Due Date'), 'תאריך פירעון');
+  // a button's accessible name follows its visible label: the Hebrew name contains the Hebrew text
+  assert.ok(translateScreenString('purchases', 'aria.spread', 'he', '').includes(translateScreenString('purchases', 'action.spread', 'he', '')));
+  assert.ok(translateScreenString('purchases', 'aria.undoSpread', 'he', '').includes(translateScreenString('purchases', 'action.undoSpread', 'he', '')));
   assert.equal(translateScreenString('purchases', 'col.dueDate', 'en', 'Due Date'), 'Due Date');
 });

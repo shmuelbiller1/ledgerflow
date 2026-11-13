@@ -354,7 +354,7 @@ export default function Purchases() {
               <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                   <th scope="col" className="pl-4 w-8">
-                    <input type="checkbox" aria-label="Select all bills shown"
+                    <input type="checkbox" aria-label={purchasesText('aria.selectAll', 'Select all bills shown')}
                       checked={visibleBills.length > 0 && visibleBills.every(b => pickedBills.has(b.id))}
                       onChange={e => setPickedBills(e.target.checked ? new Set(visibleBills.map(b => b.id)) : new Set())} />
                   </th>
@@ -374,7 +374,7 @@ export default function Purchases() {
                     <tr key={b.id} id={recordElementId('bill', b.id)} aria-current={focusedBillId === b.id ? 'true' : undefined}
                       className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${focusedBillId === b.id ? 'ring-2 ring-inset ring-[var(--brass)]' : ''}`}>
                       <td className="pl-4">
-                        <input type="checkbox" aria-label={`Select bill ${b.number || ''}`.trim()} checked={pickedBills.has(b.id)}
+                        <input type="checkbox" aria-label={purchasesText('aria.selectBill', 'Select bill {n}').replace('{n}', b.number || '').trim()} checked={pickedBills.has(b.id)}
                           onChange={() => setPickedBills(prev => { const next = new Set(prev); if (next.has(b.id)) next.delete(b.id); else next.add(b.id); return next; })} />
                       </td>
                       <td className="p-4 font-semibold text-slate-900 dark:text-white">
@@ -413,7 +413,7 @@ export default function Purchases() {
                       </td>
                       <td className="p-4 text-right flex items-center justify-end gap-2">
                         <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewBill(b); }}
-                          className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg" title="Preview / download PDF" aria-label={`PDF of bill ${b.number || ''}`.trim()}>
+                          className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg" title="Preview / download PDF" aria-label={purchasesText('aria.pdf', 'PDF of bill {n}').replace('{n}', b.number || '').trim()}>
                           <Printer className="w-4 h-4" aria-hidden="true" />
                         </button>
                         {b.status !== 'void' && (
@@ -422,20 +422,20 @@ export default function Purchases() {
                             onClick={(e) => { e.stopPropagation(); setEditingBill(b); setIsBillModalOpen(true); }}
                             className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg"
                             title="Edit bill"
-                            aria-label={`Edit bill ${b.number || ''}`.trim()}
+                            aria-label={purchasesText('aria.edit', 'Edit bill {n}').replace('{n}', b.number || '').trim()}
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                         )}
                         {canEditContacts && b.status !== 'draft' && b.status !== 'void' && (b.prepaidSchedule ? (
                           <button type="button" onClick={(e) => { e.stopPropagation(); void handleUndoSpread(b); }}
-                            className="px-2 py-1 text-xs text-[var(--muted)] hover:text-slate-800 rounded-md" aria-label={`Undo the spread of bill ${b.number || ''}`.trim()}>
+                            className="px-2 py-1 text-xs text-[var(--muted)] hover:text-slate-800 rounded-md" aria-label={purchasesText('aria.undoSpread', 'Undo the spread of bill {n}').replace('{n}', b.number || '').trim()}>
                             {purchasesText('action.undoSpread', 'Undo spread')}
                           </button>
                         ) : (
                           <button type="button" onClick={(e) => { e.stopPropagation(); setSpreadingBill(b); }}
                             className="px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300 hover:underline rounded-md" title="A prepaid expense: spread the cost over the months it covers"
-                            aria-label={`Spread bill ${b.number || ''} over months`.replace('  ', ' ')}>
+                            aria-label={purchasesText('aria.spread', 'Spread bill {n} over months').replace('{n}', b.number || '').replace('  ', ' ')}>
                             {purchasesText('action.spread', 'Spread')}
                           </button>
                         ))}
@@ -472,7 +472,7 @@ export default function Purchases() {
                           }}
                           className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
                           title="Delete draft"
-                          aria-label={`Delete draft bill ${b.number || ''}`.trim()}
+                          aria-label={purchasesText('aria.deleteDraft', 'Delete draft bill {n}').replace('{n}', b.number || '').trim()}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>}
