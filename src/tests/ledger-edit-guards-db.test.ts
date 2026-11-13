@@ -19,6 +19,7 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
   const docId = `${ws}_doc`;
   const handId = `${ws}_hand`;
   const reconciledId = `${ws}_reconciled`;
+  const twoStepId = `${ws}_two_step`;
   let db: Firestore;
   let server: Server;
   let base = '';
@@ -43,6 +44,7 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     await db.collection('transactions').doc(docId).set(entry(docId, { invoiceId: `${ws}_inv`, type: 'invoice-accrual' }));
     await db.collection('transactions').doc(handId).set(entry(handId, {}));
     await db.collection('transactions').doc(reconciledId).set({ ...entry(reconciledId, {}), status: 'reconciled' });
+    await db.collection('transactions').doc(twoStepId).set(entry(twoStepId, {}));
     const express = (await import('express')).default;
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const app = express();
@@ -103,6 +105,21 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
 
     const allowed = await send('POST', `/api/v1/transactions/${handId}/reverse`, { workspaceId: ws, reason: 'typo', reversalDate: '2026-10-02' });
     assert.notEqual(allowed.status, 409, `a hand entry is not held back by this guard: ${await allowed.text()}`);
+  });
+
+  test('two-step downgrade to flagged cannot bypass the posted-row guards', async () => {
+    const mark = await send('PUT', `/api/v1/transactions/${twoStepId}`, { partialUpdate: { status: 'flagged' } });
+    assert.equal(mark.status, 200, await mark.text());
+    assert.equal((await read(twoStepId))?.status, 'flagged');
+    for (const partialUpdate of [
+      { status: 'void' }, { status: 'failed' },
+      { deletedAt: '2026-11-13T00:00:00.000Z' },
+    ]) {
+      const response = await send('PUT', `/api/v1/transactions/${twoStepId}`, { partialUpdate });
+      assert.equal(response.status, 409, `${JSON.stringify(partialUpdate)}: ${await response.text()}`);
+      assert.equal((await read(twoStepId))?.status, 'flagged', 'the entry must stay report-postable');
+      assert.equal((await read(twoStepId))?.deletedAt, undefined);
+    }
   });
 
   test('a posted hand entry is not un-posted in place either; a memo is fine', async () => {
