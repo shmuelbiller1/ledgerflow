@@ -71,5 +71,9 @@ landed; the 10 Nov findings F-01 (`taxPlace.region`) and F-08 ("Recorded as file
 positive evidence: statement cross-checks (11 cases), money-function invariants (26 cases) and the audit hash
 chain with tamper detection (7 cases) — all pass, in `audit/agent6-2026-11-12b/probes/`.
 
+**CI on this branch (fork, run for `30b8200`): every check green** — Unit tests 1/4–4/4, the six time-zone
+shards, browser shards 1–5, Playwright smoke, Lint/Typecheck/Database rules, Production build, CodeQL,
+SonarCloud, the coverage gate and the SBOM inventory.
+
 Full register: `audit/agent6-2026-11-12b/02-FINDINGS-REGISTER.md`. Launch verdict: unchanged — **not ready** for
 real accounting until the remaining money-lane issues (#653, #654, #646) and the DB/browser gates are closed.

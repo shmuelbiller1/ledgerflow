@@ -7,7 +7,7 @@
 | Pin read and run against | upstream `main` `e33b3f2bc8273ab2fcecf3affc34e0652d7d594c` (2026-11-12T22:22:42Z) |
 | Branch | `arena/b33f6cd0-ledgerflow` — pushed to `origin` (fork `Chaim-Richard/ledgerflow`); based **exactly** on upstream `main` |
 | Commits | `d390685` report minor units (#651) · `d58ecca` document-entry guards (#652/#662) · `6b8260e` flag/annotate refinement · docs commit |
-| PR | fork PR (body in `PR-BODY.md`); the fork token is refused `createPullRequest` on `shmuelbiller1/ledgerflow`, so the upstream PR needs the one-click compare link |
+| PR | **fork PR #28** (body in `PR-BODY.md`), every CI check green at `30b8200`. The token is refused `createPullRequest` on `shmuelbiller1/ledgerflow` (403), so the upstream PR needs the compare link: `https://github.com/shmuelbiller1/ledgerflow/compare/main...Chaim-Richard:arena/b33f6cd0-ledgerflow` |
 | Drive | **not used** — not connected to this account, and the owner directed GitHub-only preservation. Nothing is claimed to be on Drive |
 
 ## What is finished
