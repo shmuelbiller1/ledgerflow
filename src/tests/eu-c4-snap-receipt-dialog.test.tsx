@@ -52,7 +52,8 @@ describe('EU-C4: Snap a receipt', () => {
   afterEach(() => cleanup());
 
   test('saves the photo, then a draft bill for it, then links the two', async () => {
-    render(<SnapReceiptDialog onClose={() => { closed++; }} writes={stubWrites(calls)} />);
+    // StrictMode, as in the app (src/main.tsx): its extra effect cycle must not stop the dialog closing
+    render(<React.StrictMode><SnapReceiptDialog onClose={() => { closed++; }} writes={stubWrites(calls)} /></React.StrictMode>);
     await fillIn();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); });
     await waitFor(() => assert.equal(closed, 1));

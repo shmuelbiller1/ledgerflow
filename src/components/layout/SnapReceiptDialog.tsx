@@ -77,7 +77,10 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
   // a save that finishes after this dialog was closed (or replaced by a new one) must not close
   // the newer dialog or announce itself in other books
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true; // set again on setup: StrictMode runs cleanup + setup once more
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => {
     if (openedIn.current === scope) return;
     currentPhoto.current = null; // any reading still under way is now stale
