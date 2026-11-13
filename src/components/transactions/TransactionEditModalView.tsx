@@ -19,7 +19,17 @@ import type { TransactionEditModalModel } from './TransactionEditModal';
 /** Presentation modal for editing or reversing a multi-line ledger transaction and its dimension labels. */
 export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, baseCurrency, isDocBacked, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
   const workspaceProjects = useLedgerStore(s => s.projects || []);
-  const displayCurrency = originalCurrency || transaction.currency || baseCurrency;
+  // Manual journals created by JournalEntryModal store already-converted home
+  // amounts, retaining originalCurrency only as an FX reference. Display those
+  // figures in their stored currency rather than relabeling them as foreign.
+  const homeNativeFx = originalCurrency !== baseCurrency &&
+    transaction.currency === baseCurrency &&
+    Boolean(transaction.lines?.length) &&
+    transaction.lines.every(line => Number.isSafeInteger(line.baseAmountCents) &&
+      line.amountCents === line.baseAmountCents);
+  const displayCurrency = homeNativeFx
+    ? transaction.currency
+    : (originalCurrency || transaction.currency || baseCurrency);
   const currencyOptions = Array.from(new Set([baseCurrency, originalCurrency, 'USD', 'EUR', 'GBP', 'ILS', 'JPY', 'CAD', 'KWD'].filter(Boolean)));
   return (
     <AnimatePresence>
