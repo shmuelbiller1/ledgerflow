@@ -1,8 +1,10 @@
 # UI-2 — prompt: screens that show everything the server can do, and stay simple
 
 Written 13 Nov 2026. This file is a prompt for one AI agent. Hand it over with: *"Do the task in
-`docs/design/UI-2-screens-on-commands-prompt.md`."* It depends on batch 0 of
-`CMD-1-command-registry-prompt.md` for parts 3 to 5; parts 1 and 2 can start today.
+`docs/design/UI-2-screens-on-commands-prompt.md`."* Parts 3 to 5 need batch 0 of
+`CMD-1-command-registry-prompt.md`, which delivers the generated client and the command schemas for
+the browser; they then cover more commands as each CMD-1 batch lands. Part 7 needs CMD-1's
+proposals. Parts 1 and 2 can start today.
 
 ---
 

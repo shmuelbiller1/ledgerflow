@@ -90,8 +90,10 @@ never before.
 
 ### 6. Generated outputs
 
-From the list, generate `src/server/openapi.ts` (every command, with its schema) and the typed client
-in `sdk/ledgerflowClient.ts`. A test fails when either is out of date.
+From the list, generate `src/server/openapi.ts` (every command, with its schema), the typed client in
+`sdk/ledgerflowClient.ts`, and a browser-safe export of the command names, schemas and role lists.
+The generator is part of batch 0 and runs for every command added after it; a test fails when any
+output is out of date. The screens work (`UI-2-screens-on-commands-prompt.md`) builds on these files.
 
 ### 7. A ratchet, so the work can only go forward
 
@@ -109,7 +111,7 @@ may read their state; it may not propose them.
 ## Order of work
 
 1. **Batch 0** (one pull request): the definition type, the runner, the direct address, the ratchet
-   at today's counts, and five commands: `invoice.create`, `bill.create`, `journal.create`,
+   at today's counts, the generator from part 6 with its first outputs, and five commands: `invoice.create`, `bill.create`, `journal.create`,
    `customer.create`, `payment.receive`. Before moving each route, add a test that records its
    current request and response for a normal case, a refused case and a retried case; the same test
    must pass afterwards.
@@ -118,7 +120,7 @@ may read their state; it may not propose them.
    `taskRoutes.ts`, `periodRoutes.ts`, `accountRoutes.ts`, `inventoryRoutes.ts`.
 3. **Proposals**: the assistant way in, after at least 25 commands exist.
 4. **Browser writes**, table by table, each with its migration.
-5. **Generated outputs**, then delete wrappers nobody calls.
+5. Delete the wrappers nobody calls, and confirm the generated outputs cover every command.
 
 Small pull requests are the fast way here. One pull request that moves everything will not pass
 review or CI and will conflict with every other agent's work.
