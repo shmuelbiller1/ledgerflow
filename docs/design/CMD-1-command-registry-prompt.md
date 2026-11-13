@@ -45,14 +45,18 @@ One file per area under `src/server/commands/`. Each command declares:
 - `roles`: who may run it (`owner`, `accountant`, `bookkeeper`, `viewer`);
 - `dated`: which input field is the date, when the period lock applies;
 - `capacity`: which plan limit it counts against, if any;
-- `handler(ctx, tx, input)`: the work, inside the transaction it is given. Move the existing route's
-  body here unchanged;
+- `handler(ctx, tx, input)`: the database work, inside the transaction it is given. Move the existing
+  route's body here unchanged, except for anything that reaches outside the database;
+- `afterCommit(ctx, input, result)`: everything that reaches outside the database (email, the
+  payment provider, file storage, notifications). The runner calls it only after a real commit, so a
+  handler can be run and rolled back with no outside effect;
 - `preview(ctx, input)`: reads only. Returns a title, the lines a person needs to judge it, and for
   ledger commands the accounts and amounts that would be posted;
 - `audit(input, result)`: the summary stored in the audit entry;
-- `inverse(input, result)`: the command and input that undo it, where one exists (void for a posted
-  document, restore for a deleted record). Deletes keep the record recoverable for 30 days wherever
-  the table allows it;
+- `inverse(input, result, before)`: the command and input that undo it, where one exists (void for a
+  posted document, restore for a deleted record, an update back to `before` for an edit). The runner
+  reads `before`, the records the command names as they were, inside the transaction ahead of the
+  handler. Deletes keep the record recoverable for 30 days wherever the table allows it;
 - `risk`: `normal` or `high` (see "Needs a second confirmation");
 - `describe`: for the assistant and the API reference: one sentence on what it does, when to use it
   and when not to, one worked example input, and each refusal it can return with what to do next.
@@ -69,20 +73,23 @@ it by registering a dummy command and asserting each refusal.
 
 - **Direct**: `POST /api/v1/commands/:name` with a person's sign-in token or an API key whose scopes
   allow that command. It runs at once.
-- **Assistant**: the same address called with an assistant token never runs the handler. The runner
+- **Assistant**: the same address called with an assistant token never commits anything. The runner
   validates, calls `preview`, and stores a proposal: command name, input, preview, who it is for,
   when it expires. New routes: list proposals, read one, **accept** (runs the stored command as the
   person, with their own token), **edit then accept** (the person sends a changed input; it is
   validated again), **reject**. Accepting one item of a multi-step proposal is allowed; a later step
   that refers to an earlier one uses a placeholder id that is filled in when the earlier step runs.
 - **The sandbox.** Every command is proposable, deletes and voids included: nothing a proposal
-  contains has happened until a person accepts it. When the assistant reads with `proposal=<id>`,
-  the server answers as if that proposal's steps had been applied (lists, records and the pure
-  report functions in `src/server/reports/` run over stored data plus the proposed changes, in
-  memory). That lets the assistant chain steps and lets the person see "the books with this
-  applied" before deciding. The overlay never writes.
-- **Undo after accepting.** Accepting records each step's `inverse`; "Undo" runs it as a normal
-  command, with the same checks.
+  contains has happened until a person accepts it. When a read carries `proposal=<id>`, the
+  server opens a transaction, runs that proposal's handlers in order inside it, answers the read
+  from inside the same transaction, and **always rolls it back**. The handlers are the only code
+  that knows what a command changes, so the answer is exact and nothing is written twice; no
+  `afterCommit` runs, and document numbers taken inside the transaction are released with it. That
+  lets the assistant chain steps and lets the person see "the books with this applied" before
+  deciding. A test asserts that a sandbox read leaves every table and counter unchanged.
+- **Undo after accepting.** Accepting records each step's `inverse`, built with the `before` state
+  the runner captured; "Undo" runs it as a normal command, with the same checks, and is refused
+  with a reason when the record has changed since.
 - An assistant token is issued for one person and one workspace, carries that person's role and no
   more, expires within the hour, and is refused by every route that is not a read or a command.
 
