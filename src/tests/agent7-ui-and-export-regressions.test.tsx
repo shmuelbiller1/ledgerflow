@@ -234,6 +234,99 @@ test('TransactionEditModal respects workspace baseCurrency, shows balanced journ
   assert.equal((screen.getByRole('button', { name: 'Record synchronized changes' }) as HTMLButtonElement).disabled, true);
 });
 
+
+test('TransactionEditModal preserves per-line FX rates and precomputed home amounts on metadata-only save', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ links: [], questions: [] }), { status: 200 })) as typeof fetch;
+  const ws = setComponentWorkspace('owner');
+  useAuthStore.setState({ workspaces: [{ ...ws, currency: 'ILS' }] });
+  useLedgerStore.setState({ baseCurrency: 'ILS', accounts: chartAccounts, transactions: [] });
+
+  const fxTx: Transaction = {
+    id: 'tx_fx_manual', workspaceId: ws.id, date: '2026-10-12', description: 'Manual FX journal',
+    status: 'completed', type: 'actual', currency: 'USD', originalCurrency: 'USD',
+    exchangeRate: 3.75, totalAmountCents: 11000,
+    lines: [
+      { accountId: 'acc_exp', accountName: 'Cloud Hosting', amountCents: 10000, exchangeRate: 3.75, baseAmountCents: 37500 },
+      { accountId: 'acc_bank', accountName: 'Operating Bank', amountCents: -10000, exchangeRate: 3.75, baseAmountCents: -37500 },
+      { accountId: 'acc_exp', accountName: 'Cloud Hosting', amountCents: 1000, exchangeRate: 1, baseAmountCents: 1000 },
+      { accountId: 'acc_bank', accountName: 'Operating Bank', amountCents: -1000, exchangeRate: 1, baseAmountCents: -1000 },
+    ],
+  } as Transaction;
+  let saved: Partial<Transaction> | undefined;
+  const view = render(
+    <TransactionEditModal
+      isOpen transaction={fxTx} accounts={chartAccounts} onClose={() => {}}
+      onUpdate={(_id, updates) => { saved = updates; return false; }}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Corrected memo only' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+  assert.equal(saved?.description, 'Corrected memo only');
+  assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [3.75, 3.75, 1, 1]);
+  assert.deepEqual(saved?.lines?.map(l => l.baseAmountCents), [37500, -37500, 1000, -1000],
+    'metadata edit must not recalculate explicit home amounts or the FX difference lines');
+
+  // When journal amounts change, the validator must never see a partial set of
+  // stale home amounts: clear all base values and recompute all four together.
+  fireEvent.change(screen.getByLabelText('Amount for line 1'), { target: { value: '110.00' } });
+  fireEvent.change(screen.getByLabelText('Amount for line 2'), { target: { value: '-110.00' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+  assert.ok(saved?.lines?.every(l => l.baseAmountCents === undefined));
+  assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [3.75, 3.75, 1, 1]);
+  view.unmount();
+});
+
+test('entryActions: a successful flag toggle never invents updatedAt when the server omits it', async () => {
+  const originalUpdatedAt = '2026-09-01T00:00:00.000Z';
+  const serverUpdatedAt = '2026-11-13T16:00:00.000Z';
+  const tx = {
+    id: 'tx_flagged', workspaceId: 'ws_1', date: '2026-09-01', description: 'Manual journal',
+    status: 'completed', type: 'actual', updatedAt: originalUpdatedAt, isFlagged: false,
+    lines: [
+      { accountId: 'acc_bank', amountCents: 1000 },
+      { accountId: 'acc_rev', amountCents: -1000 },
+    ],
+  } as Transaction;
+  useAuthStore.setState({ currentWorkspaceId: 'ws_1' });
+  useLedgerStore.setState({ transactions: [tx], accounts: chartAccounts });
+  const requests: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    if (requests.length === 1) {
+      // Realtime delivered the actual timestamp before the HTTP response.
+      useLedgerStore.setState({
+        transactions: useLedgerStore.getState().transactions.map(t =>
+          t.id === tx.id ? { ...t, updatedAt: serverUpdatedAt } : t),
+      });
+    }
+    return new Response(JSON.stringify({ status: 'ok', transactionId: tx.id }), { status: 200 });
+  }) as typeof fetch;
+  const actions = createEntryActions(
+    {
+      user: { uid: 'u_1', getIdToken: async () => 'tok' } as never,
+      currentWorkspaceId: 'ws_1',
+      setTransactions: (next: Transaction[]) => useLedgerStore.setState({ transactions: next }),
+      accounts: chartAccounts, setIsSyncing: () => {}, recordAudit: async () => {},
+      isPeriodLocked: () => false,
+    } as never,
+    { recordRulePattern: async () => {}, balanceTransactionLines: (lines: TransactionLine[]) => lines } as never,
+    { handleAddRule: async () => {} } as never,
+  );
+  await actions.handleToggleFlag(tx.id);
+  assert.equal(requests[0].expectedUpdatedAt, originalUpdatedAt);
+  assert.deepEqual(requests[0].partialUpdate, { isFlagged: true });
+  assert.equal(useLedgerStore.getState().transactions[0].updatedAt, serverUpdatedAt);
+  assert.equal(useLedgerStore.getState().transactions[0].isFlagged, true);
+  await actions.handleToggleFlag(tx.id);
+  assert.equal(requests[1].expectedUpdatedAt, serverUpdatedAt,
+    'the next edit must use the authoritative version, not a browser-generated timestamp');
+  assert.equal(useLedgerStore.getState().transactions[0].isFlagged, false);
+});
+
 test('entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok', async () => {
   const sourceTx: Transaction = {
     id: 'tx_doc_rec_1',
