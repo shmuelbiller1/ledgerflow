@@ -199,6 +199,7 @@ test('both generic entry routes call the guards (wiring, not only the helper)', 
   assert.equal((crud.match(/documentEntryRefusal\(/g) || []).length, 3, 'PUT /:id must recheck full updates inside the database transaction');
   assert.equal((crud.match(/postedStatusRefusal\(/g) || []).length, 2, 'PUT /:id must refuse un-posting in both branches');
   assert.equal((crud.match(/postedDeletionRefusal\(/g) || []).length, 2, 'PUT /:id must refuse in-place deletion on both update paths');
+  assert.equal((crud.match(/isPostedEntry\(/g) || []).length, 2, 'DELETE /:id must protect postable entries both before and inside its transaction');
   assert.equal((reverse.match(/documentEntryRefusal\(/g) || []).length, 1, 'POST /:id/reverse must refuse a document entry');
   // and the audit rows now carry before/after
   assert.match(crud, /before: beforeEdit/);
