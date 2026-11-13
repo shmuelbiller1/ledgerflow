@@ -130,7 +130,7 @@ export default function LabelProfitReportView() {
                 const counted = new Set<string>();
                 const budgeted = report.columns.map(c => {
                   const key = canon(c.value);
-                  if (counted.has(key)) return 0;
+                  if (counted.has(key)) return null;
                   counted.add(key);
                   return budgetOf(c.value);
                 });

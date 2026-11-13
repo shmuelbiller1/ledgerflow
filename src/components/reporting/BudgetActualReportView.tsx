@@ -1,3 +1,4 @@
+import { budgetLabel } from '../../lib/budgetByLabel';
 import { useMemo, useRef, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -41,7 +42,8 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     `${key}:${mode}:${selection}:${collectionStamp(cachedBudgets, cachedAccounts, cachedTransactions)}`,
     body => ('report' in body ? { budgets: Array.isArray(body.budgets) ? (body.budgets as SavedBudget[]) : cachedBudgets, report: body.report as ReturnType<typeof computeBudgetActual> } : undefined),
   );
-  const budgets = current?.budgets || activeServer?.budgets || cachedBudgets;
+  // EU-E5: label budgets are compared in Profit by Label; this report is account-wide.
+  const budgets = useMemo(() => (current?.budgets || activeServer?.budgets || cachedBudgets).filter(b => !budgetLabel(b)), [current, activeServer, cachedBudgets]);
   const accounts = current?.accounts || cachedAccounts;
   const transactions = current?.transactions || cachedTransactions;
   const budget = budgets.find(b => b.id === selection) || budgets.find(b => b.targetType === 'account');

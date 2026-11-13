@@ -67,7 +67,8 @@ export default function BudgetManager() {
   const [budgetLabelId, setBudgetLabelId] = useState('');
   const [budgetLabelValue, setBudgetLabelValue] = useState('');
   const labelDefs = (useAuthStore(s => s.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
-  const allNodes = useLedgerStore(s => s.dimensionNodes) || [];
+  const storedNodes = useLedgerStore(s => s.dimensionNodes);
+  const allNodes = useMemo(() => storedNodes || [], [storedNodes]);
   const labelNodes = allNodes.filter(n => n.dimensionId === budgetLabelId && n.status !== 'archived');
   const labelMeta = budgetLabelId && budgetLabelValue ? { metadata: { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } } : {};
 

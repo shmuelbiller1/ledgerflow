@@ -1,3 +1,4 @@
+import { budgetLabel } from '../../lib/budgetByLabel';
 import express from 'express';
 import { z } from 'zod';
 import { errorMessage } from '../auth/requestUser';
@@ -152,11 +153,13 @@ operationalReportRouter.get('/budget-actual-periods', async (req, res) => {
 
   try {
     await validateWorkspaceMember(getDb(), workspaceId, (req as AuthenticatedRequest).user);
-    const [budgets, accounts, transactions] = await Promise.all([
+    const [allBudgets, accounts, transactions] = await Promise.all([
       streamWorkspaceCollection<SavedBudget>('budgets', workspaceId),
       streamWorkspaceCollection<ChartAccount>('chartAccounts', workspaceId),
       streamWorkspaceCollection<Transaction>('transactions', workspaceId),
     ]);
+    // EU-E5: label budgets are compared in Profit by Label; this report is account-wide.
+    const budgets = allBudgets.filter(b => !budgetLabel(b));
     const budget = (budgetId ? budgets.find(b => b.id === budgetId) : undefined)
       || budgets.find(b => b.targetType === 'account');
     const periods = splitReportPeriods(startDate, endDate, mode);

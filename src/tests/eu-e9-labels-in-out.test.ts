@@ -62,3 +62,8 @@ test('EU-E9: exported labels reflect line overrides rather than the entry defaul
   }), ['Aspen cabin', ''], 'line label wins when all lines override the entry');
   assert.deepEqual(cols.cells({ dimensions: { property: 'maui' }, lines: [] }), ['Maui house', '']);
 });
+
+test('EU-E9: a lined entry keeps its legacy entry-level project in the export', () => {
+  const cols = labelExportColumns([{ id: 'project', name: 'Project' }], []);
+  assert.deepEqual(cols.cells({ project: 'p1', lines: [{ dimensions: {} }] } as never), ['p1']);
+});

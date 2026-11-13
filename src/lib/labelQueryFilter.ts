@@ -62,7 +62,7 @@ export function labelExportColumns(labels: readonly LabelDef[], nodes: readonly 
       // A line's own label overrides the entry label. Export each effective allocation,
       // using the entry label only when no lines are present.
       const values = tx.lines?.length
-        ? [...new Set(tx.lines.map(line => lineValue(line, tx, l.id)).filter((v): v is string => Boolean(v)))]
+        ? [...new Set(tx.lines.map(line => lineValue(line, tx, l.id) || entryValue(tx, l.id)).filter((v): v is string => Boolean(v)))]
         : [entryValue(tx, l.id)].filter(Boolean);
       return values.map(v => describe(l.id, v)).join(' | ');
     }),
