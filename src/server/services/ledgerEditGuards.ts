@@ -16,13 +16,14 @@
  */
 import type { Transaction } from '../../types';
 
-/** Statuses a posted entry must not be moved to in place: `isPostable` drops both from the books. */
-const UNPOSTS = new Set(['failed', 'draft']);
+/** isPostable excludes all three. Posted entries must use an explicit reversal workflow. */
+const UNPOSTS = new Set(['failed', 'draft', 'void']);
 
 /** True when the entry is posted in the sense the reports use: completed, cleared or reconciled. */
 export function isPostedEntry(tx: Partial<Transaction> | null | undefined): boolean {
   if (!tx) return false;
-  return tx.status === 'completed' || tx.isCleared === true || tx.reconciled === true;
+  return tx.status === 'completed' || tx.status === 'reconciled' ||
+    tx.isCleared === true || tx.reconciled === true || tx.isReconciled === true;
 }
 
 /**
@@ -86,10 +87,10 @@ export function documentEntryRefusal(
 ): string | null {
   if (!tx || admin || !isDocumentPosting(tx)) return null;
   if (changedKeys && !touchesFinancialField(changedKeys)) return null;
-  return 'This entry is the posting of an invoice, bill, payment or credit. Change it through that document — void or credit it — instead of editing or reversing the ledger entry.';
+  return 'This entry belongs to a source document. Change it through that document instead of editing or reversing the ledger entry.';
 }
 
-/** The refusal for un-posting a posted entry in place (status → failed/draft), or null when allowed. */
+/** The refusal for un-posting a posted entry in place (status → failed/draft/void), or null when allowed. */
 export function postedStatusRefusal(
   tx: Partial<Transaction> | null | undefined,
   nextStatus: unknown,
@@ -99,6 +100,20 @@ export function postedStatusRefusal(
   if (!isPostedEntry(tx)) return null;
   if (tx.status === nextStatus) return null;
   return 'A posted entry is not un-posted in place. Post a reversing entry instead: the books keep both the original and the correction.';
+}
+
+/** Deny soft deletion of a posted row: isPostable excludes deletedAt even if status remains completed. */
+export function postedDeletionRefusal(
+  tx: Partial<Transaction> | null | undefined,
+  updates: Partial<Transaction> | null | undefined,
+  admin = false,
+): string | null {
+  if (!tx || !updates || admin || !isPostedEntry(tx)) return null;
+  if ((updates.deletedAt && updates.deletedAt !== tx.deletedAt) ||
+      (updates.isDeleted === true && tx.isDeleted !== true)) {
+    return 'A posted entry cannot be deleted in place. Post a reversing entry instead.';
+  }
+  return null;
 }
 
 /** What an audit row records before and after an edit: the figures an auditor asks about first. */
@@ -112,5 +127,7 @@ export function auditSnapshot(tx: Partial<Transaction> | null | undefined): Reco
     lineCount: Array.isArray(tx.lines) ? tx.lines.length : 0,
     currency: tx.currency ?? null,
     exchangeRate: tx.exchangeRate ?? null,
+    isFlagged: tx.isFlagged ?? null,
+    notes: tx.notes ?? null,
   };
 }
