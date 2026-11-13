@@ -120,6 +120,9 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
       assert.equal((await read(twoStepId))?.status, 'flagged', 'the entry must stay report-postable');
       assert.equal((await read(twoStepId))?.deletedAt, undefined);
     }
+    const hardDelete = await send('DELETE', `/api/v1/transactions/${twoStepId}`, {});
+    assert.equal(hardDelete.status, 409, await hardDelete.text());
+    assert.equal((await read(twoStepId))?.status, 'flagged', 'DELETE must not bypass the posted-row guard');
   });
 
   test('a posted hand entry is not un-posted in place either; a memo is fine', async () => {
