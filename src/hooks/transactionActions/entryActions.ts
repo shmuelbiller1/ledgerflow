@@ -397,26 +397,21 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       toast.error(body?.error || 'Could not update transaction flag');
       return;
     }
-    const body = await res.json().catch(() => null);
     if (!scope.isCurrent()) return;
-    // The partial-update API currently omits the server-owned updatedAt. Read the
-    // committed row if realtime has not already advanced our cache, so the next
-    // flag toggle or journal edit never sends a stale version immediately after this write.
-    let persistedUpdatedAt: string | undefined = body?.data?.updatedAt;
-    let persistedFlag = nextFlagged;
-    if (!persistedUpdatedAt &&
-        useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
+    // The partial-update API does not include the committed row. Read it to
+    // obtain both its fields and its version; adopting only updatedAt would
+    // allow a subsequent full save to overwrite concurrent edits.
+    let authoritative: Transaction | undefined;
+    if (useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
       try {
         const fresh = await getDoc(doc(db, 'transactions', id));
         if (!scope.isCurrent()) return;
         const record = fresh.data();
-        if (fresh.exists() && record?.workspaceId === currentWorkspaceId) {
-          if (typeof record.updatedAt === 'string') persistedUpdatedAt = record.updatedAt;
-          if (typeof record.isFlagged === 'boolean') persistedFlag = record.isFlagged;
+        if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
+            typeof record.updatedAt === 'string') {
+          authoritative = { ...record, id } as Transaction;
         }
       } catch (error) {
-        // A realtime event may still bring the authoritative version; never
-        // fabricate a timestamp or roll back a confirmed server flag change.
         console.warn('Unable to refresh flag version after update:', error);
       }
     }
@@ -424,14 +419,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     setTransactions(
       useLedgerStore.getState().transactions.map(t => {
         if (t.id !== id) return t;
-        const newerInStore = persistedUpdatedAt && t.updatedAt &&
-          Number.isFinite(Date.parse(t.updatedAt)) &&
-          Date.parse(t.updatedAt) > Date.parse(persistedUpdatedAt);
-        return {
-          ...t,
-          isFlagged: newerInStore ? t.isFlagged : persistedFlag,
-          ...(persistedUpdatedAt && !newerInStore ? { updatedAt: persistedUpdatedAt } : {}),
-        };
+        // An independent realtime update already supplied the complete row.
+        if (t.updatedAt !== tx.updatedAt) return t;
+        return authoritative ? { ...t, ...authoritative } : { ...t, isFlagged: nextFlagged };
       }),
     );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
@@ -566,27 +556,28 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // The full-update response echoes the request's transaction, including
       // its browser-generated updatedAt, NOT the persisted server timestamp.
       // Read the committed row before publishing the version for another edit/Undo.
-      let persistedUpdatedAt: string | undefined;
+      let authoritativeSaved: Transaction | undefined;
       try {
         const fresh = await getDoc(doc(db, 'transactions', id));
         // The server already committed the save. Switching workspaces only
-        // cancels this cache refresh, not the successful operation.
+        // cancels the cache refresh, not the successful operation.
         if (!scope.isCurrent()) return true;
         const record = fresh.data();
         if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
             typeof record.updatedAt === 'string') {
-          persistedUpdatedAt = record.updatedAt;
+          authoritativeSaved = { ...record, id } as Transaction;
         }
       } catch (error) {
         // A realtime event may still have supplied the real version.
-        console.warn('Unable to refresh transaction version after save:', error);
+        console.warn('Unable to refresh transaction after save:', error);
       }
       if (!scope.isCurrent()) return true;
       setTransactions(
         useLedgerStore.getState().transactions.map(t => {
           if (t.id !== id || t.updatedAt !== optimisticUpdatedAt) return t;
-          // Never keep a fabricated optimistic version in the store.
-          return { ...t, updatedAt: persistedUpdatedAt ?? tx.updatedAt };
+          // Adopt the entire authoritative row with its version. In particular,
+          // never attach a newer server version to an older optimistic payload.
+          return authoritativeSaved ? { ...t, ...authoritativeSaved } : { ...t, updatedAt: tx.updatedAt };
         }),
       );
     } catch(e) {
