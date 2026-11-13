@@ -31,7 +31,7 @@ export interface CashBasisPayment {
   status?: string;
   paymentDate?: string;
   date?: string;
-  /** document currency → base, as the payment cleared the receivable or payable */
+  /** Books' major units per payment-currency major unit; matches p.currency and the document's booked rate. */
   exchangeRate?: number;
   /** BM-04: the payment's own currency (¥ has no decimals, KWD three); missing legacy data is the books' currency */
   currency?: string;
