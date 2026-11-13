@@ -283,6 +283,7 @@ function useTransactionEditModalModel({
         isCleared,
         isFlagged,
         fileUrls,
+        currency: homeNativeFx ? transaction.currency : (isForeignCurrency ? originalCurrency : baseCurrency),
         originalCurrency: originalCurrency !== baseCurrency ? originalCurrency : undefined,
         exchangeRate: originalCurrency !== baseCurrency ? exchangeRate : undefined,
         lines: finalLines,
@@ -303,7 +304,7 @@ function useTransactionEditModalModel({
       isFlagged,
       fileUrls,
       ...(transaction.currency !== undefined || isForeignCurrency
-        ? { currency: isForeignCurrency ? originalCurrency : baseCurrency }
+        ? { currency: homeNativeFx ? transaction.currency : (isForeignCurrency ? originalCurrency : baseCurrency) }
         : {}),
       originalCurrency: isForeignCurrency ? originalCurrency : undefined,
       exchangeRate: isForeignCurrency ? exchangeRate : undefined,
