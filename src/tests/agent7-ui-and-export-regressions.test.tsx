@@ -361,6 +361,63 @@ test('entryActions: a successful flag toggle never invents updatedAt when the se
   }
 });
 
+test('entryActions: full journal edit uses the persisted version, never the echoed request timestamp', async () => {
+  const oldVersion = '2026-09-01T00:00:00.000Z';
+  const persistedVersion = '2026-11-13T16:10:00.000Z';
+  const tx = {
+    id: 'tx_manual_version', workspaceId: 'ws_1', date: '2026-09-01',
+    description: 'Original memo', type: 'actual', status: 'completed',
+    updatedAt: oldVersion, totalAmountCents: 5000,
+    lines: [
+      { accountId: 'acc_bank', amountCents: 5000 },
+      { accountId: 'acc_rev', amountCents: -5000 },
+    ],
+  } as Transaction;
+  useAuthStore.setState({ currentWorkspaceId: 'ws_1' });
+  useLedgerStore.setState({ transactions: [tx], accounts: chartAccounts });
+  const supabase = getSupabase() as unknown as { from: (table: string) => unknown };
+  const originalFrom = supabase.from;
+  supabase.from = ((table: string) => {
+    if (table !== 'transactions') return originalFrom.call(supabase, table);
+    return {
+      select: () => ({ eq: () => ({
+        maybeSingle: async () => ({
+          data: { id: tx.id, data: { ...tx, description: 'Updated memo', updatedAt: persistedVersion } },
+          error: null,
+        }),
+      }) }),
+    };
+  }) as typeof supabase.from;
+  let echoedVersion: string | undefined;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    assert.match(String(url), /\/api\/v1\/transactions\/tx_manual_version/);
+    const request = JSON.parse(String(init?.body)) as { transaction: Transaction; expectedUpdatedAt: string };
+    assert.equal(request.expectedUpdatedAt, oldVersion);
+    echoedVersion = request.transaction.updatedAt;
+    return new Response(JSON.stringify({ status: 'ok', transactionId: tx.id, data: request.transaction }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const actions = createEntryActions(
+      {
+        user: { uid: 'u_1', getIdToken: async () => 'tok' } as never,
+        currentWorkspaceId: 'ws_1',
+        setTransactions: (next: Transaction[]) => useLedgerStore.setState({ transactions: next }),
+        accounts: chartAccounts, setIsSyncing: () => {}, recordAudit: async () => {},
+        isPeriodLocked: () => false,
+      } as never,
+      { recordRulePattern: async () => {}, balanceTransactionLines: (lines: TransactionLine[]) => lines } as never,
+      { handleAddRule: async () => {} } as never,
+    );
+    const success = await actions.handleUpdateTransaction(tx.id, { description: 'Updated memo' });
+    assert.equal(success, true);
+    assert.ok(echoedVersion && echoedVersion !== persistedVersion);
+    assert.equal(useLedgerStore.getState().transactions[0].updatedAt, persistedVersion,
+      'the response echoes the browser version, but the cache must use the real stored version');
+  } finally {
+    supabase.from = originalFrom;
+  }
+});
+
 test('entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok', async () => {
   const sourceTx: Transaction = {
     id: 'tx_doc_rec_1',
