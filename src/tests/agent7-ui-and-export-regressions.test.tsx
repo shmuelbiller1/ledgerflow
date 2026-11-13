@@ -290,6 +290,47 @@ test('TransactionEditModal preserves per-line FX rates and precomputed home amou
   view.unmount();
 });
 
+test('TransactionEditModal never double-converts home-native FX journal amounts', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ links: [], questions: [] }), { status: 200 })) as typeof fetch;
+  const ws = setComponentWorkspace('owner');
+  useAuthStore.setState({ workspaces: [{ ...ws, currency: 'ILS' }] });
+  useLedgerStore.setState({ baseCurrency: 'ILS', accounts: chartAccounts, transactions: [] });
+  // JournalEntryModal converts the foreign input before posting, so both
+  // amountCents and baseAmountCents are already home-currency figures.
+  const tx = {
+    id: 'tx_home_native_fx', workspaceId: ws.id, date: '2026-10-12',
+    description: 'Preconverted journal', status: 'completed', type: 'journal',
+    currency: 'ILS', originalCurrency: 'USD', exchangeRate: 1.65,
+    totalAmountCents: 16500,
+    lines: [
+      { accountId: 'acc_exp', amountCents: 16500, baseAmountCents: 16500 },
+      { accountId: 'acc_bank', amountCents: -16500, baseAmountCents: -16500 },
+    ],
+  } as Transaction;
+  let saved: Partial<Transaction> | undefined;
+  let writes = 0;
+  render(
+    <TransactionEditModal isOpen transaction={tx} accounts={chartAccounts} onClose={() => {}}
+      onUpdate={(_id, updates) => { saved = updates; writes++; return false; }} />,
+  );
+  fireEvent.change(screen.getByLabelText('Amount for line 1'), { target: { value: '170.00' } });
+  fireEvent.change(screen.getByLabelText('Amount for line 2'), { target: { value: '-170.00' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+  assert.equal(writes, 1);
+  assert.deepEqual(saved?.lines?.map(l => l.amountCents), [17000, -17000]);
+  assert.deepEqual(saved?.lines?.map(l => l.baseAmountCents), [17000, -17000]);
+  assert.deepEqual(saved?.lines?.map(l => l.exchangeRate), [undefined, undefined],
+    'a home-native line must never be multiplied by the header rate again');
+
+  fireEvent.change(screen.getByLabelText(/Historical Exchange Rate Offset/i), { target: { value: '1.75' } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Record synchronized changes' }));
+  });
+  assert.equal(writes, 1, 'changing foreign FX basis without original foreign amounts must be refused');
+});
+
 test('entryActions: a successful flag toggle never invents updatedAt when the server omits it', async () => {
   const originalUpdatedAt = '2026-09-01T00:00:00.000Z';
   const serverUpdatedAt = '2026-11-13T16:00:00.000Z';
@@ -310,7 +351,7 @@ test('entryActions: a successful flag toggle never invents updatedAt when the se
       // Realtime delivered the actual timestamp before the HTTP response.
       useLedgerStore.setState({
         transactions: useLedgerStore.getState().transactions.map(t =>
-          t.id === tx.id ? { ...t, updatedAt: serverUpdatedAt } : t),
+          t.id === tx.id ? { ...t, updatedAt: serverUpdatedAt, isFlagged: true } : t),
       });
     }
     return new Response(JSON.stringify({ status: 'ok', transactionId: tx.id }), { status: 200 });
