@@ -406,7 +406,7 @@ export default function Purchases() {
                         </span>
                         {b.prepaidSchedule && <div className="mt-1 text-[10px] text-[var(--muted)]">{spreadProgress(b.prepaidSchedule, getLocalDateISO())}</div>}
                         <StageChip kind="bill" id={b.id} label={`bill ${b.number || ''}`.trim()} />
-                        {claimOf(b) && <div className="mt-1 text-[10px] text-[var(--muted)]">{purchasesText('label.expenseClaim', 'Expense claim')}{claimOf(b)?.state === 'rejected' ? ` · rejected${claimOf(b)?.reason ? `: ${claimOf(b)?.reason}` : ''}` : ''}</div>}
+                        {claimOf(b) && <div className="mt-1 text-[10px] text-[var(--muted)]">{purchasesText('label.expenseClaim', 'Expense claim')}{claimOf(b)?.state === 'rejected' ? ` · ${purchasesText('label.rejected', 'rejected')}${claimOf(b)?.reason ? `: ${claimOf(b)?.reason}` : ''}` : ''}</div>}
                       </td>
                       <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                         {formatCurrency(b.amountCents || 0)}

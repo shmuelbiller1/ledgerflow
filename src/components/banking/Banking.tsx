@@ -19,8 +19,12 @@ import CashMovementDialog from './CashMovementDialog';
 import ConnectedBanks from './ConnectedBanks';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 
 export default function Banking() {
+  // EU-G1: visible text goes through the EN/HE table (src/lib/i18n/screenTranslations.ts)
+  const language = useUIStore(s => s.language);
+  const bankText = (key: string, fallback: string) => translateScreenString('banking', key, language, fallback);
   const isGuest = useAuthStore(s => s.isGuest);
   const role = useCurrentRole();
   const canImport = !isGuest && hasRoleAtLeast(role, 'bookkeeper');
@@ -91,47 +95,47 @@ export default function Banking() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--color-ledger-ink)] font-display tracking-tight flex items-center gap-3">
               <Landmark className="w-6 h-6 text-indigo-600" />
-              Bank & Institution Connections
+              {bankText('heading', 'Bank & Institution Connections')}
             </h1>
             <p className="text-sm text-[var(--color-ledger-muted)] mt-1">
-              Manage your connected financial institutions, live feeds, and reconciliation pipelines.
+              {bankText('subtitle', 'Manage your connected financial institutions, live feeds, and reconciliation pipelines.')}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={!canImport} aria-describedby={!canImport ? 'bank-import-permission' : undefined} onClick={() => { if (canImport) useUIStore.getState().setImporterOpen(true); }} className="min-h-11 px-4 py-2 bg-white text-neutral-800 text-xs font-bold rounded-xl border border-neutral-200 disabled:opacity-50">
-              Import statement
+              {bankText('action.importStatementButton', 'Import statement')}
             </button>
-            {!canImport && <p id="bank-import-permission" className="w-full text-sm text-slate-600">Importing a statement requires a signed-in workspace owner, accountant or bookkeeper. Guest and viewer sessions cannot import bank data.</p>}
+            {!canImport && <p id="bank-import-permission" className="w-full text-sm text-slate-600">{bankText('note.importPermission', 'Importing a statement requires a signed-in workspace owner, accountant or bookkeeper. Guest and viewer sessions cannot import bank data.')}</p>}
             {/* money that arrives or leaves with no document behind it (BA-17) */}
             <button
               onClick={() => setCashMovement('in')}
               className="min-h-11 px-4 py-2 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold rounded-xl border border-neutral-200 transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <ArrowDownToLine className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              <span>Money in</span>
+              <span>{bankText('action.moneyIn', 'Money in')}</span>
             </button>
             <button
               onClick={() => setCashMovement('out')}
               className="min-h-11 px-4 py-2 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold rounded-xl border border-neutral-200 transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <ArrowUpFromLine className="h-4 w-4 text-rose-600" aria-hidden="true" />
-              <span>Money out</span>
+              <span>{bankText('action.moneyOut', 'Money out')}</span>
             </button>
             <button
               onClick={() => setIsTransferModalOpen(true)}
               className="min-h-11 px-4 py-2 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold rounded-xl border border-neutral-200 transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
-              <span>Transfer Funds</span>
+              <span>{bankText('action.transfer', 'Transfer Funds')}</span>
             </button>
             <button type="button" onClick={() => setIsDepositOpen(true)} className="h-12 px-6 bg-[var(--surface)] hover:border-[var(--brass-line)] border border-[var(--line)] text-[var(--text)] font-black text-[10px] uppercase tracking-widest rounded-xl shadow-sm">
-              Make deposit
+              {bankText('action.deposit', 'Make deposit')}
             </button>
             {/* the same control is the empty state's one action when there are no accounts yet */}
             {accounts.length > 0 && <PlaidConnectButton onSuccessSync={handleSyncSuccess} />}
             {needsReconnect.map(b => (
               <div key={b.bankId} role="alert" className="flex items-center gap-3 rounded-xl border border-[var(--neg)] px-3 py-2 text-xs text-[var(--text)]">
-                <span>{b.institutionName || 'A bank'} needs you to log in again.</span>
+                <span>{bankText('notice.relogin', '{bank} needs you to log in again.').replace('{bank}', b.institutionName || bankText('label.aBank', 'A bank'))}</span>
                 <PlaidConnectButton bankId={b.bankId} label="Reconnect" onSuccessSync={() => setNeedsReconnect(list => list.filter(x => x.bankId !== b.bankId))} />
               </div>
             ))}
@@ -142,14 +146,14 @@ export default function Banking() {
 
         {accountsError && accounts.length === 0 ? (
           <div role="alert" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center">
-            <h2 className="text-lg font-bold text-[var(--text)]">We couldn't load your bank accounts</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">Your chart of accounts did not arrive, so nothing can be listed here yet.</p>
+            <h2 className="text-lg font-bold text-[var(--text)]">{bankText('error.loadTitle', 'We couldn\'t load your bank accounts')}</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">{bankText('error.loadBody', 'Your chart of accounts did not arrive, so nothing can be listed here yet.')}</p>
             <button
               type="button"
               onClick={() => retryAccounts('accounts')}
               className="mt-6 min-h-11 px-6 py-3 bg-[var(--text)] text-[var(--surface)] rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity shadow-md"
             >
-              Try again
+              {bankText('action.retry', 'Try again')}
             </button>
           </div>
         ) : loading && accounts.length === 0 ? (
@@ -176,13 +180,13 @@ export default function Banking() {
                   </div>
 
                   <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="w-3 h-3" /> Ready
+                    <CheckCircle2 className="w-3 h-3" /> {bankText('status.ready', 'Ready')}
                   </div>
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-slate-100 space-y-4">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-600 font-medium">Type</span>
+                    <span className="text-slate-600 font-medium">{bankText('label.type', 'Type')}</span>
                     <span className="text-slate-800 font-mono font-bold uppercase">{account.subtype || account.type || 'Asset'}</span>
                   </div>
                   <div className="flex gap-2">
