@@ -8,7 +8,9 @@ import {
   Calculator,
   FileSpreadsheet,
   X,
+  Camera,
 } from "lucide-react";
+import SnapReceiptDialog from "./SnapReceiptDialog";
 import { useUIStore } from "../../stores/useUIStore";
 import { useCurrentRole } from "../../hooks/useCurrentRole";
 import { useDialog } from "../../hooks/useDialog";
@@ -28,6 +30,7 @@ export default function QuickCreateMenu({
   phone?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [snapping, setSnapping] = useState(false);
   const openNewRecord = useUIStore((state) => state.openNewRecord);
   const canCreate = useCurrentRole() !== "viewer";
   const { dialogProps, titleId } = useDialog(() => setIsOpen(false), isOpen);
@@ -100,10 +103,23 @@ export default function QuickCreateMenu({
                   {label}
                 </button>
               ))}
+              <button
+                type="button"
+                disabled={!canCreate}
+                onClick={() => {
+                  setIsOpen(false);
+                  setSnapping(true);
+                }}
+                className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-left disabled:opacity-50"
+              >
+                <Camera aria-hidden="true" size={18} />
+                Snap a receipt
+              </button>
             </div>
           </div>,
           document.body,
         )}
+      {snapping && <SnapReceiptDialog onClose={() => setSnapping(false)} />}
     </div>
   );
 }
