@@ -47,6 +47,8 @@ import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
+import { useUIStore } from '../../stores/useUIStore';
 import { inBackground } from '../../lib/inBackground';
 
 const NO_VENDORS: Vendor[] = [];
@@ -54,6 +56,9 @@ const NO_BILLS: Bill[] = [];
 
 /** Accounts payable workspace screen for vendor bills, recurring schedules, and vendor management. */
 export default function Purchases() {
+  // EU-G1: visible text goes through the EN/HE table (src/lib/i18n/screenTranslations.ts)
+  const language = useUIStore(s => s.language);
+  const purchasesText = (key: string, fallback: string) => translateScreenString('purchases', key, language, fallback);
   const vendors = useLedgerStore(s => s.vendors) ?? NO_VENDORS;
   const bills = useLedgerStore(s => s.bills) ?? NO_BILLS;
   const accounts = useLedgerStore(s => s.accounts) || [];
@@ -251,14 +256,14 @@ export default function Purchases() {
               title="Pay every bill due by a date and download the bank file"
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800">
               <DollarSign className="w-4 h-4" aria-hidden="true" />
-              Payment run
+              {purchasesText('action.paymentRun', 'Payment run')}
             </button>
           )}
           {activeSubTab === 'bills' && canEditContacts && (
             <button type="button" onClick={() => setOpeningOpen(true)}
               title="The bills still unpaid when you started: paste them from a spreadsheet"
               className="px-3 py-2 text-slate-500 dark:text-slate-400 text-sm font-semibold hover:underline">
-              Opening bills
+              {purchasesText('action.openingBills', 'Opening bills')}
             </button>
           )}
           {activeSubTab === 'bills' && (
@@ -267,7 +272,7 @@ export default function Purchases() {
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
             >
               <Download className="w-4 h-4" />
-              Export CSV
+              {purchasesText('action.exportCsv', 'Export CSV')}
             </button>
           )}
           <button
@@ -296,7 +301,7 @@ export default function Purchases() {
               : 'border-transparent text-[var(--muted)] dark:text-slate-400 hover:text-slate-700'
           }`}
         >
-          Bills ({bills.length})
+          {purchasesText('tab.bills', 'Bills')} ({bills.length})
         </button>
         <button
           onClick={() => { setActiveSubTab('vendors'); setSearchTerm(''); }}
@@ -306,7 +311,7 @@ export default function Purchases() {
               : 'border-transparent text-[var(--muted)] dark:text-slate-400 hover:text-slate-700'
           }`}
         >
-          Vendors ({vendors.length})
+          {purchasesText('tab.vendors', 'Vendors')} ({vendors.length})
         </button>
       </div>
 
@@ -345,7 +350,7 @@ export default function Purchases() {
                 workspaceId={pdfWorkspaceId} onClear={() => setPickedBills(new Set())} />
             )}
             <table className="w-full text-left border-collapse">
-              <caption className="sr-only">Bills</caption>
+              <caption className="sr-only">{purchasesText('tab.bills', 'Bills')}</caption>
               <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                   <th scope="col" className="pl-4 w-8">
@@ -353,13 +358,13 @@ export default function Purchases() {
                       checked={visibleBills.length > 0 && visibleBills.every(b => pickedBills.has(b.id))}
                       onChange={e => setPickedBills(e.target.checked ? new Set(visibleBills.map(b => b.id)) : new Set())} />
                   </th>
-                  <th scope="col" className="p-4">Vendor</th>
-                  <th scope="col" className="p-4">Bill #</th>
-                  <th scope="col" className="p-4">Date</th>
-                  <th scope="col" className="p-4">Due Date</th>
-                  <th scope="col" className="p-4">Status</th>
-                  <th scope="col" className="p-4 text-right">Amount</th>
-                  <th scope="col" className="p-4 w-10"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="p-4">{purchasesText('col.vendor', 'Vendor')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.billNumber', 'Bill #')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.date', 'Date')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.dueDate', 'Due Date')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.status', 'Status')}</th>
+                  <th scope="col" className="p-4 text-right">{purchasesText('col.amount', 'Amount')}</th>
+                  <th scope="col" className="p-4 w-10"><span className="sr-only">{purchasesText('col.actions', 'Actions')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
@@ -401,7 +406,7 @@ export default function Purchases() {
                         </span>
                         {b.prepaidSchedule && <div className="mt-1 text-[10px] text-[var(--muted)]">{spreadProgress(b.prepaidSchedule, getLocalDateISO())}</div>}
                         <StageChip kind="bill" id={b.id} label={`bill ${b.number || ''}`.trim()} />
-                        {claimOf(b) && <div className="mt-1 text-[10px] text-[var(--muted)]">Expense claim{claimOf(b)?.state === 'rejected' ? ` · rejected${claimOf(b)?.reason ? `: ${claimOf(b)?.reason}` : ''}` : ''}</div>}
+                        {claimOf(b) && <div className="mt-1 text-[10px] text-[var(--muted)]">{purchasesText('label.expenseClaim', 'Expense claim')}{claimOf(b)?.state === 'rejected' ? ` · rejected${claimOf(b)?.reason ? `: ${claimOf(b)?.reason}` : ''}` : ''}</div>}
                       </td>
                       <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                         {formatCurrency(b.amountCents || 0)}
@@ -425,13 +430,13 @@ export default function Purchases() {
                         {canEditContacts && b.status !== 'draft' && b.status !== 'void' && (b.prepaidSchedule ? (
                           <button type="button" onClick={(e) => { e.stopPropagation(); void handleUndoSpread(b); }}
                             className="px-2 py-1 text-xs text-[var(--muted)] hover:text-slate-800 rounded-md" aria-label={`Undo the spread of bill ${b.number || ''}`.trim()}>
-                            Undo spread
+                            {purchasesText('action.undoSpread', 'Undo spread')}
                           </button>
                         ) : (
                           <button type="button" onClick={(e) => { e.stopPropagation(); setSpreadingBill(b); }}
                             className="px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300 hover:underline rounded-md" title="A prepaid expense: spread the cost over the months it covers"
                             aria-label={`Spread bill ${b.number || ''} over months`.replace('  ', ' ')}>
-                            Spread
+                            {purchasesText('action.spread', 'Spread')}
                           </button>
                         ))}
                         {b.status !== 'paid' && b.status !== 'void' && (
@@ -446,7 +451,7 @@ export default function Purchases() {
                               className="px-2 py-1 text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
                             >
                               <DollarSign className="w-3.5 h-3.5" />
-                              Pay
+                              {purchasesText('action.pay', 'Pay')}
                             </button>
                             <button
                               onClick={(e) => {
@@ -456,7 +461,7 @@ export default function Purchases() {
                               className="px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
                             >
                               <Ban className="w-3.5 h-3.5" />
-                              Void
+                              {purchasesText('action.void', 'Void')}
                             </button>
                           </>
                         )}
@@ -484,7 +489,7 @@ export default function Purchases() {
                         onClick={() => setBillLimit(n => n + 200)}
                         className="min-h-11 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                       >
-                        Show more bills ({visibleBills.length} of {filteredBills.length})
+                        {purchasesText('list.showMore', 'Show more bills')} ({visibleBills.length} {purchasesText('list.of', 'of')} {filteredBills.length})
                       </button>
                     </td>
                   </tr>
@@ -512,15 +517,15 @@ export default function Purchases() {
                 existing={vendors.map(v => v.name)} onAdd={name => addEntity('vendors', { name }, `Vendor "${name}" added`)} />
             )}
             <table className="w-full text-left border-collapse">
-              <caption className="sr-only">Vendors</caption>
+              <caption className="sr-only">{purchasesText('tab.vendors', 'Vendors')}</caption>
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                  <th scope="col" className="p-4">Vendor Name</th>
-                  <th scope="col" className="p-4">Category</th>
-                  <th scope="col" className="p-4">Email</th>
-                  <th scope="col" className="p-4">Phone</th>
-                  <th scope="col" className="p-4 text-right">Outstanding balance</th>
-                  {canEditContacts && <th scope="col" className="p-4 w-10"><span className="sr-only">Actions</span></th>}
+                  <th scope="col" className="p-4">{purchasesText('col.vendorName', 'Vendor Name')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.category', 'Category')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.email', 'Email')}</th>
+                  <th scope="col" className="p-4">{purchasesText('col.phone', 'Phone')}</th>
+                  <th scope="col" className="p-4 text-right">{purchasesText('col.outstanding', 'Outstanding balance')}</th>
+                  {canEditContacts && <th scope="col" className="p-4 w-10"><span className="sr-only">{purchasesText('col.actions', 'Actions')}</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
