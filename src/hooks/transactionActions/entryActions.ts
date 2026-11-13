@@ -569,7 +569,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       let persistedUpdatedAt: string | undefined;
       try {
         const fresh = await getDoc(doc(db, 'transactions', id));
-        if (!scope.isCurrent()) return false;
+        // The server already committed the save. Switching workspaces only
+        // cancels this cache refresh, not the successful operation.
+        if (!scope.isCurrent()) return true;
         const record = fresh.data();
         if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
             typeof record.updatedAt === 'string') {
@@ -579,7 +581,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         // A realtime event may still have supplied the real version.
         console.warn('Unable to refresh transaction version after save:', error);
       }
-      if (!scope.isCurrent()) return false;
+      if (!scope.isCurrent()) return true;
       setTransactions(
         useLedgerStore.getState().transactions.map(t => {
           if (t.id !== id || t.updatedAt !== optimisticUpdatedAt) return t;
