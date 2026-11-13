@@ -19,11 +19,14 @@ import type { Transaction } from '../../types';
 /** isPostable excludes all three. Posted entries must use an explicit reversal workflow. */
 const UNPOSTS = new Set(['failed', 'draft', 'void']);
 
-/** True when the entry is posted in the sense the reports use: completed, cleared or reconciled. */
+/** Reports include pending/flagged/reviewed/approved/overdue too (isPostable).
+ * Treat every non-excluded status as financially active, so status changes cannot
+ * first downgrade an entry and then delete it in a second request.
+ */
 export function isPostedEntry(tx: Partial<Transaction> | null | undefined): boolean {
   if (!tx) return false;
-  return tx.status === 'completed' || tx.status === 'reconciled' ||
-    tx.isCleared === true || tx.reconciled === true || tx.isReconciled === true;
+  if (tx.isCleared === true || tx.reconciled === true || tx.isReconciled === true) return true;
+  return Boolean(tx.status && !tx.deletedAt && !UNPOSTS.has(tx.status));
 }
 
 /**
