@@ -210,6 +210,17 @@ function useTransactionEditModalModel({
     );
     const oldHeaderRate = transaction.exchangeRate || 1;
     const headerRateChanged = exchangeRate !== oldHeaderRate;
+    // JournalEntryModal posts foreign-denominated journals in home minor units:
+    // amountCents === baseAmountCents while currency is the books' currency.
+    // Reapplying the header rate to these amounts would double-convert them.
+    const homeNativeFx = isForeignCurrency && transaction.currency === baseCurrency &&
+      originalLines.length > 0 &&
+      originalLines.every(line => Number.isSafeInteger(line.baseAmountCents) &&
+        line.amountCents === line.baseAmountCents);
+    if (homeNativeFx && (headerRateChanged || currencyChanged)) {
+      toast.error('This journal is already posted in the books currency. To change its foreign exchange basis, reverse and repost the journal.');
+      return;
+    }
     const recalculateBaseAmounts = currencyChanged || amountsChanged || headerRateChanged;
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
@@ -220,9 +231,14 @@ function useTransactionEditModalModel({
           ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, !l.project && !normalizedDims?.project ? project.trim() : undefined], workspaceProjects, currentNodes)
           : undefined;
       const cleanedBase = { ...l } as TransactionLine & { currency?: string };
-      if (isForeignCurrency) {
-        // A manual FX journal can have per-line rates (including rate 1 for its FX
-        // difference line) and precomputed home amounts. Preserve both on metadata edits.
+      if (homeNativeFx) {
+        // These figures are already home amounts, including on edited lines.
+        // Keep a complete explicit base set; never multiply them by the header rate.
+        cleanedBase.baseAmountCents = cleanedBase.amountCents;
+        delete cleanedBase.exchangeRate;
+      } else if (isForeignCurrency) {
+        // Foreign-native journals may have per-line rates (including rate 1 for
+        // the FX difference line) and explicit home amounts. Preserve them on metadata edits.
         // Lines following the previous header rate follow an edited header. Explicit
         // rates different from the header (e.g. an FX-difference leg at 1) stay fixed.
         if (cleanedBase.exchangeRate === undefined ||
