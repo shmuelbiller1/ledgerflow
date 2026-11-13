@@ -376,14 +376,34 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
   };
 
   const handleToggleFlag = async (id: string) => {
+    const scope = identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
-    
-    await fetch(`/api/v1/transactions/${id}`, {
+    const nextFlagged = !tx.isFlagged;
+    const nextUpdatedAt = new Date().toISOString();
+    const res = await fetch(`/api/v1/transactions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-      body: JSON.stringify({ partialUpdate: { isFlagged: !tx.isFlagged, updatedAt: new Date().toISOString() } })
+      body: JSON.stringify({
+        partialUpdate: { isFlagged: nextFlagged, updatedAt: nextUpdatedAt },
+        expectedUpdatedAt: tx.updatedAt,
+      }),
     });
+    if (!scope.isCurrent()) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      if (!scope.isCurrent()) return;
+      toast.error(body?.error || 'Could not update transaction flag');
+      return;
+    }
+    const body = await res.json().catch(() => null);
+    if (!scope.isCurrent()) return;
+    const persistedUpdatedAt = body?.data?.updatedAt || nextUpdatedAt;
+    setTransactions(
+      useLedgerStore.getState().transactions.map(t =>
+        t.id === id ? { ...t, isFlagged: nextFlagged, updatedAt: persistedUpdatedAt } : t,
+      ),
+    );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
   };
 
@@ -391,13 +411,45 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
 
-    const { id: _, createdAt: __, verification: ___, ...txData } = tx;
-    await handleQuickAdd({ 
-      ...txData,
-      description: `${txData.description} (Copy)`,
-      date: getLocalDateISO()
+    const {
+      id: _id,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      verification: _verification,
+      invoiceId: _invoiceId,
+      billId: _billId,
+      paymentId: _paymentId,
+      creditNoteId: _creditNoteId,
+      vendorCreditId: _vendorCreditId,
+      depositId: _depositId,
+      payRunId: _payRunId,
+      estimateId: _estimateId,
+      expenseId: _expenseId,
+      purchaseOrderId: _purchaseOrderId,
+      reconciled: _reconciled,
+      isReconciled: _isReconciled,
+      reconciledAt: _reconciledAt,
+      reconciledBankLineId: _reconciledBankLineId,
+      isCleared: _isCleared,
+      clearedAt: _clearedAt,
+      reversalOf: _reversalOf,
+      reversalEventId: _reversalEventId,
+      deletedAt: _deletedAt,
+      voidedAt: _voidedAt,
+      voidedReason: _voidedReason,
+      metadata: _metadata,
+      ...txData
+    } = tx as Transaction & Record<string, unknown>;
+    const cleanLines = tx.lines?.map(({ id: _lineId, baseAmountCents: _base, ...line }) => ({ ...line }));
+    const ok = await handleQuickAdd({
+      ...(txData as Partial<Transaction>),
+      ...(cleanLines ? { lines: cleanLines } : {}),
+      status: tx.status === 'reconciled' || tx.status === 'void' ? 'completed' : tx.status,
+      type: tx.type === 'reversal' ? 'actual' : tx.type,
+      description: `${tx.description || 'Transaction'} (Copy)`,
+      date: getLocalDateISO(),
     });
-    toast.success('Transaction duplicated');
+    if (ok) toast.success('Transaction duplicated');
   };
 
   /** Optimistically applies transaction edits, registers any new dimension labels, and persists with workspace-scoped rollback on failure. */
@@ -478,6 +530,15 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
          }
          throw new Error(data.error || 'Failed to update transaction');
       }
+      const savedBody = await res.json().catch(() => null);
+      const serverUpdatedAt = savedBody?.data?.updatedAt;
+      if (serverUpdatedAt && scope.isCurrent()) {
+        setTransactions(
+          useLedgerStore.getState().transactions.map(t =>
+            t.id === id ? { ...t, updatedAt: serverUpdatedAt } : t,
+          ),
+        );
+      }
     } catch(e) {
       if (!scope.isCurrent()) return false;
       if (isConflictError(e)) {
@@ -510,7 +571,10 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       toast.success('Transaction updated', {
         action: {
           label: 'Undo',
-          onClick: () => handleUpdateTransaction(id, tx)
+          onClick: () => {
+            const { updatedAt: _staleUpdatedAt, ...undoSnapshot } = tx;
+            void handleUpdateTransaction(id, undoSnapshot);
+          }
         }
       });
 

@@ -1,0 +1,356 @@
+diff --git a/src/lib/prepaidSchedule.ts b/src/lib/prepaidSchedule.ts
+index 2790d95d0..ac800ec55 100644
+--- a/src/lib/prepaidSchedule.ts
++++ b/src/lib/prepaidSchedule.ts
+@@ -6,6 +6,7 @@
+  * (src/server/services/prepaidService.ts) and the screen.
+  */
+ import { resolveAccountRole } from './accountUtils';
++import { convertMinorUnits } from './currencyMinorUnits';
+ import type { ChartAccount } from '../types';
+ 
+ export const MAX_SPREAD_MONTHS = 60;
+@@ -66,6 +67,7 @@ export function prepaidAccount(accounts: ChartAccount[], mappings?: Record<strin
+ 
+ interface BillLines {
+   amountCents?: number;
++  currency?: string;
+   exchangeRate?: number;
+   items?: Array<{ accountId?: string; amountCents?: number }>;
+   splits?: Array<{ accountId?: string; amountCents?: number }>;
+@@ -76,8 +78,11 @@ interface BillLines {
+  * the home currency (what is usually spread), or undefined. `fallbackAccountId` takes lines without
+  * an account of their own (they post to the default one).
+  */
+-export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'expense' | 'revenue', fallbackAccountId?: string): { accountId: string; baseCents: number } | undefined {
++export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'expense' | 'revenue', fallbackAccountId?: string, homeCurrency: string = 'USD'): { accountId: string; baseCents: number } | undefined {
+   const rate = typeof doc.exchangeRate === 'number' && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
++  const toHome = (cents: number) => (doc.currency && doc.currency.toUpperCase() !== homeCurrency.toUpperCase())
++    ? convertMinorUnits(cents, rate, doc.currency, homeCurrency)
++    : Math.round(cents * rate);
+   const fits = new Set(accounts.filter(a => resolveAccountRole(a) === role).map(a => a.id));
+   const byAccount = new Map<string, number>();
+   for (const line of [...(doc.items || []), ...(doc.splits || [])]) {
+@@ -85,7 +90,7 @@ export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'ex
+     if (accountId && fits.has(accountId)) byAccount.set(accountId, (byAccount.get(accountId) || 0) + (Number(line.amountCents) || 0));
+   }
+   const [best] = [...byAccount.entries()].sort((a, b) => b[1] - a[1]);
+-  return best ? { accountId: best[0], baseCents: Math.min(Math.round(best[1] * rate), Math.round((Number(doc.amountCents) || 0) * rate)) } : undefined;
++  return best ? { accountId: best[0], baseCents: Math.min(toHome(best[1]), toHome(Number(doc.amountCents) || 0)) } : undefined;
+ }
+ 
+ /** The bill's biggest expense line (K-17). */
+diff --git a/src/lib/tax/ilAllocation.ts b/src/lib/tax/ilAllocation.ts
+index c99d14c1f..6fafcec3d 100644
+--- a/src/lib/tax/ilAllocation.ts
++++ b/src/lib/tax/ilAllocation.ts
+@@ -5,6 +5,7 @@
+  * the source). Until the workspace is registered for the Tax Authority's service the number is typed
+  * on the invoice by hand (docs/FOR_YOU.md 42). Pure.
+  */
++import { convertMinorUnits } from '../currencyMinorUnits';
+ import { rateOn, type DatedRate } from './ilVatRates';
+ 
+ const ITA = 'https://www.gov.il/he/departments/topics/israel-invoices';
+@@ -27,7 +28,9 @@ export function allocationThresholdCents(date: string): number | undefined {
+ export function needsAllocationNumber(input: { date: string; netCents: number; currency: string; exchangeRate?: number; buyerVatNumber?: string; taxCents: number }): boolean {
+   const threshold = allocationThresholdCents(input.date);
+   if (threshold === undefined || !input.buyerVatNumber?.trim() || input.taxCents <= 0) return false;
+-  const shekels = input.currency === 'ILS' ? input.netCents : Math.round(input.netCents * (input.exchangeRate || 0));
++  const shekels = input.currency === 'ILS'
++    ? input.netCents
++    : convertMinorUnits(input.netCents, input.exchangeRate || 0, input.currency, 'ILS');
+   return shekels > threshold;
+ }
+ 
+diff --git a/src/lib/tax/usNexusWatch.ts b/src/lib/tax/usNexusWatch.ts
+index 5e5fe68a6..72a8b7842 100644
+--- a/src/lib/tax/usNexusWatch.ts
++++ b/src/lib/tax/usNexusWatch.ts
+@@ -15,6 +15,7 @@
+  * Pure: the same document figures (`taxReturnDocument`) and statuses (`COUNTED_SALES`) as the sales-tax return.
+  */
+ import { COUNTED_SALES } from '../taxCodes';
++import { convertMinorUnits } from '../currencyMinorUnits';
+ import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
+ import { nexusWatch, type NexusWatchResult } from './usNexus';
+ import { placeState, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+@@ -73,7 +74,12 @@ export interface UsNexusWatch {
+   mixedEntityDocuments?: number;
+ }
+ 
+-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
++const toBase = (cents: number, rate?: number, fromCurrency?: string) => {
++  const r = rate && rate > 0 ? rate : 1;
++  return fromCurrency && fromCurrency.toUpperCase() !== 'USD'
++    ? convertMinorUnits(cents, r, fromCurrency, 'USD')
++    : Math.round(cents * r);
++};
+ 
+ export function usNexusWatch(input: {
+   asOf: string;
+@@ -151,7 +157,7 @@ export function usNexusWatch(input: {
+         thisYear: { salesCents: 0, orders: 0 }, lastYear: { salesCents: 0, orders: 0 },
+       };
+       // credit notes lower the sales of the year they fall in; they are not sales, so the count is unchanged
+-      row[window.key].salesCents += sign * toBase(taxReturnDocument(doc).netCents, doc.exchangeRate);
++      row[window.key].salesCents += sign * toBase(taxReturnDocument(doc).netCents, doc.exchangeRate, doc.currency);
+       if (sign === 1) row[window.key].orders += 1;
+       totals.set(key, row);
+     }
+diff --git a/src/lib/tax/usSalesTaxReturn.ts b/src/lib/tax/usSalesTaxReturn.ts
+index f3eefdb30..42860da4d 100644
+--- a/src/lib/tax/usSalesTaxReturn.ts
++++ b/src/lib/tax/usSalesTaxReturn.ts
+@@ -16,6 +16,7 @@
+  * Read-only; amounts in the home currency. Pure.
+  */
+ import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
++import { convertMinorUnits } from '../currencyMinorUnits';
+ import { COUNTED_SALES } from '../taxCodes';
+ import { exemptionOn } from '../taxExemption';
+ import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
+@@ -50,7 +51,12 @@ export interface UsSalesTaxReturn {
+   unplaced: { documentCount: number; netCents: number; taxCents: number; documents: Array<{ id: string; netCents: number; taxCents: number }> };
+ }
+ 
+-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
++const toBase = (cents: number, rate?: number, fromCurrency?: string, homeCurrency: string = 'USD') => {
++  const r = rate && rate > 0 ? rate : 1;
++  return fromCurrency && fromCurrency.toUpperCase() !== homeCurrency.toUpperCase()
++    ? convertMinorUnits(cents, r, fromCurrency, homeCurrency)
++    : Math.round(cents * r);
++};
+ 
+ export function usSalesTaxReturn(input: {
+   registration: string;
+@@ -85,8 +91,8 @@ export function usSalesTaxReturn(input: {
+       const buyerState = destination.state;
+       if (!buyerState) {
+         const unplacedFigures = taxReturnDocument(doc);
+-        const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate);
+-        const taxCents = sign * toBase(unplacedFigures.taxCents, doc.exchangeRate);
++        const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate, doc.currency);
++        const taxCents = sign * toBase(unplacedFigures.taxCents, doc.exchangeRate, doc.currency);
+         out.unplaced.documentCount++;
+         out.unplaced.netCents += netCents;
+         out.unplaced.taxCents += taxCents;
+@@ -95,14 +101,14 @@ export function usSalesTaxReturn(input: {
+       }
+       if (buyerState !== state) continue;
+       const figures = taxReturnDocument(doc);
+-      const net = sign * toBase(figures.netCents, doc.exchangeRate);
+-      const tax = sign * toBase(figures.taxCents, doc.exchangeRate);
++      const net = sign * toBase(figures.netCents, doc.exchangeRate, doc.currency);
++      const tax = sign * toBase(figures.taxCents, doc.exchangeRate, doc.currency);
+       const certified = exemptionOn(customer, date)?.state === 'exempt';
+       const exempt = certified || doc.taxTreatment === 'exempt' || doc.taxTreatment === 'zero_rated' || (figures.taxCents === 0 && doc.taxTreatment !== 'standard');
+       out.grossSalesCents += net;
+       if (exempt) out.exemptSalesCents += net; else out.taxableSalesCents += net;
+       out.taxCollectedCents += tax;
+-      for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate));
++      for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate, doc.currency));
+       out.documentCount++;
+       if (sign === 1) out.invoiceIds.push(String(doc.id));
+     }
+diff --git a/src/lib/taxCodes.ts b/src/lib/taxCodes.ts
+index aa29b1efd..cca24dd55 100644
+--- a/src/lib/taxCodes.ts
++++ b/src/lib/taxCodes.ts
+@@ -192,6 +192,8 @@ export function creditTaxFrom(creditCents: number, doc: DocumentTaxInput & { tax
+   };
+ }
+ 
++import { convertMinorUnits } from './currencyMinorUnits';
++
+ // ---------------------------------------------------------------------------
+ // The tax return
+ // ---------------------------------------------------------------------------
+@@ -202,6 +204,7 @@ export interface TaxReturnDocument {
+   date?: string;
+   issueDate?: string;
+   status?: string;
++  currency?: string;
+   exchangeRate?: number;
+   taxTreatment?: TaxTreatment;
+   /** Net (excluding tax) and tax in the document currency, as saved on the document. */
+@@ -235,7 +238,12 @@ function inPeriod(doc: TaxReturnDocument, start: string, end: string) {
+   return d >= start && d <= end;
+ }
+ 
+-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
++const toBase = (cents: number, rate?: number, fromCurrency?: string, homeCurrency: string = 'USD') => {
++  const r = rate && rate > 0 ? rate : 1;
++  return fromCurrency && fromCurrency.toUpperCase() !== homeCurrency.toUpperCase()
++    ? convertMinorUnits(cents, r, fromCurrency, homeCurrency)
++    : Math.round(cents * r);
++};
+ 
+ /**
+  * The return for a period. Credit notes and vendor credits are passed with `credit: true` groups
+@@ -252,7 +260,9 @@ export function computeTaxReturn(input: {
+   purchaseCredits?: TaxReturnDocument[];
+   startDate: string;
+   endDate: string;
++  homeCurrency?: string;
+ }): TaxReturn {
++  const home = input.homeCurrency || 'USD';
+   const sales = emptyTotals();
+   const purchases = emptyTotals();
+   let documentCount = 0;
+@@ -262,9 +272,9 @@ export function computeTaxReturn(input: {
+     for (const doc of docs || []) {
+       if (!counted.has(String(doc.status)) || !inPeriod(doc, input.startDate, input.endDate)) continue;
+       const treatment = doc.taxTreatment || (doc.taxCents > 0 ? 'standard' : 'out_of_scope');
+-      totals[treatment].netCents += sign * toBase(doc.netCents, doc.exchangeRate);
+-      totals[treatment].taxCents += sign * toBase(doc.taxCents, doc.exchangeRate);
+-      if (purchase && treatment === 'reverse_charge') reverseChargeCents += sign * toBase(doc.selfAssessedCents || 0, doc.exchangeRate);
++      totals[treatment].netCents += sign * toBase(doc.netCents, doc.exchangeRate, doc.currency, home);
++      totals[treatment].taxCents += sign * toBase(doc.taxCents, doc.exchangeRate, doc.currency, home);
++      if (purchase && treatment === 'reverse_charge') reverseChargeCents += sign * toBase(doc.selfAssessedCents || 0, doc.exchangeRate, doc.currency, home);
+       documentCount++;
+     }
+   };
+diff --git a/src/lib/taxRecompute.ts b/src/lib/taxRecompute.ts
+index 8c100a2aa..4b3c3c976 100644
+--- a/src/lib/taxRecompute.ts
++++ b/src/lib/taxRecompute.ts
+@@ -9,6 +9,7 @@
+  */
+ import type { Bill, ChartAccount, Invoice, Transaction, TransactionLine } from '../types';
+ import { calculateDocumentTax } from './documentMath';
++import { convertMinorUnits } from './currencyMinorUnits';
+ import { isPostable, lineAmount } from './txFilters';
+ import { activeAccruals, reversedTransactionIds } from './postingCheck';
+ 
+@@ -75,7 +76,10 @@ function check(
+       for (const line of adj.lines || []) if (line.accountId === meta(adj).taxAccountId) posted += taxSide(kind, lineAmount(line, adj));
+     }
+     const rate = doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
+-    const expected = Math.round(calculateDocumentTax(doc) * rate);
++    const homeCurrency = entry.originalCurrency ? (entry.currency || 'USD') : (rate !== 1 && doc.currency ? 'USD' : (entry.currency || doc.currency || 'USD'));
++    const expected = doc.currency && doc.currency !== homeCurrency
++      ? convertMinorUnits(calculateDocumentTax(doc), rate, doc.currency, homeCurrency)
++      : Math.round(calculateDocumentTax(doc) * rate);
+     if (expected === posted) continue;
+     const tax = largestLine(taxLines)?.line;
+     const offset = largestLine(lines.filter(x => OFFSET_LINE[kind].test(x.line.description || '')))?.line;
+diff --git a/src/lib/taxReturnDocs.ts b/src/lib/taxReturnDocs.ts
+index 43d0348f7..6e31c2a0f 100644
+--- a/src/lib/taxReturnDocs.ts
++++ b/src/lib/taxReturnDocs.ts
+@@ -5,6 +5,7 @@
+  */
+ import { calculateDocumentNet, calculateDocumentTax } from './documentMath';
+ import type { DocumentTaxInput } from './documentMath';
++import { convertMinorUnits } from './currencyMinorUnits';
+ import { computeTaxReturn, COUNTED_PURCHASES, COUNTED_SALES } from './taxCodes';
+ import type { TaxReturn, TaxReturnDocument, TaxTreatment } from './taxCodes';
+ 
+@@ -13,6 +14,7 @@ export interface TaxableDocument extends DocumentTaxInput {
+   date?: string;
+   issueDate?: string;
+   status?: string;
++  currency?: string;
+   exchangeRate?: number;
+   taxTreatment?: TaxTreatment;
+   selfAssessedTaxCents?: number;
+@@ -25,6 +27,7 @@ export function taxReturnDocument(doc: TaxableDocument): TaxReturnDocument {
+     id: doc.id,
+     date: doc.date || doc.issueDate,
+     status: doc.status,
++    currency: doc.currency,
+     exchangeRate: doc.exchangeRate,
+     taxTreatment: doc.taxTreatment,
+     netCents: calculateDocumentNet(doc),
+@@ -40,10 +43,12 @@ export function buildTaxReturn(input: {
+   vendorCredits?: TaxableDocument[];
+   startDate: string;
+   endDate: string;
++  homeCurrency?: string;
+ }): TaxReturn {
+   return computeTaxReturn({
+     startDate: input.startDate,
+     endDate: input.endDate,
++    homeCurrency: input.homeCurrency,
+     sales: input.invoices.map(taxReturnDocument),
+     salesCredits: (input.creditNotes || []).map(taxReturnDocument),
+     purchases: input.bills.map(taxReturnDocument),
+@@ -96,9 +101,16 @@ export function taxByRate(input: {
+   vendorCredits?: TaxableDocument[];
+   startDate: string;
+   endDate: string;
++  homeCurrency?: string;
+ }): TaxRateRow[] {
++  const home = input.homeCurrency || 'USD';
+   const rows = new Map<string, TaxRateRow>();
+-  const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
++  const toBase = (cents: number, rate?: number, fromCurrency?: string) => {
++    const r = rate && rate > 0 ? rate : 1;
++    return fromCurrency && fromCurrency.toUpperCase() !== home.toUpperCase()
++      ? convertMinorUnits(cents, r, fromCurrency, home)
++      : Math.round(cents * r);
++  };
+   const add = (docs: TaxableDocument[] | undefined, counted: Set<string>, sign: 1 | -1, side: 'sales' | 'purchases') => {
+     for (const doc of docs || []) {
+       const day = String(doc.date || doc.issueDate || '').slice(0, 10);
+@@ -113,8 +125,8 @@ export function taxByRate(input: {
+       parts.forEach((part, i) => {
+         const key = `${part.name}|${part.rate}`;
+         const row = rows.get(key) || { name: part.name, rate: part.rate, salesNetCents: 0, salesTaxCents: 0, purchasesNetCents: 0, purchasesTaxCents: 0, netTaxCents: 0 };
+-        row[`${side}NetCents`] += sign * toBase(net, doc.exchangeRate);
+-        row[`${side}TaxCents`] += sign * toBase(shares[i], doc.exchangeRate);
++        row[`${side}NetCents`] += sign * toBase(net, doc.exchangeRate, doc.currency);
++        row[`${side}TaxCents`] += sign * toBase(shares[i], doc.exchangeRate, doc.currency);
+         rows.set(key, row);
+       });
+     }
+diff --git a/src/server/services/taxReturnService.ts b/src/server/services/taxReturnService.ts
+index 4fb992936..aeb2dfb6d 100644
+--- a/src/server/services/taxReturnService.ts
++++ b/src/server/services/taxReturnService.ts
+@@ -10,7 +10,7 @@ import { buildTaxReturn } from '../../lib/taxReturnDocs';
+ import type { TaxableDocument } from '../../lib/taxReturnDocs';
+ import { writeServerAuditLog } from './auditLogService';
+ import { workspaceRole } from '../../lib/periodLock';
+-import { belongsTo } from '../../lib/tax/ilVatReturn';
++import { belongsTo, israelVatReturn } from '../../lib/tax/ilVatReturn';
+ import { placeState, registrationKey, type TaxProfiles } from '../../lib/tax/profile';
+ import { usSalesTaxReturn, type UsSalesDocument } from '../../lib/tax/usSalesTaxReturn';
+ 
+@@ -31,10 +31,34 @@ async function load(db: Firestore, table: string, workspaceId: string): Promise<
+  */
+ export async function computeWorkspaceTaxReturn(db: Firestore, workspaceId: string, startDate: string, endDate: string, scope?: { registration: string; profiles: TaxProfiles; order: string[] }) {
+   if (!YMD.test(startDate) || !YMD.test(endDate) || startDate > endDate) throw new TaxReturnError(400, 'Choose a valid period');
++  const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
++  const homeCurrency = String(wsSnap.data()?.currency || 'USD').toUpperCase();
+   const [invoices, bills, creditNotes, vendorCredits] = (await Promise.all(
+     ['invoices', 'bills', 'creditNotes', 'vendorCredits'].map(t => load(db, t, workspaceId))))
+     .map(docs => scope ? docs.filter(d => belongsTo(d, scope.profiles, scope.order, scope.registration)) : docs);
+-  return buildTaxReturn({ invoices, bills, creditNotes, vendorCredits, startDate, endDate });
++  const base = buildTaxReturn({ invoices, bills, creditNotes, vendorCredits, startDate, endDate, homeCurrency });
++  if (scope?.registration.startsWith('vat:IL:')) {
++    const il = israelVatReturn({
++      registration: scope.registration,
++      profiles: scope.profiles,
++      order: scope.order,
++      invoices,
++      bills,
++      creditNotes,
++      vendorCredits,
++      startDate,
++      endDate,
++    });
++    return {
++      ...base,
++      boxes: [
++        ...base.boxes,
++        { key: '4a', label: 'Fixed-asset input VAT (Tshumot Kvu\'ot)', cents: il.fixedAssetInputVatCents },
++        { key: '4b', label: 'Other input VAT (Tshumot Acherot)', cents: il.otherInputVatCents },
++      ],
++    };
++  }
++  return base;
+ }
+ 
+ /**

@@ -175,6 +175,32 @@ const Reports = React.memo(() => {
     if (linked.report !== activeTab && REPORT_TABS_REGISTRY.some(t => t.id === linked.report)) setActiveTab(linked.report);
   }, [linked.report, activeTab, setActiveTab]);
   useEffect(() => {
+    const syncFromUrl = () => {
+      const next = reportStateFromParams(linkedReportParams(), {
+        report: useUIStore.getState().activeReportTab || 'pnl',
+        year: 0,
+        timeframe: 'month',
+        quarter: -1,
+        month: -1,
+        compare: 'none',
+      });
+      setLinked(next);
+      if (REPORT_TABS_REGISTRY.some(t => t.id === next.report)) setActiveTab(next.report);
+      if (next.year > 0) setSelectedYear(next.year);
+      setTimeframe(next.timeframe);
+      if (next.quarter >= 0) setSelectedQuarter(next.quarter);
+      if (next.month >= 0) setSelectedMonth(next.month);
+      setCompareMode(next.compare);
+      setCustomPeriod(next.startDate && next.endDate ? { startDate: next.startDate, endDate: next.endDate } : undefined);
+    };
+    window.addEventListener('ledgerflow:report-link', syncFromUrl);
+    window.addEventListener('popstate', syncFromUrl);
+    return () => {
+      window.removeEventListener('ledgerflow:report-link', syncFromUrl);
+      window.removeEventListener('popstate', syncFromUrl);
+    };
+  }, [setActiveTab]);
+  useEffect(() => {
     const url = new URL(window.location.href);
     const params = reportStateToParams({ report: activeTab, year: selectedYear, timeframe, quarter: selectedQuarter, month: selectedMonth, compare: compareMode, ...customPeriod }, url.searchParams);
     const next = `${url.pathname}?${params.toString()}${url.hash}`;

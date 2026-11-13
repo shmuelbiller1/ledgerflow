@@ -4,7 +4,7 @@ import { X, Calendar, FileText, Building2, Trash2, Plus, ShieldAlert, Hash, Slid
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { auth } from '../../firebase';
-import { formatDecimal, getLocalDateISO, parseAmountToCents, cn } from '../../lib/utils';
+import { formatCurrency, formatDecimal, getLocalDateISO, parseAmountToCents, cn } from '../../lib/utils';
 import CategoryWhyPopover from '../common/CategoryWhyPopover';
 import { DimensionValueActions, InlineAddDimensionAxis } from '../common/DimensionValueActions';
 import { getLineDimension, extractUniqueDimensionPaths } from '../../lib/dimensionUtils';
@@ -17,8 +17,10 @@ import EntryQuestions from './EntryQuestions';
 import type { TransactionEditModalModel } from './TransactionEditModal';
 
 /** Presentation modal for editing or reversing a multi-line ledger transaction and its dimension labels. */
-export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
+export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, baseCurrency, isDocBacked, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
   const workspaceProjects = useLedgerStore(s => s.projects || []);
+  const displayCurrency = originalCurrency || transaction.currency || baseCurrency;
+  const currencyOptions = Array.from(new Set([baseCurrency, originalCurrency, 'USD', 'EUR', 'GBP', 'ILS', 'JPY', 'CAD', 'KWD'].filter(Boolean)));
   return (
     <AnimatePresence>
       <div {...dialogProps} className="fixed inset-0 z-[210] flex items-center justify-center p-4">
@@ -79,8 +81,21 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
               </div>
             )}
 
+            {/* Document-backed entry guard banner (#652) */}
+            {isDocBacked && !isReverseMode && (
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800">
+                <ShieldAlert aria-hidden="true" className="shrink-0 mt-0.5 text-amber-600" size={18} />
+                <div className="text-xs space-y-1">
+                  <p className="font-bold">This entry belongs to a document</p>
+                  <p className="text-amber-700/90 leading-relaxed">
+                    Void or credit the invoice, bill, or payment it came from so the source document and general ledger stay synchronized.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Sealed Alert banner if transaction is period locked (and not yet in reverse mode) */}
-            {isLocked && !isReverseMode && (
+            {isLocked && !isDocBacked && !isReverseMode && (
               <div className="flex items-start justify-between gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800">
                 <div className="flex items-start gap-3">
                   <ShieldAlert aria-hidden="true" className="shrink-0 mt-0.5 text-amber-600" size={18} />
@@ -233,7 +248,9 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                   <option value="completed">Completed / Signed</option>
                   <option value="pending">Pending Validation</option>
                   <option value="flagged">Flagged for Audit</option>
-                  <option value="reconciled">Reconciled Lock</option>
+                  {(transaction.status === 'reconciled' || status === 'reconciled') && (
+                    <option value="reconciled">Reconciled Lock</option>
+                  )}
                 </select>
               </div>
 
@@ -245,20 +262,24 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                   id={`${formId}-tx-original-currency`}
                   disabled={isLocked}
                   value={originalCurrency}
-                  onChange={(e) => setOriginalCurrency(e.target.value)}
+                  onChange={(e) => {
+                    const nextCurrency = e.target.value;
+                    setOriginalCurrency(nextCurrency);
+                    if (nextCurrency === baseCurrency) setExchangeRate(1.0);
+                  }}
                   className="w-full px-3 py-2 bg-[var(--ink)] border border-[var(--line)] hover:border-zinc-300 rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:bg-[var(--surface)]"
                 >
-                  {['USD', 'EUR', 'GBP', 'ILS', 'JPY', 'CAD'].map(cur => (
+                  {currencyOptions.map(cur => (
                     <option key={cur} value={cur}>{cur}</option>
                   ))}
                 </select>
               </div>
 
-              {(originalCurrency !== 'USD') && (
+              {(originalCurrency !== baseCurrency) && (
                 <div className="space-y-1.5 md:col-span-3">
                   <div className="flex items-center justify-between">
                     <label htmlFor={`${formId}-exchange-rate`} className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
-                      Historical Exchange Rate Offset (1 {originalCurrency} =)
+                      Historical Exchange Rate Offset (1 {originalCurrency} = {baseCurrency})
                     </label>
                     <button
                       type="button"
@@ -269,16 +290,17 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                           const token = await auth.currentUser?.getIdToken();
                           if (!token) return;
                           
-                          // Use the transaction date or today
-                          const date = transaction.date || getLocalDateISO();
-                          const res = await fetch(`/api/v1/currency/historical?date=${date}&source=USD&currencies=${originalCurrency}`, {
+                          // Use the edited transaction date or today, relative to workspace baseCurrency
+                          const lookupDate = date || transaction.date || getLocalDateISO();
+                          const res = await fetch(`/api/v1/currency/historical?date=${encodeURIComponent(lookupDate)}&source=${encodeURIComponent(baseCurrency)}&currencies=${encodeURIComponent(originalCurrency)}`, {
                              headers: { 'Authorization': `Bearer ${token}` }
                           });
                           const data = await res.json();
-                          if (data.success && data.historical && data.quotes[`USD${originalCurrency}`]) {
-                             // The quote is 1 USD = X Currency. We need 1 Currency = X USD, so 1 / X
-                             const usdRate = 1 / data.quotes[`USD${originalCurrency}`];
-                             setExchangeRate(Number(usdRate.toFixed(6)));
+                          const quoteKey = `${baseCurrency}${originalCurrency}`;
+                          if (data.success && data.historical && data.quotes?.[quoteKey]) {
+                             // Quote is 1 baseCurrency = X originalCurrency. We need 1 originalCurrency = X baseCurrency (1 / X).
+                             const baseRate = 1 / data.quotes[quoteKey];
+                             setExchangeRate(Number(baseRate.toFixed(6)));
                              toast.success('Market rate synchronized from Currency API');
                           } else {
                              toast.error('Failed to sync rate', { description: data.error?.info || 'Unknown error' });
@@ -571,11 +593,11 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
               <div className="text-right flex flex-col justify-center space-y-0.5">
                 <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Total Transaction Sum</span>
                 <div className="text-sm font-mono font-black text-[var(--text)]">
-                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: transaction.currency || 'USD' }).format(totalAmountCents / 100)}
+                  {formatCurrency(totalAmountCents, displayCurrency)}
                 </div>
                 {sumLines !== 0 && (
                   <p className="text-[10px] text-amber-600 font-medium tabular-nums">
-                    Trial balance variance offset: ${formatDecimal(sumLines)}
+                    Trial balance variance offset: {formatCurrency(sumLines, displayCurrency)}
                   </p>
                 )}
               </div>

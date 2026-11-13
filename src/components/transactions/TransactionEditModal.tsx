@@ -10,6 +10,7 @@ import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
 import { normalizeDimensionsMap, resolveWorkspaceProjectId } from '../../lib/dimensionNodeActions';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { isLockedDate } from '../../lib/periodLock';
+import { isDocumentEntry } from '../../lib/transactionEdits';
 import { TransactionEditModalView } from './TransactionEditModalView';
 
 /** Assigns deterministic React keys to repeated transaction lines even when lines lack explicit IDs. */
@@ -29,7 +30,7 @@ interface TransactionEditModalProps {
   accounts: ChartAccount[];
   lockDate?: string | null;
   onClose: () => void;
-  onUpdate: (id: string, updates: Partial<Transaction>) => void;
+  onUpdate: (id: string, updates: Partial<Transaction>) => void | boolean | Promise<void | boolean>;
   isReverseAndCorrectMode?: boolean;
   onReverseAndCorrect?: (id: string, reversalDate: string, reason: string, replacement?: Partial<Transaction>) => Promise<unknown>;
 }
@@ -46,7 +47,10 @@ function useTransactionEditModalModel({
   onReverseAndCorrect
 }: TransactionEditModalProps) {
   const formId = useId();
-  const baseCurrency = useLedgerStore(s => s.baseCurrency) || 'USD';
+  const storeBaseCurrency = useLedgerStore(s => s.baseCurrency);
+  const getCurrentWorkspace = useAuthStore(s => s.getCurrentWorkspace);
+  const currentWorkspace = getCurrentWorkspace();
+  const baseCurrency = currentWorkspace?.currency || storeBaseCurrency || 'USD';
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
   const todayISO = getLocalDateISO();
   const [isReverseMode, setIsReverseMode] = useState(initialReverseMode);
@@ -73,15 +77,13 @@ function useTransactionEditModalModel({
   const [isCleared, setIsCleared] = useState(() => transaction?.isCleared || false);
   const [isFlagged, setIsFlagged] = useState(() => transaction?.isFlagged || false);
   const [fileUrls, setFileUrls] = useState<string[]>(() => transaction?.fileUrls || []);
-  const [originalCurrency, setOriginalCurrency] = useState(() => transaction?.originalCurrency || baseCurrency);
+  const [originalCurrency, setOriginalCurrency] = useState(() => transaction?.originalCurrency || transaction?.currency || baseCurrency);
   const [exchangeRate, setExchangeRate] = useState<number>(() => transaction?.exchangeRate || 1.0);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   useLedgerStore(s => s.classes);
   useLedgerStore(s => s.locations);
   useLedgerStore(s => s.projects);
   const transactions = useLedgerStore(s => s.transactions);
-  const getCurrentWorkspace = useAuthStore(s => s.getCurrentWorkspace);
-  const currentWorkspace = getCurrentWorkspace();
   const activeDimensions = currentWorkspace?.dimensions || DEFAULT_WORKSPACE_DIMENSIONS;
   
   // Manage lines for splitting and multiple assignments
@@ -93,14 +95,24 @@ function useTransactionEditModalModel({
   ).map(({ key }) => `existing-${key}`));
   const nextLineKey = useRef(0);
 
-  const isLocked = !isReverseMode && closed(date);
+  const txRec = transaction as unknown as Record<string, unknown> | undefined;
+  const isDocBacked = isDocumentEntry(transaction) || Boolean(
+    txRec?.invoiceId ||
+    txRec?.billId ||
+    txRec?.paymentId ||
+    txRec?.creditNoteId ||
+    txRec?.vendorCreditId ||
+    txRec?.depositId ||
+    txRec?.payRunId,
+  );
+  const isLocked = (!isReverseMode && closed(date)) || (!isReverseMode && isDocBacked);
 
-  // Compute total absolute sum (or sum of debits/credits in standard book)
-  // Our types.ts says line.amountCents: Positive for Debit, Negative for Credit
-  const totalAmountCents = Math.abs(lines.reduce((sum, l) => sum + l.amountCents, 0));
+  // Sum positive (debit) legs so balanced double-entry journals show their actual gross amount instead of 0
+  const debitTotalCents = lines.reduce((sum, l) => sum + ((l.amountCents || 0) > 0 ? (l.amountCents || 0) : 0), 0);
+  const totalAmountCents = debitTotalCents > 0 ? debitTotalCents : Math.abs(lines.reduce((sum, l) => sum + (l.amountCents || 0), 0));
   
   // Let's compute if the line items sum up correctly
-  const sumLines = lines.reduce((sum, l) => sum + l.amountCents, 0);
+  const sumLines = lines.reduce((sum, l) => sum + (l.amountCents || 0), 0);
 
   const lineKeysRef = useRef(lineKeys);
   useEffect(() => {
@@ -154,6 +166,10 @@ function useTransactionEditModalModel({
 
   /** Validates double-entry balance, normalizes dimension nodes, preserves workspace project IDs, and commits changes. */
   const handleSave = async () => {
+    if (!isReverseMode && isDocBacked) {
+      toast.error('This entry belongs to a document. Void or credit the source invoice, bill, or payment instead.');
+      return;
+    }
     if (isLocked) {
       toast.error('Period is sealed. Changes are prohibited to protect general ledger integrity.');
       return;
@@ -183,6 +199,7 @@ function useTransactionEditModalModel({
 
     const currentNodes = useLedgerStore.getState().dimensionNodes || [];
     const workspaceProjects = useLedgerStore.getState().projects || [];
+    const isForeignCurrency = Boolean(originalCurrency && originalCurrency !== baseCurrency);
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
       const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
@@ -191,8 +208,17 @@ function useTransactionEditModalModel({
         rawLineProject || normalizedDims?.project
           ? resolveWorkspaceProjectId([l.project, normalizedDims?.project, !l.project && !normalizedDims?.project ? project.trim() : undefined], workspaceProjects, currentNodes)
           : undefined;
+      const cleanedBase = { ...l } as TransactionLine & { currency?: string };
+      if (isForeignCurrency) {
+        delete cleanedBase.baseAmountCents;
+        cleanedBase.exchangeRate = exchangeRate;
+      } else if (cleanedBase.exchangeRate !== undefined || cleanedBase.baseAmountCents !== undefined || cleanedBase.currency !== undefined) {
+        delete cleanedBase.exchangeRate;
+        delete cleanedBase.baseAmountCents;
+        delete cleanedBase.currency;
+      }
       return {
-        ...l,
+        ...cleanedBase,
         accountName: acc ? acc.name : l.accountName,
         project: matchedLineProjectId ?? rawLineProject,
         ...(normalizedDims !== l.dimensions ? { dimensions: normalizedDims } : {}),
@@ -232,7 +258,7 @@ function useTransactionEditModalModel({
       return;
     }
 
-    await onUpdate(transaction.id, {
+    const saveResult = await onUpdate(transaction.id, {
       date,
       description: description.trim(),
       payee: payee.trim() || undefined,
@@ -242,11 +268,15 @@ function useTransactionEditModalModel({
       isCleared,
       isFlagged,
       fileUrls,
-      originalCurrency: originalCurrency !== baseCurrency ? originalCurrency : undefined,
-      exchangeRate: originalCurrency !== baseCurrency ? exchangeRate : undefined,
+      ...(transaction.currency !== undefined || isForeignCurrency
+        ? { currency: isForeignCurrency ? originalCurrency : baseCurrency }
+        : {}),
+      originalCurrency: isForeignCurrency ? originalCurrency : undefined,
+      exchangeRate: isForeignCurrency ? exchangeRate : undefined,
       lines: finalLines,
       totalAmountCents: calculatedTotal
     });
+    if (saveResult === false) return;
 
     toast.success('Ledger state synchronized with extreme precision');
     onClose();
@@ -271,7 +301,7 @@ function useTransactionEditModalModel({
   const { dialogProps, titleId } = useDialog(onClose, isOpen);
   if (!isOpen) return null;
 
-  return { transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId };
+  return { transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, baseCurrency, isDocBacked, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId };
 }
 
 export type TransactionEditModalModel = NonNullable<ReturnType<typeof useTransactionEditModalModel>>;
