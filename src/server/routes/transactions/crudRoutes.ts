@@ -20,7 +20,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
-import { auditSnapshot, documentEntryRefusal, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -478,7 +478,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
         return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
       }
-      if (data?.status === 'completed' && !user.admin) {
+      if (isPostedEntry(data as Partial<Transaction>) && !user.admin) {
         return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
       }
 
@@ -491,7 +491,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
         const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
         if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
-        if (nowData?.status === 'completed' && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
+        if (isPostedEntry(nowData as Partial<Transaction>) && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
         const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
         try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
         t.delete(txRef);
