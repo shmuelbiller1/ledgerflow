@@ -51,10 +51,11 @@ const DOCUMENT_LINK_KEYS = ['invoiceId', 'billId', 'paymentId', 'creditNoteId', 
 
 /** The `metadata.type` values the invoice, bill, payment and credit postings write for the document itself. */
 const DOCUMENT_POSTING_TYPES = new Set([
-  'invoice-accrual', 'invoice-payment', 'invoice-deposit',
-  'bill-accrual', 'bill-payment',
-  'payment-posting', 'payment-application',
-  'credit-note-issuance', 'vendor-credit-issuance',
+  'invoice-accrual', 'invoice-payment', 'invoice-deposit', 'invoice-reversal',
+  'bill-accrual', 'bill-payment', 'bill-reversal',
+  'payment-posting', 'payment-application', 'payment-reversal', 'standalone-payment',
+  'credit-note-issuance', 'credit-note-reversal',
+  'vendor-credit-issuance', 'vendor-credit-reversal',
 ]);
 
 /**
