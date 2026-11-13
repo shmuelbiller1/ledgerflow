@@ -110,7 +110,8 @@ export function postedDeletionRefusal(
 ): string | null {
   if (!tx || !updates || admin || !isPostedEntry(tx)) return null;
   if ((updates.deletedAt && updates.deletedAt !== tx.deletedAt) ||
-      (updates.isDeleted === true && tx.isDeleted !== true)) {
+      ((updates as Partial<Transaction> & { isDeleted?: boolean }).isDeleted === true &&
+       (tx as Partial<Transaction> & { isDeleted?: boolean }).isDeleted !== true)) {
     return 'A posted entry cannot be deleted in place. Post a reversing entry instead.';
   }
   return null;
@@ -128,6 +129,6 @@ export function auditSnapshot(tx: Partial<Transaction> | null | undefined): Reco
     currency: tx.currency ?? null,
     exchangeRate: tx.exchangeRate ?? null,
     isFlagged: tx.isFlagged ?? null,
-    notes: tx.notes ?? null,
+    notes: (tx as Partial<Transaction> & { notes?: string }).notes ?? null,
   };
 }
