@@ -30,14 +30,29 @@ test('a document entry is refused, with a pointer to the document', () => {
     { type: 'bill-accrual', billId: 'b1' },
     { type: 'payment-posting', paymentId: 'p1' },
     { type: 'credit-note-issuance', creditNoteId: 'cn1' },
-    { type: 'depreciation' },
-    { isReversal: true, reversesTxId: 'tx1' },
+    { invoiceId: 'inv-old' },
   ];
   for (const metadata of shapes) {
     const refusal = documentEntryRefusal({ metadata });
     assert.ok(refusal, `${JSON.stringify(metadata)} must be refused`);
     assert.match(refusal, /through that document/);
   }
+});
+
+test("a system run's entry that names a document is not the document's posting: stock and payroll undo it there", () => {
+  // cost of goods sold names the invoice, but reversing it is how the stock comes back
+  assert.equal(documentEntryRefusal({ metadata: { invoiceId: 'inv1', type: 'invoice-cogs' } }), null);
+  // a payroll import is undone by reversing its entry so a corrected file can post
+  assert.equal(documentEntryRefusal({ metadata: { type: 'payroll-import' } }), null);
+  // landed cost and depreciation runs the same
+  assert.equal(documentEntryRefusal({ metadata: { type: 'landed-cost', billId: 'b1' } }), null);
+  assert.equal(documentEntryRefusal({ metadata: { type: 'depreciation-run' } }), null);
+  // but the invoice's own accrual, the payment posting and the credit issuance stay refused
+  for (const metadata of [
+    { invoiceId: 'i', type: 'invoice-accrual' }, { invoiceId: 'i', type: 'invoice-payment' },
+    { billId: 'b', type: 'bill-accrual' }, { paymentId: 'p', type: 'payment-posting' },
+    { creditNoteId: 'c', type: 'credit-note-issuance' }, { vendorCreditId: 'v', type: 'vendor-credit-issuance' },
+  ]) assert.ok(documentEntryRefusal({ metadata }), `${JSON.stringify(metadata)} must be refused`);
 });
 
 test('flagging or annotating a document entry stays allowed; its figures, status and link do not', () => {

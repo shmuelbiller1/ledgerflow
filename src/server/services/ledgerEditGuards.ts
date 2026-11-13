@@ -15,7 +15,6 @@
  * status/cleared locks already do.
  */
 import type { Transaction } from '../../types';
-import { isDocumentEntry } from '../../lib/transactionEdits';
 
 /** Statuses a posted entry must not be moved to in place: `isPostable` drops both from the books. */
 const UNPOSTS = new Set(['failed', 'draft']);
@@ -42,8 +41,38 @@ export function touchesFinancialField(keys: string[]): boolean {
 }
 
 /**
- * The refusal for an entry that belongs to a document or a system run, or null when it may be changed
- * here. `isDocumentEntry` is the shared predicate (metadata document ids, `type`, `isReversal`).
+ * The metadata keys that name the document an entry was posted for. The client's broader
+ * `isDocumentEntry` also counts any metadata `type` and `isReversal`, which is right for hiding list
+ * actions but too wide for the server: entries posted by a system run (cost of goods sold, a payroll
+ * import, a landed cost, depreciation, a close) carry a `type` too, and the product reverses exactly
+ * those in place — restoring stock, allowing a corrected payroll file — through this same route.
+ */
+const DOCUMENT_LINK_KEYS = ['invoiceId', 'billId', 'paymentId', 'creditNoteId', 'vendorCreditId', 'estimateId', 'expenseId', 'depositId', 'purchaseOrderId'];
+
+/** The `metadata.type` values the invoice, bill, payment and credit postings write for the document itself. */
+const DOCUMENT_POSTING_TYPES = new Set([
+  'invoice-accrual', 'invoice-payment', 'invoice-deposit',
+  'bill-accrual', 'bill-payment',
+  'payment-posting', 'payment-application',
+  'credit-note-issuance', 'vendor-credit-issuance',
+]);
+
+/**
+ * True when the entry is a document's own ledger posting — the one #652/#662 reported. A system run's
+ * entry that merely names a document (cost of goods sold for an invoice, a landed cost charged to a
+ * bill) is not its posting: it is reversible in place, and undoing it there is how the run is undone.
+ */
+export function isDocumentPosting(tx: Pick<Transaction, 'metadata'> | null | undefined): boolean {
+  const meta = (tx?.metadata || {}) as Record<string, unknown>;
+  const linked = DOCUMENT_LINK_KEYS.some(key => meta[key] !== undefined && meta[key] !== null && meta[key] !== '');
+  if (!linked) return false;
+  const type = typeof meta.type === 'string' ? meta.type : '';
+  // An older posting carries the link but no type; anything else must be one of the posting types.
+  return type === '' || DOCUMENT_POSTING_TYPES.has(type);
+}
+
+/**
+ * The refusal for an entry that is a document's own posting, or null when it may be changed here.
  *
  * `changedKeys`, when given, is a partial update: flagging a document's entry for review, or adding a
  * note to it, is not a change to the books and stays allowed; a status, a figure, a date or the
@@ -54,9 +83,9 @@ export function documentEntryRefusal(
   admin = false,
   changedKeys?: string[],
 ): string | null {
-  if (!tx || admin || !isDocumentEntry(tx)) return null;
+  if (!tx || admin || !isDocumentPosting(tx)) return null;
   if (changedKeys && !touchesFinancialField(changedKeys)) return null;
-  return 'This entry belongs to a document or a system run. Change it through that document — void or credit the invoice, bill or payment it came from — instead of editing the ledger entry.';
+  return 'This entry is the posting of an invoice, bill, payment or credit. Change it through that document — void or credit it — instead of editing or reversing the ledger entry.';
 }
 
 /** The refusal for un-posting a posted entry in place (status → failed/draft), or null when allowed. */
