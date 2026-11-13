@@ -2,6 +2,7 @@ import type { ChartAccount } from '../types';
 import { resolveAccountRole } from './accountUtils';
 import { budgetMonthAmount, type SavedBudget } from './budgetActual';
 import { splitReportPeriods } from './reportColumns';
+import { budgetLabel } from './budgetByLabel';
 
 /** A P&L line and section, the shape the profit-and-loss report holds. */
 interface BudgetLine { name: string; code?: string; balance: number; parentId?: string }
@@ -30,6 +31,8 @@ export function budgetPL(budgets: SavedBudget[], accounts: ChartAccount[], start
   const pl: BudgetPL = { income: { total: 0, accounts: {} }, cogs: { total: 0, accounts: {} }, expense: { total: 0, accounts: {} }, grossProfit: 0, netIncome: 0 };
   const months = splitReportPeriods(start, end, 'months').map(m => m.startDate.slice(0, 7));
   for (const budget of budgets) {
+    // EU-E5: label budgets belong to one label only; Profit by Label compares them.
+    if (budgetLabel(budget)) continue;
     const account = budgetAccount(budget, accounts);
     if (!account) continue;
     const section = account.type === 'income' || account.type === 'revenue' ? pl.income

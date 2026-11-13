@@ -53,3 +53,9 @@ describe('R-2: budget figures for the P&L', () => {
     assert.equal(csv.headers.some(h => h.endsWith(' Previous')), false);
   });
 });
+
+test('EU-E5: a label budget is left out of the whole-company P&L budget', () => {
+  const labelled = { ...budget('rent', 'monthly', 10_000), metadata: { label: { dimensionId: 'property', value: 'maui' } } } as SavedBudget;
+  const pl = budgetPL([labelled, budget('rent', 'monthly', 50_000)], accounts, '2026-01-01', '2026-01-31');
+  assert.equal(pl.expense.total, 50_000);
+});
