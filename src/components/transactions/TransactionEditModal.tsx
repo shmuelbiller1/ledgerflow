@@ -208,9 +208,9 @@ function useTransactionEditModalModel({
       line.amountCents !== originalLines[index]?.amountCents ||
       (line.id !== undefined && originalLines[index]?.id !== undefined && line.id !== originalLines[index]?.id)
     );
-    const headerRateChanged = exchangeRate !== (transaction.exchangeRate || 1);
-    const recalculateBaseAmounts = currencyChanged || amountsChanged ||
-      (headerRateChanged && lines.some(line => line.exchangeRate === undefined));
+    const oldHeaderRate = transaction.exchangeRate || 1;
+    const headerRateChanged = exchangeRate !== oldHeaderRate;
+    const recalculateBaseAmounts = currencyChanged || amountsChanged || headerRateChanged;
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
       const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
@@ -223,7 +223,12 @@ function useTransactionEditModalModel({
       if (isForeignCurrency) {
         // A manual FX journal can have per-line rates (including rate 1 for its FX
         // difference line) and precomputed home amounts. Preserve both on metadata edits.
-        if (cleanedBase.exchangeRate === undefined) cleanedBase.exchangeRate = exchangeRate;
+        // Lines following the previous header rate follow an edited header. Explicit
+        // rates different from the header (e.g. an FX-difference leg at 1) stay fixed.
+        if (cleanedBase.exchangeRate === undefined ||
+            (headerRateChanged && cleanedBase.exchangeRate === oldHeaderRate)) {
+          cleanedBase.exchangeRate = exchangeRate;
+        }
         if (recalculateBaseAmounts) delete cleanedBase.baseAmountCents;
       } else if (cleanedBase.exchangeRate !== undefined || cleanedBase.baseAmountCents !== undefined || cleanedBase.currency !== undefined) {
         delete cleanedBase.exchangeRate;
