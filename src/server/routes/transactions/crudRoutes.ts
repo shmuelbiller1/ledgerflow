@@ -426,6 +426,11 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       if (errorMessage(e) === 'Not a member' || errorMessage(e) === 'Workspace mismatch' || errorMessage(e).includes('Forbidden')) {
          return res.status(403).json({ error: errorMessage(e) });
       }
+      // #652/#662: a refusal that carries its own status (a document entry is a 409, not a malformed request)
+      const refusedStatus = (e as { status?: unknown }).status;
+      if (typeof refusedStatus === 'number' && refusedStatus >= 400 && refusedStatus < 500) {
+        return res.status(refusedStatus).json({ error: errorMessage(e) });
+      }
       res.status(400).json({ error: errorMessage(e) }); 
     }
   });
