@@ -144,3 +144,31 @@ test('cash basis: a payment with no saved currency keeps the old rate-only readi
   }];
   assert.equal(computeProfitAndLoss(accounts, cashBasisEntries(accounts, [tx], payments, 'USD').entries, '2026-10-01', '2026-10-31').income.total, 11_000);
 });
+
+test('commission: legacy payment without currency uses JPY and KWD books minor units', () => {
+  for (const booksCurrency of ['JPY', 'KWD']) {
+    const inv = invoice(`inv-legacy-${booksCurrency}`, booksCurrency, 1, 100_000);
+    const payment = {
+      id: `pay-legacy-${booksCurrency}`, status: 'posted', date: '2026-10-05', exchangeRate: 1,
+      // Old payment rows may omit currency; their amounts are stored in the books' minor units.
+      allocations: [{ documentId: inv.id, documentType: 'invoice', amountCents: 100_000 }],
+    };
+    const [line] = commissionLines([rep], [inv], [payment], '2026-10-01', '2026-10-31', [], booksCurrency);
+    assert.equal(line.paidCents, 100_000, `${booksCurrency}: retain native books minor units`);
+    assert.equal(line.netCents, 100_000);
+    assert.equal(line.commissionCents, 10_000, `${booksCurrency}: 10% of the full payment`);
+  }
+});
+
+test('cash basis: legacy payment without currency fully recognises JPY and KWD books accruals', () => {
+  for (const booksCurrency of ['JPY', 'KWD']) {
+    const tx = accrual(`tx-legacy-${booksCurrency}`, `inv-legacy-${booksCurrency}`, 100_000);
+    const payments: CashBasisPayment[] = [{
+      id: `pay-legacy-${booksCurrency}`, status: 'posted', date: '2026-10-05', exchangeRate: 1,
+      allocations: [{ documentId: `inv-legacy-${booksCurrency}`, documentType: 'invoice', amountCents: 100_000 }],
+    }];
+    const { entries } = cashBasisEntries(accounts, [tx], payments, booksCurrency);
+    const pl = computeProfitAndLoss(accounts, entries, '2026-10-01', '2026-10-31');
+    assert.equal(pl.income.total, 100_000, `${booksCurrency}: entire base-currency accrual recognised`);
+  }
+});
