@@ -7,6 +7,8 @@
  * paid it — stays the usual step in Bills and bank review.
  */
 
+import { currencyDigits } from './currencyMinorUnits';
+
 /** The same limit as Documents: a photo is stored inside one database record. */
 export const MAX_RECEIPT_BYTES = 700_000;
 
@@ -34,6 +36,8 @@ export interface ReceiptDraftBill {
   status: 'draft';
   posted: false;
   tags: string[];
+  /** One line carrying the amount, so the bill editor opens with it (it reads its lines, not the total). */
+  splits: Array<{ amountCents: number; accountId: string; description: string }>;
   metadata: { source: 'phone-receipt'; receiptDocId: string };
 }
 
@@ -62,17 +66,28 @@ export function receiptDraftBill(input: ReceiptDraftInput): ReceiptDraftBill {
     status: 'draft',
     posted: false,
     tags: ['Receipt'],
+    splits: [{ amountCents: input.amountCents, accountId: '', description: 'Receipt' }],
     metadata: { source: 'phone-receipt', receiptDocId: input.receiptDocId },
   };
 }
 
-/** "12.34" or "12,34" → 1234 minor units (two decimals); null when it is not an amount. */
-export function parseReceiptAmount(text: string): number | null {
+/**
+ * Typed text as minor units of `currency` (its ISO 4217 decimals: 2 for USD, 0 for JPY, 3 for KWD;
+ * src/lib/currencyMinorUnits.ts). "12.34" or "12,34"; null when it is not an amount in that currency.
+ */
+export function parseReceiptAmount(text: string, currency = 'USD'): number | null {
+  const digits = currencyDigits(currency);
   const t = text.trim().replace(/\s/g, '');
   if (!t) return 0;
-  const m = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(t);
-  if (!m) return null;
-  return Number(m[1]) * 100 + Number((m[2] || '').padEnd(2, '0'));
+  const m = /^(\d+)(?:[.,](\d+))?$/.exec(t);
+  if (!m || (m[2] || '').length > digits) return null;
+  return Number(m[1]) * 10 ** digits + Number((m[2] || '').padEnd(digits, '0') || 0);
+}
+
+/** Minor units of `currency` as the text the amount field shows ("42.50", "1000", "1.250"). */
+export function receiptAmountText(minor: number, currency = 'USD'): string {
+  const digits = currencyDigits(currency);
+  return (Math.abs(minor) / 10 ** digits).toFixed(digits);
 }
 
 /** The file name a photo is saved under, dated so it sorts in Documents. */

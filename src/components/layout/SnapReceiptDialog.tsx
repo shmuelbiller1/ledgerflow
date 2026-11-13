@@ -6,7 +6,7 @@
  * matched to its bank line later, in Bills and bank review. Reading the amount and date from the
  * photo is offered, never required: the person can type them.
  */
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Camera, X } from 'lucide-react';
@@ -20,8 +20,9 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { aiService } from '../../services/aiService';
 import { getLocalDateISO } from '../../lib/utils';
 import {
-  MAX_RECEIPT_BYTES, parseReceiptAmount, receiptDraftBill, receiptDraftProblem, receiptFileName,
+  MAX_RECEIPT_BYTES, parseReceiptAmount, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName,
 } from '../../lib/snapReceipt';
+import { RelatedRecordEditButton } from '../common/RecordDetailsLauncher';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -50,6 +51,15 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
   const [error, setError] = useState('');
   // the photo on screen now: a reading that finishes after the photo was replaced is stale
   const currentPhoto = useRef<File | null>(null);
+  const currency = workspace?.currency || 'USD';
+  // a receipt belongs to the books it was snapped in: a change of person or workspace drops it
+  const scope = `${user?.uid || ''}:${workspace?.id || ''}`;
+  const openedIn = useRef(scope);
+  useEffect(() => {
+    if (openedIn.current === scope) return;
+    currentPhoto.current = null; // any reading still under way is now stale
+    onClose();
+  }, [scope, onClose]);
 
   const choose = async (picked: File | undefined) => {
     setError('');
@@ -75,7 +85,7 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
     try {
       const parsed = await aiService.parseReceipt(asked) as { totalAmountCents?: number; date?: string } | null;
       if (currentPhoto.current !== asked) return; // stale: the photo was replaced while it was read
-      if (typeof parsed?.totalAmountCents === 'number') setAmount((Math.abs(parsed.totalAmountCents) / 100).toFixed(2));
+      if (typeof parsed?.totalAmountCents === 'number') setAmount(receiptAmountText(parsed.totalAmountCents, currency));
       if (parsed?.date && /^\d{4}-\d{2}-\d{2}/.test(parsed.date)) setDate(parsed.date.slice(0, 10));
       if (typeof parsed?.totalAmountCents !== 'number') setError('The amount could not be read. Type it in.');
     } catch (err) {
@@ -86,10 +96,10 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
     }
   };
 
-  const amountCents = parseReceiptAmount(amount);
+  const amountCents = parseReceiptAmount(amount, currency);
   const vendor = vendors.find(v => v.id === vendorId);
   const problem = !file ? 'Take a photo of the receipt first.'
-    : amountCents === null ? 'Type the amount as a number, for example 12.50.'
+    : amountCents === null ? `Type the amount as a number in ${currency}.`
       : receiptDraftProblem({ vendorId, amountCents, date, receiptDocId: 'pending' });
 
   const save = async () => {
@@ -112,7 +122,7 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
       receiptDocId = ref.id;
       const billRef = await addEntity('bills', receiptDraftBill({
         vendorId: vendor.id, vendorName: vendor.name, amountCents, date,
-        currency: workspace.currency || 'USD', receiptDocId,
+        currency, receiptDocId,
       }));
       if (!billRef) throw new Error('the draft bill was not saved');
       // the bill exists now: a failed link must not invite a second save (and a second bill)
@@ -157,7 +167,10 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
           </button>
         )}
         <div className="space-y-1">
-          <label htmlFor={ids.vendor} className="text-sm font-medium">From</label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor={ids.vendor} className="text-sm font-medium">Vendor</label>
+            {vendorId && <RelatedRecordEditButton target={{ kind: 'vendors', id: vendorId }} />}
+          </div>
           <select id={ids.vendor} value={vendorId} onChange={e => setVendorId(e.target.value)} className="w-full min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2">
             <option value="">Choose a vendor</option>
             {vendors.filter(v => v.status !== 'inactive' && v.status !== 'blocked').map(v => <option key={v.id} value={v.id}>{v.name}</option>)}

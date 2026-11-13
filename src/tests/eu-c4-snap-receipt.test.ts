@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseReceiptAmount, receiptDraftBill, receiptDraftProblem, receiptFileName } from '../lib/snapReceipt';
+import { parseReceiptAmount, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName } from '../lib/snapReceipt';
 
 const input = { vendorId: 'v1', vendorName: 'Corner Hardware', amountCents: 4_250, date: '2026-11-12', currency: 'USD', receiptDocId: 'doc-9' };
 
@@ -21,6 +21,7 @@ test('EU-C4: the draft bill a snapped receipt is saved as', () => {
     status: 'draft',
     posted: false,
     tags: ['Receipt'],
+    splits: [{ amountCents: 4_250, accountId: '', description: 'Receipt' }],
     metadata: { source: 'phone-receipt', receiptDocId: 'doc-9' },
   });
 });
@@ -41,6 +42,22 @@ test('EU-C4: typed amounts in either decimal mark', () => {
   assert.equal(parseReceiptAmount(''), 0);
   assert.equal(parseReceiptAmount('12.345'), null);
   assert.equal(parseReceiptAmount('abc'), null);
+});
+
+test('EU-C4: amounts use the currency\'s own decimals', () => {
+  assert.equal(parseReceiptAmount('1000', 'JPY'), 1_000, '¥1,000 is 1,000 minor units, not 100,000');
+  assert.equal(parseReceiptAmount('10.5', 'JPY'), null);
+  assert.equal(parseReceiptAmount('1.250', 'KWD'), 1_250);
+  assert.equal(parseReceiptAmount('1.25', 'KWD'), 1_250);
+  assert.equal(receiptAmountText(1_000, 'JPY'), '1000');
+  assert.equal(receiptAmountText(1_250, 'KWD'), '1.250');
+  assert.equal(receiptAmountText(4_250, 'USD'), '42.50');
+});
+
+test('EU-C4: the dialog drops the receipt when the person or workspace changes', () => {
+  const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
+  assert.match(dialog, /openedIn\.current === scope\) return;[\s\S]{0,120}onClose\(\)/);
+  assert.match(dialog, /RelatedRecordEditButton target=\{\{ kind: 'vendors', id: vendorId \}\}/);
 });
 
 test('EU-C4: the photo is filed under the receipt date', () => {
