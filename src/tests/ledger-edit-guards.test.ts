@@ -55,6 +55,24 @@ test("a system run's entry that names a document is not the document's posting: 
   ]) assert.ok(documentEntryRefusal({ metadata }), `${JSON.stringify(metadata)} must be refused`);
 });
 
+test('document reversals and standalone-payment postings cannot be edited via generic ledger routes', () => {
+  const lifecycleEntries = [
+    { type: 'invoice-reversal', invoiceId: 'inv1', isReversal: true },
+    { type: 'bill-reversal', billId: 'bill1', isReversal: true },
+    { type: 'payment-reversal', paymentId: 'pay1', isReversal: true },
+    { type: 'credit-note-reversal', creditNoteId: 'cn1', isReversal: true },
+    { type: 'vendor-credit-reversal', vendorCreditId: 'vc1', isReversal: true },
+    { type: 'standalone-payment', paymentId: 'pay2' },
+  ];
+  for (const metadata of lifecycleEntries) {
+    assert.ok(documentEntryRefusal({ metadata }), `${metadata.type}: generic full edit must be refused`);
+    assert.ok(documentEntryRefusal({ metadata }, false, ['status']), `${metadata.type}: status mutation must be refused`);
+    assert.ok(documentEntryRefusal({ metadata }, false, ['lines']), `${metadata.type}: posting amounts must be protected`);
+    assert.equal(documentEntryRefusal({ metadata }, false, ['isFlagged', 'notes']), null,
+      `${metadata.type}: nonfinancial annotations remain allowed`);
+  }
+});
+
 test('flagging or annotating a document entry stays allowed; its figures, status and link do not', () => {
   const invoiceEntry = { metadata: { type: 'invoice-accrual', invoiceId: 'inv1' } };
   // the ledger list's "flag for review" button works on every row, document entries included
