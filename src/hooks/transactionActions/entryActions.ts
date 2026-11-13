@@ -403,16 +403,18 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     // allow a subsequent full save to overwrite concurrent edits.
     let authoritative: Transaction | undefined;
     if (useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
-      try {
-        const fresh = await getDoc(doc(db, 'transactions', id));
-        if (!scope.isCurrent()) return;
+      const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
+      if (!scope.isCurrent()) return;
+      if (refresh.status === 'fulfilled') {
+        const fresh = refresh.value;
         const record = fresh.data();
         if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
             typeof record.updatedAt === 'string') {
           authoritative = { ...record, id } as Transaction;
         }
-      } catch (error) {
-        console.warn('Unable to refresh flag version after update:', error);
+      } else {
+        // The save succeeded; realtime can still supply the persisted version.
+        console.warn('Unable to refresh flag version after update:', refresh.reason);
       }
     }
     if (!scope.isCurrent()) return;
@@ -557,19 +559,20 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // its browser-generated updatedAt, NOT the persisted server timestamp.
       // Read the committed row before publishing the version for another edit/Undo.
       let authoritativeSaved: Transaction | undefined;
-      try {
-        const fresh = await getDoc(doc(db, 'transactions', id));
-        // The server already committed the save. Switching workspaces only
-        // cancels the cache refresh, not the successful operation.
-        if (!scope.isCurrent()) return true;
+      const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
+      // The server already committed the save. Switching workspaces cancels
+      // only the cache refresh, not the successful operation.
+      if (!scope.isCurrent()) return true;
+      if (refresh.status === 'fulfilled') {
+        const fresh = refresh.value;
         const record = fresh.data();
         if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
             typeof record.updatedAt === 'string') {
           authoritativeSaved = { ...record, id } as Transaction;
         }
-      } catch (error) {
+      } else {
         // A realtime event may still have supplied the real version.
-        console.warn('Unable to refresh transaction after save:', error);
+        console.warn('Unable to refresh transaction after save:', refresh.reason);
       }
       if (!scope.isCurrent()) return true;
       setTransactions(
