@@ -374,6 +374,7 @@ test('entryActions: handleDuplicateTransaction strips document/reconcile/reversa
     isFlagged: false,
     reversalEventId: 'rev_99',
     updatedAt: '2026-09-01T00:00:00.000Z',
+    currency: 'USD', originalCurrency: 'USD', exchangeRate: 1.65,
     metadata: { type: 'invoice-posting', invoiceId: 'inv_99' },
     totalAmountCents: 10000,
     lines: [
@@ -425,5 +426,7 @@ test('entryActions: handleDuplicateTransaction strips document/reconcile/reversa
   assert.equal(dupPayload.isCleared, undefined);
   assert.equal(dupPayload.status, 'completed');
   assert.equal(dupPayload.type, 'actual');
-  assert.equal((dupPayload.lines as Array<Record<string, unknown>>)[0].baseAmountCents, undefined);
+  assert.equal((dupPayload.lines as Array<Record<string, unknown>>)[0].baseAmountCents, 10000,
+    'copying unchanged FX journal figures must preserve explicit home amounts');
+  assert.equal(dupPayload.exchangeRate, 1.65);
 });
