@@ -200,6 +200,17 @@ function useTransactionEditModalModel({
     const currentNodes = useLedgerStore.getState().dimensionNodes || [];
     const workspaceProjects = useLedgerStore.getState().projects || [];
     const isForeignCurrency = Boolean(originalCurrency && originalCurrency !== baseCurrency);
+    const originalLines = transaction.lines || [];
+    // Explicit home amounts must be supplied on every line or on none (settleHomeCurrency).
+    // Recompute the whole set only when the source figures actually change.
+    const currencyChanged = originalCurrency !== (transaction.originalCurrency || transaction.currency || baseCurrency);
+    const amountsChanged = lines.length !== originalLines.length || lines.some((line, index) =>
+      line.amountCents !== originalLines[index]?.amountCents ||
+      (line.id !== undefined && originalLines[index]?.id !== undefined && line.id !== originalLines[index]?.id)
+    );
+    const headerRateChanged = exchangeRate !== (transaction.exchangeRate || 1);
+    const recalculateBaseAmounts = currencyChanged || amountsChanged ||
+      (headerRateChanged && lines.some(line => line.exchangeRate === undefined));
     const finalLines = lines.map(l => {
       const acc = accounts.find(a => a.id === l.accountId);
       const normalizedDims = normalizeDimensionsMap(l.dimensions, currentNodes);
@@ -210,8 +221,10 @@ function useTransactionEditModalModel({
           : undefined;
       const cleanedBase = { ...l } as TransactionLine & { currency?: string };
       if (isForeignCurrency) {
-        delete cleanedBase.baseAmountCents;
-        cleanedBase.exchangeRate = exchangeRate;
+        // A manual FX journal can have per-line rates (including rate 1 for its FX
+        // difference line) and precomputed home amounts. Preserve both on metadata edits.
+        if (cleanedBase.exchangeRate === undefined) cleanedBase.exchangeRate = exchangeRate;
+        if (recalculateBaseAmounts) delete cleanedBase.baseAmountCents;
       } else if (cleanedBase.exchangeRate !== undefined || cleanedBase.baseAmountCents !== undefined || cleanedBase.currency !== undefined) {
         delete cleanedBase.exchangeRate;
         delete cleanedBase.baseAmountCents;
