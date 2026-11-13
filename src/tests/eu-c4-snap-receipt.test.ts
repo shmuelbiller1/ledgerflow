@@ -59,4 +59,5 @@ test('EU-C4: the + menu offers "Snap a receipt", which opens a camera input', ()
   const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
   assert.match(dialog, /accept="image\/\*" capture="environment"/);
   assert.match(dialog, /addEntity\('bills', receiptDraftBill\(/);
+  assert.match(dialog, /linkedId: billRef\.id/, 'the document stores the bill id, not the reference');
 });

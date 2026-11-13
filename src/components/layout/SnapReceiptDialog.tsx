@@ -115,10 +115,15 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
         currency: workspace.currency || 'USD', receiptDocId,
       }));
       if (!billRef) throw new Error('the draft bill was not saved');
-      await updateDoc(doc(db, 'documents', receiptDocId), {
-        linkedCollection: 'bills', linkedId: billRef, linkedLabel: `${vendor.name} receipt (draft)`,
-      });
-      toast.success('Receipt saved as a draft bill. Nothing is posted until it is approved.');
+      // the bill exists now: a failed link must not invite a second save (and a second bill)
+      try {
+        await updateDoc(doc(db, 'documents', receiptDocId), {
+          linkedCollection: 'bills', linkedId: billRef.id, linkedLabel: `${vendor.name} receipt (draft)`,
+        });
+        toast.success('Receipt saved as a draft bill. Nothing is posted until it is approved.');
+      } catch (linkErr) {
+        toast.warning(`Receipt saved as a draft bill, but the photo could not be linked to it (${linkErr instanceof Error ? linkErr.message : String(linkErr)}). The photo is in Documents.`);
+      }
       onClose();
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
