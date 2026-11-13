@@ -14,6 +14,9 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
 import { getSupabase } from '../lib/db/client';
+import { TransactionSchema } from '../schemas';
+import { lineAmount, settleHomeCurrency } from '../lib/txFilters';
+import { formatCurrency } from '../lib/utils';
 import type { ChartAccount, Transaction, TransactionLine } from '../types';
 
 const realFetch = globalThis.fetch;
@@ -290,6 +293,24 @@ test('TransactionEditModal preserves per-line FX rates and precomputed home amou
   view.unmount();
 });
 
+test('transaction schema retains explicitly balanced home amounts through server normalization', () => {
+  const parsed = TransactionSchema.parse({
+    id: 'tx_preserved_fx', uid: 'u_1', workspaceId: 'ws_1', date: '2026-10-12',
+    description: 'Memo correction only', currency: 'USD', originalCurrency: 'USD',
+    exchangeRate: 1.65, status: 'completed', type: 'journal',
+    totalAmountCents: 10000,
+    lines: [
+      { accountId: 'acc_exp', amountCents: 10000, exchangeRate: 1.65, baseAmountCents: 10000 },
+      { accountId: 'acc_bank', amountCents: -10000, exchangeRate: 1.65, baseAmountCents: -10000 },
+    ],
+  });
+  assert.deepEqual(parsed.lines.map(line => line.baseAmountCents), [10000, -10000],
+    'validation must not erase historical home-currency amounts');
+  settleHomeCurrency(parsed as Transaction);
+  assert.deepEqual(parsed.lines.map(line => lineAmount(line, parsed as Transaction)), [10000, -10000],
+    'settlement must use saved home amounts, not multiply by the header rate again');
+});
+
 test('TransactionEditModal never double-converts home-native FX journal amounts', async () => {
   globalThis.fetch = (async () => new Response(JSON.stringify({ links: [], questions: [] }), { status: 200 })) as typeof fetch;
   const ws = setComponentWorkspace('owner');
@@ -313,6 +334,9 @@ test('TransactionEditModal never double-converts home-native FX journal amounts'
     <TransactionEditModal isOpen transaction={tx} accounts={chartAccounts} onClose={() => {}}
       onUpdate={(_id, updates) => { saved = updates; writes++; return false; }} />,
   );
+  const footer = screen.getByText('Total Transaction Sum').parentElement;
+  assert.ok(footer?.textContent?.includes(formatCurrency(16500, 'ILS')),
+    'home-native journal footer must use stored books currency, not original foreign currency');
   fireEvent.change(screen.getByLabelText('Amount for line 1'), { target: { value: '170.00' } });
   fireEvent.change(screen.getByLabelText('Amount for line 2'), { target: { value: '-170.00' } });
   await act(async () => {
