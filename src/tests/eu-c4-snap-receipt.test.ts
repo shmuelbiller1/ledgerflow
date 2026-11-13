@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseReceiptAmount, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName } from '../lib/snapReceipt';
+import { parseReceiptAmount, readerCentsToMinor, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName } from '../lib/snapReceipt';
 
 const input = { vendorId: 'v1', vendorName: 'Corner Hardware', amountCents: 4_250, date: '2026-11-12', currency: 'USD', receiptDocId: 'doc-9' };
 
@@ -52,6 +52,14 @@ test('EU-C4: amounts use the currency\'s own decimals', () => {
   assert.equal(receiptAmountText(1_000, 'JPY'), '1000');
   assert.equal(receiptAmountText(1_250, 'KWD'), '1.250');
   assert.equal(receiptAmountText(4_250, 'USD'), '42.50');
+});
+
+test('EU-C4: the reader\'s two-decimal cents become the currency\'s minor units', () => {
+  assert.equal(readerCentsToMinor(125, 'KWD'), 1_250, '1.25 KWD');
+  assert.equal(readerCentsToMinor(100_000, 'JPY'), 1_000, '¥1,000');
+  assert.equal(readerCentsToMinor(-4_250, 'USD'), 4_250);
+  const dialog = readFileSync('src/components/layout/SnapReceiptDialog.tsx', 'utf8');
+  assert.match(dialog, /readerCentsToMinor\(parsed\.totalAmountCents, currency\)/);
 });
 
 test('EU-C4: the dialog drops the receipt when the person or workspace changes', () => {

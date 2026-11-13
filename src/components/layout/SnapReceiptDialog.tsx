@@ -21,7 +21,7 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { aiService } from '../../services/aiService';
 import { getLocalDateISO } from '../../lib/utils';
 import {
-  MAX_RECEIPT_BYTES, parseReceiptAmount, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName,
+  MAX_RECEIPT_BYTES, parseReceiptAmount, readerCentsToMinor, receiptAmountText, receiptDraftBill, receiptDraftProblem, receiptFileName,
 } from '../../lib/snapReceipt';
 import { RelatedRecordEditButton } from '../common/RecordDetailsLauncher';
 
@@ -87,7 +87,7 @@ export default function SnapReceiptDialog({ onClose }: { onClose: () => void }) 
     try {
       const parsed = await aiService.parseReceipt(asked) as { totalAmountCents?: number; date?: string } | null;
       if (currentPhoto.current !== asked) return; // stale: the photo was replaced while it was read
-      if (typeof parsed?.totalAmountCents === 'number') setAmount(receiptAmountText(parsed.totalAmountCents, currency));
+      if (typeof parsed?.totalAmountCents === 'number') setAmount(receiptAmountText(readerCentsToMinor(parsed.totalAmountCents, currency), currency));
       if (parsed?.date && /^\d{4}-\d{2}-\d{2}/.test(parsed.date)) setDate(parsed.date.slice(0, 10));
       if (typeof parsed?.totalAmountCents !== 'number') setError('The amount could not be read. Type it in.');
     } catch (err) {

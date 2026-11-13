@@ -90,6 +90,15 @@ export function receiptAmountText(minor: number, currency = 'USD'): string {
   return (Math.abs(minor) / 10 ** digits).toFixed(digits);
 }
 
+/**
+ * The receipt reader answers in two-decimal cents whatever the currency
+ * (src/server/services/aiBackendService.ts asks for integer cents). Convert to minor units of
+ * `currency`: 125 "cents" of a KWD receipt is 1.25 KWD = 1,250 fils; 1,000 "cents" of JPY is ¥10.
+ */
+export function readerCentsToMinor(cents: number, currency = 'USD'): number {
+  return Math.round(Math.abs(cents) * 10 ** currencyDigits(currency) / 100);
+}
+
 /** The file name a photo is saved under, dated so it sorts in Documents. */
 export function receiptFileName(date: string, original: string): string {
   const ext = /\.[a-z0-9]{1,5}$/i.exec(original)?.[0] || '.jpg';
