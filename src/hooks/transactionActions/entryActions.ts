@@ -516,11 +516,12 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       timestamp: new Date().toISOString()
     } : undefined;
 
-    const updatedTx = { 
-      ...tx, 
-      ...updates, 
+    const optimisticUpdatedAt = new Date().toISOString();
+    const updatedTx = {
+      ...tx,
+      ...updates,
       ...(updatedVerification ? { verification: updatedVerification } : {}),
-      updatedAt: new Date().toISOString() 
+      updatedAt: optimisticUpdatedAt,
     };
     const nextTransactions = [...originalTransactions];
     nextTransactions[txIndex] = updatedTx as Transaction;
@@ -545,7 +546,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         ...tx,
         ...updates,
         ...(updatedVerification ? { verification: updatedVerification } : {}),
-        updatedAt: new Date().toISOString()
+        updatedAt: optimisticUpdatedAt
       };
       const res = await fetch(`/api/v1/transactions/${id}`, {
         method: 'PUT',
@@ -562,15 +563,30 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
          }
          throw new Error(data.error || 'Failed to update transaction');
       }
-      const savedBody = await res.json().catch(() => null);
-      const serverUpdatedAt = savedBody?.data?.updatedAt;
-      if (serverUpdatedAt && scope.isCurrent()) {
-        setTransactions(
-          useLedgerStore.getState().transactions.map(t =>
-            t.id === id ? { ...t, updatedAt: serverUpdatedAt } : t,
-          ),
-        );
+      // The full-update response echoes the request's transaction, including
+      // its browser-generated updatedAt, NOT the persisted server timestamp.
+      // Read the committed row before publishing the version for another edit/Undo.
+      let persistedUpdatedAt: string | undefined;
+      try {
+        const fresh = await getDoc(doc(db, 'transactions', id));
+        if (!scope.isCurrent()) return false;
+        const record = fresh.data();
+        if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
+            typeof record.updatedAt === 'string') {
+          persistedUpdatedAt = record.updatedAt;
+        }
+      } catch (error) {
+        // A realtime event may still have supplied the real version.
+        console.warn('Unable to refresh transaction version after save:', error);
       }
+      if (!scope.isCurrent()) return false;
+      setTransactions(
+        useLedgerStore.getState().transactions.map(t => {
+          if (t.id !== id || t.updatedAt !== optimisticUpdatedAt) return t;
+          // Never keep a fabricated optimistic version in the store.
+          return { ...t, updatedAt: persistedUpdatedAt ?? tx.updatedAt };
+        }),
+      );
     } catch(e) {
       if (!scope.isCurrent()) return false;
       if (isConflictError(e)) {
