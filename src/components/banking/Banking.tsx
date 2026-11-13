@@ -136,7 +136,7 @@ export default function Banking() {
             {needsReconnect.map(b => (
               <div key={b.bankId} role="alert" className="flex items-center gap-3 rounded-xl border border-[var(--neg)] px-3 py-2 text-xs text-[var(--text)]">
                 <span>{bankText('notice.relogin', '{bank} needs you to log in again.').replace('{bank}', b.institutionName || bankText('label.aBank', 'A bank'))}</span>
-                <PlaidConnectButton bankId={b.bankId} label="Reconnect" onSuccessSync={() => setNeedsReconnect(list => list.filter(x => x.bankId !== b.bankId))} />
+                <PlaidConnectButton bankId={b.bankId} label={bankText('action.reconnect', 'Reconnect')} onSuccessSync={() => setNeedsReconnect(list => list.filter(x => x.bankId !== b.bankId))} />
               </div>
             ))}
           </div>
@@ -160,8 +160,8 @@ export default function Banking() {
           <LoadingState what="bank accounts" />
         ) : accounts.length === 0 ? (
           <EmptyState
-            title="No bank accounts yet"
-            description="Connect a bank to bring its transactions in, or add a bank account to your chart of accounts and import a statement."
+            title={bankText('empty.title', 'No bank accounts yet')}
+            description={bankText('empty.body', 'Connect a bank to bring its transactions in, or add a bank account to your chart of accounts and import a statement.')}
             action={<PlaidConnectButton onSuccessSync={handleSyncSuccess} />}
           />
         ) : (
@@ -175,7 +175,7 @@ export default function Banking() {
                     </div>
                     <div>
                       <h2 className="font-semibold text-slate-900 text-sm leading-tight">{account.name}</h2>
-                      <p className="text-xs text-slate-600 font-mono mt-0.5">{account.code ? `Acct ${account.code}` : 'Bank Account'}</p>
+                      <p className="text-xs text-slate-600 font-mono mt-0.5">{account.code ? bankText('label.acct', 'Acct {code}').replace('{code}', account.code) : bankText('label.bankAccount', 'Bank Account')}</p>
                     </div>
                   </div>
 
@@ -187,7 +187,7 @@ export default function Banking() {
                 <div className="mt-auto pt-4 border-t border-slate-100 space-y-4">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-600 font-medium">{bankText('label.type', 'Type')}</span>
-                    <span className="text-slate-800 font-mono font-bold uppercase">{account.subtype || account.type || 'Asset'}</span>
+                    <span className="text-slate-800 font-mono font-bold uppercase">{account.subtype || account.type || bankText('label.asset', 'Asset')}</span>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -196,7 +196,7 @@ export default function Banking() {
                       className="flex-1 min-h-11 px-3 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
                     >
                       <RefreshCw className={cn("w-3.5 h-3.5", syncingAccountId === account.id && "animate-spin")} />
-                      <span>{syncingAccountId === account.id ? 'Syncing...' : 'Sync Feed'}</span>
+                      <span>{syncingAccountId === account.id ? bankText('status.syncing', 'Syncing...') : bankText('action.syncFeed', 'Sync Feed')}</span>
                     </button>
                   </div>
                 </div>
