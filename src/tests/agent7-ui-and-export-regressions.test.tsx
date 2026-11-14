@@ -307,7 +307,7 @@ test('transaction schema retains explicitly balanced home amounts through server
   assert.deepEqual(parsed.lines.map(line => line.baseAmountCents), [10000, -10000],
     'validation must not erase historical home-currency amounts');
   settleHomeCurrency(parsed as Transaction);
-  assert.deepEqual(parsed.lines.map(line => lineAmount(line, parsed as Transaction)), [10000, -10000],
+  assert.deepEqual(parsed.lines.map(line => lineAmount(line as Transaction["lines"][number], parsed as Transaction)), [10000, -10000],
     'settlement must use saved home amounts, not multiply by the header rate again');
 });
 
