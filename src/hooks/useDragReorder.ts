@@ -123,7 +123,7 @@ export function useDragReorder(options: DragReorderOptions): DragReorder {
   }, []);
 
   /** End the press: put every style back, and (when it was a drag) keep the release from clicking. */
-  const finish = useCallback((commit: boolean) => {
+  const finish = useCallback((commit: boolean, pointerStillDown = false) => {
     const current = session.current;
     if (!current) return;
     session.current = null;
@@ -145,10 +145,24 @@ export function useDragReorder(options: DragReorderOptions): DragReorder {
     clickGuard.current?.();
     const swallow = (event: MouseEvent) => { event.preventDefault(); event.stopPropagation(); };
     window.addEventListener('click', swallow, true);
-    const timer = window.setTimeout(() => clickGuard.current?.(), 0);
+    // a drag called off while the button is still held (Esc) keeps swallowing until that press ends,
+    // so letting go over the original button does not press it
+    let timer = pointerStillDown ? null as number | null : window.setTimeout(() => clickGuard.current?.(), 0);
+    const pointerId = current.pointerId;
+    const released = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => clickGuard.current?.(), 0);
+    };
+    if (pointerStillDown) {
+      window.addEventListener('pointerup', released, true);
+      window.addEventListener('pointercancel', released, true);
+    }
     clickGuard.current = () => {
       window.removeEventListener('click', swallow, true);
-      window.clearTimeout(timer);
+      window.removeEventListener('pointerup', released, true);
+      window.removeEventListener('pointercancel', released, true);
+      if (timer !== null) window.clearTimeout(timer);
       clickGuard.current = null;
     };
     if (!commit || !target) return;
@@ -256,7 +270,7 @@ export function useDragReorder(options: DragReorderOptions): DragReorder {
       // Esc calls off the drag only; it must not also close the dialog the list sits in
       key.preventDefault();
       key.stopPropagation();
-      finish(false);
+      finish(false, true);
     };
     const onBlur = () => finish(false);
     // once the hold has armed a touch drag, the finger moves the button, not the page

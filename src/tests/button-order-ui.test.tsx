@@ -226,3 +226,21 @@ test('Insights calculators: the open one is marked, a move keeps every calculato
   fireEvent.click(screen.getByRole('button', { name: `Reset order of ${calculators.group.en}` }));
   assert.deepEqual(ids(), [before[1], before[2]]);
 });
+
+test('a drag called off with Escape while still held does not press the button when it is let go', async () => {
+  let pressed = 0;
+  render(<AllToolsMenu onSelect={() => { pressed += 1; }} />);
+  const buttons = within(screen.getByRole('navigation', { name: 'All tools' })).getAllByRole('button');
+  layOutAsColumn(buttons);
+  pointer(buttons[3], 'pointerdown', 100, 3 * 48 + 20, 11);
+  pointer(window, 'pointermove', 100, 3 * 48 + 2, 11);
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await new Promise(resolve => setTimeout(resolve, 20)); // longer than the zero-delay timer that used to drop the guard
+  pointer(window, 'pointerup', 100, 3 * 48 + 20, 11);
+  fireEvent.click(buttons[3]);
+  assert.equal(pressed, 0, 'the release of the cancelled drag is swallowed');
+  await new Promise(resolve => setTimeout(resolve, 5));
+  fireEvent.click(buttons[3]);
+  assert.equal(pressed, 1, 'the next real click works');
+});
+
