@@ -4,7 +4,9 @@ import type { DocumentData, Firestore } from '../db/firestore';
 import { calculateAmountDue, settledStatus } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import type { ChartAccount } from '../../types';
+import type { ChartAccount, Transaction } from '../../types';
+import { isPostable } from '../../lib/txFilters';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { formatTzDate } from '../../lib/calendarDate';
 import { createHash } from 'crypto';
@@ -65,12 +67,15 @@ async function postedCreditProblem(
   const entries = (await t.get(db.collection('transactions').where('workspaceId', '==', workspaceId).where(`metadata.${key}`, '==', creditId) as never)).docs
     .map(d => ({ ...(d.data() || {}), id: d.id }) as DocumentData);
   const reversed = new Set(entries.map(e => e.metadata?.reversesTxId || e.metadata?.reversedTransactionId).filter(Boolean).map(String));
-  const live = entries.filter(e => !e.metadata?.isReversal && !e.metadata?.reversesTxId && !e.reversalEventId && e.status !== 'void' && !e.deletedAt && !reversed.has(String(e.id)));
+  // only the credit's own issuance counts (a returned-goods stock entry carries the same id), and only if it is in the books
+  const issuance = kind === 'customer' ? 'credit-note-issuance' : 'vendor-credit-issuance';
+  const live = entries.filter(e => e.metadata?.type === issuance && isPostable(e as Transaction)
+    && !e.metadata?.isReversal && !e.metadata?.reversesTxId && !e.reversalEventId && !reversed.has(String(e.id)));
   const label = SIDES[kind].label;
   if (!live.length) return `${label} ${credit.number || creditId} has no entry in the books, so it can't be used. Issue it first.`;
   const posted = live.reduce((sum, e) => sum + Math.abs(Number(e.totalAmountCents) || 0), 0);
-  const rate = rateOf(credit, baseCurrency);
-  const owed = Math.round((Number(credit.amountCents) || 0) * rate);
+  // the credit's amount in the books' currency, converted as issuance converts it (ISO minor units: ¥ has none)
+  const owed = convertMinorUnits(Number(credit.amountCents) || 0, rateOf(credit, baseCurrency), String(credit.currency || baseCurrency), baseCurrency);
   if (posted + 1 < owed || remainingOf(credit) > (Number(credit.amountCents) || 0)) {
     return `${label} ${credit.number || creditId} is larger than its entry in the books, so it can't be used. Correct it first.`;
   }

@@ -114,6 +114,22 @@ describe('Credits: apply and refund', { skip: !url && 'LF_TEST_DATABASE_URL not 
     assert.match(String(raised.body.error || raised.body.message), /larger than its entry/);
   });
 
+  test('#646 review: only a postable issuance entry counts, and a stock-return entry does not add to it', async () => {
+    // a draft issuance is not in the books
+    await db.collection('creditNotes').doc(id('draftbacked')).set({ workspaceId: ws, customerId: 'c1', number: 'CN-D', amountCents: 5000, remainingCents: 5000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await db.collection('transactions').doc(id('draftbacked_posting')).set({ id: id('draftbacked_posting'), workspaceId: ws, uid: 'owner-1', date: '2026-05-01', description: 'Draft', status: 'draft', type: 'actual',
+      currency: 'USD', exchangeRate: 1, totalAmountCents: 5000, lines: [{ accountId: id('cash'), amountCents: 5000 }, { accountId: id('cash'), amountCents: -5000 }], metadata: { creditNoteId: id('draftbacked'), type: 'credit-note-issuance' } });
+    const draft = await call('owner-1', 'refund', { kind: 'customer', creditId: id('draftbacked'), amountCents: 100, cashAccountId: id('cash'), date: '2026-05-02' });
+    assert.equal(draft.status, 409, 'a draft issuance has no accounting effect');
+    // a stock entry tagged with the credit's id does not count toward its amount
+    await setCredit(db, 'creditNotes', id('withstock'), { workspaceId: ws, customerId: 'c1', number: 'CN-S', amountCents: 10000, remainingCents: 10000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await db.collection('transactions').doc(id('withstock_cogs')).set({ id: id('withstock_cogs'), workspaceId: ws, uid: 'owner-1', date: '2026-05-01', description: 'Returned goods', status: 'completed', type: 'actual',
+      currency: 'USD', exchangeRate: 1, totalAmountCents: 5000, lines: [{ accountId: id('cash'), amountCents: 5000 }, { accountId: id('cash'), amountCents: -5000 }], metadata: { creditNoteId: id('withstock'), type: 'sales-return-stock' } });
+    await db.collection('creditNotes').doc(id('withstock')).update({ amountCents: 15000, remainingCents: 15000 });
+    const raised = await call('owner-1', 'refund', { kind: 'customer', creditId: id('withstock'), amountCents: 15000, cashAccountId: id('cash'), date: '2026-05-02' });
+    assert.equal(raised.status, 409, 'the stock entry does not make the raised credit look posted');
+  });
+
   test('refused: another customer, more than is left, a paid invoice', async () => {
     assert.equal((await call('owner-1', 'apply', { kind: 'customer', creditId: id('cn'), documentId: id('other'), amountCents: 100 })).status, 400);
     assert.equal((await call('owner-1', 'apply', { kind: 'customer', creditId: id('cn'), documentId: id('inv'), amountCents: 100 })).status, 409);
