@@ -22,7 +22,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const tools = () => within(screen.getByRole('navigation', { name: 'All tools' })).getAllByRole('button').map(button => button.textContent);
-const key = () => buttonOrderStorageKey(useAuthStore.getState().user!.uid);
+const key = () => buttonOrderStorageKey(useAuthStore.getState().user!.uid, useAuthStore.getState().currentWorkspaceId || 'none');
 const savedOrder = (list: string): string[] | undefined => JSON.parse(localStorage.getItem(key()) || '{"lists":{}}').lists[list];
 /** jsdom has no PointerEvent: a mouse event of the same name, carrying the pointer fields the hook reads. */
 function pointer(target: Element | Window, type: 'pointerdown' | 'pointermove' | 'pointerup', clientX: number, clientY: number, pointerId = 1) {
@@ -242,5 +242,13 @@ test('a drag called off with Escape while still held does not press the button w
   await new Promise(resolve => setTimeout(resolve, 5));
   fireEvent.click(buttons[3]);
   assert.equal(pressed, 1, 'the next real click works');
+});
+
+test('each workspace keeps its own button order', () => {
+  const before = useAuthStore.getState().currentWorkspaceId;
+  const custom = JSON.stringify({ 'sidebar.all': ['x'] });
+  localStorage.setItem(buttonOrderStorageKey(useAuthStore.getState().user!.uid, 'workspace-a'), custom);
+  assert.equal(localStorage.getItem(buttonOrderStorageKey(useAuthStore.getState().user!.uid, 'workspace-b')), null);
+  assert.notEqual(key(), buttonOrderStorageKey(useAuthStore.getState().user!.uid, before === 'workspace-a' ? 'workspace-b' : 'workspace-a'));
 });
 

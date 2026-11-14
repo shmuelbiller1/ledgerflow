@@ -9,6 +9,7 @@
  * the workspace, `salesReps`).
  */
 import type { Invoice } from '../types';
+import { convertMinorUnits } from './currencyMinorUnits';
 
 export interface SalesRep {
   id: string;
@@ -78,6 +79,8 @@ export interface CommissionPayment {
   paymentDate?: string;
   date?: string;
   exchangeRate?: number;
+  /** BM-04: the payment's own currency (¥ has no decimals, KWD three); missing legacy data is the books' currency */
+  currency?: string;
   allocations?: Array<{ documentId: string; documentType: string; amountCents: number }>;
 }
 
@@ -139,6 +142,7 @@ export function commissionLines(
   from: string,
   to: string,
   items?: CommissionCatalogueItem[],
+  baseCurrency = 'USD',
 ): CommissionLine[] {
   const byId = new Map(invoices.map(i => [i.id, i]));
   const categoryByItemId = new Map<string, string>();
@@ -158,7 +162,9 @@ export function commissionLines(
       if (!inv || !rep) continue;
       const total = Number(inv.amountCents) || 0;
       const tax = Math.max(0, Number(inv.taxAmountCents) || 0);
-      const paidCents = Math.round(a.amountCents * rate);
+      // BM-04: the allocation is in the payment's minor units, the report is in the books'. ¥100,000 at
+      // 0.0067 in USD books is $670.00 = 67,000 cents, not 670 (issue #651).
+      const paidCents = convertMinorUnits(a.amountCents, rate, p.currency || baseCurrency, baseCurrency);
       // the tax in what was paid is the invoice's share of tax
       const netCents = total > 0 ? Math.round(paidCents * (total - Math.min(tax, total)) / total) : paidCents;
       const commissionCents = computeLineCommissionCents(rep, inv, netCents, categoryByItemId);

@@ -1,0 +1,298 @@
+diff --git a/src/server/routes/transactions/bulkRoutes.ts b/src/server/routes/transactions/bulkRoutes.ts
+index 344ae2ca7..8dad10ada 100644
+--- a/src/server/routes/transactions/bulkRoutes.ts
++++ b/src/server/routes/transactions/bulkRoutes.ts
+@@ -15,6 +15,7 @@ import { MAX_RECATEGORIZE, RecategorizeError, recategorize } from '../../service
+ import { workspaceRole } from '../../../lib/periodLock';
+ import { BulkRefusal, commitLedgerBulk } from '../../services/ledgerBulkCommit';
+ import { writeServerAuditLog } from '../../services/auditLogService';
++import { postedMutationViolation } from './postedImmutabilityGuard';
+ 
+ 
+ const SERVER_POSTED: Record<string, string> = { invoices: 'Invoices', bills: 'Bills', creditNotes: 'Credit notes', vendorCredits: 'Vendor credits' };
+@@ -136,10 +137,9 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
+            if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
+              return { id, current: { ...txData, id: txDoc.id } };
+            }
+-           const txMeta = (txData?.metadata || {}) as Record<string, unknown>;
+-           if ((updateData.lines !== undefined || updateData.status !== undefined) &&
+-               (txMeta.invoiceId || txMeta.billId || txMeta.paymentId || txMeta.creditNoteId || txMeta.vendorCreditId)) {
+-             throw new Error(`Entry ${id} belongs to a source document; update or void the document instead.`);
++           if (!user.admin) {
++             const batchViolation = postedMutationViolation(txData, updateData as Record<string, unknown>, 'batch');
++             if (batchViolation) throw new Error(`Entry ${id}: ${batchViolation}`);
+            }
+            if (updateData.lines !== undefined) {
+              const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
+diff --git a/src/server/routes/transactions/crudRoutes.ts b/src/server/routes/transactions/crudRoutes.ts
+index c2284ec1b..c5dbb87ba 100644
+--- a/src/server/routes/transactions/crudRoutes.ts
++++ b/src/server/routes/transactions/crudRoutes.ts
+@@ -20,6 +20,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
+ import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
+ import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
+ import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
++import { isPostedLedgerStatus, isSystemOrDocumentBacked, postedMutationViolation } from './postedImmutabilityGuard';
+ 
+ /**
+  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
+@@ -289,9 +290,13 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+            const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
+            const revaluation = lockedField ? revaluationEntryLock(txData) : null;
+            if (revaluation) throw new Error(revaluation);
+-           if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
++           if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined || partialUpdate.currency !== undefined || partialUpdate.originalCurrency !== undefined || partialUpdate.exchangeRate !== undefined) {
+              throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
+            }
++           if (!user.admin) {
++             const partialViolation = postedMutationViolation(txData, partialUpdate as Record<string, unknown>, 'partial');
++             if (partialViolation) throw new HttpError(partialViolation, 409);
++           }
+ 
+            const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
+            if (partialUpdate.status && !allowedStatuses.includes(partialUpdate.status)) {
+@@ -304,7 +309,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+            delete safePartial.id;
+            delete safePartial.expectedUpdatedAt;
+ 
+-           t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() });
++           const serverUpdatedAt = new Date().toISOString();
++           t.update(txRef, { ...safePartial, updatedAt: serverUpdatedAt });
+         });
+ 
+         await writeServerAuditLog({
+@@ -344,6 +350,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+       const missing = refusedLabels(validatedTx, wsData?.dimensions);
+       if (missing.length > 0) return res.status(400).json({ error: refusedLabelsMessage(missing), missingLabels: missing });
+ 
++      let serverUpdatedAt = new Date().toISOString();
+       await db.runTransaction(async (t) => {
+         const txRef = db.collection('transactions').doc(id);
+         const doc = await t.get(txRef);
+@@ -361,13 +368,18 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+         if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
+           throw new Error('Cannot modify certified, cleared, or voided transactions');
+         }
++        if (!user.admin) {
++          const fullViolation = postedMutationViolation(doc.data(), transaction as unknown as Record<string, unknown>, 'full');
++          if (fullViolation) throw new HttpError(fullViolation, 409);
++        }
+         // audit F3: the old and the new date against the workspace as it is now, inside the save
+         assertStillOpen((await t.get(db.collection('workspaces').doc(transaction.workspaceId))).data(), user, [doc.data()?.date, validatedTx.date]);
+ 
+         const txToSave = { ...validatedTx };
+         delete (txToSave as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
+ 
+-        t.update(txRef, { ...txToSave, updatedAt: FieldValue.serverTimestamp() });
++        serverUpdatedAt = new Date().toISOString();
++        t.update(txRef, { ...txToSave, updatedAt: serverUpdatedAt });
+       });
+ 
+       await writeServerAuditLog({
+@@ -382,7 +394,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+         }
+       }, { db });
+ 
+-      res.json({ status: 'ok', transactionId: id, data: transaction });
++      res.json({ status: 'ok', transactionId: id, data: { ...validatedTx, id, updatedAt: serverUpdatedAt } });
+     } catch (e) {
+       if (errorMessage(e) === 'version_conflict') {
+          // Z-05: a stale If-Match is a failed precondition (412); a stale expectedUpdatedAt stays 409
+@@ -435,11 +447,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+       if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true || data?.reconciled === true || data?.isReconciled === true) && !user.admin) {
+         return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, reconciled, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
+       }
+-      const meta = (data?.metadata || {}) as Record<string, unknown>;
+-      if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
+-        return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
++      if (isSystemOrDocumentBacked(data)) {
++        return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document or system run; void or reverse it instead.' });
+       }
+-      if (data?.status === 'completed' && !user.admin) {
++      if (isPostedLedgerStatus(data) && !user.admin) {
+         return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
+       }
+ 
+@@ -450,9 +461,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+         if (!now.exists) return 'gone';
+         const nowData = now.data();
+         if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
+-        const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
+-        if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
+-        if (nowData?.status === 'completed' && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
++        if (isSystemOrDocumentBacked(nowData)) return 'Cannot delete a ledger entry posted by a source document or system run; void or reverse it instead.';
++        if (isPostedLedgerStatus(nowData) && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
+         const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
+         try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
+         t.delete(txRef);
+diff --git a/src/server/routes/transactions/postedImmutabilityGuard.ts b/src/server/routes/transactions/postedImmutabilityGuard.ts
+new file mode 100644
+index 000000000..2f913c081
+--- /dev/null
++++ b/src/server/routes/transactions/postedImmutabilityGuard.ts
+@@ -0,0 +1,140 @@
++import type { DocumentData } from '../../db/firestore';
++
++const POSTED_STATUSES = new Set([
++  'completed',
++  'reconciled',
++  'certified',
++  'approved',
++  'reviewed',
++]);
++
++const SYSTEM_METADATA_TYPES = new Set([
++  'invoice-posting',
++  'invoice-accrual',
++  'bill-posting',
++  'bill-accrual',
++  'payment',
++  'standalone-payment',
++  'payment-void',
++  'credit-note',
++  'vendor-credit',
++  'credit-refund',
++  'credit-application-fx',
++  'fx-revaluation',
++  'fx-revaluation-reversal',
++  'depreciation',
++  'depreciation-run',
++  'place-in-service',
++  'asset-disposal',
++  'prepaid-amortization',
++  'tax-adjustment',
++  'pay-run',
++  'payroll-import',
++  'stock-closing',
++  'stock-revaluation',
++  'bad-debt-writeoff',
++  'opening-balance',
++]);
++
++const DOCUMENT_ID_KEYS = [
++  'invoiceId',
++  'billId',
++  'paymentId',
++  'creditNoteId',
++  'vendorCreditId',
++  'depositId',
++  'payRunId',
++  'assetId',
++] as const;
++
++export function isSystemOrDocumentBacked(tx: DocumentData | undefined): boolean {
++  if (!tx) return false;
++  for (const k of DOCUMENT_ID_KEYS) {
++    if (tx[k]) return true;
++  }
++  const meta = (tx.metadata || {}) as Record<string, unknown>;
++  for (const k of DOCUMENT_ID_KEYS) {
++    if (meta[k]) return true;
++  }
++  if (typeof meta.type === 'string' && SYSTEM_METADATA_TYPES.has(meta.type)) return true;
++  if (tx.reversalOf || tx.reversalEventId || meta.isReversal) return true;
++  return false;
++}
++
++export function isPostedLedgerStatus(tx: DocumentData | undefined): boolean {
++  if (!tx) return false;
++  const status = String(tx.status || '').toLowerCase();
++  if (tx.type === 'forecast' || status === 'draft' || status === 'void') return false;
++  return POSTED_STATUSES.has(status) || Boolean(tx.reconciled || tx.isReconciled || tx.isCleared);
++}
++
++/**
++ * Enforces #652/#662 + A7N-03 across full updates, partial updates, batch updates, and bank reconciliation:
++ * posted, document-backed, or system-generated ledger entries cannot have their financial coordinates
++ * (`date`, `lines`, `amountCents`, `totalAmountCents`, `currency`, `originalCurrency`, `exchangeRate`, `type`),
++ * soft-delete state (`deletedAt`, `isDeleted`), or posted status demoted (`void`/`draft`/`failed`) in place.
++ */
++export function postedMutationViolation(
++  existing: DocumentData | undefined,
++  incoming: Record<string, unknown>,
++  mode: 'full' | 'partial' | 'batch' | 'reconcile',
++): string | null {
++  if (!existing) return null;
++  const docOrSystem = isSystemOrDocumentBacked(existing);
++  const posted = isPostedLedgerStatus(existing);
++  if (!docOrSystem && !posted) return null;
++
++  if (incoming.deletedAt !== undefined || incoming.isDeleted === true) {
++    return 'Posted or document-backed ledger entries cannot be soft-deleted; post a reversing entry instead.';
++  }
++
++  if (incoming.status !== undefined) {
++    const nextStatus = String(incoming.status);
++    if (nextStatus === 'void' || nextStatus === 'draft' || nextStatus === 'failed') {
++      return `Posted or system ledger entries cannot be changed to '${nextStatus}' in place; reverse the entry or source document instead.`;
++    }
++  }
++
++  const touchesCurrencyOrRate =
++    (incoming.currency !== undefined && incoming.currency !== existing.currency) ||
++    (incoming.originalCurrency !== undefined && incoming.originalCurrency !== existing.originalCurrency) ||
++    (incoming.exchangeRate !== undefined && incoming.exchangeRate !== (existing.exchangeRate ?? 1));
++  if (touchesCurrencyOrRate) {
++    return 'Posted ledger entries cannot change currency or exchange rate in place; use Reverse & Correct.';
++  }
++
++  if (incoming.date !== undefined && String(incoming.date) !== String(existing.date || '')) {
++    return 'Posted ledger entries cannot change transaction date in place; use Reverse & Correct.';
++  }
++
++  if (incoming.type !== undefined && incoming.type !== existing.type) {
++    return 'Posted ledger entries cannot change entry type in place.';
++  }
++
++  if (incoming.totalAmountCents !== undefined && Number(incoming.totalAmountCents) !== Number(existing.totalAmountCents)) {
++    return 'Posted ledger entries cannot change total amount in place; use Reverse & Correct.';
++  }
++
++  if (incoming.lines !== undefined) {
++    if (docOrSystem || mode === 'reconcile') {
++      return 'System or document-backed ledger entries cannot have their lines rewritten; reverse or void the source document instead.';
++    }
++    const oldLines = Array.isArray(existing.lines) ? existing.lines : [];
++    const newLines = Array.isArray(incoming.lines) ? incoming.lines as Array<Record<string, unknown>> : [];
++    if (oldLines.length !== newLines.length) {
++      return 'Posted ledger entries cannot add or remove split lines in place; use Reverse & Correct.';
++    }
++    for (let i = 0; i < oldLines.length; i++) {
++      const a = oldLines[i] as Record<string, unknown>;
++      const b = newLines[i];
++      if (Number(a.amountCents) !== Number(b.amountCents) || (a.exchangeRate ?? 1) !== (b.exchangeRate ?? 1)) {
++        return 'Posted ledger entries cannot change line amounts or exchange rates in place; use Reverse & Correct.';
++      }
++      if (docOrSystem && String(a.accountId) !== String(b.accountId)) {
++        return 'Document-backed ledger entries cannot change accounts in place.';
++      }
++    }
++  }
++
++  return null;
++}
+diff --git a/src/server/routes/transactions/reconcileRoutes.ts b/src/server/routes/transactions/reconcileRoutes.ts
+index 3a8beedaf..c53581303 100644
+--- a/src/server/routes/transactions/reconcileRoutes.ts
++++ b/src/server/routes/transactions/reconcileRoutes.ts
+@@ -18,6 +18,7 @@ import { writeServerAuditLog } from '../../services/auditLogService';
+ import { assertPostingOpen } from '../../../lib/periodLock';
+ import { errorMessage, requestUser } from '../../auth/requestUser';
+ import type { ExternalBankLine } from './helpers';
++import { postedMutationViolation } from './postedImmutabilityGuard';
+ 
+ /** POST /reconcile: an endpoint for complex reconciliations (match, unmatch, clear in one batch). */
+ export async function handleReconcile(req: express.Request, res: express.Response, dbOverride?: Firestore) {
+@@ -164,9 +165,9 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+             if ((existingTxData.status === 'certified' || existingTxData.status === 'void') && !user.admin) {
+               throw new Error(`Forbidden: Transaction ${op.id} status is locked.`);
+             }
+-            const existingMeta = (existingTxData.metadata || {}) as Record<string, unknown>;
+-            if (op.data?.lines !== undefined && (existingMeta.invoiceId || existingMeta.billId || existingMeta.paymentId || existingMeta.creditNoteId || existingMeta.vendorCreditId)) {
+-              throw new Error(`Transaction ${op.id} belongs to a source document; lines cannot be rewritten during reconciliation.`);
++            if (!user.admin && op.data) {
++              const reconcileViolation = postedMutationViolation(existingTxData as unknown as DocumentData, op.data as Record<string, unknown>, 'reconcile');
++              if (reconcileViolation) throw new Error(`Transaction ${op.id}: ${reconcileViolation}`);
+             }
+             
+             const safeData = { ...op.data };

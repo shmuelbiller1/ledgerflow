@@ -20,8 +20,8 @@ export const MAX_ORDER_IDS = 1000;
 export const MAX_ORDER_LISTS = 100;
 const MAX_ID_LENGTH = 200;
 
-/** Saved per person on this device (the same place bookmarks and pinned pages live). */
-export const buttonOrderStorageKey = (uid: string) => `ledgerflow:button-order:v1:${JSON.stringify([uid])}`;
+/** Saved per person and per workspace on this device, as bookmarks are (src/lib/AGENTS.md). */
+export const buttonOrderStorageKey = (uid: string, workspace: string) => `ledgerflow:button-order:v1:${JSON.stringify([uid, workspace])}`;
 
 const isId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_ID_LENGTH;
 

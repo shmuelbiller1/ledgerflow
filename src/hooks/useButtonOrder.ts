@@ -18,8 +18,8 @@ import { useAuthStore } from '../stores/useAuthStore';
  *
  * One small shared store outside React, so every list on the page reads the same saved value in
  * its first render (no flash of the default order) and a change in another browser tab arrives
- * through the `storage` event. The order belongs to the signed-in person, not to a workspace:
- * someone who puts Bank first wants Bank first in every company they open.
+ * through the `storage` event. The order belongs to the signed-in person in one workspace, as
+ * bookmarks do: companies can turn on different modules, so each keeps its own arrangement.
  *
  * Nothing here is sent to the server and nothing here is financial: it is the same kind of
  * device-local preference as bookmarks and pinned pages.
@@ -31,30 +31,30 @@ const cache = new Map<string, Snapshot>();
 const listeners = new Set<() => void>();
 const EMPTY: Snapshot = { orders: {}, storageError: false };
 
-function read(uid: string): Snapshot {
-  const cached = cache.get(uid);
+/** `key` is `buttonOrderStorageKey(uid, workspace)`: one saved set per person and workspace. */
+function read(key: string): Snapshot {
+  const cached = cache.get(key);
   if (cached) return cached;
   let snapshot: Snapshot;
   try {
-    snapshot = { orders: parseButtonOrders(localStorage.getItem(buttonOrderStorageKey(uid))), storageError: false };
+    snapshot = { orders: parseButtonOrders(localStorage.getItem(key)), storageError: false };
   } catch {
     // storage blocked (private mode, a locked-down browser): the default order, and changes last for this visit
     snapshot = EMPTY;
   }
-  cache.set(uid, snapshot);
+  cache.set(key, snapshot);
   return snapshot;
 }
 
-function write(uid: string, orders: SavedButtonOrders): void {
+function write(key: string, orders: SavedButtonOrders): void {
   let storageError = false;
   try {
-    const key = buttonOrderStorageKey(uid);
     if (Object.keys(orders).length === 0) localStorage.removeItem(key);
     else localStorage.setItem(key, serializeButtonOrders(orders));
   } catch {
     storageError = true;
   }
-  cache.set(uid, { orders, storageError });
+  cache.set(key, { orders, storageError });
   listeners.forEach(listener => listener());
 }
 
@@ -80,6 +80,11 @@ export function resetButtonOrderCacheForTests(): void {
   listeners.forEach(listener => listener());
 }
 
+const liveKey = () => {
+  const state = useAuthStore.getState();
+  return buttonOrderStorageKey(state.user?.uid || 'guest', state.currentWorkspaceId || 'none');
+};
+
 export interface ButtonOrder {
   /** The ids to show, in the person's order (every id of `defaultIds`, once). */
   orderedIds: string[];
@@ -104,7 +109,9 @@ export interface ButtonOrder {
  */
 export function useButtonOrder(listId: string, defaultIds: readonly string[]): ButtonOrder {
   const uid = useAuthStore(s => s.user?.uid || 'guest');
-  const snapshot = useSyncExternalStore(subscribe, () => read(uid), () => EMPTY);
+  const workspace = useAuthStore(s => s.currentWorkspaceId || 'none');
+  const key = buttonOrderStorageKey(uid, workspace);
+  const snapshot = useSyncExternalStore(subscribe, () => read(key), () => EMPTY);
   const saved = snapshot.orders[listId];
   // the caller may build `defaultIds` on every render: keep one array per content, not per identity
   const defaultsKey = JSON.stringify(defaultIds);
@@ -114,23 +121,22 @@ export function useButtonOrder(listId: string, defaultIds: readonly string[]): B
 
   const commit = useCallback((next: readonly string[], current: readonly string[]): boolean => {
     if (next === current) return false;
-    // the person may have signed out or switched account while a drag was in flight
-    const liveUid = useAuthStore.getState().user?.uid || 'guest';
-    if (liveUid !== uid) return false;
-    const latest = read(uid).orders;
-    write(uid, withButtonOrder(latest, listId, isDefaultOrder(defaults, next) ? null : next));
+    // the person may have signed out, switched account or switched workspace while a drag was in flight
+    if (liveKey() !== key) return false;
+    const latest = read(key).orders;
+    write(key, withButtonOrder(latest, listId, isDefaultOrder(defaults, next) ? null : next));
     return true;
-  }, [uid, listId, defaults]);
+  }, [key, listId, defaults]);
 
   const move = useCallback((id: string, targetId: string, position: DropPosition) =>
     commit(moveButton(orderedIds, id, targetId, position), orderedIds), [commit, orderedIds]);
   const step = useCallback((id: string, delta: -1 | 1, visibleIds: readonly string[] = orderedIds) =>
     commit(stepButton(orderedIds, visibleIds, id, delta), orderedIds), [commit, orderedIds]);
   const reset = useCallback(() => {
-    if ((useAuthStore.getState().user?.uid || 'guest') !== uid) return;
-    const latest = read(uid).orders;
-    if (latest[listId]) write(uid, withButtonOrder(latest, listId, null));
-  }, [uid, listId]);
+    if (liveKey() !== key) return;
+    const latest = read(key).orders;
+    if (latest[listId]) write(key, withButtonOrder(latest, listId, null));
+  }, [key, listId]);
 
   return { orderedIds, isCustom, storageError: snapshot.storageError, move, step, reset };
 }

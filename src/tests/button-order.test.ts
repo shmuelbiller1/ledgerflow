@@ -74,9 +74,10 @@ test('saved text round-trips, and a damaged or foreign value is dropped instead 
 });
 
 test('each person has a separate storage key, whatever characters the user id holds', () => {
-  assert.notEqual(buttonOrderStorageKey('a'), buttonOrderStorageKey('b'));
-  assert.notEqual(buttonOrderStorageKey('a","b'), buttonOrderStorageKey('a'));
-  assert.ok(buttonOrderStorageKey('test-user').startsWith('ledgerflow:button-order:v1:'));
+  assert.notEqual(buttonOrderStorageKey('a', 'w'), buttonOrderStorageKey('b', 'w'));
+  assert.notEqual(buttonOrderStorageKey('a', 'w1'), buttonOrderStorageKey('a', 'w2'), 'each workspace keeps its own order');
+  assert.notEqual(buttonOrderStorageKey('a","b', 'w'), buttonOrderStorageKey('a', 'b","w'));
+  assert.ok(buttonOrderStorageKey('test-user', 'w').startsWith('ledgerflow:button-order:v1:'));
 });
 
 test('a drop lands on the nearest button, before or after by which half the pointer is on; far away is no drop', () => {

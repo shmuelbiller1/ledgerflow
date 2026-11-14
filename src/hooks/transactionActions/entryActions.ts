@@ -15,6 +15,8 @@ import type { PostingHelpers } from './postingHelpers';
 import type { RuleActions } from './ruleActions';
 import { ensureTransactionDimensionNodes } from '../../lib/dimensionNodeActions';
 import { isDocumentEntry } from '../../lib/transactionEdits';
+import { db } from '../../firebase';
+import { doc, getDoc } from '../../lib/db/firestore';
 import { resolveAccountRole } from '../../lib/accountUtils';
 
 /** One entry or a selection: add, change, void, reverse, duplicate, flag, bulk changes. (F-05, moved from useTransactionActions.) */
@@ -376,14 +378,54 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
   };
 
   const handleToggleFlag = async (id: string) => {
+    const scope = identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
-    
-    await fetch(`/api/v1/transactions/${id}`, {
+    const nextFlagged = !tx.isFlagged;
+    const res = await fetch(`/api/v1/transactions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-      body: JSON.stringify({ partialUpdate: { isFlagged: !tx.isFlagged, updatedAt: new Date().toISOString() } })
+      body: JSON.stringify({
+        partialUpdate: { isFlagged: nextFlagged },
+        expectedUpdatedAt: tx.updatedAt,
+      }),
     });
+    if (!scope.isCurrent()) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      if (!scope.isCurrent()) return;
+      toast.error(body?.error || 'Could not update transaction flag');
+      return;
+    }
+    if (!scope.isCurrent()) return;
+    // The partial-update API does not include the committed row. Read it to
+    // obtain both its fields and its version; adopting only updatedAt would
+    // allow a subsequent full save to overwrite concurrent edits.
+    let authoritative: Transaction | undefined;
+    if (useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
+      const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
+      if (!scope.isCurrent()) return;
+      if (refresh.status === 'fulfilled') {
+        const fresh = refresh.value;
+        const record = fresh.data();
+        if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
+            typeof record.updatedAt === 'string') {
+          authoritative = { ...record, id } as Transaction;
+        }
+      } else {
+        // The save succeeded; realtime can still supply the persisted version.
+        console.warn('Unable to refresh flag version after update:', refresh.reason);
+      }
+    }
+    if (!scope.isCurrent()) return;
+    setTransactions(
+      useLedgerStore.getState().transactions.map(t => {
+        if (t.id !== id) return t;
+        // An independent realtime update already supplied the complete row.
+        if (t.updatedAt !== tx.updatedAt) return t;
+        return authoritative ? { ...t, ...authoritative } : { ...t, isFlagged: nextFlagged };
+      }),
+    );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
   };
 
@@ -391,13 +433,47 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
     if (!tx) return;
 
-    const { id: _, createdAt: __, verification: ___, ...txData } = tx;
-    await handleQuickAdd({ 
-      ...txData,
-      description: `${txData.description} (Copy)`,
-      date: getLocalDateISO()
+    const {
+      id: _id,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      verification: _verification,
+      invoiceId: _invoiceId,
+      billId: _billId,
+      paymentId: _paymentId,
+      creditNoteId: _creditNoteId,
+      vendorCreditId: _vendorCreditId,
+      depositId: _depositId,
+      payRunId: _payRunId,
+      estimateId: _estimateId,
+      expenseId: _expenseId,
+      purchaseOrderId: _purchaseOrderId,
+      reconciled: _reconciled,
+      isReconciled: _isReconciled,
+      reconciledAt: _reconciledAt,
+      reconciledBankLineId: _reconciledBankLineId,
+      isCleared: _isCleared,
+      clearedAt: _clearedAt,
+      reversalOf: _reversalOf,
+      reversalEventId: _reversalEventId,
+      deletedAt: _deletedAt,
+      voidedAt: _voidedAt,
+      voidedReason: _voidedReason,
+      metadata: _metadata,
+      ...txData
+    } = tx as Transaction & Record<string, unknown>;
+    // Copy the settled home-currency amounts along with the unchanged journal figures.
+    // Removing baseAmountCents would apply FX again and silently change the duplicate.
+    const cleanLines = tx.lines?.map(({ id: _lineId, ...line }) => ({ ...line }));
+    const ok = await handleQuickAdd({
+      ...(txData as Partial<Transaction>),
+      ...(cleanLines ? { lines: cleanLines } : {}),
+      status: tx.status === 'reconciled' || tx.status === 'void' ? 'completed' : tx.status,
+      type: tx.type === 'reversal' ? 'actual' : tx.type,
+      description: `${tx.description || 'Transaction'} (Copy)`,
+      date: getLocalDateISO(),
     });
-    toast.success('Transaction duplicated');
+    if (ok) toast.success('Transaction duplicated');
   };
 
   /** Optimistically applies transaction edits, registers any new dimension labels, and persists with workspace-scoped rollback on failure. */
@@ -432,11 +508,12 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       timestamp: new Date().toISOString()
     } : undefined;
 
-    const updatedTx = { 
-      ...tx, 
-      ...updates, 
+    const optimisticUpdatedAt = new Date().toISOString();
+    const updatedTx = {
+      ...tx,
+      ...updates,
       ...(updatedVerification ? { verification: updatedVerification } : {}),
-      updatedAt: new Date().toISOString() 
+      updatedAt: optimisticUpdatedAt,
     };
     const nextTransactions = [...originalTransactions];
     nextTransactions[txIndex] = updatedTx as Transaction;
@@ -461,7 +538,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         ...tx,
         ...updates,
         ...(updatedVerification ? { verification: updatedVerification } : {}),
-        updatedAt: new Date().toISOString()
+        updatedAt: optimisticUpdatedAt
       };
       const res = await fetch(`/api/v1/transactions/${id}`, {
         method: 'PUT',
@@ -478,6 +555,34 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
          }
          throw new Error(data.error || 'Failed to update transaction');
       }
+      // The full-update response echoes the request's transaction, including
+      // its browser-generated updatedAt, NOT the persisted server timestamp.
+      // Read the committed row before publishing the version for another edit/Undo.
+      let authoritativeSaved: Transaction | undefined;
+      const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
+      // The server already committed the save. Switching workspaces cancels
+      // only the cache refresh, not the successful operation.
+      if (!scope.isCurrent()) return true;
+      if (refresh.status === 'fulfilled') {
+        const fresh = refresh.value;
+        const record = fresh.data();
+        if (fresh.exists() && record?.workspaceId === currentWorkspaceId &&
+            typeof record.updatedAt === 'string') {
+          authoritativeSaved = { ...record, id } as Transaction;
+        }
+      } else {
+        // A realtime event may still have supplied the real version.
+        console.warn('Unable to refresh transaction after save:', refresh.reason);
+      }
+      if (!scope.isCurrent()) return true;
+      setTransactions(
+        useLedgerStore.getState().transactions.map(t => {
+          if (t.id !== id || t.updatedAt !== optimisticUpdatedAt) return t;
+          // Adopt the entire authoritative row with its version. In particular,
+          // never attach a newer server version to an older optimistic payload.
+          return authoritativeSaved ? { ...t, ...authoritativeSaved } : { ...t, updatedAt: tx.updatedAt };
+        }),
+      );
     } catch(e) {
       if (!scope.isCurrent()) return false;
       if (isConflictError(e)) {
@@ -510,7 +615,10 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       toast.success('Transaction updated', {
         action: {
           label: 'Undo',
-          onClick: () => handleUpdateTransaction(id, tx)
+          onClick: () => {
+            const { updatedAt: _staleUpdatedAt, ...undoSnapshot } = tx;
+            void handleUpdateTransaction(id, undoSnapshot);
+          }
         }
       });
 

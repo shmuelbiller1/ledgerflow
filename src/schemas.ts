@@ -13,6 +13,9 @@ export const TransactionLineSchema = z.object({
   accountId: z.string().min(1),
   accountName: z.string().optional(),
   amountCents: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
+  // BUG-07: explicit settled home units must survive server validation; dropping
+  // them silently recalculates manually settled FX journals on metadata-only edits.
+  baseAmountCents: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).optional(),
   exchangeRate: z.number().positive().finite().default(1),
   description: z.string().max(500).optional(),
   class: z.string().optional(),

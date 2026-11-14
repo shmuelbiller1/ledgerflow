@@ -1,0 +1,96 @@
+diff --git a/src/server/services/fxRevaluationService.ts b/src/server/services/fxRevaluationService.ts
+index 2e50b0bb2..ef0899c8c 100644
+--- a/src/server/services/fxRevaluationService.ts
++++ b/src/server/services/fxRevaluationService.ts
+@@ -111,29 +111,47 @@ function toRevaluable(
+   base: string,
+   accounts: ChartAccount[],
+   mapping: { ar?: string; ap?: string },
++  cutoffDate: string,
++  settledAfterCutoffByDocId: Map<string, number>,
+ ): RevaluableDocument[] {
++  const NOT_ISSUED = new Set(['draft', 'void', 'cancelled', 'rejected']);
+   return rows
+     .filter(row => {
+       const currency = String(row.currency || '').trim().toUpperCase();
+-      return Boolean(currency) && currency !== base;
++      if (!currency || currency === base) return false;
++      const docDate = String(row.date || row.issueDate || '').slice(0, 10);
++      if (docDate && docDate > cutoffDate) return false;
++      return true;
+     })
+     .map((row) => {
++      const explicitAccountId = side === 'customer'
++        ? String(row.arAccountId || '') || undefined
++        : String(row.apAccountId || '') || undefined;
+       const account = ledgerAccountFor(
+         accounts, side,
+-        side === 'customer' ? String(row.arAccountId || '') || undefined : undefined,
++        explicitAccountId,
+         side === 'customer' ? mapping.ar : mapping.ap,
+       );
++      const id = String(row.id);
++      const rawStatus = String(row.status || '');
++      const amountCents = Number(row.amountCents) || 0;
++      const depositCents = Number(row.depositCents) || 0;
++      const settledAfter = settledAfterCutoffByDocId.get(id) || 0;
++      const amountPaidCents = Math.max(0, (Number(row.amountPaidCents) || 0) - settledAfter);
++      const effectiveStatus = settledAfter > 0 && !NOT_ISSUED.has(rawStatus)
++        ? (amountPaidCents >= Math.max(0, amountCents - depositCents) ? 'paid' : amountPaidCents > 0 ? 'partially_paid' : (side === 'customer' ? 'sent' : 'unpaid'))
++        : rawStatus;
+       return {
+-        id: String(row.id),
++        id,
+         side,
+         number: row.number ? String(row.number) : undefined,
+         partyName: side === 'customer' ? row.customerName || undefined : row.vendorName || undefined,
+         currency: String(row.currency).toUpperCase(),
+         exchangeRate: typeof row.exchangeRate === 'number' ? row.exchangeRate : undefined,
+-        amountCents: Number(row.amountCents) || 0,
+-        amountPaidCents: Number(row.amountPaidCents) || 0,
+-        depositCents: Number(row.depositCents) || 0,
+-        status: String(row.status || ''),
++        amountCents,
++        amountPaidCents,
++        depositCents,
++        status: effectiveStatus,
+         accountId: account?.id,
+         accountName: account?.name,
+         accountCurrency: account?.currency,
+@@ -208,9 +226,34 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
+     const mapping = { ar: String(workspace.defaultAccountMappings?.ar || '') || undefined, ap: String(workspace.defaultAccountMappings?.ap || '') || undefined };
+     const openDocs = async (collection: string) => (await t.get(db.collection(collection).where('workspaceId', '==', input.workspaceId)))
+       .docs.map(d => ({ ...d.data(), id: d.id }) as DocumentData);
++    const settledAfterCutoffByDocId = new Map<string, number>();
++    if (historical) {
++      const allocSnap = await t.get(db.collection('paymentAllocations').where('workspaceId', '==', input.workspaceId));
++      for (const d of allocSnap.docs) {
++        const row = d.data();
++        const allocDate = String(row.date || row.effectiveDate || '').slice(0, 10);
++        if (!row.reversed && allocDate > date && row.documentId) {
++          const docId = String(row.documentId);
++          settledAfterCutoffByDocId.set(docId, (settledAfterCutoffByDocId.get(docId) || 0) + (Number(row.amountCents) || 0));
++        }
++      }
++      const paySnap = await t.get(db.collection('payments').where('workspaceId', '==', input.workspaceId));
++      for (const d of paySnap.docs) {
++        const p = d.data();
++        const payDate = String(p.date || '').slice(0, 10);
++        if (p.status === 'posted' && payDate > date && Array.isArray(p.allocations)) {
++          for (const alloc of p.allocations as Array<{ documentId?: string; invoiceId?: string; billId?: string; amountCents?: number }>) {
++            const docId = String(alloc.documentId || alloc.invoiceId || alloc.billId || '');
++            if (docId && !settledAfterCutoffByDocId.has(docId)) {
++              settledAfterCutoffByDocId.set(docId, (settledAfterCutoffByDocId.get(docId) || 0) + (Number(alloc.amountCents) || 0));
++            }
++          }
++        }
++      }
++    }
+     const docs = [
+-      ...toRevaluable(await openDocs('invoices'), 'customer', base, accounts, mapping),
+-      ...toRevaluable(await openDocs('bills'), 'vendor', base, accounts, mapping),
++      ...toRevaluable(await openDocs('invoices'), 'customer', base, accounts, mapping, date, settledAfterCutoffByDocId),
++      ...toRevaluable(await openDocs('bills'), 'vendor', base, accounts, mapping, date, settledAfterCutoffByDocId),
+     ];
+ 
+     // Only what is still open is anybody's business here: a paid bill with no A/P account is not a
