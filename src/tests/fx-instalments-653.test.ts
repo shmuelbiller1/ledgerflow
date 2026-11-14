@@ -16,7 +16,6 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { postInvoiceLedger } from '../services/ledgerPost/invoicePosting';
-import { postBillLedger } from '../services/ledgerPost/billPosting';
 import type { LedgerPostContext } from '../services/ledgerPost/postingKit';
 import type { ChartAccount, Transaction, Workspace } from '../types';
 
@@ -31,10 +30,7 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
   const realFetch = globalThis.fetch;
   const acct: Record<string, ChartAccount> = {};
   let customerId = '';
-  let vendorId = '';
   let bust = 0;
-  const invoiceId = () => `${ws}_INV-E1`;
-  const billId = () => `${ws}_B-E1`;
   const send = async (method: string, path: string, body?: unknown) => {
     const res = await realFetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': OWNER }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: res.status, body: await res.json().catch(() => ({})) as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -45,7 +41,6 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
     accounts: Object.values(acct), lockDate: null, uid: OWNER, inventory: [], transactions: await all<Transaction>('transactions'),
     workspaces: [{ id: ws, uid: OWNER, name: 'Atlas Imports', currency: 'USD' } as Workspace],
   });
-  const linesOf = (t?: Transaction) => (t?.lines || []).map(l => [l.accountId, l.amountCents]).sort();
   const sheet = async (endDate: string) => {
     const bs = await report(`/balance-sheet?endDate=${endDate}`);
     return [bs.assets[acct['1000'].id] || 0, bs.assets[acct['1100'].id] || 0, bs.liabilities[acct['2000'].id] || 0, bs.netIncome, bs.isBalanced];
@@ -92,7 +87,6 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
     assert.equal((await send('POST', `/api/v1/workspaces/${ws}/import-records`, { kind: 'customers', rows: [{ name: 'Lyon Café', currency: 'EUR' }] })).status, 200);
     assert.equal((await send('POST', `/api/v1/workspaces/${ws}/import-records`, { kind: 'vendors', rows: [{ name: 'Porto Paper', currency: 'EUR' }] })).status, 200);
     customerId = (await all<{ id: string }>('customers'))[0].id;
-    vendorId = (await all<{ id: string }>('vendors'))[0].id;
   });
 
   after(async () => {
