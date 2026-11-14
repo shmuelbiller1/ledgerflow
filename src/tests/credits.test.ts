@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { cashPostedWithDocumentCents } from '../lib/documentMath';
+import { setCredit } from './helpers/creditFixtures';
 import type { Firestore } from '../server/db/pgFirestore';
 
 describe('Cash posted with an invoice', () => {
@@ -55,8 +56,8 @@ describe('Credits: apply and refund', { skip: !url && 'LF_TEST_DATABASE_URL not 
     await account('cash', { name: 'Checking', type: 'asset', category: 'Cash', code: '1000' });
     await account('ar', { name: 'Accounts Receivable', type: 'asset', category: 'Receivables', code: '1100' });
     await account('ap', { name: 'Accounts Payable', type: 'liability', category: 'Payables', code: '2000' });
-    await db.collection('creditNotes').doc(id('cn')).set({ workspaceId: ws, customerId: 'c1', customerName: 'Acme', number: 'CN-1', amountCents: 10000, remainingCents: 10000, date: '2026-05-01', status: 'open', currency: 'USD' });
-    await db.collection('vendorCredits').doc(id('vc')).set({ workspaceId: ws, vendorId: 'v1', vendorName: 'Supply', number: 'VC-1', amountCents: 4000, remainingCents: 4000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await setCredit(db, 'creditNotes', id('cn'), { workspaceId: ws, customerId: 'c1', customerName: 'Acme', number: 'CN-1', amountCents: 10000, remainingCents: 10000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await setCredit(db, 'vendorCredits', id('vc'), { workspaceId: ws, vendorId: 'v1', vendorName: 'Supply', number: 'VC-1', amountCents: 4000, remainingCents: 4000, date: '2026-05-01', status: 'open', currency: 'USD' });
     await db.collection('invoices').doc(id('inv')).set({ workspaceId: ws, customerId: 'c1', number: 'INV-1', amountCents: 6000, amountPaidCents: 0, status: 'sent', dueDate: '2026-06-01', currency: 'USD' });
     await db.collection('invoices').doc(id('other')).set({ workspaceId: ws, customerId: 'c2', number: 'INV-2', amountCents: 6000, status: 'sent', dueDate: '2026-06-01', currency: 'USD' });
 
@@ -90,10 +91,27 @@ describe('Credits: apply and refund', { skip: !url && 'LF_TEST_DATABASE_URL not 
     const cn = await get('creditNotes', 'cn');
     assert.equal(cn.remainingCents, 4000);
     assert.equal(cn.status, 'partially_applied');
-    const posted = await db.collection('transactions').where('workspaceId', '==', ws).get();
-    assert.equal(posted.size, 0);
+    const posted = (await db.collection('transactions').where('workspaceId', '==', ws).get()).docs.filter(d => !String(d.id).endsWith('_posting'));
+    assert.equal(posted.length, 0, 'no entry besides the credits\' own postings');
     // Re-posting the invoice later must not record this as cash
     assert.equal(cashPostedWithDocumentCents(inv), 0);
+  });
+
+  test('#646: a credit with no entry in the books, or larger than its entry, is neither applied nor refunded', async () => {
+    // written straight into the database (as a browser could), never issued: no entry
+    await db.collection('creditNotes').doc(id('forged')).set({ workspaceId: ws, customerId: 'c1', customerName: 'Acme', number: 'CN-X', amountCents: 900000, remainingCents: 900000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    const applied = await call('owner-1', 'apply', { kind: 'customer', creditId: id('forged'), documentId: id('other'), amountCents: 100 });
+    assert.equal(applied.status, 409, JSON.stringify(applied.body));
+    assert.match(String(applied.body.error || applied.body.message), /no entry in the books/);
+    const refunded = await call('owner-1', 'refund', { kind: 'customer', creditId: id('forged'), amountCents: 30000, cashAccountId: id('cash'), date: '2026-05-02' });
+    assert.equal(refunded.status, 409, JSON.stringify(refunded.body));
+    assert.equal((await get('creditNotes', 'forged')).remainingCents, 900000, 'untouched');
+    // a posted 40.00 credit whose amount was raised to 4,000.00 afterwards
+    await setCredit(db, 'creditNotes', id('raised'), { workspaceId: ws, customerId: 'c1', number: 'CN-R', amountCents: 4000, remainingCents: 4000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await db.collection('creditNotes').doc(id('raised')).update({ amountCents: 400000, remainingCents: 400000 });
+    const raised = await call('owner-1', 'refund', { kind: 'customer', creditId: id('raised'), amountCents: 300000, cashAccountId: id('cash'), date: '2026-05-02' });
+    assert.equal(raised.status, 409, JSON.stringify(raised.body));
+    assert.match(String(raised.body.error || raised.body.message), /larger than its entry/);
   });
 
   test('refused: another customer, more than is left, a paid invoice', async () => {

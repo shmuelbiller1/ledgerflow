@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { planCreditApplications } from '../server/services/creditService';
+import { setCredit } from './helpers/creditFixtures';
 import type { Firestore } from '../server/db/pgFirestore';
 
 test('oldest credit first, to the invoice due first; other customers, currencies, drafts and paid ones untouched', () => {
@@ -58,8 +59,8 @@ describe('Auto-apply credits (database)', { skip: !url && 'LF_TEST_DATABASE_URL 
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'Auto credits', currency: 'USD', members: ['owner-1', 'view-1'], roles: { 'view-1': 'viewer' } });
-    await db.collection('creditNotes').doc(id('cn')).set({ workspaceId: ws, customerId: 'c1', number: 'CN-1', amountCents: 7000, remainingCents: 7000, date: '2026-05-01', status: 'open', currency: 'USD' });
-    await db.collection('creditNotes').doc(id('cn2')).set({ workspaceId: ws, customerId: 'c2', number: 'CN-2', amountCents: 500, remainingCents: 500, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await setCredit(db, 'creditNotes', id('cn'), { workspaceId: ws, customerId: 'c1', number: 'CN-1', amountCents: 7000, remainingCents: 7000, date: '2026-05-01', status: 'open', currency: 'USD' });
+    await setCredit(db, 'creditNotes', id('cn2'), { workspaceId: ws, customerId: 'c2', number: 'CN-2', amountCents: 500, remainingCents: 500, date: '2026-05-01', status: 'open', currency: 'USD' });
     await db.collection('invoices').doc(id('i1')).set({ workspaceId: ws, customerId: 'c1', number: 'INV-1', amountCents: 4000, status: 'sent', dueDate: '2026-06-01', currency: 'USD' });
     await db.collection('invoices').doc(id('i2')).set({ workspaceId: ws, customerId: 'c1', number: 'INV-2', amountCents: 5000, status: 'sent', dueDate: '2026-07-01', currency: 'USD' });
     await db.collection('invoices').doc(id('i3')).set({ workspaceId: ws, customerId: 'c2', number: 'INV-3', amountCents: 800, status: 'sent', dueDate: '2026-07-01', currency: 'USD' });

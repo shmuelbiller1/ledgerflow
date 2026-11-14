@@ -51,6 +51,32 @@ function positiveCents(amountCents: unknown): number {
   return amountCents;
 }
 
+/**
+ * #646: a credit is used only when its own entry is in the books, live (not reversed) and at least as large as
+ * the credit (in the books' currency, a cent of rounding allowed). A credit note or vendor credit written from a
+ * browser with no entry, or whose amount was raised after it was posted, is refused: applying or refunding it
+ * would settle a document or pay out money the ledger never recorded.
+ */
+async function postedCreditProblem(
+  db: Firestore, t: { get: (q: never) => Promise<{ docs: Array<{ id: string; data: () => DocumentData | undefined }> }> },
+  kind: CreditKind, workspaceId: string, creditId: string, credit: DocumentData, baseCurrency: string,
+): Promise<string | null> {
+  const key = kind === 'customer' ? 'creditNoteId' : 'vendorCreditId';
+  const entries = (await t.get(db.collection('transactions').where('workspaceId', '==', workspaceId).where(`metadata.${key}`, '==', creditId) as never)).docs
+    .map(d => ({ ...(d.data() || {}), id: d.id }) as DocumentData);
+  const reversed = new Set(entries.map(e => e.metadata?.reversesTxId || e.metadata?.reversedTransactionId).filter(Boolean).map(String));
+  const live = entries.filter(e => !e.metadata?.isReversal && !e.metadata?.reversesTxId && !e.reversalEventId && e.status !== 'void' && !e.deletedAt && !reversed.has(String(e.id)));
+  const label = SIDES[kind].label;
+  if (!live.length) return `${label} ${credit.number || creditId} has no entry in the books, so it can't be used. Issue it first.`;
+  const posted = live.reduce((sum, e) => sum + Math.abs(Number(e.totalAmountCents) || 0), 0);
+  const rate = rateOf(credit, baseCurrency);
+  const owed = Math.round((Number(credit.amountCents) || 0) * rate);
+  if (posted + 1 < owed || remainingOf(credit) > (Number(credit.amountCents) || 0)) {
+    return `${label} ${credit.number || creditId} is larger than its entry in the books, so it can't be used. Correct it first.`;
+  }
+  return null;
+}
+
 function remainingOf(credit: DocumentData): number {
   return typeof credit.remainingCents === 'number' ? credit.remainingCents : credit.amountCents || 0;
 }
@@ -187,6 +213,8 @@ export async function applyCredit(db: Firestore, input: ApplyCreditInput) {
     if (!credit || credit.workspaceId !== input.workspaceId) throw new CreditError(404, `${side.label} not found`);
     if (!document || document.workspaceId !== input.workspaceId) throw new CreditError(404, `The ${side.documentLabel} was not found`);
     if (!USABLE_CREDIT.has(credit.status)) throw new CreditError(409, `${side.label} is ${credit.status}; nothing left to apply`);
+    const unposted = await postedCreditProblem(db, t as never, input.kind, input.workspaceId, input.creditId, credit, String(workspace.currency || 'USD'));
+    if (unposted) throw new CreditError(409, unposted);
     if (CLOSED_DOCUMENT.has(document.status)) throw new CreditError(409, `A ${document.status} ${side.documentLabel} can't be settled`);
     if (credit[side.party] !== document[side.party]) throw new CreditError(400, `The ${side.documentLabel} belongs to a different ${input.kind}`);
     if ((credit.currency || 'USD') !== (document.currency || 'USD')) throw new CreditError(400, 'The credit and the document are in different currencies');
@@ -280,6 +308,10 @@ export async function autoApplyCredits(db: Firestore, input: { workspaceId: stri
     if (input.partyId) creditQuery = creditQuery.where(side.party, '==', input.partyId);
     const credits: Row[] = (await t.get(creditQuery)).docs.map(d => ({ ...d.data(), id: d.id }) as Row)
       .filter(c => USABLE_CREDIT.has(String(c.status)) && remainingOf(c) > 0);
+    // #646: only credits with their own live entry in the books take part; the rest are left alone
+    for (let i = credits.length - 1; i >= 0; i--) {
+      if (await postedCreditProblem(db, t as never, input.kind, input.workspaceId, String(credits[i].id), credits[i], String(workspace.currency || 'USD'))) credits.splice(i, 1);
+    }
     const parties = [...new Set(credits.map(c => String(c[side.party] || '')).filter(Boolean))];
     const documents: Row[] = [];
     for (const partyId of parties) {
@@ -370,6 +402,8 @@ export async function refundCredit(db: Firestore, input: RefundCreditInput) {
     const lock = postingLock(refundDate, workspace, input.uid);
     if (lock) throw new CreditError(400, lockMessage(refundDate, lock));
     if (!USABLE_CREDIT.has(credit.status)) throw new CreditError(409, `${side.label} is ${credit.status}; nothing left to refund`);
+    const unposted = await postedCreditProblem(db, t as never, input.kind, input.workspaceId, input.creditId, credit, String(workspace.currency || 'USD'));
+    if (unposted) throw new CreditError(409, unposted);
     const remaining = remainingOf(credit);
     if (amountCents > remaining) throw new CreditError(400, `Only ${remaining} cents are left on this credit`);
 
