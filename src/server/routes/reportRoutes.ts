@@ -132,7 +132,7 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
   const { workspaceId, startDate, endDate } = result.data;
   try {
     // AF-015: membership first, so someone removed from the workspace is not served its cached figures
-    await authorizeWorkspace(authReq, workspaceId);
+    const { data: plWsData } = await authorizeWorkspace(authReq, workspaceId);
     const cacheKey = getCacheKey(req, 'none', { workspaceId, startDate, endDate, basis: req.query.basis === 'cash' ? 'cash' : 'accrual' });
     const cached = REPORT_CACHE.get(cacheKey);
     if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
@@ -141,7 +141,9 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
     if (req.query.basis === 'cash') {
       const { accounts, transactions } = await getReportContext(authReq, workspaceId, undefined, endDate || undefined);
       const payments = (await getDb().collection('payments').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as CashBasisPayment);
-      const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments);
+      // BM-04 (#651): the books' currency, so a payment in ¥ (no decimals) or KWD (three) is converted with
+      // the minor-unit shift; the same rate-only conversion made cash-basis revenue 100x too small.
+      const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments, String((plWsData as { currency?: string } | undefined)?.currency || 'USD'));
       const pl = { ...computeProfitAndLoss(accounts, entries, startDate, endDate), basis: 'cash', leftOut };
       remember(cacheKey, pl);
       return res.json(withProvenance(pl));
@@ -165,7 +167,7 @@ reportRouter.get("/balance-sheet", async (req, res) => {
   try {
     const cash = req.query.basis === 'cash';
     // L-123: the cache key carries the snapshot read, checked only once the person may see the workspace
-    await authorizeWorkspace(authReq, workspaceId);
+    const { data: bsWsData } = await authorizeWorkspace(authReq, workspaceId);
     const cacheKey = getCacheKey(req, cash ? 'none' : await openingKey(getDb(), workspaceId, endDate), { workspaceId, endDate, basis: cash ? 'cash' : 'accrual' });
     const cached = REPORT_CACHE.get(cacheKey);
     if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
@@ -182,7 +184,7 @@ reportRouter.get("/balance-sheet", async (req, res) => {
     // N-08: on cash basis, without trade receivables and payables (cashBasis.ts)
     if (cash) {
       const payments = (await getDb().collection('payments').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as CashBasisPayment);
-      const cashBs = cashBasisBalanceSheet(accounts, transactions, payments, endDate || undefined);
+      const cashBs = cashBasisBalanceSheet(accounts, transactions, payments, endDate || undefined, String((bsWsData as { currency?: string } | undefined)?.currency || 'USD'));
       remember(cacheKey, cashBs);
       return res.json(withProvenance(cashBs));
     }
