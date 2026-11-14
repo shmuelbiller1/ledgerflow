@@ -345,3 +345,91 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Knowing where you are (owner, 13 Nov): the pointer over a control, the option you are in, and
+   buttons you can drag into your own order. All three sit in the `components` layer, below every
+   utility class, so a screen that styles its own hover or its own selected state keeps it exactly.
+   --------------------------------------------------------------------------------------------- */
+@layer components {
+  /* 1. Pointer over a control. About four buttons in ten had no hover style of their own, so the
+        pointer gave no sign of what it was about to press. Those (and only those: anything with a
+        `hover:` class is left alone) get a faint wash of their own text colour, which darkens a
+        light button and lightens a dark one. It is a background *image*, so it lies over whatever
+        background colour the button has. Not for touch screens (a tap would leave it stuck), not
+        for disabled controls, and not for the full-screen backdrops that close a drawer. */
+  @media (hover: hover) {
+    :where(button, summary, [role="button"], [role="tab"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]):where(:not(
+      :disabled, [aria-disabled="true"], [class*="hover:"], [class*="inset-0"], [class*="cursor-default"], [data-reorder-dragging]
+    )):hover {
+      background-image: linear-gradient(color-mix(in srgb, currentColor 9%, transparent), color-mix(in srgb, currentColor 9%, transparent));
+    }
+  }
+
+  /* 2. The option you are in. `.option-state` on a button that carries its state in
+        aria-pressed / aria-selected / aria-checked / aria-current shows that state: a tinted
+        fill, a brass edge and full-strength text, the same look the sidebar gives the open page.
+        Opt-in, so a control whose state is already drawn another way is not drawn twice. */
+  .option-state:where([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current]:not([aria-current="false"])) {
+    background-color: var(--brass-soft);
+    border-color: var(--brass);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--brass);
+  }
+
+  /* 3. Buttons that can be dragged into a new order (useDragReorder). */
+  [data-reorder-item] {
+    position: relative;
+    -webkit-touch-callout: none;
+  }
+  /* the grip: six dots at the trailing edge, shown only while the pointer or the keyboard is on the button */
+  @media (hover: hover) and (pointer: fine) {
+    [data-reorder-item]::after {
+      content: "";
+      position: absolute;
+      inset-inline-end: 3px;
+      top: 50%;
+      width: 8px;
+      height: 14px;
+      translate: 0 -50%;
+      background-image: radial-gradient(circle, currentColor 1px, transparent 1.4px);
+      background-size: 4px 4.67px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms;
+    }
+    [data-reorder-item]:hover::after,
+    [data-reorder-item]:focus-visible::after { opacity: 0.45; }
+    [data-reorder-item][data-reorder-dragging]::after { opacity: 0.8; }
+  }
+  /* the button in the hand */
+  [data-reorder-item][data-reorder-dragging] {
+    z-index: 60;
+    cursor: grabbing;
+    opacity: 0.94;
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.28), 0 0 0 1px var(--brass-line);
+    background-color: var(--panel);
+  }
+  body[data-reordering],
+  body[data-reordering] * { cursor: grabbing !important; }
+  body[data-reordering] { user-select: none; -webkit-user-select: none; }
+  /* the line that shows where it will land: in the gap before or after the button under the pointer */
+  [data-reorder-item][data-reorder-drop]::before {
+    content: "";
+    position: absolute;
+    z-index: 61; /* above the button in the hand (60), which is usually right on top of it */
+    border-radius: 2px;
+    background: var(--brass);
+    box-shadow: 0 0 0 1px var(--panel);
+    pointer-events: none;
+  }
+  [data-reorder-axis="vertical"][data-reorder-drop="before"]::before { inset-inline: 0; top: -3px; height: 3px; }
+  [data-reorder-axis="vertical"][data-reorder-drop="after"]::before { inset-inline: 0; bottom: -3px; height: 3px; }
+  [data-reorder-axis="horizontal"][data-reorder-drop="before"]::before { inset-block: 0; inset-inline-start: -5px; width: 3px; }
+  [data-reorder-axis="horizontal"][data-reorder-drop="after"]::before { inset-block: 0; inset-inline-end: -5px; width: 3px; }
+}
+
+/* A drag in progress and a hover wash are screen furniture: neither belongs on paper. */
+@media print {
+  [data-reorder-item]::before, [data-reorder-item]::after { display: none !important; }
+}

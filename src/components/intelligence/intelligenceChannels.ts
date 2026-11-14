@@ -5,7 +5,7 @@ import { BarChart3, ShieldCheck, Target, TrendingUp, Activity, LayoutGrid, Build
 
 import { FINANCIAL_ALGORITHMS } from '../../lib/financial-algorithms';
 
-interface ChannelItem {
+export interface ChannelItem {
   id: string;
   icon: LucideIcon;
   label: Record<string, string>;

@@ -235,12 +235,12 @@ export default function HelpGuideView() {
         <ReleaseNotes />
         <button type="button" className="min-h-11 px-4 border rounded-lg mt-4" onClick={() => window.dispatchEvent(new Event('ledgerflow:feedback'))}>Send feedback</button>
         <div className="max-w-7xl mx-auto flex flex-wrap gap-2 mt-4">
-          <button type="button" aria-pressed={mode === 'workflows'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('workflows')}>Workflows</button>
-          <button type="button" aria-pressed={mode === 'how-to'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('how-to')}>How-to ({HOW_TO_ARTICLES.length} EN/HE)</button>
-          <button type="button" aria-pressed={mode === 'first-month'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('first-month')}>First month &amp; demo</button>
-          <button type="button" aria-pressed={mode === 'screens'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('screens')}>All screens</button>
-          <button type="button" aria-pressed={mode === 'main-path'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('main-path')}>Main path</button>
-          <button type="button" aria-pressed={mode === 'accessibility'} className="min-h-11 px-4 border rounded-lg" onClick={() => setMode('accessibility')}>Accessibility &amp; language</button>
+          <button type="button" aria-pressed={mode === 'workflows'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('workflows')}>Workflows</button>
+          <button type="button" aria-pressed={mode === 'how-to'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('how-to')}>How-to ({HOW_TO_ARTICLES.length} EN/HE)</button>
+          <button type="button" aria-pressed={mode === 'first-month'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('first-month')}>First month &amp; demo</button>
+          <button type="button" aria-pressed={mode === 'screens'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('screens')}>All screens</button>
+          <button type="button" aria-pressed={mode === 'main-path'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('main-path')}>Main path</button>
+          <button type="button" aria-pressed={mode === 'accessibility'} className="option-state min-h-11 px-4 border rounded-lg" onClick={() => setMode('accessibility')}>Accessibility &amp; language</button>
           <button type="button" className="min-h-11 px-4 border rounded-lg" onClick={startTour}>Take the tour</button>
         </div>
 
