@@ -121,7 +121,8 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
       assert.equal((await read(twoStepId))?.deletedAt, undefined);
     }
     const hardDelete = await send('DELETE', `/api/v1/transactions/${twoStepId}`, {});
-    assert.equal(hardDelete.status, 409, await hardDelete.text());
+    // refused either by the period-lock middleware (403: only drafts can be deleted) or by the route (409)
+    assert.ok([403, 409].includes(hardDelete.status), `${hardDelete.status}: ${await hardDelete.text()}`);
     assert.equal((await read(twoStepId))?.status, 'flagged', 'DELETE must not bypass the posted-row guard');
   });
 
