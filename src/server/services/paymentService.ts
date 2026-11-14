@@ -238,6 +238,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const labelWeights: Array<{ cents: number; dimensions?: Record<string, string> }> = [];
     // EG-2: what each payment-ledger row needs from its document
     const allocDocs: Array<{ partyId: string | null; dueCents: number }> = [];
+    // #653: what each allocation had paid before and after, in the document's own currency
+    const paidSteps: Array<{ before: number; after: number }> = [];
 
     for (const alloc of allocations) {
       totalAllocatedCents += alloc.amountCents;
@@ -278,6 +280,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       }
 
       const newPaid = currentPaid + alloc.amountCents;
+      paidSteps.push({ before: currentPaid, after: newPaid });
 
       const newStatus = newPaid > 0 ? settledStatus(docData, newPaid) : docData.status;
 
@@ -386,7 +389,14 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const isReceipt = isReceiptPayment;
     const ledgerTxRef = db.collection('transactions').doc();
     // BM-04: minor units of the payment's currency → minor units of the books' (¥ has none, KWD three)
-    const baseAmountCents = Math.round(amountCents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency));
+    // #653: an allocation clears what the document's paid total is worth after it less what it was worth
+    // before, both at the document's rate. Instalments then add up to the document's own converted total
+    // (33.33 + 33.33 + 33.34 EUR at 1.0842 clear 36.14 + 36.13 + 36.15 = 108.42 USD), so no cent is left
+    // in receivables or payables once it is paid. The unmatched part is converted on its own.
+    const toBase = (cents: number) => Math.round(cents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency));
+    const clearedBaseCents = paidSteps.reduce((sum, step) => sum + toBase(step.after) - toBase(step.before), 0);
+    const unmatchedBaseCents = toBase(amountCents - totalAllocatedCents);
+    const baseAmountCents = clearedBaseCents + unmatchedBaseCents;
     // L-192: a foreign document paid at another day's rate: the bank gets what really arrived (or left),
     // the receivable/payable is cleared at the document's own rate, and the difference is realized
     // exchange gain or loss. Without a payment-day rate, both sides stay at the document's rate.
@@ -395,7 +405,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const cashBaseCents = foreignPayment && typeof dayRate === 'number' && dayRate > 0 ? Math.round(amountCents * minorUnitRate(dayRate, paymentCurrency, baseCurrency)) : baseAmountCents;
     const realizedFxCents = cashBaseCents - baseAmountCents;
     // the unmatched part goes to the deposits/prepayments account when there is one (BE-12)
-    const advanceBaseCents = advance ? baseAmountCents - Math.round(totalAllocatedCents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency)) : 0;
+    const advanceBaseCents = advance ? unmatchedBaseCents : 0;
     const offsetBaseCents = baseAmountCents - advanceBaseCents;
     let fxAccount: { id: string; name?: string } | undefined;
     if (realizedFxCents !== 0) {
