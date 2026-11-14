@@ -81,6 +81,8 @@ interface Session {
   frame: number | null;
   restore: { translate: string; transition: string } | null;
   teardown: () => void;
+  /** the save the drag started with: a drop after a sign-out or workspace switch goes to its own (refusing) scope */
+  onMove: DragReorderOptions['onMove'];
 }
 
 /** The nearest ancestor that scrolls along the list's direction, if any. */
@@ -166,8 +168,8 @@ export function useDragReorder(options: DragReorderOptions): DragReorder {
       clickGuard.current = null;
     };
     if (!commit || !target) return;
-    const { labelFor, onMove } = latest.current;
-    if (onMove(current.id, target.id, target.position) === false) return;
+    const { labelFor } = latest.current;
+    if (current.onMove(current.id, target.id, target.position) === false) return;
     setStatus(`${labelFor(current.id)} moved ${target.position} ${labelFor(target.id)}.`);
   }, [clearTarget]);
 
@@ -286,6 +288,7 @@ export function useDragReorder(options: DragReorderOptions): DragReorder {
     window.addEventListener('contextmenu', onContextMenu);
 
     const current: Session = {
+      onMove: latest.current.onMove,
       id, element, pointerId: event.pointerId, touch, armed: false, dragging: false,
       startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY,
       scroller: null, scrollLeft: 0, scrollTop: 0, target: null, holdTimer: null, frame: null, restore: null,

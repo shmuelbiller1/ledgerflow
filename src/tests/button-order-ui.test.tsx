@@ -252,3 +252,19 @@ test('each workspace keeps its own button order', () => {
   assert.notEqual(key(), buttonOrderStorageKey(useAuthStore.getState().user!.uid, before === 'workspace-a' ? 'workspace-b' : 'workspace-a'));
 });
 
+test('a drag started in one workspace and let go after switching to another saves nothing in either', () => {
+  render(<AllToolsMenu onSelect={() => {}} />);
+  const uid = useAuthStore.getState().user!.uid;
+  const first = useAuthStore.getState().currentWorkspaceId || 'none';
+  const buttons = within(screen.getByRole('navigation', { name: 'All tools' })).getAllByRole('button');
+  layOutAsColumn(buttons);
+  pointer(buttons[3], 'pointerdown', 100, 3 * 48 + 20, 12);
+  pointer(window, 'pointermove', 100, 48 + 6, 12);
+  assert.equal(buttons[3].hasAttribute('data-reorder-dragging'), true);
+  act(() => { useAuthStore.setState({ currentWorkspaceId: 'another-workspace' }); });
+  pointer(window, 'pointerup', 100, 48 + 6, 12);
+  assert.equal(localStorage.getItem(buttonOrderStorageKey(uid, 'another-workspace')), null, 'not saved in the new workspace');
+  assert.equal(localStorage.getItem(buttonOrderStorageKey(uid, first)), null, 'nor in the one it started in');
+  act(() => { useAuthStore.setState({ currentWorkspaceId: first === 'none' ? null : first }); });
+});
+
