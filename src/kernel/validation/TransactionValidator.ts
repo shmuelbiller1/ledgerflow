@@ -126,6 +126,8 @@ export class TransactionValidator {
     // 5. Double Entry (in the entry's currency, then in the home currency — BUG-07)
     DoubleEntryValidator.validateJournalEntry(validatedTx);
     settleHomeCurrency(validatedTx);
+    // #654: settling can move a rounding cent onto a line; the total follows the settled home amounts
+    if (Array.isArray(validatedTx.lines) && validatedTx.lines.length > 0) validatedTx.totalAmountCents = getAbsoluteTotal(validatedTx);
     
     // 6. Server-Authoritative Forensic Hash Stamping
     if (!process.env.SYSTEM_SALT && process.env.NODE_ENV !== 'test') {

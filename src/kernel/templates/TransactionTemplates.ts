@@ -295,6 +295,8 @@ export class TransactionTemplates {
     return (originalLines || []).map((l) => ({
       ...l,
       amountCents: -l.amountCents,
+      // #654: stored home amounts turn round too, so the reversal undoes exactly what was posted (no re-conversion)
+      ...(Number.isSafeInteger(l.baseAmountCents) ? { baseAmountCents: -(l.baseAmountCents as number) } : {}),
       description: `Reversal: ${l.description || txDescription}`
     }));
   }

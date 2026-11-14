@@ -18,7 +18,7 @@ import { findDueRecurring } from '../../lib/recurringEngine';
 import { addDaysYMD } from '../../lib/fiscalCalendar';
 import { assertPostingOpen } from '../../lib/periodLock';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
-import { settleHomeCurrency } from '../../lib/txFilters';
+import { getAbsoluteTotal, settleHomeCurrency } from '../../lib/txFilters';
 import { ledgerWrite } from './ledgerDoor';
 import { allocateNextNumber } from '../routes/workspaceRoutes';
 import { allocateInTransaction } from './numberingService';
@@ -278,6 +278,8 @@ async function generateEntry(db: Firestore, rule: RecurringTransaction, generate
       createdAt: new Date().toISOString(),
     } as Transaction;
     settleHomeCurrency(entryToPost);
+    // #654: the total is the settled home-currency debits, as every validated entry's is
+    entryToPost.totalAmountCents = getAbsoluteTotal(entryToPost);
     await ledgerWrite(tx, txRef, entryToPost as unknown as Record<string, unknown>);
     tx.update(db.collection('recurring').doc(rule.id), {
       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
