@@ -798,6 +798,19 @@ Same rules as AI #12 above. Lane: reports people check every month.
 - [x] *(AI #9, #608 + review fixes #610, 10 Nov)* **R-4 Report notes** — a short note per report and period ("rent paid late this month"), shown on screen and in the PDF; tests.
 - [x] *(AI #9, #655, 11 Nov: all 126 report views under 1 s on the 5,000-entry year; journal sheet 4.8 s → 0.3 s)* **R-5 Report speed check** — every report on the 5,000-entry sample year opens in under one second on a normal laptop; fix the slow ones without changing the figures; the existing speed test extended.
 
+- [ ] **R-6 Year-end pack** — one screen for the year: P&L, balance sheet, trial balance, A/R and A/P aging at the year end, fixed assets and the closing checklist, each a link to its report and all of them in one PDF; tests with the gold sample year.
+- [ ] **R-7 "Why did this number change?"** — on P&L and balance sheet, a report total compared with last month shows the entries that make up the difference (largest first, with links); tests with hand-worked figures.
+- [ ] **R-8 Report empty and partial states** — every report says plainly when there is no data for the period, or when the loaded entries are capped and the figure may be incomplete (the wording the Inventory Valuation screen uses); a test per report family.
+
+## AI #15: tasks (spare queue for the next AI; written by Claude, 14 Nov)
+
+Same rules as AI #12 above. Lane: bank and receipts (screens and tests only; how money is posted stays with AI #1).
+
+- [ ] **B-1 Bank rule preview** — creating or editing a bank rule shows the last 20 bank lines it would have matched, before saving; tests.
+- [ ] **B-2 Receipt inbox on a phone** — at 390 px: take a photo, see it read, pick the expense account, save in three taps; a browser test at 390 px.
+- [ ] **B-3 Unmatched bank lines by age** — the bank screen shows unmatched lines grouped by how long they have waited (under 7 days, 7–30, over 30), oldest first; tests.
+- [ ] **B-4 Duplicate bank line warning** — an imported bank line with the same date, amount and description as one already there is marked "possible duplicate" with a one-click skip; tests.
+
 ## New tasks from the bookkeeping-first plan (Claude, 20 Oct; PLAN §17)
 
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
@@ -1071,3 +1084,5 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 
 - **13 Nov 2026, owner request (Arena, `arena/7662984d-ledgerflow`, based on `f6a8e0c`) → AI #14, AI #3, Everyone:** two ease-of-use changes asked for by the owner directly, UI layer only (no server, money, posting, schema or registry change). **1. Where am I:** the open page is now marked in Recommended tools, All tools, the phone bottom bar and the Insights channel lists; a new opt-in class `.option-state` (`src/index.css`) draws `aria-pressed` / `aria-current` on plain toggles (Chart/Table, chart legends, Help modes, Bookmark star, archived filters); buttons with no `hover:` class of their own get a faint hover wash from one rule in `@layer components` (utilities still win). **2. Own button order:** each person can drag the sidebar's daily, recommended and all-tools buttons and the Insights calculators / algorithm tools into their own order (mouse, press-and-hold on touch, Alt+↑/↓), kept per user on the device under `ledgerflow:button-order:v1:<uid>`; "Reset order" appears only after a change. Reuse: `useButtonOrder` + `useDragReorder` + `ButtonOrderNote`; the order only sorts the list a screen passes in, it never decides which buttons exist. **Needs a reviewer:** 8 visual baselines change on purpose (dashboard ×4, and pnl / balance-sheet at 390px ×4: brass current page in the bottom bar, pressed trend-series buttons) — run "Refresh visual baselines" with `dashboard|pnl|balance-sheet` after review; not regenerated here because this sandbox's Chromium is not CI's.
 - **14 Nov 2026, Claude (AI #1):** merged **#704** and **#705** (review fixes for AI #7's #702 and AI #6's #703; the fork PRs are closed as replaced), **#708** (#131 test for capped entries). On #704 I fixed a test type error; on #705 the hard-delete test now accepts the period-lock middleware's 403 as a refusal. **#707** (owner request: selected button shown, drag to reorder): new visual baselines, an Esc-while-holding drag no longer presses the button, and the saved order is now per person and per workspace like bookmarks; it merges when green. New **EU-X1** for AI #14: a real-browser test of drag reorder.
+
+- **14 Nov 2026, Claude (AI #1):** merged **#711** (#654: foreign-rate journals post and reverse to zero) and **#712** (#646 server half: a credit is applied or refunded only when its own issuance entry is in the books). AI #13's queue was down to R-1: added **R-6…R-8**. New spare queue **AI #15** (B-1…B-4, bank and receipts).
