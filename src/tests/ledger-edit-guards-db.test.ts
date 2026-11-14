@@ -4,6 +4,7 @@
  * un-post a posted entry in place — and still save a flag or a note on that same row, and still reverse a
  * hand-entered entry. The unit cases for the guard functions are in `ledger-edit-guards.test.ts`; this one
  * proves the routes call them, which is what the issue reported.
+ * #654: a journal at a foreign rate posts and reverses back to exactly zero (books in ILS, a second workspace).
  */
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,6 +21,8 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
   const handId = `${ws}_hand`;
   const reconciledId = `${ws}_reconciled`;
   const twoStepId = `${ws}_two_step`;
+  // #654: a second workspace with books in ILS, for journals at a foreign rate
+  const fxWs = `${ws}_ils`;
   let db: Firestore;
   let server: Server;
   let base = '';
@@ -45,6 +48,10 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     await db.collection('transactions').doc(handId).set(entry(handId, {}));
     await db.collection('transactions').doc(reconciledId).set({ ...entry(reconciledId, {}), status: 'reconciled' });
     await db.collection('transactions').doc(twoStepId).set(entry(twoStepId, {}));
+    await db.collection('workspaces').doc(fxWs).set({ uid: 'owner-1', name: 'FX Co', currency: 'ILS', members: ['owner-1'] });
+    for (const [id, name, type, category, code] of [['a', 'Bank', 'asset', 'Cash', '1000'], ['b', 'Sales', 'income', 'Revenue', '4000']]) {
+      await db.collection('chartAccounts').doc(`${fxWs}_${id}`).set({ id: `${fxWs}_${id}`, workspaceId: fxWs, uid: 'owner-1', name, type, category, code });
+    }
     const express = (await import('express')).default;
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const app = express();
@@ -57,7 +64,7 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
 
   after(async () => {
     server?.close();
-    for (const table of ['transactions', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
+    for (const table of ['transactions', 'auditLogs', 'chartAccounts', 'workspaces']) for (const w of [ws, fxWs]) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [w]);
     await db.terminate();
   });
 
@@ -146,4 +153,23 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     assert.equal(memo.status, 200, await memo.text());
     assert.equal((await read(handId))?.memo, 'Team coffee');
   });
+
+  const lines = (r: number, a: number[]) => [{ accountId: `${fxWs}_a`, amountCents: a[0], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[1], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[2], exchangeRate: r }];
+  const homeOf = (t: Record<string, any> | undefined, account: string) => (t?.lines || []).filter((l: any) => l.accountId === account) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .reduce((sum: number, l: any) => sum + (Number.isInteger(l.baseAmountCents) ? l.baseAmountCents : Math.round(l.amountCents * (l.exchangeRate ?? t?.exchangeRate ?? 1))), 0); // eslint-disable-line @typescript-eslint/no-explicit-any
+  for (const [name, amounts, home] of [['24.70 / 12.35 / 12.35 (one agora to settle)', [2470, -1235, -1235], 9138], ['10.00 / 5.00 / 5.00', [1000, -500, -500], 3700]] as const) {
+    test(`a USD journal at 3.7 in ILS books, ${name}: posts at ${home} and reverses back to zero`, async () => {
+      const id = `${fxWs}_${amounts[0]}`;
+      const created = await send('POST', '/api/v1/transactions', { transaction: { id, workspaceId: fxWs, date: '2026-10-01', description: 'FX journal', status: 'completed', type: 'actual', currency: 'USD', exchangeRate: 3.7, lines: lines(3.7, [...amounts]) } });
+      assert.equal(created.status, 200, await created.text());
+      const entry = await read(id);
+      assert.equal(entry?.totalAmountCents, home, 'the total is the settled home-currency debits');
+      assert.equal(homeOf(entry, `${fxWs}_a`) + homeOf(entry, `${fxWs}_b`), 0, 'balanced in ILS');
+      const rev = await send('POST', `/api/v1/transactions/${id}/reverse`, { workspaceId: fxWs, reason: 'test', reversalDate: '2026-10-02' });
+      const revText = await rev.text();
+      assert.equal(rev.status, 200, revText);
+      const reversal = await read(String((JSON.parse(revText) as { reversal: { id: string } }).reversal.id));
+      for (const account of [`${fxWs}_a`, `${fxWs}_b`]) assert.equal(homeOf(entry, account) + homeOf(reversal, account), 0, `${account} back to 0.00`);
+    });
+  }
 });
