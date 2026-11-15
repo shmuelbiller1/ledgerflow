@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 import { z } from 'zod';
 import type { RequestUser } from '../server/auth/requestUser';
 import { requiredApiKeyScope } from '../server/auth/apiAuthenticate';
@@ -11,13 +11,9 @@ import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
-import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
-import { entryLinkCreateCommand, entryLinkRemoveCommand } from '../server/commands/entryLinks';
-import { stageDefineCommand, stageMoveCommand } from '../server/commands/stages';
-import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../server/commands/tasks';
-import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from '../server/commands/time';
-import { watchCreateCommand, watchRemoveCommand } from '../server/commands/watches';
-import type { AlertSettingsWriteResult } from '../server/services/bookAlertService';
+import { alertSettingsUpdateCommand } from '../server/commands/alerts';
+import { taskCreateCommand } from '../server/commands/tasks';
+import { watchCreateCommand } from '../server/commands/watches';
 import { customerCreateCommand, customerCreateInput, customerUpdateCommand, customerUpdateInput, warrantyUpdateCommand, warrantyUpdateInput } from '../server/commands/customers';
 import { vendorCreateCommand, vendorCreateInput, vendorUpdateCommand, vendorUpdateInput } from '../server/commands/vendors';
 import { paymentReceiveCommand, paymentReceiveInput } from '../server/commands/payments';
@@ -35,209 +31,19 @@ import {
   vendorCreditCreateInput,
   vendorCreditUpdateInput,
 } from '../server/commands/documents';
-import type { CommandDefinition, CommandRole } from '../server/commands/types';
+import type { CommandDefinition } from '../server/commands/types';
 import { createCommandRouter } from '../server/routes/commandRoutes';
-import { executeCommand, previewCommand, type CommandRunnerDependencies } from '../server/utils/commandExecutor';
+import { executeCommand, previewCommand } from '../server/utils/commandExecutor';
 import { paymentRequestHash } from '../server/services/paymentService';
 import { CREDIT_LIMIT_METADATA_KEY } from '../lib/customerCreditLimits';
 import { deriveScopedOperationKey, requestPayloadHash } from '../server/utils/idempotency';
 import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD, warrantyRecordKey } from '../lib/warehouseRecords';
 import { autoRuleCreateCommand, autoRuleCreateInput, autoRuleUpdateCommand, autoRuleUpdateInput, autoRuleGroupCommand, autoRuleGroupInput, autoRuleRecordHitsCommand, autoRuleRecordHitsInput, autoRuleDeleteCommand, autoRuleDeleteInput } from '../server/commands/autoRules';
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-class MemorySnapshot {
-  readonly id: string;
-  constructor(private readonly value: Record<string, unknown> | undefined, id: string) { this.id = id; }
-  get exists(): boolean { return this.value !== undefined; }
-  data(): Record<string, unknown> | undefined { return this.value ? clone(this.value) : undefined; }
-}
-
-type StoredWrite = { method: 'set' | 'create' | 'update' | 'delete'; path: string; data?: Record<string, unknown> };
-
-class MemoryDb {
-  private readonly documents = new Map<string, Record<string, unknown>>();
-  private sequence = 0;
-  directWriteCount = 0;
-  beforeTransaction?: () => void;
-
-  seed(path: string, data: Record<string, unknown>): void { this.documents.set(path, clone(data)); }
-  read(path: string): Record<string, unknown> | undefined {
-    const value = this.documents.get(path);
-    return value ? clone(value) : undefined;
-  }
-  entries(collection: string): Array<{ id: string; data: Record<string, unknown> }> {
-    const prefix = `${collection}/`;
-    return [...this.documents.entries()].filter(([path]) => path.startsWith(prefix))
-      .map(([path, data]) => ({ id: path.slice(prefix.length), data: clone(data) }));
-  }
-
-  collection(name: string): MemoryCollection { return new MemoryCollection(this, name); }
-
-  async runTransaction<T>(handler: (tx: MemoryTransaction) => Promise<T>): Promise<T> {
-    this.beforeTransaction?.();
-    const tx = new MemoryTransaction(this);
-    const result = await handler(tx);
-    tx.commit();
-    return result;
-  }
-
-  recordDirectWrite(write: StoredWrite): void {
-    this.directWriteCount++;
-    this.apply(write);
-  }
-
-  apply(write: StoredWrite): void {
-    const current = this.documents.get(write.path);
-    if (write.method === 'delete') this.documents.delete(write.path);
-    else if (write.method === 'create') {
-      if (current) throw Object.assign(new Error(`ALREADY_EXISTS: ${write.path}`), { code: 6 });
-      this.documents.set(write.path, clone(write.data || {}));
-    } else if (write.method === 'update') {
-      if (!current) throw Object.assign(new Error(`NOT_FOUND: ${write.path}`), { code: 5 });
-      this.documents.set(write.path, { ...current, ...clone(write.data || {}) });
-    } else {
-      this.documents.set(write.path, clone(write.data || {}));
-    }
-  }
-}
-
-class ReplayOnRetryMemoryDb extends MemoryDb {
-  replayRecord?: { key: string; data: Record<string, unknown> };
-
-  override async runTransaction<T>(handler: (tx: MemoryTransaction) => Promise<T>): Promise<T> {
-    if (!this.replayRecord) return super.runTransaction(handler);
-    const record = this.replayRecord;
-    this.replayRecord = undefined;
-    await handler(new MemoryTransaction(this)); // a concurrent transaction wins; discard this attempt's writes
-    this.seed(`idempotencyKeys/${record.key}`, record.data);
-    const retry = new MemoryTransaction(this);
-    const result = await handler(retry);
-    retry.commit();
-    return result;
-  }
-}
-
-class MemoryRef {
-  readonly path: string;
-  constructor(private readonly db: MemoryDb, readonly collectionName: string, readonly id: string) { this.path = `${collectionName}/${id}`; }
-  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id); }
-  async set(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'set', path: this.path, data }); }
-  async create(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'create', path: this.path, data }); }
-  async update(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'update', path: this.path, data }); }
-  async delete(): Promise<void> { this.db.recordDirectWrite({ method: 'delete', path: this.path }); }
-}
-
-class MemoryQuery {
-  private readonly filters: Array<{ field: string; value: unknown }>;
-  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; value: unknown }> = []) { this.filters = filters; }
-  where(field: string, _op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, value }]); }
-  async get(): Promise<{ docs: MemorySnapshot[]; size: number; empty: boolean }> {
-    const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => row.data[filter.field] === filter.value))
-      .map(row => new MemorySnapshot(row.data, row.id));
-    return { docs, size: docs.length, empty: docs.length === 0 };
-  }
-}
-
-class MemoryCollection {
-  constructor(private readonly db: MemoryDb, readonly name: string) {}
-  doc(id?: string): MemoryRef {
-    const nextId = id || `memory-${++(this.db as unknown as { sequence: number }).sequence}`;
-    return new MemoryRef(this.db, this.name, nextId);
-  }
-  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.name).where(field, op, value); }
-}
-
-class MemoryTransaction {
-  private readonly writes = new Map<string, StoredWrite>();
-  constructor(private readonly db: MemoryDb) {}
-  async get(ref: unknown): Promise<unknown> {
-    if (ref instanceof MemoryQuery) return ref.get();
-    const path = String((ref as { path?: unknown }).path || '');
-    const pending = this.writes.get(path);
-    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '');
-    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '');
-  }
-  async getAll(...refs: unknown[]): Promise<unknown[]> { return Promise.all(refs.map(ref => this.get(ref))); }
-  set(ref: unknown, data: Record<string, unknown>): this { this.stage('set', ref, data); return this; }
-  create(ref: unknown, data: Record<string, unknown>): this { this.stage('create', ref, data); return this; }
-  update(ref: unknown, data: Record<string, unknown>): this { this.stage('update', ref, data); return this; }
-  delete(ref: unknown): this { this.stage('delete', ref); return this; }
-  private stage(method: StoredWrite['method'], ref: unknown, data?: Record<string, unknown>): void {
-    const path = String((ref as { path?: unknown }).path || '');
-    this.writes.set(path, { method, path, ...(data ? { data: clone(data) } : {}) });
-  }
-  commit(): void { for (const write of this.writes.values()) this.db.apply(write); }
-}
-
-const owner: RequestUser = { uid: 'owner-1', email: 'owner@example.test', aal: 'aal2' };
-const workspaceId = 'ws-command-test';
-
-function seedWorkspace(db: MemoryDb, id = workspaceId, fields: Record<string, unknown> = {}): void {
-  db.seed(`workspaces/${id}`, { uid: owner.uid, members: [owner.uid], currency: 'USD', ...fields });
-}
-
-function fakeRequest(user: RequestUser, body: unknown, operationId?: string): Request {
-  return {
-    user,
-    body,
-    headers: operationId ? { 'idempotency-key': operationId } : {},
-    params: {},
-    query: {},
-    method: 'POST',
-    url: '/api/v1/commands/demo.record',
-    originalUrl: '/api/v1/commands/demo.record',
-  } as unknown as Request;
-}
-
-function captureResponse(): { response: Response; status: number; body: unknown } {
-  const captured: { status: number; body: unknown } = { status: 200, body: undefined };
-  const response = {
-    status(code: number) { captured.status = code; return this; },
-    json(body: unknown) { captured.body = body; return this; },
-  } as unknown as Response;
-  return { response, ...captured };
-}
-
-type TestCounters = { runs: number; previews: number; afterCommit: number; audits: number };
-const testInput = z.object({ workspaceId: z.string(), value: z.string(), date: z.string().optional() }).strict();
-type TestResult = { saved: true; value: string };
-
-function recordingCommand(counters: TestCounters, name: `${string}.${string}` = 'demo.record', risk: 'normal' | 'high' = 'normal'): CommandDefinition<typeof testInput, TestResult> {
-  return {
-    name,
-    input: testInput,
-    roles: ['owner', 'accountant'] as const satisfies readonly CommandRole[],
-    dated: 'date',
-    async handler(ctx, tx, input) {
-      counters.runs++;
-      tx.set(ctx.db.collection('commandRecords').doc('last'), { workspaceId: ctx.workspaceId, value: input.value });
-      ctx.afterCommit(() => { counters.afterCommit++; return { delivered: true }; });
-      return { saved: true, value: input.value };
-    },
-    async preview(_ctx, input) { counters.previews++; return { title: `Record ${input.value}`, lines: [input.value] }; },
-    audit(_input, result) { return { action: 'COMMAND_TEST', entityType: 'commandRecord', entityId: 'last', description: `Recorded ${result.value}` }; },
-    inverse() { return null; },
-    risk,
-    describe: {
-      sentence: 'Record a value for the test workspace, and do not use it for financial postings.',
-      example: { workspaceId, value: 'example' },
-      refusals: [{ code: 'INVALID_INPUT', when: 'Input is malformed.', next: 'Correct it.' }],
-    },
-  };
-}
-
-function runnerDependencies(db: MemoryDb, counters?: TestCounters): CommandRunnerDependencies {
-  return {
-    getDb: () => db as unknown as Firestore,
-    auditWriter: async () => { if (counters) counters.audits++; return 'audit-test'; },
-    checkCapacity: async () => {},
-  };
-}
-
-const invocationInput = (value = 'first') => ({ workspaceId, value });
+import {
+  captureResponse, fakeRequest, invocationInput, MemoryDb, owner, recordingCommand, ReplayOnRetryMemoryDb,
+  runnerDependencies, seedWorkspace, testInput, type TestCounters, type TestResult, workspaceId,
+} from './helpers/commandTestUtils';
 
 
 test('the default registry is sorted and unique across the registered command domains', () => {
@@ -271,45 +77,6 @@ test('the default registry is sorted and unique across the registered command do
   }
 });
 
-test('task, watch, entry-link, time, and stage commands publish validated examples and refusal guides', () => {
-  const teamCommands = [
-    taskCreateCommand, taskStatusCommand, taskRemoveCommand,
-    watchCreateCommand, watchRemoveCommand,
-    entryLinkCreateCommand, entryLinkRemoveCommand,
-    timeLogCommand, timeUpdateCommand, timeRemoveCommand, timeMoveCommand, timeInvoiceCommand, timeRatesCommand,
-    stageDefineCommand, stageMoveCommand,
-  ];
-  assert.equal(teamCommands.length, 15);
-  for (const command of teamCommands) {
-    assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
-    assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
-    assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
-    assert.ok(command.roles.length > 0, `${command.name} lists roles`);
-  }
-  assert.deepEqual(taskCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
-  assert.deepEqual(taskRemoveCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
-  assert.deepEqual(watchCreateCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
-  assert.deepEqual(entryLinkCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
-  assert.deepEqual(timeLogCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
-  assert.deepEqual(stageDefineCommand.roles, ['owner', 'accountant']);
-});
-
-test('the command runner omits audit records for idempotent no-op results', async () => {
-  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
-  const base = recordingCommand(counters);
-  const noOp: CommandDefinition<typeof testInput, TestResult> = {
-    ...base,
-    async handler(_ctx, _tx, input) { counters.runs++; return { saved: true, value: input.value }; },
-    audit() { return null; },
-  };
-  const db = new MemoryDb();
-  seedWorkspace(db);
-  const result = await executeCommand(fakeRequest(owner, invocationInput()), captureResponse().response,
-    { definition: noOp, workspaceId, input: invocationInput() }, runnerDependencies(db, counters));
-  assert.equal(result.ok, true);
-  assert.equal(counters.runs, 1);
-  assert.equal(counters.audits, 0);
-});
 
 test('invoice.create and bill.create expose the existing document schemas and reject unsafe ids or incomplete bills', () => {
   const invoiceExample = invoiceCreateCommand.describe.example as { invoice: Record<string, unknown> };
@@ -339,100 +106,6 @@ test('document CRUD commands publish valid examples and keep document ids and wo
   assert.equal('workspaceId' in attemptedScopeChange.data, false);
 });
 
-test('alerts.update has a valid example, a read-only preview, a transactional inverse and idempotent audit', async () => {
-  const example = alertSettingsUpdateCommand.describe.example as { cashLowCents: number; closeReminderDay: number; budgetAlerts: boolean };
-  assert.deepEqual(alertSettingsUpdateCommand.roles, ['owner', 'accountant']);
-  assert.equal(alertSettingsUpdateInput.safeParse(example).success, true);
-  assert.equal(alertSettingsUpdateInput.safeParse({ ...example, unexpected: true }).success, false);
-  assert.deepEqual(new Set(alertSettingsUpdateCommand.describe.refusals.map(refusal => refusal.code)),
-    new Set(['INVALID_INPUT', 'INVALID_ALERT_SETTINGS', 'WORKSPACE_NOT_FOUND', 'ROLE_REQUIRED']));
-
-  const db = new MemoryDb();
-  seedWorkspace(db, workspaceId, {
-    currency: 'USD',
-    alerts: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false },
-    alertsSent: { closeReminder: '2026-09', cashLow: true, fingerprint: 'stale' },
-  });
-  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
-  const dependencies = runnerDependencies(db, counters);
-  const preview = await previewCommand(fakeRequest(owner, example),
-    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
-  assert.equal(preview.ok, true);
-  if (preview.ok) {
-    assert.deepEqual(preview.preview, {
-      title: 'Update book alert settings',
-      lines: ['Alerts: close reminder from day 5, cash below $500.00, budget alerts on'],
-    });
-  }
-  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false }, 'preview never writes');
-  assert.equal(counters.audits, 0, 'preview never audits');
-
-  const operationId = 'alerts-update-test-1';
-  const request = fakeRequest(owner, example, operationId);
-  const first = await executeCommand(request, captureResponse().response,
-    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
-  assert.equal(first.ok, true);
-  if (!first.ok) return;
-  const result = first.data as AlertSettingsWriteResult;
-  assert.deepEqual(result, {
-    workspaceId,
-    alerts: example,
-    previousAlerts: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false },
-    currency: 'USD',
-  });
-  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, example);
-  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alertsSent, { closeReminder: '2026-09', cashLow: true });
-  assert.deepEqual(counters, { runs: 0, previews: 0, afterCommit: 0, audits: 1 });
-  const summary = alertSettingsUpdateCommand.audit(example, result);
-  assert.ok(summary);
-  assert.equal(summary.action, 'ALERTS_SAVED');
-  assert.equal(summary.entityType, 'workspaces');
-  assert.equal(summary.entityId, workspaceId);
-  assert.match(summary.description, /close reminder from day 5, cash below \$500\.00, budget alerts on/);
-  assert.deepEqual(alertSettingsUpdateCommand.inverse?.(example, result),
-    { command: 'alerts.update', input: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false } });
-
-  const replay = await executeCommand(request, captureResponse().response,
-    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
-  assert.equal(replay.ok, true);
-  if (replay.ok) assert.equal(replay.replayed, true);
-  assert.deepEqual(counters, { runs: 0, previews: 0, afterCommit: 0, audits: 1 });
-
-  const conflict = await executeCommand(fakeRequest(owner, { ...example, budgetAlerts: false }, operationId), captureResponse().response,
-    { definition: alertSettingsUpdateCommand, workspaceId, input: { ...example, budgetAlerts: false } }, dependencies);
-  assert.equal(conflict.ok, false);
-  if (!conflict.ok) assert.equal(conflict.status, 409);
-  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, example, 'a reused operation id cannot change the settings');
-});
-
-test('alerts.update refuses out-of-range settings and bookkeepers before any writes or audit', async () => {
-  const db = new MemoryDb();
-  seedWorkspace(db, workspaceId, { members: [owner.uid, 'bookkeeper-1'], roles: { 'bookkeeper-1': 'bookkeeper' } });
-  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
-  const dependencies = runnerDependencies(db, counters);
-  const invalidInput = { cashLowCents: -1 };
-  const invalid = await executeCommand(fakeRequest(owner, invalidInput), captureResponse().response,
-    { definition: alertSettingsUpdateCommand, workspaceId, input: invalidInput }, dependencies);
-  assert.equal(invalid.ok, false);
-  if (!invalid.ok) {
-    assert.equal(invalid.status, 400);
-    assert.equal(invalid.code, 'INVALID_ALERT_SETTINGS');
-  }
-  assert.equal(db.directWriteCount, 0);
-  assert.equal(counters.audits, 0);
-
-  const bookkeeper: RequestUser = { uid: 'bookkeeper-1', aal: 'aal2' };
-  const example = alertSettingsUpdateCommand.describe.example;
-  const denied = await executeCommand(fakeRequest(bookkeeper, example), captureResponse().response,
-    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
-  assert.equal(denied.ok, false);
-  if (!denied.ok) {
-    assert.equal(denied.status, 403);
-    assert.equal(denied.code, 'ROLE_REQUIRED');
-  }
-  assert.equal(db.directWriteCount, 0);
-  assert.equal(counters.audits, 0);
-});
 
 test('credit-note and vendor-credit partial updates do not inject create-time status or currency defaults', () => {
   const customerCredit = creditNoteUpdateInput.parse({ id: 'cn-1', data: { reason: 'Damaged item' } });
