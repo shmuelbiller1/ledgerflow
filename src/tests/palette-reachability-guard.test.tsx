@@ -27,7 +27,6 @@ import {
 } from '../config/registry';
 import { pageIndex, searchPages } from '../config/pageIndex';
 import { MODULES } from '../lib/modules';
-import { normalizeSearchText } from '../lib/textNormalization';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import CommandPalette from '../components/layout/CommandPalette';
@@ -179,12 +178,20 @@ describe('every action the search box offers can be run', () => {
   });
 
   test('a command and a screen with the same word are both offered, not one instead of the other', () => {
-    // "reports" is a command (financial reports) and a screen: a person typing it must see both, because
-    // they may mean either. This is the case a label-only check would miss.
-    const query = 'report';
-    const commandHits = SYSTEM_COMMANDS.filter(c => normalizeSearchText(c.label.en).includes(query));
-    const pageHits = searchPages(pageIndex('en'), query).filter(hit => hit.page.tab === 'reports');
-    assert.ok(commandHits.length > 0, 'the report command is offered');
-    assert.ok(pageHits.length > 0, 'the Reports screen is offered too');
+    // "report" is a command (financial reports) and a screen. A person typing it may mean either, so the
+    // palette must show both. Checked in the drawn list, because the point is what the person sees, not
+    // what two filters would return if they were called.
+    useUIStore.setState({ language: 'en' });
+    render(<CommandPalette isOpen onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText(/Search commands|חיפוש/), { target: { value: 'report' } });
+    const shown = resultNames();
+    assert.ok(
+      shown.some(name => name === 'Financial Reports'),
+      `the report command is offered (saw: ${shown.join(' | ')})`,
+    );
+    assert.ok(
+      shown.some(name => name.startsWith('Go to Report:') || name.startsWith('Go to Reports')),
+      `a report screen is offered too (saw: ${shown.join(' | ')})`,
+    );
   });
 });
