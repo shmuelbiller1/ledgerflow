@@ -636,7 +636,7 @@ const Ledger = React.memo(() => {
                   <AsyncButton 
                     type="submit"
                     loadingText="Establishing..."
-                    className="flex-1 py-4 btn-tonal text-white rounded-[32px] font-black hover:opacity-90 transition-all shadow-xl shadow-ledger-accent/20 uppercase tracking-widest text-[10px]"
+                    className="flex-1 py-4 btn-tonal rounded-[32px] font-black hover:opacity-90 transition-all shadow-xl shadow-ledger-accent/20 uppercase tracking-widest text-[10px]"
                   >
                     Establish Node
                   </AsyncButton>

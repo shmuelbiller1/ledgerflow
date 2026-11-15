@@ -275,7 +275,7 @@ export default function QueryView() {
               </button>
               <button
                 onClick={handleSaveQuery}
-                className="px-4 py-2 text-xs font-bold text-white btn-tonal hover:bg-indigo-500 rounded-xl shadow-xs"
+                className="px-4 py-2 text-xs font-bold btn-tonal hover:bg-indigo-500 rounded-xl shadow-xs"
               >
                 Save Preset
               </button>

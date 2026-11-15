@@ -241,35 +241,34 @@ function computeUnreachableActions(rootDir: string): number {
 /**
  * Screens that break EASE_OF_USE U-2: more than one filled (primary) button on one screen.
  *
- * Two kinds of line used to be counted that are not a second primary action, and both made the number
- * look worse than the screens were — a ratchet nobody can satisfy is one people stop watching:
+ * Three things are deliberately *not* counted, because each one made the number look worse than the
+ * screens were, and a ratchet nobody can satisfy is one people stop watching:
  *
- * - a *conditional* class (`x === y ? "bg-indigo-600 …" : "…"`), including the multi-line form where
- *   the ternary starts one line before the class. That is a selected chip, not a button the person
- *   presses. AISettings' two were a selected scale chip and a selected model chip.
- * - a filled **icon tile** (`<div className="… bg-indigo-600 …">` holding an icon). It is decoration;
- *   nothing is pressed. AISettings' third match was the BrainCircuit tile.
- * - one filled button per *step* of a wizard. SetupWizard has one per step and the steps are mutually
- *   exclusive, so a screen can never show two. Each `step === n && (…)` block counts on its own.
+ * - a **selected chip**: a filled class inside `cond ? "…" : "…"`. That is a state, not a button.
+ * - an **icon tile**: a filled `<div>` holding an icon. Nothing is pressed.
+ * - a screen whose filled buttons are **one per step** of a wizard: the steps are mutually exclusive,
+ *   so no reader ever sees two.
+ *
+ * The counting works on whole elements rather than on lines. An earlier version asked that `<button`
+ * appear on the same line as the `className`, and this codebase writes most elements across several
+ * lines — so it silently found almost nothing and reported a comfortable zero.
  */
 function computeScreensWithManyPrimaryButtons(rootDir: string): number {
   const filled = /\bbg-indigo-600\b|\bbtn-primary\b|\bbg-\[var\(--gold\)\]/;
   return componentFiles(rootDir).filter(file => {
     const text = fs.readFileSync(file, 'utf8');
-    // keyed by the step a filled button belongs to, so a wizard's one-per-step cannot add up
     const perStep = new Map<string, number>();
     let step = '';
-    let inTernary = false;
-    for (const line of text.split('\n')) {
-      const stepStart = /\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/.exec(line);
-      if (stepStart) { step = stepStart[1].trim(); inTernary = false; continue; }
-      // the ternary usually opens on the line before the class it applies to
-      if (/[?:]\s*$/.test(line.trim()) || /\?\s*$/.test(line.trim())) { inTernary = true; continue; }
-      if (!line.includes('className') || !filled.test(line)) continue;
-      if (/[?:]\s*"/.test(line)) { continue; }
-      if (inTernary) { inTernary = false; continue; }
-      // an icon tile is not an action: only a button-like element counts
-      if (!/<(button|AsyncButton|a)\b|onClick=/.test(line)) continue;
+    // each opening element with its attributes, so a class on any line of it is read with the tag it
+    // belongs to; `[^>]*` is enough because a className string cannot contain a bare `>`
+    for (const element of text.matchAll(/<(button|AsyncButton|a)\b([^>]*)>/g)) {
+      const attributes = element[2];
+      const before = text.slice(0, element.index);
+      const stepHere = [...before.matchAll(/\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/g)].at(-1);
+      if (stepHere) step = stepHere[1].trim();
+      if (!filled.test(attributes)) continue;
+      // a class that is one arm of a ternary is a selected state, not an action
+      if (/[?:]\s*["']/.test(attributes)) continue;
       perStep.set(step, (perStep.get(step) ?? 0) + 1);
     }
     return [...perStep.values()].some(n => n > 1);

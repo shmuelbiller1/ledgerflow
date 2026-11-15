@@ -287,7 +287,7 @@ export default function AnalyticalCenter() {
               <div className="flex items-center gap-2">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 btn-tonal"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-600"></span>
                 </span>
                 <span className="font-semibold text-indigo-950">Focused Intelligence Channel Canvas (Sidebar collapsed)</span>
               </div>
@@ -343,7 +343,7 @@ export default function AnalyticalCenter() {
                       {/* Metric visual micro-progress bar */}
                       <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                         <div 
-                          className="h-full btn-tonal rounded-full transition-all duration-300"
+                          className="h-full bg-indigo-600 rounded-full transition-all duration-300"
                           style={{ width: `${metrics?.kpis?.healthScore || 0}%` }}
                         />
                       </div>

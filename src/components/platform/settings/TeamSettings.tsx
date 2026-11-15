@@ -212,7 +212,7 @@ function ScopedTeamSettings() {
                 disabled={!canManage || saving || inviting || isSeatLimitReached} onChange={event => { setInviteEmail(event.target.value); setInviteError(''); }}
                 className="min-h-11 flex-1 min-w-0 px-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-sm text-[var(--text)]" />
               <button type="submit" disabled={!canManage || saving || inviting || isSeatLimitReached || !inviteEmail.trim()}
-                className="min-h-11 px-4 rounded-xl btn-tonal text-white text-xs font-bold disabled:opacity-50">{inviting ? 'Sending…' : 'Send invite'}</button>
+                className="min-h-11 px-4 rounded-xl btn-tonal text-xs font-bold disabled:opacity-50">{inviting ? 'Sending…' : 'Send invite'}</button>
               {inviteError && <p role="alert" className="absolute -bottom-6 left-0 text-xs text-rose-400">{inviteError}</p>}
             </form> : <p className="sm:col-span-6 text-sm text-[var(--muted)]">Only the workspace owner can invite people.</p>}
 
@@ -322,7 +322,7 @@ function ScopedTeamSettings() {
             {/* Owner Row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-[var(--ink)]/40 border border-[var(--line)] gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full btn-tonal/10 border border-indigo-500/30 text-indigo-500 font-black flex items-center justify-center text-xs">
+                <div className="w-9 h-9 rounded-full bg-indigo-600/10 border border-indigo-500/30 text-indigo-500 font-black flex items-center justify-center text-xs">
                   OW
                 </div>
                 <div>

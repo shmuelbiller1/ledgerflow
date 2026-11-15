@@ -26,7 +26,9 @@ export default function PublicEstimatePage() {
 
   useEffect(() => {
     let live = true;
-    runCommand<{ estimate?: SignView }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}` })
+    // a customer opening this link is not signed in; `token: null` says so explicitly, so a
+  // stale session on the same browser cannot fail the request before it is even sent
+  runCommand<{ estimate?: SignView }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}`, token: null })
       .then(body => body.estimate as SignView)
       .then(v => { if (live) setView(v); })
       .catch(err => { if (live) setError(err instanceof Error ? err.message : String(err)); });
@@ -40,7 +42,7 @@ export default function PublicEstimatePage() {
     setBusy(true);
     setProblem('');
     try {
-      const body = await runCommand<{ signedBy?: string; signedAt?: string }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}/sign`, method: 'POST', body: { name: name.trim(), agree } });
+      const body = await runCommand<{ signedBy?: string; signedAt?: string }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}/sign`, method: 'POST', token: null, body: { name: name.trim(), agree } });
       setView(v => v && { ...v, state: 'signed', signedBy: body.signedBy, signedAt: body.signedAt });
     } catch (err) {
       setProblem(commandErrorMessage(err));

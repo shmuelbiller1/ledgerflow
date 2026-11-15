@@ -372,7 +372,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
             <div className="space-y-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                   <div className="w-2 h-2 rounded-full btn-tonal animate-pulse" />
+                   <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
                    <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em]">
                     {isMapping ? "Categorizing with rules..." : `${mappedTransactions.length} rows ready`}
                   </p>
@@ -429,7 +429,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
                           ) : (
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-2">
-                                <span className="px-3 py-1 btn-tonal/10 text-indigo-600 border border-indigo-600/20 rounded-lg text-[9px] font-medium uppercase tracking-wider">
+                                <span className="px-3 py-1 bg-indigo-600/10 text-indigo-600 border border-indigo-600/20 rounded-lg text-[9px] font-medium uppercase tracking-wider">
                                   {tx.category || 'PENDING'}
                                 </span>
                                 <CategoryWhyPopover 
@@ -477,7 +477,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
           <button 
             onClick={handleConfirm}
             disabled={!selectedIndices.size || isMapping || !bankAccountId}
-            className="px-10 py-3 btn-tonal text-white rounded-[32px] font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 disabled:opacity-30 disabled:grayscale transition-all shadow-xl shadow-ledger-accent/20"
+            className="px-10 py-3 btn-tonal rounded-[32px] font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 disabled:opacity-30 disabled:grayscale transition-all shadow-xl shadow-ledger-accent/20"
            aria-label="Import selected rows">
             Import {selectedIndices.size} rows
           </button>

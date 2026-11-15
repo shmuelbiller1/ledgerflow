@@ -143,6 +143,44 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'the rule still bites');
   });
 
+  test('a button written across several lines is still a button', () => {
+    // this is how most of this codebase writes one, and a line-by-line reading found none of them:
+    // it reported a comfortable zero while the screens were unchanged
+    const root = scratch({
+      'src/components/multi/Multi.tsx': [
+        '<div>',
+        '  <button',
+        '    type="button"',
+        '    onClick={save}',
+        '    className="btn-primary min-h-11"',
+        '  >Save</button>',
+        '  <button',
+        '    type="button"',
+        '    onClick={send}',
+        '    className="bg-indigo-600"',
+        '  >Send</button>',
+        '</div>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
+  });
+
+  test('an icon tile and a selected chip on their own lines are still not buttons', () => {
+    const root = scratch({
+      'src/components/decoration/Decoration.tsx': [
+        '<div className="w-14 h-14 bg-indigo-600 text-white"><Brain /></div>',
+        '<button',
+        '  className={cn(',
+        '    "chip",',
+        '    selected ? "bg-indigo-600" : "bg-[var(--surface)]",',
+        '  )}',
+        '>One</button>',
+        '<button className="btn-primary">Save</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
+  });
+
   test('an index that stops reading a registry raises unreachableActions', () => {
     const root = scratch({ 'src/components/a/A.tsx': '' });
     fs.writeFileSync(path.join(root, 'src/config/pageIndex.ts'), 'APP_TABS\n');

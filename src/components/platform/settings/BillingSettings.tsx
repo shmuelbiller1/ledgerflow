@@ -188,7 +188,7 @@ export default function BillingSettings() {
                   }`}
                 >
                   {p.badge && !isCurrent && (
-                    <div className="absolute -top-3 right-4 btn-tonal text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">
+                    <div className="absolute -top-3 right-4 bg-indigo-600 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">
                       {p.badge}
                     </div>
                   )}
@@ -235,7 +235,7 @@ export default function BillingSettings() {
                     <RequireRole requiredRole="owner" disableOnly tooltip="Only the workspace owner can upgrade plans">
                       <button
                         onClick={() => handleCheckout(p.id)}
-                        className="w-full py-2.5 btn-tonal hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2.5 btn-tonal hover:bg-indigo-500 font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         Upgrade to {p.name} <ChevronRight size={14} />
                       </button>

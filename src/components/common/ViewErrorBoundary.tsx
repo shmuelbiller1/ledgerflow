@@ -107,7 +107,7 @@ export class ViewErrorBoundary extends Component<Props, State> {
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={this.handleRetry}
-              className="px-5 py-2.5 btn-tonal hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
+              className="px-5 py-2.5 btn-tonal hover:bg-indigo-700 font-bold text-xs rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
             >
               <RefreshCw size={14} />
               <span>Retry Rendering</span>

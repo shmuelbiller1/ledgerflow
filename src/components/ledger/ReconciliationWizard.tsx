@@ -374,7 +374,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
                 }
                 setStep(2);
               }}
-              className="flex items-center gap-3 px-12 py-4 btn-tonal text-white rounded-[32px] font-black uppercase tracking-[0.2em] text-[10px] hover:brightness-110 transition-all shadow-xl shadow-ledger-accent/20"
+              className="flex items-center gap-3 px-12 py-4 btn-tonal rounded-[32px] font-black uppercase tracking-[0.2em] text-[10px] hover:brightness-110 transition-all shadow-xl shadow-ledger-accent/20"
             >
               Continue
               <ChevronRight aria-hidden="true" size={18} />
@@ -383,7 +383,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
             <div className="flex items-center gap-5">
               <button 
                 onClick={handleAutoMatch}
-                className="flex items-center gap-3 px-8 py-4 bg-[var(--ink)] text-indigo-600 rounded-[32px] font-black uppercase tracking-[0.1em] text-[10px] border border-indigo-600/20 hover:btn-tonal/10 transition-all"
+                className="flex items-center gap-3 px-8 py-4 bg-[var(--ink)] text-indigo-600 rounded-[32px] font-black uppercase tracking-[0.1em] text-[10px] border border-indigo-600/20 hover:bg-indigo-600/10 transition-all"
                aria-label="Auto-match">
                 <Sparkles aria-hidden="true" size={18} />
                 Auto-match
