@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { 
   Headphones, 
@@ -144,23 +145,14 @@ export default function SupportView() {
 
       await setDoc(doc(db, 'supportTickets', ticketId), newTicket);
 
-      const idToken = await user?.getIdToken();
       let sentViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${ticketId}/messages`, {
+        await runCommand({
+          path: `/api/v1/support/tickets/${ticketId}/messages`,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            body: safeInitialMessage,
-            authorRole: 'user'
-          })
+          body: { body: safeInitialMessage, authorRole: 'user' },
         });
-        if (res.ok) {
-          sentViaApi = true;
-        }
+        sentViaApi = true;
       } catch (apiErr) {
         console.warn('API message send failed, using client write:', apiErr);
       }
@@ -198,23 +190,14 @@ export default function SupportView() {
     setIsSending(true);
     const textToSend = maskCardNumbers(messageInput.trim());
     try {
-      const idToken = await user?.getIdToken();
       let sentViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${selectedTicketId}/messages`, {
+        await runCommand({
+          path: `/api/v1/support/tickets/${selectedTicketId}/messages`,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            body: textToSend,
-            authorRole: isAdmin ? 'admin' : 'user'
-          })
+          body: { body: textToSend, authorRole: isAdmin ? 'admin' : 'user' },
         });
-        if (res.ok) {
-          sentViaApi = true;
-        }
+        sentViaApi = true;
       } catch (apiErr) {
         console.warn('API send message failed, using client write:', apiErr);
       }
@@ -260,20 +243,10 @@ export default function SupportView() {
       ),
     }));
     try {
-      const idToken = await user?.getIdToken();
       let updatedViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${selectedTicketId}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({ status })
-        });
-        if (res.ok) {
-          updatedViaApi = true;
-        }
+        await runCommand({ path: `/api/v1/support/tickets/${selectedTicketId}/status`, method: 'PATCH', body: { status } });
+        updatedViaApi = true;
       } catch (apiErr) {
         console.warn('API update status failed, using client write:', apiErr);
       }

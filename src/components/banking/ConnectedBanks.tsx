@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getIdToken } from '../../firebase';
@@ -32,9 +33,8 @@ export default function ConnectedBanks() {
     const ws = workspaceId;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/plaid/banks?workspaceId=${encodeURIComponent(ws)}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      if (!res.ok) throw new Error('The server could not list your bank connections');
-      return readBankStatuses(await res.json());
+      const raw = await runCommand({ path: `/api/v1/plaid/banks?workspaceId=${encodeURIComponent(ws)}` });
+      return readBankStatuses(raw);
     })().then(list => { if (live) setRead({ workspace: ws, state: 'ready', banks: list, error: '' }); }).catch(err => {
       // a read that failed is not "no connections": say so, and offer the one action that retries it
       if (live) setRead({ workspace: ws, state: 'error', banks: [], error: err instanceof Error ? err.message : 'The server could not list your bank connections' });
@@ -51,16 +51,11 @@ export default function ConnectedBanks() {
     if (!window.confirm(`Disconnect ${bank.institutionName}? No new bank lines will arrive from it; the lines already imported stay.`)) return;
     setBusy(bank.id);
     try {
-      const res = await fetch('/api/v1/plaid/disconnect', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ workspaceId, bankId: bank.id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The bank was not disconnected');
+      await runCommand({ path: '/api/v1/plaid/disconnect', method: 'POST', body: { workspaceId, bankId: bank.id } });
       toast.success(`${bank.institutionName} disconnected; its imported lines are kept`);
       setReload(n => n + 1);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy('');
     }

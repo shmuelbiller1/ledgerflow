@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, UserCheck, AlertTriangle, RefreshCw, CheckCircle2, Lock, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -36,16 +37,16 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/v1/invites/${token}`);
-        const data = await res.json();
+        const data = await runCommand<{ status?: string; invite?: { email: string; workspaceName: string; role: string }; message?: string }>({ path: `/api/v1/invites/${encodeURIComponent(token)}` });
 
-        if (res.ok && data.status === 'success') {
+        if (data.status === 'success' && data.invite) {
           setInviteDetails(data.invite);
         } else {
           setError(data.message || 'Invalid or expired invite token');
         }
       } catch (err) {
-        setError((err as Error).message || 'Failed to connect to invite service');
+        // the refusal is the invite being expired or already used; show what the server said
+        setError(commandErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -65,19 +66,15 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
         return;
       }
 
-      const res = await fetch(`/api/v1/invites/${token}/accept`, {
+      const data = await runCommand<{ status?: string; role?: string; workspaceId?: string; message?: string }>({
+        path: `/api/v1/invites/${encodeURIComponent(token)}/accept`,
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
+        token: idToken,
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.status === 'success') {
+      if (data.status === 'success') {
         setAccepted(true);
-        toast.success(`Successfully joined workspace as ${data.role.toUpperCase()}!`);
+        toast.success(`Successfully joined workspace as ${(data.role || 'member').toUpperCase()}!`);
         
         // Set workspace and navigate
         if (data.workspaceId && setCurrentWorkspaceId) {

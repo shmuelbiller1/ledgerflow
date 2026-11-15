@@ -1,3 +1,4 @@
+import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { Lock, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
@@ -43,12 +44,9 @@ function RecentSignInsSection() {
     if (!user || user.isAnonymous || isGuest || typeof fetch !== 'function') return;
     void (async () => {
       try {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/v1/auth/login-audits', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const body = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const body = await runCommand<{ loginAudits?: unknown; data?: { audits?: unknown } }>({ path: '/api/v1/auth/login-audits' });
+        if (cancelled) return;
         const list = body?.loginAudits || body?.data?.audits;
         if (!cancelled && Array.isArray(list)) setAudits(list);
       } catch {
@@ -311,13 +309,7 @@ export default function SecuritySettings() {
                 <button 
                   onClick={async () => {
                     try {
-                      const res = await fetch('/api/v1/auth/revoke-sessions', {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${await useAuthStore.getState().user?.getIdToken()}`
-                        }
-                      });
-                      if (!res.ok) throw new Error(await res.text());
+                      await runCommand({ path: '/api/v1/auth/revoke-sessions', method: 'POST' });
                       toast.success('Sessions revoked. You will be signed out.');
                     } catch (err) {
                       toast.error('Failed to revoke sessions: ' + (err as Error).message);
@@ -343,9 +335,9 @@ export default function SecuritySettings() {
                   type="button"
                   onClick={async () => {
                     try {
-                      const res = await fetch('/api/v1/account/my-data', { headers: { Authorization: `Bearer ${await useAuthStore.getState().user?.getIdToken()}` } });
-                      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not collect your data');
-                      const blob = new Blob([JSON.stringify(await res.json(), null, 2)], { type: 'application/json' });
+                      // read the body exactly once: calling res.json() twice left this saving "{}"
+                      const mine = await runCommand({ path: '/api/v1/account/my-data' });
+                      const blob = new Blob([JSON.stringify(mine, null, 2)], { type: 'application/json' });
                       const link = document.createElement('a');
                       link.href = URL.createObjectURL(blob);
                       link.download = `${BRAND.fileSlug}-my-data.json`;
@@ -373,18 +365,17 @@ export default function SecuritySettings() {
                   onClick={async () => {
                     if (safeConfirm('Delete your account? Your sign-in and personal data are deleted; workspaces only you use are deleted after 30 days. This can\'t be undone.')) {
                       try {
-                        const res = await fetch('/api/v1/auth/delete-account', {
-                          method: 'DELETE',
-                          headers: {
-                            'Authorization': `Bearer ${await useAuthStore.getState().user?.getIdToken()}`
+                        try {
+                          await runCommand({ path: '/api/v1/auth/delete-account', method: 'DELETE' });
+                        } catch (err) {
+                          // 409 means someone else still owns a workspace you are in; that is a
+                          // refusal to explain, not a failure to report as "that did not work"
+                          if (err instanceof ServerCommandError && err.status === 409) {
+                            toast.error('Your account was not deleted', { description: err.message });
+                            return;
                           }
-                        });
-                        const body = await res.json().catch(() => ({}));
-                        if (res.status === 409) {
-                          toast.error('Your account was not deleted', { description: body.error });
-                          return;
+                          throw err;
                         }
-                        if (!res.ok) throw new Error(body.error || 'Failed to delete account');
                         toast.success('Your account was deleted.');
                         inBackground(auth.signOut(), 'Your account was deleted, but signing out failed. Sign out again, or close this tab.');
                       } catch (err) {
