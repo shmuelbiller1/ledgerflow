@@ -10,7 +10,7 @@ ticked when the ratchet number moved or the named test exists and passes.
 
 | counter | now | target | meaning |
 |---|---|---|---|
-| `rawTables` | **192** | 0 | screen files drawing their own `<table>` instead of the shared list |
+| `rawTables` | **190** | 0 | screen files drawing their own `<table>` instead of the shared list |
 | `handTypedApiCalls` | **170** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
 | `directDbWrites` | **93** | 0 | direct database writes in `src/components`, `src/hooks`, `src/stores` |
 | `unreachableActions` | **0** | 0 ✅ | commands/reports no palette search can find |
@@ -28,7 +28,8 @@ ticked when the ratchet number moved or the named test exists and passes.
 - [x] `BankClearanceReportView` on it — the first report, proving the path (195→192 across four).
 - [ ] **Transactions** on it (`TransactionGrid.tsx` composes rows; the list itself is hand-built).
 - [ ] **Bank review** on it (`ReconciliationView`, `BankFeedImport`, `InboxView`).
-- [x] `TagBreakdownReportView`, `IncomeBySourceReportView`, `AverageMonthlyReportView` on it (192).
+- [x] `TagBreakdownReportView`, `IncomeBySourceReportView`, `AverageMonthlyReportView` (192).
+- [x] `TopExpensesIncomeReportView`, `ExpenseByCategoryReportView` (190).
 - [ ] Report tail, the rest of the 195, each PR lowering `rawTables`.
 - [ ] The 39 files with more than one table, and the 12 with columns built by `.map()`.
 - [ ] Non-report screens: finance (10), platform (15), hr (4), dashboard (2).

@@ -2,6 +2,10 @@ import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import { csvMoney } from '../../lib/csvExport';
+import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -38,6 +42,29 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
   // L-123 step 4d: with the loaded list capped, the breakdown comes from the server (every entry of the range)
   const { categories: breakdowns, source } = useServerExpenseByCategory(start, end);
 
+  /**
+   * One row per chart-of-accounts category: how many entries, what share of the period they are, and
+   * what they came to. The share sorts on the number, not the printed percentage.
+   */
+  const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
+    { id: 'category', accessorFn: row => row.category, header: 'Category', cell: info => (
+      <span className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" aria-hidden="true" />
+        <bdi>{String(info.getValue())}</bdi>
+      </span>
+    ) },
+    { id: 'count', accessorFn: row => row.transactionCount, header: 'Transactions', cell: info => <span className="font-mono">{String(info.getValue())}</span> },
+    { id: 'share', accessorFn: row => row.percentage, header: 'Share', cell: info => (
+      <span className="flex items-center justify-end gap-2">
+        <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
+        </span>
+        <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
+      </span>
+    ) },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: 'Total Outflow', cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
+  ];
+
   const totalExpenseCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
   }, [breakdowns]);
@@ -68,56 +95,26 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
         accounts={accounts} bills={bills} startDate={start} endDate={end}
         loading={billsLoading} incomplete={listIncomplete} currency={currency} />
 
-      {breakdowns.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 text-neutral-500 text-xs">
-          No posted expense transactions found for the selected period.
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden shadow-xs">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Expenses by category</caption>
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">Category</th>
-                <th scope="col" className="py-3 px-4 text-center">Transactions</th>
-                <th scope="col" className="py-3 px-4 text-right">Share</th>
-                <th scope="col" className="py-3 px-4 text-right">Total Outflow</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {breakdowns.map(item => (
-                <tr key={item.category} className="hover:bg-neutral-50/80 transition-colors">
-                  <td className="py-3 px-4 font-medium text-neutral-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                      <span>{item.category}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center text-neutral-600 font-mono">
-                    {item.transactionCount}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-rose-500 h-full rounded-full"
-                          style={{ width: `${Math.min(100, item.percentage)}%` }}
-                        />
-                      </div>
-                      <span className="font-mono text-neutral-700 w-12 text-right">
-                        {item.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-rose-600">
-                    {formatCurrency(item.totalAmountCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TanStackDataGrid
+        caption="Expenses by category"
+        data={breakdowns}
+        columns={columns}
+        rowHeaderColumn="category"
+        pageSize={25}
+        searchPlaceholder="Search categories..."
+        searchLabel="Search categories"
+        columnScope="report-expense-by-category"
+        columnLabel="Expenses by category columns"
+        columnNames={['Category', 'Transactions', 'Share', 'Total Outflow']}
+        exportConfig={{
+          filename: 'expenses-by-category.csv',
+          label: 'Export CSV',
+          headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
+          mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+        }}
+        emptyState={<EmptyState title="No posted expenses in this period" description="Try a wider period." />}
+        filteredEmptyState={<EmptyState title="No category matches your search" description="Try another category name." />}
+      />
     </div>
   );
 };
