@@ -272,8 +272,15 @@ test('G-24 W1: first invoice through the invoice form, then the customer stateme
  */
 test('G-25 W1: the palette is reachable by keyboard at 390px, where the search bar is hidden', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await shell(page);
-  await seedSignedUp(page, 'Phone Books');
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => route.fulfill({ json: {} }));
+  await page.addInitScript(() => {
+    localStorage.setItem('isGuest', 'true');
+    localStorage.setItem('has_seen_onboarding', 'true');
+    localStorage.setItem('ledgerflow-cookie-consent', JSON.stringify({ essential: true, analytics: false }));
+  });
+  await page.goto('/#dashboard');
 
   const search = page.getByRole('button', { name: 'Search, or type what you want to do', exact: true });
   await expect(search).toBeVisible();
@@ -290,4 +297,5 @@ test('G-25 W1: the palette is reachable by keyboard at 390px, where the search b
   await expect(input).toBeFocused();
   await page.keyboard.type('profit');
   await expect(page.getByRole('button', { name: /Profit &? ?Loss/i }).first()).toBeVisible();
+  expect(errors).toEqual([]);
 });
