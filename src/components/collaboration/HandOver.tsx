@@ -1,6 +1,6 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import type { RecordRef } from '../../lib/recordLinks';
@@ -19,12 +19,11 @@ export function HandOver({ record, hand }: { record: RecordRef & { label: string
     if (!assignee) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(hand.workspaceId)}/tasks`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ title: `Review: ${record.label}`.slice(0, 200), assignee, record }),
+      const data = await runCommand<{ task: Parameters<typeof hand.added>[0] }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(hand.workspaceId)}/tasks`,
+        method: 'POST',
+        body: { title: `Review: ${record.label}`.slice(0, 200), assignee, record },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'It could not be handed over');
       hand.added(data.task);
       toast.success(`Given to ${nameOf(assignee)}`);
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
