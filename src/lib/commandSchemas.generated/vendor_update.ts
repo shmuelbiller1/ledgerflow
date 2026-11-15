@@ -4,11 +4,11 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part50,
+    "id": COMMAND_SCHEMA_PARTS.part51,
     "data": {
       "type": "object",
       "properties": {
-        "name": COMMAND_SCHEMA_PARTS.part50,
+        "name": COMMAND_SCHEMA_PARTS.part51,
         "category": COMMAND_SCHEMA_PARTS.part27,
         "email": COMMAND_SCHEMA_PARTS.part29,
         "phone": COMMAND_SCHEMA_PARTS.part27,
@@ -19,20 +19,20 @@ export const COMMAND_INPUT_SCHEMA = {
         "terms": COMMAND_SCHEMA_PARTS.part27,
         "billsExpected": COMMAND_SCHEMA_PARTS.part11,
         "type": COMMAND_SCHEMA_PARTS.part27,
-        "status": COMMAND_SCHEMA_PARTS.part46,
+        "status": COMMAND_SCHEMA_PARTS.part47,
         "pipelineStage": COMMAND_SCHEMA_PARTS.part27,
         "is1099": COMMAND_SCHEMA_PARTS.part11,
         "isForeign": COMMAND_SCHEMA_PARTS.part11,
         "rating": COMMAND_SCHEMA_PARTS.part8,
-        "tags": COMMAND_SCHEMA_PARTS.part65,
-        "metadata": COMMAND_SCHEMA_PARTS.part69,
+        "tags": COMMAND_SCHEMA_PARTS.part67,
+        "metadata": COMMAND_SCHEMA_PARTS.part71,
         "address": COMMAND_SCHEMA_PARTS.part33,
         "currency": COMMAND_SCHEMA_PARTS.part22,
         "deliveryMethod": COMMAND_SCHEMA_PARTS.part23,
         "contacts": COMMAND_SCHEMA_PARTS.part42,
         "noteLog": COMMAND_SCHEMA_PARTS.part42,
         "notes": COMMAND_SCHEMA_PARTS.part36,
-        "bankDetails": COMMAND_SCHEMA_PARTS.part103
+        "bankDetails": COMMAND_SCHEMA_PARTS.part106
       },
       "additionalProperties": false
     }

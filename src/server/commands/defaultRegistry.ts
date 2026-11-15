@@ -1,4 +1,5 @@
 import { alertSettingsUpdateCommand } from './alerts';
+import { importMapRestoreCommand, importMapSaveCommand } from './importMaps';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from './entryLinks';
 import { stageDefineCommand, stageMoveCommand } from './stages';
 import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from './tasks';
@@ -29,6 +30,8 @@ import { CommandRegistry } from './registry';
 export function createDefaultCommandRegistry(): CommandRegistry {
   const registry = new CommandRegistry();
   registry.register(alertSettingsUpdateCommand);
+  registry.register(importMapSaveCommand);
+  registry.register(importMapRestoreCommand);
   registry.register(entryLinkCreateCommand);
   registry.register(entryLinkRemoveCommand);
   registry.register(stageDefineCommand);

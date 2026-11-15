@@ -33,7 +33,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part118
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/invoice.create",
     "previewPath": "/api/v1/commands/invoice.create/preview",
@@ -47,7 +47,7 @@ export const INVOICE_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Delete a invoice and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part12,
-      "refusals": COMMAND_SCHEMA_PARTS.part118
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/invoice.delete",
     "previewPath": "/api/v1/commands/invoice.delete/preview",
@@ -60,8 +60,8 @@ export const INVOICE_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part47,
-      "refusals": COMMAND_SCHEMA_PARTS.part118
+      "example": COMMAND_SCHEMA_PARTS.part48,
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/invoice.update",
     "previewPath": "/api/v1/commands/invoice.update/preview",

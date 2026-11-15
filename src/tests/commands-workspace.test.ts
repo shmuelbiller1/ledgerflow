@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { RequestUser } from '../server/auth/requestUser';
 import type { CommandDefinition } from '../server/commands/types';
 import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
+import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from '../server/commands/entryLinks';
 import { stageDefineCommand, stageMoveCommand } from '../server/commands/stages';
 import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../server/commands/tasks';
@@ -47,6 +48,44 @@ test('task, watch, entry-link, time, and stage commands publish validated exampl
   assert.deepEqual(entryLinkCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
   assert.deepEqual(timeLogCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
   assert.deepEqual(stageDefineCommand.roles, ['owner', 'accountant']);
+});
+
+test('workspace import-map commands preview saves and can restore their full prior snapshot', async () => {
+  const db = new MemoryDb();
+  const previousMaps = {
+    csv_3_1234abcd: { columns: { date: 'Date' }, skipRows: 0, savedAt: '2026-11-01T00:00:00.000Z' },
+  };
+  seedWorkspace(db, workspaceId, { importColumnMaps: previousMaps });
+  const input = {
+    signature: 'csv_5_1234abcd',
+    columns: { date: 'Posted Date', description: 'Description', debit: 'Debit', credit: 'Credit' },
+    skipRows: 1,
+  };
+  assert.equal(importMapSaveInput.safeParse(input).success, true);
+  assert.equal(importMapSaveCommand.input.safeParse(importMapSaveCommand.describe.example).success, true);
+  assert.equal(importMapRestoreCommand.input.safeParse(importMapRestoreCommand.describe.example).success, true);
+  assert.ok(importMapSaveCommand.describe.refusals.length > 0);
+  assert.ok(importMapRestoreCommand.describe.refusals.length > 0);
+
+  const dependencies = runnerDependencies(db);
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: importMapSaveCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Skip 1 header row', 'credit: Credit', 'date: Posted Date', 'debit: Debit', 'description: Description']);
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'import-map-command-save'), captureResponse().response,
+    { definition: importMapSaveCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  const inverse = importMapSaveCommand.inverse?.(input, saved.data as Parameters<NonNullable<typeof importMapSaveCommand.inverse>>[1]);
+  assert.deepEqual(inverse, { command: 'workspace.restoremaps', input: { maps: previousMaps } });
+  const savedMaps = db.read(`workspaces/${workspaceId}`)?.importColumnMaps as Record<string, unknown> | undefined;
+  assert.ok(savedMaps && Object.hasOwn(savedMaps, 'csv_5_1234abcd'));
+
+  const restored = await executeCommand(fakeRequest(owner, inverse?.input, 'import-map-command-undo'), captureResponse().response,
+    { definition: importMapRestoreCommand, workspaceId, input: inverse?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.importColumnMaps, previousMaps);
 });
 
 test('legacy route idempotency hashes include path targets for task deletes and status updates', async () => {

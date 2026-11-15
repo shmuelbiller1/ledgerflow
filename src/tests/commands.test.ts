@@ -12,6 +12,7 @@ import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
+import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
 import { taskCreateCommand } from '../server/commands/tasks';
 import { watchCreateCommand } from '../server/commands/watches';
 import { customerCreateCommand, customerCreateInput, customerUpdateCommand, customerUpdateInput, warrantyUpdateCommand, warrantyUpdateInput } from '../server/commands/customers';
@@ -63,10 +64,13 @@ test('the default registry is sorted and unique across the registered command do
     'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update',
     'watches.create', 'watches.remove',
+    'workspace.importmap', 'workspace.restoremaps',
   ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches']);
+  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
+  assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
+  assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
   assert.equal(registry.get('watches.create'), watchCreateCommand);
   assert.equal(registry.get('unknown.create'), undefined);
@@ -147,7 +151,7 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.group'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/alerts.update'), 'write:workspaces');
-  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move']) {
+  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move', 'workspace.importmap', 'workspace.restoremaps']) {
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
   }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendor.create'), 'write:vendors');

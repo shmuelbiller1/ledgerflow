@@ -15,6 +15,7 @@ import { VENDOR_COMMAND_MANIFEST } from './commandManifests.generated/vendor';
 import { VENDORCREDIT_COMMAND_MANIFEST } from './commandManifests.generated/vendorcredit';
 import { WARRANTY_COMMAND_MANIFEST } from './commandManifests.generated/warranty';
 import { WATCHES_COMMAND_MANIFEST } from './commandManifests.generated/watches';
+import { WORKSPACE_COMMAND_MANIFEST } from './commandManifests.generated/workspace';
 
 export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
@@ -33,5 +34,6 @@ export const COMMAND_MANIFEST = [
   ...VENDORCREDIT_COMMAND_MANIFEST,
   ...WARRANTY_COMMAND_MANIFEST,
   ...WATCHES_COMMAND_MANIFEST,
+  ...WORKSPACE_COMMAND_MANIFEST,
 ] as const;
 export type RegisteredCommandName = typeof COMMAND_MANIFEST[number]['name'];

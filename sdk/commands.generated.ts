@@ -40,7 +40,9 @@ export const REGISTERED_COMMAND_NAMES = [
   "vendorcredit.update",
   "warranty.update",
   "watches.create",
-  "watches.remove"
+  "watches.remove",
+  "workspace.importmap",
+  "workspace.restoremaps"
 ] as const;
 export type RegisteredCommandName = typeof REGISTERED_COMMAND_NAMES[number];
 

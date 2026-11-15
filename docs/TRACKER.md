@@ -31,9 +31,9 @@ in-app assistant works in a sandbox copy of the books and proposes changes the p
 | step | prompt | state |
 |---|---|---|
 | CMD-1 Batch 0: runner, direct address, ratchet, generator, first 24 commands | `docs/prompts/CMD-1-commands.md` | merged as #719 (15 Nov); migration applied by the owner 15 Nov |
-| CMD-1 Batches 1–N: workspace, tasks, periods, accounts, inventory, then the rest; full OpenAPI + SDK; `risk: high` commands | same | active on `arena/9b68b7f9-ledgerflow`: alerts plus all 15 task/watch/link/time/stage writes moved behind commands; 204 route writes remain; CI pending |
+| CMD-1 Batches 1–N: workspace, tasks, periods, accounts, inventory, then the rest; full OpenAPI + SDK; `risk: high` commands | same | active on `arena/9b68b7f9-ledgerflow` / draft PR #726: alerts, saved import-map settings, and all 15 task/watch/link/time/stage writes use commands; 203 non-command route-write sites and 106 direct browser-write sites remain by the static ratchet. Final-head CI through `1f1e70f` passed apart from Vercel's `build-rate-limit`; Gitar's route-ID idempotency finding is fixed and resolved. |
 | CMD-1 browser writes, table by table, each with its migration (closes the rest of #646) | same | 4 document tables + rules in #719 |
-| CMD-1 proposals, undo, assistant tools (`assistant/tools.json`, system prompt, read tools) | same | 40 commands now exist; still held until the documented SBX-1 prerequisites are met |
+| CMD-1 proposals, undo, assistant tools (`assistant/tools.json`, system prompt, read tools) | same | 42 commands now exist; still held until the documented SBX-1 prerequisites are met |
 | SBX-1 the assistant's sandbox: overlay copy of the books, accept / partial / edit / reject, re-check | `docs/prompts/SBX-1-assistant-sandbox.md` | after CMD-1 workspace, accounts, periods and inventory batches |
 | SBX-2 speed: answer without the model when code can, remembered decisions, caching, two models | to write | after SBX-1 |
 

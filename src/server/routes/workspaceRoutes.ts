@@ -29,6 +29,7 @@ import { payRunRouter } from './payRunRoutes';
 import { twoStepPolicyRouter } from './twoStepPolicyRoutes';
 import { AlertSettingsError } from '../services/bookAlertService';
 import { alertSettingsUpdateCommand } from '../commands/alerts';
+import { importMapSaveCommand } from '../commands/importMaps';
 import { executeCommand } from '../utils/commandExecutor';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
@@ -125,41 +126,32 @@ workspaceRouter.post('/:workspaceId/apply-template', requireWorkspaceRole(['owne
 });
 
 // Saved CSV column layouts for statement imports (src/lib/importColumnMaps.ts), keyed by the
-// file's header signature. Anyone who imports statements (owner/accountant/bookkeeper) may save.
-const importMapSchema = z.object({
-  signature: z.string().regex(/^csv_\d{1,3}_[0-9a-f]{8}$/),
-  columns: z.object(Object.fromEntries(['date', 'description', 'amount', 'debit', 'credit', 'payee', 'memo'].map(f => [f, z.string().min(1).max(200).optional()]))).strict(),
-  skipRows: z.number().int().min(0).max(20),
-}).strict();
-const MAX_IMPORT_MAPS = 50;
-
+// file's header signature. Keep the legacy address and response while the named command owns the
+// schema, transaction, idempotency, and audit entry.
 workspaceRouter.post('/:workspaceId/import-maps', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
-  try {
-    const { workspaceId } = req.params as Record<string, string>;
-    const { signature, columns, skipRows } = importMapSchema.parse(req.body);
-    const db = getDb();
-    const ref = db.collection('workspaces').doc(workspaceId);
-    await db.runTransaction(async (t) => {
-      const maps = { ...((await t.get(ref)).data()?.importColumnMaps || {}) } as Record<string, { savedAt?: string }>;
-      maps[signature] = { columns, skipRows, savedAt: new Date().toISOString() } as { savedAt: string };
-      // Keep the most recently used layouts only
-      const keep = Object.entries(maps).sort((a, b) => String(b[1].savedAt || '').localeCompare(String(a[1].savedAt || ''))).slice(0, MAX_IMPORT_MAPS);
-      t.update(ref, { importColumnMaps: Object.fromEntries(keep), updatedAt: new Date().toISOString() });
-      await writeServerAuditLog({
-        workspaceId,
-        uid: requestUser(req).uid,
-        email: requestUser(req).email,
-        action: 'IMPORT_MAP_SAVED',
-        entityType: 'workspace',
-        entityId: workspaceId,
-        details: { description: `Saved CSV import column layout (${signature})`, signature },
-      }, { db, tx: t });
-    });
-    res.json({ status: 'success' });
-  } catch (err) {
-    if (err instanceof z.ZodError) return sendError(res, 'Invalid column layout', 400, err.issues);
-    sendError(res, 'Could not save the column layout', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: importMapSaveCommand,
+    workspaceId: String((req.params as Record<string, string>).workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) return { status: outcome.status, body: { status: 'success' } };
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid column layout', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: 500,
+          body: {
+            status: 'error',
+            message: 'Could not save the column layout',
+            details: error instanceof Error ? errorMessage(error) : String(error || outcome.message),
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Closing the books: close / reopen / partial unlock / sign-offs (src/server/routes/periodRoutes.ts)

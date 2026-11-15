@@ -39,5 +39,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "vendorcredit.update": "CommandInput_vendorcredit_update",
   "warranty.update": "CommandInput_warranty_update",
   "watches.create": "CommandInput_watches_create",
-  "watches.remove": "CommandInput_watches_remove"
+  "watches.remove": "CommandInput_watches_remove",
+  "workspace.importmap": "CommandInput_workspace_importmap",
+  "workspace.restoremaps": "CommandInput_workspace_restoremaps"
 } as const;

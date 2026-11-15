@@ -51,7 +51,7 @@ export const TIME_COMMAND_MANIFEST = [
   {
     "name": "time.log",
     "area": "time",
-    "roles": COMMAND_SCHEMA_PARTS.part44,
+    "roles": COMMAND_SCHEMA_PARTS.part45,
     "risk": "normal",
     "description": {
       "sentence": "Log your work time or, as an owner or accountant, time for another workspace member; do not use this to post an invoice.",
@@ -88,7 +88,7 @@ export const TIME_COMMAND_MANIFEST = [
   {
     "name": "time.move",
     "area": "time",
-    "roles": COMMAND_SCHEMA_PARTS.part44,
+    "roles": COMMAND_SCHEMA_PARTS.part45,
     "risk": "normal",
     "description": {
       "sentence": "Submit your open time, withdraw your submitted time, or approve or send back time as an owner or accountant; do not use it to invoice time.",
@@ -171,7 +171,7 @@ export const TIME_COMMAND_MANIFEST = [
   {
     "name": "time.remove",
     "area": "time",
-    "roles": COMMAND_SCHEMA_PARTS.part44,
+    "roles": COMMAND_SCHEMA_PARTS.part45,
     "risk": "normal",
     "description": {
       "sentence": "Remove an open entry you own or an entry an owner or accountant may edit; do not use this to remove invoiced or payroll-paid time.",
@@ -179,7 +179,7 @@ export const TIME_COMMAND_MANIFEST = [
         "entryId": "time_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part90,
+        COMMAND_SCHEMA_PARTS.part93,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller cannot edit this entry or it is locked.",
@@ -194,7 +194,7 @@ export const TIME_COMMAND_MANIFEST = [
   {
     "name": "time.update",
     "area": "time",
-    "roles": COMMAND_SCHEMA_PARTS.part44,
+    "roles": COMMAND_SCHEMA_PARTS.part45,
     "risk": "normal",
     "description": {
       "sentence": "Edit an open entry you own or any entry as an owner or accountant; do not use it to change an entry already invoiced or paid.",
@@ -211,7 +211,7 @@ export const TIME_COMMAND_MANIFEST = [
           "when": "One or more supplied time fields are invalid.",
           "next": "Correct the date, minutes, description, customer, or hourly rate."
         },
-        COMMAND_SCHEMA_PARTS.part90,
+        COMMAND_SCHEMA_PARTS.part93,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller does not own an open entry and is not an owner or accountant.",
