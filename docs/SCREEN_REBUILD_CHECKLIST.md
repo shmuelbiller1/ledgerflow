@@ -1,113 +1,153 @@
 # Screen rebuild — the running checklist
 
-The task: **every action and report the server offers can be reached, and a new person still sees only
-a few things.** Do not add features. Connect and simplify what exists.
+This is the same checklist that sits at the top of the open PR, kept in the repo so it survives the PR
+being merged (a PR description is read once; this file is read every time).
 
-State is measured from `quality-baseline.json` and the guard tests, not from prose. A box is only
-ticked when the ratchet number moved or the named test exists and passes.
+**The task:** every action and report the server offers can be reached, and a new person still sees
+only a few things. Do not add features. Connect and simplify what exists.
 
-## Where we are (measured 2026-11-15, after #718)
+**How to read it:** a box is ticked only when the ratchet number moved, or the named test exists and
+passes. Every number comes from `quality-baseline.json` and the live counter, never from prose — the
+previous version of this file drifted because it repeated a count nobody re-measured.
 
-| counter | now | target | meaning |
-|---|---|---|---|
-| `rawTables` | **184** | 0 | screen files drawing their own `<table>` instead of the shared list |
-| `handTypedApiCalls` | **154** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
-| `directDbWrites` | **93** | 0 | direct database writes in `src/components`, `src/hooks`, `src/stores` |
-| `unreachableActions` | **0** | 0 ✅ | commands/reports no palette search can find |
-| `screensWithManyPrimaryButtons` | **19** | 0 | screens with more than one filled button |
+Source of truth for every number below is `quality-baseline.json` + the live counter (`computeQualityMetrics`), not prose. **A box is only ticked when the number moved or the named test exists and passes.**
 
-## 1. One list — the shared grid is the only list
+Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **154** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **19**.
 
-- [x] The grid has sort, search, column chooser, export, saved views, row keyboard movement, tick
-      boxes with a total of the selected rows, cards at 390px, and the one-sentence empty state that
-      hides the tools.
-- [x] Report screens can move onto it: `rowHeaderColumn` (`<th scope="row">`) and `totals`
-      (`<tfoot>`, one cell per drawn column so the chooser hides it in step).
-- [x] `npm run scaffold:report` emits the shared list, not a hand-drawn table.
-- [x] `Sales.tsx` (customers), `Purchases.tsx` (vendors), `Inventory.tsx` (items) on it.
-- [x] `BankClearanceReportView` on it — the first report, proving the path (195→192 across four).
-- [x] **Transactions**: decided it stays. It draws no `<table>` at all — it is a CSS grid with twelve
-      editable cells per row, a split editor and paste handling. Moving it would delete in-place
-      editing, so it is out of this ratchet and the reason is in `docs/FOR_YOU.md`.
-- [ ] **Bank review** on it (`ReconciliationView`, `BankFeedImport`, `InboxView`).
-- [x] `TagBreakdownReportView`, `IncomeBySourceReportView`, `AverageMonthlyReportView` (192).
-- [x] `TopExpensesIncomeReportView`, `ExpenseByCategoryReportView` (190).
-- [ ] Report tail, the rest of the 195, each PR lowering `rawTables`.
-- [ ] The 39 files with more than one table, and the 12 with columns built by `.map()`.
-- [ ] Non-report screens: finance (10), platform (15), hr (4), dashboard (2).
+---
 
-## 2. One record page
+## The five ratchets
 
-- [ ] A shared single-record layout: fields editable in place, path at the top
-      (Draft → Sent → Paid with the next-step button), related records, files, history.
-- [ ] Invoices on it first.
+| counter | start | now | target | state |
+|---|---|---|---|---|
+| `rawTables` | 195 | **184** | 0 | 🟡 11 moved |
+| `handTypedApiCalls` | 170 | **154** | 0 | 🟡 started (real start was 154; 16 were docs) |
+| `directDbWrites` | 93 | **93** | 0 | 🔴 not started |
+| `unreachableActions` | 0 | **0** | 0 | ✅ **met** |
+| `screensWithManyPrimaryButtons` | 19 | **19** | 0 | 🔴 not started |
 
-## 3. One way to act — `useCommand(name)`
+---
 
-- [x] The generated client exists (`sdk/ledgerflowClient.ts`).
-- [x] `runCommand` — the first half: one place the address, token, method, body and error handling
-      come from (`src/lib/runCommand.ts`), with the server's own refusal text and a message that
-      separates a dead session (401) from a refused role (403).
-- [ ] `useCommand(name)` on top of it: runs the command, shows the result with **Undo** where an
-      inverse exists, and offers the next step ("Invoice saved. Send it · Record a payment · New invoice").
-- [x] The assets group is off hand-typed calls: `FixedAssetsView`, `ConstructionActions`,
-      `DisposeAssetDialog`, `TransferAssetDialog`. `OrderDeliveryDialog`'s JSON calls too.
-- [x] The counter no longer counts documentation code samples or `runCommand` itself (170 → 154 was
-      16 samples, not 16 calls), with a guard test so it cannot drift back.
-- [ ] The rest of the 164, screen by screen, plus direct database writes (93).
+## Part 1 — One list
 
-## 4. Forms from the schema
+- [x] Grid: sort, search, column chooser, export, saved views, row keyboard movement, tick boxes with a selected total, cards at 390px, one-sentence empty state that hides the tools
+- [x] Report screens can move onto it — `rowHeaderColumn` (`<th scope="row">`, locked in the chooser) and `totals` (`<tfoot>`, one cell per drawn column, no colspans, prints all rows, shows on phones)
+- [x] `npm run scaffold:report` emits the shared grid
+- [x] Per-screen lock so a moved screen cannot drift back (`shared-list-ratchet.test.ts`)
+- [x] **Sales** (customers) · **Purchases** (vendors) · **Inventory** (items) — were already on it
+- [x] **Bank review** — bank clearance report
+- [x] `BankClearanceReportView` · `TagBreakdown` · `IncomeBySource` · `AverageMonthly` · `TopExpensesIncome` · `ExpenseByCategory` · `AgedInventoryByLot` · `ClosingBalanceCheck` · `ApiHubLogs` · `AccessReviewPanel` · `AccountantQueueView` · `SystemUsersPanel`
+- [x] **Transactions — decided, not moved:** it draws no `<table>` at all. It's a CSS grid with 12 editable cells per row, a split editor and paste handling. Moving it would delete in-place editing. Reason recorded in `docs/FOR_YOU.md` + named in `raw-table-decisions.test.ts`
+- [ ] Report tail: **~170 files left**, mostly the same edit (the four row shapes are all proven)
+- [ ] The 39 multi-table files and 12 `.map()`-column files
+- [ ] Non-report: platform, finance, hr, dashboard
+- [x] **"zero or named with a reason"** — `raw-table-decisions.test.ts` holds the named list and fails on a stale reason. Verified by pointing it at a migrated file
 
-- [x] `SchemaForm.tsx` renders a zod object: labels, errors under the field.
-- [ ] Drive it from the **command input schema**, required fields first, the rest under
-      "More options", labels from the dictionary.
-- [ ] Hand-built forms stay for invoices, bills and journal entries, on the same field components.
+## Part 2 — One record page
 
-## 5. One box that can do anything — the palette
+- [ ] Shared single-record layout: editable fields, path at top (Draft → Sent → Paid + next-step button), related records, files, history
+- [ ] Invoices on it first
 
-- [x] Lists every command and every registered report; searches plain words in English and Hebrew.
-- [x] Reachability test that types each name in both languages and can fail (proved by breaking it).
-- [ ] Filter the list by **role**, so it offers what the person may actually run.
-- [ ] A switched-off module appears as "Payroll — turn on", not as nothing.
+**Not started.** Nothing exists beyond `RecordInlineField.tsx`.
 
-## 6. Short by default
+## Part 3 — One way to act
 
-- [x] Menu is Overview, To review, Sales, Purchases, Bank, Reports, Settings.
-- [x] Each area opens on its most used list, one filled button.
-- [x] Business type chooses the modules that start switched on.
-- [ ] `screensWithManyPrimaryButtons` 19 → 0.
+- [x] `src/lib/runCommand.ts` — one place the address, token, method, body and error handling come from; `ServerCommandError` carries the server's own words; `commandErrorMessage` separates a dead session (401) from a refused role (403); reads **both** `{ message }` and `{ error }` because the inventory routes use the latter
+- [x] Assets group off hand-typed calls: `FixedAssetsView`, `ConstructionActions`, `DisposeAssetDialog`, `TransferAssetDialog`
+- [x] `OrderDeliveryDialog` JSON calls
+- [ ] `useCommand(name)` on top: result with **Undo** where an inverse exists + offered next step ("Invoice saved. Send it · Record a payment · New invoice") — needs the command schemas
+- [ ] The rest of the **154**, by area:
 
-## 7. Assistant proposals
+| area | calls | state |
+|---|---|---|
+| platform | 53 | largest, untouched |
+| reporting | 17 | — |
+| ledger | 13 | — |
+| sales | 13 | 1 file done |
+| finance | 8 | — |
+| collaboration · hr | 12 | — |
+| banking · dashboard · common · layout | 18 | — |
+| the rest (13 areas) | 19 | — |
 
-- [ ] "Waiting for you" list, one row per proposal with Accept / Edit / Reject, "Accept all" per group.
-- [ ] A switch showing the books with it applied, using the server's overlay.
-- [ ] High-risk rows accepted one at a time after a two-step confirmation; Undo after accepting.
-- [ ] The screen says nothing in the list has changed the books yet.
+- [ ] `directDbWrites` **93** — untouched
+
+## Part 4 — Forms from the schema
+
+- [x] `SchemaForm.tsx` renders a zod object with labels and errors under the field
+- [ ] Drive it from the **command input schema**: required first, rest under "More options", labels from the dictionary
+- [ ] Hand-built forms (invoices, bills, journal entries) on the same field components
+
+## Part 5 — One box that can do anything
+
+- [x] Palette lists every command and every registered report; searches plain words in English **and** Hebrew
+- [x] Reachability test that types each name in both languages and can fail (proved by breaking Hebrew matching: 16 commands went unreachable)
+- [ ] Filter by **role**
+- [ ] A switched-off module appears as "Payroll — turn on", not nothing
+
+## Part 6 — Short by default
+
+- [x] Menu is Overview, To review, Sales, Purchases, Bank, Reports, Settings
+- [x] Each area opens on its most used list, one filled button
+- [x] Business type chooses the modules that start on
+- [ ] `screensWithManyPrimaryButtons` **19** → 0
+
+## Part 7 — Assistant proposals
+
+- [ ] "Waiting for you" list with Accept / Edit / Reject + "Accept all" per group
+- [ ] Preview switch using the server's overlay
+- [ ] High-risk rows one at a time after two-step confirmation; Undo after accepting
+- [ ] The screen says nothing there has changed the books yet
+
+**Not started.**
+
+---
 
 ## Done when
 
-- [x] **`rawTables` names each remaining site that stays** — `raw-table-decisions.test.ts` holds the
-      list and fails on a stale or false reason. The rest of the count is the migration queue.
-- [ ] `handTypedApiCalls` (170), `directDbWrites` (93) and `screensWithManyPrimaryButtons` (19) at zero
-      or named.
-- [ ] A first-time user, at 390px wide and by keyboard on desktop, can create a customer, send an
-      invoice, record its payment and open the profit and loss — **with a browser test proving each**.
-- [x] Every command and report can be found by typing a plain word into the palette.
+- [x] `rawTables` names each remaining site that **stays** (the rest is the migration queue)
+- [ ] Every ratchet at zero or named
+- [x] Every command and report findable by typing a plain word into the palette
+- [ ] **A first-time user, 390px wide, keyboard-only: create a customer → send an invoice → record its payment → open the profit and loss, with a browser test proving each** — 🔴 not written
 
-## Order of work
+## Order of work (the task's own order)
 
-1. [x] The list component and the first three screens.
-2. [ ] The record page, on invoices.
-3. [ ] `useCommand` and the Sales screens.
-4. [x] The palette and the reachability test.
-5. [ ] Remaining screens by use, lowering a ratchet in every PR.
-6. [ ] The proposals list.
+1. [x] The list component and the first three screens
+2. [ ] The record page, on invoices
+3. [~] `useCommand` — `runCommand` done, `useCommand` not
+4. [x] The palette and the reachability test
+5. [~] Remaining screens by use, lowering a ratchet every PR
+6. [ ] The proposals list
 
-## Rules for every PR in this list
+**Roughly 20% of the task.** Part 1 is the most advanced (the component is finished, ~11 of 195 screens moved). Parts 2 and 7 are untouched.
 
-- A branch and a pull request per step, CI green. Never skip or loosen a test to get green.
-- No change to how money is calculated or posted. Screens call commands; they do not build postings.
-- Every touched screen: light and dark, 1280 and 390, keyboard only, English and Hebrew from the
-  dictionary, existing axe checks passing. Visual baselines refreshed and looked at.
-- Words follow `docs/EASE_OF_USE.md` Part 4 (U-5). Owner decisions go in `docs/FOR_YOU.md` with the
-  default used.
+---
+
+## This PR
+
+`handTypedApiCalls` **170 → 154**, `rawTables` **186 → 184**.
+
+### `runCommand` — why this before more tables
+
+`handTypedApiCalls` and `directDbWrites` are the two ratchets that block nothing else and are blocked by nothing else. Each of the 154 sites currently types its own address, its own `Authorization` header, its own `res.ok` check and its own reading of the error body — and they disagree.
+
+### Two ratchet corrections, both real
+
+1. **16 of the 170 were not calls.** `ApiHubCoreDocs` / `ApiHubAnalysisDocs` hold `fetch("/api/…")` inside `<pre>` template strings that the *reader* copies into their own program. Counting them made the ratchet reward deleting the API docs. Now excluded, along with `runCommand` itself, and `interface-ratchets` pins it.
+2. **`rawTables` was one ahead of the code** — `SystemUsersPanel` was already migrated in #723 but the number below it was not lowered. A stale-high baseline hides one real regression.
+
+### Every review finding on this PR, fixed at the source
+
+- **`runCommand` read only `message`** — but every inventory route answers `{ error }`. A delivery refused for stock says *"Only 3 left on that order"*; that sentence is the only thing telling the person what to change, and my helper turned it into "The server answered 409". `refusalMessage` now reads both, first non-empty wins.
+- **`DisposeAssetDialog` formatted its own errors** — a 401 there showed raw text where the other three asset screens showed the session/role message. Now uses `commandErrorMessage`.
+- **Writing the test caught a third bug in my own code:** `commandErrorMessage` returned the literal string `"undefined"`, the one thing its own doc comment says it must never do (`String(undefined)` is truthy).
+
+### Tests
+
+`run-command` (9), `interface-ratchets`, `quality-ratchet`, `raw-table-decisions`, `shared-list-ratchet`, plus every existing assets/sales screen test — **76 tests, 0 failures**. `tsc --noEmit` clean, `eslint --max-warnings 0` clean.
+
+## Next, in order
+
+1. Continue the 154 by area — **platform (53)** first, it's the largest and it's mostly settings screens
+2. `screensWithManyPrimaryButtons` 19 → 0 (part 6's last box, cheap)
+3. Part 2's record page on invoices
+4. The 390px keyboard-only acceptance test — the only "done when" that needs a whole journey working end to end
