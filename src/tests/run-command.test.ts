@@ -19,6 +19,9 @@ function answer(status: number, body: unknown) {
     return {
       ok: status >= 200 && status < 300,
       status,
+      // runCommand reads the text first so an empty answer is distinguishable from a cut connection;
+      // `json` stays for the refusal path, which reads a best-effort body from the response
+      text: async () => (body === undefined ? '' : JSON.stringify(body)),
       json: async () => body,
     } as unknown as Response;
   }) as unknown as typeof fetch;
@@ -44,6 +47,26 @@ describe('runCommand is the one place a screen calls its server', () => {
     const headers = calls[0].init.headers as Record<string, string>;
     assert.equal(headers.Authorization, 'Bearer test-token');
     assert.equal(headers['Content-Type'], 'application/json');
+  });
+
+  test('a 200 with an empty body is an answer of null, not a cut connection', async () => {
+    // Routes answer a write with 200 and no content. The hand-typed calls this replaced read those
+    // with `res.json().catch(() => ({}))`; treating "no body" as a failure broke every caller of such
+    // a route while looking like a network fault. A body that stops mid-JSON is still a failure.
+    answer(200, undefined);
+    assert.equal(await runCommand({ path: '/api/v1/x', method: 'POST', body: {}, token: 't' }), null);
+  });
+
+  test('a body cut off mid-JSON still fails, so an export cannot silently become empty', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '{"rows": [1, 2',
+    }) as unknown as Response) as unknown as typeof fetch;
+    await assert.rejects(
+      runCommand({ path: '/api/v1/x', token: 't' }),
+      (err: unknown) => err instanceof ServerCommandError && /cut off/.test(err.message),
+    );
   });
 
   test('a GET sends no body and no content type', async () => {
@@ -129,7 +152,7 @@ describe('runCommand is the one place a screen calls its server', () => {
     let sent: Record<string, string> = {};
     globalThis.fetch = (async (_path: string, init: RequestInit) => {
       sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, json: async () => ({}) };
+      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
     }) as unknown as typeof fetch;
     await runCommand({
       path: '/api/v1/transactions',
@@ -148,7 +171,7 @@ describe('runCommand is the one place a screen calls its server', () => {
     let sent: string | undefined;
     globalThis.fetch = (async (_path: string, init: RequestInit) => {
       sent = init.body as string;
-      return { ok: true, status: 200, json: async () => ({ message: 'restored' }) };
+      return { ok: true, status: 200, text: async () => '{"message":"restored"}', json: async () => ({ message: 'restored' }) };
     }) as unknown as typeof fetch;
     const text = '{"schemaVersion":1,"transactions":[]}';
     await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: text, token: 't' });
@@ -160,7 +183,7 @@ describe('runCommand is the one place a screen calls its server', () => {
     let init: RequestInit = {};
     globalThis.fetch = (async (_path: string, i: RequestInit) => {
       init = i;
-      return { ok: true, status: 200, json: async () => ({ rows: [] }) };
+      return { ok: true, status: 200, text: async () => '{"rows":[]}', json: async () => ({ rows: [] }) };
     }) as unknown as typeof fetch;
     const form = new FormData();
     form.append('workspaceId', 'w');
@@ -176,7 +199,7 @@ describe('runCommand is the one place a screen calls its server', () => {
     let sent: Record<string, string> = {};
     globalThis.fetch = (async (_path: string, init: RequestInit) => {
       sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, json: async () => ({}) };
+      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
     }) as unknown as typeof fetch;
     await runCommand({ path: '/api/v1/invoices/public/abc', token: null });
     // the whole point: a public page asking as a visitor must not send the visitor's own session
@@ -185,7 +208,7 @@ describe('runCommand is the one place a screen calls its server', () => {
 
   test('a 200 whose body was cut off fails instead of reporting an empty success', async () => {
     globalThis.fetch = (async () => ({
-      ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
+      ok: true, status: 200, text: async () => '{"rows": [1, 2', json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
     })) as unknown as typeof fetch;
     // `{}` here would let a backup export write an empty archive and call it verified
     await assert.rejects(
@@ -198,7 +221,7 @@ describe('runCommand is the one place a screen calls its server', () => {
     let sent: Record<string, string> = {};
     globalThis.fetch = (async (_path: string, init: RequestInit) => {
       sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, json: async () => ({}) };
+      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
     }) as unknown as typeof fetch;
     await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: '{}', token: 't' });
     // without this the request goes out as text/plain and the route cannot read it as the backup

@@ -84,12 +84,26 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
     throw new ServerCommandError(res.status, refusalMessage(refusal, res.status), refusal);
   }
   let raw: unknown;
+  // An empty body is not a cut connection. Many routes answer a write with 200 and no content, and
+  // the hand-typed calls these replaced read those with `res.json().catch(() => ({}))` — so treating
+  // "no body" as a failure breaks every caller of such a route while looking like a network fault.
+  // Read the text first: empty means "nothing to parse", which is an answer of `null`.
+  let text: string;
   try {
-    raw = await res.json();
+    text = await res.text();
   } catch {
-    // 200 headers then a cut connection: answering `{}` here would report an empty success and, for
-    // the backup export, skip the client fallback and write an empty archive
     throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined);
+  }
+  if (text.trim() === '') raw = null;
+  else {
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      // 200 headers, a body, and a connection cut in the middle of it: this is the case that must not
+      // read as an empty success — for the backup export it would skip the fallback and write an
+      // empty archive
+      throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined);
+    }
   }
   return parse ? parse(raw) : raw as T;
 }
