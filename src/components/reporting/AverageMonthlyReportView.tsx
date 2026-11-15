@@ -25,7 +25,11 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
 
   /** One row per month: what came in, what went out, the difference, and whether it was out of line. */
   const columns: ColumnDef<(typeof summary.monthlyData)[number], unknown>[] = [
-    { id: 'month', accessorFn: row => `${row.monthName} ${selectedYear}`, header: 'Month', cell: info => <span className="font-semibold">{String(info.getValue())}</span> },
+    /**
+     * The accessor is what the reader sees, so search finds "April". The sort is on the numeric month,
+     * because sorting the printed name put April, August and December before January.
+     */
+    { id: 'month', accessorFn: row => `${row.monthName} ${selectedYear}`, sortingFn: (a, b) => a.original.month - b.original.month, header: 'Month', cell: info => <span className="font-semibold">{String(info.getValue())}</span> },
     { id: 'income', accessorFn: row => row.incomeCents, header: 'Revenue', cell: info => <span className="font-mono text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
     { id: 'expense', accessorFn: row => row.expenseCents, header: 'Expense / Burn', cell: info => <span className="font-mono text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
     { id: 'net', accessorFn: row => row.incomeCents - row.expenseCents, header: 'Net Cash Flow', cell: info => (
