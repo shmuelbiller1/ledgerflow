@@ -91,8 +91,10 @@ export default function ClosingBalanceCheck({ workspaceId, month, currency }: { 
             exportConfig={{
               filename: `balances-since-close-${month}.csv`,
               label: 'Export CSV',
-              headers: ['Account', 'Code', 'At the close', 'Now', 'Difference'],
-              mapRow: row => [`${row.code ? `${row.code} · ` : ''}${row.name}`, row.code, csvMoney(row.atCloseCents), csvMoney(row.nowCents), csvMoney(row.differenceCents)],
+              // code and name in separate columns: an imported row can then be matched on either,
+              // and the code is not also buried in the account cell (an account without a code is blank)
+              headers: ['Code', 'Account', 'At the close', 'Now', 'Difference'],
+              mapRow: row => [row.code ?? '', row.name, csvMoney(row.atCloseCents), csvMoney(row.nowCents), csvMoney(row.differenceCents)],
             }}
             filteredEmptyState={<EmptyState title="No account matches your search" description="Try another account name or code." />}
           />
