@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -366,25 +367,23 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
         if (problem) { showFieldError('je-reverse-on', problem); toast.error(problem); return; }
       }
       // with a reversal: both entries in one request, so there is never one without the other (R-05)
-      const res = autoReverse
-        ? await fetch('/api/v1/transactions/bulk', {
+      // the entry is recorded once even if the request is retried: the id goes with it as the key
+      if (autoReverse) {
+        await runCommand({
+          path: '/api/v1/transactions/bulk',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'Idempotency-Key': payload.id },
-          body: JSON.stringify({ transactions: withReversal(payload, reverseOn), workspaceId }),
-        })
-        : await fetch('/api/v1/transactions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'x-operation-id': payload.id
-          },
-          body: JSON.stringify({ transaction: payload })
+          token,
+          headers: { 'Idempotency-Key': payload.id },
+          body: { transactions: withReversal(payload, reverseOn), workspaceId },
         });
-
-      if (!res.ok) {
-        const errObj = await res.json().catch(() => ({}));
-        throw new Error(errObj.error || `HTTP error ${res.status}`);
+      } else {
+        await runCommand({
+          path: '/api/v1/transactions',
+          method: 'POST',
+          token,
+          headers: { 'x-operation-id': payload.id },
+          body: { transaction: payload },
+        });
       }
 
       // PREV-5: another workspace was opened while the entry was on its way: say where it went

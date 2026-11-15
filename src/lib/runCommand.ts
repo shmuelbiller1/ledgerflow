@@ -27,10 +27,19 @@ export interface CommandRequest<T> {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Sent as JSON when present. */
   body?: unknown;
+  /**
+   * Extra headers, for the calls that need one: a journal entry sends `Idempotency-Key` so a retry
+   * records once (R-05), and the transactions route takes `x-operation-id` for the same reason.
+   */
+  headers?: Record<string, string>;
   /** The answer's shape. A screen that gets something else gets a `ServerCommandError`, not a crash. */
   parse?: (raw: unknown) => T;
-  /** The token to send. Defaults to the signed-in person's; pass one to reuse a token you already have. */
-  token?: string;
+  /**
+   * The token to send. Defaults to the signed-in person's; pass one to reuse a token you already
+   * have. Null is allowed and means "no token" — some calls are made before a session exists, and
+   * the header is simply left off rather than sent as `Bearer null`.
+   */
+  token?: string | null;
   signal?: AbortSignal;
 }
 
@@ -42,7 +51,7 @@ export interface CommandRequest<T> {
  * telling apart from a validation refusal — both arrive as the same error with a different status.
  */
 export async function runCommand<T = unknown>(request: CommandRequest<T>): Promise<T> {
-  const { path, method = 'GET', body, parse, signal } = request;
+  const { path, method = 'GET', body, parse, signal, headers } = request;
   const token = request.token ?? await getIdToken();
   const res = await fetch(path, {
     method,
@@ -50,6 +59,7 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });

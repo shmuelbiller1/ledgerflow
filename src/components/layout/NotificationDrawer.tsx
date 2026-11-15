@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useEffect, useState, useId } from 'react';
 import { toast } from 'sonner';
@@ -10,7 +11,6 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { loadNotificationPrefs, markNotificationsRead, saveNotificationPrefs } from '../../hooks/useNotificationFeed';
 import { NOTIFICATION_TYPES, typesForRole, wantsNotification } from '../../lib/notifications';
 import { EMAIL_MODE_LABEL, EMAIL_MODES, emailMode, type NotificationEmailMode } from '../../lib/notificationEmail';
-import { getIdToken } from '../../firebase';
 import type { NotificationPrefs } from '../../lib/notifications';
 import { recordFromNotice } from '../../lib/watches';
 import { groupNotificationsByType } from '../../lib/feedbackTriage';
@@ -46,10 +46,8 @@ function Preferences({ onDone }: { onDone: () => void }) {
     loadNotificationPrefs(uid)
       .then(p => { if (!cancelled) setPrefs(p); })
       .catch(() => { if (!cancelled) setPrefs({}); });
-    void getIdToken()
-      .then(token => fetch('/api/v1/account/notification-email', { headers: { Authorization: `Bearer ${token}` } }))
-      .then(res => res.json())
-      .then((data: { mode?: string }) => { if (!cancelled) { setMail(emailMode(data.mode)); setMailLoaded(emailMode(data.mode)); } })
+    void runCommand<{ mode?: string }>({ path: '/api/v1/account/notification-email' })
+      .then(data => { if (!cancelled) { setMail(emailMode(data.mode)); setMailLoaded(emailMode(data.mode)); } })
       .catch(() => { if (!cancelled) { setMail('off'); setMailLoaded('off'); } });
     return () => { cancelled = true; };
   }, [uid]);
@@ -60,10 +58,7 @@ function Preferences({ onDone }: { onDone: () => void }) {
     try {
       await saveNotificationPrefs(uid, prefs);
       if (mail && mail !== mailLoaded) {
-        const res = await fetch('/api/v1/account/notification-email', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ mode: mail }),
-        });
-        if (!res.ok) throw new Error('email choice');
+        await runCommand({ path: '/api/v1/account/notification-email', method: 'PUT', body: { mode: mail } });
         setMailLoaded(mail);
       }
       toast.success('Notification choices saved.');

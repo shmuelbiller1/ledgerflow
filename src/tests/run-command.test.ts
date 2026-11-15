@@ -115,4 +115,23 @@ describe('runCommand is the one place a screen calls its server', () => {
     assert.equal(commandErrorMessage('boom'), 'boom');
     assert.equal(commandErrorMessage(undefined), 'That did not work');
   });
+
+  test('extra headers are sent, so an idempotency key survives the move off hand-typed calls', async () => {
+    let sent: Record<string, string> = {};
+    globalThis.fetch = (async (_path: string, init: RequestInit) => {
+      sent = init.headers as Record<string, string>;
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+    await runCommand({
+      path: '/api/v1/transactions',
+      method: 'POST',
+      body: { transaction: {} },
+      token: 't',
+      headers: { 'Idempotency-Key': 'abc' },
+    });
+    assert.equal(sent['Idempotency-Key'], 'abc');
+    // and adding one does not drop the token or the content type
+    assert.equal(sent.Authorization, 'Bearer t');
+    assert.equal(sent['Content-Type'], 'application/json');
+  });
 });
