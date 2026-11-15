@@ -389,12 +389,20 @@ export function TanStackDataGrid<TData extends object>({
         </div>
       )}
 
-      {/* one polite live region for the whole list: which row the keyboard is on. It is only mounted
-          once a row is highlighted, so a list nobody is moving through adds no status region to the page
-          (other screens look for their own status elements and must not find this one). */}
-      {activeRowVisible && activeRowId !== null && (
-        <p role="status" aria-live="polite" className="sr-only">
-          {rowAnnouncement(rowIds.map(id => ({ id })), activeRowId, (row, index) => (announceRow ? announceRow(row) : `Row ${index + 1}`), visibleRows.map(row => row.original as TData))}
+      {/* One polite live region for the whole list: which row the keyboard is on. It is mounted as soon
+          as there are rows and stays mounted, because a live region that appears already holding text is
+          not announced — the text has to change while the region is in the page. It carries aria-live
+          rather than role="status" so it is not confused with a screen's own status notices. */}
+      {rowIds.length > 0 && (
+        <p
+          data-grid-live-region
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {activeRowVisible && activeRowId !== null
+            ? rowAnnouncement(rowIds.map(id => ({ id })), activeRowId, (row, index) => (announceRow ? announceRow(row) : `Row ${index + 1}`), visibleRows.map(row => row.original as TData))
+            : ''}
         </p>
       )}
 

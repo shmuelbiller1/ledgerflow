@@ -132,10 +132,12 @@ describe('the shared grid is one keyboard region', () => {
 
   test('the live region says which row the keyboard is on', () => {
     mount();
-    // no live region until a row is highlighted: a list nobody is moving through adds no status element
-    assert.equal(screen.queryByRole('status'), null);
+    // the region is in the page before it has anything to say, or a screen reader never announces it
+    const live = document.querySelector('[data-grid-live-region]') as HTMLElement;
+    assert.ok(live, 'the live region is mounted with the rows');
+    assert.equal(live.getAttribute('aria-live'), 'polite');
+    assert.equal(live.textContent, '', 'and starts empty');
     fireEvent.keyDown(region(), { key: 'ArrowDown' });
-    const live = screen.getByRole('status');
     assert.equal(live.textContent, 'Row 1 of 3: Invoice First');
     fireEvent.keyDown(region(), { key: 'ArrowDown' });
     assert.equal(live.textContent, 'Row 2 of 3: Invoice Second');
