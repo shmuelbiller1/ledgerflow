@@ -164,11 +164,45 @@ test('phone warehouse edits retain refused drafts, retry, export Hebrew CSV and 
     }
     await route.fulfill({ json: request.method() === 'GET' ? [] : null });
   });
-  // ISS-143: an RMA is requested through the server, which answers with the record it saved
+  // ISS-143: an RMA is requested through the server, which answers with the record it saved.
+  // Warranty dates now use the typed command API; reflect the committed record in the fixture store.
   const rmaRequests: Array<Record<string, unknown>> = [];
+  const warrantyCommands: Array<Record<string, unknown>> = [];
   await page.route('**/api/**', async route => {
     const request = route.request();
-    if (request.method() === 'POST' && /\/return-authorizations$/.test(new URL(request.url()).pathname)) {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === 'POST' && pathname === '/api/v1/commands/warranty.update') {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const commandInput = body.input as Record<string, unknown>;
+      warrantyCommands.push(body);
+      const record = await page.evaluate(async commandInput => {
+        const [{ useLedgerStore }, warehouse] = await Promise.all([
+          import('/src/stores/useLedgerStore.ts'), import('/src/lib/warehouseRecords.ts'),
+        ]);
+        const state = useLedgerStore.getState();
+        const customer = state.customers.find((row: { id: string }) => row.id === 'customer-1');
+        if (!customer) throw new Error('Fixture customer is missing');
+        const candidateInput = commandInput.candidate as { id: string };
+        const candidate = warehouse.warrantyCandidates(state.invoices, [customer], state.inventory, 'warehouse-browser')
+          .find((row: { id: string }) => row.id === candidateInput.id);
+        if (!candidate) throw new Error('Fixture warranty candidate is missing');
+        const saved = warehouse.warrantyRecordsFromMetadata(customer.metadata, customer.id, 'warehouse-browser');
+        const existing = warehouse.warrantyRecordForCandidate(saved, candidate);
+        const record = warehouse.createWarrantyRecord({
+          candidate, endDate: String(commandInput.endDate), existing,
+          actor: { uid: 'warehouse-user', name: 'בודק Tester', role: 'owner' }, at: new Date().toISOString(),
+        });
+        const metadata = customer.metadata && typeof customer.metadata === 'object' ? customer.metadata as Record<string, unknown> : {};
+        const warranties = metadata[warehouse.WARRANTIES_METADATA_FIELD] && typeof metadata[warehouse.WARRANTIES_METADATA_FIELD] === 'object'
+          ? metadata[warehouse.WARRANTIES_METADATA_FIELD] as Record<string, unknown> : {};
+        useLedgerStore.setState({ customers: state.customers.map((row: { id: string }) => row.id === customer.id
+          ? { ...customer, metadata: { ...metadata, [warehouse.WARRANTIES_METADATA_FIELD]: { ...warranties, [record.id]: record } } }
+          : row) });
+        return record;
+      }, commandInput);
+      return route.fulfill({ json: { status: 'success', command: 'warranty.update', data: { id: record.id, changed: true }, replayed: false } });
+    }
+    if (request.method() === 'POST' && /\/return-authorizations$/.test(pathname)) {
       const body = request.postDataJSON();
       rmaRequests.push(body);
       const record = await page.evaluate(async body => {
@@ -221,12 +255,17 @@ test('phone warehouse edits retain refused drafts, retry, export Hebrew CSV and 
   await page.getByRole('button', { name: 'Export warranty CSV' }).click();
   const csv = await readFile((await (await downloadPromise).path())!, 'utf8');
   expect(csv).toContain('לקוח Customer'); expect(csv).toContain('SN-אב-01'); expect(csv).toContain('2027-10-15');
-  // the bin twice (refused, then saved), the shipment and the warranty; the RMA went to the server (ISS-143)
-  expect(writes).toHaveLength(4);
+  // The bin twice (refused, then saved) and shipment use local field updates; warranty and RMA use server APIs.
+  expect(writes).toHaveLength(3);
   for (const write of writes) {
     expect(['inventory', 'estimates', 'customers']).toContain(write.p_table);
-    expect(Object.keys(write.p_set).every(key => key === 'updatedAt' || key.startsWith('binLocations.') || key.startsWith('metadata.warehouseShipmentsBySource.') || key.startsWith('metadata.warrantiesById.'))).toBe(true);
+    expect(Object.keys(write.p_set).every(key => key === 'updatedAt' || key.startsWith('binLocations.') || key.startsWith('metadata.warehouseShipmentsBySource.'))).toBe(true);
   }
+  expect(warrantyCommands).toHaveLength(1);
+  expect(warrantyCommands[0]).toMatchObject({
+    workspaceId: 'warehouse-browser',
+    input: { candidate: { customerId: 'customer-1', invoiceId: 'invoice-1', serial: 'SN-אב-01' }, endDate: '2027-10-15' },
+  });
   expect(rmaRequests).toHaveLength(1);
   expect(rmaRequests[0]).toMatchObject({ customerId: 'customer-1', invoiceId: 'invoice-1', reason: 'מידה שגויה Wrong size', lines: [{ invoiceLineId: 'line-1', quantity: 1 }] });
   await expectBounded(page);

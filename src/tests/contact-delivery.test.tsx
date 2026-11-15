@@ -145,9 +145,10 @@ describe("the contact's page", () => {
     assert.equal(select.value, 'post');
     assert.match(screen.getByText(/a paper copy is mailed/).textContent || '', /emails still go when someone presses Email/, 'the page says what the choice means and what it does not stop');
     await act(async () => { fireEvent.change(select, { target: { value: 'email' } }); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_update'))));
-    const body = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_id: string; p_set: Record<string, unknown> };
-    assert.deepEqual([body.p_table, body.p_id, body.p_set.deliveryMethod], ['customers', 'c1', 'email']);
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/api/v1/commands/customer.update'))));
+    const request = calls.find(c => c.url.includes('/api/v1/commands/customer.update'))!;
+    const body = request.body as { workspaceId: string; input: { id: string; data: { deliveryMethod: string } } };
+    assert.deepEqual([request.method, body.workspaceId, body.input.id, body.input.data.deliveryMethod], ['POST', 'component-workspace', 'c1', 'email']);
   });
 
   test('a vendor with nothing chosen reads Email, and a viewer gets no control', () => {

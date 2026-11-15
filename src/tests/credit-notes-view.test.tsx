@@ -24,8 +24,8 @@ const note = (over: Partial<CreditNote>): CreditNote => ({
 const unused = note({});
 const used = note({ id: 'cn2', number: 'CN-2026-0002', remainingCents: 2000, status: 'partially_applied', reason: 'Price adjustment' });
 
-// a credit note is saved through the server's posting route (L94-STEP2B: /api/v1/documents/creditNotes/:id/post)
-let calls: { url: string; body: Record<string, unknown> }[] = [];
+// signed-in credit-note writes use registered commands; sample-company posting remains a separate local path.
+let calls: { url: string; body: Record<string, unknown>; headers: Record<string, string> }[] = [];
 let numberStatus = 200;
 beforeEach(() => {
   calls = [];
@@ -39,7 +39,7 @@ beforeEach(() => {
     customers: [{ id: 'acme', name: 'Acme' } as Customer] });
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    calls.push({ url, body: JSON.parse(String(init?.body || '{}')) });
+    calls.push({ url, body: JSON.parse(String(init?.body || '{}')), headers: (init?.headers || {}) as Record<string, string> });
     if (url.endsWith('/next-number')) {
       return numberStatus === 200
         ? new Response(JSON.stringify({ number: 'CN-2026-0003' }), { status: 200 })
@@ -72,11 +72,13 @@ test('a new credit note takes the next number of the series; without one nothing
 
   numberStatus = 200;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save & Post' })); });
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/documents/creditNotes/'))));
+  await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/commands/creditnote.create'))));
   assert.equal(calls.filter(c => c.url.endsWith('/next-number')).length, 2);
-  const posted = JSON.stringify(calls.find(c => c.url.includes('/documents/creditNotes/'))?.body);
+  const create = calls.find(c => c.url.endsWith('/commands/creditnote.create'))!;
+  const posted = JSON.stringify(create.body.input);
   assert.match(posted, /CN-2026-0003/);
   assert.doesNotMatch(posted, /CN-\d{4}"/, 'no random number');
+  assert.match(create.headers['Idempotency-Key'], /^[A-Za-z0-9_.:-]{1,128}$/, 'command create key must pass the server operation-id validator');
 });
 
 test('customer and vendor credits expose their own linked-file panels', async () => {
@@ -109,8 +111,10 @@ test('number, reason and date change in place; the date stays fixed once the cre
   fireEvent.click(screen.getByRole('button', { name: inlineEditName('Edit Reason for credit note CN-2026-0001') }));
   fireEvent.change(screen.getByLabelText('Reason for credit note CN-2026-0001'), { target: { value: 'Damaged on arrival' } });
   await act(async () => { fireEvent.keyDown(screen.getByLabelText('Reason for credit note CN-2026-0001'), { key: 'Enter' }); });
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/documents/creditNotes/'))));
-  assert.match(JSON.stringify(calls.find(c => c.url.includes('/documents/creditNotes/'))?.body), /Damaged on arrival/);
+  await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/commands/creditnote.update'))));
+  const update = calls.find(c => c.url.endsWith('/commands/creditnote.update'))!;
+  assert.match(JSON.stringify(update.body.input), /Damaged on arrival/);
+  assert.match(update.headers['Idempotency-Key'], /^[A-Za-z0-9_.:-]{1,128}$/, 'command update key must pass the server operation-id validator');
 
   cleanup();
   setComponentWorkspace('viewer');

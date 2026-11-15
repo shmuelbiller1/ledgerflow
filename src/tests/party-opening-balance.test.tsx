@@ -2,7 +2,7 @@
  * A customer's or vendor's opening balance (BA-02): one open invoice (bill) against Opening Balance
  * Equity, so it shows in aging and is paid like any other, and never counts as sales or expenses.
  */
-import { stubFetchWithBodies } from './helpers/dom';
+import './helpers/dom';
 import test, { after, afterEach, before, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -94,18 +94,27 @@ describe('On the contact page', () => {
   afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
 
   test('type the amount and date, Enter: the bill is created through the normal posting', async () => {
-    const calls = stubFetchWithBodies(200, { status: 'ok' });
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+      calls.push({ url, method: init?.method || 'GET', body });
+      if (url === '/api/v1/commands/bill.create') return Response.json({ status: 'success', data: { collection: 'bills' } });
+      // The balance sync starts after the save; PostgREST list reads are arrays and RPCs are JSON.
+      return Response.json(url.includes('/rest/v1/') ? [] : {});
+    }) as typeof fetch;
     render(<PartyOpeningBalance side="vendor" party={{ id: 'v1', name: 'Paper Co' }} />);
     fireEvent.change(screen.getByLabelText('Opening balance date'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('Opening balance of Paper Co'), { target: { value: '40.00' } });
     await act(async () => { fireEvent.keyDown(screen.getByLabelText('Opening balance of Paper Co'), { key: 'Enter' }); });
-    // the bill alone goes to the server, which builds its entry (Opening Balance Equity +40.00 / A/P −40.00:
-    // l94-step2-document-post.test.ts) — L94-STEP2
-    const isSave = (c: { url: string }) => /^\/api\/v1\/documents\/bills\/[^/]+\/post$/.test(c.url);
+    // The UI invokes the registered command; the server builds the ledger entry from its bill input.
+    const isSave = (call: { url: string }) => call.url === '/api/v1/commands/bill.create';
     await waitFor(() => assert.ok(calls.some(isSave)));
-    const body = calls.find(isSave)!.body as { action: string; data: Record<string, unknown>; transactions?: unknown };
-    assert.equal(body.transactions, undefined, 'no entries are sent');
-    assert.deepEqual([body.action, body.data.vendorId, body.data.amountCents, body.data.date, (body.data.metadata as { type?: string } | undefined)?.type], ['create', 'v1', 4000, '2026-01-01', 'opening-balance']);
+    const request = calls.find(isSave)!.body as { workspaceId: string; input: { bill: Record<string, unknown>; transactions?: unknown } };
+    const bill = request.input.bill;
+    assert.equal(request.input.transactions, undefined, 'no ledger entries are sent');
+    assert.deepEqual([calls.find(isSave)!.method, request.workspaceId, bill.vendorId, bill.amountCents, bill.date, (bill.metadata as { type?: string } | undefined)?.type],
+      ['POST', 'component-workspace', 'v1', 4000, '2026-01-01', 'opening-balance']);
   });
 
   test('once entered it is shown, not entered again; viewers only read', () => {

@@ -7,6 +7,8 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { db, getIdToken } from '../../firebase';
 import { addDoc, collection } from '../../lib/db/firestore';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
+import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useBankRules } from '../../hooks/useBankRules';
 import { merchantKey, merchantLabel, ruleFromDecision } from '../../lib/ruleFromDecision';
 import { reviewReason, type ReviewReason } from '../../lib/reviewReason';
@@ -27,6 +29,7 @@ export default function InboxView() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const { runCommand } = useEntityOperations();
   // BG-05: who has each entry, and "Give to…" (a task about it)
   const hand = useHandOvers();
   const entry = (t: { id: string; date: string; description?: string }) => ({ type: 'transaction' as const, id: t.id, label: `Entry ${t.date} · ${t.description || ''}`.trim() });
@@ -45,9 +48,17 @@ export default function InboxView() {
     const rule = account ? ruleFromDecision({ payee: t.payee, description: t.description, accountId: account.id, accountName: account.name, labels: { ...(t.dimensions || {}), ...(categoryLine?.dimensions || {}) } }) : null;
     if (!rule || !currentWorkspaceId || !uid) return;
     try {
-      const saved = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString() };
-      const ref = await addDoc(collection(db, 'autoRules'), saved);
-      setRules(prev => [...prev, { ...saved, id: ref.id } as AutoRule]);
+      let saved: AutoRule;
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        const createdAt = new Date().toISOString();
+        const localRule = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt };
+        const ref = await addDoc(collection(db, 'autoRules'), localRule);
+        saved = { ...localRule, id: ref.id } as AutoRule;
+      } else {
+        const result = await runCommand('autorule.create', { rule: rule as Record<string, unknown> });
+        saved = result.rule as AutoRule;
+      }
+      setRules(prev => prev.some(existing => existing.id === saved.id) ? prev.map(existing => existing.id === saved.id ? saved : existing) : [...prev, saved]);
       toast.success(`Rule saved: ${rule.name}`);
     } catch (err) {
       toast.error('The entry was accepted, but the rule was not saved', { description: err instanceof Error ? err.message : String(err) });

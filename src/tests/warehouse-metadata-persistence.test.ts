@@ -1,6 +1,8 @@
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
 import pg from 'pg';
 import { binLocationFieldPath, createShipmentRecord, shipmentFieldPath, shipmentSourcesForOrder } from '../lib/warehouseWorkflows';
 import {
@@ -8,8 +10,9 @@ import {
   rmaFieldPath, warrantyCandidates, warrantyFieldPath, warrantyRecordsFromMetadata,
 } from '../lib/warehouseRecords';
 import type { Customer, Estimate, InventoryItem, Invoice } from '../types';
+import { createCommandRouter } from '../server/routes/commandRoutes';
 
-/** Real migrated Postgres/RLS and the same nested-field RPC used by the four warehouse screens. */
+/** Real migrated Postgres/RLS: metadata annotations use the field-path RPC; protected histories use server workflows. */
 describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {
   const workspaceId = `warehouse_${randomBytes(6).toString('hex')}`;
   const uid = `${workspaceId}_owner`;
@@ -36,6 +39,8 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
   };
   let client: pg.Client;
   let serverDb: import('../server/db/pgFirestore').Firestore | undefined;
+  let commandApi: import('node:http').Server | undefined;
+  let commandApiBase = '';
   async function asUser(userId: string, operation: () => Promise<void>) {
     await client.query('begin');
     try {
@@ -51,6 +56,22 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
   const patch = async (table: string, id: string, fields: Record<string, unknown>, userId = book) => {
     await asUser(userId, async () => { await client.query('select public.lf_update($1, $2, $3)', [table, id, fields]); });
   };
+  const saveWarrantyDate = async (candidate: ReturnType<typeof warrantyCandidates>[number], endDate: string) => {
+    const selected = {
+      id: candidate.id, workspaceId: candidate.workspaceId, customerId: candidate.customerId,
+      invoiceId: candidate.invoiceId, invoiceLineId: candidate.invoiceLineId, itemId: candidate.itemId,
+      serial: candidate.serial,
+    };
+    const response = await fetch(`${commandApiBase}/api/v1/commands/warranty.update`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceId, input: { candidate: selected, endDate } }),
+    });
+    const body = await response.json() as { status?: string; message?: string; data?: { id?: string; changed?: boolean } };
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.status, 'success', body.message);
+    assert.deepEqual(body.data, { id: candidate.id, changed: true });
+  };
   before(async () => {
     client = new pg.Client({ connectionString: process.env.LF_TEST_DATABASE_URL });
     await client.connect();
@@ -60,11 +81,26 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
     for (const [table, record] of [['inventory', item], ['estimates', order], ['customers', customer], ['invoices', invoice]] as const) {
       await client.query(`insert into public."${table}" (id, data) values ($1, $2)`, [record.id, record]);
     }
+
+    process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
+    const { getDb } = await import('../server/db/firestore');
+    serverDb = getDb();
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      Object.assign(req, { user: { uid: book, email: `${book}@example.test`, displayName: actor.name } });
+      next();
+    });
+    app.use('/api/v1/commands', createCommandRouter(undefined, { getDb: () => serverDb! }));
+    commandApi = app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => commandApi!.once('listening', resolve));
+    commandApiBase = `http://127.0.0.1:${(commandApi.address() as AddressInfo).port}`;
   });
   after(async () => {
+    if (commandApi) await new Promise<void>((resolve, reject) => commandApi!.close(error => error ? reject(error) : resolve()));
     await serverDb?.terminate();
     if (!client) return;
-    for (const table of ['inventory', 'estimates', 'customers', 'invoices']) {
+    for (const table of ['inventory', 'estimates', 'customers', 'invoices', 'auditLogs', 'idempotencyKeys']) {
       await client.query(`delete from public."${table}" where workspace_id = $1`, [workspaceId]);
     }
     await client.query('delete from public.workspaces where id = $1', [workspaceId]);
@@ -100,10 +136,8 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
       lines: [{ invoiceLineId: 'line-01', itemId: item.id, description: item.name, quantity: 1, soldQuantity: 5 }],
     });
     await assert.rejects(patch('customers', customer.id, { [rmaFieldPath(draft.id)]: draft }), /through the server/);
-    process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
-    const { getDb } = await import('../server/db/firestore');
     const { requestReturnAuthorization, moveReturnAuthorization } = await import('../server/services/returnAuthorizationService');
-    const db = serverDb = getDb();
+    const db = serverDb!;
     const requestKey = `persist-${randomBytes(6).toString('hex')}`;
     const { record } = await requestReturnAuthorization(db, {
       workspaceId, actor: { uid: book, name: actor.name }, customerId: customer.id, invoiceId: invoice.id,
@@ -124,16 +158,19 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
     await client.query('delete from public."auditLogs" where workspace_id = $1', [workspaceId]);
   });
 
-  test('warranty history is retained after reopening and editing a serial date again', async () => {
+  test('warranty history is server-managed and retained after reopening and editing a serial date again', async () => {
     const candidate = warrantyCandidates([invoice], [customer], [item], workspaceId)[0];
     assert.ok(candidate);
-    const record = createWarrantyRecord({ candidate, endDate: '2027-10-15', actor, at });
-    await patch('customers', customer.id, { [warrantyFieldPath(candidate)]: record });
+    const forged = createWarrantyRecord({ candidate, endDate: '2027-10-15', actor, at });
+    await assert.rejects(patch('customers', customer.id, { [warrantyFieldPath(candidate)]: forged }), /through the server/);
+
+    await saveWarrantyDate(candidate, '2027-10-15');
     const saved = await read<Customer>('customers', customer.id);
     const [reopened] = warrantyRecordsFromMetadata(saved.metadata, customer.id, workspaceId);
     assert.equal(reopened.serial, 'SN-אב-01');
-    const amended = createWarrantyRecord({ candidate, endDate: '2028-10-15', actor, at: '2026-10-16T12:00:00.000Z', existing: reopened });
-    await patch('customers', customer.id, { [warrantyFieldPath(candidate)]: amended });
+    assert.equal(returnAuthorizationsFromMetadata(saved.metadata, customer.id, workspaceId).length, 1,
+      'updating a warranty must not replace server-managed RMA history');
+    await saveWarrantyDate(candidate, '2028-10-15');
     const [final] = warrantyRecordsFromMetadata((await read<Customer>('customers', customer.id)).metadata, customer.id, workspaceId);
     assert.deepEqual(final.changeLog.map(change => [change.previousEndDate, change.endDate]), [[null, '2027-10-15'], ['2027-10-15', '2028-10-15']]);
   });

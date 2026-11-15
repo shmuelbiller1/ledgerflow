@@ -108,15 +108,18 @@ describe('The payment run dialog', () => {
 });
 
 describe('Bank details on the vendor page', () => {
-  let writes: { fn: string; body: Record<string, unknown> }[] = [];
+  let writes: { url: string; method: string; body: Record<string, unknown> }[] = [];
   beforeEach(() => {
     writes = [];
     markComponentCollectionsLoaded('bills', 'payments', 'vendors');
     useLedgerStore.setState({ vendors, bills: [], payments: [] });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const rpc = String(input).match(/\/rpc\/(lf_\w+)/);
-      if (rpc) writes.push({ fn: rpc[1], body: JSON.parse(String(init?.body || '{}')) });
-      return new Response(rpc ? 'null' : '[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const url = String(input);
+      if (url === '/api/v1/commands/vendor.update') {
+        writes.push({ url, method: init?.method || 'GET', body: JSON.parse(String(init?.body || '{}')) });
+        return new Response(JSON.stringify({ status: 'success', data: { vendor: {} } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
   });
   afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
@@ -133,7 +136,9 @@ describe('Bank details on the vendor page', () => {
     fireEvent.change(screen.getByLabelText(label), { target: { value: 'gb82 west 1234 5698 7654 32' } });
     await act(async () => { fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' }); });
     await waitFor(() => assert.equal(writes.length, 1));
-    assert.match(JSON.stringify(writes[0].body), /"bankDetails":\{"accountNumber":"GB82WEST12345698765432"\}/);
+    assert.equal(writes[0].url, '/api/v1/commands/vendor.update');
+    const request = writes[0].body as { input: { id: string; data: { bankDetails: { accountNumber: string } } } };
+    assert.deepEqual([writes[0].method, request.input.id, request.input.data.bankDetails.accountNumber], ['POST', 'ink', 'GB82WEST12345698765432']);
   });
 
   test('a viewer sees only the last four digits', () => {

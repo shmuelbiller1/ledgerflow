@@ -26,12 +26,19 @@ describe('Saving automation rules', () => {
     assert.deepEqual(changedRuleFields(before, { ...before }), {});
   });
 
-  test('screens change rules only through useAutoRules (which saves them)', () => {
-    const allowed = new Set(['src/hooks/useAutoRules.ts', 'src/hooks/useLedgerData.ts', 'src/stores/useLedgerStore.ts']);
+  test('rule state changes follow successful persistence commands', () => {
+    const allowed = new Set([
+      'src/hooks/useAutoRules.ts', 'src/hooks/useLedgerData.ts', 'src/stores/useLedgerStore.ts',
+      'src/hooks/transactionActions/ruleActions.ts',
+    ]);
     const offenders = files('src').filter(f => !f.includes('/tests/'))
       .map(f => relative(process.cwd(), f).replace(/\\/g, '/'))
       .filter(f => !allowed.has(f) && /\bsetAutoRules\(/.test(readFileSync(f, 'utf8')));
-    assert.deepEqual(offenders, [], 'these set rules in memory only; use useAutoRules');
+    assert.deepEqual(offenders, [], 'screens must not set automation rules directly');
+    const actions = readFileSync('src/hooks/transactionActions/ruleActions.ts', 'utf8');
+    for (const command of ['autorule.create', 'autorule.update', 'autorule.delete']) {
+      assert.ok(actions.includes(`runCommand('${command}'`), `rule actions must persist ${command} before updating cached state`);
+    }
   });
 
   test('no screen reads the open workspace from the ledger store', () => {
