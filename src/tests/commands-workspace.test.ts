@@ -67,7 +67,8 @@ test('workspace import-map commands preview saves and can restore their full pri
   assert.ok(importMapSaveCommand.describe.refusals.length > 0);
   assert.ok(importMapRestoreCommand.describe.refusals.length > 0);
 
-  const dependencies = runnerDependencies(db);
+  const auditCounters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, auditCounters);
   const preview = await previewCommand(fakeRequest(owner, input),
     { definition: importMapSaveCommand, workspaceId, input }, dependencies);
   assert.equal(preview.ok, true);
@@ -76,6 +77,7 @@ test('workspace import-map commands preview saves and can restore their full pri
   const saved = await executeCommand(fakeRequest(owner, input, 'import-map-command-save'), captureResponse().response,
     { definition: importMapSaveCommand, workspaceId, input }, dependencies);
   assert.equal(saved.ok, true);
+  assert.equal(auditCounters.audits, 1, 'the save command writes its audit summary through the shared runner');
   if (!saved.ok) return;
   const inverse = importMapSaveCommand.inverse?.(input, saved.data as Parameters<NonNullable<typeof importMapSaveCommand.inverse>>[1]);
   assert.deepEqual(inverse, { command: 'workspace.restoremaps', input: { maps: previousMaps } });
@@ -85,6 +87,7 @@ test('workspace import-map commands preview saves and can restore their full pri
   const restored = await executeCommand(fakeRequest(owner, inverse?.input, 'import-map-command-undo'), captureResponse().response,
     { definition: importMapRestoreCommand, workspaceId, input: inverse?.input }, dependencies);
   assert.equal(restored.ok, true);
+  assert.equal(auditCounters.audits, 2, 'the restore command writes its audit summary through the shared runner');
   assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.importColumnMaps, previousMaps);
 });
 
