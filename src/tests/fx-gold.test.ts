@@ -187,10 +187,11 @@ describe('FX with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
       items: [{ id: 'l1', description: 'Beans', quantity: 1, rateCents: 10_000, amountCents: 10_000, accountId: acct['4000'].id }],
     };
     await postInvoiceLedger(inv.id, inv as never, ws, OWNER, { collection: 'invoices', docId: inv.id, action: 'create', data: inv }, await context());
-    const pay = async (date: string, cents: number) => {
+    const pay = async (date: string, cents: number, paymentExchangeRate?: number) => {
       const res = await send('POST', '/api/v1/payments', {
         workspaceId: ws, amountCents: cents, paymentDate: date, cashAccountId: acct['1000'].id, paymentMethod: 'bank_transfer',
         customerId, allocations: [{ documentId: inv.id, documentType: 'invoice', amountCents: cents }],
+        ...(paymentExchangeRate === undefined ? {} : { paymentExchangeRate }),
       });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       return res.body.data as { paymentId: string; transactionId: string };
@@ -202,13 +203,79 @@ describe('FX with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
     const voided = await send('POST', `/api/v1/payments/${second.paymentId}/void`, { workspaceId: ws, date: '2025-05-21', reason: 'bounced' });
     assert.equal(voided.status, 200, JSON.stringify(voided.body));
     const again = await pay('2025-05-22', 3_333);
-    const last = await pay('2025-05-30', 3_334);
+    const last = await pay('2025-05-30', 3_334, 1.0842);
     assert.deepEqual([await arCleared(again.transactionId), await arCleared(last.transactionId)], [3_614, 3_614], 'the last part clears 108.42 − 72.28');
     assert.equal((await db.collection('invoices').doc(inv.id).get()).data()?.status, 'paid');
     const sheet0531 = await sheet('2025-05-31');
     assert.equal(sheet0531[1], 0, 'A/R 0.00 once the invoice is paid');
+    const entry = (await all<Transaction>('transactions')).find(t => t.id === last.transactionId)!;
+    assert.equal(entry.lines.find(l => l.accountId === acct['1000'].id)?.amountCents, 3615, 'cash is independently rounded at the actual quoted rate');
+    assert.equal(entry.lines.find(l => l.accountId === acct['4910'].id)?.amountCents, -1, 'same-rate difference is posted to rounding/FX, not the bank');
+    assert.equal(sheet0531[0], 68843, '58,000 from April plus 10,843 of actual receipts');
     const rows = (await all<Record<string, unknown>>('paymentAllocations')).filter(r => r.documentId === inv.id && r.kind !== 'reversal' && !r.reversedBy);
     assert.ok(rows.length >= 3, 'the payment ledger is in use here');
     assert.equal(rows.reduce((sum, r) => sum + Number(r.baseClearedCents || 0), 0), 10_842, 'the live rows clear the invoice exactly');
+    assert.equal(rows.reduce((sum, r) => sum + Number(r.baseSettledCents || 0), 0), 10_843);
+    assert.equal(rows.reduce((sum, r) => sum + Number(r.realizedFxCents || 0), 0), 1);
+  });
+
+  test('#653: final advance application settles its document and releases its exact booked carrying amount', async () => {
+    const depositAccount = `${ws}_customer_deposits`;
+    await db.collection('chartAccounts').doc(depositAccount).set({ id: depositAccount, workspaceId: ws, uid: OWNER, name: 'Customer Deposits', type: 'liability', code: '2105', category: 'Current Liabilities' });
+    const issue = async (suffix: string, cents: number) => {
+      const inv = {
+        id: `${ws}_${suffix}`, workspaceId: ws, uid: OWNER, number: suffix, customerId, customerName: 'Lyon Café',
+        date: '2025-06-01', dueDate: '2025-07-01', status: 'sent' as const,
+        amountCents: cents, amountPaidCents: 0, currency: 'EUR', exchangeRate: 1.0842, taxVersion: 2, taxAmountCents: 0,
+        items: [{ id: 'l1', description: 'Beans', quantity: 1, rateCents: cents, amountCents: cents, accountId: acct['4000'].id }],
+      };
+      await postInvoiceLedger(inv.id, inv as never, ws, OWNER, { collection: 'invoices', docId: inv.id, action: 'create', data: inv }, await context());
+      return inv.id;
+    };
+    const first = await issue('ADV-1', 3333);
+    const second = await issue('ADV-2', 6667);
+    const payment = await send('POST', '/api/v1/payments', {
+      workspaceId: ws, amountCents: 10000, paymentDate: '2025-06-02', cashAccountId: acct['1000'].id, paymentMethod: 'bank_transfer',
+      customerId, allocations: [{ documentId: first, documentType: 'invoice', amountCents: 3333 }],
+    });
+    assert.equal(payment.status, 200, JSON.stringify(payment.body));
+    const pid = payment.body.data.paymentId as string;
+    const apply = (date: string, amountCents: number) => send('POST', `/api/v1/payments/${pid}/apply`, {
+      workspaceId: ws, date, allocations: [{ documentId: second, documentType: 'invoice', amountCents }],
+    });
+    const a = await apply('2025-06-03', 3333);
+    assert.equal(a.status, 200, JSON.stringify(a.body));
+    const b = await apply('2025-06-04', 3334);
+    assert.equal(b.status, 200, JSON.stringify(b.body));
+    const entries = (await all<Transaction>('transactions')).filter(t => t.metadata?.paymentId === pid);
+    const total = (accountId: string) => entries.reduce((s, t) => s + t.lines.filter(l => l.accountId === accountId).reduce((a, l) => a + l.amountCents, 0), 0);
+    assert.equal(total(depositAccount), 0, 'all and only the original deposit is released');
+    assert.equal(total(acct['1000'].id), 10842, 'the original bank entry remains unchanged');
+    assert.equal(total(acct['1100'].id), -10842, 'both invoices are fully cleared');
+    const remaining = (await db.collection('payments').doc(pid).get()).data();
+    assert.equal(remaining?.unappliedCents, 0);
+    assert.equal(remaining?.unappliedBaseCents, 0);
+    const rows = (await all<Record<string, unknown>>('paymentAllocations')).filter(r => r.documentId === second && r.kind === 'advance_application');
+    assert.equal(rows.reduce((s, r) => s + Number(r.baseClearedCents), 0), 7228);
+    assert.equal(rows.reduce((s, r) => s + Number(r.baseSettledCents), 0), 7228);
+    assert.equal((await db.collection('invoices').doc(second).get()).data()?.status, 'paid');
+  });
+
+  test('#653: a final foreign payment with missing settlement history fails without writing a new payment', async () => {
+    const id = `${ws}_legacy_incomplete`;
+    await db.collection('invoices').doc(id).set({
+      id, workspaceId: ws, uid: OWNER, number: 'LEGACY', customerId, customerName: 'Lyon Café',
+      date: '2025-07-01', dueDate: '2025-08-01', status: 'partially_paid', currency: 'EUR', exchangeRate: 1.0842,
+      amountCents: 10000, amountPaidCents: 6666, settledByRecordsCents: 6666, arAccountId: acct['1100'].id,
+    });
+    const n = (await all<Record<string, unknown>>('payments')).length;
+    const res = await send('POST', '/api/v1/payments', {
+      workspaceId: ws, amountCents: 3334, paymentDate: '2025-07-02', cashAccountId: acct['1000'].id, paymentMethod: 'bank_transfer',
+      customerId, allocations: [{ documentId: id, documentType: 'invoice', amountCents: 3334 }],
+    });
+    assert.equal(res.status, 409, JSON.stringify(res.body));
+    assert.match(String(res.body.message), /prior foreign settlements/i);
+    assert.equal((await all<Record<string, unknown>>('payments')).length, n);
+    assert.equal((await db.collection('invoices').doc(id).get()).data()?.amountPaidCents, 6666);
   });
 });
