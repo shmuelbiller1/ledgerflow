@@ -240,10 +240,10 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          npm run test:shard:cov 2>&1 | tee "$RUNNER_TEMP/test-shard.log"
+          npm run test:shard:cov 2>&1 | tee test-shard.log
           status=$?
           if [ "$status" -ne 0 ]; then
-            node scripts/ci-annotate-test-failures.mjs "$RUNNER_TEMP/test-shard.log"
+            node scripts/ci-annotate-test-failures.mjs
           fi
           exit "$status"
         env:
@@ -383,10 +383,10 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          npm run test:shard 2>&1 | tee "$RUNNER_TEMP/test-shard.log"
+          npm run test:shard 2>&1 | tee test-shard.log
           status=$?
           if [ "$status" -ne 0 ]; then
-            node scripts/ci-annotate-test-failures.mjs "$RUNNER_TEMP/test-shard.log"
+            node scripts/ci-annotate-test-failures.mjs
           fi
           exit "$status"
         env:

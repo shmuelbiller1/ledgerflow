@@ -1,9 +1,6 @@
 import fs from 'node:fs';
 
-const logPath = process.argv[2];
-if (!logPath) throw new Error('Pass the captured test log path.');
-
-const lines = fs.readFileSync(logPath, 'utf8').replaceAll('\r', '').split('\n');
+const lines = fs.readFileSync('test-shard.log', 'utf8').replaceAll('\r', '').split('\n');
 const failurePattern = /(?:^|\s)✖\s|^\s*not ok\s+\d+/u;
 const failureIndexes = lines.flatMap((line, index) => failurePattern.test(line) ? [index] : []);
 const escapeCommandData = (value) => value
