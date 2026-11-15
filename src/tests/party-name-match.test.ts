@@ -31,3 +31,9 @@ test("editing an invoice keeps its own customer even after that customer was arc
   assert.deepEqual(matchPartyByName(list, 'ACME', ['other']), { ambiguous: false });
 });
 
+test('Hebrew names match through invisible direction marks and vowel marks', () => {
+  const list = [{ id: 'h1', name: 'שלום' }];
+  assert.equal(matchPartyByName(list, '\u200fשלום').party?.id, 'h1');
+  assert.equal(matchPartyByName(list, 'שָׁלוֹם').party?.id, 'h1');
+});
+
