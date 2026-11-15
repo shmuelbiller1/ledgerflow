@@ -5,7 +5,28 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-10-07.
+Last updated: 2026-11-15.
+
+## The ledger screen cannot become a plain list (default taken: keep it as it is)
+
+The task says to move the seven most-used screens onto the shared list, Transactions first. I moved
+every report I could and stopped at Transactions on purpose, because **it is not a list**:
+
+`TransactionGridBody.tsx` is a 544-line grid with **12 editable cells per row** — you type the account,
+the amount and the memo straight into the row, with a split editor, per-cell validation and a paste
+handler. The shared list is a read-only table with a search box. Moving the ledger onto it would delete
+the ability to edit an entry in place and split it, which is a feature, not a way of building a screen.
+
+**Default I took:** Transactions keeps its own grid, and the ratchet names it with that reason.
+The reports and the plain lists (customers, vendors, items, invoices, bills, journal entries) move.
+If you would rather the ledger lose in-place editing and become a uniform list, say so and I will do
+it — but I would be removing something that works, so I did not assume it.
+
+Two more sites are named rather than moved: `StockClosingPanel` (a four-column block printed inside a
+larger statement, not a list of records) and `JournalSheetReportView` (the lines of one journal entry,
+drawn inside that entry's card).
+
+
 
 *Done and superseded items were moved to [docs/archive/FOR_YOU_DONE.md](archive/FOR_YOU_DONE.md) on 10 Nov 2026 (AI #13 cleanup). Item numbers below keep their original values.*
 
