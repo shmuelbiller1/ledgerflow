@@ -13,7 +13,7 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 | `unreachableActions` | **0** | Every registered screen, report and settings tab can be found by typing a word into the search box. Zero is the only acceptable value. Proven in `src/tests/palette-reachability-guard.test.ts`, which searches the real registry, in English and Hebrew. |
 | `screensWithManyPrimaryButtons` | **19** | EASE_OF_USE U-2: one filled button per screen. |
 | `handTypedApiCalls` | **170** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
-| `rawTables` | **195** | A screen uses the shared list instead of drawing its own `<table>`. |
+| `rawTables` | **189** | A screen uses the shared list instead of drawing its own `<table>`. |
 | `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
 ## The sites that remain, and why each is still there
@@ -38,7 +38,7 @@ Most are in the settings and forensics screens that call a route the browser has
 directly (`/api/admin/…`, `/api/reports/…`). They move to `useCommand` in the step that builds it
 (prompt 2, part 3), which needs the generated client and command schemas from CMD-1.
 
-### `rawTables` — 195
+### `rawTables` — 189
 
 The codemod moves the most-used screens first: Sales, Purchases and Inventory are on the shared list
 (the first slice); Transactions, Bank review, Customers and Vendors are next.
@@ -49,8 +49,11 @@ The report screens were the long tail, and the reason was measured before writin
 as `<td>` — so a report screen had nowhere to go, and `table-a11y-guard` would have rejected the result.
 `TanStackDataGrid` now takes `rowHeaderColumn` (the named column is drawn as a row header, and is never
 hidden by the column chooser) and `totals` (a real `<tfoot>` row whose total lines up under the column it
-totals, clamped so it can never widen the table). `BankClearanceReportView` is the first report moved
-onto it; the rest follow one per PR, each lowering this number.
+totals, clamped so it can never widen the table). `BankClearanceReportView` was the first report moved onto it, then
+`TagBreakdownReportView`, `IncomeBySourceReportView` and `AverageMonthlyReportView` — the four shapes a
+report row takes are now covered (a name cell, a share bar, a month, and grouped amounts), so the rest
+of the tail is the same edit. Each PR lowers this number, and `shared-list-ratchet.test.ts` locks every
+moved file so one screen cannot drift back while another moves forward.
 
 ### `directDbWrites` — 93
 
