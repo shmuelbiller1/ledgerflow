@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { useNewRecord } from '../../hooks/useNewRecord';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useId, useState, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { accountParentProblem, allowedParentAccounts } from '../../lib/accountGr
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { addDoc, collection } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import AsyncButton from '../ui/AsyncButton';
 import JournalEntryModal from './JournalEntryModal';
 import { LexiconText } from '../../hooks/useLexicon';
@@ -127,30 +128,28 @@ const Ledger = React.memo(() => {
   const onCompleteReconciliation = async (data: ReconciliationResult) => {
     if (!workspaceId) throw new Error('Workspace context required');
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/transactions/reconciliation/complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          workspaceId,
-          accountId: data.accountId,
-          statementDate: data.statementDate,
-          statementBalanceCents: data.statementBalanceCents,
-          reconciledTransactionIds: data.reconciledIds || [],
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody?.error || errBody?.message || 'Failed to complete reconciliation');
+      try {
+        await runCommand({
+          path: '/api/v1/transactions/reconciliation/complete',
+          method: 'POST',
+          body: {
+            workspaceId,
+            accountId: data.accountId,
+            statementDate: data.statementDate,
+            statementBalanceCents: data.statementBalanceCents,
+            reconciledTransactionIds: data.reconciledIds || [],
+          },
+        });
+      } catch (err) {
+        // the route answers { error } for a refusal and { message } for a failure
+        if (err instanceof ServerCommandError) throw new Error(err.message || 'Failed to complete reconciliation', { cause: err });
+        throw err;
       }
 
       toast.success(`Reconciliation finalized: ${(data.reconciledIds || []).length} transactions marked reconciled.`);
     } catch (err) {
       console.error('Failed to persist reconciliation:', err);
-      toast.error((err as Error).message || 'Failed to save reconciliation.');
+      toast.error(commandErrorMessage(err));
       throw err;
     }
   };
@@ -230,11 +229,11 @@ const Ledger = React.memo(() => {
         }
         const isDebitNormal = newAccount.type === 'asset' || newAccount.type === 'expense';
         const signedAmt = isDebitNormal ? openingCents : -openingCents;
-        const token = await getIdToken();
-        const obRes = await fetch('/api/v1/transactions', {
+        try {
+          await runCommand({
+          path: '/api/v1/transactions',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({
+          body: {
             workspaceId,
             transaction: {
               workspaceId,
@@ -250,11 +249,10 @@ const Ledger = React.memo(() => {
                 { accountId: obeId, accountName: 'Opening Balance Equity', amountCents: -signedAmt },
               ],
             },
-          }),
+          },
         });
-        if (!obRes.ok) {
-          const errBody = await obRes.json().catch(() => ({}));
-          throw new Error(errBody?.message || errBody?.error || 'Opening balance entry refused');
+        } catch (err) {
+          throw new Error(err instanceof ServerCommandError && err.message ? err.message : 'Opening balance entry refused', { cause: err });
         }
       }
       toast.success('System Node Established');
