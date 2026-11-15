@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
 import React, { useRef, useState } from 'react';
 import { CalendarClock, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -47,18 +48,19 @@ export default function ScheduledReportsSettings() {
     setBusy('preview');
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/preview`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ report, frequency }),
+      const data = await runCommand<{ html?: unknown; subject?: unknown; attachments?: unknown }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/preview`,
+        method: 'POST',
+        token,
+        body: { report, frequency },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || typeof data.html !== 'string') throw new Error(data.message || 'The preview could not be made');
+      if (typeof data.html !== 'string') throw new Error('The preview could not be made');
       if (!isCurrent()) return;
       setPreview({ subject: String(data.subject || ''), html: data.html, attachments: Array.isArray(data.attachments) ? data.attachments.map(String) : [] });
     } catch (err) {
       if (!isCurrent()) return;
       setPreview(null);
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy('');
     }
@@ -93,15 +95,15 @@ export default function ScheduledReportsSettings() {
     setBusy(s.id);
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/${encodeURIComponent(s.id)}/send-now`, {
-        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const data = await runCommand<{ sent?: number; failed?: string[]; period?: { label: string } }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/${encodeURIComponent(s.id)}/send-now`,
+        method: 'POST',
+        token,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The report could not be sent');
       if (data.failed?.length) toast.error(`Sent to ${data.sent}; not sent to ${data.failed.join(', ')}`);
       else toast.success(`Sent to ${data.sent} ${data.sent === 1 ? 'address' : 'addresses'} (${data.period?.label})`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy('');
     }

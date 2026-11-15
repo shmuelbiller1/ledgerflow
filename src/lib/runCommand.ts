@@ -33,6 +33,11 @@ export interface CommandRequest<T> {
    */
   rawBody?: string;
   /**
+   * A file upload. The browser sets `Content-Type` itself, because it has to include the multipart
+   * boundary — setting it here would make the request unreadable to the server.
+   */
+  form?: FormData;
+  /**
    * Extra headers, for the calls that need one: a journal entry sends `Idempotency-Key` so a retry
    * records once (R-05), and the transactions route takes `x-operation-id` for the same reason.
    */
@@ -56,19 +61,19 @@ export interface CommandRequest<T> {
  * telling apart from a validation refusal — both arrive as the same error with a different status.
  */
 export async function runCommand<T = unknown>(request: CommandRequest<T>): Promise<T> {
-  const { path, method = 'GET', body, rawBody, parse, signal, headers } = request;
+  const { path, method = 'GET', body, rawBody, form, parse, signal, headers } = request;
   const token = request.token ?? await getIdToken();
   const res = await fetch(path, {
     method,
     ...(signal ? { signal } : {}),
     headers: {
-      ...(body === undefined && rawBody === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined || form ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    ...(rawBody !== undefined
-      ? { body: rawBody }
-      : body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(form ? { body: form }
+      : rawBody !== undefined ? { body: rawBody }
+        : body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {

@@ -146,4 +146,20 @@ describe('runCommand is the one place a screen calls its server', () => {
     // exactly the file's bytes: not JSON.stringify'd into a quoted string
     assert.equal(sent, text);
   });
+
+  test('a file upload sets no Content-Type of its own, so the multipart boundary survives', async () => {
+    let init: RequestInit = {};
+    globalThis.fetch = (async (_path: string, i: RequestInit) => {
+      init = i;
+      return { ok: true, status: 200, json: async () => ({ rows: [] }) };
+    }) as unknown as typeof fetch;
+    const form = new FormData();
+    form.append('workspaceId', 'w');
+    await runCommand({ path: '/api/upload-bank-csv', method: 'POST', form, token: 't' });
+    const headers = init.headers as Record<string, string>;
+    // the browser must add `multipart/form-data; boundary=...` itself
+    assert.equal(headers['Content-Type'], undefined);
+    assert.ok(init.body instanceof FormData);
+    assert.equal(headers.Authorization, 'Bearer t');
+  });
 });

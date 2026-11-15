@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -10,7 +11,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { toast } from 'sonner';
 import { collection, getDocs, query, where, limit } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { MatchingEngine } from '../../lib/MatchingEngine';
 import { generateImportIdentity } from '../../lib/algorithms';
 import { isPostable } from '../../lib/txFilters';
@@ -75,16 +76,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
     formData.append('workspaceId', workspaceId);
 
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/upload-bank-csv', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await runCommand<BankFeedRow[]>({ path: '/api/upload-bank-csv', method: 'POST', form: formData });
       setRawTransactions(data);
       void handleAutoMap(data);
     } catch (err) {
@@ -98,14 +90,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
     if (!user) return;
     setIsUploading(true);
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/plaid/sync', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await runCommand<PlaidSyncAnswer>({ path: '/api/v1/plaid/sync', method: 'POST', body: { workspaceId: currentWorkspaceId } });
       if (Array.isArray(data.needsReconnect) && data.needsReconnect.length > 0) {
         toast.warning(`${data.needsReconnect.length} bank connection(s) need you to log in again: open Banking → Reconnect.`);
       }
@@ -501,5 +486,14 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
     </div>
   );
 };
+
+/** What a Plaid sync answers: the rows, plus the connections that need attention. */
+interface PlaidSyncAnswer {
+  synced?: number;
+  failed?: unknown[];
+  needsReconnect?: unknown[];
+  busy?: unknown[];
+  [key: string]: unknown;
+}
 
 export default BankFeedImport;
