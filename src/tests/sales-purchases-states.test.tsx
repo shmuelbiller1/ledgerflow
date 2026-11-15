@@ -26,7 +26,7 @@ afterEach(async () => { cleanup(); globalThis.fetch = realFetch; await getSupaba
 test('Sales primary screen controls render the selected Hebrew language and RTL direction', () => {
   useUIStore.setState({ language: 'he' });
   markComponentCollectionsLoaded('creditNotes', 'customers', 'invoices', 'payments');
-  render(<Sales />);
+  const { rerender } = render(<Sales />);
   const salesRegion = screen.getByText('חשבוניות ששלחת והכספים שהלקוחות חייבים לך.').closest('[dir="rtl"]');
   assert.ok(salesRegion);
   assert.equal(salesRegion?.getAttribute('lang'), 'he');
@@ -35,6 +35,26 @@ test('Sales primary screen controls render the selected Hebrew language and RTL 
   assert.ok(screen.getByRole('button', { name: 'לקוחות' }));
   assert.ok(screen.getByRole('button', { name: 'הוספת חשבונית' }));
   assert.ok(screen.getByText('לתשלום ב־30 הימים הקרובים'));
+  // U-3: when empty, column headers and tools stay hidden behind EmptyState.
+  assert.equal(screen.queryAllByRole('columnheader').length, 0);
+  assert.ok(screen.getByRole('heading', { name: 'אין עדיין חשבוניות' }));
+
+  fireEvent.click(screen.getByRole('button', { name: 'לקוחות' }));
+  assert.equal(screen.queryAllByRole('columnheader').length, 0);
+  assert.ok(screen.getByRole('heading', { name: 'אין עדיין לקוחות' }));
+
+  // When data exists, Hebrew RTL column headers render for both invoices and customers.
+  useLedgerStore.setState({
+    invoices: [{
+      id: 'inv-he-1', uid: 'u1', workspaceId: 'component-workspace', customerId: 'cust-he-1',
+      customerName: 'לקוח א', number: '1001', amountCents: 10000, date: '2026-10-01', dueDate: '2026-10-30', status: 'sent',
+    }],
+    customers: [{
+      id: 'cust-he-1', uid: 'u1', workspaceId: 'component-workspace', name: 'לקוח א', status: 'active', balanceCents: 10000,
+    }],
+  });
+  rerender(<Sales />);
+  fireEvent.click(screen.getByRole('button', { name: 'חשבוניות' }));
   assert.ok(screen.getByRole('columnheader', { name: 'מספר' }));
   assert.ok(screen.getByRole('columnheader', { name: 'לקוח' }));
   assert.ok(screen.getByRole('columnheader', { name: 'מצב' }));
@@ -42,7 +62,6 @@ test('Sales primary screen controls render the selected Hebrew language and RTL 
   assert.ok(screen.getByRole('columnheader', { name: 'פרטי לקוח' }));
   assert.ok(screen.getByRole('columnheader', { name: 'פרטי קשר' }));
   assert.ok(screen.getByRole('columnheader', { name: 'יתרת לקוחות נטו' }));
-  assert.ok(screen.getByRole('heading', { name: 'אין עדיין לקוחות' }));
 });
 
 test('empty invoices offer a working first-invoice action', () => {

@@ -1,6 +1,6 @@
 import { APP_TABS, REPORT_TABS_REGISTRY, SETTINGS_TABS_REGISTRY } from './registry';
 import type { PinnedPage } from '../lib/pinnedPages';
-import { isModuleOn, moduleOfTab, type Modules } from '../lib/modules';
+import { isModuleOn, MODULES, moduleOfTab, type Modules } from '../lib/modules';
 
 /** Words people type when looking for a setting (BB-09 settings search). */
 const SETTINGS_KEYWORDS: Record<string, string> = {
@@ -29,19 +29,40 @@ const SETTINGS_KEYWORDS: Record<string, string> = {
   shortcuts: 'keyboard keys speed dial hotkeys',
 };
 
-export interface PageEntry { page: PinnedPage; label: string; keywords: string }
+export interface PageEntry {
+  page: PinnedPage;
+  label: string;
+  keywords: string;
+  disabledModuleId?: string;
+}
 
 type Labelled = { id: string; label: Record<string, string>; developerOnly?: boolean };
 const name = (entry: Labelled, language: string) => entry.label[language] || entry.label.en;
 
-/** Every page someone can go to: main screens, each report and each settings tab. */
+/** Every page someone can go to: main screens, each report and each settings tab, plus turned-off module links. */
 export function pageIndex(language = 'en', opts: { developerMode?: boolean; modules?: Modules } = {}): PageEntry[] {
-  // BB-07: a module turned off leaves the page search too (Settings → Modules turns it back on)
+  // BB-07: a module turned off leaves the active screens out, while offering a shortcut to turn it on in Settings → Modules
   const main = (APP_TABS as Labelled[]).filter(t => (!t.developerOnly || opts.developerMode) && (!moduleOfTab(t.id) || isModuleOn(opts.modules, moduleOfTab(t.id)!)))
-    .map(t => ({ page: { tab: t.id }, label: name(t, language), keywords: t.id }));
-  const reports = (REPORT_TABS_REGISTRY as Labelled[]).map(r => ({ page: { tab: 'reports', sub: r.id }, label: `Report: ${name(r, language)}`, keywords: 'report' }));
-  const settings = (SETTINGS_TABS_REGISTRY as Labelled[]).map(s => ({ page: { tab: 'settings', sub: s.id }, label: `Settings: ${name(s, language)}`, keywords: `settings ${SETTINGS_KEYWORDS[s.id] || ''}` }));
-  return [...main, ...reports, ...settings];
+    .map(t => ({ page: { tab: t.id }, label: name(t, language), keywords: `${t.id} ${name(t, 'en')}` }));
+  const reports = (REPORT_TABS_REGISTRY as Labelled[]).map(r => ({
+    page: { tab: 'reports', sub: r.id },
+    label: `Report: ${name(r, language)}`,
+    keywords: `report ${r.id.replace(/-/g, ' ')} ${name(r, 'en')}`,
+  }));
+  const settings = (SETTINGS_TABS_REGISTRY as Labelled[]).map(s => ({
+    page: { tab: 'settings', sub: s.id },
+    label: `Settings: ${name(s, language)}`,
+    keywords: `settings ${s.id.replace(/-/g, ' ')} ${SETTINGS_KEYWORDS[s.id] || ''}`,
+  }));
+  const disabledModules: PageEntry[] = opts.modules
+    ? MODULES.filter(m => !isModuleOn(opts.modules, m.id)).map(m => ({
+      page: { tab: 'settings', sub: 'modules' },
+      label: `${m.name} (off) — turn on in Settings → Modules`,
+      keywords: `${m.id} ${m.name} ${m.about} ${m.tabs.join(' ')} module turn on enable settings`,
+      disabledModuleId: m.id,
+    }))
+    : [];
+  return [...main, ...reports, ...settings, ...disabledModules];
 }
 
 /** Pages whose name or keywords contain every typed word. */

@@ -49,6 +49,25 @@ export const NEW_WORKSPACE_MODULES: Modules = {
   budgets: false,
 };
 
+const BUSINESS_MODULE_EXTRAS: Record<string, string[]> = {
+  retail: ['inventory', 'purchase-orders'],
+  construction: ['projects', 'purchase-orders', 'budgets'],
+  service: ['projects'],
+  creative: ['projects'],
+  software_agency: ['projects'],
+  realestate: ['projects', 'loans', 'fixed-assets'],
+  nonprofit: ['projects', 'budgets'],
+};
+
+/** Starter modules tailored to the chosen business type, keeping advanced modules off unless relevant. */
+export function modulesForBusiness(businessType: string | undefined): Modules {
+  const next: Modules = { ...NEW_WORKSPACE_MODULES };
+  for (const id of BUSINESS_MODULE_EXTRAS[businessType || ''] || []) {
+    if (id in next) next[id] = true;
+  }
+  return next;
+}
+
 const BY_TAB = new Map(MODULES.flatMap(m => m.tabs.map(tab => [tab, m.id] as const)));
 
 /** The module a menu tab belongs to, if any (tabs outside modules always show). */
