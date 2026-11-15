@@ -87,6 +87,12 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
 
     // ---- 2. Send an invoice ----------------------------------------------------------------------
     await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
+    // Sales opens on Invoices. Adding a customer leaves you on the customer list (correctly), so the
+    // next step is the same second tab a person presses to get back to the invoice list.
+    const invoicesTab = page.getByRole('button', { name: 'Invoices', exact: true });
+    await invoicesTab.focus();
+    await page.keyboard.press('Enter');
+    await expect(invoicesTab).toHaveAttribute('aria-pressed', 'true');
 
     const addInvoice = page.getByRole('button', { name: 'Add Invoice', exact: true });
     await expect(addInvoice).toBeVisible();
