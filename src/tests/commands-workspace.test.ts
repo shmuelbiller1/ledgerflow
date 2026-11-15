@@ -67,6 +67,10 @@ test('legacy route idempotency hashes include path targets for task deletes and 
     { definition: remove, workspaceId, input: { taskId: 'remove-target-a' } }, dependencies);
   assert.equal(firstDelete.ok, true);
   assert.equal(db.read('documents/remove-target-a'), undefined);
+  const exactDeleteRetry = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-a' } }, dependencies);
+  assert.equal(exactDeleteRetry.ok, true);
+  if (exactDeleteRetry.ok) assert.equal(exactDeleteRetry.replayed, true);
   const reusedDelete = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
     { definition: remove, workspaceId, input: { taskId: 'remove-target-b' } }, dependencies);
   assert.equal(reusedDelete.ok, false);
@@ -78,6 +82,10 @@ test('legacy route idempotency hashes include path targets for task deletes and 
     { definition: status, workspaceId, input: { taskId: 'status-target-a', status: 'done' } }, dependencies);
   assert.equal(firstUpdate.ok, true);
   assert.equal(db.read('documents/status-target-a')?.status, 'done');
+  const exactUpdateRetry = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-a', status: 'done' } }, dependencies);
+  assert.equal(exactUpdateRetry.ok, true);
+  if (exactUpdateRetry.ok) assert.equal(exactUpdateRetry.replayed, true);
   const reusedUpdate = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
     { definition: status, workspaceId, input: { taskId: 'status-target-b', status: 'done' } }, dependencies);
   assert.equal(reusedUpdate.ok, false);
