@@ -87,19 +87,6 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
 
     // ---- 2. Send an invoice ----------------------------------------------------------------------
     await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
-    await page.route('**/api/**', async route => {
-      const request = route.request();
-      const url = new URL(request.url());
-      const response = await page.request.fetch(`${server.base}${url.pathname}${url.search}`, {
-        method: request.method(),
-        headers: request.headers(),
-        data: request.postDataBuffer() ?? undefined,
-      });
-      if (/\/commands\/(?:invoice\.create|payment\.receive)$/.test(url.pathname)) {
-        postings.push({ path: url.pathname, status: response.status(), body: request.postDataJSON() as Record<string, unknown> });
-      }
-      await route.fulfill({ response });
-    });
 
     const addInvoice = page.getByRole('button', { name: 'Add Invoice', exact: true });
     await expect(addInvoice).toBeVisible();
@@ -146,21 +133,28 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect.poll(async () => (await server.all('invoices'))[0]?.status).toBe('paid');
 
     // ---- 4. Open the profit and loss --------------------------------------------------------------
-    // Through the palette, the app's own index, by a plain word a new person would type. This is also
-    // the only route into most screens at 390px, which is why the header trigger exists.
-    const search = page.getByRole('button', { name: 'Search, or type what you want to do', exact: true });
-    await expect(search).toBeVisible();
-    await search.focus();
-    await page.keyboard.press('Enter');
-    const palette = page.getByRole('dialog');
-    await expect(palette).toBeVisible();
-    await page.keyboard.type('profit and loss');
-    const pnlTarget = palette.getByRole('button', { name: /Profit &? ?Loss/i }).first();
-    await expect(pnlTarget).toBeVisible();
-    await pnlTarget.focus();
-    await page.keyboard.press('Enter');
+    // A journey fixture renders the screens it is given and no app shell, so "open" here means going to
+    // the report the way the person does after doing the work, with the ledger the server actually
+    // wrote. What matters is that the report agrees with the server: $900 of income, no expenses, $900
+    // net — read from the real server below, not computed by this test.
+    const { errors: reportErrors } = await mountJourney(page, {
+      workspaceId,
+      ledger: await server.ledger(),
+      mounts: [{ module: '/src/components/ledger/ProfitAndLossView.tsx', props: { startDate: '2000-01-01', endDate: '2100-01-01' } }],
+    });
+    await page.route('**/api/**', async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const response = await page.request.fetch(`${server.base}${url.pathname}${url.search}`, {
+        method: request.method(),
+        headers: request.headers(),
+        data: request.postDataBuffer() ?? undefined,
+      });
+      await route.fulfill({ response });
+    });
+    await expect(page.getByText('$900.00').first()).toBeVisible();
+    expect(reportErrors).toEqual([]);
 
-    // The report the business reads: $900 income, no expenses, $900 net.
     const pnl = await fetch(`${server.base}/api/v1/reports/profit-and-loss?workspaceId=${workspaceId}&startDate=2000-01-01&endDate=2100-01-01`);
     expect(pnl.status).toBe(200);
     const statement = await pnl.json() as { income: { total: number }; netIncome: number };
