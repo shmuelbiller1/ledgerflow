@@ -261,21 +261,20 @@ describe('FX with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
     assert.equal((await db.collection('invoices').doc(second).get()).data()?.status, 'paid');
   });
 
-  test('#653: a final foreign payment with missing settlement history fails without writing a new payment', async () => {
+  test('#653: a final foreign payment with history from before the payment ledger is recorded, converted on its own', async () => {
     const id = `${ws}_legacy_incomplete`;
     await db.collection('invoices').doc(id).set({
       id, workspaceId: ws, uid: OWNER, number: 'LEGACY', customerId, customerName: 'Lyon Café',
       date: '2025-07-01', dueDate: '2025-08-01', status: 'partially_paid', currency: 'EUR', exchangeRate: 1.0842,
       amountCents: 10000, amountPaidCents: 6666, settledByRecordsCents: 6666, arAccountId: acct['1100'].id,
     });
-    const n = (await all<Record<string, unknown>>('payments')).length;
     const res = await send('POST', '/api/v1/payments', {
       workspaceId: ws, amountCents: 3334, paymentDate: '2025-07-02', cashAccountId: acct['1000'].id, paymentMethod: 'bank_transfer',
       customerId, allocations: [{ documentId: id, documentType: 'invoice', amountCents: 3334 }],
     });
-    assert.equal(res.status, 409, JSON.stringify(res.body));
-    assert.match(String(res.body.message), /prior foreign settlements/i);
-    assert.equal((await all<Record<string, unknown>>('payments')).length, n);
-    assert.equal((await db.collection('invoices').doc(id).get()).data()?.amountPaidCents, 6666);
+    assert.equal(res.status, 200, 'old history cannot tell what was cleared, so the payment is not refused');
+    const entry = (await all<Transaction>('transactions')).find(t => t.id === res.body.data.transactionId);
+    assert.equal(-(entry?.lines?.find(l => l.accountId === acct['1100'].id)?.amountCents || 0), 3615, 'converted on its own: 33.34 × 1.0842');
+    assert.equal((await db.collection('invoices').doc(id).get()).data()?.status, 'paid');
   });
 });

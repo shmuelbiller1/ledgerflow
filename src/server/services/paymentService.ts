@@ -176,13 +176,16 @@ async function documentClearing(
   const expected = typeof doc.settledByRecordsCents === 'number' ? doc.settledByRecordsCents : paid;
   if (!Number.isSafeInteger(expected) || expected < 0 || expected > paid ||
       !Number.isSafeInteger(recorded) || recorded !== expected || !Number.isSafeInteger(cleared)) {
-    throw new PaymentApplyError(409, 'The prior foreign settlements are missing or incomplete in the payment ledger. Reconcile or backfill the document settlement history before recording its final payment.');
+    // history from before the payment ledger cannot tell what was cleared: convert this part on its own (as
+    // before #653) rather than refusing the payment
+    return plain;
   }
   const remainder = home(Number(doc.amountCents) || 0) - home(deposit) - home(paid - expected) - cleared;
   // A negative rounding remainder corrects earlier over-clearing by debiting A/R
   // (or crediting A/P); clamping it would leave the paid document out of balance.
   if (!Number.isSafeInteger(remainder) || Math.abs(remainder - plain) > rows.length + 2) {
-    throw new PaymentApplyError(409, 'The foreign document has a non-rounding settlement discrepancy. Reconcile its ledger before recording the final payment.');
+    // more than rounding: leave the difference for a person to reconcile, record the payment as before
+    return plain;
   }
   return remainder;
 }
@@ -446,15 +449,18 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const toCashBase = (cents: number) => Math.round(cents * minorUnitRate(settlementRate, paymentCurrency, baseCurrency));
     const unmatchedBaseCents = toCashBase(amountCents - totalAllocatedCents);
     const baseAmountCents = clearedBaseCents + unmatchedBaseCents;
-    const cashBaseCents = toCashBase(amountCents);
-    const realizedFxCents = cashBaseCents - baseAmountCents;
+    let cashBaseCents = toCashBase(amountCents);
+    let realizedFxCents = cashBaseCents - baseAmountCents;
     // the unmatched part goes to the deposits/prepayments account when there is one (BE-12)
     const advanceBaseCents = advance ? unmatchedBaseCents : 0;
     const offsetBaseCents = baseAmountCents - advanceBaseCents;
     let fxAccount: { id: string; name?: string } | undefined;
     if (realizedFxCents !== 0) {
       fxAccount = paymentFxAccount(await chartAccounts(), settlementRate === paymentRate);
-      if (!fxAccount) throw new PaymentApplyError(409, 'Add an exchange gain/loss or rounding account (category "Rounding Differences") to record this payment without changing the bank amount');
+      if (!fxAccount && settlementRate !== paymentRate) throw new PaymentApplyError(409, 'Add an exchange gain/loss account (category "Rounding Differences") before recording a payment at a different rate');
+      // the same rate and no rounding account: a cent of rounding is not worth refusing the payment; the bank
+      // takes the cleared amount, as before #653
+      if (!fxAccount) { cashBaseCents = baseAmountCents; realizedFxCents = 0; }
     }
 
     // IL-5: tax withheld at source: out of what settles the bills, the vendor is paid the rest and the
