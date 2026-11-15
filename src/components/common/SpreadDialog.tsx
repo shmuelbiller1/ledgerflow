@@ -1,8 +1,9 @@
+import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency, readAmountCents } from '../../lib/utils';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from '../../lib/accountDefaults';
@@ -86,13 +87,12 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
     setBusy(true);
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace?.id || '')}/${side.path}/${encodeURIComponent(doc.id)}/spread`, {
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace?.id || '')}/${side.path}/${encodeURIComponent(doc.id)}/spread`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ [side.accountField]: accountId, [side.holdField]: holdAccountId, amountCents: input.amountCents, months: input.months, startMonth }),
+        token,
+        body: { [side.accountField]: accountId, [side.holdField]: holdAccountId, amountCents: input.amountCents, months: input.months, startMonth },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The spread could not be saved');
       toast.success(`Spread over ${input.months} months`);
       onClose();
     } catch (err) {
