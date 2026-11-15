@@ -324,7 +324,9 @@ export function TanStackDataGrid<TData extends object>({
 
 
   const filteredRows = table.getFilteredRowModel().rows;
-  const visibleRows = printing ? filteredRows : table.getRowModel().rows;
+  // printing draws the whole list *as the reader sorted it*: the pre-pagination row model carries the
+  // sort and the filter, while `filteredRows` (the filter model) would print the rows unsorted
+  const visibleRows = printing ? table.getPrePaginationRowModel().rows : table.getRowModel().rows;
   /**
    * The totals row, built from the cells the body actually draws.
    *

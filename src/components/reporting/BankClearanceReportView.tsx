@@ -48,11 +48,13 @@ export default function BankClearanceReportView() {
     { id: 'in', accessorFn: row => (row.amountCents > 0 ? row.amountCents : null), header: 'In', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
     { id: 'out', accessorFn: row => (row.amountCents < 0 ? -row.amountCents : null), header: 'Out', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
     /**
-     * Sorted on the stored date, taken as text, with the two states on either side of it: sorting the
-     * printed date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of
-     * month. Display keeps using `clearedText`.
+     * Sorted on the stored date, with the two states on either side of the dates: sorting the printed
+     * date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of month.
+     * The key is built from the same rule `clearedText` uses — an entry that cleared after the period
+     * reads as Outstanding, and `clearedOn` is `null` for outstanding but `''` for a reconciled entry
+     * with no date — so the states do not split across the dates. Display keeps using `clearedText`.
      */
-    { id: 'cleared', accessorFn: row => (row.clearedOn ? `1${row.clearedOn}` : '2Reconciled'), sortingFn: 'text', header: 'Cleared', cell: info => {
+    { id: 'cleared', accessorFn: row => (clearedText(row) === 'Outstanding' ? '2Outstanding' : row.clearedOn ? `1${row.clearedOn}` : '0Reconciled'), sortingFn: 'text', header: 'Cleared', cell: info => {
       // the cell prints the record's own state; only the sort key carries the stored date
       const text = clearedText(info.row.original as ClearanceRow);
       return text === 'Outstanding' ? <span className="text-amber-700 dark:text-amber-400">{text}</span> : <span className="text-xs">{text}</span>;

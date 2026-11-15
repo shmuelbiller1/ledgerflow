@@ -14,7 +14,7 @@ import './helpers/dom';
 import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../components/ui/TanStackDataGrid';
 import ListColumnChooser from '../components/ui/ListColumnChooser';
@@ -189,6 +189,23 @@ describe('the review findings on the shared list stay fixed', () => {
     assert.equal(total?.textContent, '$175.00', 'the summary survives on a phone');
     assert.equal(document.querySelector('table'), null, 'and the table is the card layout');
     window.matchMedia = original;
+  });
+
+  test('printing keeps the reader’s sort, so the printed rows are in the order on screen', () => {
+    const rows = [
+      { id: 'a', name: 'Zeta', amountCents: 1 },
+      { id: 'b', name: 'Alpha', amountCents: 2 },
+      { id: 'c', name: 'Mike', amountCents: 3 },
+    ];
+    render(<TanStackDataGrid caption="Aging" data={rows} columns={columns} pageSize={1} />);
+    fireEvent.click(screen.getByRole('button', { name: /Sort by Name|Customer/i }));
+    const printed = () => {
+      window.dispatchEvent(new (window as unknown as { Event: typeof Event }).Event('beforeprint'));
+      const names = Array.from(document.querySelectorAll('tbody th[scope="row"], tbody td:first-child')).map(cell => cell.textContent);
+      window.dispatchEvent(new (window as unknown as { Event: typeof Event }).Event('afterprint'));
+      return names;
+    };
+    assert.deepEqual(printed(), ['Alpha', 'Mike', 'Zeta'], 'printed in the sort order, not the data order');
   });
 
   test('printing draws every row, not the page, so a printed total reconciles', () => {
