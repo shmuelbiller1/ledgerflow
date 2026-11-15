@@ -50,7 +50,7 @@ export const STAGES_COMMAND_MANIFEST = [
   {
     "name": "stages.move",
     "area": "stages",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Move an invoice or bill to one of its configured progress stages, or clear the stage; do not use it to change its accounting status.",

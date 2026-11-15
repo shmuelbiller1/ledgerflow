@@ -26,11 +26,7 @@ export const ALERTS_COMMAND_MANIFEST = [
           "when": "The cash amount or reminder day is outside its allowed range.",
           "next": "Use a nonnegative whole-cent cash amount and a reminder day from 1 to 28, or null to turn a setting off."
         },
-        {
-          "code": "WORKSPACE_NOT_FOUND",
-          "when": "The named workspace no longer exists.",
-          "next": "Choose an existing workspace."
-        },
+        COMMAND_SCHEMA_PARTS.part91,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",

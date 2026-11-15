@@ -8,7 +8,7 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.create",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Create a bill and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing bill.",
@@ -32,7 +32,7 @@ export const BILL_COMMAND_MANIFEST = [
           ]
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part123
+      "refusals": COMMAND_SCHEMA_PARTS.part127
     },
     "runPath": "/api/v1/commands/bill.create",
     "previewPath": "/api/v1/commands/bill.create/preview",
@@ -41,12 +41,12 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.delete",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Delete a bill and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part12,
-      "refusals": COMMAND_SCHEMA_PARTS.part123
+      "refusals": COMMAND_SCHEMA_PARTS.part127
     },
     "runPath": "/api/v1/commands/bill.delete",
     "previewPath": "/api/v1/commands/bill.delete/preview",
@@ -55,12 +55,12 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.update",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing bill and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part48,
-      "refusals": COMMAND_SCHEMA_PARTS.part123
+      "example": COMMAND_SCHEMA_PARTS.part50,
+      "refusals": COMMAND_SCHEMA_PARTS.part127
     },
     "runPath": "/api/v1/commands/bill.update",
     "previewPath": "/api/v1/commands/bill.update/preview",

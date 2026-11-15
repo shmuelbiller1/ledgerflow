@@ -6,12 +6,12 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "maps": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part58,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part60,
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "columns": COMMAND_SCHEMA_PARTS.part118,
-          "skipRows": COMMAND_SCHEMA_PARTS.part44,
+          "columns": COMMAND_SCHEMA_PARTS.part122,
+          "skipRows": COMMAND_SCHEMA_PARTS.part45,
           "savedAt": COMMAND_SCHEMA_PARTS.part9
         },
         "required": [

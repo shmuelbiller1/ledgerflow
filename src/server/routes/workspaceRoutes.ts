@@ -30,6 +30,12 @@ import { twoStepPolicyRouter } from './twoStepPolicyRoutes';
 import { AlertSettingsError } from '../services/bookAlertService';
 import { alertSettingsUpdateCommand } from '../commands/alerts';
 import { importMapSaveCommand } from '../commands/importMaps';
+import {
+  workspaceModulesCommand,
+  workspaceOpeningBalancesCommand,
+  workspaceRetentionCommand,
+  workspaceSetupCompleteCommand,
+} from '../commands/workspaceSettings';
 import { executeCommand } from '../utils/commandExecutor';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
@@ -37,11 +43,11 @@ import { brandingRouter } from './brandingRoutes';
 import { contactMergeRouter } from './contactMergeRoutes';
 import { numberingRouter } from './numberingRoutes';
 import { allocateNextNumber, NUMBERED_TYPES, type NumberedType } from '../services/numberingService';
-import { retentionFor, RetentionSettingsSchema, scheduledPurgeAt as purgeDate } from '../../lib/retention';
-import { RetentionError, updateRetention } from '../services/retentionService';
+import { retentionFor, scheduledPurgeAt as purgeDate } from '../../lib/retention';
+import { RetentionError } from '../services/retentionService';
 import { budgetControlRouter } from './budgetControlRoutes';
-import { completeSetup, recordOpeningBalances, SetupError } from '../services/openingBalanceService';
-import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
+import { SetupError } from '../services/openingBalanceService';
+import { ModuleSettingError, moduleRecords } from '../services/moduleService';
 import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter, paymentTypeRouter, customerGroupRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
 import { planFor } from '../../lib/plans';
@@ -271,18 +277,32 @@ workspaceRouter.get('/:workspaceId/modules/records', requireWorkspaceRole(['owne
   }
 });
 
-/** BB-07: owners and accountants turn modules on or off (moduleService.ts); nothing is deleted. */
+/** BB-07: owners and accountants turn modules on or off; nothing is deleted. */
 workspaceRouter.put('/:workspaceId/modules', requireWorkspaceRole(LEDGER_ADMIN_ROLES), async (req, res) => {
-  try {
-    const { workspaceId } = req.params as Record<string, string>;
-    const { modules } = z.object({ modules: z.record(z.string(), z.boolean()) }).strict().parse(req.body);
-    const { user } = req as AuthenticatedRequest;
-    res.json({ status: 'success', ...(await setModules(getDb(), { workspaceId, uid: user.uid, email: user.email, modules })) });
-  } catch (err) {
-    if (err instanceof z.ZodError) return sendError(res, 'Send which modules are on (true or false)', 400, err.issues);
-    if (err instanceof ModuleSettingError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Could not save the modules', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceModulesCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', modules: (outcome.data as { modules: unknown }).modules } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Send which modules are on (true or false)', details: outcome.error.issues } };
+      }
+      if (outcome.error instanceof ModuleSettingError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Could not save the modules', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 workspaceRouter.post('/:workspaceId/import-records', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
@@ -558,49 +578,88 @@ workspaceRouter.delete('/:workspaceId/invites/:inviteId', requireWorkspaceRole([
 });
 
 /** First-run setup (L-19): opening balances as one balanced entry, or "start from zero". */
-const openingBalancesSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  balances: z.array(z.object({ accountId: z.string().min(1).max(127), amountCents: z.number().int() }).strict()).max(300),
-}).strict();
-
 workspaceRouter.post('/:workspaceId/opening-balances', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const parsed = openingBalancesSchema.safeParse(req.body);
-  if (!parsed.success) return sendError(res, 'Invalid opening balances', 400, parsed.error.issues.map(i => i.message).join('; '));
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const result = await recordOpeningBalances(getDb(), { workspaceId, uid: user.uid, email: user.email, ...parsed.data });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    if (err instanceof SetupError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to record the opening balances', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceOpeningBalancesCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        const { workspaceId: _workspaceId, ...result } = outcome.data as Record<string, unknown>;
+        return { status: outcome.status, body: { status: 'success', ...result } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: { status: 'error', message: 'Invalid opening balances', details: outcome.error.issues.map(issue => issue.message).join('; ') },
+        };
+      }
+      if (outcome.error instanceof SetupError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to record the opening balances', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 workspaceRouter.post('/:workspaceId/setup-complete', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  try {
-    await completeSetup(getDb(), { workspaceId, uid: (req as AuthenticatedRequest).user.uid });
-    res.json({ status: 'success' });
-  } catch (err) {
-    if (err instanceof SetupError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to finish the setup', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceSetupCompleteCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: {},
+    formatResponse(outcome) {
+      if (outcome.ok) return { status: outcome.status, body: { status: 'success' } };
+      if (outcome.error instanceof SetupError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to finish the setup', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /** Retention (L-08): how long logs are kept, the recovery window, legal hold. Owners only. */
 workspaceRouter.put('/:workspaceId/retention', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const parsed = RetentionSettingsSchema.safeParse(req.body);
-  if (!parsed.success) return sendError(res, 'Invalid retention settings', 400, parsed.error.issues.map(i => i.message).join('; '));
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const retention = await updateRetention(getDb(), { workspaceId, uid: user.uid, email: user.email, settings: parsed.data });
-    res.json({ status: 'success', retention });
-  } catch (err) {
-    if (err instanceof RetentionError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to save retention settings', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceRetentionCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', retention: (outcome.data as { settings: unknown }).settings } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: { status: 'error', message: 'Invalid retention settings', details: outcome.error.issues.map(issue => issue.message).join('; ') },
+        };
+      }
+      if (outcome.error instanceof RetentionError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to save retention settings', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /**

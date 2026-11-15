@@ -4,6 +4,12 @@ import type { RequestUser } from '../server/auth/requestUser';
 import type { CommandDefinition } from '../server/commands/types';
 import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
+import {
+  workspaceModulesCommand,
+  workspaceOpeningBalancesCommand,
+  workspaceRetentionCommand,
+  workspaceSetupCompleteCommand,
+} from '../server/commands/workspaceSettings';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from '../server/commands/entryLinks';
 import { stageDefineCommand, stageMoveCommand } from '../server/commands/stages';
 import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../server/commands/tasks';
@@ -89,6 +95,151 @@ test('workspace import-map commands preview saves and can restore their full pri
   assert.equal(restored.ok, true);
   assert.equal(auditCounters.audits, 2, 'the restore command writes its audit summary through the shared runner');
   assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.importColumnMaps, previousMaps);
+});
+
+test('workspace setup/settings commands publish validated examples and refusal guides', () => {
+  for (const command of [workspaceModulesCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand]) {
+    assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
+    assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
+    assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
+    assert.ok(command.roles.length > 0, `${command.name} lists roles`);
+  }
+  assert.deepEqual(workspaceModulesCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceOpeningBalancesCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceRetentionCommand.roles, ['owner']);
+  assert.deepEqual(workspaceSetupCompleteCommand.roles, ['owner', 'accountant']);
+});
+
+test('workspace.modules previews changes, audits once, and restores its previous effective settings', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { modules: { payroll: true, loans: false } });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { modules: { payroll: false } };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceModulesCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview, { title: 'Change workspace modules', lines: ['Payroll off'] });
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.modules, { payroll: true, loans: false }, 'preview never writes');
+
+  const request = fakeRequest(owner, input, 'workspace-modules-change');
+  const saved = await executeCommand(request, captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.modules, { payroll: false, loans: false });
+  assert.equal(counters.audits, 1);
+  const result = saved.data as Parameters<NonNullable<typeof workspaceModulesCommand.inverse>>[1];
+  assert.deepEqual(workspaceModulesCommand.inverse?.(input, result), {
+    command: 'workspace.modules',
+    input: { modules: result.previousModules },
+  });
+
+  const restore = workspaceModulesCommand.inverse?.(input, result);
+  assert.ok(restore);
+  const restored = await executeCommand(fakeRequest(owner, restore?.input, 'workspace-modules-restore'), captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input: restore?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.equal((db.read(`workspaces/${workspaceId}`)?.modules as Record<string, boolean>)?.payroll, true);
+  assert.equal(counters.audits, 2);
+
+  const invalid = await executeCommand(fakeRequest(owner, { modules: { rockets: true } }), captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input: { modules: { rockets: true } } }, dependencies);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.status, 400);
+  assert.equal(counters.audits, 2, 'invalid module names are refused before writing or auditing');
+});
+
+test('workspace.setupcomplete is transactional, idempotent, and refuses roles below accountant', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { members: [owner.uid, 'viewer-1'], roles: { 'viewer-1': 'viewer' } });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = {};
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Mark this workspace as ready to use']);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.setupCompletedAt, undefined);
+
+  const first = await executeCommand(fakeRequest(owner, input, 'workspace-setup-complete'), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(first.ok, true);
+  assert.ok(db.read(`workspaces/${workspaceId}`)?.setupCompletedAt);
+  assert.equal(counters.audits, 1);
+  const repeated = await executeCommand(fakeRequest(owner, input, 'workspace-setup-complete-repeat'), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, true);
+  if (repeated.ok) assert.equal((repeated.data as { changed: boolean }).changed, false);
+  assert.equal(counters.audits, 1, 'repeating setup completion does not emit a duplicate audit');
+
+  const denied = await executeCommand(fakeRequest({ uid: 'viewer-1', aal: 'aal2' }, input), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(denied.ok, false);
+  if (!denied.ok) assert.equal(denied.status, 403);
+});
+
+test('workspace.retention previews, saves, and reverses retention plus legal-hold settings', async () => {
+  const db = new MemoryDb();
+  const previous = { deletionGraceDays: 30, emailLogDays: 90, errorLogDays: 90, legalHold: false };
+  seedWorkspace(db, workspaceId, { retention: previous });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { deletionGraceDays: 90, emailLogDays: 365, errorLogDays: 60, legalHold: true };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceRetentionCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, [
+    'deletionGraceDays: 30 → 90', 'emailLogDays: 90 → 365', 'errorLogDays: 90 → 60', 'legalHold: false → true',
+  ]);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, previous, 'preview never writes');
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'workspace-retention-change'), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, input);
+  assert.equal(counters.audits, 1);
+  const result = saved.data as Parameters<NonNullable<typeof workspaceRetentionCommand.inverse>>[1];
+  assert.equal(workspaceRetentionCommand.audit(input, result)?.action, 'LEGAL_HOLD_ON');
+  const inverse = workspaceRetentionCommand.inverse?.(input, result);
+  assert.deepEqual(inverse, { command: 'workspace.retention', input: previous });
+  const restored = await executeCommand(fakeRequest(owner, inverse?.input, 'workspace-retention-restore'), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input: inverse?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, previous);
+  assert.equal(counters.audits, 2);
+
+  const invalid = await executeCommand(fakeRequest(owner, { ...input, errorLogDays: 1 }), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input: { ...input, errorLogDays: 1 } }, dependencies);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.status, 400);
+  assert.equal(counters.audits, 2);
+});
+
+test('workspace.openingbalances previews the balanced ledger lines and respects existing setup refusals', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { currency: 'USD' });
+  db.seed('chartAccounts/opening-cash', {
+    id: 'opening-cash', workspaceId, name: 'Checking', type: 'asset', category: 'Cash', isArchived: false,
+  });
+  db.seed('chartAccounts/opening-equity', {
+    id: 'opening-equity', workspaceId, name: 'Opening Balance Equity', type: 'equity', category: 'Equity', isArchived: false,
+  });
+  const input = { date: '2026-01-01', balances: [{ accountId: 'opening-cash', amountCents: 125000 }] };
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceOpeningBalancesCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) {
+    assert.equal(preview.preview.title, 'Record opening balances on 2026-01-01');
+    assert.deepEqual(preview.preview.accounts?.map(line => [line.accountId, line.amountCents]), [
+      ['opening-cash', 125000], ['opening-equity', -125000],
+    ]);
+    assert.deepEqual(preview.preview.lines, ['2 account lines', '125000 cents debited; 125000 cents credited', '125000 cents to Opening Balance Equity']);
+  }
+  assert.equal(db.directWriteCount, 0, 'preview does not mark setup complete or post a transaction');
 });
 
 test('legacy route idempotency hashes include path targets for task deletes and status updates', async () => {

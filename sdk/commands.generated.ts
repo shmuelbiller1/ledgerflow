@@ -42,7 +42,11 @@ export const REGISTERED_COMMAND_NAMES = [
   "watches.create",
   "watches.remove",
   "workspace.importmap",
-  "workspace.restoremaps"
+  "workspace.modules",
+  "workspace.openingbalances",
+  "workspace.restoremaps",
+  "workspace.retention",
+  "workspace.setupcomplete"
 ] as const;
 export type RegisteredCommandName = typeof REGISTERED_COMMAND_NAMES[number];
 

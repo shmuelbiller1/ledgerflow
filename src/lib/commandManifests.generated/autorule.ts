@@ -10,7 +10,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
   {
     "name": "autorule.create",
     "area": "autorule",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Manage workspace automation rules with server-side membership and workspace checks; do not use this command to apply a rule to ledger entries.",
@@ -27,7 +27,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isHardened": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part120
+      "refusals": COMMAND_SCHEMA_PARTS.part124
     },
     "runPath": "/api/v1/commands/autorule.create",
     "previewPath": "/api/v1/commands/autorule.create/preview",
@@ -36,14 +36,14 @@ export const AUTORULE_COMMAND_MANIFEST = [
   {
     "name": "autorule.delete",
     "area": "autorule",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Manage workspace automation rules with server-side membership and workspace checks; do not use this command to apply a rule to ledger entries.",
       "example": {
         "id": "rule_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part117
+      "refusals": COMMAND_SCHEMA_PARTS.part121
     },
     "runPath": "/api/v1/commands/autorule.delete",
     "previewPath": "/api/v1/commands/autorule.delete/preview",
@@ -52,7 +52,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
   {
     "name": "autorule.group",
     "area": "autorule",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Manage workspace automation rules with server-side membership and workspace checks; do not use this command to apply a rule to ledger entries.",
@@ -60,7 +60,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
         "groupName": "General",
         "groupIsActive": false
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part120
+      "refusals": COMMAND_SCHEMA_PARTS.part124
     },
     "runPath": "/api/v1/commands/autorule.group",
     "previewPath": "/api/v1/commands/autorule.group/preview",
@@ -69,7 +69,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
   {
     "name": "autorule.recordhits",
     "area": "autorule",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Manage workspace automation rules with server-side membership and workspace checks; do not use this command to apply a rule to ledger entries.",
@@ -81,7 +81,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part117
+      "refusals": COMMAND_SCHEMA_PARTS.part121
     },
     "runPath": "/api/v1/commands/autorule.recordhits",
     "previewPath": "/api/v1/commands/autorule.recordhits/preview",
@@ -90,7 +90,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
   {
     "name": "autorule.update",
     "area": "autorule",
-    "roles": COMMAND_SCHEMA_PARTS.part35,
+    "roles": COMMAND_SCHEMA_PARTS.part36,
     "risk": "normal",
     "description": {
       "sentence": "Manage workspace automation rules with server-side membership and workspace checks; do not use this command to apply a rule to ledger entries.",
@@ -101,7 +101,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isActive": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part117
+      "refusals": COMMAND_SCHEMA_PARTS.part121
     },
     "runPath": "/api/v1/commands/autorule.update",
     "previewPath": "/api/v1/commands/autorule.update/preview",

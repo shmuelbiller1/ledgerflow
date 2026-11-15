@@ -5,6 +5,12 @@ import { stageDefineCommand, stageMoveCommand } from './stages';
 import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from './tasks';
 import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from './time';
 import { watchCreateCommand, watchRemoveCommand } from './watches';
+import {
+  workspaceModulesCommand,
+  workspaceOpeningBalancesCommand,
+  workspaceRetentionCommand,
+  workspaceSetupCompleteCommand,
+} from './workspaceSettings';
 import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } from './customers';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
@@ -32,6 +38,10 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(alertSettingsUpdateCommand);
   registry.register(importMapSaveCommand);
   registry.register(importMapRestoreCommand);
+  registry.register(workspaceModulesCommand);
+  registry.register(workspaceOpeningBalancesCommand);
+  registry.register(workspaceRetentionCommand);
+  registry.register(workspaceSetupCompleteCommand);
   registry.register(entryLinkCreateCommand);
   registry.register(entryLinkRemoveCommand);
   registry.register(stageDefineCommand);

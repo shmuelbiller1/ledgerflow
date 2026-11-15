@@ -7,12 +7,12 @@ export const WATCHES_COMMAND_MANIFEST = [
   {
     "name": "watches.create",
     "area": "watches",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Watch an invoice, bill, ledger entry, account, or item for later change notices; do not use this to edit the record.",
       "example": {
-        "record": COMMAND_SCHEMA_PARTS.part62
+        "record": COMMAND_SCHEMA_PARTS.part64
       },
       "refusals": [
         {
@@ -49,7 +49,7 @@ export const WATCHES_COMMAND_MANIFEST = [
   {
     "name": "watches.remove",
     "area": "watches",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Stop receiving change notices for a record you watch; do not use this to delete the record itself.",

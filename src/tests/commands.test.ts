@@ -64,7 +64,8 @@ test('the default registry is sorted and unique across the registered command do
     'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update',
     'watches.create', 'watches.remove',
-    'workspace.importmap', 'workspace.restoremaps',
+    'workspace.importmap', 'workspace.modules', 'workspace.openingbalances', 'workspace.restoremaps',
+    'workspace.retention', 'workspace.setupcomplete',
   ]);
   assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);

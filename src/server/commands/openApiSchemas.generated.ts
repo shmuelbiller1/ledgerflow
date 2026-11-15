@@ -41,5 +41,9 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "watches.create": "CommandInput_watches_create",
   "watches.remove": "CommandInput_watches_remove",
   "workspace.importmap": "CommandInput_workspace_importmap",
-  "workspace.restoremaps": "CommandInput_workspace_restoremaps"
+  "workspace.modules": "CommandInput_workspace_modules",
+  "workspace.openingbalances": "CommandInput_workspace_openingbalances",
+  "workspace.restoremaps": "CommandInput_workspace_restoremaps",
+  "workspace.retention": "CommandInput_workspace_retention",
+  "workspace.setupcomplete": "CommandInput_workspace_setupcomplete"
 } as const;
