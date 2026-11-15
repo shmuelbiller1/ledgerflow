@@ -104,6 +104,47 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).handTypedApiCalls, 4);
   });
 
+  test('the token objects other than the bare helper are seen too', () => {
+    // `await user.getIdToken()` and `await auth.currentUser?.getIdToken()` are the same hand-typed
+    // call. The first version of this counter only knew the bare `getIdToken()`, so ~20 sites — a
+    // report pack, the invite flow, several dialogs — were invisible and their conversions moved
+    // nothing. Reported by review, not by me.
+    const root = scratch({
+      'src/components/sales/A.tsx': 'const token = await user.getIdToken();\nfetch(path, { headers: { Authorization: `Bearer ${token}` } });\n',
+      'src/components/sales/B.tsx': 'fetch(path, { headers: { Authorization: `Bearer ${await auth.currentUser?.getIdToken()}` } });\n',
+      'src/components/sales/C.tsx': 'fetch(path, { headers: { Authorization: `Bearer ${await userIdToken()}` } });\n',
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 2, 'both token shapes count; a name with no token does not');
+  });
+
+  test('a faint tint on a selected row is not a primary button', () => {
+    // `bg-indigo-600/[0.03]` is a wash behind a selectable row, and `\b` matched it because `/` is not
+    // a word character — so a list row counted as one of a screen's filled buttons.
+    const root = scratch({
+      'src/components/sales/Rows.tsx': [
+        'export const R = () => (<ul>',
+        '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+        '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+        '</ul>);',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
+  });
+
+  test('a filled button outside the steps counts against the step that is showing', () => {
+    // A wizard's shared action is on screen with whichever step is showing. Counting it in a group of
+    // its own let a wizard show two filled buttons and still total one per group. Reported by review.
+    const root = scratch({
+      'src/components/sales/Wizard.tsx': [
+        'export const W = ({ step }) => (<>',
+        '  <button className="btn-primary">Help</button>',
+        '  {step === 2 && (<button className="btn-primary">Finish</button>)}',
+        '</>);',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'two filled buttons on screen at once');
+  });
+
   test('the API documentation and the one place itself are not counted as a screen typing an address', () => {
     // A code sample a reader copies is not the app calling its server, and counting it made the ratchet
     // reward deleting the docs. The one place the address lives is excluded for the same reason.

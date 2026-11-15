@@ -1,4 +1,4 @@
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { 
   Headphones, 
@@ -154,6 +154,11 @@ export default function SupportView() {
         });
         sentViaApi = true;
       } catch (apiErr) {
+        // A 2xx whose body was cut off means the server already took the message; writing it again
+        // from the browser would show it twice. A refusal (any status the server chose to answer
+        // with) or a request that never arrived still falls back, as before.
+        const accepted = apiErr instanceof ServerCommandError && apiErr.status >= 200 && apiErr.status < 300;
+        if (accepted) throw apiErr;
         console.warn('API message send failed, using client write:', apiErr);
       }
 
@@ -199,6 +204,9 @@ export default function SupportView() {
         });
         sentViaApi = true;
       } catch (apiErr) {
+        // see the note above: a 2xx with a cut body was already accepted by the server
+        const accepted = apiErr instanceof ServerCommandError && apiErr.status >= 200 && apiErr.status < 300;
+        if (accepted) throw apiErr;
         console.warn('API send message failed, using client write:', apiErr);
       }
 

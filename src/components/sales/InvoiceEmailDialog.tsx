@@ -59,7 +59,7 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
   const send = async () => {
     setBusy(true);
     try {
-      const data = await authorized(`${base}/invoices/${encodeURIComponent(invoice.id)}`, { method: 'POST', body: JSON.stringify({ template, to }) });
+      const data = await authorized(`${base}/invoices/${encodeURIComponent(invoice.id)}`, { method: 'POST', body: { template, to } });
       toast.success(`${template === 'reminder' ? 'Reminder' : 'Invoice'} emailed to ${data.to}.`);
       setVersion(v => v + 1);
     } catch (err) {

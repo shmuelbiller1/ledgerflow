@@ -257,12 +257,19 @@ function sendsOwnToken(text: string, at: number): boolean {
     }
   }
   const call = text.slice(at, end || text.length);
-  if (call.includes('getIdToken()')) return true;
-  if (!/Bearer \$\{\s*(\w+)\s*\}/.test(call)) return false;
-  const name = /Bearer \$\{\s*(\w+)\s*\}/.exec(call)![1];
-  // the token was fetched just above and handed in by name
+  // inline, whichever object the token comes from: `getIdToken()`, `user.getIdToken()`,
+  // `auth.currentUser?.getIdToken()` all read the caller's credential at the call site
+  if (/getIdToken\(\)/.test(call)) return true;
+  if (!/Bearer \$\{\s*([\w.?]+)\s*\}/.test(call)) return false;
+  const name = /Bearer \$\{\s*([\w.?]+)\s*\}/.exec(call)![1];
+  // the token was fetched just above and handed in by name — `await getIdToken()` or
+  // `await user.getIdToken()`, which ~20 sites use and the first version of this missed
   const above = text.slice(Math.max(0, at - 600), at);
-  return new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*await\\s+getIdToken\\(\\)`).test(above);
+  const tokenFetched = new RegExp(`(?:const|let|var)\\s+${name.replace(/\./g, '\\.')}\\s*=\\s*await\\s+[\\w.?]*getIdToken\\(\\)`).test(above);
+  // `auth.currentUser?.getIdToken()` names the same helper through the auth object
+  if (tokenFetched) return true;
+  const chained = new RegExp(`(?:const|let|var)\\s+${name.replace(/\./g, '\\.')}\\s*=\\s*await\\s+[\\w.?]*currentUser[.?]+getIdToken\\(\\)`).test(above);
+  return chained;
 }
 
 /** Writes to the database from the browser: screens call the server, they do not post the books. */
@@ -322,7 +329,12 @@ function computeUnreachableActions(rootDir: string): number {
  * lines — so it silently found almost nothing and reported a comfortable zero.
  */
 function computeScreensWithManyPrimaryButtons(rootDir: string): number {
-  const filled = /\bbg-indigo-600\b|\bbtn-primary\b|\bbg-\[var\(--gold\)\]/;
+  /**
+   * A filled button, not a tint. `bg-indigo-600/[0.03]` on a selected row is a wash behind content —
+   * `\b` matched it because `/` is not a word character, so a list row counted as a primary action.
+   * An opacity modifier of 40% or more is still a fill; anything fainter is a background.
+   */
+  const filled = /(?:\bbtn-primary\b|\bbg-\[var\(--gold\)\]|\bbg-indigo-600\b(?!\/(?:\[[0-9.]+\]|[1-3]?[0-9]\b)|\/40|\/50))/;
   return componentFiles(rootDir).filter(file => {
     const text = fs.readFileSync(file, 'utf8');
     const perStep = new Map<string, number>();
@@ -336,7 +348,12 @@ function computeScreensWithManyPrimaryButtons(rootDir: string): number {
       if (/[?:]\s*["']/.test(classNameValue(tag.attributes) ?? '')) continue;
       perStep.set(step, (perStep.get(step) ?? 0) + 1);
     }
-    return [...perStep.values()].some(n => n > 1);
+    // A filled button outside every step is on screen at the same time as the current step's button,
+    // so it counts against each step rather than living in a group of its own. Grouping it under `''`
+    // let a wizard show two filled buttons and still total one per group.
+    const shared = perStep.get('') ?? 0;
+    if (shared > 1) return true;
+    return [...perStep.entries()].some(([key, n]) => key !== '' && n + shared > 1);
   }).length;
 }
 

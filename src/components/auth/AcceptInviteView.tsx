@@ -37,7 +37,11 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
       setLoading(true);
       setError(null);
       try {
-        const data = await runCommand<{ status?: string; invite?: { email: string; workspaceName: string; role: string }; message?: string }>({ path: `/api/v1/invites/${encodeURIComponent(token)}` });
+        const data = await runCommand<{ status?: string; invite?: { email: string; workspaceName: string; role: string }; message?: string }>({
+          path: `/api/v1/invites/${encodeURIComponent(token)}`,
+          // a public endpoint: a stale session must not stop a visitor opening their invitation
+          token: null,
+        });
 
         if (data.status === 'success' && data.invite) {
           setInviteDetails(data.invite);

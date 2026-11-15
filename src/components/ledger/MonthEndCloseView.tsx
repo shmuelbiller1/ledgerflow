@@ -130,7 +130,8 @@ export default function MonthEndCloseView() {
       after?.(result);
       toast.success(success);
     } catch (err) {
-      const details = (err as { details?: unknown }).details;
+      // the refused close names the drafts that block it; runCommand keeps them on the error's body
+      const details = (err as { body?: { details?: unknown } }).body?.details ?? (err as { details?: unknown }).details;
       if (Array.isArray(details) && details.every(d => typeof (d as { collection?: unknown })?.collection === 'string')) setBlockedDrafts(details);
       toast.error(err instanceof Error ? err.message : 'That did not work');
     } finally {
