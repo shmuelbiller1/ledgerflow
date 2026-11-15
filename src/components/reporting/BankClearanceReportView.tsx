@@ -8,6 +8,7 @@ import { isCashAccount } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { bankClearance } from '../../lib/bankClearance';
+import { csvMoney } from '../../lib/csvExport';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -46,8 +47,14 @@ export default function BankClearanceReportView() {
     ) },
     { id: 'in', accessorFn: row => (row.amountCents > 0 ? row.amountCents : null), header: 'In', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
     { id: 'out', accessorFn: row => (row.amountCents < 0 ? -row.amountCents : null), header: 'Out', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
-    { id: 'cleared', accessorFn: clearedText, header: 'Cleared', cell: info => {
-      const text = String(info.getValue());
+    /**
+     * Sorted on the stored date, taken as text, with the two states on either side of it: sorting the
+     * printed date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of
+     * month. Display keeps using `clearedText`.
+     */
+    { id: 'cleared', accessorFn: row => (row.clearedOn ? `1${row.clearedOn}` : '2Reconciled'), sortingFn: 'text', header: 'Cleared', cell: info => {
+      // the cell prints the record's own state; only the sort key carries the stored date
+      const text = clearedText(info.row.original as ClearanceRow);
       return text === 'Outstanding' ? <span className="text-amber-700 dark:text-amber-400">{text}</span> : <span className="text-xs">{text}</span>;
     } },
   ];
@@ -88,12 +95,12 @@ export default function BankClearanceReportView() {
             columnScope="report-bank-clearance"
             columnLabel="Bank clearance columns"
             columnNames={['Date', 'Entry', 'In', 'Out', 'Cleared']}
-            showSavedViews
             exportConfig={{
               filename: 'bank-clearance.csv',
               label: 'Export CSV',
               headers: ['Date', 'Entry', 'In', 'Out', 'Cleared'],
-              mapRow: row => [row.date, row.description || 'Entry', row.amountCents > 0 ? money(row.amountCents) : '', row.amountCents < 0 ? money(-row.amountCents) : '', clearedText(row)],
+              // amounts leave the app as plain decimals (`1234.50`), never the display format
+              mapRow: row => [row.date, row.description || 'Entry', row.amountCents > 0 ? csvMoney(row.amountCents) : '', row.amountCents < 0 ? csvMoney(-row.amountCents) : '', clearedText(row)],
             }}
             emptyState={<EmptyState title="No entries on this account in the period" description="Choose another account or a wider period." />}
             filteredEmptyState={<EmptyState title="No entry matches your search" description="Try another description or date." />}

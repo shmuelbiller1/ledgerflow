@@ -17,6 +17,7 @@ import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../components/ui/TanStackDataGrid';
+import ListColumnChooser from '../components/ui/ListColumnChooser';
 
 type Row = { id: string; name: string; amountCents: number };
 const data: Row[] = [
@@ -49,7 +50,7 @@ describe('the shared list can carry a report table', () => {
     assert.equal(firstRow.querySelectorAll('td').length, 2);
   });
 
-  test('a totals row lines its value up under the column it totals', () => {
+  test('a totals row puts its value under the column it totals, with no colspans', () => {
     render(
       <TanStackDataGrid
         caption="Aging"
@@ -61,11 +62,30 @@ describe('the shared list can carry a report table', () => {
     );
     const foot = document.querySelector('tfoot');
     assert.ok(foot, 'the totals row is drawn');
-    // the label fills the first column, the value sits in the second
-    assert.equal(foot.querySelector('th[scope="row"]')?.textContent, 'Total');
-    assert.equal(foot.querySelector('th[scope="row"]')?.getAttribute('colspan'), '1');
-    assert.equal(foot.querySelector('td')?.textContent, '$175.00');
-    assert.equal(foot.querySelector('td')?.hasAttribute('colspan'), false, 'the total sits in its own column');
+    const cells = Array.from(foot.querySelectorAll('th, td'));
+    // one cell per drawn column, and never a colspan: the column chooser hides by position and skips
+    // any row holding a colspan, so a spanned footer would keep a hidden column's width
+    assert.equal(cells.length, columns.length);
+    for (const cell of cells) assert.equal(cell.hasAttribute('colspan'), false);
+    // columnsBefore: 1 puts the value in the second column, under Amount
+    assert.equal(cells[0].textContent, 'Total');
+    assert.equal(cells[1].textContent, '$175.00');
+  });
+
+  test('the totals row counts the tick column the grid prepends when selectable', () => {
+    render(
+      <TanStackDataGrid
+        caption="Aging"
+        data={data}
+        columns={columns}
+        selectable
+        totals={{ label: 'Total', value: '$175.00', columnsBefore: 1 }}
+      />,
+    );
+    const cells = Array.from(document.querySelector('tfoot')!.querySelectorAll('th, td'));
+    // tick, Name, Amount: three cells, and the total sits under Amount, not under Name
+    assert.equal(cells.length, 3);
+    assert.equal(cells[2].textContent, '$175.00');
   });
 
   test('a totals row cannot widen the table past its columns', () => {
@@ -77,10 +97,9 @@ describe('the shared list can carry a report table', () => {
         totals={{ label: 'Total', value: '$175.00', columnsBefore: 99 }}
       />,
     );
-    const foot = document.querySelector('tfoot')!;
-    const cells = foot.querySelectorAll('th, td');
-    const spanned = Array.from(cells).reduce((sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1), 0);
-    assert.equal(spanned, columns.length, `the totals row is ${columns.length} columns wide`);
+    const cells = Array.from(document.querySelector('tfoot')!.querySelectorAll('th, td'));
+    assert.equal(cells.length, columns.length, `the totals row is ${columns.length} columns wide`);
+    assert.equal(cells[cells.length - 1].textContent, '$175.00', 'and the value is clamped to the last column');
   });
 
   test('no totals row when the list is empty, because an empty list hides the table', () => {
@@ -110,5 +129,76 @@ describe('the shared list can carry a report table', () => {
     const bodyHeaders = Array.from(document.querySelectorAll('tbody th[scope="row"]')).map(cell => cell.textContent);
     assert.deepEqual(bodyHeaders, ['Acme', 'Beta']);
     assert.equal(document.querySelector('tfoot td')?.textContent, '$175.00');
+  });
+});
+
+describe('the review findings on the shared list stay fixed', () => {
+  afterEach(() => cleanup());
+
+  /** The chooser reads its saved choice from this store key, so a screen has to exist in it. */
+  const chooserRender = (props: { locked?: number[] }) =>
+    render(<ListColumnChooser scope="on-review" label="On review" columns={['Date', 'Entry', 'In', 'Out', 'Cleared']} lockedColumns={props.locked} />);
+
+  test('a locked row-header column cannot be hidden, and an older saved choice is not honoured', () => {
+    // pretend the reader hid the Entry column (index 1) before the lock existed
+    localStorage.setItem('ledgerflow.listColumns.guest.none.On review', JSON.stringify([1]));
+    chooserRender({ locked: [1] });
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    assert.equal(boxes[1].disabled, true, 'the column that names each row is locked');
+    assert.equal(boxes[1].checked, true, 'and it is shown, even though a saved choice hid it');
+    assert.equal(boxes[2].disabled, false, 'the other columns stay the reader’s choice');
+    localStorage.clear();
+  });
+
+  test('the row header index the grid hands the chooser includes the tick column', () => {
+    render(
+      <TanStackDataGrid
+        caption="Aging"
+        data={data}
+        columns={columns}
+        rowHeaderColumn="name"
+        selectable
+        columnScope="on-review"
+        columnLabel="On review"
+        columnNames={['', 'Customer', 'Amount']}
+      />,
+    );
+    const boxes = screen.getAllByRole('checkbox');
+    // index 0 is the tick column's own box; index 1 is the Customer column, which names the row
+    const chooserBoxes = Array.from(boxes).filter(box => box.closest('details'));
+    assert.equal((chooserBoxes[1] as HTMLInputElement).disabled, true, 'Customer is the row header, so it is locked');
+    localStorage.clear();
+  });
+
+  test('the total is drawn in the phone layout too, not only in the table', () => {
+    // a narrow viewport is what switches the shared list to cards
+    const original = window.matchMedia;
+    window.matchMedia = (query: string) => ({
+      matches: query.includes('max-width'), media: query, onchange: null,
+      addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+    }) as MediaQueryList;
+    render(
+      <TanStackDataGrid
+        caption="Aging"
+        data={data}
+        columns={columns}
+        totals={{ label: 'Total', value: '$175.00', columnsBefore: 1 }}
+      />,
+    );
+    const total = document.querySelector('[data-grid-total]');
+    assert.equal(total?.textContent, '$175.00', 'the summary survives on a phone');
+    assert.equal(document.querySelector('table'), null, 'and the table is the card layout');
+    window.matchMedia = original;
+  });
+
+  test('printing draws every row, not the page, so a printed total reconciles', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `r${i}`, name: `Row ${i}`, amountCents: 100 }));
+    render(<TanStackDataGrid caption="Aging" data={many} columns={columns} pageSize={10} totals={{ label: 'Total', value: '$30.00', columnsBefore: 1 }} />);
+    assert.equal(document.querySelectorAll('tbody tr').length, 10, 'the screen shows one page');
+    const printEvent = () => new (window as unknown as { Event: typeof Event }).Event('beforeprint');
+    window.dispatchEvent(printEvent());
+    assert.equal(document.querySelectorAll('tbody tr').length, 30, 'the printed page carries all of them');
+    window.dispatchEvent(new (window as unknown as { Event: typeof Event }).Event('afterprint'));
+    assert.equal(document.querySelectorAll('tbody tr').length, 10, 'and the reader is back on their page');
   });
 });

@@ -22,6 +22,7 @@ import {
   Search,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { flushSync } from 'react-dom';
 import { downloadCsv, type CsvValue } from '../../lib/csvExport';
 import { useCompactViewport } from '../../lib/useCompactViewport';
 import { isRowNavKey, nextRowId, rowAnnouncement } from '../../lib/rowKeyboardNav';
@@ -172,6 +173,22 @@ export function TanStackDataGrid<TData extends object>({
     setPageIndex(next.pageIndex);
     setPickedSize(next.pageSize === pageSize ? null : { size: next.pageSize, forProp: pageSize });
   };
+  /**
+   * Printing carries every row, not the page on screen. A report's totals line up with the rows above it
+   * only if both are whole, and the paging controls are already hidden on paper. `flushSync` because the
+   * browser takes the page immediately after `beforeprint`, before a queued render.
+   */
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const before = () => flushSync(() => setPrinting(true));
+    // also synchronous: the reader is back on their page the moment printing ends, not a render later
+    const after = () => flushSync(() => setPrinting(false));
+    window.addEventListener('beforeprint', before);
+    window.addEventListener('afterprint', after);
+    return () => { window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after); };
+  }, []);
+
   const [internalFilter, setInternalFilter] = useState('');
   const [internalSelection, setInternalSelection] = useState<Set<string>>(() => new Set());
   const isCompact = useCompactViewport();
@@ -211,9 +228,16 @@ export function TanStackDataGrid<TData extends object>({
    * label sits in them), the value is the next one, and any columns after it are filled so the row is
    * as wide as the table. Clamped, so a totals row can never widen the table past its columns.
    */
-  const totalColumns = columns.length;
-  const before = Math.min(Math.max(totals?.columnsBefore ?? totalColumns - 1, 0), totalColumns - 1);
-  const after = Math.max(0, totalColumns - before - 1);
+
+  /**
+   * The column chooser's index of the row header, which it must leave visible: hiding the column that
+   * names a row leaves every row without its name, and on a report without its only button.
+   */
+  const rowHeaderLocked = useMemo(() => {
+    if (rowHeaderColumn === undefined) return undefined;
+    const at = columns.findIndex(column => column.id === rowHeaderColumn);
+    return at < 0 ? undefined : [at + (selectable ? 1 : 0)];
+  }, [rowHeaderColumn, columns, selectable]);
 
   const pageRowsIds = useMemo(() => data.map((row, idx) => resolveRowId(row, idx)), [data, resolveRowId]);
   const selectedRows = useMemo(
@@ -298,8 +322,36 @@ export function TanStackDataGrid<TData extends object>({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+
   const filteredRows = table.getFilteredRowModel().rows;
-  const visibleRows = table.getRowModel().rows;
+  const visibleRows = printing ? filteredRows : table.getRowModel().rows;
+  /**
+   * The totals row, built from the cells the body actually draws.
+   *
+   * One cell per drawn column and no colspans, on purpose: the column chooser hides a column with
+   * `:nth-child` on each section and deliberately skips rows that contain a `[colspan]` cell, so a
+   * spanned footer would keep a hidden column's width and put the total under the wrong heading. A
+   * cell-per-column footer is hidden in step with the body it sums.
+   */
+  const totalsRow = useMemo(() => {
+    if (!totals || filteredRows.length === 0) return null;
+    const drawn = table.getVisibleLeafColumns().length;
+    // `columnsBefore` counts the caller's own columns, so the tick column the grid prepends is added on
+    const offset = selectable ? 1 : 0;
+    const valueAt = Math.min(Math.max(offset + (totals.columnsBefore ?? columns.length - 1), 0), drawn - 1);
+    return (
+      <tfoot className="border-t border-[var(--line)]">
+        <tr className="font-semibold">
+          {Array.from({ length: drawn }, (_, index) => {
+            if (index === valueAt) return <td key={index} className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>;
+            if (index === 0) return <th key={index} scope="row" className="px-4 py-3 text-xs text-start">{totals.label}</th>;
+            return <td key={index} className="px-4 py-3" />;
+          })}
+        </tr>
+      </tfoot>
+    );
+  }, [totals, filteredRows, table, selectable, columns.length]);
+
   const pageCount = table.getPageCount() || 1;
 
   const rowIds = useMemo(() => visibleRows.map(row => resolveRowId(row.original as TData, row.index)), [visibleRows, resolveRowId]);
@@ -388,7 +440,12 @@ export function TanStackDataGrid<TData extends object>({
           <div className="flex flex-wrap items-center gap-2">
             {showSavedViews && <SavedViewsBar currentSearchTerm={activeSearch} compact />}
             {columnScope && columnLabel && columnNames && columnNames.length > 0 && (
-              <ListColumnChooser scope={columnScope} label={columnLabel} columns={columnNames} />
+              <ListColumnChooser
+                scope={columnScope}
+                label={columnLabel}
+                columns={columnNames}
+                lockedColumns={rowHeaderLocked}
+              />
             )}
             {exportConfig && (
               <button
@@ -489,6 +546,13 @@ export function TanStackDataGrid<TData extends object>({
                 );
               })}
             </div>
+            </div>
+          )}
+          {totals && filteredRows.length > 0 && (
+            /* the card layout is the phone layout, and a report's summary belongs there too */
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--elevated)] px-4 py-3 text-xs font-semibold">
+              <span className="text-[var(--muted)]">{totals.label}</span>
+              <span className="tabular-nums text-[var(--text)]" data-grid-total>{totals.value}</span>
             </div>
           )}
           {filteredRows.length > 0 && cardFooterContent}
@@ -595,16 +659,7 @@ export function TanStackDataGrid<TData extends object>({
                 })
               )}
             </tbody>
-            {totals && filteredRows.length > 0 && (
-              <tfoot className="border-t border-[var(--line)]">
-                <tr className="font-semibold">
-                  {/* the label sits in the columns to the left of the total; an unlabelled total spans them */}
-                  {before > 0 && <th scope="row" colSpan={before} className="px-4 py-3 text-xs text-start">{totals.label}</th>}
-                  <td className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>
-                  {after > 0 && <td colSpan={after} />}
-                </tr>
-              </tfoot>
-            )}
+            {totalsRow}
             {filteredRows.length > 0 && footerContent}
           </table>
         </div>
