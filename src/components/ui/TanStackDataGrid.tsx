@@ -211,10 +211,9 @@ export function TanStackDataGrid<TData extends object>({
    * label sits in them), the value is the next one, and any columns after it are filled so the row is
    * as wide as the table. Clamped, so a totals row can never widen the table past its columns.
    */
-  const totalColumns = rowHeaderColumn === undefined ? columns.length : columns.length;
-  const totalsBefore = Math.min(Math.max(totals?.columnsBefore ?? totalColumns - 1, 0), totalColumns - 1);
-  const before = totalsBefore;
-  const after = Math.max(0, totalColumns - totalsBefore - 1);
+  const totalColumns = columns.length;
+  const before = Math.min(Math.max(totals?.columnsBefore ?? totalColumns - 1, 0), totalColumns - 1);
+  const after = Math.max(0, totalColumns - before - 1);
 
   const pageRowsIds = useMemo(() => data.map((row, idx) => resolveRowId(row, idx)), [data, resolveRowId]);
   const selectedRows = useMemo(
