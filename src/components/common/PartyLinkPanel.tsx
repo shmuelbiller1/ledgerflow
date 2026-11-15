@@ -74,7 +74,12 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     setPending(vendorId);
     const label = vendorId ? 'Vendor linked' : 'Link removed';
     updateEntity('customers', partyId, { linkedVendorId: vendorId }, label).then(
-      () => setPending(null),
+      () => {
+        setPending(null);
+        // the command's own offered next step, if it has one — never invented by this panel
+        const offered = relink.next[0];
+        if (offered) toast.info(`Next: ${offered.label}`, { description: offered.command });
+      },
       () => {
         // refused (e.g. the vendor was just linked elsewhere): the command's own next step says what
         // to do about it, and the choice stays shown so nothing was silently undone

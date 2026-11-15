@@ -16,6 +16,14 @@ import { runCommand, commandErrorMessage, ServerCommandError } from '../lib/runC
 /** The manifest entry for one command, narrowed so a mistyped name is a compile error. */
 export type CommandEntry = (typeof COMMAND_MANIFEST)[number];
 
+/** A step the command itself offers after it succeeds. */
+export interface OfferedStep {
+  /** a registered command name, so the caller can run it with `useCommand` */
+  command: string;
+  /** already a person's words, e.g. "Record a payment" */
+  label: string;
+}
+
 export interface CommandRefusal {
   /** The server's code (INVALID_INPUT, CONFLICT, …), when it gave one. */
   code?: string;
@@ -34,6 +42,8 @@ export interface UseCommandResult<T> {
   /** The last success's answer, for a screen that wants to redraw from it. */
   result: T | null;
   reset: () => void;
+  /** What this command usually leads to, as commands the caller can look up and run. */
+  next: OfferedStep[];
 }
 
 /** Find the manifest entry, so `runPath` is never typed by hand and a bad name fails loudly. */
@@ -104,5 +114,13 @@ export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandN
     }
   }, [entry]);
 
-  return { run, saving, refusal, result, reset };
+  // What this command usually leads to, as command names the caller can look up and run. Empty when
+  // the command declares none — offering a step nobody declared would be inventing a workflow.
+  const next: OfferedStep[] = useMemo(
+    () => (((entry.description as { next?: Array<{ command: string; label: string }> }).next) || [])
+      .map(step => ({ command: step.command, label: step.label })),
+    [entry],
+  );
+
+  return { run, saving, refusal, result, reset, next };
 }

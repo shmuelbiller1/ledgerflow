@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useCommand } from '../hooks/useCommand';
+import { COMMAND_MANIFEST } from '../lib/commands.generated';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -53,7 +54,19 @@ describe('useCommand(name) is how a screen acts', () => {
     assert.ok(result.current.refusal?.next, 'a refusal that has an offered next step shows it');
   });
 
-  test('a request that never reached the server says so, rather than blaming a code', async () => {
+  test('the next step offered comes from the command, and is a command that exists', () => {
+  // A screen must not invent a workflow. `invoice.create` declares "Record a payment"; the hook hands
+  // it back as a command name, so the screen can look it up and check the role before offering it.
+  const { result } = renderHook(() => useCommand('invoice.create'));
+  assert.deepEqual(result.current.next, [{ command: 'payment.receive', label: 'Record a payment' }]);
+  // and the offered command is real: it is in the same manifest the address comes from
+  assert.ok(COMMAND_MANIFEST.some(command => command.name === result.current.next[0].command));
+  // a command that declares nothing offers nothing, rather than a guessed step
+  const none = renderHook(() => useCommand('invoice.delete'));
+  assert.deepEqual(none.result.current.next, []);
+});
+
+test('a request that never reached the server says so, rather than blaming a code', async () => {
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
     const { result } = renderHook(() => useCommand('invoice.create'));
     await act(async () => { await result.current.run({ invoice: {} }); });
