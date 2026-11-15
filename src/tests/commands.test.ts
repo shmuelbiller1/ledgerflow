@@ -31,7 +31,6 @@ import {
   vendorCreditCreateInput,
   vendorCreditUpdateInput,
 } from '../server/commands/documents';
-import type { CommandDefinition } from '../server/commands/types';
 import { createCommandRouter } from '../server/routes/commandRoutes';
 import { executeCommand, previewCommand } from '../server/utils/commandExecutor';
 import { paymentRequestHash } from '../server/services/paymentService';
@@ -42,7 +41,7 @@ import { autoRuleCreateCommand, autoRuleCreateInput, autoRuleUpdateCommand, auto
 
 import {
   captureResponse, fakeRequest, invocationInput, MemoryDb, owner, recordingCommand, ReplayOnRetryMemoryDb,
-  runnerDependencies, seedWorkspace, testInput, type TestCounters, type TestResult, workspaceId,
+  runnerDependencies, seedWorkspace, type TestCounters, workspaceId,
 } from './helpers/commandTestUtils';
 
 
