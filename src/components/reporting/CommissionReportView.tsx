@@ -26,7 +26,7 @@ export default function CommissionReportView() {
   if (!workspace) return null;
   const currency = workspace.currency || 'USD';
   const reps = workspace.salesReps || [];
-  const lines = from && to ? commissionLines(reps, invoices || [], payments || [], from, to, inventory || []) : [];
+  const lines = from && to ? commissionLines(reps, invoices || [], payments || [], from, to, inventory || [], currency) : [];
   const money = (cents: number) => formatCurrency(cents, currency);
 
   return (

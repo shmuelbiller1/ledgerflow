@@ -40,6 +40,10 @@ export const SCREEN_SHORTCUTS: ScreenShortcutGroup[] = [
     { keys: 'Enter / comma', label: 'Add the typed tag' },
     { keys: 'Backspace', label: 'Remove the last tag when the tag input is empty' },
   ] },
+  { id: 'button-order', title: 'Your own button order — side menu and Insights tools', shortcuts: [
+    { keys: 'Alt + ↑ / ↓', label: 'Move the focused button up / down its list (or drag it with the mouse; on a touch screen, press and hold first)' },
+    { keys: 'Escape', label: 'Put a button you are dragging back where it was' },
+  ] },
   { id: 'dialogs', title: 'Dialogs and native controls', shortcuts: [
     { keys: 'Tab / Shift + Tab', label: 'Move through controls; dialog focus stays inside' },
     { keys: 'Escape', label: 'Close the top dialog and return focus' },

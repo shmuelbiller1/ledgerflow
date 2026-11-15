@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import {
   approvalChip, approvalDecision, approvalDetail, approvalForSave, approvalLimitUnits, approvalStatus,
   hasAlreadyGoneOut, holdsSending, isApproverRole, isIssuedForApproval, needsApproval, normalizeInvoiceApproval,
-  parseApprovalLimit, MAX_APPROVAL_NOTE,
+  parseApprovalLimit, MAX_APPROVAL_NOTE, invoiceTotalInWorkspaceCurrency,
   type InvoiceApprovalRecord,
 } from '../lib/invoiceApproval';
 
@@ -273,4 +273,13 @@ describe('what a person is told', () => {
     assert.match(detail, /Sent back on 2026-10-05: wrong address/);
     assert.match(detail, /not emailed/, 'it says what happens, not just what it is called');
   });
+});
+
+test('#648: a JPY invoice is compared with the limit in the books currency\'s own units (no 100x slip)', () => {
+  const settings = { enabled: true, thresholdCents: 50_000 }; // $500.00
+  const yen = { amountCents: 100_000, exchangeRate: 0.0067, currency: 'JPY', status: 'pending' }; // ¥100,000 = $670.00
+  assert.equal(invoiceTotalInWorkspaceCurrency(yen as never, 'USD'), 67_000);
+  assert.equal(needsApproval(yen as never, settings, 'USD'), true, 'over the $500 limit, so it needs approval');
+  const small = { ...yen, amountCents: 70_000 }; // ¥70,000 = $469.00
+  assert.equal(needsApproval(small as never, settings, 'USD'), false);
 });

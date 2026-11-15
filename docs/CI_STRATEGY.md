@@ -11,9 +11,62 @@ In GitHub **Settings → Branches / Rules → Create ruleset** for `main`, requi
 - `Production build`
 - `Unit tests in Pacific/Auckland (1/3)`, `(2/3)`, `(3/3)`
 - `Unit tests in America/Los_Angeles (1/3)`, `(2/3)`, `(3/3)`
-- `Playwright E2E Smoke Suite` (passes only when all four browser shards passed)
+- `Playwright E2E Smoke Suite` (passes only when all five browser shards passed, or the changed specs passed when the change only touched browser specs)
 
 Also prevent bypass by automated contributors and require branches to be up to date before merging, if the repository settings allow it. Branch protection is an owner setting and is **not** changed by this PR. Until it is enabled, a red GitHub Actions run may coexist with a merged commit.
+
+## What a change runs (measured 15 Nov 2026)
+
+One script decides, and the workflow only reads its outputs: `scripts/ci-change-scope.mjs` classifies
+the diff and `scripts/ci-change-scope.test.mjs` pins every case below. Ask what a real diff will start
+without pushing anything:
+
+```bash
+node scripts/ci-change-scope.mjs --explain src/App.tsx docs/PLAN.md   # files, or
+git diff --name-status --no-renames -z origin/main...HEAD | node scripts/ci-change-scope.mjs
+```
+
+| The change touches | Jobs that run | Jobs that report **skipped** |
+|---|---|---|
+| **Documentation only**: Markdown anywhere, or a non-code asset under `docs/` or `audit/` | `changes`, `docs_checks` (the unit tests that read a doc), `unit_gate`, `e2e` | `validate`, `unit` ×4, `timezones` ×6, `build`, `e2e_shards` ×5, `e2e_targeted` |
+| **Unit tests only** | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e` (plus `build` for the three bundle-invariant tests below) | `docs_checks`, `build`, browser jobs |
+| **Browser specs only** | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e_targeted` (the changed specs), `e2e` | `docs_checks`, `build`, `e2e_shards` |
+| **Screenshot baselines only** (`e2e/__screenshots__/`) | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e_shards` ×5, `e2e` | `docs_checks`, `build` |
+| **Anything else**: application code, configuration, a workflow, a dependency, a migration | every job — 20 runners | — |
+
+One exception runs through the table: the three tests that `npm run test:bundle` runs
+(`stage6-footprint-optimization`, `pwa-bundle-optimization`, `server-bundle-boundary`) assert on
+`dist/`, which exists only in the build job — the unit shards skip those assertions silently. A change
+to one of them therefore always runs the build, and `scripts/ci-build-inputs.test.mjs` keeps
+`BUNDLE_INVARIANT_TESTS` equal to the `test:bundle` command.
+
+Three rules keep the table honest, each with a test rather than a comment:
+
+1. **Documentation may not be read by a test we do not run.** "The tests that read a doc" was a
+   shell `grep` until 15 Nov; it selected 18 files of which 11 read no document (73 of its 106 tests
+   ran in files that never touch one) and it could not see `path.join('docs', ...)`. It is now
+   `scripts/ci-doc-tests.mjs`: parsed string literals, so comments do not match and an assembled
+   path does. 7 files, 32 tests. `scripts/ci-doc-tests.test.mjs` pins the list.
+2. **A skipped build must be provably unable to change.** The `Production build` job runs when a
+   bundle input changed and is skipped for docs, unit tests, specs and screenshots.
+   `scripts/ci-build-inputs.test.mjs` walks the two entry graphs (`src/main.tsx`, `server.ts` —
+   over 1,000 modules) and fails if any reachable module is a test, a spec or a document.
+3. **A test that runs nowhere is the same defect as a change that runs no test.**
+   `src/tests/test-discovery-guard.test.ts` (AUD-06) already proves the npm-script globs cover every
+   test file under `src/`; `scripts/ci-build-inputs.test.mjs` adds the two halves that were missing —
+   a `scripts/*.test.mjs` that no CI step names, and a test file the classifier would route as
+   application code.
+
+A **browser-spec change keeps the whole unit suite**, and that is not conservatism for its own sake:
+`src/tests/browser-wait-guard.test.ts` reads every `e2e/*.spec.ts`, so a spec can fail a unit test.
+Only the bundle build is skipped for a spec change. Pushes to `main` and manual runs always run
+everything.
+
+What these details are worth, measured in this repository: a documentation-only change went from
+20 runners to 4, and the docs runner from 18 files / 106 tests / 15.5 s to 7 files / 32 tests / 7.0 s
+(sandbox, two cores — the CI runner is faster; the ratio is the point). The full audit, including
+what is still expensive and why it was left alone, is
+[`audit/ci-test-routing-2026-11-15.md`](../audit/ci-test-routing-2026-11-15.md).
 
 ## Why the suite runs in parts (22 Oct)
 
@@ -59,7 +112,11 @@ When CI reports screenshot mismatches, download `playwright-failure-diagnostics`
 
 ## Automatic, downward-only ESLint warning ceiling
 
-The existing package.json `lint:eslint` command remains `eslint . --max-warnings 212`. This is a historical quality ratchet, not an arbitrary tolerance. Never increase the budget to pass CI.
+The existing package.json `lint:eslint` command is `eslint . --max-warnings 2`. (This line said 212 until
+15 Nov 2026, when `eslint .` was measured at exactly two warnings, both `no-explicit-any` in
+`src/server/auth/supabaseAuth.ts` and `src/server/db/pg/values.ts`. 212 was stale by an order of
+magnitude, which made the ceiling look generous when it is effectively enforced.) This is a historical
+quality ratchet, not an arbitrary tolerance. Never increase the budget to pass CI.
 
 - Run `node scripts/eslint-warning-ratchet.mjs` to measure **actual ESLint diagnostics** and report possible improvement; it fails on regressions.
 - Run `node scripts/eslint-warning-ratchet.mjs --update` to lower `package.json`'s maximum to the current actual warning count. It never raises the maximum.

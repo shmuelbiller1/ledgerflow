@@ -54,9 +54,15 @@ test('a docs-only pull request skips the long runs but still runs the tests that
   assert.match(changes, /node scripts\/ci-change-scope\.mjs >> "\$GITHUB_OUTPUT"/);
   assert.match(changes, /node scripts\/ci-change-scope\.mjs >> "\$GITHUB_OUTPUT"/);
   assert.match(changes, /"\$EVENT" != pull_request \]; then/);
-  for (const name of ['validate', 'unit', 'build', 'timezones']) {
+  for (const name of ['validate', 'unit', 'timezones']) {
     assert.match(job(name), /^    if: \$\{\{ needs\.changes\.outputs\.docs_only != 'true' \}\}$/m, name);
   }
+  // The build is the one long job with its own output: a documentation, unit-test, spec or
+  // screenshot change cannot change dist/ or build/ (scripts/ci-build-inputs.test.mjs walks the
+  // entry graphs and proves it), so it reports skipped for those changes too.
+  assert.match(job('build'), /^    if: \$\{\{ needs\.changes\.outputs\.build_mode == 'full' \}\}$/m);
+  assert.match(job('changes'), /build_mode: \$\{\{ steps\.diff\.outputs\.build_mode \}\}/);
+  assert.match(job('changes'), /printf 'docs_only=false\\nbrowser_mode=full\\ntargeted_specs=\[\]\\nbuild_mode=full\\n'/);
   assert.match(job('e2e_shards'), /^    if: \$\{\{ needs\.changes\.outputs\.browser_mode == 'full' \}\}$/m);
   assert.match(job('e2e_targeted'), /^    if: \$\{\{ needs\.changes\.outputs\.browser_mode == 'targeted' \}\}$/m);
   assert.match(job('docs_checks'), /^    if: \$\{\{ needs\.changes\.outputs\.docs_only == 'true' \}\}$/m);

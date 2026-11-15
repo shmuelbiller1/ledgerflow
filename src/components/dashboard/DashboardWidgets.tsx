@@ -146,13 +146,35 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
   const youOwe = useMemo(() => partyStats(scoped.bills.filter(doc => !doc.date || doc.date.slice(0, 10) <= period.endDate), [], 'vendor', period.endDate, currency || 'USD').outstandingCents, [scoped.bills, period.endDate, currency]);
   const summaryReady = valid && data && !loading && !partial.length && (isGuest || ['transactions', 'accounts', 'invoices', 'bills', 'customers', 'vendors'].every(key => loaded[key as LedgerKey]));
   const reportLink = (report: string) => dashboardReportHref(report, period.startDate, period.endDate, fiscalStart);
-  const aging = (value: typeof ar, side: 'customer' | 'vendor') => <>
-    <p className="text-sm text-[var(--muted)]">Current unpaid amounts aged at {period.endDate}; documents dated later are excluded. Past payments are not rewound.</p>
-    <dl className="space-y-1 mt-3">{AGING_BUCKETS.map(bucket => <div key={bucket.key} className="flex justify-between gap-2"><dt>{bucket.label}</dt><dd>{formatCurrency(value.rows.reduce((sum, row) => sum + row.buckets[bucket.key], 0), currency)}</dd></div>)}</dl>
-    <h3 className="font-semibold mt-4">Top 5 overdue {side === 'customer' ? 'customers' : 'vendors'}</h3>
-    {value.top.length === 0 ? <p>No overdue balances in the loaded documents.</p> : <ul>{value.top.map(row => <li key={row.partyId} className="flex justify-between gap-2 py-1"><bdi className="min-w-0 break-words">{row.partyName}</bdi><span className="tabular-nums shrink-0">{formatCurrency(row.overdue, currency)}</span></li>)}</ul>}
-    <a className="inline-flex min-h-11 items-center underline" href={reportLink(side === 'customer' ? 'ar-aging' : 'ap-aging')}>Open aging report</a>
-  </>;
+  const preloadReportView = (report: string) => {
+    void import('../reporting/Reports');
+    if (report === 'pnl') void import('../ledger/ProfitAndLossView');
+    else if (report === 'balance-sheet') void import('../ledger/BalanceSheetView');
+    else if (report === 'trial-balance') void import('../ledger/TrialBalanceView');
+    else if (report === 'ar-aging') void import('../reporting/ARAgingReportView');
+    else if (report === 'ap-aging') void import('../reporting/APAgingReportView');
+  };
+  const openReportInSpa = (event: React.MouseEvent<HTMLAnchorElement>, report: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const href = event.currentTarget.getAttribute('href');
+    if (!href) return;
+    event.preventDefault();
+    preloadReportView(report);
+    window.history.pushState(window.history.state, '', href);
+    useUIStore.getState().setActiveReportTab(report);
+    useUIStore.getState().setActiveTab('reports');
+    window.dispatchEvent(new window.Event('ledgerflow:report-link'));
+  };
+  const aging = (value: typeof ar, side: 'customer' | 'vendor') => {
+    const agingReport = side === 'customer' ? 'ar-aging' : 'ap-aging';
+    return <>
+      <p className="text-sm text-[var(--muted)]">Current unpaid amounts aged at {period.endDate}; documents dated later are excluded. Past payments are not rewound.</p>
+      <dl className="space-y-1 mt-3">{AGING_BUCKETS.map(bucket => <div key={bucket.key} className="flex justify-between gap-2"><dt>{bucket.label}</dt><dd>{formatCurrency(value.rows.reduce((sum, row) => sum + row.buckets[bucket.key], 0), currency)}</dd></div>)}</dl>
+      <h3 className="font-semibold mt-4">Top 5 overdue {side === 'customer' ? 'customers' : 'vendors'}</h3>
+      {value.top.length === 0 ? <p>No overdue balances in the loaded documents.</p> : <ul>{value.top.map(row => <li key={row.partyId} className="flex justify-between gap-2 py-1"><bdi className="min-w-0 break-words">{row.partyName}</bdi><span className="tabular-nums shrink-0">{formatCurrency(row.overdue, currency)}</span></li>)}</ul>}
+      <a className="inline-flex min-h-11 items-center underline" href={reportLink(agingReport)} onPointerEnter={() => preloadReportView(agingReport)} onFocus={() => preloadReportView(agingReport)} onClick={event => openReportInSpa(event, agingReport)}>Open aging report</a>
+    </>;
+  };
   const renderWidget = (id: DashboardWidget) => {
     const snapshot = widgetSnapshots[id]?.workspaceId === workspaceId ? widgetSnapshots[id]?.values : undefined;
     const currentAccounts = snapshot?.accounts || scoped.accounts, currentTransactions = snapshot?.transactions || scoped.transactions;
@@ -166,7 +188,8 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     if (!widgetData) return null;
     if (KPIS.includes(id as typeof KPIS[number])) {
       const metric = id as typeof KPIS[number], delta = reportVariance(widgetData.current[metric], widgetData.previous[metric]);
-      return <><a href={reportLink(['cash', 'networth'].includes(metric) ? 'balance-sheet' : 'pnl')} className="min-h-11 flex items-center text-2xl font-bold tabular-nums">{formatCurrency(widgetData.current[metric], currency)}<span className="sr-only"> Open {LABELS[id]} report</span></a>
+      const targetReport = ['cash', 'networth'].includes(metric) ? 'balance-sheet' : 'pnl';
+      return <><a href={reportLink(targetReport)} onPointerEnter={() => preloadReportView(targetReport)} onFocus={() => preloadReportView(targetReport)} onClick={event => openReportInSpa(event, targetReport)} className="min-h-11 flex items-center text-2xl font-bold tabular-nums">{formatCurrency(widgetData.current[metric], currency)}<span className="sr-only"> Open {LABELS[id]} report</span></a>
         <p className="text-sm">{['cash', 'networth'].includes(metric) ? `As of ${period.endDate}` : 'Selected period activity'}</p><p className="text-sm">Vs previous period: {formatCurrency(delta.amount, currency)} ({reportPercent(delta.percent)})</p>
         <DashboardTrendChart chartId={`dashboard-${metric}`} rows={widgetData.months.map(month => ({ label: month.label, cents: month[metric] }))} label={LABELS[id]} currency={currency} /><details><summary className="cursor-pointer min-h-11 flex items-center">Monthly values</summary><table className="w-full text-sm"><caption className="sr-only">{LABELS[id]} last 12 months, last month through {period.endDate}</caption><thead><tr><th scope="col" className="text-left">Month</th><th scope="col" className="text-right">Amount</th></tr></thead><tbody>{widgetData.months.map(month => <tr key={month.label}><th scope="row" className="text-left font-normal">{month.label}</th><td className="text-right tabular-nums">{formatCurrency(month[metric], currency)}</td></tr>)}</tbody></table></details></>;
     }
@@ -176,13 +199,13 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
       if (scenarioLoading) return <p role="status">Loading scenario preview…</p>;
       const scenario = widgetScenarios.find(item => item.id === activeScenarioId);
       const ghosts = scenario?.ghosts.filter(ghost => ghost.isActive && ghost.date >= period.startDate && ghost.date <= period.endDate) || [];
-      return <><p className="text-sm">Forecast preview only; excluded from posted figures. {scenario?.name}</p><ul>{ghosts.map(ghost => <li key={ghost.id} className="py-2"><bdi>{ghost.description}</bdi><span className="block text-sm">{ghost.date} · {ghost.type} · {formatCurrency(Math.abs(ghost.amountCents), 'USD')}</span></li>)}</ul>{ghosts.length === 0 && <p>No active scenario entries in this range.</p>}</>;
+      return <><p className="text-sm">Forecast preview only; excluded from posted figures. {scenario?.name}</p><ul>{ghosts.map(ghost => <li key={ghost.id} className="py-2"><bdi>{ghost.description}</bdi><span className="block text-sm">{ghost.date} · {ghost.type} · {formatCurrency(Math.abs(ghost.amountCents), currency)}</span></li>)}</ul>{ghosts.length === 0 && <p>No active scenario entries in this range.</p>}</>;
     }
     if (id === 'feeds') return <BankFeedHealth key={widgetSnapshots[id]?.workspaceId === workspaceId ? widgetSnapshots[id]?.at || 0 : 0} />;
     if (id === 'banks') return <><p className="text-sm">Posted ledger balances including opening balances, as of {period.endDate}, in base currency.</p><ul>{widgetData.current.banks.map(bank => <li key={bank.id}><button type="button" onClick={() => useUIStore.getState().openRecord({ type: 'account', id: bank.id })} className="min-h-11 flex justify-between gap-3 w-full text-start"><bdi className="min-w-0 break-words">{bank.name}</bdi><span className="shrink-0 tabular-nums">{formatCurrency(bank.cents, currency)}</span></button></li>)}</ul>{widgetData.current.banks.length === 0 && <p>No cash-role accounts.</p>}</>;
     if (id === 'summary') return <dl>{widgetData.current.summary.map(row => <div key={row.label} className="flex justify-between gap-2 py-2"><dt>{row.label}<span className="block text-xs text-[var(--muted)]">{row.scope}</span></dt><dd className="tabular-nums">{formatCurrency(row.cents, currency)}</dd></div>)}</dl>;
     if (id === 'recent') return <ul>{widgetRecent.map(tx => <li key={tx.id}><button type="button" onClick={() => useUIStore.getState().openRecord({ type: 'transaction', id: tx.id })} className="min-h-11 w-full text-start py-2"><bdi className="break-words">{tx.description || 'Transaction'}</bdi><span className="block text-sm text-[var(--muted)]">{tx.date} · {formatCurrency(tx.totalAmountCents, tx.currency)}</span></button></li>)}{widgetRecent.length === 0 && <li>No posted transactions in this range.</li>}</ul>;
-    return <><p>{widgetData.current.balanced && !widgetData.current.orphanCount ? 'Balanced' : 'Review needed'}</p><p className="text-sm">Statement balance at {period.endDate}. {widgetData.current.orphanCount} orphaned account lines.</p><a href={reportLink('trial-balance')} className="min-h-11 inline-flex items-center underline">Open trial balance</a></>;
+    return <><p>{widgetData.current.balanced && !widgetData.current.orphanCount ? 'Balanced' : 'Review needed'}</p><p className="text-sm">Statement balance at {period.endDate}. {widgetData.current.orphanCount} orphaned account lines.</p><a href={reportLink('trial-balance')} onPointerEnter={() => preloadReportView('trial-balance')} onFocus={() => preloadReportView('trial-balance')} onClick={event => openReportInSpa(event, 'trial-balance')} className="min-h-11 inline-flex items-center underline">Open trial balance</a></>;
   };
   return <section aria-label="Dashboard widgets" className="space-y-4">
     <div className="flex flex-wrap gap-3 items-center"><label className="flex items-center gap-2 text-sm text-[var(--muted)]">Period<select aria-label="Period (dashboard date range)" value={range} onChange={event => setRange(event.target.value as DashboardRange)} className="min-h-11 text-sm text-[var(--text)] border border-[var(--line)] bg-[var(--surface)] rounded-lg px-3"><option value="month">This month</option><option value="quarter">This fiscal quarter</option><option value="year">This fiscal year</option><option value="custom">Custom range</option></select></label>
@@ -201,7 +224,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
           { label: range === 'month' ? 'Profit this month' : 'Profit for period', cents: data?.current.profit, report: 'pnl' },
          ].map(item => {
           const amount = summaryReady ? formatCurrency(item.cents ?? 0, currency) : !valid ? 'Choose dates' : partial.length ? 'Unavailable' : 'Loading…';
-          return <a key={item.report} role={valid ? undefined : 'link'} tabIndex={valid ? undefined : -1} href={valid ? reportLink(item.report) : undefined} aria-disabled={!valid} data-summary-report={item.report} className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 min-h-11">
+          return <a key={item.report} role={valid ? undefined : 'link'} tabIndex={valid ? undefined : -1} href={valid ? reportLink(item.report) : undefined} onPointerEnter={valid ? () => preloadReportView(item.report) : undefined} onFocus={valid ? () => preloadReportView(item.report) : undefined} onClick={valid ? event => openReportInSpa(event, item.report) : undefined} aria-disabled={!valid} data-summary-report={item.report} className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 min-h-11">
           {/* the name comes from what is shown (label + amount), so it always includes the visible text */}
           <span className="block text-sm text-[var(--muted)]">{item.label}</span>{' '}
           <span id={`dashboard-summary-${item.report}`} className="block text-right text-lg font-semibold tabular-nums break-all">{amount}</span><span className="sr-only"> report</span>

@@ -12,6 +12,9 @@ import { DAILY_TOOL_IDS, DAILY_TOOL_LABELS } from '../../config/businessNavigati
 import AllToolsMenu from './AllToolsMenu';
 import BookmarksGroup from './BookmarksGroup';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
+import ButtonOrderNote from '../ui/ButtonOrderNote';
+import { useButtonOrder } from '../../hooks/useButtonOrder';
+import { useDragReorder } from '../../hooks/useDragReorder';
 
 import { BRAND_NAME } from '../../config/brand';
 interface SidebarProps {
@@ -34,6 +37,11 @@ const SERIES_COLORS = [
   'var(--w-book)',
   'var(--w-estate)'
 ];
+
+/** The product's own order of the tools Pro mode can recommend; each person may rearrange them. */
+const ADVANCED_TOOL_IDS = APP_TABS.filter(tab => tab.isAdvanced).map(tab => tab.id);
+/** The look of the button for the page that is open, shared by every list in the sidebar. */
+const CURRENT_PAGE = "text-[var(--text)] bg-[var(--brass-soft)] border-[var(--brass-line)]";
 
 /** "cost_of_goods" reads as "Cost of goods" in the sidebar (D-92: names people recognise). */
 function accountTypeName(type: string): string {
@@ -66,8 +74,18 @@ const Sidebar = React.memo(({
   const modules = useAuthStore(s => s.getCurrentWorkspace()?.modules);
   const uid = useAuthStore(s => s.user?.uid || 'guest');
   const visibility = { isOwner: isAdmin, isProMode: uiStore.isProMode, developerMode: uiStore.developerMode, modules, businessType };
-  const dailyTabs = DAILY_TOOL_IDS.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; });
-  const recommendations = uiStore.isProMode ? APP_TABS.filter(t => t.isAdvanced && isTabVisible(t, visibility)) : [];
+  // Each person can drag these buttons into their own order (kept on this device). The order only
+  // sorts: which buttons exist is still decided here, by the same permission and module checks.
+  const dailyOrder = useButtonOrder('sidebar.daily', DAILY_TOOL_IDS);
+  const recommendedOrder = useButtonOrder('sidebar.recommended', ADVANCED_TOOL_IDS);
+  const dailyTabs = dailyOrder.orderedIds.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; });
+  const recommendations = uiStore.isProMode ? recommendedOrder.orderedIds.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; }) : [];
+  const dailyLabel = (id: string) => DAILY_TOOL_LABELS[id]?.[uiStore.language] || DAILY_TOOL_LABELS[id]?.en || id;
+  const toolLabel = (id: string) => { const tab = APP_TABS.find(t => t.id === id); return tab?.label[uiStore.language] || tab?.label.en || id; };
+  const dailyIds = dailyTabs.map(tab => tab.id);
+  const recommendedIds = recommendations.map(tab => tab.id);
+  const dailyReorder = useDragReorder({ ids: dailyIds, labelFor: dailyLabel, onMove: dailyOrder.move, onStep: (id, delta) => dailyOrder.step(id, delta, dailyIds) });
+  const recommendedReorder = useDragReorder({ ids: recommendedIds, labelFor: toolLabel, onMove: recommendedOrder.move, onStep: (id, delta) => recommendedOrder.step(id, delta, recommendedIds) });
 
   // D-92: the old "Worlds" box mixed two different things. It now says what it shows —
   // your projects when there are any, otherwise the balance of each account type — and it
@@ -145,23 +163,31 @@ const Sidebar = React.memo(({
          <nav aria-label="Daily tools" className="space-y-1">
            {dailyTabs.map(tab => {
              const Icon = tab.icon;
-             const label = DAILY_TOOL_LABELS[tab.id][uiStore.language] || DAILY_TOOL_LABELS[tab.id].en;
+             const label = dailyLabel(tab.id);
              const isActive = activeTab === tab.id;
              return <button type="button" key={tab.id} aria-label={label} title={label} data-testid={`nav-${tab.id}`} aria-current={isActive ? 'page' : undefined}
+               {...dailyReorder.itemProps(tab.id)}
                onClick={() => setActiveTab(tab.id)}
-               className={cn("w-full min-h-11 flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium border", isActive ? "text-[var(--text)] bg-[var(--brass-soft)] border-[var(--brass-line)]" : "text-[var(--muted)] border-transparent hover:bg-[var(--elevated)]")}>
+               className={cn("w-full min-h-11 flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium border", isActive ? CURRENT_PAGE : "text-[var(--muted)] border-transparent hover:bg-[var(--elevated)]")}>
                <Icon aria-hidden="true" size={16} className="shrink-0" />
                {uiStore.isSidebarOpen && <span>{label}</span>}
              </button>;
            })}
          </nav>
+         <ButtonOrderNote listName="daily tools" isCustom={dailyOrder.isCustom} onReset={dailyOrder.reset} status={dailyReorder.status} storageError={dailyOrder.storageError} compact={!uiStore.isSidebarOpen} />
          {uiStore.isSidebarOpen && <>
            <label className="flex items-center gap-2 min-h-11 px-2 text-xs"><input type="checkbox" checked={uiStore.isProMode} onChange={event => uiStore.setProMode(event.target.checked)} />Pro mode</label>
            {recommendations.length > 0 && <nav aria-label="Recommended tools" className="space-y-1">
              <p className="text-xs text-[var(--muted)] px-2">More tools for this business</p>
-             {recommendations.map(tab => <button key={tab.id} type="button" className="w-full min-h-11 rounded-lg px-3 text-start text-sm hover:bg-[var(--elevated)]" onClick={() => setActiveTab(tab.id)} aria-current={activeTab === tab.id ? 'page' : undefined}>{tab.label[uiStore.language] || tab.label.en}</button>)}
+             {recommendations.map(tab => {
+               const isActive = activeTab === tab.id;
+               return <button key={tab.id} type="button" {...recommendedReorder.itemProps(tab.id)}
+                 className={cn("w-full min-h-11 rounded-lg border px-3 text-start text-sm", isActive ? cn(CURRENT_PAGE, "font-semibold") : "border-transparent hover:bg-[var(--elevated)]")}
+                 onClick={() => setActiveTab(tab.id)} aria-current={isActive ? 'page' : undefined}>{toolLabel(tab.id)}</button>;
+             })}
            </nav>}
-           <AllToolsMenu key={`${uid}:${currentWorkspaceId}`} onSelect={setActiveTab} />
+           {recommendations.length > 0 && <ButtonOrderNote listName="recommended tools" isCustom={recommendedOrder.isCustom} onReset={recommendedOrder.reset} status={recommendedReorder.status} storageError={recommendedOrder.storageError} />}
+           <AllToolsMenu key={`${uid}:${currentWorkspaceId}`} onSelect={setActiveTab} activeTab={activeTab} />
          </>}
          {!uiStore.isSidebarOpen && <button type="button" aria-label="Show all tools" title="Show all tools" className="min-h-11 w-full rounded-lg" onClick={() => uiStore.setSidebarOpen(true)}><LayoutGrid aria-hidden="true" size={16} /></button>}
 

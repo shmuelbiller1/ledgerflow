@@ -117,7 +117,8 @@ describe('Advance payments (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     assert.deepEqual(lines(result.ledgerTransaction), [[id('bank'), -8000], [id('pre'), 8000]]);
     const applied = await call('owner-1', `/${result.paymentId}/apply`, { workspaceId: ws, date: '2026-06-12', allocations: [{ documentId: id('bill'), documentType: 'bill', amountCents: 8000 }] });
     assert.equal(applied.status, 200, JSON.stringify(applied.body));
-    assert.deepEqual(lines(await data('transactions', String((applied.body.data as { transactionId: string }).transactionId))), [[id('ap'), 8000], [id('pre'), -8000]]);
+    // the same two lines; their order is not part of the rule
+    assert.deepEqual(lines(await data('transactions', String((applied.body.data as { transactionId: string }).transactionId))).sort(), [[id('ap'), 8000], [id('pre'), -8000]].sort());
     assert.equal((await data('bills', id('bill'))).status, 'paid');
   });
 
