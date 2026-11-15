@@ -1,10 +1,11 @@
+import { runCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
 import { collection, updateDoc, deleteDoc, doc, setDoc, query, where, getDocs, getDoc } from '../lib/db/firestore';
 import { learnedPatternId } from '../lib/learnedPatterns';
-import { db, getIdToken } from '../firebase';
+import { db } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { toast } from 'sonner';
@@ -187,16 +188,11 @@ export function useEntityOperations() {
       } else if (path === 'vendorCredits') {
         await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
       } else if (path === 'transactions') {
-        const token = await getIdToken();
-        const res = await fetch('/api/v1/transactions', {
+        await runCommand({
+          path: '/api/v1/transactions',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId, transaction: finalData }),
+          body: { workspaceId: currentWorkspaceId, transaction: finalData },
         });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody?.message || errBody?.error || 'Transaction creation refused by server');
-        }
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(`Direct browser creation on ${path} is disabled; use the server ledger API.`);
       } else {
@@ -254,21 +250,16 @@ export function useEntityOperations() {
       return false;
     }
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/emails/invoices/${encodeURIComponent(id)}`, {
+      const data = await runCommand<{ to?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/emails/invoices/${encodeURIComponent(id)}`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({
+        body: {
           template: 'invoice',
           to,
           ...(typeof invoiceData.metadata?.emailSubject === 'string' ? { subject: invoiceData.metadata.emailSubject } : {}),
           ...(typeof invoiceData.metadata?.emailBody === 'string' ? { body: invoiceData.metadata.emailBody } : {}),
-        }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(`The invoice was saved but not emailed: ${data.message || 'the email could not be sent'}`);
-        return false;
-      }
       toast.success(`Invoice emailed to ${data.to}.`);
       return true;
     } catch (err) {
@@ -320,16 +311,11 @@ export function useEntityOperations() {
         const mergedData = { ...existing, ...finalData };
         await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
       } else if (path === 'transactions' && currentWorkspaceId) {
-        const token = await getIdToken();
-        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
+        await runCommand({
+          path: `/api/v1/transactions/${encodeURIComponent(id)}`,
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId, partialUpdate: finalData }),
+          body: { workspaceId: currentWorkspaceId, partialUpdate: finalData },
         });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody?.message || errBody?.error || 'Transaction update refused by server');
-        }
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(`Direct browser updates on ${path} are disabled; use the server ledger API.`);
       } else {
@@ -366,15 +352,10 @@ export function useEntityOperations() {
       } else if (path === 'vendorCredits' && currentWorkspaceId) {
         await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'vendorCreditId' as unknown as "invoiceId" | "billId" | "creditNoteId" | "vendorCreditId", currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
       } else if (path === 'transactions' && currentWorkspaceId) {
-        const token = await getIdToken();
-        const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`, {
+        await runCommand({
+          path: `/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`,
           method: 'DELETE',
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody?.message || errBody?.error || 'Transaction deletion refused by server');
-        }
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(
           path === 'reconciliations'
