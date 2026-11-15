@@ -6,6 +6,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { isCashAccount } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import { bankClearance } from '../../lib/bankClearance';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -65,7 +66,7 @@ export default function BankClearanceReportView() {
           <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
         </div>
       )}
-      {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+      {loading && <LoadingState what="this account's entries" rows={5} />}
       {summary && (
         <>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
