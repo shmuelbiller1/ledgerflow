@@ -14,7 +14,7 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 | `screensWithManyPrimaryButtons` | **19** | EASE_OF_USE U-2: one filled button per screen. |
 | `handTypedApiCalls` | **170** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
 | `rawTables` | **196** | A screen uses the shared list instead of drawing its own `<table>`. |
-| `directDbWrites` | **15** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
+| `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
 ## The sites that remain, and why each is still there
 
@@ -44,8 +44,10 @@ The codemod moves the most-used screens first: Sales, Purchases and Inventory ar
 (the first slice); Transactions, Bank review, Customers and Vendors are next. The rest are reports,
 which need the shared list to grow a footer/total row first (they all draw their own `<tfoot>`).
 
-### `directDbWrites` — 15
+### `directDbWrites` — 93
 
-Each one is a write the app has no server route for yet. They are listed in the ledger-door work
+The first version of this counter read 15 because its pattern expected a leading dot, which the modular
+Firestore API never writes; it now matches the bare call and counts each one once (Gitar caught it).
+Each site is a write the app has no server route for yet. They are listed in the ledger-door work
 (`docs/BUG_PATTERNS.md`, the `unchecked-write` pattern), which is where the route gets built; moving
 them before the route exists would only move the problem.

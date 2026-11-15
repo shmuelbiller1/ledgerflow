@@ -93,8 +93,12 @@ describe('the shared grid is one keyboard region', () => {
     assert.equal(region().getAttribute('tabindex'), '0');
     for (const row of document.querySelectorAll('tbody tr')) {
       assert.equal(row.hasAttribute('tabindex'), false, 'a row is not a tab stop');
-      assert.equal(row.hasAttribute('onclick') as boolean, false);
+      assert.equal(row.getAttribute('role'), null, 'a row does not pretend to be a button');
     }
+    // clicking a row asks the list to take focus, so the arrow keys work without reaching for Tab
+    fireEvent.click(screen.getByText('Second'));
+    assert.equal(document.activeElement, region(), 'the row hands focus to the list');
+    assert.equal(active()?.textContent?.includes('Second'), true);
   });
 
   test('the arrow keys highlight a row, Home and End jump to the ends, and the page does not scroll too', () => {
@@ -128,9 +132,10 @@ describe('the shared grid is one keyboard region', () => {
 
   test('the live region says which row the keyboard is on', () => {
     mount();
-    const live = screen.getByRole('status');
-    assert.equal(live.textContent, '');
+    // no live region until a row is highlighted: a list nobody is moving through adds no status element
+    assert.equal(screen.queryByRole('status'), null);
     fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    const live = screen.getByRole('status');
     assert.equal(live.textContent, 'Row 1 of 3: Invoice First');
     fireEvent.keyDown(region(), { key: 'ArrowDown' });
     assert.equal(live.textContent, 'Row 2 of 3: Invoice Second');
@@ -145,6 +150,66 @@ describe('the shared grid is one keyboard region', () => {
     assert.match(document.body.textContent || '', /No records found/);
     assert.equal(active(), null, 'the row it pointed at is gone');
     view.unmount();
+  });
+
+  test('the keys keep working after the layout switches between cards and the table', () => {
+    // The cards and the table are two different elements, so the keyboard listener has to live on
+    // whichever one is drawn. A window that narrows past the breakpoint is the case that used to leave
+    // the arrows dead: the listener stayed on the element React had already thrown away.
+    const realMatchMedia = window.matchMedia;
+    let compact = false;
+    let notify: (() => void) | null = null;
+    window.matchMedia = ((query: string) => ({
+      get matches() { return compact && query.includes('max-width: 639px'); },
+      media: query, onchange: null,
+      addListener: () => {}, removeListener: () => {},
+      addEventListener: (_: string, handler: () => void) => { notify = handler; },
+      removeEventListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const view = render(
+        <TanStackDataGrid
+          caption="Invoice list"
+          data={data}
+          columns={columns}
+          mobileLayout="cards"
+          hidePaginationOnSinglePage
+        />,
+      );
+      assert.ok(document.querySelector('table'), 'a wide screen draws the table');
+      fireEvent.keyDown(region(), { key: 'ArrowDown' });
+      assert.equal(active()?.textContent?.includes('First'), true, 'the arrows work in the table');
+
+      // the window narrows to a phone: React swaps the table for cards, a different element
+      const tableRegion = region();
+      compact = true;
+      act(() => { notify?.(); });
+      assert.equal(document.querySelector('table'), null, 'the cards replace the table');
+      const phoneRegion = region();
+      assert.notEqual(phoneRegion, tableRegion, 'it is a different element than the table was');
+      assert.equal(fireEvent.keyDown(phoneRegion, { key: 'ArrowDown' }), false, 'the arrows still belong to the list');
+      fireEvent.keyDown(phoneRegion, { key: 'End' });
+      assert.equal(active()?.textContent?.includes('Third'), true, 'and they move the highlight in the new layout');
+
+      // and back again, with the data changing at the same time (a refetch), which is what used to
+      // re-run the effect on the old node
+      compact = false;
+      act(() => { notify?.(); });
+      view.rerender(
+        <TanStackDataGrid
+          caption="Invoice list"
+          data={[...data, { id: 'r4', name: 'Fourth' }]}
+          columns={columns}
+          mobileLayout="cards"
+          hidePaginationOnSinglePage
+        />,
+      );
+      assert.ok(document.querySelector('table'), 'the table is back');
+      assert.equal(fireEvent.keyDown(region(), { key: 'Home' }), false, 'the arrows work again after the switch back');
+      assert.equal(active()?.textContent?.includes('First'), true);
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 
   test('an empty list has no highlight and no keys to move, however many arrive', () => {

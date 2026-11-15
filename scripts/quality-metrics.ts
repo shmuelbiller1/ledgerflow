@@ -182,7 +182,7 @@ function computeHandTypedApiCalls(rootDir: string): number {
   let count = 0;
   for (const file of componentFiles(rootDir)) {
     const text = fs.readFileSync(file, 'utf8');
-    for (const m of text.matchAll(/fetch\([^;]{0,200}?\/api\//g)) count += m.length;
+    count += [...text.matchAll(/fetch\([^;]{0,200}?\/api\//g)].length;
   }
   return count;
 }
@@ -190,7 +190,9 @@ function computeHandTypedApiCalls(rootDir: string): number {
 /** Writes to the database from the browser: screens call the server, they do not post the books. */
 function computeDirectDbWrites(rootDir: string): number {
   const dirs = ['src/components', 'src/hooks', 'src/stores'].map(d => path.join(rootDir, d));
-  const writes = /\.(setDoc|updateDoc|addDoc|deleteDoc)\(|\b(writeBatch|runTransaction)\s*\(/g;
+  // The modular Firestore API is called bare (`await updateDoc(ref, …)`), and one call can be written
+  // with a leading dot. The pattern must not capture, or `match.length` would count a group, not a call.
+  const writes = /\b(?:setDoc|updateDoc|addDoc|deleteDoc|writeBatch|runTransaction)\s*\(/g;
   let count = 0;
   const scan = (dir: string) => {
     if (!fs.existsSync(dir)) return;
@@ -200,7 +202,7 @@ function computeDirectDbWrites(rootDir: string): number {
         if (entry.name !== 'tests') scan(full);
       } else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) {
         const text = fs.readFileSync(full, 'utf8');
-        for (const m of text.matchAll(writes)) count += m.length;
+        count += [...text.matchAll(writes)].length;
       }
     }
   };

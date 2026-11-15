@@ -296,7 +296,9 @@ export function TanStackDataGrid<TData extends object>({
     };
     node.addEventListener('keydown', onKeyDown);
     return () => node.removeEventListener('keydown', onKeyDown);
-  }, [rowIds, activeRowId]);
+    // `showCards` is a dependency because the region element itself changes: the cards and the table are
+    // two different nodes, so a viewport crossing the breakpoint must re-attach the listener to the new one
+  }, [rowIds, activeRowId, showCards]);
 
   const rowKeyboardProps = (id: string) => ({
     'data-grid-row-keyboard': id,
@@ -387,10 +389,14 @@ export function TanStackDataGrid<TData extends object>({
         </div>
       )}
 
-      {/* one polite live region for the whole list: which row the keyboard is on */}
-      <p role="status" aria-live="polite" className="sr-only">
-        {rowAnnouncement(rowIds.map(id => ({ id })), activeRowVisible ? activeRowId : null, (row, index) => (announceRow ? announceRow(row) : `Row ${index + 1}`), visibleRows.map(row => row.original as TData))}
-      </p>
+      {/* one polite live region for the whole list: which row the keyboard is on. It is only mounted
+          once a row is highlighted, so a list nobody is moving through adds no status region to the page
+          (other screens look for their own status elements and must not find this one). */}
+      {activeRowVisible && activeRowId !== null && (
+        <p role="status" aria-live="polite" className="sr-only">
+          {rowAnnouncement(rowIds.map(id => ({ id })), activeRowId, (row, index) => (announceRow ? announceRow(row) : `Row ${index + 1}`), visibleRows.map(row => row.original as TData))}
+        </p>
+      )}
 
       {showCards ? (
         <div className="space-y-3">

@@ -59,12 +59,22 @@ describe('the five interface ratchets', () => {
 
   test('a direct database write from a screen, a hook or a store raises directDbWrites', () => {
     const root = scratch({
-      'src/components/a/A.tsx': "await updateDoc(doc(db, 'x', id), {});\n",
+      // the modular Firestore API is called bare — no leading dot (the first version of this counter
+      // required one and missed every real write, which is exactly the kind of quiet zero this guards)
+      'src/components/a/A.tsx': "await updateDoc(doc(db, 'x', id), {});\nawait addDoc(collection(db, 'y'), {});\n",
       'src/hooks/useThing.ts': 'await setDoc(ref, data);\n',
-      'src/stores/useStore.ts': 'const batch = writeBatch(db);\n',
+      'src/stores/useStore.ts': 'const batch = writeBatch(db);\nawait deleteDoc(ref);\n',
       'src/lib/ok.ts': 'await updateDoc(ref, {});\n',
     });
-    assert.equal(computeQualityMetrics(root).directDbWrites, 3, 'screens, hooks and stores; not the shared library');
+    // five calls: two in the screen, one in the hook, two in the store; the shared library is not counted
+    assert.equal(computeQualityMetrics(root).directDbWrites, 5, 'screens, hooks and stores; not the shared library');
+  });
+
+  test('each call is counted once, not once per capture group', () => {
+    const root = scratch({
+      'src/components/a/A.tsx': 'await updateDoc(ref, {});\n',
+    });
+    assert.equal(computeQualityMetrics(root).directDbWrites, 1, 'one call is one write');
   });
 
   test('a screen with two filled buttons raises screensWithManyPrimaryButtons', () => {

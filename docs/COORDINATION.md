@@ -756,7 +756,7 @@ gaps; this slice closes them and starts the counters.
   statement", "who owes me" and "who do i owe" reach the right report. Search-only: stored labels and ids are untouched.
 - **The five counters** (`quality-baseline.json`, `scripts/quality-metrics.ts`, `docs/UI_REBUILD_RATCHETS.md`):
   `unreachableActions` 0, `screensWithManyPrimaryButtons` 19, `handTypedApiCalls` 170, `rawTables` 196,
-  `directDbWrites` 15. Each is proven to fire by `src/tests/interface-ratchets.test.ts`, which builds a throwaway
+  `directDbWrites` 93. Each is proven to fire by `src/tests/interface-ratchets.test.ts`, which builds a throwaway
   tree with the old pattern in it and expects the number to rise.
 - **Next, in this order**: the same grid on Transactions, Bank review, Customers and Vendors (codemod); a footer row
   in the shared list so the 100+ report screens can leave their own `<tfoot>` behind; then `useCommand`, which needs

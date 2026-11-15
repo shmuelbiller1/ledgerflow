@@ -26,6 +26,7 @@ import {
 } from '../config/registry';
 import { pageIndex, searchPages } from '../config/pageIndex';
 import { MODULES } from '../lib/modules';
+import { normalizeSearchText } from '../lib/textNormalization';
 
 const index = pageIndex('en');
 const keys = new Set(index.map(entry => `${entry.page.tab}|${entry.page.sub ?? ''}`));
@@ -127,23 +128,33 @@ describe('every action the search box offers can be run', () => {
     assert.deepEqual(unknown, [], `a command that would do nothing:\n${unknown.join('\n')}`);
   });
 
-  test('each command is found by the words people type, not only by its exact label', () => {
-    const english = pageIndex('en');
-    const commands = SYSTEM_COMMANDS.map(command => ({
-      id: command.id,
-      label: command.label,
-    }));
+  test('each command is found by typing the plain words of its name', () => {
+    // The palette filters commands with `label.includes(query)`. Typing a whole command name must show
+    // that command and nothing the reader did not ask for, so a command whose name is unreachable by
+    // typing is a command nobody finds. This runs the palette's own filter, not a copy of it.
+    const paletteHits = (query: string) => SYSTEM_COMMANDS
+      .filter(command => normalizeSearchText(command.label.en).includes(normalizeSearchText(query)))
+      .map(command => command.id);
     const notFound: string[] = [];
-    for (const command of commands) {
-      const words = command.label.en.toLowerCase().split(/\s+/).filter(word => word.length > 3);
-      if (!words.length) continue;
-      // the palette offers a command when one of its words is typed (the label match it uses today)
-      const typed = words[0];
-      const byLabel = commands.some(other => other.label.en.toLowerCase().includes(typed));
-      if (!byLabel) notFound.push(`${command.id}: "${typed}"`);
-      // and the command's own label must be a page-free result: it is listed from the registry, not the page index
-      assert.equal(english.length > 0, true);
+    for (const command of SYSTEM_COMMANDS) {
+      const hits = paletteHits(command.label.en);
+      if (!hits.includes(command.id)) notFound.push(`${command.id} ("${command.label.en}")`);
+      // longest word of the name: the person starts typing and must still see it
+      const longest = command.label.en.split(/\s+/).sort((a, b) => b.length - a.length)[0] ?? '';
+      if (longest.length > 3 && !paletteHits(longest).includes(command.id)) {
+        notFound.push(`${command.id}: typing "${longest}" does not offer it`);
+      }
     }
-    assert.deepEqual(notFound, []);
+    assert.deepEqual(notFound, [], `commands typing cannot reach:\n${notFound.join('\n')}`);
+  });
+
+  test('a command and a screen with the same word are both offered, not one instead of the other', () => {
+    // "reports" is a command (financial reports) and a screen: a person typing it must see both, because
+    // they may mean either. This is the case a label-only check would miss.
+    const query = 'report';
+    const commandHits = SYSTEM_COMMANDS.filter(c => normalizeSearchText(c.label.en).includes(query));
+    const pageHits = searchPages(pageIndex('en'), query).filter(hit => hit.page.tab === 'reports');
+    assert.ok(commandHits.length > 0, 'the report command is offered');
+    assert.ok(pageHits.length > 0, 'the Reports screen is offered too');
   });
 });
