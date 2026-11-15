@@ -434,15 +434,15 @@ test('API-key workspace binding and high-risk two-step rules are enforced before
   const db = new MemoryDb();
   seedWorkspace(db);
   const deps = runnerDependencies(db, counters);
-  const apiKeyUser: RequestUser = { ...owner, developerWorkspaceId: workspaceId };
-  const scopedReq = fakeRequest(apiKeyUser, { workspaceId: 'another-workspace', input: { workspaceId: 'another-workspace', value: 'blocked' } });
+  const scopedCaller: RequestUser = { ...owner, developerWorkspaceId: workspaceId };
+  const scopedReq = fakeRequest(scopedCaller, { workspaceId: 'another-workspace', input: { workspaceId: 'another-workspace', value: 'blocked' } });
   const scopedRes = captureResponse();
   const scoped = await executeCommand(scopedReq, scopedRes.response, { definition: highRisk, workspaceId: 'another-workspace', input: { workspaceId: 'another-workspace', value: 'blocked' } }, deps);
   assert.equal(scoped.ok, false);
   if (!scoped.ok) assert.equal(scoped.code, 'WORKSPACE_SCOPE');
 
   const keyRes = captureResponse();
-  const keyOutcome = await executeCommand(fakeRequest(apiKeyUser, { workspaceId, input: invocationInput() }), keyRes.response,
+  const keyOutcome = await executeCommand(fakeRequest(scopedCaller, { workspaceId, input: invocationInput() }), keyRes.response,
     { definition: highRisk, workspaceId, input: invocationInput() }, deps);
   assert.equal(keyOutcome.ok, false);
   if (!keyOutcome.ok) assert.equal(keyOutcome.code, 'TWO_STEP_REQUIRED');
