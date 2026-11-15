@@ -10,7 +10,7 @@ ticked when the ratchet number moved or the named test exists and passes.
 
 | counter | now | target | meaning |
 |---|---|---|---|
-| `rawTables` | **189** | 0 | screen files drawing their own `<table>` instead of the shared list |
+| `rawTables` | **187** | 0 | screen files drawing their own `<table>` instead of the shared list |
 | `handTypedApiCalls` | **170** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
 | `directDbWrites` | **93** | 0 | direct database writes in `src/components`, `src/hooks`, `src/stores` |
 | `unreachableActions` | **0** | 0 ✅ | commands/reports no palette search can find |
