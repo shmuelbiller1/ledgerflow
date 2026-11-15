@@ -121,9 +121,17 @@ export default function Sales() {
         toast.error("Pick a customer or type a new customer's name.");
         throw new Error('No customer name');
       }
-      const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
-      if (!created) throw new Error('Customer not saved');
-      data = { ...data, customerId: created.id };
+      // a customer of that name may already exist (typed with other capitals or spaces, or added a moment ago):
+      // use it instead of refusing the invoice
+      const sameName = (c: { name?: string }) => String(c.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase();
+      const existing = useLedgerStore.getState().customers.find(sameName);
+      if (existing) {
+        data = { ...data, customerId: existing.id, customerName: existing.name };
+      } else {
+        const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
+        if (!created) throw new Error('Customer not saved');
+        data = { ...data, customerId: created.id };
+      }
     }
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }

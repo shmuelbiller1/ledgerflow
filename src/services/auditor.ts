@@ -54,7 +54,9 @@ export const DoubleEntryAuditor = {
 
     // Causal Integrity Check: All transactions with a verification block are part of the cryptographic sequence.
     // We do NOT filter to isPostable() because void/deleted transactions still exist in the immutable chain.
-    const chainTxs = chronosTxs.filter(t => t.verification?.hash || t.verification?.previousHash);
+    // Only entries that record a link are in the chain: the server signs every entry it writes (`hash`) but does
+    // not link them (`previousHash`), and an unlinked signed entry is not a broken link.
+    const chainTxs = chronosTxs.filter(t => typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '');
     const chainTxIndexMap = new Map<string, number>();
     chainTxs.forEach((ct, idx) => {
       if (ct.id) chainTxIndexMap.set(ct.id, idx);
@@ -69,7 +71,7 @@ export const DoubleEntryAuditor = {
       const isActive = isPostable(t);
       
       // Verify Cryptographic Link (O(1) map lookup to eliminate O(N^2) inner loop - F6)
-      if (t.verification?.hash && t.id) {
+      if (typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '' && t.id) {
         const chainIdx = chainTxIndexMap.get(t.id);
         if (chainIdx !== undefined && chainIdx > 0) {
           const prevTx = chainTxs[chainIdx - 1];

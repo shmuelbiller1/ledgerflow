@@ -181,3 +181,11 @@ test('a no-tax choice the caller gave stays when the customer or vendor is clear
   change('Vendor', ''); change('Vendor', 'v');
   assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
 });
+
+test('a customer typed with other capitals or spaces is the existing customer, not a new one', () => {
+  invoice();
+  change('Customer', '  client ');
+  // the existing customer's defaults fill in, which happens only when the form found it
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'gst');
+});
