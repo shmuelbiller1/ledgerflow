@@ -22,6 +22,7 @@ import {
   Search,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { flushSync } from 'react-dom';
 import { downloadCsv, type CsvValue } from '../../lib/csvExport';
 import { useCompactViewport } from '../../lib/useCompactViewport';
 import { isRowNavKey, nextRowId, rowAnnouncement } from '../../lib/rowKeyboardNav';
@@ -86,6 +87,20 @@ export interface TanStackDataGridProps<TData extends object> {
   afterTable?: React.ReactNode;
   getRowProps?: (row: TData) => DataGridRowProps;
   /**
+   * The id of the column that names each row. It is drawn as a row header (`<th scope="row">`) and is
+   * never hidden by the column chooser, so a screen reader always has a name for the row it is in —
+   * the rule `table-a11y-guard` enforces. Off by default: a list whose rows are named by a button or a
+   * link keeps plain cells.
+   */
+  rowHeaderColumn?: string;
+  /**
+   * A totals row under the body (`<tfoot>`), for lists whose last line is a sum. `colSpan` fills the
+   * columns to its left, so the total lines up with the column it totals. Because it is drawn by the
+   * grid it survives the column chooser (a hidden column hides the same index in the footer) and it
+   * disappears with the empty state, which is what a report wants.
+   */
+  totals?: { label: string; value: React.ReactNode; columnsBefore?: number };
+  /**
    * What the keyboard's live region says when the highlight lands on a row ("Row 3 of 12: Invoice
    * 1042, Acme Corp"). Without it the row is announced by position only.
    */
@@ -135,6 +150,8 @@ export function TanStackDataGrid<TData extends object>({
   afterTable,
   getRowProps,
   announceRow,
+  rowHeaderColumn,
+  totals,
   mobileLayout = 'cards',
   renderCard,
   hidePaginationOnSinglePage = false,
@@ -156,6 +173,22 @@ export function TanStackDataGrid<TData extends object>({
     setPageIndex(next.pageIndex);
     setPickedSize(next.pageSize === pageSize ? null : { size: next.pageSize, forProp: pageSize });
   };
+  /**
+   * Printing carries every row, not the page on screen. A report's totals line up with the rows above it
+   * only if both are whole, and the paging controls are already hidden on paper. `flushSync` because the
+   * browser takes the page immediately after `beforeprint`, before a queued render.
+   */
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const before = () => flushSync(() => setPrinting(true));
+    // also synchronous: the reader is back on their page the moment printing ends, not a render later
+    const after = () => flushSync(() => setPrinting(false));
+    window.addEventListener('beforeprint', before);
+    window.addEventListener('afterprint', after);
+    return () => { window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after); };
+  }, []);
+
   const [internalFilter, setInternalFilter] = useState('');
   const [internalSelection, setInternalSelection] = useState<Set<string>>(() => new Set());
   const isCompact = useCompactViewport();
@@ -189,6 +222,22 @@ export function TanStackDataGrid<TData extends object>({
 
   const effectiveTotalCount = totalCount ?? data.length;
   const showCards = mobileLayout === 'cards' && isCompact;
+
+  /**
+   * The totals row lands on the column it totals: `columnsBefore` columns are filled to its left (the
+   * label sits in them), the value is the next one, and any columns after it are filled so the row is
+   * as wide as the table. Clamped, so a totals row can never widen the table past its columns.
+   */
+
+  /**
+   * The column chooser's index of the row header, which it must leave visible: hiding the column that
+   * names a row leaves every row without its name, and on a report without its only button.
+   */
+  const rowHeaderLocked = useMemo(() => {
+    if (rowHeaderColumn === undefined) return undefined;
+    const at = columns.findIndex(column => column.id === rowHeaderColumn);
+    return at < 0 ? undefined : [at + (selectable ? 1 : 0)];
+  }, [rowHeaderColumn, columns, selectable]);
 
   const pageRowsIds = useMemo(() => data.map((row, idx) => resolveRowId(row, idx)), [data, resolveRowId]);
   const selectedRows = useMemo(
@@ -247,6 +296,8 @@ export function TanStackDataGrid<TData extends object>({
    * node survives. No cell in the app uses hooks, which is what makes this safe; a cell that did would need to
    * become a named component instead.
    */
+  const isRowHeader = (cell: Cell<TData, unknown>) => rowHeaderColumn !== undefined && cell.column.id === rowHeaderColumn;
+
   const renderCellContent = (cell: Cell<TData, unknown>) => {
     const content = cell.column.columnDef.cell;
     return typeof content === 'function'
@@ -271,8 +322,38 @@ export function TanStackDataGrid<TData extends object>({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+
   const filteredRows = table.getFilteredRowModel().rows;
-  const visibleRows = table.getRowModel().rows;
+  // printing draws the whole list *as the reader sorted it*: the pre-pagination row model carries the
+  // sort and the filter, while `filteredRows` (the filter model) would print the rows unsorted
+  const visibleRows = printing ? table.getPrePaginationRowModel().rows : table.getRowModel().rows;
+  /**
+   * The totals row, built from the cells the body actually draws.
+   *
+   * One cell per drawn column and no colspans, on purpose: the column chooser hides a column with
+   * `:nth-child` on each section and deliberately skips rows that contain a `[colspan]` cell, so a
+   * spanned footer would keep a hidden column's width and put the total under the wrong heading. A
+   * cell-per-column footer is hidden in step with the body it sums.
+   */
+  const totalsRow = useMemo(() => {
+    if (!totals || filteredRows.length === 0) return null;
+    const drawnIds = table.getVisibleLeafColumns().map(column => column.id);
+    // `columnsBefore` counts the caller's own columns, so the tick column the grid prepends is added on
+    const offset = selectable ? 1 : 0;
+    const valueAt = Math.min(Math.max(offset + (totals.columnsBefore ?? columns.length - 1), 0), drawnIds.length - 1);
+    return (
+      <tfoot className="border-t border-[var(--line)]">
+        <tr className="font-semibold">
+          {drawnIds.map((id, index) => {
+            if (index === valueAt) return <td key={id} className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>;
+            if (index === 0) return <th key={id} scope="row" className="px-4 py-3 text-xs text-start">{totals.label}</th>;
+            return <td key={id} className="px-4 py-3" />;
+          })}
+        </tr>
+      </tfoot>
+    );
+  }, [totals, filteredRows, table, selectable, columns.length]);
+
   const pageCount = table.getPageCount() || 1;
 
   const rowIds = useMemo(() => visibleRows.map(row => resolveRowId(row.original as TData, row.index)), [visibleRows, resolveRowId]);
@@ -361,7 +442,12 @@ export function TanStackDataGrid<TData extends object>({
           <div className="flex flex-wrap items-center gap-2">
             {showSavedViews && <SavedViewsBar currentSearchTerm={activeSearch} compact />}
             {columnScope && columnLabel && columnNames && columnNames.length > 0 && (
-              <ListColumnChooser scope={columnScope} label={columnLabel} columns={columnNames} />
+              <ListColumnChooser
+                scope={columnScope}
+                label={columnLabel}
+                columns={columnNames}
+                lockedColumns={rowHeaderLocked}
+              />
             )}
             {exportConfig && (
               <button
@@ -464,6 +550,13 @@ export function TanStackDataGrid<TData extends object>({
             </div>
             </div>
           )}
+          {totals && filteredRows.length > 0 && (
+            /* the card layout is the phone layout, and a report's summary belongs there too */
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--elevated)] px-4 py-3 text-xs font-semibold">
+              <span className="text-[var(--muted)]">{totals.label}</span>
+              <span className="tabular-nums text-[var(--text)]" data-grid-total>{totals.value}</span>
+            </div>
+          )}
           {filteredRows.length > 0 && cardFooterContent}
         </div>
       ) : (
@@ -500,6 +593,7 @@ export function TanStackDataGrid<TData extends object>({
                         {canSort ? (
                           <button
                             type="button"
+                            data-grid-sort-header
                             onClick={header.column.getToggleSortingHandler()}
                             className="flex items-center gap-1.5 uppercase font-bold tracking-wider cursor-pointer text-[var(--text)]"
                           >
@@ -548,16 +642,27 @@ export function TanStackDataGrid<TData extends object>({
                         extra.className,
                       )}
                     >
-                      {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className="px-4 py-3 text-xs text-[var(--text)] font-medium">
-                          {renderCellContent(cell)}
-                        </td>
-                      ))}
+                      {row.getVisibleCells().map(cell =>
+                        isRowHeader(cell) ? (
+                          <th
+                            key={cell.id}
+                            scope="row"
+                            className="px-4 py-3 text-xs text-[var(--text)] font-medium text-start"
+                          >
+                            {renderCellContent(cell)}
+                          </th>
+                        ) : (
+                          <td key={cell.id} className="px-4 py-3 text-xs text-[var(--text)] font-medium">
+                            {renderCellContent(cell)}
+                          </td>
+                        ),
+                      )}
                     </tr>
                   );
                 })
               )}
             </tbody>
+            {totalsRow}
             {filteredRows.length > 0 && footerContent}
           </table>
         </div>
