@@ -134,6 +134,10 @@ export interface SplitInput {
   settlementRate: number;
   /** the applied part of the gross settled amount in base (cash + withholding − the unapplied part) */
   settledBaseCents: number;
+  /** Exact per-document control amounts already used for the journal. */
+  clearedBaseByAllocation?: number[];
+  /** No separately quoted settlement rate: each allocation settles its exact clearing amount. */
+  settleAtCleared?: boolean;
 }
 
 /**
@@ -144,8 +148,14 @@ export function splitAllocations(input: SplitInput): Array<{ baseClearedCents: n
   const amounts = input.allocations.map(a => a.amountCents);
   const total = amounts.reduce((s, a) => s + a, 0);
   const clearedTotal = Math.round(total * minorUnitRate(input.documentRate, input.currency, input.baseCurrency));
-  const cleared = allocateCents(clearedTotal, amounts);
-  const settled = allocateCents(input.settledBaseCents, amounts);
+  const cleared = input.clearedBaseByAllocation ?? allocateCents(clearedTotal, amounts);
+  if (cleared.length !== amounts.length || cleared.some(v => !Number.isSafeInteger(v) || v < 0)) {
+    throw new AllocationError(409, 'Invalid per-document base clearing amounts');
+  }
+  const settled = input.settleAtCleared ? cleared : allocateCents(input.settledBaseCents, amounts);
+  if (settled.reduce((s, v) => s + v, 0) !== input.settledBaseCents) {
+    throw new AllocationError(409, 'Allocation settlement amounts do not match the posted journal');
+  }
   return amounts.map((_, i) => ({
     baseClearedCents: cleared[i],
     baseSettledCents: settled[i],
