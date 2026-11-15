@@ -87,7 +87,9 @@ describe('Workstream 1: TanStackDataGrid U-3 suppression and mobile layout', () 
       />,
     );
     assert.equal(screen.queryAllByRole('columnheader').length, 0);
-    assert.ok(screen.getByRole('list', { name: 'Widgets' }));
+    // the cards live inside the list's one keyboard region (U-1: rows are not tab stops of their own)
+    assert.ok(screen.getByRole('region', { name: 'Widgets' }));
+    assert.ok(screen.getByRole('list'));
     assert.ok(screen.getByText('Card: Widget'));
 
     rerender(

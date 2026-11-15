@@ -594,3 +594,28 @@ forbidding these writes would break normal saving.
 *Default I'm using:* the fix moves "issue" and "void" for invoices, bills and credits behind the server (as
 payments already are), then the database rule refuses a browser change to an issued document's money fields or
 status. It is a multi-step change; I'll do it after the open money issues (#653). Say if you want it sooner.
+
+## 15 Nov — the screen rebuild, second slice (AI #9): one decision, one default
+
+The review of the last slice said three things were missing: a test that proves every action and
+report can be *reached* (not merely imported), the counters that stop new screens being built the old
+way, and keyboard movement between rows. All three are in this pull request; three choices are yours.
+
+- **The Admin Panel is now in the search box, but only in developer mode** — as the sidebar already did.
+  It is the server's control room (workspaces, jobs, diagnostics): a first-time person should not land
+  there from a typo. *Default used:* listed when developer mode is on, absent otherwise, and the
+  reachability test checks it in that mode.
+- **Search now folds "&" to "and" and drops punctuation**, so "profit and loss" and "who owes me" find
+  the right report. *Default used:* folding is search-only — stored labels, ids and import fingerprints
+  are unchanged. If you would rather the report be *named* "Profit and loss" than have the search
+  translate, that is a words decision (U-5) for you.
+- **The Hebrew name of a screen is searched as written.** Hebrew search for reports and settings works
+  today; for a handful of screen names the folder misses because some names carry a definite article
+  (ה) or a prefix (ל, ב) — "לסקירה" is typed as "סקירה" by most people. *Default used:* left as is,
+  because folding Hebrew prefixes is its own change with its own tests; it is the next item in
+  `docs/TRACKER.md` under the screen rebuild. Say if you want it before the rest.
+- **Screens with more than one filled button: 19 today.** They are counted, not fixed, because U-2 says
+  one filled button *per screen* and several of these are one screen in two states (a wizard step, a
+  settings tab that only renders one of its three buttons at a time). Fixing them means reading each
+  one, not deleting buttons. *Default used:* the counter records 19 and may only go down; the list is in
+  `docs/UI_REBUILD_RATCHETS.md`.
