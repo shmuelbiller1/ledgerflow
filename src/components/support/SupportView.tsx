@@ -157,9 +157,10 @@ export default function SupportView() {
         // A 2xx whose body was cut off means the server already took the message; writing it again
         // from the browser would show it twice. A refusal (any status the server chose to answer
         // with) or a request that never arrived still falls back, as before.
-        const accepted = apiErr instanceof ServerCommandError && apiErr.status >= 200 && apiErr.status < 300;
-        if (accepted) throw apiErr;
-        console.warn('API message send failed, using client write:', apiErr);
+        // A 2xx with an unreadable body means the server took the message; that is a send that
+        // happened, so it must neither write a second copy nor read as a failure to the person.
+        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
+        else console.warn('API message send failed, using client write:', apiErr);
       }
 
       if (!sentViaApi) {
@@ -205,9 +206,9 @@ export default function SupportView() {
         sentViaApi = true;
       } catch (apiErr) {
         // see the note above: a 2xx with a cut body was already accepted by the server
-        const accepted = apiErr instanceof ServerCommandError && apiErr.status >= 200 && apiErr.status < 300;
-        if (accepted) throw apiErr;
-        console.warn('API send message failed, using client write:', apiErr);
+        // see the note above: an accepted send whose answer was unreadable is still a send
+        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
+        else console.warn('API send message failed, using client write:', apiErr);
       }
 
       if (!sentViaApi) {

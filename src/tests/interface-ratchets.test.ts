@@ -139,6 +139,22 @@ describe('the five interface ratchets', () => {
     assert.equal(primaryButtonScreens(root), 0);
   });
 
+  test('a strong opacity is still a fill, and a faint one is still a wash', () => {
+    // The rule is "40% or more is a fill". The first version listed exclusions and got the 40s
+    // backwards — it excluded /40 and /50 while the comment said they count. Found by review.
+    const strong = screenWith([
+      '<button className="bg-indigo-600/60">Save</button>',
+      '<button className="bg-indigo-600/90">Send</button>',
+    ], 'src/components/sales/Strong.tsx');
+    assert.equal(primaryButtonScreens(strong), 1, 'two 60%+ fills are two primary buttons');
+
+    const faint = screenWith([
+      '<button className="bg-indigo-600/[0.03]">row</button>',
+      '<button className="bg-indigo-600/10">row</button>',
+    ], 'src/components/sales/Faint.tsx');
+    assert.equal(primaryButtonScreens(faint), 0, 'a wash of 10% or less is not a button');
+  });
+
   test('a filled button outside the steps counts against the step that is showing', () => {
     // A wizard's shared action is on screen with whichever step is showing. Counting it in a group of
     // its own let a wizard show two filled buttons and still total one per group. Reported by review.

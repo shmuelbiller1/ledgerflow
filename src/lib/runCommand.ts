@@ -15,7 +15,14 @@ import { getIdToken } from '../firebase';
 
 /** A refusal or a failure, with the status and the server's own words where it gave any. */
 export class ServerCommandError extends Error {
-  constructor(readonly status: number, message: string, readonly body?: unknown) {
+  /**
+   * True when the server accepted the request (a 2xx) and the failure was reading the answer.
+   *
+   * This distinction matters for a write: the entry is committed, and reporting it as failed makes a
+   * person submit it again with a fresh id, recording it twice. A caller that can live without the
+   * answer (it already knows the id it generated) should treat this as success.
+   */
+  constructor(readonly status: number, message: string, readonly body?: unknown, readonly accepted = false) {
     super(message);
     this.name = 'ServerCommandError';
   }
@@ -99,10 +106,10 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
     try {
       raw = JSON.parse(text);
     } catch {
-      // 200 headers, a body, and a connection cut in the middle of it: this is the case that must not
-      // read as an empty success — for the backup export it would skip the fallback and write an
-      // empty archive
-      throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined);
+      // 200 headers, a body, and a connection cut in the middle of it. `accepted` says the server took
+      // the request: an export must not read this as an empty archive, and a journal must not tell the
+      // person to submit it again — both are marked here rather than guessed at by each caller.
+      throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined, true);
     }
   }
   return parse ? parse(raw) : raw as T;

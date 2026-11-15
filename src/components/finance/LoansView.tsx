@@ -11,7 +11,7 @@
  *
  * Viewer role: can read everything, posts nothing.
  */
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, BadgeCheck, Banknote, CalendarClock, CheckCircle2, Plus, X } from 'lucide-react';
@@ -95,22 +95,28 @@ function asDraft(form: LoanForm): LoanDraft {
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
   const id = `tx_loan_${crypto.randomUUID()}`;
   // the operation id is what keeps a retried loan entry from posting twice
-  await runCommand({
+  try {
+    await runCommand({
     path: '/api/v1/transactions',
     method: 'POST',
-    headers: { 'x-operation-id': id },
-    body: {
-      transaction: {
-        ...transaction,
-        id,
-        status: 'completed',
-        type: 'actual',
-        isCleared: false,
-        schemaVersion: '1.1',
-        createdAt: new Date().toISOString(),
+      headers: { 'x-operation-id': id },
+      body: {
+        transaction: {
+          ...transaction,
+          id,
+          status: 'completed',
+          type: 'actual',
+          isCleared: false,
+          schemaVersion: '1.1',
+          createdAt: new Date().toISOString(),
+        },
       },
-    },
-  });
+      });
+  } catch (error) {
+    // The ledger entry is committed and the id is known; only the answer was unreadable. Throwing here
+    // would leave the installment unpaid in the schedule, and a retry posts a second entry.
+    if (!(error instanceof ServerCommandError && error.accepted)) throw error;
+  }
   return id;
 }
 

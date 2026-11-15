@@ -325,9 +325,13 @@ function computeScreensWithManyPrimaryButtons(rootDir: string): number {
   /**
    * A filled button, not a tint. `bg-indigo-600/[0.03]` on a selected row is a wash behind content —
    * `\b` matched it because `/` is not a word character, so a list row counted as a primary action.
-   * An opacity modifier of 40% or more is still a fill; anything fainter is a background.
+   * The rule: an opacity of 40% or more is still a fill; anything fainter is a background. Written as
+   * "not followed by an opacity below 40" rather than as a list of exclusions, because the list is
+   * what got the 40s backwards the first time.
    */
-  const filled = /(?:\bbtn-primary\b|\bbg-\[var\(--gold\)\]|\bbg-indigo-600\b(?!\/(?:\[[0-9.]+\]|[1-3]?[0-9]\b)|\/40|\/50))/;
+  // "40% or more is a fill": the wash opacities are 0-39, plus bracketed fractions like [0.03]
+  const faintOpacity = '\\/(?:(?:3[0-9]|[12][0-9]|[0-9])(?!\\d)|\\[0?\\.\\d+\\])';
+  const filled = new RegExp('(?:\\bbtn-primary\\b|\\bbg-\\[var\\(--gold\\)\\]|\\bbg-indigo-600\\b(?!' + faintOpacity + '))');
   return componentFiles(rootDir).filter(file => {
     const text = fs.readFileSync(file, 'utf8');
     const perStep = new Map<string, number>();

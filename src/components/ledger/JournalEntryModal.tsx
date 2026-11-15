@@ -1,4 +1,4 @@
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import { useNativeFormErrors } from '../../hooks/useNativeFormErrors';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -377,13 +377,21 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
           body: { transactions: withReversal(payload, reverseOn), workspaceId },
         });
       } else {
-        await runCommand({
-          path: '/api/v1/transactions',
-          method: 'POST',
-          token,
-          headers: { 'x-operation-id': payload.id },
-          body: { transaction: payload },
-        });
+        try {
+          await runCommand({
+            path: '/api/v1/transactions',
+            method: 'POST',
+            token,
+            headers: { 'x-operation-id': payload.id },
+            body: { transaction: payload },
+          });
+        } catch (error) {
+          // The server answered 2xx and only the answer failed to parse: the entry is recorded. Saying
+          // otherwise keeps the form open for a second submission with a fresh id, which records it
+          // twice — and an auto-reversing entry would duplicate both halves.
+          if (!(error instanceof ServerCommandError && error.accepted)) throw error;
+          toast.info('The journal entry was recorded; its answer could not be read.');
+        }
       }
 
       // PREV-5: another workspace was opened while the entry was on its way: say where it went

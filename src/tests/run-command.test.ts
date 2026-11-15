@@ -83,6 +83,28 @@ describe('runCommand is the one place a screen calls its server', () => {
     );
   });
 
+  test('a cut-off answer is marked accepted, so a caller does not submit the write again', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true,
+      status: 201,
+      text: async () => '{"transaction": {"id": "t1"',
+    }) as unknown as Response) as unknown as typeof fetch;
+    await assert.rejects(runCommand({ path: '/api/v1/transactions', method: 'POST', token: 't' }), (err: unknown) => {
+      // the entry was committed: a loan schedule must still mark the installment paid, and a journal
+      // dialog must not keep the form open for a second submission with a fresh id
+      assert.ok(err instanceof ServerCommandError);
+      assert.equal(err.accepted, true);
+      // but a refused request is not accepted — retrying that one is right
+      return true;
+    });
+    answer(409, { code: 'CONFLICT' });
+    await assert.rejects(runCommand({ path: '/api/v1/x', method: 'POST', token: 't' }), (err: unknown) => {
+      assert.ok(err instanceof ServerCommandError);
+      assert.equal(err.accepted, false);
+      return true;
+    });
+  });
+
   test('a GET sends no body and no content type', async () => {
     answer(200, { rows: [] });
     await runCommand({ path: '/api/v1/thing', token: 't' });
