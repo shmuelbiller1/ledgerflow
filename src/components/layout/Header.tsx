@@ -128,7 +128,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="md:hidden p-2.5 -ml-1 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
+          className="md:hidden -ml-1 w-11 h-11 inline-flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
           title="Search, or type what you want to do"
           aria-label="Search, or type what you want to do"
         >

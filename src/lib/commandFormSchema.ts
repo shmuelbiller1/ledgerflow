@@ -145,7 +145,9 @@ export function formForCommand(command: string): CommandForm {
         continue;
       }
       for (const [innerName, innerField] of Object.entries(inner)) {
-        const built = fieldFrom(innerName, `${name}.${innerName}`, innerField, innerRequired.has(innerName), true);
+        // A field is only required when its parent is too. `creditLimitOverride` is optional, so its
+        // `reason` cannot be required: demanding it would block every ordinary invoice.
+        const built = fieldFrom(innerName, `${name}.${innerName}`, innerField, isRequired && innerRequired.has(innerName), true);
         if (!built) {
           if (innerField.type === 'object' || innerField.type === 'array' || innerField.$ref) {
             notes.push(`"${name}.${innerName}" is a list or a nested record; it is edited on its own screen.`);

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { getLocalDateISO } from '../../lib/utils';
 import { errorMessage } from '../../lib/errorRemedies';
 import { commandErrorMessage, runCommand, ServerCommandError } from '../../lib/runCommand';
+import { COMMAND_MANIFEST } from '../../lib/commands.generated';
 import { convertXeroAccounts as _convertXeroAccounts } from '../../lib/xeroAdapter';
 import { db, getIdToken } from '../../firebase';
 import { collection, query, where, getDocs } from '../../lib/db/firestore';
@@ -359,8 +360,18 @@ export function useApiHubModel() {
     }
   };
 
+  /** The HTTP method an endpoint selection implies. A registered command is always a POST. */
+  const sandboxMethod = (endpoint: string) => endpoint.startsWith('COMMAND_') ? 'POST' : endpoint.split('_')[0];
+
   const getSandboxPayload = (endpoint: string) => {
     const wsId = currentWorkspace?.id || '';
+    if (endpoint.startsWith('COMMAND_')) {
+      // the command's own documented example, so the snippet a reader copies is a real request
+      const name = endpoint.slice('COMMAND_'.length);
+      const entry = COMMAND_MANIFEST.find(command => command.name === name);
+      const example = (entry?.description as { example?: unknown } | undefined)?.example;
+      return { workspaceId: wsId, input: example && typeof example === 'object' ? example : {} };
+    }
     switch (endpoint) {
       case 'POST_v1_transactions':
         return {
@@ -607,5 +618,5 @@ export function useApiHubModel() {
     }
   };
 
-  return { overlayDialogProps, overlayTitleId, formId, currentWorkspaceId, workspaces, setCurrentWorkspaceId, currentWorkspace, nowMs, apiKey, apiLogs, isRegenerating, isCopied, activeTab, setActiveTab, activeDoc, setActiveDoc, docLang, setDocLang, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, simSeatsCount, setSimSeatsCount, simRequestsCount, setSimRequestsCount, isSimulatingBurst, setIsSimulatingBurst, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, loadBillingStatus, handleCheckout, fetchLogs, generateNewKey, revokeKey, copyKey, getEndpointPath, getSandboxPayload, runSandboxRequest, runSandboxCommand };
+  return { overlayDialogProps, overlayTitleId, formId, currentWorkspaceId, workspaces, setCurrentWorkspaceId, currentWorkspace, nowMs, apiKey, apiLogs, isRegenerating, isCopied, activeTab, setActiveTab, activeDoc, setActiveDoc, docLang, setDocLang, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, simSeatsCount, setSimSeatsCount, simRequestsCount, setSimRequestsCount, isSimulatingBurst, setIsSimulatingBurst, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, loadBillingStatus, handleCheckout, fetchLogs, generateNewKey, revokeKey, copyKey, getEndpointPath, getSandboxPayload, runSandboxRequest, runSandboxCommand, sandboxMethod };
 }

@@ -368,16 +368,16 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
       }
       // with a reversal: both entries in one request, so there is never one without the other (R-05)
       // the entry is recorded once even if the request is retried: the id goes with it as the key
-      if (autoReverse) {
-        await runCommand({
-          path: '/api/v1/transactions/bulk',
-          method: 'POST',
-          token,
-          headers: { 'Idempotency-Key': payload.id },
-          body: { transactions: withReversal(payload, reverseOn), workspaceId },
-        });
-      } else {
-        try {
+      try {
+        if (autoReverse) {
+          await runCommand({
+            path: '/api/v1/transactions/bulk',
+            method: 'POST',
+            token,
+            headers: { 'Idempotency-Key': payload.id },
+            body: { transactions: withReversal(payload, reverseOn), workspaceId },
+          });
+        } else {
           await runCommand({
             path: '/api/v1/transactions',
             method: 'POST',
@@ -385,13 +385,14 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             headers: { 'x-operation-id': payload.id },
             body: { transaction: payload },
           });
-        } catch (error) {
-          // The server answered 2xx and only the answer failed to parse: the entry is recorded. Saying
-          // otherwise keeps the form open for a second submission with a fresh id, which records it
-          // twice — and an auto-reversing entry would duplicate both halves.
-          if (!(error instanceof ServerCommandError && error.accepted)) throw error;
-          toast.info('The journal entry was recorded; its answer could not be read.');
         }
+      } catch (error) {
+        // The server answered 2xx and only the answer failed to parse: the entry is recorded. Saying
+        // otherwise keeps the form open for a second submission with a fresh id, which records it
+        // twice — and an auto-reversing entry would duplicate both halves. Both paths are covered:
+        // the bulk request has the same exposure as the single one, and missing it was a real bug.
+        if (!(error instanceof ServerCommandError && error.accepted)) throw error;
+        toast.info('The journal entry was recorded; its answer could not be read.');
       }
 
       // PREV-5: another workspace was opened while the entry was on its way: say where it went

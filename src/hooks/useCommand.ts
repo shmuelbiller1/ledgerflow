@@ -12,6 +12,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { COMMAND_MANIFEST, type RegisteredCommandName } from '../lib/commands.generated';
 import { runCommand, commandErrorMessage, ServerCommandError } from '../lib/runCommand';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useCurrentRole } from './useCurrentRole';
+import { roleMayRun } from '../lib/paletteRoleFilter';
 
 /** The manifest entry for one command, narrowed so a mistyped name is a compile error. */
 export type CommandEntry = (typeof COMMAND_MANIFEST)[number];
@@ -67,6 +70,11 @@ function refusalSentence(entry: CommandEntry, code: string | undefined): string 
 
 export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandName | string): UseCommandResult<T> {
   const entry = useMemo(() => entryFor(name), [name]);
+  // The route needs the workspace in the envelope (or embedded in the input, or on a developer key).
+  // A screen should never have to think about that, so the hook sends the one the session is in; an
+  // input that carries its own workspaceId wins, because some commands act on a named workspace.
+  const sessionWorkspaceId = useAuthStore(state => state.currentWorkspaceId);
+  const role = useCurrentRole();
   const [saving, setSaving] = useState(false);
   // A ref, not the state value: two presses in the same tick both read `saving === false` from the
   // closure and both send. The ref is set before the first await, so the second press sees it.
@@ -80,11 +88,28 @@ export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandN
     // One press at a time: a double click on "Save & Close" must not send the command twice, and the
     // server's idempotency key would only protect the retry, not the second intent.
     if (inFlight.current) return null;
+    // The server would refuse this, but only after the person filled in a form. Saying so first is the
+    // whole point of the manifest carrying roles: the answer is known before the request is made.
+    if (!roleMayRun(entry.roles, role)) {
+      setRefusal({
+        code: 'ROLE_REQUIRED',
+        message: 'Your role cannot do that. Ask an owner or admin.',
+        next: 'Ask a workspace owner to grant an appropriate role.',
+      });
+      return null;
+    }
     inFlight.current = true;
     setSaving(true);
     setRefusal(null);
     try {
-      const answer = await runCommand<T>({ path: entry.runPath, method: 'POST', body: { input } });
+      const workspaceId = typeof input.workspaceId === 'string' && input.workspaceId
+        ? input.workspaceId
+        : sessionWorkspaceId || undefined;
+      const answer = await runCommand<T>({
+        path: entry.runPath,
+        method: 'POST',
+        body: workspaceId ? { workspaceId, input } : { input },
+      });
       setResult(answer);
       return answer;
     } catch (error) {
@@ -112,7 +137,7 @@ export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandN
       inFlight.current = false;
       setSaving(false);
     }
-  }, [entry]);
+  }, [entry, role, sessionWorkspaceId]);
 
   // What this command usually leads to, as command names the caller can look up and run. Empty when
   // the command declares none — offering a step nobody declared would be inventing a workflow.

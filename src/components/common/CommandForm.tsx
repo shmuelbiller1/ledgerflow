@@ -44,7 +44,9 @@ function controlFor(field: SchemaField, id: string, value: string | boolean, onC
   }
   if (field.kind === 'number') {
     return (
-      <input id={id} type="number" min={field.minimum} max={field.maximum} value={String(value)} disabled={disabled}
+      // `step=1` (the browser default) makes a valid fractional value such as a 12.5% withholding rate
+      // fail validation before it is ever sent, so the step is any value the schema's bounds allow.
+      <input id={id} type="number" step="any" min={field.minimum} max={field.maximum} value={String(value)} disabled={disabled}
         onChange={e => onChange(e.target.value)} className={className} />
     );
   }

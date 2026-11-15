@@ -10,6 +10,22 @@ import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useCommand } from '../hooks/useCommand';
 import { COMMAND_MANIFEST } from '../lib/commands.generated';
+import { useAuthStore } from '../stores/useAuthStore';
+
+/**
+ * A workspace this person owns, which is what every real screen has behind it: `useCurrentRole` reads
+ * the session, and with no workspace it answers "viewer" — correctly, because there is nothing to act
+ * on. A test that skipped this would only ever be exercising the refusal path.
+ */
+const WORKSPACE = 'ws-test';
+const OWNER = { uid: 'owner-uid', email: 'owner@example.test', displayName: 'Owner' };
+function signedInAsOwner() {
+  useAuthStore.setState({
+    user: OWNER as never,
+    currentWorkspaceId: WORKSPACE,
+    workspaces: [{ id: WORKSPACE, uid: OWNER.uid, name: 'Test Books', members: [OWNER.uid] }] as never,
+  });
+}
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -33,13 +49,14 @@ function answers(status: number, body: unknown, onCall?: (url: string, init: Req
 }
 
 describe('useCommand(name) is how a screen acts', () => {
+  test.beforeEach(() => signedInAsOwner());
   test('the address comes from the manifest, so a screen never types it', async () => {
     const calls = answers(200, { status: 'success', data: { id: 'c1' } });
     const { result } = renderHook(() => useCommand('customer.create'));
     await act(async () => { await result.current.run({ customer: { name: 'Acme' } }); });
     assert.equal(calls[0].url, '/api/v1/commands/customer.create');
     assert.equal(calls[0].init.method, 'POST');
-    assert.deepEqual(JSON.parse(String(calls[0].init.body)), { input: { customer: { name: 'Acme' } } });
+    assert.deepEqual(JSON.parse(String(calls[0].init.body)), { workspaceId: WORKSPACE, input: { customer: { name: 'Acme' } } });
   });
 
   test('a refusal reads as the command’s own sentence and the next step it offers', async () => {
@@ -64,6 +81,22 @@ describe('useCommand(name) is how a screen acts', () => {
   // a command that declares nothing offers nothing, rather than a guessed step
   const none = renderHook(() => useCommand('invoice.delete'));
   assert.deepEqual(none.result.current.next, []);
+});
+
+test('a role that cannot run the command is told so before a request is made', async () => {
+  // The manifest carries the roles, so the answer is known without filling in a form and waiting for
+  // the server to refuse. Nothing is sent at all.
+  const calls = answers(200, {});
+  useAuthStore.setState({ currentWorkspaceId: WORKSPACE, user: { uid: 'viewer-uid', email: 'v@example.test' } as never });
+  useAuthStore.setState({
+    workspaces: [{ id: WORKSPACE, uid: OWNER.uid, name: 'Test Books', members: [OWNER.uid], roles: { 'viewer-uid': 'viewer' } }] as never,
+  });
+  const { result } = renderHook(() => useCommand('invoice.delete'));
+  await act(async () => { await result.current.run({ id: 'inv-1' }); });
+  assert.equal(calls.length, 0, 'a refused role never reaches the network');
+  assert.equal(result.current.refusal?.code, 'ROLE_REQUIRED');
+  assert.match(result.current.refusal?.message || '', /role cannot do that/);
+  assert.ok(result.current.refusal?.next, 'and says who can');
 });
 
 test('a request that never reached the server says so, rather than blaming a code', async () => {

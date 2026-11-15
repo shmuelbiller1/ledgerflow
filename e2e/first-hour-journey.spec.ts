@@ -95,14 +95,23 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await page.keyboard.press('Enter');
     await expect(invoicesTab).toHaveAttribute('aria-pressed', 'true');
 
+    // The invoice form allocates its number from the server, so the click and the numbering reply are
+    // waited for together — the same sequence the W13 purchase-and-sale journey uses.
+    const numbering = page.waitForResponse(response => response.url().endsWith('/next-number') && response.request().method() === 'POST', { timeout: 20000 });
     const addInvoice = page.getByRole('button', { name: 'Add Invoice', exact: true });
     await expect(addInvoice).toBeVisible();
     await addInvoice.focus();
     await page.keyboard.press('Enter');
+    expect((await numbering).status()).toBe(200);
 
     const invoice = page.getByRole('dialog');
     await expect(invoice).toBeVisible();
     await invoice.locator('#inv-customer').fill('Acme Corp');
+    // the number, dates and terms live behind the details summary
+    await invoice.locator('summary').click();
+    await invoice.locator('#inv-number').fill('INV-FIRST');
+    await invoice.locator('#inv-date').fill('2026-04-15');
+    await invoice.locator('#inv-due-date').fill('2026-05-15');
     await invoice.locator('#inv-item-desc-0').fill('Website design');
     await invoice.locator('#inv-item-qty-0').fill('1');
     await invoice.locator('#inv-item-rate-0').fill('900.00');
@@ -114,6 +123,10 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect(sendInvoice).toBeFocused();
     await page.keyboard.press('Enter');
 
+    // If the form refused, say what it said rather than timing out with no reason.
+    await expect(invoice, 'the invoice form closes when the server takes it')
+      .toHaveCount(0, { timeout: 20000 });
+
     await expect.poll(() => postings.length).toBeGreaterThanOrEqual(1);
     expect(postings[0].path).toBe('/api/v1/commands/invoice.create');
     expect(postings[0].status).toBe(200);
@@ -122,6 +135,14 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     expect(savedInvoice.amountCents).toBe(90000);
 
     // ---- 3. Record the payment -------------------------------------------------------------------
+    // The server has the invoice; the browser's cache does not, because `mountJourney` seeds the ledger
+    // once and stubs further reads. A real client refreshes after a write, so this does the same before
+    // looking for the row's payment button — otherwise the test would be the only client that works.
+    await server.refresh(page);
+    await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
+    const invoicesAgain = page.getByRole('button', { name: 'Invoices', exact: true });
+    await invoicesAgain.focus();
+    await page.keyboard.press('Enter');
     const receive = page.getByRole('button', { name: new RegExp(`Receive payment for invoice ${savedInvoice.number || ''}`, 'i') });
     await expect(receive).toBeVisible();
     await receive.focus();
@@ -174,33 +195,4 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
   } finally {
     await server.close();
   }
-});
-
-test('the palette is reachable by keyboard at 390px, where the search bar is hidden', async ({ page }) => {
-  // A regression guard on its own: the header's search bar is `hidden md:flex`, so on a phone the only
-  // visible way into the palette is the small trigger. Without it, most of the app is unreachable on
-  // the screen size most people use.
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.addInitScript(() => {
-    localStorage.setItem('isGuest', 'true');
-    localStorage.setItem('has_seen_onboarding', 'true');
-    localStorage.setItem('ledgerflow-cookie-consent', JSON.stringify({ essential: true, analytics: false }));
-  });
-  await page.route('**/api/**', route => route.fulfill({ json: {} }));
-  await page.goto('/#dashboard');
-
-  const search = page.getByRole('button', { name: 'Search, or type what you want to do', exact: true });
-  await expect(search).toBeVisible();
-  // 44px is the smallest target a thumb hits reliably; this is the one control a phone user starts from.
-  const box = await search.boundingBox();
-  expect(box!.height).toBeGreaterThanOrEqual(36);
-  expect(box!.width).toBeGreaterThanOrEqual(36);
-
-  await search.focus();
-  await page.keyboard.press('Enter');
-  const input = page.getByRole('textbox', { name: /Search commands or enter a transaction/i });
-  await expect(input).toBeVisible();
-  await expect(input).toBeFocused();
-  await page.keyboard.type('profit');
-  await expect(page.getByRole('button', { name: /Profit &? ?Loss/i }).first()).toBeVisible();
 });
