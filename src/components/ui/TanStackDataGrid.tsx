@@ -335,17 +335,17 @@ export function TanStackDataGrid<TData extends object>({
    */
   const totalsRow = useMemo(() => {
     if (!totals || filteredRows.length === 0) return null;
-    const drawn = table.getVisibleLeafColumns().length;
+    const drawnIds = table.getVisibleLeafColumns().map(column => column.id);
     // `columnsBefore` counts the caller's own columns, so the tick column the grid prepends is added on
     const offset = selectable ? 1 : 0;
-    const valueAt = Math.min(Math.max(offset + (totals.columnsBefore ?? columns.length - 1), 0), drawn - 1);
+    const valueAt = Math.min(Math.max(offset + (totals.columnsBefore ?? columns.length - 1), 0), drawnIds.length - 1);
     return (
       <tfoot className="border-t border-[var(--line)]">
         <tr className="font-semibold">
-          {Array.from({ length: drawn }, (_, index) => {
-            if (index === valueAt) return <td key={index} className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>;
-            if (index === 0) return <th key={index} scope="row" className="px-4 py-3 text-xs text-start">{totals.label}</th>;
-            return <td key={index} className="px-4 py-3" />;
+          {drawnIds.map((id, index) => {
+            if (index === valueAt) return <td key={id} className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>;
+            if (index === 0) return <th key={id} scope="row" className="px-4 py-3 text-xs text-start">{totals.label}</th>;
+            return <td key={id} className="px-4 py-3" />;
           })}
         </tr>
       </tfoot>
