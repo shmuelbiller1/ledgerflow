@@ -13,7 +13,8 @@
  *  - every action a palette command names is one the dispatcher knows, so choosing it cannot do nothing;
  *  - a module that is switched off is offered as "turn on", never silently missing.
  */
-import test, { describe } from 'node:test';
+import './helpers/dom';
+import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,6 +28,15 @@ import {
 import { pageIndex, searchPages } from '../config/pageIndex';
 import { MODULES } from '../lib/modules';
 import { normalizeSearchText } from '../lib/textNormalization';
+import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import CommandPalette from '../components/layout/CommandPalette';
+import { useUIStore } from '../stores/useUIStore';
+
+/** The names in the palette's result list, as drawn. */
+function resultNames(): string[] {
+  return Array.from(document.querySelectorAll('p.text-base')).map(el => (el.textContent || '').trim());
+}
 
 const index = pageIndex('en');
 const keys = new Set(index.map(entry => `${entry.page.tab}|${entry.page.sub ?? ''}`));
@@ -118,6 +128,8 @@ describe('every registered screen can be reached by searching for it', () => {
 });
 
 describe('every action the search box offers can be run', () => {
+  afterEach(() => cleanup());
+
   const dispatcher = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useSystemContext.ts'), 'utf8');
 
   test('each command names an action the dispatcher knows', () => {
@@ -128,24 +140,42 @@ describe('every action the search box offers can be run', () => {
     assert.deepEqual(unknown, [], `a command that would do nothing:\n${unknown.join('\n')}`);
   });
 
-  test('each command is found by typing the plain words of its name', () => {
-    // The palette filters commands with `label.includes(query)`. Typing a whole command name must show
-    // that command and nothing the reader did not ask for, so a command whose name is unreachable by
-    // typing is a command nobody finds. This runs the palette's own filter, not a copy of it.
-    const paletteHits = (query: string) => SYSTEM_COMMANDS
-      .filter(command => normalizeSearchText(command.label.en).includes(normalizeSearchText(query)))
-      .map(command => command.id);
-    const notFound: string[] = [];
-    for (const command of SYSTEM_COMMANDS) {
-      const hits = paletteHits(command.label.en);
-      if (!hits.includes(command.id)) notFound.push(`${command.id} ("${command.label.en}")`);
-      // longest word of the name: the person starts typing and must still see it
-      const longest = command.label.en.split(/\s+/).sort((a, b) => b.length - a.length)[0] ?? '';
-      if (longest.length > 3 && !paletteHits(longest).includes(command.id)) {
-        notFound.push(`${command.id}: typing "${longest}" does not offer it`);
+  test('each command is found by typing its name into the real palette, in English and in Hebrew', () => {
+    // The earlier version of this test re-implemented the palette's filter and searched the English
+    // label only. That is a test of a copy: it passes even if the palette stops listing commands
+    // altogether, and it never looks at Hebrew, where the palette shows the Hebrew label. This renders
+    // the palette and types, which is what a person does.
+    const missed: string[] = [];
+    for (const language of ['en', 'he'] as const) {
+      useUIStore.setState({ language });
+      const view = render(<CommandPalette isOpen onClose={() => {}} />);
+      const box = screen.getByLabelText(/Search commands|חיפוש/);
+      for (const command of SYSTEM_COMMANDS) {
+        const typed = command.label[language];
+        if (!typed) {
+          missed.push(`${command.id}: no ${language} name`);
+          continue;
+        }
+        fireEvent.change(box, { target: { value: typed } });
+        const offered = resultNames().includes(typed);
+        if (!offered) missed.push(`${command.id} (${language}): typing "${typed}" offers nothing`);
       }
+      view.unmount();
     }
-    assert.deepEqual(notFound, [], `commands typing cannot reach:\n${notFound.join('\n')}`);
+    assert.deepEqual(missed, [], `commands typing cannot reach:\n${missed.join('\n')}`);
+  });
+
+  test('the palette is not simply listing everything: a word that matches nothing lists no command', () => {
+    // the other half of the previous test — "found by typing" is meaningless if every query shows all
+    useUIStore.setState({ language: 'en' });
+    render(<CommandPalette isOpen onClose={() => {}} />);
+    const box = screen.getByLabelText(/Search commands|חיפוש/);
+    for (const command of SYSTEM_COMMANDS) {
+      assert.ok(resultNames().includes(command.label.en), 'the whole list is there before typing');
+      break;
+    }
+    fireEvent.change(box, { target: { value: 'zzzq' } });
+    assert.deepEqual(resultNames(), [], 'a query that matches nothing lists nothing');
   });
 
   test('a command and a screen with the same word are both offered, not one instead of the other', () => {
