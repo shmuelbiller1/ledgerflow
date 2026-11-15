@@ -415,6 +415,8 @@ describe('InvoiceRecordPage: the linked posting is a live entry', () => {
 });
 
 describe('TanStackDataGrid: page size follows the list', () => {
+  afterEach(() => cleanup());
+
   type Row = { id: string; name: string };
   const columns: ColumnDef<Row, unknown>[] = [{ id: 'name', header: 'Name', cell: ({ row }) => row.original.name }];
   const base: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: `r${i}`, name: `Row ${i}` }));
@@ -431,5 +433,47 @@ describe('TanStackDataGrid: page size follows the list', () => {
     assert.ok(screen.getByText('Deep link row'));
     assert.ok(screen.getByText('Row 99'), 'the row added by Show more is rendered');
     assert.equal(screen.queryByRole('button', { name: 'Next page' }), null, 'no second page is needed');
+  });
+});
+
+describe('Sales: invoice approval stays behind the approver role', () => {
+  beforeEach(() => {
+    useUIStore.setState({ language: 'en' });
+    setComponentWorkspace();
+    stubFetch(404);
+    markComponentCollectionsLoaded('creditNotes', 'customers', 'invoices', 'payments');
+    useLedgerStore.setState({
+      customers: [],
+      invoices: [{
+        id: 'inv-approval', uid: 'test-user', workspaceId: 'component-workspace', customerId: 'c1',
+        // issued but not yet sent: a sent invoice is never held back, so it would show no approval at all
+        customerName: 'Acme Corp', number: '1050', amountCents: 900000, date: '2026-10-01', dueDate: '2026-10-30', status: 'pending',
+        approval: { state: 'awaiting', thresholdCents: 500000, decidedAt: '' } as never,
+      }],
+    });
+  });
+  afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
+
+  /** The role, plus the approval gate as a workspace setting: on, with a limit below the invoice. */
+  function workspaceWithApproval(role: 'owner' | 'bookkeeper') {
+    setComponentWorkspace(role);
+    useAuthStore.setState({
+      workspaces: useAuthStore.getState().workspaces.map(w => ({ ...w, invoiceApproval: { enabled: true, thresholdCents: 500000 } })),
+    });
+  }
+
+  test('a bookkeeper sees the waiting state but never the approve or send-back controls', () => {
+    workspaceWithApproval('bookkeeper');
+    render(<Sales />);
+    assert.ok(screen.getByText('Waiting for approval'), 'the state is still reported to them');
+    assert.equal(screen.queryByRole('button', { name: 'Approve' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'Send back' }), null);
+  });
+
+  test('an owner sees the decision controls', () => {
+    workspaceWithApproval('owner');
+    render(<Sales />);
+    assert.ok(screen.getByRole('button', { name: 'Approve' }));
+    assert.ok(screen.getByRole('button', { name: 'Send back' }));
   });
 });
