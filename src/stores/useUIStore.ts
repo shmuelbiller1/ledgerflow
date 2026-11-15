@@ -186,7 +186,13 @@ export const useUIStore = create<UIState>((set) => ({
     if (typeof window !== 'undefined') window.location.hash = recordHash(record);
     set({ activeTab: tab as AppTab, focusRecord: record, newRecord: null });
   },
-  clearFocusRecord: () => set({ focusRecord: null }),
+  clearFocusRecord: () => {
+    if (typeof window !== 'undefined') {
+      const target = parseRecordHash(window.location.hash);
+      if (target.record) window.history.replaceState(null, '', `#${target.tab}`);
+    }
+    set({ focusRecord: null });
+  },
   isSidebarOpen: true,
   isCompactMode: false,
   isProMode: false,

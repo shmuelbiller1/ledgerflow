@@ -112,7 +112,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         >
           <Search aria-hidden="true" size={15} className="text-[var(--faint)] group-hover:text-[var(--brass)] transition-colors" />
           <span className="font-mono text-[12px] text-[var(--faint)] truncate">
-            world:realestate property:homes/* amount:&gt;1000
+            Search, or type what you want to do
           </span>
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <kbd className="px-1.5 py-0.5 text-[10px] bg-[var(--surface)] border border-[var(--line)] rounded font-mono text-[var(--faint)]">⌘K</kbd>

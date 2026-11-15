@@ -110,9 +110,13 @@ export function compute${name}(transactions: Transaction[], accounts: ChartAccou
 `);
 
   write(`src/components/reporting/${name}View.tsx`, `import React, { useMemo } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
-import { compute${name} } from '../../server/reports/${camel}Report';
+import { csvMoney } from '../../lib/csvExport';
+import { compute${name}, type ${name}Row } from '../../server/reports/${camel}Report';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
 
 interface Props {
   /** The Reports page passes the chosen period. */
@@ -125,28 +129,45 @@ export default function ${name}View({ startDate, endDate }: Props) {
   const accounts = useLedgerStore(s => s.accounts);
   const report = useMemo(() => compute${name}(transactions || [], accounts || [], startDate, endDate), [transactions, accounts, startDate, endDate]);
 
+  const columns = useMemo<ColumnDef<${name}Row, unknown>[]>(() => [
+    { accessorKey: 'accountName', header: 'Account' },
+    {
+      accessorKey: 'amountCents',
+      header: 'Amount',
+      cell: ({ row }) => <span className="font-mono tabular-nums">{formatCurrency(row.original.amountCents)}</span>,
+    },
+  ], []);
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto p-4 sm:p-6 text-[var(--text)]">
       <h2 className="text-lg font-bold">${title}</h2>
       <p className="text-xs text-[var(--muted)]">{startDate} to {endDate}</p>
-      {report.rows.length === 0 ? (
-        <div className="text-center py-12 bg-[var(--panel)] rounded-lg border border-[var(--line)] text-[var(--muted)] text-xs">Nothing posted in this period.</div>
-      ) : (
-        <table className="w-full text-left text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg">
-          <caption className="sr-only">${title}</caption>
-          <thead className="bg-[var(--surface)] text-[var(--muted)] uppercase">
-            <tr><th scope="col" className="py-2 px-4">Account</th><th scope="col" className="py-2 px-4 text-right">Amount</th></tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--line)]">
-            {report.rows.map(r => (
-              <tr key={r.accountId}><td className="py-2 px-4">{r.accountName}</td><td className="py-2 px-4 text-right font-mono">{formatCurrency(r.amountCents)}</td></tr>
-            ))}
-          </tbody>
+      <TanStackDataGrid
+        caption="${title}"
+        data={report.rows}
+        columns={columns}
+        pageSize={25}
+        searchPlaceholder="Search accounts..."
+        exportConfig={{
+          filename: '${kebab}.csv',
+          headers: ['Account', 'Amount'],
+          mapRow: r => [r.accountName, csvMoney(r.amountCents)],
+        }}
+        emptyState={(
+          <EmptyState
+            title="Nothing posted in this period"
+            description="Posted entries within the selected dates will appear here."
+          />
+        )}
+        footerContent={(
           <tfoot className="font-bold border-t border-[var(--line)]">
-            <tr><th scope="row" className="py-2 px-4 text-left">Total</th><td className="py-2 px-4 text-right font-mono">{formatCurrency(report.totalCents)}</td></tr>
+            <tr>
+              <th scope="row" className="py-2 px-4 text-left text-xs">Total</th>
+              <td className="py-2 px-4 text-right font-mono tabular-nums text-xs">{formatCurrency(report.totalCents)}</td>
+            </tr>
           </tfoot>
-        </table>
-      )}
+        )}
+      />
     </div>
   );
 }

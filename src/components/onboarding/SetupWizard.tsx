@@ -9,6 +9,7 @@ import { doc, updateDoc } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 import { describeError } from '../../lib/errorRemedies';
+import { modulesForBusiness } from '../../lib/modules';
 
 import { BUSINESS_PRESETS, presetForBusiness, presetDimensions } from '../../lib/businessPresets';
 /** Business type selects optional starter accounts and labels; opening figures live on Overview. */
@@ -86,13 +87,27 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   };
 
   const saveBusiness = () => run(async () => {
+    const workspaceId = workspace.id;
     const fields = { businessType, dimensions: presetDimensions(workspace.dimensions, businessType), name: name.trim() || workspace.name, currency, timezone, fiscalYearStartMonth: fiscalStart, fiscalYearStartDay: 1 };
     const changed = businessType !== workspace.businessType || JSON.stringify(fields.dimensions) !== JSON.stringify(workspace.dimensions) || fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
       || fiscalStart !== (workspace.fiscalYearStartMonth || 1);
     if (changed) {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { ...fields, updatedAt: new Date().toISOString() });
+      await updateDoc(doc(db, 'workspaces', workspaceId), { ...fields, updatedAt: new Date().toISOString() });
+      const nextModules = businessType && businessType !== workspace.businessType ? modulesForBusiness(businessType) : workspace.modules;
+      if (businessType && businessType !== workspace.businessType) {
+        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user?.getIdToken()}` },
+          body: JSON.stringify({ modules: nextModules }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Could not update workspace modules');
+        }
+      }
       const store = useAuthStore.getState();
-      store.setWorkspaces(store.workspaces.map(w => (w.id === workspace.id ? { ...w, ...fields } : w)));
+      if (store.currentWorkspaceId && store.currentWorkspaceId !== workspaceId) return;
+      store.setWorkspaces(store.workspaces.map(w => (w.id === workspaceId ? { ...w, ...fields, ...(nextModules ? { modules: nextModules } : {}) } : w)));
     }
     setStep(1);
   });

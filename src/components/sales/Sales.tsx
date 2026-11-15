@@ -2,20 +2,21 @@ import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
 import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
-import { Plus, Users, Download, Mail, AlertCircle, Activity, ShieldCheck, TrendingUp, Trash2, DollarSign, Eye, Ban, Undo2, Bell, BellOff, Pencil } from 'lucide-react';
-import { parseLocalDate, cn, formatCurrency, getLocalDateISO, safeConfirm, formatDate } from '../../lib/utils';
+import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-react';
+import { parseLocalDate, cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { getIdToken } from '../../firebase';
 import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { differenceInDays } from 'date-fns/differenceInDays';
+import { csvMoney } from '../../lib/csvExport';
 import { motion } from 'motion/react';
 import InvoiceModal from './InvoiceModal';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
 import { EmptyState } from '../ui/EmptyState';
-import ListColumnChooser from '../ui/ListColumnChooser';
+import { LoadingState } from '../ui/LoadingState';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import CustomerModal from './CustomerModal';
 import TagFilter from '../common/TagFilter';
 import { allTags, hasTag, isArchivedParty } from '../../lib/contacts';
@@ -24,10 +25,7 @@ import EmailStatementsButton from './EmailStatementsButton';
 import DocumentTotalsFoot from '../ui/DocumentTotalsFoot';
 import WriteOffModal from './WriteOffModal';
 import SpreadDialog from '../common/SpreadDialog';
-import { spreadProgress } from '../../lib/prepaidSchedule';
 import { undoSpreadRequest } from '../../services/spreadActions';
-import { estimateDeposits } from '../../lib/advancePayments';
-import { applyEstimateDeposits } from '../../services/depositActions';
 import { recordReceiptPayment } from '../../services/receiptActions';
 import { attachFiles, attachSummary } from '../../services/attachmentActions';
 import OpeningDocumentsDialog from '../common/OpeningDocumentsDialog';
@@ -48,41 +46,60 @@ import InlineEdit from '../ui/InlineEdit';
 import InlineAdd from '../ui/InlineAdd';
 import DocumentBulkBar from '../ui/DocumentBulkBar';
 import { calculateNextOccurrence } from '../../lib/recurringEngine';
-
 import CustomerDetailView from './CustomerDetailView';
-import InvoiceApprovalFlag from './InvoiceApprovalFlag';
-import { StageChip } from '../collaboration/StageChip';
+import InvoiceRecordPage from './InvoiceRecordPage';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { LoadingState } from '../ui/LoadingState';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
+import { buildCustomerColumns, buildInvoiceColumns } from './salesColumns';
+
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
   const language = useUIStore(s => s.language);
-  const salesText = (key: string, fallback: string) => translateScreenString('sales', key, language, fallback);
+  const openRecord = useUIStore(s => s.openRecord);
+  const clearFocusRecord = useUIStore(s => s.clearFocusRecord);
+  const salesText = useCallback((key: string, fallback: string) => translateScreenString('sales', key, language, fallback), [language]);
   const user = useAuthStore(s => s.user);
   const invoices = useLedgerStore(s => s.invoices);
   const customers = useLedgerStore(s => s.customers);
   const accounts = useLedgerStore(s => s.accounts);
+  const payments = useLedgerStore(s => s.payments);
+  const creditNotes = useLedgerStore(s => s.creditNotes);
+  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const approvalSettings = useAuthStore(s => s.getCurrentWorkspace()?.invoiceApproval);
+  const canDecideApproval = isApproverRole(useCurrentRole());
+
   const { loading } = useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
-  // A-235: one shared notice when what this screen needs could not be loaded, with "Try again"
   const dataHealth = useScreenDataHealth(['creditNotes', 'customers', 'invoices', 'payments', 'accounts']);
   const { addEntity, updateEntity } = useEntityOperations();
   const canEditContacts = useCurrentRole() !== 'viewer';
+
   const [spreadingInvoice, setSpreadingInvoice] = useState<Invoice | null>(null);
   const [pickedInvoices, setPickedInvoices] = useState<Set<string>>(() => new Set());
-
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
-  // What each customer owes: the same calculation as the Customer Balance Summary report (open
-  // invoices less payments and credits, base currency). It used to add unpaid invoice totals, then
-  // receivable postings whose text mentioned the name, and fell back to a stored balance.
-  const payments = useLedgerStore(s => s.payments);
-  const creditNotes = useLedgerStore(s => s.creditNotes);
-  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [receiptMode, setReceiptMode] = useState(false);
+  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(undefined);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [customerTag, setCustomerTag] = useState<string | null>(null);
+  const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
+  const [paymentDocumentId, setPaymentDocumentId] = useState<string | null>(null);
+  const [paymentContactId, setPaymentContactId] = useState<string | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isWriteOffOpen, setIsWriteOffOpen] = useState(false);
+  const [selectedInvoiceForWriteOff, setSelectedInvoiceForWriteOff] = useState<Invoice | null>(null);
+  const [previewPdfInvoice, setPreviewPdfInvoice] = useState<Invoice | null>(null);
+  const [emailInvoice, setEmailInvoice] = useState<Invoice | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+
   const customerBalances = useMemo(() => {
     const map: Record<string, number> = {};
     for (const row of computeCustomerBalanceSummary(customers || [], invoices || [], payments || [], creditNotes || [], undefined, undefined, undefined, homeCurrency)) {
@@ -90,16 +107,20 @@ export default function Sales() {
     }
     return map;
   }, [customers, invoices, payments, creditNotes, homeCurrency]);
-  /** Ensures invoice dimension labels exist in the workspace, then creates or updates the invoice, receipt payment, and attachments. */
-  const onAddInvoice = async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
-    // files picked for a new invoice (K-07) and receipt cash account (K-03) are handled after save
+
+  const customerTags = useMemo(() => allTags(customers), [customers]);
+  const archivedCustomers = useMemo(() => customers.filter(isArchivedParty).length, [customers]);
+  const shownCustomers = useMemo(() => customers.filter(c => hasTag(c, customerTag) && (showArchivedCustomers || !isArchivedParty(c))), [customers, customerTag, showArchivedCustomers]);
+
+  const onAddInvoice = useCallback(async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
     const { receiptPayment, attachmentFiles, ...rest } = input;
     let data = rest;
-    // A customer typed in the invoice that isn't on the list yet is added first
     if (typeof data.customerId === 'string' && data.customerId.startsWith('new-')) {
       const name = String(data.customerName || '').trim();
-      // nothing saved: throw (the toast says why) so the invoice form and its kept draft stay open (EU-B3)
-      if (!name) { toast.error('Pick a customer or type a new customer\'s name.'); throw new Error('No customer name'); }
+      if (!name) {
+        toast.error("Pick a customer or type a new customer's name.");
+        throw new Error('No customer name');
+      }
       const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
       if (!created) throw new Error('Customer not saved');
       data = { ...data, customerId: created.id };
@@ -107,9 +128,12 @@ export default function Sales() {
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;
-    if (data.id) { const { id, ...updates } = data; res = await updateEntity('invoices', id, updates); } else {
+    if (data.id) {
+      const { id, ...updates } = data;
+      res = await updateEntity('invoices', id, updates);
+    } else {
       res = await addEntity('invoices', data);
-      if (!res) throw new Error('Invoice not saved'); // the save said why; the form and draft stay
+      if (!res) throw new Error('Invoice not saved');
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;
       if (res && uid && Array.isArray(attachmentFiles) && attachmentFiles.length) {
@@ -122,9 +146,11 @@ export default function Sales() {
       const startDateStr = data.date || getLocalDateISO();
       const anchorDay = Number(startDateStr.split('-')[2]) || 1;
       const nextOcc = calculateNextOccurrence(startDateStr, data.recurringInterval || 'monthly', anchorDay);
-      // The daily job copies this invoice as a draft on each date (recurringService.ts)
-      const { id: _id, number: _number, status: _status, date: _date, dueDate, amountPaidCents: _paid, depositCents: _deposit, paymentToken: _token,
-        metadata: _metadata, type: _type, recurringInterval: _interval, createdAt: _created, updatedAt: _updated, ...invoiceFields } = data;
+      const {
+        id: _id, number: _number, status: _status, date: _date, dueDate, amountPaidCents: _paid, depositCents: _deposit,
+        paymentToken: _token, metadata: _metadata, type: _type, recurringInterval: _interval, createdAt: _created,
+        updatedAt: _updated, ...invoiceFields
+      } = data;
       const dueDays = dueDate && startDateStr ? Math.max(0, Math.round((Date.parse(`${String(dueDate).slice(0, 10)}T00:00:00Z`) - Date.parse(`${startDateStr.slice(0, 10)}T00:00:00Z`)) / 86400000)) : 30;
       await addEntity('recurring', {
         description: `Recurring Invoice: ${data.customerName || 'Customer'} - ${data.number || 'Standard'}`,
@@ -141,49 +167,34 @@ export default function Sales() {
           description: `Invoice: ${data.customerName || 'Customer'}`,
           amountCents: data.amountCents || 0,
           customerId: data.customerId,
-          tags: ['recurring', 'invoice', ...(data.tags || [])]
-        }
+          tags: ['recurring', 'invoice', ...(data.tags || [])],
+        },
       }, 'Recurring schedule registered');
     }
     return res;
+  }, [addEntity, updateEntity, currentWorkspaceId]);
+
+  const onAddCustomer = (data: Partial<Customer>) => {
+    if (data.id) {
+      const { id, ...updates } = data;
+      return updateEntity('customers', id, updates);
+    }
+    return addEntity('customers', data);
   };
-  const onAddCustomer = (data: Partial<Customer>) => { if (data.id) { const { id, ...updates } = data; return updateEntity('customers', id, updates); } return addEntity('customers', data); };
-  // opens on the invoice list ('pipeline' was the default but nothing draws it: the page was blank)
-  const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
-  const [openingOpen, setOpeningOpen] = useState(false);
-  const [receiptMode, setReceiptMode] = useState(false);
-  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(undefined);
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [customerTag, setCustomerTag] = useState<string | null>(null);
-  const customerTags = useMemo(() => allTags(customers), [customers]);
-  const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
-  const archivedCustomers = useMemo(() => customers.filter(isArchivedParty).length, [customers]);
-  const shownCustomers = useMemo(() => customers.filter(c => hasTag(c, customerTag) && (showArchivedCustomers || !isArchivedParty(c))), [customers, customerTag, showArchivedCustomers]);
-  const [paymentDocumentId, setPaymentDocumentId] = useState<string | null>(null);
-  const [paymentContactId, setPaymentContactId] = useState<string | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isWriteOffOpen, setIsWriteOffOpen] = useState(false);
-  const [selectedInvoiceForWriteOff, setSelectedInvoiceForWriteOff] = useState<Invoice | null>(null);
-  const [previewPdfInvoice, setPreviewPdfInvoice] = useState<Invoice | null>(null);
-  const [emailInvoice, setEmailInvoice] = useState<Invoice | null>(null);
-  const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
-  // BE-04: the approval rule of this workspace, and whether the signed-in person may sign off.
-  const approvalSettings = useAuthStore(s => s.getCurrentWorkspace()?.invoiceApproval);
-  const canDecideApproval = isApproverRole(useCurrentRole());
-  const [searchTerm, setSearchTerm] = useState('');
+
   useNewRecord('invoice', canEditContacts, () => {
     setActiveSubTab('invoices'); setSelectedCustomerId(null); setNewInvoiceFor(undefined); setReceiptMode(false); setIsInvoiceModalOpen(true);
   });
   useNewRecord('customer', canEditContacts, () => {
     setActiveSubTab('customers'); setSelectedCustomerId(null); setIsCustomerModalOpen(true);
   });
-  // A record link (#sales/invoice/<id>, e.g. from Data Health) shows and highlights the invoice
-  const focusedInvoiceId = useRecordFocus('invoice', { ready: invoices.length > 0, onFocus: () => { setActiveSubTab('invoices'); setSearchTerm(''); } });
 
-  // The customer paid after all: reverse the bad debt write-off (server, badDebtService.ts); the
-  // invoice is open again for the payment.
-  const reverseWriteOff = async (inv: Invoice) => {
+  const focusedInvoiceId = useRecordFocus('invoice', {
+    ready: invoices.length > 0,
+    onFocus: () => { setActiveSubTab('invoices'); setSelectedCustomerId(null); setSearchTerm(''); },
+  });
+
+  const reverseWriteOff = useCallback(async (inv: Invoice) => {
     if (!currentWorkspaceId) return;
     try {
       const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(inv.id)}/write-off/reverse`, {
@@ -197,10 +208,9 @@ export default function Sales() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The write-off could not be reversed');
     }
-  };
+  }, [currentWorkspaceId]);
 
   const agingBuckets = useMemo(() => {
-    // what is still owed on an invoice (after deposit, payments, credits), in the workspace currency
     const owedInBase = (i: Invoice) => toBaseCents(calculateAmountDue(i), i.exchangeRate, i.currency, homeCurrency);
     const now = new Date();
     return {
@@ -210,549 +220,91 @@ export default function Sales() {
         const diff = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
         return isOpenInvoice(i) && (i.status === 'sent' || i.status === 'pending') && diff >= 0 && diff <= 30;
       }).reduce((sum, i) => sum + owedInBase(i), 0),
-      total: invoices.filter(isOpenInvoice).reduce((sum, i) => sum + owedInBase(i), 0)
+      total: invoices.filter(isOpenInvoice).reduce((sum, i) => sum + owedInBase(i), 0),
     };
   }, [invoices, homeCurrency]);
 
   const filteredInvoices = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return invoices;
     return invoices.filter((i: Invoice) => {
-      const term = searchTerm.toLowerCase();
-      if (!term) return true;
       const customer = customers?.find(c => c.id === i.customerId);
       const searchStr = `${i.customerName || ''} ${i.number || ''} ${i.metadata ? JSON.stringify(i.metadata) : ''} ${i.tags?.join(' ') || ''} ${customer?.tags?.join(' ') || ''} ${customer?.metadata ? JSON.stringify(customer.metadata) : ''}`.toLowerCase();
       return searchStr.includes(term);
     });
   }, [invoices, customers, searchTerm]);
 
-  const [invoiceLimit, setInvoiceLimit] = useState(100);
-  const visibleInvoices = useMemo(() => {
-    if (filteredInvoices.length <= invoiceLimit) return filteredInvoices;
-    const sliced = filteredInvoices.slice(0, invoiceLimit);
-    if (focusedInvoiceId && !sliced.some(i => i.id === focusedInvoiceId)) {
-      const focused = filteredInvoices.find(i => i.id === focusedInvoiceId);
-      if (focused) sliced.push(focused);
-    }
-    return sliced;
-  }, [filteredInvoices, invoiceLimit, focusedInvoiceId]);
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearchTerm.trim().toLowerCase();
+    if (!term) return shownCustomers;
+    return shownCustomers.filter(c => `${c.name || ''} ${c.email || ''} ${c.phone || ''}`.toLowerCase().includes(term));
+  }, [shownCustomers, customerSearchTerm]);
 
-  /**
-   * Sign an invoice off or send it back (BE-04). This is the only place a decision is made from the
-   * list, so it writes the record itself rather than going through the stamping a save does: a save
-   * of an invoice that is already out must never change somebody's approval.
-   */
-  const decideApproval = (inv: Invoice, decision: 'approved' | 'rejected') => {
+  const decideApproval = useCallback((inv: Invoice, decision: 'approved' | 'rejected') => {
     let note: string | undefined;
     if (decision === 'rejected') {
       const asked = window.prompt(`What should be changed on invoice ${inv.number || ''}? (optional)`);
-      if (asked === null) return; // the person backed out of the dialog; nothing is recorded
+      if (asked === null) return;
       note = asked;
     }
     inBackground(updateEntity('invoices', inv.id, {
       approval: approvalDecision(approvalSettings, decision, { uid: user?.uid, note }),
     }, decision === 'approved' ? 'Approved — the invoice can be emailed now.' : 'Sent back for changes.'));
-  };
+  }, [approvalSettings, updateEntity, user?.uid]);
 
-  const getStatusColor = (status: Invoice['status']) => {
-    switch (status) {
-      case 'paid': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'sent': 
-      case 'pending':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'overdue': return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'void': return 'bg-zinc-100 text-zinc-500 border-zinc-200 line-through';
-      default: return 'bg-[var(--ink)] text-zinc-650 border-[var(--line)]';
+  const voidInvoice = useCallback(async (inv: Invoice) => {
+    if (inv.revenueSchedule && !(await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id))) return;
+    inBackground(onAddInvoice({ id: inv.id, status: 'void' }));
+  }, [currentWorkspaceId, onAddInvoice]);
+
+  const openPaymentForInvoice = useCallback((inv: Invoice) => {
+    if (inv.customerId) {
+      setPaymentContactId(inv.customerId);
+      setPaymentDocumentId(inv.id);
+      setIsPaymentModalOpen(true);
+    } else {
+      toast.error('Invoice is missing a customer.');
     }
-  };
+  }, []);
 
-  if (selectedCustomerId) {
-    return <CustomerDetailView customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />;
-  }
+  const invoiceColumns = useMemo(() => buildInvoiceColumns({
+    salesText,
+    canEditContacts,
+    payments,
+    currentWorkspaceId,
+    approvalSettings,
+    homeCurrency,
+    canDecideApproval,
+    openRecord,
+    updateEntity,
+    onEditInvoice: inv => { setNewInvoiceFor(inv); setIsInvoiceModalOpen(true); },
+    onDuplicateInvoice: draft => { setNewInvoiceFor(draft); setIsInvoiceModalOpen(true); },
+    onOpenPayment: openPaymentForInvoice,
+    onSpreadInvoice: inv => setSpreadingInvoice(inv),
+    onReverseWriteOff: inv => { void reverseWriteOff(inv); },
+    onWriteOffInvoice: inv => { setSelectedInvoiceForWriteOff(inv); setIsWriteOffOpen(true); },
+    onEmailInvoice: inv => setEmailInvoice(inv),
+    onPreviewPdf: inv => setPreviewPdfInvoice(inv),
+    onDecideApproval: decideApproval,
+    onVoidInvoice: voidInvoice,
+  }), [
+    salesText, canEditContacts, payments, currentWorkspaceId, approvalSettings, homeCurrency,
+    canDecideApproval, openRecord, updateEntity, openPaymentForInvoice, reverseWriteOff, decideApproval, voidInvoice,
+  ]);
 
-  return (
-    <div dir={language === 'he' ? 'rtl' : 'ltr'} lang={language} className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
-      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
-      {/* stale-while-revalidate: a retry keeps the on-screen rows, and says the refresh is in flight (CodeRabbit #440) */}
-      {loading && (invoices.length > 0 || customers.length > 0) && (
-        <p role="status" className="text-xs text-[var(--muted)] px-1">{salesText('status.refreshing', 'Refreshing this screen…')}</p>
-      )}
-      {/* header: same shape as Purchases (title, one line, tabs and actions on the right) */}
-      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title={salesText('title', 'Sales')}
-        description={salesText('description', 'Invoices you send and the money customers owe you.')}>
-            <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
+  const customerColumns = useMemo(() => buildCustomerColumns({
+    salesText,
+    canEditContacts,
+    customerBalances,
+    detailOpenerId,
+    updateEntity,
+    onSelectCustomer: setSelectedCustomerId,
+    onEnterInvoice: cust => { setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); },
+  }), [salesText, canEditContacts, customerBalances, detailOpenerId, updateEntity]);
 
-              <button 
-                onClick={() => setActiveSubTab('invoices')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
-                  activeSubTab === 'invoices' 
-                    ? "bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black font-bold shadow-sm" 
-                    : "text-[var(--muted)] hover:text-[var(--text)]"
-                )}
-              >
-                {salesText('tab.invoices', 'Invoices')}
-              </button>
-              <button 
-                onClick={() => setActiveSubTab('customers')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
-                  activeSubTab === 'customers' 
-                    ? "bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black font-bold shadow-sm" 
-                    : "text-[var(--muted)] hover:text-[var(--text)]"
-                )}
-              >
-                {salesText('tab.customers', 'Customers')}
-              </button>
-            </div>
-            {activeSubTab === 'invoices' && canEditContacts && (
-              <button type="button"
-                onClick={() => { setReceiptMode(true); setIsInvoiceModalOpen(true); }}
-                title="A sale paid on the spot: the invoice and its payment in one step"
-                className="flex items-center gap-1.5 px-4 py-2 border border-[var(--line)] text-[var(--text)] rounded-xl text-xs font-bold hover:bg-[var(--ink)] transition-all cursor-pointer"
-              >
-                <Plus size={15} />
-                {salesText('action.saleReceipt', 'Sale receipt')}
-              </button>
-            )}
-            {activeSubTab === 'invoices' && canEditContacts && (
-              <button type="button" onClick={() => setOpeningOpen(true)}
-                title="The invoices still unpaid when you started: paste them from a spreadsheet"
-                className="px-3 py-2 text-[var(--muted)] rounded-xl text-xs font-semibold hover:text-[var(--text)] hover:underline">
-                {salesText('action.openingInvoices', 'Opening invoices')}
-              </button>
-            )}
-            <button 
-              onClick={() => activeSubTab === 'invoices' ? setIsInvoiceModalOpen(true) : setIsCustomerModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black rounded-xl text-xs font-bold hover:opacity-95 transition-all shadow-md hover:shadow-lg cursor-pointer active:scale-95"
-            >
-              <Plus size={15} />
-              {activeSubTab === 'invoices' ? salesText('action.addInvoice', 'Add Invoice') : salesText('action.addCustomer', 'Add Customer')}
-            </button>
-      </PageHeader>
-
-      {/* what customers owe: overdue, due soon, total */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <motion.div 
-          initial={{ y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
-        >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300 font-semibold mb-3 relative z-10">{salesText('summary.overdue', 'Overdue')}</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-rose-600 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.overdue)}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
-             <AlertCircle size={12} />
-             {salesText('summary.pastDue', 'Past the due date')}
-          </div>
-        </motion.div>
-        
-        <motion.div 
-          initial={{ y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden group"
-        >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300 font-semibold mb-3 relative z-10">{salesText('summary.dueSoon', 'Due in the next 30 days')}</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-amber-700 dark:text-amber-300 tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.dueSoon)}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
-             <Activity size={12} />
-             {salesText('summary.notDue', 'Not yet due')}
-          </div>
-        </motion.div>
-
-
-        <motion.div 
-          initial={{ y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--brass-line)] shadow-sm relative overflow-hidden group bg-gradient-to-b from-[var(--brass-soft)] to-[var(--panel)]"
-        >
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3 relative z-10">{salesText('summary.totalOwed', 'Total owed to you')}</p>
-          <p className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight relative z-10 tabular-nums">{formatCurrency(agingBuckets.total)}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)] relative z-10">
-             <ShieldCheck size={12} className="text-[var(--brass)]" />
-             {salesText('summary.unpaid', 'Unpaid invoices, all customers')}
-          </div>
-        </motion.div>
-      </div>
-
-      {activeSubTab === 'invoices' && (
-        <div className="ledger-card p-1 rounded-[32px] overflow-hidden">
-          {currentWorkspaceId && (
-            <DocumentBulkBar type="invoice" noun="invoice" ids={[...pickedInvoices].filter(id => filteredInvoices.some(i => i.id === id))}
-              documents={filteredInvoices.filter(i => pickedInvoices.has(i.id))}
-              workspaceId={currentWorkspaceId} onClear={() => setPickedInvoices(new Set())} />
-          )}
-          {/* the header and the totals stay in view while the list scrolls (I-14) */}
-          <div className="overflow-auto max-h-[70vh]" data-list-columns="sales-invoices">
-            <ListColumnChooser scope="sales-invoices" label="Invoices"
-              columns={['Selection', 'Number', 'Customer', 'Date', 'Due', 'Amount', 'State', 'Actions']} />
-            <table className="w-full border-collapse min-w-[700px]">
-              <caption className="sr-only">{salesText('tab.invoices', 'Invoices')}</caption>
-              <thead className="sticky top-0 z-10 bg-[var(--surface)]">
-                <tr className="text-left border-b border-[var(--line)]/50">
-                  <th scope="col" className="pl-4 md:pl-8 w-8">
-                    <input type="checkbox" aria-label={salesText('table.selectAll', 'Select all invoices shown')}
-                      checked={visibleInvoices.length > 0 && visibleInvoices.every(i => pickedInvoices.has(i.id))}
-                      onChange={e => setPickedInvoices(e.target.checked ? new Set(visibleInvoices.map(i => i.id)) : new Set())} />
-                  </th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.number', 'Number')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.customer', 'Customer')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.date', 'Date')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('table.due', 'Due')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">{salesText('table.amount', 'Amount')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-center">{salesText('table.state', 'State')}</th>
-                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">{salesText('table.actions', 'Actions')}</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ledger-line/30">
-                {visibleInvoices.map((inv) => (
-                  <tr key={inv.id} id={recordElementId('invoice', inv.id)} aria-current={focusedInvoiceId === inv.id ? 'true' : undefined}
-                    className={cn("group hover:bg-[var(--ink)]/30 transition-all", focusedInvoiceId === inv.id && "ring-2 ring-inset ring-[var(--brass)]")}>
-                    <td className="pl-4 md:pl-8">
-                      <input type="checkbox" aria-label={`Select invoice ${inv.number || ''}`.trim()} checked={pickedInvoices.has(inv.id)}
-                        onChange={() => setPickedInvoices(prev => { const next = new Set(prev); if (next.has(inv.id)) next.delete(inv.id); else next.add(inv.id); return next; })} />
-                    </td>
-                    <td className="p-4 md:p-8 font-mono font-bold text-[var(--muted)] group-hover:text-[var(--text)] transition-colors">{inv.number}</td>
-                    <td className="p-4 md:p-8">
-                       <div className="flex flex-col">
-                          <span className="font-black text-[var(--text)] text-base tracking-tight">{inv.customerName}</span>
-                       </div>
-                    </td>
-                    <td className="p-4 md:p-8">
-                       <InlineEdit kind="date" value={inv.date?.slice(0, 10)} display={inv.date ? formatDate(inv.date) : 'N/A'}
-                         label={`Date of invoice ${inv.number || ''}`.trim()} canEdit={canEditContacts && inv.status === 'draft'}
-                         onSave={v => updateEntity('invoices', inv.id, { date: String(v) }, 'Date saved')} className="font-bold text-[var(--text)]" />
-                    </td>
-                    <td className="p-4 md:p-8">
-                      <div className="flex flex-col">
-                        <InlineEdit kind="date" value={inv.dueDate?.slice(0, 10)} display={inv.dueDate ? formatDate(inv.dueDate) : 'N/A'}
-                          label={`Due date of invoice ${inv.number || ''}`.trim()} canEdit={canEditContacts && !['paid', 'void', 'written_off'].includes(String(inv.status))}
-                          validate={v => inv.date && String(v) < inv.date.slice(0, 10) ? 'The due date is before the invoice date' : null}
-                          onSave={v => updateEntity('invoices', inv.id, { dueDate: String(v) }, 'Due date saved')}
-                          className={cn("font-bold text-[var(--text)]", inv.status === 'overdue' && "text-rose-600")} />
-                        {inv.status === 'pending' && (
-                          <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 opacity-50">
-                            {differenceInDays(parseLocalDate(inv.dueDate), new Date())} {salesText('status.daysLeft', 'T-Days Left')}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 md:p-8 text-right font-black font-mono text-[var(--text)] text-lg tracking-tighter tabular-nums">
-                      {formatCurrency(inv.amountCents || 0)}
-                    </td>
-                    <td className="p-4 md:p-8">
-                      <div className="flex justify-center">
-                        <span className={cn(
-                          "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border shadow-sm",
-                          getStatusColor(inv.status)
-                        )}>
-                          {salesText(`status.${inv.status}`, inv.status)}
-                        </span>
-                        {Boolean(inv.metadata?.saleReceipt) && <span className="ml-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--line)] text-[var(--muted)]">{salesText('status.receipt', 'Receipt')}</span>}
-                        {(inv.writtenOffCents || 0) > 0 && (
-                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold" title={inv.writeOffReason || undefined}>{salesText('status.writtenOff', 'written off')} {formatCurrency(inv.writtenOffCents || 0)}</span>
-                        )}
-                      </div>
-                      {inv.viewedAt && inv.status !== 'paid' && (
-                        <div className="mt-1 text-center text-[10px] text-[var(--muted)]" title={inv.lastViewedAt ? `Last opened ${formatDate(inv.lastViewedAt.slice(0, 10))}${(inv.viewCount || 0) > 1 ? `, ${inv.viewCount} times` : ''}` : undefined}>
-                          {salesText('status.openedByCustomer', 'Opened by the customer')} {formatDate(inv.viewedAt.slice(0, 10))}
-                        </div>
-                      )}
-                      {inv.revenueSchedule && <div className="mt-1 text-center text-[10px] text-[var(--muted)]">{spreadProgress(inv.revenueSchedule, getLocalDateISO())}</div>}
-                      <StageChip kind="invoice" id={inv.id} label={`invoice ${inv.number || ''}`.trim()} />
-                      <InvoiceApprovalFlag invoice={inv} settings={approvalSettings} currency={homeCurrency}
-                        canDecide={canDecideApproval} onDecide={d => decideApproval(inv, d)} />
-                      {inv.metadata?.cogsPending && (
-                        <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-[var(--neg)]">
-                          <span title={salesText('help.costNotRecorded', 'The cost of the items sold was not recorded: add an Inventory and a Cost of Goods Sold account, then retry.')}>{salesText('status.costNotRecorded', 'Cost not recorded')}</span>
-                          <button type="button" onClick={() => updateEntity('invoices', inv.id, {}, 'Invoice re-posted')} className="underline font-bold">{salesText('action.retry', 'Retry')}</button>
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4 md:p-8">
-                      <div className="flex items-center gap-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 group-focus-within:translate-x-0">
-                        {inv.status !== 'void' && (
-                          <button
-                            type="button"
-                            onClick={() => { setNewInvoiceFor(inv); setIsInvoiceModalOpen(true); }}
-                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-indigo-600 transition-all"
-                            title="Edit invoice"
-                            aria-label={`Edit invoice ${inv.number || ''}`.trim()}
-                          >
-                            <Pencil size={16} />
-                          </button>
-                        )}
-                        {inv.status !== 'paid' && (
-                          <button 
-                            onClick={() => {
-                              if (inv.customerId) {
-                                setPaymentContactId(inv.customerId);
-                                setPaymentDocumentId(inv.id);
-                                setIsPaymentModalOpen(true);
-                              } else {
-                                toast.error('Invoice is missing a customer.');
-                              }
-                            }}
-                            className="p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-                            title="Receive Payment"
-                          >
-                            <DollarSign size={16} />
-                          </button>
-                        )}
-                        {(() => {
-                          // BE-05: the estimate's deposit waits until its invoice is issued
-                          const estId = inv.metadata?.convertedFromEstimateId as string | undefined;
-                          if (!estId) return null;
-                          const deposit = estimateDeposits(payments || [], estId);
-                          const due = calculateAmountDue(inv);
-                          if (!canEditContacts || deposit.unappliedCents <= 0 || due <= 0 || ['draft', 'void', 'rejected', 'cancelled', 'paid'].includes(String(inv.status))) return null;
-                          return (
-                            <button type="button"
-                              onClick={() => void applyEstimateDeposits(currentWorkspaceId || '', inv, deposit.waiting, due)}
-                              className="px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                              aria-label={`Apply the estimate's deposit to invoice ${inv.number || ''}`.trim()}
-                            >
-                              {salesText('action.applyDeposit', 'Apply deposit')} {formatCurrency(Math.min(deposit.unappliedCents, due), inv.currency)}
-                            </button>
-                          );
-                        })()}
-                        {canEditContacts && !['draft', 'void', 'rejected', 'cancelled'].includes(String(inv.status)) && (inv.revenueSchedule ? (
-                          <button type="button"
-                            onClick={async () => {
-                              if (safeConfirm(`Undo the spread of invoice ${inv.number || ''}? Its monthly entries are voided and the whole income is back in the invoice's month.`)
-                                && await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id)) toast.success('Spread undone');
-                            }}
-                            className="px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--text)] rounded-xl"
-                            aria-label={`Undo the spread of invoice ${inv.number || ''}`.trim()}
-                          >
-                            {salesText('action.undoSpread', 'Undo spread')}
-                          </button>
-                        ) : (
-                          <button type="button"
-                            onClick={() => setSpreadingInvoice(inv)}
-                            className="px-3 py-2 text-xs text-indigo-700 dark:text-indigo-300 hover:underline rounded-xl"
-                            title="Income earned over time (a subscription, a retainer): spread it over the months it covers"
-                            aria-label={`Spread invoice ${inv.number || ''} over months`.replace('  ', ' ')}
-                          >
-                            {salesText('action.spread', 'Spread')}
-                          </button>
-                        ))}
-                        {(inv.writtenOffCents || 0) > 0 && (
-                          <button
-                            onClick={() => reverseWriteOff(inv)}
-                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-amber-700 dark:text-amber-300 transition-all"
-                            title="Customer paid after all: reverse the bad debt write-off"
-                            aria-label="Reverse the bad debt write-off"
-                          >
-                            <Undo2 size={16} />
-                          </button>
-                        )}
-                        {inv.status !== 'draft' && (inv.status === 'overdue' || (inv.status !== 'paid' && inv.status !== 'void' && differenceInDays(new Date(), parseLocalDate(inv.dueDate)) > 0)) && (
-                          <button
-                            onClick={() => {
-                              setSelectedInvoiceForWriteOff(inv);
-                              setIsWriteOffOpen(true);
-                            }}
-                            className="p-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
-                            title="Write Off Bad Debt"
-                          >
-                            <Ban size={16} />
-                          </button>
-                        )}
-                        {inv.status !== 'draft' && inv.status !== 'void' && (
-                          <button
-                            onClick={() => setEmailInvoice(inv)}
-                            className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-indigo-600 transition-all"
-                            title="Email the invoice or a reminder; see emails sent"
-                            aria-label="Email the invoice"
-                          >
-                            <Mail size={16} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setPreviewPdfInvoice(inv)}
-                          className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-indigo-600 transition-all"
-                          title="Preview PDF"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => downloadDocumentPdf('invoice', inv.id, currentWorkspaceId || 'default', `invoice_${inv.number || inv.id}.pdf`)}
-                          className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-indigo-600 transition-all"
-                          title="Download PDF"
-                        >
-                          <Download size={16} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            // a new draft with the same customer and lines: no number (the series gives one), no payments,
-                            // write-offs, links or sent/viewed history carried over
-                            const { id: _id, uid: _uid, number: _number, status: _status, amountPaidCents: _paid, depositCents: _deposit, settledByRecordsCents: _settled,
-                              writtenOffCents: _wo, writeOffTransactionId: _woTx, writeOffReason: _wr, writtenOffAt: _woAt, writeOffReversalTransactionId: _woRev,
-                              paymentDate: _pd, paidAt: _pa, posted: _posted, isLocked: _locked, lockedAt: _lockedAt, paymentToken: _token, metadata: _meta,
-                              dueDate: _due, ...fields } = inv;
-                            setNewInvoiceFor({ ...fields, date: getLocalDateISO(), status: 'draft' });
-                            setIsInvoiceModalOpen(true);
-                          }}
-                          className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-indigo-600 transition-all"
-                          title="Duplicate as a new draft"
-                          aria-label="Duplicate as a new draft"
-                        >
-                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        </button>
-                        <button 
-                          onClick={async () => {
-                            const spread = inv.revenueSchedule ? ' Its spread over months is undone too.' : '';
-                            if (safeConfirm(`Void invoice ${inv.number || ''} for ${inv.customerName || 'this customer'} (${formatCurrency(inv.amountCents || 0, inv.currency)})? It stays on record as void and its entries are reversed.${spread}`)) {
-                              if (inv.revenueSchedule && !(await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id))) return;
-                              inBackground(onAddInvoice({ id: inv.id, status: 'void' }));
-                            }
-                          }}
-                          className="p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[var(--muted)] hover:text-rose-500 transition-all"
-                          title="Void invoice"
-                          aria-label="Void invoice"
-                        >
-                           <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredInvoices.length > visibleInvoices.length && (
-                  <tr>
-                    <td colSpan={8} className="p-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setInvoiceLimit(n => n + 200)}
-                        className="min-h-11 px-4 py-2 text-xs font-bold text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-xl hover:bg-[var(--ink)]/50 transition-all"
-                      >
-                        {salesText('action.showMoreInvoices', 'Show more invoices')} ({visibleInvoices.length} {salesText('common.of', 'of')} {filteredInvoices.length})
-                      </button>
-                    </td>
-                  </tr>
-                )}
-                {filteredInvoices.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-12">
-                      {loading ? <LoadingState what="invoices" /> : (
-                        <EmptyState
-                          title={searchTerm ? salesText('empty.noInvoiceMatches', 'No invoices match your search') : salesText('empty.noInvoices', 'No invoices yet')}
-                          description={searchTerm ? salesText('empty.tryAnotherSearch', 'Try another name or number.') : salesText('empty.createFirstInvoice', 'Create your first invoice to bill a customer.')}
-                          actionLabel={salesText('empty.createInvoice', 'Create invoice')}
-                          onAction={() => setIsInvoiceModalOpen(true)}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              <DocumentTotalsFoot docs={filteredInvoices} homeCurrency={homeCurrency} colSpan={8} noun="invoice" />
-            </table>
-          </div>
-        </div>
-      )}
-      
-      {activeSubTab === 'customers' && (
-        <div className="ledger-card p-1 rounded-[32px] overflow-hidden">
-          <TagFilter tags={customerTags} value={customerTag} onChange={setCustomerTag} label="Show customers with the tag" />
-          <div className="flex flex-wrap items-center gap-2 px-4 md:px-8">
-            <EmailStatementsButton className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-50" />
-            <ShowArchivedToggle count={archivedCustomers} on={showArchivedCustomers} onChange={setShowArchivedCustomers} noun="customer" />
-          </div>
-          <div className="overflow-x-auto" data-list-columns="sales-customers">
-            <ListColumnChooser scope="sales-customers" label="Customers"
-              columns={['Customer Profile', 'Contact', 'Net Receivable', 'Actions']} />
-            {canEditContacts && (
-              <InlineAdd className="px-4 md:px-8 pt-4" label="New customer name" placeholder="Add a customer: type a name and press Enter"
-                existing={customers.map(c => c.name)} onAdd={name => addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`)} />
-            )}
-            <table className="w-full border-collapse min-w-[700px]">
-              <caption className="sr-only">{salesText('tab.customers', 'Customers')}</caption>
-              <thead>
-                <tr className="text-left border-b border-[var(--line)]/50">
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.profile', 'Customer Profile')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">{salesText('customer.table.contact', 'Contact')}</th>
-                  <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">{salesText('customer.table.receivable', 'Net Receivable')}</th>
-                  <th scope="col" className="p-4 md:p-8 w-10"><span className="sr-only">{salesText('table.actions', 'Actions')}</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ledger-line/30">
-                {shownCustomers.map((cust) => (
-                  <tr 
-                    key={cust.id} 
-                    onClick={() => setSelectedCustomerId(cust.id)}
-                    className="group hover:bg-[var(--ink)]/30 transition-all cursor-pointer"
-                  >
-                    <td className="p-4 md:p-8">
-                       <div className="flex items-center gap-5">
-                          <div className="w-14 h-14 bg-slate-900 rounded-[32px] flex items-center justify-center text-white font-black text-xl border border-white/10 shadow-2xl">
-                             {(cust.name || 'VE').slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="flex flex-col">
-                            <InlineEdit value={cust.name} label={`Name of ${cust.name}`} canEdit={canEditContacts}
-                              validate={v => String(v) ? null : 'A customer needs a name'}
-                              onSave={v => updateEntity('customers', cust.id, { name: v }, 'Name saved')}
-                              className="font-black text-[var(--text)] text-lg tracking-tight" />
-                            <ArchivedBadge party={cust} />
-                            <PartyDetailButton id={detailOpenerId(cust.id)} side="customer" name={cust.name}
-                              onOpen={() => setSelectedCustomerId(cust.id)} />
-                            <button type="button"
-                              onClick={(e) => { e.stopPropagation(); inBackground(updateEntity('customers', cust.id, { noReminders: !cust.noReminders }, cust.noReminders ? `Automatic reminders on for ${cust.name}` : `No automatic reminders for ${cust.name}`)); }}
-                              className={`flex items-center gap-1.5 min-h-11 text-[10px] font-bold uppercase tracking-widest mt-1 ${cust.noReminders ? 'text-[var(--muted)]' : 'text-emerald-700 dark:text-emerald-300'}`}
-                              aria-pressed={!cust.noReminders}
-                              title="Automatic payment reminders (Settings → Emails & Reminders)">
-                               {cust.noReminders ? <BellOff size={10} aria-hidden="true" /> : <Bell size={10} aria-hidden="true" />}
-                               {cust.noReminders ? salesText('action.remindersOff', 'No reminders') : salesText('action.remindersOn', 'Reminders on')}
-                            </button>
-                          </div>
-                       </div>
-                    </td>
-                    <td className="p-4 md:p-8">
-                       <div className="flex items-center gap-2 group/email">
-                          <Users size={16} className="text-[var(--muted)] opacity-40" />
-                          <div className="flex flex-col gap-1 min-w-0">
-                            <InlineEdit kind="email" value={cust.email} label={`Email of ${cust.name}`} placeholder="Add email" canEdit={canEditContacts}
-                              onSave={v => updateEntity('customers', cust.id, { email: v }, 'Email saved')}
-                              className="font-bold text-[var(--text)]" />
-                            <InlineEdit kind="tel" value={cust.phone} label={`Phone of ${cust.name}`} placeholder="Add phone" canEdit={canEditContacts}
-                              onSave={v => updateEntity('customers', cust.id, { phone: v }, 'Phone saved')}
-                              className="text-sm text-[var(--muted)]" />
-                          </div>
-                       </div>
-                    </td>
-                    <td className="p-4 md:p-8 text-right font-black font-mono text-[var(--text)] text-xl tracking-tighter tabular-nums">
-                      {formatCurrency(customerBalances[cust.id] ?? 0)}
-                    </td>
-                    <td className="p-4 md:p-8">
-                      <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-all justify-end">
-                        
-                        <button onClick={(e)=> {e.stopPropagation(); setNewInvoiceFor({ customerId: cust.id, customerName: cust.name }); setIsInvoiceModalOpen(true); }} className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 rounded" title="Enter Invoice"><Plus size={14}/></button>
-                        {canEditContacts && <PartyRowActions side="customer" party={cust} />}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {shownCustomers.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-6">
-                      {loading ? <LoadingState what="customers" /> : (
-                        <EmptyState
-                          title={customers.length === 0 ? salesText('empty.noCustomers', 'No customers yet') : salesText('empty.noCustomerMatches', 'No customers match these filters')}
-                          description={customers.length === 0 ? salesText('empty.addCustomerFirst', 'Add a customer before creating their first invoice.') : salesText('empty.changeCustomerFilters', 'Choose another tag or show archived customers.')}
-                          actionLabel={customers.length === 0 ? salesText('empty.addFirstCustomer', 'Add first customer') : undefined}
-                          onAction={customers.length === 0 ? () => setIsCustomerModalOpen(true) : undefined}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
+  const modals = (
+    <>
       {openingOpen && <OpeningDocumentsDialog side="customer" onClose={() => setOpeningOpen(false)} />}
-      {/* mounted per opening, so a new invoice never inherits the last one's fields */}
       {isInvoiceModalOpen && (
         <InvoiceModal key={`${newInvoiceFor?.id || 'new'}${receiptMode ? '-receipt' : ''}`} isOpen={isInvoiceModalOpen} receipt={receiptMode}
           onClose={() => { setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
@@ -776,7 +328,344 @@ export default function Sales() {
           documentId={previewPdfInvoice.id} workspaceId={currentWorkspaceId || 'default'}
           filename={`invoice_${previewPdfInvoice.number || previewPdfInvoice.id}.pdf`} />
       )}
+    </>
+  );
+
+  if (selectedCustomerId) {
+    return (
+      <>
+        <CustomerDetailView customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />
+        {modals}
+      </>
+    );
+  }
+
+  if (focusedInvoiceId) {
+    return (
+      <>
+        <InvoiceRecordPage
+          invoiceId={focusedInvoiceId}
+          onBack={() => clearFocusRecord()}
+          onEdit={inv => { setNewInvoiceFor(inv); setIsInvoiceModalOpen(true); }}
+          onSendEmail={inv => setEmailInvoice(inv)}
+          onReceivePayment={openPaymentForInvoice}
+          onPreviewPdf={inv => setPreviewPdfInvoice(inv)}
+          onDownloadPdf={inv => downloadDocumentPdf('invoice', inv.id, currentWorkspaceId || 'default', `invoice_${inv.number || inv.id}.pdf`)}
+          onVoid={inv => void voidInvoice(inv)}
+          onOpenCustomer={customerId => { clearFocusRecord(); setSelectedCustomerId(customerId); }}
+        />
+        {modals}
+      </>
+    );
+  }
+
+  return (
+    <div dir={language === 'he' ? 'rtl' : 'ltr'} lang={language} className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
+      {loading && (invoices.length > 0 || customers.length > 0) && (
+        <p role="status" className="text-xs text-[var(--muted)] px-1">{salesText('status.refreshing', 'Refreshing this screen…')}</p>
+      )}
+
+      <PageHeader icon={<TrendingUp className="w-6 h-6 text-emerald-500" aria-hidden="true" />} title={salesText('title', 'Sales')}
+        description={salesText('description', 'Invoices you send and the money customers owe you.')}>
+        <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('invoices')}
+            aria-pressed={activeSubTab === 'invoices'}
+            className={cn(
+              'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              activeSubTab === 'invoices'
+                ? 'bg-[var(--elevated)] text-[var(--text)] border border-[var(--line)] font-bold shadow-2xs'
+                : 'text-[var(--muted)] hover:text-[var(--text)]',
+            )}
+          >
+            {salesText('tab.invoices', 'Invoices')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('customers')}
+            aria-pressed={activeSubTab === 'customers'}
+            className={cn(
+              'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              activeSubTab === 'customers'
+                ? 'bg-[var(--elevated)] text-[var(--text)] border border-[var(--line)] font-bold shadow-2xs'
+                : 'text-[var(--muted)] hover:text-[var(--text)]',
+            )}
+          >
+            {salesText('tab.customers', 'Customers')}
+          </button>
+        </div>
+        {activeSubTab === 'invoices' && canEditContacts && (
+          <button
+            type="button"
+            onClick={() => { setReceiptMode(true); setIsInvoiceModalOpen(true); }}
+            title="A sale paid on the spot: the invoice and its payment in one step"
+            className="flex items-center gap-1.5 px-4 py-2 border border-[var(--line)] text-[var(--text)] rounded-xl text-xs font-bold hover:bg-[var(--ink)] transition-all cursor-pointer"
+          >
+            <Plus aria-hidden="true" size={15} />
+            {salesText('action.saleReceipt', 'Sale receipt')}
+          </button>
+        )}
+        {activeSubTab === 'invoices' && canEditContacts && (
+          <button
+            type="button"
+            onClick={() => setOpeningOpen(true)}
+            title="The invoices still unpaid when you started: paste them from a spreadsheet"
+            className="px-3 py-2 text-[var(--muted)] rounded-xl text-xs font-semibold hover:text-[var(--text)] hover:underline"
+          >
+            {salesText('action.openingInvoices', 'Opening invoices')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => (activeSubTab === 'invoices' ? setIsInvoiceModalOpen(true) : setIsCustomerModalOpen(true))}
+          className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black rounded-xl text-xs font-bold hover:opacity-95 transition-all shadow-md hover:shadow-lg cursor-pointer active:scale-95"
+        >
+          <Plus aria-hidden="true" size={15} />
+          {activeSubTab === 'invoices' ? salesText('action.addInvoice', 'Add Invoice') : salesText('action.addCustomer', 'Add Customer')}
+        </button>
+      </PageHeader>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <motion.div
+          initial={{ y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden"
+        >
+          <p className={cn('text-[10px] font-mono uppercase tracking-widest font-semibold mb-3', agingBuckets.overdue > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-[var(--muted)]')}>
+            {salesText('summary.overdue', 'Overdue')}
+          </p>
+          <p className={cn('text-2xl sm:text-3xl font-mono font-bold tracking-tight tabular-nums', agingBuckets.overdue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--muted)]')}>
+            {formatCurrency(agingBuckets.overdue)}
+          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+            <AlertCircle aria-hidden="true" size={12} />
+            {salesText('summary.pastDue', 'Past the due date')}
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden"
+        >
+          <p className={cn('text-[10px] font-mono uppercase tracking-widest font-semibold mb-3', agingBuckets.dueSoon > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-[var(--muted)]')}>
+            {salesText('summary.dueSoon', 'Due in the next 30 days')}
+          </p>
+          <p className={cn('text-2xl sm:text-3xl font-mono font-bold tracking-tight tabular-nums', agingBuckets.dueSoon > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-[var(--muted)]')}>
+            {formatCurrency(agingBuckets.dueSoon)}
+          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+            <Activity aria-hidden="true" size={12} />
+            {salesText('summary.notDue', 'Not yet due')}
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="p-5 bg-[var(--panel)] rounded-2xl border border-[var(--line)] shadow-sm relative overflow-hidden"
+        >
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] font-semibold mb-3">
+            {salesText('summary.totalOwed', 'Total owed to you')}
+          </p>
+          <p className="text-2xl sm:text-3xl font-mono font-bold text-[var(--text)] tracking-tight tabular-nums">
+            {formatCurrency(agingBuckets.total)}
+          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+            <ShieldCheck aria-hidden="true" size={12} className="text-[var(--brass)]" />
+            {salesText('summary.unpaid', 'Unpaid invoices, all customers')}
+          </div>
+        </motion.div>
+      </div>
+
+      {activeSubTab === 'invoices' && (
+        <div className="ledger-card p-3 sm:p-4 rounded-[32px] overflow-hidden">
+          <TanStackDataGrid
+            dir={language === 'he' ? 'rtl' : 'ltr'}
+            caption={salesText('tab.invoices', 'Invoices')}
+            data={filteredInvoices}
+            columns={invoiceColumns}
+            totalCount={invoices.length}
+            loading={loading}
+            loadingWhat="invoices"
+            loadingState={<LoadingState what="invoices" />}
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            manualFilter
+            searchPlaceholder={salesText('search.invoices', 'Search invoices by customer or number...')}
+            pageSize={100}
+            hidePaginationOnSinglePage
+            showSavedViews
+            columnScope="sales-invoices"
+            columnLabel="Invoices"
+            columnNames={[
+              salesText('table.selection', 'Selection'),
+              salesText('table.number', 'Number'),
+              salesText('table.customer', 'Customer'),
+              salesText('table.date', 'Date'),
+              salesText('table.due', 'Due'),
+              salesText('table.amount', 'Amount'),
+              salesText('table.state', 'State'),
+              salesText('table.actions', 'Actions'),
+            ]}
+            selectable
+            selectedIds={pickedInvoices}
+            onSelectionChange={setPickedInvoices}
+            selectAllLabel={salesText('table.selectAll', 'Select all invoices shown')}
+            selectRowLabel={inv => `Select invoice ${inv.number || ''}`.trim()}
+            bulkActions={currentWorkspaceId ? (
+              <DocumentBulkBar
+                type="invoice"
+                noun="invoice"
+                ids={[...pickedInvoices].filter(id => filteredInvoices.some(i => i.id === id))}
+                documents={filteredInvoices.filter(i => pickedInvoices.has(i.id))}
+                workspaceId={currentWorkspaceId}
+                onClear={() => setPickedInvoices(new Set())}
+              />
+            ) : undefined}
+            exportConfig={{
+              filename: 'invoices.csv',
+              label: salesText('action.exportCsv', 'Export CSV'),
+              headers: ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Amount', 'Still Due'],
+              mapRow: inv => [inv.number || '', inv.customerName || '', inv.date || '', inv.dueDate || '', inv.status, csvMoney(inv.amountCents), csvMoney(calculateAmountDue(inv))],
+            }}
+            mobileLayout="table"
+            getRowProps={inv => ({
+              id: recordElementId('invoice', inv.id),
+              'data-record-id': inv.id,
+              className: cn('group', focusedInvoiceId === inv.id && 'ring-2 ring-inset ring-[var(--brass)]'),
+            })}
+            footerContent={<DocumentTotalsFoot docs={filteredInvoices} homeCurrency={homeCurrency} colSpan={8} noun="invoice" />}
+            emptyState={(
+              <EmptyState
+                title={salesText('empty.noInvoices', 'No invoices yet')}
+                description={salesText('empty.createFirstInvoice', 'Create your first invoice to bill a customer.')}
+                actionLabel={salesText('empty.createInvoice', 'Create invoice')}
+                onAction={() => setIsInvoiceModalOpen(true)}
+              />
+            )}
+            filteredEmptyState={(
+              <EmptyState
+                title={salesText('empty.noInvoiceMatches', 'No invoices match your search')}
+                description={salesText('empty.tryAnotherSearch', 'Try another name or number.')}
+              />
+            )}
+          />
+        </div>
+      )}
+
+      {activeSubTab === 'customers' && (
+        <div className="ledger-card p-3 sm:p-4 rounded-[32px] overflow-hidden space-y-4">
+          {customers.length > 0 && (
+            <div className="space-y-2">
+              <TagFilter tags={customerTags} value={customerTag} onChange={setCustomerTag} label="Show customers with the tag" />
+              <div className="flex flex-wrap items-center gap-2">
+                <EmailStatementsButton className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-50" />
+                <ShowArchivedToggle count={archivedCustomers} on={showArchivedCustomers} onChange={setShowArchivedCustomers} noun="customer" />
+              </div>
+            </div>
+          )}
+          {canEditContacts && (
+            <InlineAdd
+              label="New customer name"
+              placeholder="Add a customer: type a name and press Enter"
+              existing={customers.map(c => c.name)}
+              onAdd={name => addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`)}
+            />
+          )}
+          <TanStackDataGrid
+            dir={language === 'he' ? 'rtl' : 'ltr'}
+            caption={salesText('tab.customers', 'Customers')}
+            data={filteredCustomers}
+            columns={customerColumns}
+            totalCount={customers.length}
+            loading={loading}
+            loadingWhat="customers"
+            loadingState={<LoadingState what="customers" />}
+            searchValue={customerSearchTerm}
+            onSearchChange={setCustomerSearchTerm}
+            manualFilter
+            searchPlaceholder={salesText('search.customers', 'Search customers by name or email...')}
+            pageSize={50}
+            hidePaginationOnSinglePage
+            columnScope="sales-customers"
+            columnLabel="Customers"
+            columnNames={[
+              salesText('customer.table.profile', 'Customer Profile'),
+              salesText('customer.table.contact', 'Contact'),
+              salesText('customer.table.receivable', 'Net Receivable'),
+              salesText('table.actions', 'Actions'),
+            ]}
+            exportConfig={{
+              filename: 'customers.csv',
+              label: salesText('action.exportCsv', 'Export CSV'),
+              headers: ['Customer', 'Email', 'Phone', 'Net Receivable'],
+              mapRow: c => [c.name, c.email || '', c.phone || '', csvMoney(customerBalances[c.id] ?? 0)],
+            }}
+            mobileLayout="cards"
+            renderCard={cust => (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <InlineEdit
+                      value={cust.name}
+                      label={`Name of ${cust.name}`}
+                      canEdit={canEditContacts}
+                      validate={v => (String(v) ? null : 'A customer needs a name')}
+                      onSave={v => updateEntity('customers', cust.id, { name: v }, 'Name saved')}
+                      className="font-bold text-[var(--text)] text-base"
+                    />
+                    <ArchivedBadge party={cust} />
+                    <p className="text-xs text-[var(--muted)] truncate">{cust.email || cust.phone || '—'}</p>
+                  </div>
+                  <span className="font-mono font-bold text-sm tabular-nums text-[var(--text)] shrink-0">
+                    {formatCurrency(customerBalances[cust.id] ?? 0)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--line)]">
+                  <PartyDetailButton id={detailOpenerId(cust.id)} side="customer" name={cust.name} onOpen={() => setSelectedCustomerId(cust.id)} />
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewInvoiceFor({ customerId: cust.id, customerName: cust.name });
+                        setIsInvoiceModalOpen(true);
+                      }}
+                      className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 rounded"
+                      title="Enter Invoice"
+                      aria-label={`Enter invoice for ${cust.name}`}
+                    >
+                      <Plus aria-hidden="true" size={16} />
+                    </button>
+                    {canEditContacts && <PartyRowActions side="customer" party={cust} />}
+                  </div>
+                </div>
+              </div>
+            )}
+            getRowProps={() => ({ className: 'group' })}
+            emptyState={(
+              <EmptyState
+                title={salesText('empty.noCustomers', 'No customers yet')}
+                description={salesText('empty.addCustomerFirst', 'Add a customer before creating their first invoice.')}
+                actionLabel={salesText('empty.addFirstCustomer', 'Add first customer')}
+                onAction={() => setIsCustomerModalOpen(true)}
+              />
+            )}
+            filteredEmptyState={(
+              <EmptyState
+                title={salesText('empty.noCustomerMatches', 'No customers match these filters')}
+                description={salesText('empty.changeCustomerFilters', 'Choose another tag or show archived customers.')}
+              />
+            )}
+          />
+        </div>
+      )}
+
+      {modals}
     </div>
   );
 }
-
