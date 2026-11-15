@@ -201,3 +201,11 @@ test('two customers whose names differ only in capitals stay apart: the exact on
   assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, '', 'ambiguous: neither is picked for you');
 });
 
+test('typing a longer new name next to an existing one keeps every character', () => {
+  invoice();
+  change('Customer', 'Client ');
+  assert.equal((screen.getByLabelText('Customer') as HTMLInputElement).value, 'Client ', 'the space stays while typing');
+  change('Customer', 'Client Ltd');
+  assert.equal((screen.getByLabelText('Customer') as HTMLInputElement).value, 'Client Ltd');
+});
+

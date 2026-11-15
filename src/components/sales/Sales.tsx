@@ -136,6 +136,11 @@ export default function Sales() {
         data = { ...data, customerId: created.id };
       }
     }
+    // the box keeps what was typed ("acme "); the invoice is saved with the customer's own name
+    if (typeof data.customerId === 'string' && !data.customerId.startsWith('new-')) {
+      const chosen = useLedgerStore.getState().customers.find(c => c.id === data.customerId);
+      if (chosen?.name) data = { ...data, customerName: chosen.name };
+    }
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
     let res;

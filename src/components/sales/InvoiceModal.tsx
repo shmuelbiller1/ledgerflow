@@ -357,7 +357,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const hints = documentDefaultsOf(cust);
                     if (!editingExisting && cust) setItems(prev => prev.map(line => defaults.fill(line, hints)));
                     const defaultTax = defaults.taxAvailable() && !invoice.taxCodeId && !invoice.taxRate && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
-                    setInvoice({ ...invoice, ...defaultTax, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
+                    setInvoice({ ...invoice, ...defaultTax, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
                   className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
