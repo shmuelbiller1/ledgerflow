@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -17,7 +18,6 @@ import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { cn, formatCurrency } from '../../lib/utils';
 import { useUIStore } from '../../stores/useUIStore';
-import { getIdToken } from '../../firebase';
 import { monthCloseState } from '../../lib/periodLock';
 import { isPostable, calculateTransactionImpact, lineAmount, isRevenueAccount, isExpenseAccount } from '../../lib/txFilters';
 import { useServerActivity } from '../../hooks/useServerActivity';
@@ -62,13 +62,11 @@ export default function FiscalPeriodManager() {
     if (!currentWorkspaceId) return;
     setIsProcessing(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/periods/${month}/close`, {
+      const data = await runCommand<{ lockDate?: string; softLockDate?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/periods/${month}/close`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ mode: 'hard' }),
+        body: { mode: 'hard' },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The period could not be closed');
       setWorkspaces(workspaces.map(w => (w.id === currentWorkspaceId ? { ...w, lockDate: data.lockDate, softLockDate: data.softLockDate } : w)));
       toast.success(`${month} closed`);
     } catch (e) {

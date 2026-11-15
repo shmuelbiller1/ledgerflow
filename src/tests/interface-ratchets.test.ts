@@ -50,7 +50,7 @@ describe('the five interface ratchets', () => {
       'src/components/sales/Sales.tsx': [
         'fetch(\'/api/invoices\', { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
         'fetch(`/api/bills/${id}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
-        'fetch(\"https://api.ledgerflow.io/api/v1/x\", { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        "fetch('https://api.ledgerflow.io/api/v1/x', { headers: { Authorization: `Bearer ${await getIdToken()}` } });",
         'const note = "no call here";',
       ].join('\n'),
     });

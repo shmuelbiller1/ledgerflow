@@ -11,6 +11,7 @@
  *
  * Viewer role: can read everything, posts nothing.
  */
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, BadgeCheck, Banknote, CalendarClock, CheckCircle2, Plus, X } from 'lucide-react';
@@ -19,7 +20,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { collection, doc, updateDoc } from '../../lib/db/firestore';
 import { addToDateISO, cn, formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { isPostable } from '../../lib/txFilters';
@@ -93,11 +94,12 @@ function asDraft(form: LoanForm): LoanDraft {
  */
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
   const id = `tx_loan_${crypto.randomUUID()}`;
-  const token = await getIdToken();
-  const res = await fetch('/api/v1/transactions', {
+  // the operation id is what keeps a retried loan entry from posting twice
+  await runCommand({
+    path: '/api/v1/transactions',
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'x-operation-id': id },
-    body: JSON.stringify({
+    headers: { 'x-operation-id': id },
+    body: {
       transaction: {
         ...transaction,
         id,
@@ -107,12 +109,8 @@ async function postEntry(transaction: Partial<Transaction>): Promise<string> {
         schemaVersion: '1.1',
         createdAt: new Date().toISOString(),
       },
-    }),
+    },
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string; message?: string };
-    throw new Error(body.message || body.error || `The entry was refused (HTTP ${res.status}).`);
-  }
   return id;
 }
 
