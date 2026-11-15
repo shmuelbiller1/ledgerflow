@@ -641,7 +641,7 @@ way, and keyboard movement between rows. All three are in this pull request; thr
   one, not deleting buttons. *Default used:* the counter records 19 and may only go down; the list is in
   `docs/UI_REBUILD_RATCHETS.md`.
 
-## 15 Nov — migration from PR #719 (commands, Batch 0): wait for the deploy
+## ~~15 Nov — migration from PR #719 (commands, Batch 0): wait for the deploy~~ **Done 15 Nov** — applied by the owner after #719 was live
 
 `supabase/migrations/20261115000000_document_commands_server_only.sql` stops the browser writing
 invoices, bills, credit notes, estimates and automation rules directly; they go through the server
