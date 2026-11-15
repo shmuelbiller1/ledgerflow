@@ -12,7 +12,7 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 |---|---|---|
 | `unreachableActions` | **0** | Every registered screen, report and settings tab can be found by typing a word into the search box. Zero is the only acceptable value. Proven in `src/tests/palette-reachability-guard.test.ts`, which searches the real registry, in English and Hebrew. |
 | `screensWithManyPrimaryButtons` | **19** | EASE_OF_USE U-2: one filled button per screen. |
-| `handTypedApiCalls` | **111** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
+| `handTypedApiCalls` | **106** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
 | `rawTables` | **184** | A screen uses the shared list instead of drawing its own `<table>`. |
 | `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
@@ -32,7 +32,7 @@ number it can; the rest are listed so the next person starts from the truth.
   demoting the wrong one moves the person's eye off the thing they came to do.
 - `auth/AcceptInviteView.tsx`, `common/ViewErrorBoundary.tsx`: two states of one screen (signed in / not).
 
-### `handTypedApiCalls` — 111
+### `handTypedApiCalls` — 106
 
 `src/lib/runCommand.ts` is now the one place a screen's request goes: it adds the token, sends the
 method and body, and raises a `ServerCommandError` that carries the server's own words plus a message a
