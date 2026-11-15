@@ -639,7 +639,8 @@ test('automation-rule commands validate workspace scope for CRUD, group changes,
   seedWorkspace(db);
   const firstInput = autoRuleCreateInput.parse({ rule: {
     id: 'rule-1', name: 'Cloud', groupName: 'General', condition: { descriptionContains: 'AWS' },
-    action: { targetAccountId: 'expense-cloud' }, confidence: 1, isHardened: true,
+    action: { targetAccountId: 'expense-cloud', targetClass: 'Sales / Marketing', targetLocation: 'Store / Retail' },
+    confidence: 1, isHardened: true,
   } });
   assert.equal(autoRuleCreateInput.safeParse({ rule: { ...firstInput.rule, uid: 'spoofed-user' } }).success, false);
   const first = await executeCommand(fakeRequest(owner, { workspaceId, input: firstInput }), captureResponse().response,
@@ -647,19 +648,33 @@ test('automation-rule commands validate workspace scope for CRUD, group changes,
   assert.equal(first.ok, true);
   assert.equal(db.read('autoRules/rule-1')?.uid, owner.uid);
   assert.equal(db.read('autoRules/rule-1')?.hitCount, 0);
+  assert.deepEqual(
+    { targetClass: (db.read('autoRules/rule-1')?.action as Record<string, unknown>).targetClass, targetLocation: (db.read('autoRules/rule-1')?.action as Record<string, unknown>).targetLocation },
+    { targetClass: 'Sales / Marketing', targetLocation: 'Store / Retail' },
+    'class and location values are preserved as free-text labels',
+  );
 
   const secondInput = autoRuleCreateInput.parse({ rule: {
     id: 'rule-2', name: 'Paper', groupName: 'General', condition: { vendor: 'Paper Co' }, action: { type: 'categorize', targetNodeId: 'expense-office' },
   } });
   await executeCommand(fakeRequest(owner, { workspaceId, input: secondInput }), captureResponse().response,
     { definition: autoRuleCreateCommand, workspaceId, input: secondInput }, runnerDependencies(db));
-  const updateInput = autoRuleUpdateInput.parse({ id: 'rule-1', data: { priority: -5, isActive: false } });
+  const updateInput = autoRuleUpdateInput.parse({ id: 'rule-1', data: {
+    priority: -5,
+    isActive: false,
+    action: { targetClass: 'Sales / Marketing', targetLocation: 'Remote / East' },
+  } });
   assert.equal(autoRuleUpdateInput.safeParse({ id: 'rule-1', data: { hitCount: 999 } }).success, false);
   assert.equal(autoRuleUpdateInput.safeParse({ id: 'rule-1', data: { workspaceId: 'other' } }).success, false);
   const update = await executeCommand(fakeRequest(owner, { workspaceId, input: updateInput }), captureResponse().response,
     { definition: autoRuleUpdateCommand, workspaceId, input: updateInput }, runnerDependencies(db));
   assert.equal(update.ok, true);
   assert.equal(db.read('autoRules/rule-1')?.priority, -5);
+  assert.deepEqual(
+    { targetClass: (db.read('autoRules/rule-1')?.action as Record<string, unknown>).targetClass, targetLocation: (db.read('autoRules/rule-1')?.action as Record<string, unknown>).targetLocation },
+    { targetClass: 'Sales / Marketing', targetLocation: 'Remote / East' },
+    'updates preserve free-text class and location labels containing slashes',
+  );
 
   const rename = autoRuleGroupInput.parse({ groupName: 'General', newName: 'Cloud services' });
   const renamed = await executeCommand(fakeRequest(owner, { workspaceId, input: rename }), captureResponse().response,
