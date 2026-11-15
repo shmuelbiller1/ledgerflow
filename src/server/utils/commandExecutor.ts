@@ -364,15 +364,17 @@ async function runRegisteredCommand(
     context.workspace = latestWorkspace;
     const result = await command.handler(context, tx, input);
     const summary = command.audit(input, result);
-    await (dependencies.auditWriter || writeServerAuditLog)({
-      workspaceId,
-      uid: user.uid,
-      email: user.email,
-      action: summary.action,
-      entityType: summary.entityType,
-      entityId: summary.entityId,
-      details: { description: summary.description, ...(summary.details || {}) },
-    }, { db, tx });
+    if (summary) {
+      await (dependencies.auditWriter || writeServerAuditLog)({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: summary.action,
+        entityType: summary.entityType,
+        entityId: summary.entityId,
+        details: { description: summary.description, ...(summary.details || {}) },
+      }, { db, tx });
+    }
     didRunHandler = true;
     return result;
   };

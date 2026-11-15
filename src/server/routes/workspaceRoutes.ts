@@ -27,7 +27,9 @@ import { assetTransferRouter } from './assetTransferRoutes';
 import { placeInServiceRouter } from './placeInServiceRoutes';
 import { payRunRouter } from './payRunRoutes';
 import { twoStepPolicyRouter } from './twoStepPolicyRoutes';
-import { AlertSettingsError, saveAlertSettings } from '../services/bookAlertService';
+import { AlertSettingsError } from '../services/bookAlertService';
+import { alertSettingsUpdateCommand } from '../commands/alerts';
+import { executeCommand } from '../utils/commandExecutor';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
 import { brandingRouter } from './brandingRoutes';
@@ -203,22 +205,37 @@ workspaceRouter.use('/:workspaceId/assets/:assetId/in-service', requireWorkspace
 // Pay runs posted by the server (U-02): owners and accountants
 workspaceRouter.use('/:workspaceId/pay-runs', requireWorkspaceRole(['owner', 'accountant']), payRunRouter);
 workspaceRouter.use('/:workspaceId/security', requireWorkspaceRole(['owner']), twoStepPolicyRouter);
-// Settings → Alerts (S-08, S-10, S-11): owners and accountants
-const alertsSchema = z.object({
-  cashLowCents: z.number().int().nullable().optional(),
-  closeReminderDay: z.number().int().nullable().optional(),
-  budgetAlerts: z.boolean().optional(),
-}).strict();
+// Settings → Alerts (S-08, S-10, S-11): keep the established address and response while the
+// named command owns validation, role rechecks, the write transaction, retry protection, and audit.
 workspaceRouter.put('/:workspaceId/alerts', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const user = (req as AuthenticatedRequest).user;
-  try {
-    const alerts = await saveAlertSettings(getDb(), { workspaceId: String(req.params.workspaceId), uid: user.uid, email: user.email, alerts: alertsSchema.parse(req.body) });
-    res.json({ status: 'success', alerts });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Those alert settings are not in the expected form' });
-    if (err instanceof AlertSettingsError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The alerts could not be saved', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    definition: alertSettingsUpdateCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', alerts: (outcome.data as { alerts: unknown }).alerts } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Those alert settings are not in the expected form' } };
+      }
+      if (outcome.error instanceof AlertSettingsError) {
+        return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: {
+            status: 'error',
+            message: 'The alerts could not be saved',
+            details: error instanceof Error ? error.message : String(error || outcome.message),
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Bulk import of customers, vendors, items or accounts from a spreadsheet (K-01; rules in

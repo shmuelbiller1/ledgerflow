@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 220,
+  "writeRoutes": 204,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
@@ -56,7 +56,6 @@
     "src/server/routes/stripeWebhookRoutes.ts": 1,
     "src/server/routes/supportRoutes.ts": 2,
     "src/server/routes/tagRoutes.ts": 1,
-    "src/server/routes/taskRoutes.ts": 15,
     "src/server/routes/taxRoutes.ts": 1,
     "src/server/routes/telemetryRoutes.ts": 1,
     "src/server/routes/transactions/bulkRoutes.ts": 4,
@@ -66,7 +65,7 @@
     "src/server/routes/transactions/reverseRoutes.ts": 2,
     "src/server/routes/twoStepPolicyRoutes.ts": 2,
     "src/server/routes/workspaceApiRoutes.ts": 4,
-    "src/server/routes/workspaceRoutes.ts": 18
+    "src/server/routes/workspaceRoutes.ts": 17
   },
   "browserSites": {
     "src/components/assets/ConstructionActions.tsx": 1,

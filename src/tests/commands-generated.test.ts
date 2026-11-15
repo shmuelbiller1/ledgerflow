@@ -11,6 +11,7 @@ import { renderCommandArtifacts } from '../../scripts/generate-commands';
 import type { CommandInput } from '../../sdk/commands.generated';
 
 test('generated SDK inputs follow command schemas while remaining browser-safe', () => {
+  const alertInput: CommandInput<'alerts.update'> = { cashLowCents: 50000, closeReminderDay: 5, budgetAlerts: true };
   const customerInput: CommandInput<'customer.create'> = { customer: { name: 'Acme' } };
   const customerUpdate: CommandInput<'customer.update'> = { id: 'customer-1', data: { email: 'billing@example.test' } };
   const vendorInput: CommandInput<'vendor.create'> = { vendor: { name: 'Paper Co', category: 'Office Supplies' } };
@@ -27,6 +28,12 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   const creditNoteInput: CommandInput<'creditnote.create'> = { creditNote: { customerId: 'customer-1', amountCents: 1200, date: '2026-11-15' } };
   const vendorCreditInput: CommandInput<'vendorcredit.create'> = { vendorCredit: { vendorId: 'vendor-1', amountCents: 900, date: '2026-11-15' } };
   const invoiceDelete: CommandInput<'invoice.delete'> = { id: 'invoice-1' };
+  const taskInput: CommandInput<'tasks.create'> = { task: { title: 'Review the Acme invoice', assignee: 'user_123' } };
+  const watchInput: CommandInput<'watches.create'> = { record: { type: 'invoice', id: 'invoice_1', label: 'Invoice INV-1' } };
+  const linkInput: CommandInput<'entrylink.create'> = { a: 'transaction_1', b: 'transaction_2', note: 'Correction' };
+  const timeInput: CommandInput<'time.log'> = { entry: { date: '2026-11-15', minutes: 60, description: 'Close the month' } };
+  const stageInput: CommandInput<'stages.move'> = { kind: 'bill', id: 'bill_1', stage: 'Checked' };
+  assert.equal(alertInput.cashLowCents, 50000);
   assert.equal(customerInput.customer.name, 'Acme');
   assert.equal(customerUpdate.data.email, 'billing@example.test');
   assert.equal(vendorInput.vendor.name, 'Paper Co');
@@ -40,6 +47,11 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   assert.equal(creditNoteInput.creditNote.customerId, 'customer-1');
   assert.equal(vendorCreditInput.vendorCredit.vendorId, 'vendor-1');
   assert.equal(invoiceDelete.id, 'invoice-1');
+  assert.equal(taskInput.task.title, 'Review the Acme invoice');
+  assert.equal((watchInput.record as { label: string }).label, 'Invoice INV-1');
+  assert.equal(linkInput.note, 'Correction');
+  assert.equal(timeInput.entry.description, 'Close the month');
+  assert.equal(stageInput.stage, 'Checked');
   // @ts-expect-error customer names are strings in the registry schema.
   const invalidCustomer: CommandInput<'customer.create'> = { customer: { name: 42 } };
   // @ts-expect-error a customer balance is server-managed, not an editable profile field.

@@ -1,3 +1,9 @@
+import { alertSettingsUpdateCommand } from './alerts';
+import { entryLinkCreateCommand, entryLinkRemoveCommand } from './entryLinks';
+import { stageDefineCommand, stageMoveCommand } from './stages';
+import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from './tasks';
+import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from './time';
+import { watchCreateCommand, watchRemoveCommand } from './watches';
 import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } from './customers';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
@@ -22,6 +28,22 @@ import { CommandRegistry } from './registry';
 /** Construct the built-in command set; tests and alternate server entry points get an isolated registry. */
 export function createDefaultCommandRegistry(): CommandRegistry {
   const registry = new CommandRegistry();
+  registry.register(alertSettingsUpdateCommand);
+  registry.register(entryLinkCreateCommand);
+  registry.register(entryLinkRemoveCommand);
+  registry.register(stageDefineCommand);
+  registry.register(stageMoveCommand);
+  registry.register(taskCreateCommand);
+  registry.register(taskRemoveCommand);
+  registry.register(taskStatusCommand);
+  registry.register(timeInvoiceCommand);
+  registry.register(timeLogCommand);
+  registry.register(timeMoveCommand);
+  registry.register(timeRatesCommand);
+  registry.register(timeRemoveCommand);
+  registry.register(timeUpdateCommand);
+  registry.register(watchCreateCommand);
+  registry.register(watchRemoveCommand);
   registry.register(customerCreateCommand);
   registry.register(customerUpdateCommand);
   registry.register(warrantyUpdateCommand);
