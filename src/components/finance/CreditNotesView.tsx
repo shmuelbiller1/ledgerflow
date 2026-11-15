@@ -562,7 +562,7 @@ export default function CreditNotesView() {
                 </button>
                 <button
                   type="submit" disabled={saving}
-                  className="px-4 py-2 bg-indigo-600 text-white font-medium text-sm rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                  className="px-4 py-2 btn-tonal text-white font-medium text-sm rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
                 >
                   {saving ? 'Saving…' : 'Save & Post'}
                 </button>

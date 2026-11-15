@@ -269,7 +269,7 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
             type="button"
             onClick={handleNext}
             disabled={isProcessing || (step === 1 && parsedRows.length === 0)}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+            className="px-6 py-2.5 btn-tonal hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
            aria-label="Loader2 action">
             {isProcessing ? (
               <><Loader2 aria-hidden="true" size={16} className="animate-spin" /> Importing Transactions...</>

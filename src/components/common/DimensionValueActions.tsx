@@ -419,7 +419,7 @@ function InlineAddDimensionAxisInner({ disabled = false, onAdded, adapter }: Inl
           onClick={() => {
             void submitAxis();
           }}
-          className="min-h-11 px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-semibold disabled:opacity-50"
+          className="min-h-11 px-2.5 py-1 rounded-lg btn-tonal text-white font-semibold disabled:opacity-50"
         >
           Add dimension
         </button>

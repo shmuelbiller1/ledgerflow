@@ -60,7 +60,7 @@ export function TransactionGridView(model: TransactionGridModel) {
       {dragActive && (
         <div className="absolute inset-0 z-[100] bg-indigo-600/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
           <div className="p-4 md:p-8 bg-[var(--surface)] rounded-[32px] shadow-2xl border-2 border-indigo-600 flex flex-col items-center gap-4 animate-in fade-in zoom-in slide-in-from-bottom-4">
-             <div className="w-16 h-16 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-600">
+             <div className="w-16 h-16 rounded-full btn-tonal/10 flex items-center justify-center text-indigo-600">
                 <Plus aria-hidden="true" size={32} />
              </div>
              <div className="text-center">

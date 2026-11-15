@@ -182,7 +182,7 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
               <button
                 onClick={handleAcceptInvite}
                 disabled={accepting}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 btn-tonal hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
               >
                 {accepting ? (
                   <RefreshCw size={16} className="animate-spin" />

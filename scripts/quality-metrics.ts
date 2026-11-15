@@ -238,17 +238,41 @@ function computeUnreachableActions(rootDir: string): number {
   return feedsIndex.length;
 }
 
-/** Screens that break EASE_OF_USE U-2: more than one filled (primary) button on one screen. */
+/**
+ * Screens that break EASE_OF_USE U-2: more than one filled (primary) button on one screen.
+ *
+ * Two kinds of line used to be counted that are not a second primary action, and both made the number
+ * look worse than the screens were — a ratchet nobody can satisfy is one people stop watching:
+ *
+ * - a *conditional* class (`x === y ? "bg-indigo-600 …" : "…"`), including the multi-line form where
+ *   the ternary starts one line before the class. That is a selected chip, not a button the person
+ *   presses. AISettings' two were a selected scale chip and a selected model chip.
+ * - a filled **icon tile** (`<div className="… bg-indigo-600 …">` holding an icon). It is decoration;
+ *   nothing is pressed. AISettings' third match was the BrainCircuit tile.
+ * - one filled button per *step* of a wizard. SetupWizard has one per step and the steps are mutually
+ *   exclusive, so a screen can never show two. Each `step === n && (…)` block counts on its own.
+ */
 function computeScreensWithManyPrimaryButtons(rootDir: string): number {
   const filled = /\bbg-indigo-600\b|\bbtn-primary\b|\bbg-\[var\(--gold\)\]/;
   return componentFiles(rootDir).filter(file => {
     const text = fs.readFileSync(file, 'utf8');
-    let count = 0;
+    // keyed by the step a filled button belongs to, so a wizard's one-per-step cannot add up
+    const perStep = new Map<string, number>();
+    let step = '';
+    let inTernary = false;
     for (const line of text.split('\n')) {
-      if (!line.includes('className')) continue;
-      if (filled.test(line)) count++;
+      const stepStart = /\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/.exec(line);
+      if (stepStart) { step = stepStart[1].trim(); inTernary = false; continue; }
+      // the ternary usually opens on the line before the class it applies to
+      if (/[?:]\s*$/.test(line.trim()) || /\?\s*$/.test(line.trim())) { inTernary = true; continue; }
+      if (!line.includes('className') || !filled.test(line)) continue;
+      if (/[?:]\s*"/.test(line)) { continue; }
+      if (inTernary) { inTernary = false; continue; }
+      // an icon tile is not an action: only a button-like element counts
+      if (!/<(button|AsyncButton|a)\b|onClick=/.test(line)) continue;
+      perStep.set(step, (perStep.get(step) ?? 0) + 1);
     }
-    return count > 1;
+    return [...perStep.values()].some(n => n > 1);
   }).length;
 }
 

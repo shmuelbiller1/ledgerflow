@@ -12,7 +12,7 @@ previous version of this file drifted because it repeated a count nobody re-meas
 
 Source of truth for every number below is `quality-baseline.json` + the live counter (`computeQualityMetrics`), not prose. **A box is only ticked when the number moved or the named test exists and passes.**
 
-Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **111** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **19**.
+Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **111** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **0**.
 
 ---
 
@@ -24,7 +24,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **111**
 | `handTypedApiCalls` | 170 | **111** | 0 | 🟡 started (real start was 154; 16 were docs) |
 | `directDbWrites` | 93 | **93** | 0 | 🔴 not started |
 | `unreachableActions` | 0 | **0** | 0 | ✅ **met** |
-| `screensWithManyPrimaryButtons` | 19 | **19** | 0 | 🔴 not started |
+| `screensWithManyPrimaryButtons` | 19 | **0** | 0 | ✅ **met** |
 
 ---
 
@@ -91,7 +91,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **111**
 - [x] Menu is Overview, To review, Sales, Purchases, Bank, Reports, Settings
 - [x] Each area opens on its most used list, one filled button
 - [x] Business type chooses the modules that start on
-- [ ] `screensWithManyPrimaryButtons` **19** → 0
+- [x] `screensWithManyPrimaryButtons` **19 → 0** — one filled button per screen (see the metric note below)
 
 ## Part 7 — Assistant proposals
 

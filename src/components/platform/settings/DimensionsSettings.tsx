@@ -587,7 +587,7 @@ function DimensionsSettingsContent() {
                 type="button"
                 disabled={isAddingAxis}
                 onClick={() => { void handleAddAxis(); }}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl disabled:opacity-50"
+                className="px-5 py-2 btn-tonal hover:bg-indigo-500 text-white font-bold text-xs rounded-xl disabled:opacity-50"
               >
                 Create label
               </button>
@@ -742,7 +742,7 @@ function DimensionsSettingsContent() {
                       type="button"
                       disabled={addingNodeAxis === dim.id}
                       onClick={() => { void handleAddNode(dim.id); }}
-                      className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="w-full px-3 py-2 btn-tonal hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <Plus aria-hidden="true" size={14} /> Add value<span className="sr-only"> to {displayDimensionName(dim)}</span>
                     </button>

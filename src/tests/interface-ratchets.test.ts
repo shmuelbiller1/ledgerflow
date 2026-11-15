@@ -100,6 +100,49 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
   });
 
+  test('the three lines that only look like a second primary button are not counted', () => {
+    const root = scratch({
+      // a selected chip: a state inside a ternary, spread over the line before the class
+      'src/components/chip/Chip.tsx': [
+        '<button className={cn(',
+        '  "chip",',
+        '  on === 1 ? "bg-indigo-600 text-white" : "bg-[var(--surface)]",',
+        ')}>One</button>',
+        '<button className="bg-indigo-600">Save</button>',
+      ].join('\n'),
+      // an icon tile: filled, but nothing is pressed
+      'src/components/tile/Tile.tsx': [
+        '<div className="w-14 h-14 bg-indigo-600 text-white"><Brain aria-hidden="true" /></div>',
+        '<button className="btn-primary">Save</button>',
+      ].join('\n'),
+      // one per step of a wizard, and the steps are mutually exclusive
+      'src/components/steps/Steps.tsx': [
+        '{step === 0 && (',
+        '  <section><button className="btn-primary">Next</button></section>',
+        ')}',
+        '{step === 1 && (',
+        '  <section><button className="btn-primary">Finish</button></section>',
+        ')}',
+      ].join('\n'),
+    });
+    // a ratchet nobody can satisfy is one people stop watching: all three were counted before
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
+  });
+
+  test('two real filled buttons on one step are still counted', () => {
+    const root = scratch({
+      'src/components/two/Two.tsx': [
+        '{step === 0 && (',
+        '  <section>',
+        '    <button className="btn-primary">Save</button>',
+        '    <button className="bg-indigo-600">Send</button>',
+        '  </section>',
+        ')}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'the rule still bites');
+  });
+
   test('an index that stops reading a registry raises unreachableActions', () => {
     const root = scratch({ 'src/components/a/A.tsx': '' });
     fs.writeFileSync(path.join(root, 'src/config/pageIndex.ts'), 'APP_TABS\n');
