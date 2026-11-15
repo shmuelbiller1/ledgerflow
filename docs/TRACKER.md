@@ -30,7 +30,7 @@ in-app assistant works in a sandbox copy of the books and proposes changes the p
 
 | step | prompt | state |
 |---|---|---|
-| CMD-1 Batch 0: runner, direct address, ratchet, generator, first 24 commands | `docs/prompts/CMD-1-commands.md` | PR #719 (green; merge, deploy, then apply its migration) |
+| CMD-1 Batch 0: runner, direct address, ratchet, generator, first 24 commands | `docs/prompts/CMD-1-commands.md` | merged as #719 (15 Nov); apply its migration after the deploy |
 | CMD-1 Batches 1–N: workspace, tasks, periods, accounts, inventory, then the rest; full OpenAPI + SDK; `risk: high` commands | same | not started |
 | CMD-1 browser writes, table by table, each with its migration (closes the rest of #646) | same | 4 document tables + rules in #719 |
 | CMD-1 proposals, undo, assistant tools (`assistant/tools.json`, system prompt, read tools) | same | after ≥ 25 commands across areas |
