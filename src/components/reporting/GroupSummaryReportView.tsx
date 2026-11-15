@@ -1,6 +1,6 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -39,20 +39,18 @@ const ROWS: Array<{ key: keyof Figures; label: string; report: 'pnl' | 'balance-
 ];
 
 async function get<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'That did not work');
-  return data as T;
+  return runCommand<T>({ path: url });
 }
 
 /** Z-17: keep the rates used for a period on the group; a convenience, so a failure only means retyping. */
 async function keepRates(groupId: string, body: Record<string, unknown>): Promise<WorkspaceGroup | null> {
   try {
-    const res = await fetch(`/api/v1/account/groups/${encodeURIComponent(groupId)}/rates`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify(body),
+    const data = await runCommand<{ group?: WorkspaceGroup }>({
+      path: `/api/v1/account/groups/${encodeURIComponent(groupId)}/rates`,
+      method: 'PUT',
+      body,
     });
-    const data = await res.json().catch(() => ({}));
-    return res.ok && data.group ? data.group as WorkspaceGroup : null;
+    return data.group ?? null;
   } catch {
     return null;
   }
@@ -100,14 +98,10 @@ export default function GroupSummaryReportView() {
   // Z-20: the group's own chart mapping (the owner combines a line into another of its section)
   const combine = async (merges: Record<string, string>) => {
     try {
-      const res = await fetch(`/api/v1/account/groups/${encodeURIComponent(groupId)}/lines`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ merges }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The lines were not combined');
+      await runCommand({ path: `/api/v1/account/groups/${encodeURIComponent(groupId)}/lines`, method: 'PUT', body: { merges } });
       setVersion(v => v + 1);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     }
   };
   const memberCurrencies = [...new Set((summary?.members || []).map(m => m.currency))];
@@ -156,7 +150,7 @@ export default function GroupSummaryReportView() {
       if (!next.closing || !next.average || !next.historical) throw new Error(`The rate service has no rates for ${currency} on these dates: enter them`);
       setEntered(e => ({ ...e, [currency]: { closing: String(next.closing), average: String(next.average), historical: String(next.historical) } }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setFilling('');
     }
