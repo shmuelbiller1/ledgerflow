@@ -8,6 +8,8 @@ import {
   ColumnDef,
   flexRender,
   SortingState,
+  PaginationState,
+  Cell,
 } from '@tanstack/react-table';
 import {
   ChevronDown,
@@ -131,6 +133,22 @@ export function TanStackDataGrid<TData extends object>({
   hidePaginationOnSinglePage = false,
 }: TanStackDataGridProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  /**
+   * Pagination state, with the page size derived rather than copied: a screen that shows more rows ('Show
+   * more bills') raises `pageSize`, and the reader must stay on a page that holds the rows just added. Copying
+   * the prop into state on mount only (TanStack's `initialState`) left the page at the old size, so the extra
+   * rows went to a later page nobody turned to. A size the reader picks in the page-size control still wins,
+   * until the screen changes its own page size again.
+   */
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pickedSize, setPickedSize] = useState<{ size: number; forProp: number } | null>(null);
+  const pageSizeInForce = pickedSize && pickedSize.forProp === pageSize ? pickedSize.size : pageSize;
+  const pagination: PaginationState = { pageIndex, pageSize: pageSizeInForce };
+  const setPagination = (updater: PaginationState | ((old: PaginationState) => PaginationState)) => {
+    const next = typeof updater === 'function' ? updater(pagination) : updater;
+    setPageIndex(next.pageIndex);
+    setPickedSize(next.pageSize === pageSize ? null : { size: next.pageSize, forProp: pageSize });
+  };
   const [internalFilter, setInternalFilter] = useState('');
   const [internalSelection, setInternalSelection] = useState<Set<string>>(() => new Set());
   const isCompact = useCompactViewport();
@@ -200,24 +218,41 @@ export function TanStackDataGrid<TData extends object>({
     return [selectionCol, ...columns];
   }, [selectable, columns, pageRowsIds, activeSelection, selectAllLabel, selectRowLabel, resolveRowId, updateSelection]);
 
+  /**
+   * A cell is rendered by calling its function, not by making the function an element type.
+   *
+   * `flexRender` builds `element(cellFn, context)`, so React compares the *function's identity*: a screen that
+   * rebuilds its column list (its handlers come fresh from a hook) hands over a new function each render, React
+   * sees a new component type and remounts the cell — and with it the row's buttons. The remount is what lost
+   * the opener button's focus when Escape closed the invoice or bill dialog (A-259): the button the dialog
+   * remembered was no longer in the document, so focus fell to the body.
+   *
+   * Calling the function returns its elements directly, so React reconciles the buttons themselves and the DOM
+   * node survives. No cell in the app uses hooks, which is what makes this safe; a cell that did would need to
+   * become a named component instead.
+   */
+  const renderCellContent = (cell: Cell<TData, unknown>) => {
+    const content = cell.column.columnDef.cell;
+    return typeof content === 'function'
+      ? (content(cell.getContext()) as React.ReactNode)
+      : flexRender(content, cell.getContext());
+  };
+
   const table = useGridTable({
     data,
     columns: allColumns,
     state: {
       sorting,
       globalFilter: manualFilter ? '' : activeSearch,
+      pagination,
     },
     onSortingChange: setSorting,
     onGlobalFilterChange: handleSearchUpdate,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: {
-        pageSize,
-      },
-    },
   });
 
   const filteredRows = table.getFilteredRowModel().rows;
@@ -339,7 +374,7 @@ export function TanStackDataGrid<TData extends object>({
                           if (cell.column.id === '__select__') {
                             return (
                               <div key={cell.id} className="flex items-center justify-between">
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                {renderCellContent(cell)}
                               </div>
                             );
                           }
@@ -349,7 +384,7 @@ export function TanStackDataGrid<TData extends object>({
                             <div key={cell.id} className="flex items-start justify-between gap-3 text-xs">
                               <span className="text-[var(--muted)] font-semibold shrink-0">{label}</span>
                               <div className="text-right text-[var(--text)] min-w-0">
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                {renderCellContent(cell)}
                               </div>
                             </div>
                           );
@@ -364,7 +399,7 @@ export function TanStackDataGrid<TData extends object>({
           {filteredRows.length > 0 && cardFooterContent}
         </div>
       ) : (
-        <div role="region" aria-label={caption} tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs">
+        <div role="region" aria-label={caption} tabIndex={0} className="lg:overflow-auto lg:max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs">
           <table className="w-full text-start border-collapse">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10">
@@ -432,7 +467,7 @@ export function TanStackDataGrid<TData extends object>({
                     >
                       {row.getVisibleCells().map(cell => (
                         <td key={cell.id} className="px-4 py-3 text-xs text-[var(--text)] font-medium">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {renderCellContent(cell)}
                         </td>
                       ))}
                     </tr>

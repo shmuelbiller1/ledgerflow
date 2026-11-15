@@ -5,6 +5,7 @@ import { calculateAmountDue } from '../../lib/documentMath';
 import { formatCurrency, formatDate, getLocalDateISO, parseLocalDate, safeConfirm } from '../../lib/utils';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { approvalDetail, approvalStatus, holdsSending } from '../../lib/invoiceApproval';
+import { isPostable } from '../../lib/txFilters';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -77,12 +78,18 @@ export default function InvoiceRecordPage({
 
   const linkedTx = useMemo<Transaction | undefined>(() => {
     if (!invoice) return undefined;
-    return (transactions || []).find(t => {
+    // Only a live entry may be shown as the invoice's posting: a void or draft entry is not in the ledger
+    // (CLAUDE.md: ledger computations go through isPostable).
+    const postable = (transactions || []).filter(isPostable);
+    const byDocument = postable.find(t => {
       if (invoice.transactionId && t.id === invoice.transactionId) return true;
       const meta = t.metadata as Record<string, unknown> | undefined;
-      if (meta && (meta.invoiceId === invoice.id || meta.sourceId === invoice.id || meta.documentId === invoice.id)) return true;
-      return Boolean(invoice.number && t.reference === invoice.number);
+      return Boolean(meta && (meta.invoiceId === invoice.id || meta.sourceId === invoice.id || meta.documentId === invoice.id));
     });
+    // The reference is the weakest link: a bill, payment or journal entry can carry the same number, so it
+    // only answers when nothing ties the invoice id to an entry.
+    if (byDocument) return byDocument;
+    return invoice.number ? postable.find(t => t.reference === invoice.number) : undefined;
   }, [transactions, invoice]);
 
   const historyItems = useMemo(() => {

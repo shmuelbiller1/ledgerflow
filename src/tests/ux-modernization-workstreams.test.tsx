@@ -343,3 +343,93 @@ describe('Workstream 6: PageIndex disabled modules, CommandPalette inventory sea
     assert.equal(screen.queryByText(/world:realestate/), null);
   });
 });
+
+describe('InvoiceRecordPage: the linked posting is a live entry', () => {
+  const renderPage = () => render(
+    <InvoiceRecordPage
+      invoiceId="inv-postable"
+      onBack={() => {}}
+      onEdit={() => {}}
+      onSendEmail={() => {}}
+      onReceivePayment={() => {}}
+      onPreviewPdf={() => {}}
+      onDownloadPdf={() => {}}
+      onVoid={() => {}}
+      onOpenCustomer={() => {}}
+    />,
+  );
+
+  beforeEach(() => {
+    useUIStore.setState({ language: 'en' });
+    setComponentWorkspace();
+    stubFetch(404);
+    markComponentCollectionsLoaded('customers', 'invoices', 'payments', 'transactions', 'auditLogs');
+    useLedgerStore.setState({
+      customers: [{ id: 'c1', uid: 'test-user', workspaceId: 'component-workspace', name: 'Acme Corp', status: 'active' }],
+      payments: [],
+      auditLogs: [],
+      invoices: [{
+        id: 'inv-postable', uid: 'test-user', workspaceId: 'component-workspace', customerId: 'c1',
+        customerName: 'Acme Corp', number: '1042', amountCents: 15000, date: '2026-10-01', dueDate: '2026-10-30', status: 'sent',
+        items: [{ id: 'li-1', description: 'Consulting', quantity: 1, rateCents: 15000, amountCents: 15000, accountId: 'acc-sales' }],
+      }],
+      transactions: [
+        // a voided entry numbered like the invoice must never stand in for its posting
+        makeTransaction({ id: 'tx-void', workspaceId: 'component-workspace', date: '2026-10-01', description: 'Voided entry',
+          reference: '1042', status: 'void', totalAmountCents: 15000,
+          lines: [{ accountId: 'acc-ar', debitCents: 15000, creditCents: 0, amountCents: 15000 }] }),
+        // and a draft one either
+        makeTransaction({ id: 'tx-draft', workspaceId: 'component-workspace', date: '2026-10-01', description: 'Draft entry',
+          reference: '1042', status: 'draft', totalAmountCents: 15000,
+          lines: [{ accountId: 'acc-ar', debitCents: 15000, creditCents: 0, amountCents: 15000 }] }),
+        makeTransaction({ id: 'tx-live', workspaceId: 'component-workspace', date: '2026-10-01', description: 'AR Inv #1042',
+          reference: '1042', totalAmountCents: 15000, metadata: { invoiceId: 'inv-postable' },
+          lines: [{ accountId: 'acc-ar', debitCents: 15000, creditCents: 0, amountCents: 15000 }] }),
+      ],
+    });
+  });
+  afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
+
+  test('shows the live entry, never a void or draft one with the same reference', () => {
+    renderPage();
+    assert.ok(screen.getByText('AR Inv #1042'), 'the live entry is shown');
+    assert.equal(screen.queryByText('Voided entry'), null, 'a void entry is not the invoice posting');
+    assert.equal(screen.queryByText('Draft entry'), null, 'a draft entry is not the invoice posting');
+  });
+
+  test('a reference match alone does not show another document numbered the same', () => {
+    useLedgerStore.setState({
+      transactions: [
+        makeTransaction({ id: 'tx-bill', workspaceId: 'component-workspace', date: '2026-10-01', description: 'Bill 1042 from the same vendor',
+          reference: '1042', totalAmountCents: 15000,
+          lines: [{ accountId: 'acc-ap', debitCents: 0, creditCents: 15000, amountCents: 15000 }] }),
+        makeTransaction({ id: 'tx-invoice', workspaceId: 'component-workspace', date: '2026-10-01', description: 'AR Inv #1042',
+          reference: '1042', totalAmountCents: 15000, metadata: { invoiceId: 'inv-postable' },
+          lines: [{ accountId: 'acc-ar', debitCents: 15000, creditCents: 0, amountCents: 15000 }] }),
+      ],
+    });
+    renderPage();
+    assert.ok(screen.getByText('AR Inv #1042'));
+    assert.equal(screen.queryByText('Bill 1042 from the same vendor'), null);
+  });
+});
+
+describe('TanStackDataGrid: page size follows the list', () => {
+  type Row = { id: string; name: string };
+  const columns: ColumnDef<Row, unknown>[] = [{ id: 'name', header: 'Name', cell: ({ row }) => row.original.name }];
+  const base: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: `r${i}`, name: `Row ${i}` }));
+  const deep: Row = { id: 'deep', name: 'Deep link row' };
+
+  test('a deep-linked row kept on the first page still renders, and Show more reaches the rest', () => {
+    // Purchases keeps the focused bill as the first row of the sliced list; the page must show it.
+    const sliced = [deep, ...base.slice(0, 99)];
+    const { rerender } = render(<TanStackDataGrid caption="Bills" data={sliced} columns={columns} pageSize={100} hidePaginationOnSinglePage />);
+    assert.ok(screen.getByText('Deep link row'), 'the focused row is on the page shown');
+
+    // 'Show more bills' raises pageSize; the extra rows land on the page the reader is on, not page 2.
+    rerender(<TanStackDataGrid caption="Bills" data={[...sliced, base[99]]} columns={columns} pageSize={150} hidePaginationOnSinglePage />);
+    assert.ok(screen.getByText('Deep link row'));
+    assert.ok(screen.getByText('Row 99'), 'the row added by Show more is rendered');
+    assert.equal(screen.queryByRole('button', { name: 'Next page' }), null, 'no second page is needed');
+  });
+});

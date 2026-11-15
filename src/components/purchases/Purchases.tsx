@@ -110,14 +110,16 @@ export default function Purchases() {
   }, [bills, searchTerm]);
 
   const [billLimit, setBillLimit] = useState(100);
+  /**
+   * The focused bill (a `#purchases/bill/<id>` link) is moved to the front, not appended as row 101: the grid
+   * pages at `billLimit`, so an appended row would sit on a page nobody turns to and the link would scroll to
+   * nothing. Front keeps it on the first page, where the link lands.
+   */
   const visibleBills = useMemo(() => {
-    if (filteredBills.length <= billLimit) return filteredBills;
-    const sliced = filteredBills.slice(0, billLimit);
-    if (focusedBillId && !sliced.some(b => b.id === focusedBillId)) {
-      const focused = filteredBills.find(b => b.id === focusedBillId);
-      if (focused) sliced.push(focused);
-    }
-    return sliced;
+    const focused = focusedBillId ? filteredBills.find(b => b.id === focusedBillId) : undefined;
+    const rest = focused ? filteredBills.filter(b => b.id !== focused.id) : filteredBills;
+    const sliced = rest.slice(0, Math.max(billLimit - (focused ? 1 : 0), 0));
+    return focused ? [focused, ...sliced] : sliced;
   }, [filteredBills, billLimit, focusedBillId]);
 
   const [vendorTag, setVendorTag] = useState<string | null>(null);
