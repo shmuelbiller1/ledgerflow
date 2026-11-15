@@ -739,6 +739,29 @@ Update the RELEASE_GATE row you move. Full wording of each task is in `docs/TRAC
 - [ ] **CON-4b (P2, stage C)** From the tracker: the Israeli VAT return record carries its registration; check Eilat s.5 subsections and the PCN874 bi-monthly header month.
 Phase 5 (FIFO/lot costing) waits for the owner (FOR_YOU 21 Oct).
 
+**Screen rebuild, second slice (AI #9, 15 Nov — prompt 2 parts 1 and 5).** The review of the first slice named three
+gaps; this slice closes them and starts the counters.
+
+- **Keyboard movement in the shared list** (`src/lib/rowKeyboardNav.ts`, `TanStackDataGrid.tsx`): the list is one
+  keyboard region; the arrow keys and Home/End move a logical highlight, the page does not scroll as well, Tab is
+  never swallowed, and keys pressed in a button or a tick box inside a row stay with it. Rows are deliberately not
+  tab stops (the repo's `no-noninteractive-tabindex` rule; `TransactionGridKeyboardRegion` does the same). A polite
+  live region says "Row 2 of 3: Invoice 1042, Acme Corp". `src/tests/grid-row-keyboard.test.tsx` (13 tests).
+- **Reachability that means something** (`src/tests/palette-reachability-guard.test.ts`): every registered screen,
+  report and settings tab is in `pageIndex`, found by name in English and Hebrew, and every palette command names an
+  action the dispatcher knows. This found a real hole: seven screens (Audit checks, Time Machine, Tax Manager,
+  Consolidation, Assisted Entry, Ask Ledger, the Architecture Map) were not in the search box at all, and the Admin
+  Panel never was. All are now listed; the Admin Panel only in developer mode.
+- **Plain words find reports**: search folds "&" to "and" and drops punctuation, so "profit and loss", "income
+  statement", "who owes me" and "who do i owe" reach the right report. Search-only: stored labels and ids are untouched.
+- **The five counters** (`quality-baseline.json`, `scripts/quality-metrics.ts`, `docs/UI_REBUILD_RATCHETS.md`):
+  `unreachableActions` 0, `screensWithManyPrimaryButtons` 19, `handTypedApiCalls` 170, `rawTables` 196,
+  `directDbWrites` 15. Each is proven to fire by `src/tests/interface-ratchets.test.ts`, which builds a throwaway
+  tree with the old pattern in it and expects the number to rise.
+- **Next, in this order**: the same grid on Transactions, Bank review, Customers and Vendors (codemod); a footer row
+  in the shared list so the 100+ report screens can leave their own `<tfoot>` behind; then `useCommand`, which needs
+  CMD-1's generated client.
+
 
 ## AI #10: tasks (spare queue for the next AI; written by Claude, 22 Oct)
 

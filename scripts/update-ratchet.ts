@@ -18,6 +18,11 @@ function updateBaseline() {
     suppressionCount: Infinity,
     untestedViews: Infinity,
     overlaysWithoutDialog: Infinity,
+    rawTables: Infinity,
+    handTypedApiCalls: Infinity,
+    directDbWrites: Infinity,
+    unreachableActions: Infinity,
+    screensWithManyPrimaryButtons: Infinity,
   };
 
   if (fs.existsSync(baselinePath)) {
