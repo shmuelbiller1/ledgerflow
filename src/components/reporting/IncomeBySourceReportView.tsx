@@ -3,6 +3,10 @@ import { formatCurrency } from '../../lib/utils';
 import { useServerIncomeBySource } from '../../hooks/useServerIncomeBySource';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { TrendingUp } from 'lucide-react';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import { csvMoney } from '../../lib/csvExport';
+import type { ColumnDef } from '@tanstack/react-table';
 
 interface Props {
   selectedYear?: number;
@@ -20,6 +24,26 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
 
   // L-123 step 4e: with the loaded lists capped, the breakdown comes from the server (every entry of the range)
   const { sources: breakdowns, source } = useServerIncomeBySource(start, end);
+
+  /** One row per customer or source: how much came in, and what share of the period it is. */
+  const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
+    { id: 'source', accessorFn: row => row.source, header: 'Customer / Revenue Source', cell: info => (
+      <span className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+        <bdi>{String(info.getValue())}</bdi>
+      </span>
+    ) },
+    { id: 'count', accessorFn: row => row.transactionCount, header: 'Invoices / Entries', cell: info => <span className="font-mono">{String(info.getValue())}</span> },
+    { id: 'share', accessorFn: row => row.percentage, header: 'Revenue Contribution', cell: info => (
+      <span className="flex items-center justify-end gap-2">
+        <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+          <span className="block bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
+        </span>
+        <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
+      </span>
+    ) },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: 'Total Inflow', cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
+  ];
 
   const totalIncomeCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
@@ -47,56 +71,26 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
 
       <RangeReportSourceNote source={source} testId="income-source-source" />
 
-      {breakdowns.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 text-neutral-500 text-xs">
-          No posted revenue transactions found for the selected period.
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden shadow-xs">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Income by source</caption>
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">Customer / Revenue Source</th>
-                <th scope="col" className="py-3 px-4 text-center">Invoices / Entries</th>
-                <th scope="col" className="py-3 px-4 text-right">Revenue Contribution</th>
-                <th scope="col" className="py-3 px-4 text-right">Total Inflow</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {breakdowns.map(item => (
-                <tr key={item.source} className="hover:bg-neutral-50/80 transition-colors">
-                  <td className="py-3 px-4 font-medium text-neutral-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span>{item.source}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center text-neutral-600 font-mono">
-                    {item.transactionCount}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-emerald-500 h-full rounded-full"
-                          style={{ width: `${Math.min(100, item.percentage)}%` }}
-                        />
-                      </div>
-                      <span className="font-mono text-neutral-700 w-12 text-right">
-                        {item.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-600">
-                    {formatCurrency(item.totalAmountCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TanStackDataGrid
+        caption="Income by source"
+        data={breakdowns}
+        columns={columns}
+        rowHeaderColumn="source"
+        pageSize={25}
+        searchPlaceholder="Search customers and sources..."
+        searchLabel="Search customers and sources"
+        columnScope="report-income-by-source"
+        columnLabel="Income by source columns"
+        columnNames={['Customer / Revenue Source', 'Invoices / Entries', 'Revenue Contribution', 'Total Inflow']}
+        exportConfig={{
+          filename: 'income-by-source.csv',
+          label: 'Export CSV',
+          headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
+          mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+        }}
+        emptyState={<EmptyState title="No income in this period" description="Try a wider period." />}
+        filteredEmptyState={<EmptyState title="No source matches your search" description="Try another customer name." />}
+      />
     </div>
   );
 };
