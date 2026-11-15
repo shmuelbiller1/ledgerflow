@@ -342,7 +342,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   value={invoice.customerName || invoice.customerId || ''}
                   onChange={(e) => {
                     // the existing customer the typed name means (exact first; a capitals/spaces match only when it is the only one)
-                    const cust = matchPartyByName(safeCustomers, e.target.value).party;
+                    const cust = matchPartyByName(safeCustomers, e.target.value, [initialInvoice?.customerId]).party;
                     // a new invoice starts in the customer's currency (Y-22); an existing one keeps its own
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};

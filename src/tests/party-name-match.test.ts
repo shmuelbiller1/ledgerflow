@@ -23,3 +23,11 @@ test('an archived customer is never matched (it is restored first)', () => {
   assert.deepEqual(matchPartyByName(list, 'acme'), { ambiguous: false });
   assert.deepEqual(matchPartyByName(list, 'ACME'), { ambiguous: false });
 });
+
+test("editing an invoice keeps its own customer even after that customer was archived", () => {
+  const list = [{ id: 'old', name: 'ACME', status: 'archived' }];
+  assert.equal(matchPartyByName(list, 'ACME', ['old']).party?.id, 'old');
+  assert.equal(matchPartyByName(list, 'acme', ['old']).party?.id, 'old');
+  assert.deepEqual(matchPartyByName(list, 'ACME', ['other']), { ambiguous: false });
+});
+

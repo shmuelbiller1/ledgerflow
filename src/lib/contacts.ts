@@ -118,9 +118,10 @@ export function isArchivedParty(party: { status?: string }): boolean {
  * (they are restored first). `ambiguous` is true when several match loosely and the person must pick.
  */
 export function matchPartyByName<T extends { id: string; name?: string; status?: string; metadata?: unknown }>(
-  parties: readonly T[], typed: string,
+  parties: readonly T[], typed: string, keepIds: readonly (string | undefined)[] = [],
 ): { party?: T; ambiguous: boolean } {
-  const live = parties.filter(p => !isArchivedParty(p));
+  // `keepIds`: archived parties still offered, e.g. the customer an invoice being edited already has
+  const live = parties.filter(p => !isArchivedParty(p) || keepIds.includes(p.id));
   const exact = live.find(p => p.id === typed || p.name === typed);
   if (exact) return { party: exact, ambiguous: false };
   const key = typed.trim().toLocaleLowerCase();
