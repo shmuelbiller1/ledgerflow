@@ -87,6 +87,9 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect.poll(async () => (await server.all('customers')).some(c => c.name === 'Acme Corp')).toBe(true);
 
     // ---- 2. Send an invoice ----------------------------------------------------------------------
+    // The customer the person just created has to be in the screen's list, or the invoice form tries to
+    // create a second one inline and the save is refused. A real client refreshes after a write.
+    await server.refresh(page);
     await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
     // Sales opens on Invoices. Adding a customer leaves you on the customer list (correctly), so the
     // next step is the same second tab a person presses to get back to the invoice list.
@@ -123,8 +126,15 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect(sendInvoice).toBeFocused();
     await page.keyboard.press('Enter');
 
-    // If the form refused, say what it said rather than timing out with no reason.
-    await expect(invoice, 'the invoice form closes when the server takes it')
+    // If the form refused, say what it said rather than timing out with no reason. The form keeps the
+    // draft open and puts the reason on screen (a field alert or a toast), so the message is right there.
+    const refusal = await invoice.evaluate(dialog => {
+      const alerts = Array.from(dialog.querySelectorAll('[role="alert"]')).map(node => (node.textContent || '').trim());
+      const toast = Array.from(document.querySelectorAll('[data-sonner-toast], li[role="status"]'))
+        .map(node => (node.textContent || '').trim());
+      return [...alerts, ...toast].filter(Boolean).join(' | ');
+    }).catch(() => '');
+    await expect(invoice, `the invoice form closes when the server takes it. On screen: ${refusal || 'nothing said'}`)
       .toHaveCount(0, { timeout: 20000 });
 
     await expect.poll(() => postings.length).toBeGreaterThanOrEqual(1);
