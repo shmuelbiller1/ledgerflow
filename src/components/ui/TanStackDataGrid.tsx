@@ -593,6 +593,7 @@ export function TanStackDataGrid<TData extends object>({
                         {canSort ? (
                           <button
                             type="button"
+                            data-grid-sort-header
                             onClick={header.column.getToggleSortingHandler()}
                             className="flex items-center gap-1.5 uppercase font-bold tracking-wider cursor-pointer text-[var(--text)]"
                           >

@@ -37,6 +37,14 @@ export default function BankClearanceReportView() {
   const money = (cents: number) => formatCurrency(cents, currency);
   const clearedText = (row: ClearanceRow) =>
     row.clearedOn === null || (row.clearedOn && row.clearedOn > to) ? 'Outstanding' : row.clearedOn ? formatDate(row.clearedOn) : 'Reconciled';
+  /**
+   * The order the Cleared column sorts in: reconciled entries, then the dates, then outstanding ones.
+   * An entry that cleared after the period reads as outstanding, and `clearedOn` is `null` for an
+   * outstanding entry but `''` for one reconciled with no date, so the state comes from `clearedText`
+   * — the same rule the cell prints.
+   */
+  const clearedSortKey = (row: ClearanceRow) =>
+    clearedText(row) === 'Outstanding' ? '2Outstanding' : row.clearedOn ? `1${row.clearedOn}` : '0Reconciled';
 
   const clearanceColumns: ColumnDef<ClearanceRow, unknown>[] = [
     { id: 'date', accessorFn: row => row.date, header: 'Date', cell: info => <span className="font-mono text-xs">{formatDate(String(info.getValue()))}</span> },
@@ -50,11 +58,13 @@ export default function BankClearanceReportView() {
     /**
      * Sorted on the stored date, with the two states on either side of the dates: sorting the printed
      * date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of month.
-     * The key is built from the same rule `clearedText` uses — an entry that cleared after the period
-     * reads as Outstanding, and `clearedOn` is `null` for outstanding but `''` for a reconciled entry
-     * with no date — so the states do not split across the dates. Display keeps using `clearedText`.
+     * Two jobs, kept apart. Sorting follows the stored date with the two states on either side
+     * (`clearedSortKey`), because sorting the printed date put "Feb 01, 2026" before "Jan 20, 2026".
+     * Searching follows the words on screen (`clearedText`), so typing "Outstanding" finds every
+     * outstanding entry — including the ones that cleared after the period — and "Reconciled" does
+     * not also return them.
      */
-    { id: 'cleared', accessorFn: row => (clearedText(row) === 'Outstanding' ? '2Outstanding' : row.clearedOn ? `1${row.clearedOn}` : '0Reconciled'), sortingFn: 'text', header: 'Cleared', cell: info => {
+    { id: 'cleared', accessorFn: row => `${clearedText(row)} ${clearedSortKey(row)}`, sortingFn: 'text', header: 'Cleared', cell: info => {
       // the cell prints the record's own state; only the sort key carries the stored date
       const text = clearedText(info.row.original as ClearanceRow);
       return text === 'Outstanding' ? <span className="text-amber-700 dark:text-amber-400">{text}</span> : <span className="text-xs">{text}</span>;

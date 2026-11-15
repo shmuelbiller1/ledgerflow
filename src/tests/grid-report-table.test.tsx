@@ -13,11 +13,14 @@
 import './helpers/dom';
 import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../components/ui/TanStackDataGrid';
 import ListColumnChooser from '../components/ui/ListColumnChooser';
+import { listColumnKey } from '../lib/listColumns';
 
 type Row = { id: string; name: string; amountCents: number };
 const data: Row[] = [
@@ -140,8 +143,9 @@ describe('the review findings on the shared list stay fixed', () => {
     render(<ListColumnChooser scope="on-review" label="On review" columns={['Date', 'Entry', 'In', 'Out', 'Cleared']} lockedColumns={props.locked} />);
 
   test('a locked row-header column cannot be hidden, and an older saved choice is not honoured', () => {
-    // pretend the reader hid the Entry column (index 1) before the lock existed
-    localStorage.setItem('ledgerflow.listColumns.guest.none.On review', JSON.stringify([1]));
+    // the reader hid the Entry column (index 1) before the lock existed, saved under the chooser's
+    // real key — an unrelated key would leave the chooser empty and this test would pass regardless
+    localStorage.setItem(listColumnKey('guest', 'none', 'On review'), JSON.stringify([1]));
     chooserRender({ locked: [1] });
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
     assert.equal(boxes[1].disabled, true, 'the column that names each row is locked');
@@ -217,5 +221,28 @@ describe('the review findings on the shared list stay fixed', () => {
     assert.equal(document.querySelectorAll('tbody tr').length, 30, 'the printed page carries all of them');
     window.dispatchEvent(new (window as unknown as { Event: typeof Event }).Event('afterprint'));
     assert.equal(document.querySelectorAll('tbody tr').length, 10, 'and the reader is back on their page');
+  });
+});
+
+describe('the second review pass', () => {
+  afterEach(() => cleanup());
+
+  test('a sortable column heading is a labelled button that survives printing', () => {
+    render(<TanStackDataGrid caption="Aging" data={data} columns={columns} />);
+    // every sortable heading is a button, and `@media print { button { display: none } }` would take
+    // the labels with it — so the heading button carries the marker the print rule re-enables
+    const sortButton = screen.getByRole('button', { name: /Customer/ });
+    assert.ok(sortButton.hasAttribute('data-grid-sort-header'), 'the heading is marked for print');
+    const css = fs.readFileSync(path.join(process.cwd(), 'src/index.css'), 'utf8');
+    assert.match(css, /\[data-grid-sort-header\]\s*\{\s*display:\s*inline-flex\s*!important/, 'and print shows it again');
+    assert.match(css, /\[data-grid-sort-header\]\s*svg\s*\{\s*display:\s*none\s*!important/, 'while the chevron stays hidden');
+  });
+
+  test('a status the cell prints is the status the search finds', () => {
+    // the clearance column puts the printed words and the sort key in one value, so both work:
+    // searching "Outstanding" must not need the reader to know it sorts as "2Outstanding"
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/components/reporting/BankClearanceReportView.tsx'), 'utf8');
+    assert.match(source, /accessorFn: row => `\$\{clearedText\(row\)\} \$\{clearedSortKey\(row\)\}`/,
+      'the searchable value is the printed text plus the sort key, kept apart');
   });
 });
