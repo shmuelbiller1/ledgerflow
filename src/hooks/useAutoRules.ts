@@ -7,6 +7,8 @@ import { describeError } from '../lib/errorRemedies';
 import { useCurrentRole } from './useCurrentRole';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { useEntityOperations } from './useEntityOperations';
 import type { AutoRule, Transaction } from '../types';
 
 /**
@@ -39,10 +41,12 @@ const fail = (err: unknown) => {
   const described = describeError(err, 'update');
   toast.error(described.title, { description: described.remedy });
 };
+const isLocalSampleWorkspace = (workspaceId: string | null | undefined) => Boolean(guestSession()) || workspaceId === SAMPLE_WORKSPACE_ID;
 
 export function useAutoRules() {
   const user = useAuthStore(s => s.user);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const { runCommand } = useEntityOperations();
 
   const role = useCurrentRole();
   const canManageRules = role !== 'viewer';
@@ -77,9 +81,16 @@ export function useAutoRules() {
       if (!members.length) throw new Error('This group no longer contains rules.');
       if (name && name !== groupName && allRules.some(rule => ruleGroupName(rule) === name)) throw new Error('That group already exists. Choose another name.');
       const patch = name ? { groupName: name } : { groupIsActive: change.groupIsActive };
-      const batch = writeBatch(db);
-      members.forEach(rule => batch.update(doc(db, 'autoRules', rule.id), patch));
-      await batch.commit();
+      if (isLocalSampleWorkspace(workspaceId)) {
+        const batch = writeBatch(db);
+        members.forEach(rule => batch.update(doc(db, 'autoRules', rule.id), patch));
+        await batch.commit();
+      } else {
+        await runCommand('autorule.group', {
+          groupName,
+          ...(name ? { newName: name } : { groupIsActive: change.groupIsActive }),
+        });
+      }
       if (!currentContext()) return;
       const ids = new Set(members.map(rule => rule.id));
       const cached = useLedgerStore.getState().autoRules as AutoRule[];
@@ -88,34 +99,48 @@ export function useAutoRules() {
       pending.current = false;
       setIsUpdatingGroup(false);
     }
-  }, [canManageRules, currentContext, workspaceRules]);
+  }, [canManageRules, currentContext, workspaceRules, runCommand, workspaceId]);
 
   const setRulePriority = useCallback(async (ruleId: string, priority: number) => {
     if (!currentContext()) throw new Error('Your role cannot edit rules.');
     if (!(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) throw new Error('This rule is not in the current workspace.');
     if (!Number.isSafeInteger(priority)) throw new Error('Enter a whole-number priority.');
-    await updateDoc(doc(db, 'autoRules', ruleId), { priority });
+    if (isLocalSampleWorkspace(workspaceId)) await updateDoc(doc(db, 'autoRules', ruleId), { priority });
+    else await runCommand('autorule.update', { id: ruleId, data: { priority } });
     if (!currentContext()) return;
     const rules = useLedgerStore.getState().autoRules as AutoRule[];
     useLedgerStore.getState().setAutoRules(rules.map(rule => rule.id === ruleId ? { ...rule, priority } : rule));
-  }, [currentContext, workspaceId]);
+  }, [currentContext, workspaceId, runCommand]);
 
   /** Create or replace a rule (keeps its creator and workspace when editing). */
   const saveRule = useCallback(async (rule: AutoRule): Promise<boolean> => {
     if (!user || !workspaceId || !currentContext() || pending.current) return false;
-    const existing = (useLedgerStore.getState().autoRules || []).find(r => r.id === rule.id) as AutoRule | undefined;
-    if (existing && existing.workspaceId !== workspaceId) return false;
+    const cachedExisting = (useLedgerStore.getState().autoRules || []).find(r => r.id === rule.id) as AutoRule | undefined;
+    if (cachedExisting && cachedExisting.workspaceId !== workspaceId) return false;
     pending.current = true;
     setIsUpdatingGroup(true);
-    const full = stored({ ...rule, workspaceId, uid: existing?.uid || user.uid, createdAt: existing?.createdAt || rule.createdAt || new Date().toISOString() });
     try {
-      const members = (await workspaceRules()).filter(r => ruleGroupName(r) === ruleGroupName(full));
+      const allRules = await workspaceRules();
+      const existing = cachedExisting || allRules.find(candidate => candidate.id === rule.id);
+      if (existing && existing.workspaceId !== workspaceId) return false;
+      const full = stored({ ...rule, workspaceId, uid: existing?.uid || user.uid, createdAt: existing?.createdAt || rule.createdAt || new Date().toISOString() });
+      const members = allRules.filter(candidate => ruleGroupName(candidate) === ruleGroupName(full));
       if (!currentContext()) return false;
-      full.groupIsActive = !members.some(r => r.groupIsActive === false);
-      await setDoc(doc(db, 'autoRules', full.id), full as never);
+      full.groupIsActive = !members.some(candidate => candidate.groupIsActive === false);
+      let saved = full;
+      if (isLocalSampleWorkspace(workspaceId)) {
+        await setDoc(doc(db, 'autoRules', full.id), full as never);
+      } else {
+        const { id, uid: _uid, workspaceId: _workspaceId, createdAt: _createdAt, hitCount: _hitCount, lastTriggeredAt: _lastTriggeredAt, ...data } = full;
+        const result = existing
+          ? await runCommand('autorule.update', { id, data })
+          : await runCommand('autorule.create', { rule: { id, ...data } });
+        if (result.rule && typeof result.rule === 'object') saved = result.rule as AutoRule;
+      }
       if (!currentContext()) return true;
       const rules = (useLedgerStore.getState().autoRules || []) as AutoRule[];
-      useLedgerStore.getState().setAutoRules(existing ? rules.map(r => (r.id === full.id ? full : r)) : [...rules, full]);
+      const hasCached = rules.some(candidate => candidate.id === full.id);
+      useLedgerStore.getState().setAutoRules(hasCached ? rules.map(candidate => candidate.id === full.id ? saved : candidate) : [...rules, saved]);
       return true;
     } catch (err) {
       fail(err);
@@ -124,31 +149,33 @@ export function useAutoRules() {
       pending.current = false;
       setIsUpdatingGroup(false);
     }
-  }, [user, workspaceId, currentContext, workspaceRules]);
+  }, [user, workspaceId, currentContext, workspaceRules, runCommand]);
 
   const setRuleActive = useCallback(async (ruleId: string, isActive: boolean) => {
     if (!currentContext() || !(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) return;
     try {
-      await updateDoc(doc(db, 'autoRules', ruleId), { isActive });
+      if (isLocalSampleWorkspace(workspaceId)) await updateDoc(doc(db, 'autoRules', ruleId), { isActive });
+      else await runCommand('autorule.update', { id: ruleId, data: { isActive } });
       if (!currentContext()) return;
       const rules = (useLedgerStore.getState().autoRules || []) as AutoRule[];
       useLedgerStore.getState().setAutoRules(rules.map(r => (r.id === ruleId ? { ...r, isActive } : r)));
     } catch (err) {
       fail(err);
     }
-  }, [currentContext, workspaceId]);
+  }, [currentContext, workspaceId, runCommand]);
 
   const deleteRule = useCallback(async (ruleId: string) => {
     if (!currentContext() || !(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) return;
     try {
-      await deleteDoc(doc(db, 'autoRules', ruleId));
+      if (isLocalSampleWorkspace(workspaceId)) await deleteDoc(doc(db, 'autoRules', ruleId));
+      else await runCommand('autorule.delete', { id: ruleId });
       if (!currentContext()) return;
       const rules = (useLedgerStore.getState().autoRules || []) as AutoRule[];
       useLedgerStore.getState().setAutoRules(rules.filter(r => r.id !== ruleId));
     } catch (err) {
       fail(err);
     }
-  }, [currentContext, workspaceId]);
+  }, [currentContext, workspaceId, runCommand]);
 
   /**
    * Run the rules over existing transactions and save what they change, as the dry run shows it.
@@ -200,20 +227,34 @@ export function useAutoRules() {
           toast.info('Account changes were saved. Reload to see the latest entries.');
         }
       }
-      const now = new Date().toISOString();
-      await Promise.all(Object.entries(dry.summary.rulesTriggered).map(([ruleId, hits]) => {
-        const rule = rules.find(r => r.id === ruleId);
-        return rule && hits > 0
-          ? updateDoc(doc(db, 'autoRules', ruleId), { hitCount: (rule.hitCount || 0) + hits, lastTriggeredAt: now }).catch(() => undefined)
-          : undefined;
-      }));
+      const hitUpdates = Object.entries(dry.summary.rulesTriggered).flatMap(([ruleId, hits]) =>
+        rules.some(rule => rule.id === ruleId) && hits > 0 ? [{ id: ruleId, hits }] : [],
+      );
+      if (hitUpdates.length) {
+        if (isLocalSampleWorkspace(workspaceId)) {
+          const now = new Date().toISOString();
+          await Promise.all(hitUpdates.map(({ id, hits }) => {
+            const rule = rules.find(candidate => candidate.id === id);
+            return rule ? updateDoc(doc(db, 'autoRules', id), { hitCount: (rule.hitCount || 0) + hits, lastTriggeredAt: now }).catch(() => undefined) : undefined;
+          }));
+        } else {
+          try {
+            const result = await runCommand('autorule.recordhits', { rules: hitUpdates });
+            if (currentContext() && Array.isArray(result.updated)) {
+              const changed = new Map((result.updated as Array<{ id: string; hitCount: number; lastTriggeredAt: string }>).map(item => [item.id, item]));
+              const cached = useLedgerStore.getState().autoRules as AutoRule[];
+              useLedgerStore.getState().setAutoRules(cached.map(rule => changed.has(rule.id) ? { ...rule, ...changed.get(rule.id)! } : rule));
+            }
+          } catch { /* Match counters are best-effort; transaction writes have already succeeded. */ }
+        }
+      }
       return changes.length || updates.length;
     } catch (err) {
       if (currentContext()) setApplyError(err instanceof Error ? err.message : 'The changes were not saved.');
       fail(err);
       return 0;
     } finally { applying.current = false; }
-  }, [user, workspaceId, currentContext]);
+  }, [user, workspaceId, currentContext, runCommand]);
 
   return { saveRule, setRuleActive, deleteRule, applyToExisting, updateGroup, setRulePriority, isUpdatingGroup, applyError };
 }

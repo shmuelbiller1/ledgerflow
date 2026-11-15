@@ -24,7 +24,7 @@ import { workspaceRouter } from "./src/server/routes/workspaceRoutes";
 import { invitePublicRouter } from "./src/server/routes/invitePublicRoutes";
 import { emailWebhookRouter } from "./src/server/routes/emailRoutes";
 import { publicInvoiceRouter } from "./src/server/routes/publicInvoiceRoutes";
-import { transactionRouter } from "./src/server/routes/transactionRoutes";
+import { commandRouter, transactionRouter } from "./src/server/routes/kernelRoutes";
 import { revenueRouter } from "./src/server/routes/revenueRoutes";
 import { consolidationRouter } from "./src/server/routes/consolidationRoutes";
 import { leaseRouter } from "./src/server/routes/leaseRoutes";
@@ -135,7 +135,7 @@ async function buildApp(): Promise<{ app: express.Express; port: number }> {
   app.use("/api/v1/reports", apiAuthenticate, reportRouter);
   app.use("/api/v1/workspaces", apiAuthenticate, workspaceRouter);
   app.use("/api/v1/account", apiAuthenticate, accountRouter);
-  app.use("/api/v1/transactions", apiAuthenticate, transactionRouter);
+  app.use("/api/v1/commands", apiAuthenticate, commandRouter).use("/api/v1/transactions", apiAuthenticate, transactionRouter);
   app.use("/api/v1/revenue", apiAuthenticate, revenueRouter);
   app.use("/api/v1/consolidation", apiAuthenticate, consolidationRouter);
   app.use("/api/v1/lease", apiAuthenticate, leaseRouter);

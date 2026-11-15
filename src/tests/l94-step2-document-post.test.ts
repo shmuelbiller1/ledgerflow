@@ -19,6 +19,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { postInvoiceLedger } from '../services/ledgerPost/invoicePosting';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
+import { deletePostings } from '../services/ledgerPost/deletePostings';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from '../services/ledgerPost/postingCore';
 import { postingFingerprint } from './helpers/postingShadowCheck';
 import { openingBalanceDocument } from '../lib/partyOpeningBalance';
@@ -64,8 +65,22 @@ describe('L-94 step 2: invoices and bills posted by the server', { skip: !url &&
     else await postBillLedger(data.id!, data as Bill, ws, OWNER, mutation, context);
     return context.capture!.flatMap(c => c.txs);
   };
+  const browserDelete = async (type: 'invoices' | 'bills', docId: string): Promise<PostableTransaction[]> => {
+    const key = type === 'invoices' ? 'invoiceId' : 'billId';
+    const context: LedgerPostContext = { accounts, workspaces: [workspace], transactions: await entriesOf(key, docId), inventory: [], lockDate: null, uid: OWNER, today: '2026-10-21', capture: [] };
+    await deletePostings(docId, key, ws, { collection: type, docId, action: 'delete' }, context);
+    return context.capture!.flatMap(c => c.txs);
+  };
   const post = async (uid: string, type: string, id: string, body: Record<string, unknown>, key = crypto.randomUUID()) => {
     const res = await fetch(`${base}/api/v1/documents/${type}/${id}/post`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': key }, body: JSON.stringify(body) });
+    return { status: res.status, body: await res.json() as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  const command = async (uid: string, name: string, input: Record<string, unknown>, preview = false, key: string = crypto.randomUUID()) => {
+    const res = await fetch(`${base}/api/v1/commands/${name}${preview ? '/preview' : ''}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': key },
+      body: JSON.stringify({ workspaceId: ws, input }),
+    });
     return { status: res.status, body: await res.json() as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
   const rows = (txs: Array<Pick<Transaction, 'date' | 'lines'>>, account: string) => postingFingerprint(txs).filter(r => r.includes(`|${ws}_${account}|`)).map(r => Number(r.split('|')[2])).sort((a, b) => a - b);
@@ -77,10 +92,12 @@ describe('L-94 step 2: invoices and bills posted by the server', { skip: !url &&
     for (const a of accounts) await db.collection('chartAccounts').doc(a.id).set(a as unknown as Record<string, unknown>);
     const express = (await import('express')).default;
     const { documentRouter } = await import('../server/routes/documentRoutes');
+    const { commandRouter } = await import('../server/routes/commandRoutes');
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
     app.use('/api/v1/documents', documentRouter);
+    app.use('/api/v1/commands', commandRouter);
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
@@ -94,6 +111,62 @@ describe('L-94 step 2: invoices and bills posted by the server', { skip: !url &&
   });
 
   const inv1 = `${ws}_inv1`;
+
+  test('invoice.create and bill.create preview without writes and commit the existing posting builders in the runner transaction', async () => {
+    const invoiceId = `${ws}_command_invoice`;
+    const invoiceData = invoice(2, invoiceId);
+    const invoiceExpected = postingFingerprint(await browserBuild('invoices', invoiceData, 'create'));
+    const invoicePreview = await command(OWNER, 'invoice.create', { invoice: invoiceData }, true);
+    assert.equal(invoicePreview.status, 200, JSON.stringify(invoicePreview.body));
+    const invoicePreviewBody = invoicePreview.body as { preview: { accounts: Array<{ accountId: string; amountCents: number }> } };
+    assert.deepEqual(invoicePreviewBody.preview.accounts.map(line => [line.accountId, line.amountCents]).sort(),
+      invoiceExpected.map(line => { const [, accountId, cents] = line.split('|'); return [accountId, Number(cents)]; }).sort());
+    assert.equal((await db.collection('invoices').doc(invoiceId).get()).exists, false, 'preview never saves the document');
+
+    const invoiceRun = await command(OWNER, 'invoice.create', { invoice: invoiceData }, false, 'cmd-invoice-create');
+    assert.equal(invoiceRun.status, 200, JSON.stringify(invoiceRun.body));
+    const invoiceResult = invoiceRun.body as { data: { transactions: Transaction[]; documentId: string } };
+    assert.equal(invoiceResult.data.documentId, invoiceId);
+    assert.deepEqual(postingFingerprint(invoiceResult.data.transactions), invoiceExpected);
+    assert.deepEqual(postingFingerprint(await entriesOf('invoiceId', invoiceId)), invoiceExpected);
+
+    const billId = `${ws}_command_bill`;
+    const billData = bill(billId);
+    const billExpected = postingFingerprint(await browserBuild('bills', billData, 'create'));
+    const billPreview = await command(OWNER, 'bill.create', { bill: billData }, true);
+    assert.equal(billPreview.status, 200, JSON.stringify(billPreview.body));
+    assert.ok((billPreview.body as { preview: { accounts: Array<{ accountId: string; amountCents: number }> } }).preview.accounts.length > 0);
+    assert.equal((await db.collection('bills').doc(billId).get()).exists, false, 'preview never saves the bill');
+
+    const billRun = await command(OWNER, 'bill.create', { bill: billData }, false, 'cmd-bill-create');
+    assert.equal(billRun.status, 200, JSON.stringify(billRun.body));
+    const billResult = billRun.body as { data: { transactions: Transaction[]; documentId: string } };
+    assert.equal(billResult.data.documentId, billId);
+    assert.deepEqual(postingFingerprint(billResult.data.transactions), billExpected);
+    assert.deepEqual(postingFingerprint(await entriesOf('billId', billId)), billExpected);
+
+    const changedInvoice = invoice(3, invoiceId);
+    const changes = { amountCents: changedInvoice.amountCents, taxAmountCents: changedInvoice.taxAmountCents, items: changedInvoice.items };
+    const changedExpected = postingFingerprint(await browserBuild('invoices', changedInvoice, 'update'));
+    const updatePreview = await command(OWNER, 'invoice.update', { id: invoiceId, data: changes }, true);
+    assert.equal(updatePreview.status, 200, JSON.stringify(updatePreview.body));
+    assert.equal((await db.collection('invoices').doc(invoiceId).get()).data()?.amountCents, 33_000, 'update preview never saves');
+    const updateRun = await command(OWNER, 'invoice.update', { id: invoiceId, data: changes }, false, 'cmd-invoice-update');
+    assert.equal(updateRun.status, 200, JSON.stringify(updateRun.body));
+    const updatedResult = updateRun.body as { data: { transactions: Transaction[] } };
+    assert.deepEqual(postingFingerprint(updatedResult.data.transactions), changedExpected);
+    assert.equal((await db.collection('invoices').doc(invoiceId).get()).data()?.amountCents, 49_500);
+
+    const reversalExpected = postingFingerprint(await browserDelete('invoices', invoiceId));
+    const deletePreview = await command(OWNER, 'invoice.delete', { id: invoiceId }, true);
+    assert.equal(deletePreview.status, 200, JSON.stringify(deletePreview.body));
+    assert.equal((await db.collection('invoices').doc(invoiceId).get()).exists, true, 'delete preview never deletes');
+    const deleteRun = await command(OWNER, 'invoice.delete', { id: invoiceId }, false, 'cmd-invoice-delete');
+    assert.equal(deleteRun.status, 200, JSON.stringify(deleteRun.body));
+    const deletedResult = deleteRun.body as { data: { transactions: Transaction[] } };
+    assert.deepEqual(postingFingerprint(deletedResult.data.transactions), reversalExpected);
+    assert.equal((await db.collection('invoices').doc(invoiceId).get()).exists, false);
+  });
 
   test('INV-1 330.00: the server writes A/R +330.00, Sales −300.00, VAT −30.00 — the browser builder\'s very entry', async () => {
     const data = invoice(2, inv1);

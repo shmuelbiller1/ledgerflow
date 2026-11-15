@@ -11,6 +11,7 @@
     "scaffold:plugin": "node scripts/scaffold.js plugin",
     "scaffold:algo": "node scripts/scaffold.js algo",
     "scaffold:report": "node scripts/scaffold.js report",
+    "commands:generate": "tsx scripts/generate-commands.ts",
     "db:test-setup": "tsx scripts/db-test.ts setup",
     "grant-admin": "tsx scripts/grant-admin.ts",
     "dev": "tsx server.ts",

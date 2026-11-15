@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { openApiDocument } from '../server/openapi';
 import { transactionRouter } from '../server/routes/transactionRoutes';
+import { commandRouter } from '../server/routes/commandRoutes';
 import { registerApiKeysRoutes } from '../server/routes/apiKeysRoutes';
 
 test('served without sign-in as OpenAPI 3.1', async () => {
@@ -33,11 +34,19 @@ test('the entry shape is the server\'s own schema: date and balanced lines requi
   assert.equal(entry.properties.lines.items?.properties?.amountCents?.type, 'integer');
 });
 
-test('every path and method described is a real route on /api/v1/transactions', () => {
+test('every documented API path and method is registered on its router', () => {
   type Layer = { route?: { path: string; methods: Record<string, boolean> } };
-  const routes = new Set((transactionRouter.stack as Layer[]).filter(l => l.route).flatMap(l => Object.keys(l.route!.methods).map(m => `${m} ${l.route!.path}`)));
-  for (const [path, methods] of Object.entries(openApiDocument().paths)) {
-    const local = path.replace('/api/v1/transactions', '').replace(/\{(\w+)\}/g, ':$1') || '/';
+  const routers = [
+    { base: '/api/v1/transactions', router: transactionRouter },
+    { base: '/api/v1/commands', router: commandRouter },
+  ];
+  const openapi = openApiDocument();
+  for (const [path, methods] of Object.entries(openapi.paths)) {
+    const mount = routers.find(candidate => path === candidate.base || path.startsWith(`${candidate.base}/`));
+    assert.ok(mount, `${path} is not under a checked API router`);
+    const routes = new Set((mount.router.stack as Layer[]).filter(layer => layer.route)
+      .flatMap(layer => Object.keys(layer.route!.methods).map(method => `${method} ${layer.route!.path}`)));
+    const local = path.slice(mount.base.length).replace(/\{(\w+)\}/g, ':$1') || '/';
     for (const method of Object.keys(methods)) assert.ok(routes.has(`${method} ${local}`), `${method.toUpperCase()} ${path} is not a route`);
   }
 });

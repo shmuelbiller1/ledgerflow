@@ -2,10 +2,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
-import { FieldValue, isWorkspaceMemberData, type Firestore } from '../db/firestore';
+import { FieldValue, isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { InvoiceSchema, BillSchema, OrderSchema, ProjectSchema, BankLineImportSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
-import type { Transaction } from '../../types';
+import type { DimensionDefinition, Transaction } from '../../types';
 import { LedgerPostingError, prepareStockMoves } from './cogsStockService';
 import { z } from 'zod';
 import { assertPostingOpen } from '../../lib/periodLock';
@@ -54,7 +54,28 @@ export interface BulkResult {
 export type BeforeWrite = (t: Parameters<Parameters<Firestore['runTransaction']>[0]>[0], state: { existingEntity?: Record<string, unknown>; workspace?: Record<string, unknown> }) =>
   Promise<{ metadata?: Record<string, unknown>; body?: Record<string, unknown>; audit?: AuditLogEntryInput }>;
 
-export async function commitLedgerBulk(db: Firestore, user: RequestUser, request: BulkRequest, options: { idempotencyKey?: string; hashOf?: unknown; beforeWrite?: BeforeWrite } = {}): Promise<BulkResult> {
+export interface LedgerBulkPreflight {
+  /** Workspace snapshot used only for validation/preview work outside the writer transaction. */
+  workspace: Record<string, unknown>;
+  /** The same TransactionValidator output the normal bulk path computes before opening its transaction. */
+  transactions: Transaction[];
+  /** Budget calculations are intentionally done before holding a transaction connection (EG-4). */
+  budgetWarnings: BudgetWarning[];
+}
+
+export interface LedgerBulkCommitOptions {
+  idempotencyKey?: string;
+  hashOf?: unknown;
+  beforeWrite?: BeforeWrite;
+  /** Reuse a command runner's transaction instead of opening a nested transaction. */
+  transaction?: FirestoreTransaction;
+  /** Precomputed on the command's read-only prepare path, before its transaction opens. */
+  preflight?: LedgerBulkPreflight;
+  /** Defer external effects until the owning command transaction commits. */
+  afterCommit?(callback: () => Promise<void> | void): void;
+}
+
+export async function commitLedgerBulk(db: Firestore, user: RequestUser, request: BulkRequest, options: LedgerBulkCommitOptions = {}): Promise<BulkResult> {
   const { workspaceId } = request;
   let transactions = request.transactions;
   // may be absent: every use below checks it first (the request body was untyped before the move)
@@ -63,17 +84,22 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
   let bankLines = BankLineImportSchema.array().max(5000).parse(request.bankLines ?? []);
         const wsId = workspaceId || transactions?.[0]?.workspaceId;
   if (!wsId) throw new BulkRefusal(400, { error: 'Missing workspaceId' });
+  if (options.transaction && !options.preflight) {
+    throw new Error('A command-owned ledger transaction requires its read-only preflight result');
+  }
 
   if (user.developerWorkspaceId && user.developerWorkspaceId !== wsId) {
     throw new BulkRefusal(403, { error: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}` });
   }
 
-  const wsDoc = await db.collection('workspaces').doc(wsId).get();
-  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, wsId)) {
-    throw new BulkRefusal(403, { error: 'Not a member' });
+  let wsData = options.preflight?.workspace;
+  if (!wsData) {
+    const wsDoc = await db.collection('workspaces').doc(wsId).get();
+    if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, wsId)) {
+      throw new BulkRefusal(403, { error: 'Not a member' });
+    }
+    wsData = wsDoc.data();
   }
-
-  const wsData = wsDoc.data();
 
   const idempotencyKey = options.idempotencyKey;
   const scopedIdempotencyKey = idempotencyKey ? `${wsId}_${idempotencyKey}` : null;
@@ -106,7 +132,7 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
     return { body: { status: 'ok', count: 0 }, transactions: [], committed: false };
   }
 
-  if (scopedIdempotencyKey) {
+  if (scopedIdempotencyKey && !options.transaction) {
     const idempotencyDoc = await db.collection('idempotencyKeys').doc(scopedIdempotencyKey).get();
     if (idempotencyDoc.exists) {
       try { assertSameRequest(idempotencyDoc.data(), user.uid, payloadHash); } catch (err) { throw new BulkRefusal(409, { error: errorMessage(err) }); }
@@ -128,9 +154,9 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
 
   // Period lock, duplicate ID check, and account verification (TransactionValidator) for transactions
   const seenTxIds = new Set<string>();
-
-  const validatedTransactions: Transaction[] = [];
-  for (const tx of (transactions || [])) {
+  const validatedTransactions: Transaction[] = options.preflight ? [...options.preflight.transactions] : [];
+  const validationSource = options.preflight?.transactions || transactions || [];
+  for (const tx of validationSource) {
     if (tx.id) {
       if (seenTxIds.has(tx.id)) {
         throw new BulkRefusal(400, { error: `Duplicate transaction ID '${tx.id}' in bulk request payload.` });
@@ -139,13 +165,14 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
     }
     tx.uid = user.uid;
     tx.workspaceId = wsId;
-  
-    const validatedTx = await TransactionValidator.validateAndPrepare(tx, {
-      workspaceId: wsId,
-      user: { uid: user.uid, admin: user.admin },
-      wsData
-    });
-    validatedTransactions.push(validatedTx);
+    if (!options.preflight) {
+      const validatedTx = await TransactionValidator.validateAndPrepare(tx, {
+        workspaceId: wsId,
+        user: { uid: user.uid, admin: user.admin },
+        wsData
+      });
+      validatedTransactions.push(validatedTx);
+    }
   }
 
   // BF-08 step 2: a delivery's cost entries are made by the delivery (Deliver on the order), never posted directly
@@ -155,8 +182,9 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
   // Z-12: a required label whose rule refuses stops an entry a person typed without it. Entries
   // made with bank lines imported in this request are saved and listed instead: an import never stops.
   const imported = new Set(bankLines.map(b => b.matchedTransactionId).filter(Boolean));
+  const dimensions = Array.isArray(wsData?.dimensions) ? wsData.dimensions as DimensionDefinition[] : undefined;
   for (const tx of validatedTransactions) {
-    const missing = imported.has(tx.id) ? [] : refusedLabels(tx, wsData?.dimensions);
+    const missing = imported.has(tx.id) ? [] : refusedLabels(tx, dimensions);
     if (missing.length > 0) throw new BulkRefusal(400, { error: refusedLabelsMessage(missing), transactionId: tx.id, missingLabels: missing });
   }
 
@@ -166,8 +194,9 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
   // S-09: an approval asked for or decided with this save, told after it commits
   let approvalNotice: { invoiceId: string; invoice: Record<string, unknown>; event: ApprovalEvent } | null = null;
   // EG-4: the budget figures are read before the transaction (through the pool; never while it holds a connection)
-  const plannedBudgetWarnings = await budgetWarningsFor(db, wsId, wsData, validatedTransactions);
-  await db.runTransaction(async (t) => {
+  const plannedBudgetWarnings = options.preflight?.budgetWarnings
+    ?? await budgetWarningsFor(db, wsId, wsData, validatedTransactions);
+  const commit = async (t: FirestoreTransaction) => {
     approvalNotice = null;
     // Reads first
     // AUD-07: a replay is recognised first, before any other read or check, and only for the same
@@ -385,9 +414,16 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
     if (budgetWarnings.length > 0) body = { ...body, budgetWarnings };
     if (extra.audit) await writeServerAuditLog(extra.audit, { db, tx: t });
     if (idempotencyRef) t.set(idempotencyRef, { createdAt: FieldValue.serverTimestamp(), code: 200, body, workspaceId: wsId, actor: user.uid, payloadHash });
-  });
+  };
+
+  if (options.transaction) await commit(options.transaction);
+  else await db.runTransaction(commit);
 
   const notice = approvalNotice as { invoiceId: string; invoice: Record<string, unknown>; event: ApprovalEvent } | null;
-  if (notice) await notifyApproval(db, { workspaceId: wsId, ...notice, actorUid: user.uid });
+  if (notice) {
+    const sendNotice = () => notifyApproval(db, { workspaceId: wsId, ...notice, actorUid: user.uid });
+    if (options.afterCommit) options.afterCommit(sendNotice);
+    else await sendNotice();
+  }
   return { body, transactions: validatedTransactions, committed: true };
 }

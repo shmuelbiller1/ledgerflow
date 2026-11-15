@@ -133,6 +133,21 @@ beforeEach(() => {
       const id = new URL(url).searchParams.get('id')?.replace(/^eq\./, '') || '';
       return Response.json(records.has(id) ? { id, data: records.get(id) } : null);
     }
+    if (url.includes('/api/v1/commands/autorule.')) {
+      const body = JSON.parse(String(init?.body)) as { workspaceId: string; input: Record<string, unknown> };
+      calls.push({ url, body: body as unknown as Record<string, unknown> });
+      const name = url.split('/').at(-1);
+      if (name === 'autorule.create') {
+        const ruleData = body.input.rule as Partial<AutoRule>;
+        const saved = { ...ruleData, id: ruleData.id || 'created-rule', uid: 'test-user', workspaceId, createdAt: '2026-11-15T00:00:00.000Z', hitCount: 0 };
+        return Response.json({ status: 'success', command: name, data: { rule: saved }, replayed: false });
+      }
+      if (name === 'autorule.recordhits') {
+        const rules = body.input.rules as Array<{ id: string; hits: number }>;
+        return Response.json({ status: 'success', command: name, data: { updated: rules.map(item => ({ id: item.id, hitCount: item.hits, lastTriggeredAt: '2026-11-15T00:00:00.000Z' })) }, replayed: false });
+      }
+      return Response.json({ status: 'success', command: name, data: {}, replayed: false });
+    }
     if (url.includes('/rest/v1/autoRules')) return Response.json([{ id: 'account-rule', data: rule() }]);
     if (url.includes('/rpc/lf_')) { calls.push({ url, body: JSON.parse(String(init?.body)) as Record<string, unknown> }); return Response.json(null); }
     return Response.json({});
@@ -155,11 +170,13 @@ describe('Rules use the validated financial writer', () => {
     const earlier = rule({ id: 'early', action: { targetAccountId: 'savings', bankAccountId: 'bank' }, priority: 1 });
     const later = rule({ id: 'late', action: { targetAccountId: 'rent', bankAccountId: 'bank' }, priority: 2 });
     await act(async () => { assert.equal(await result.current.applyToExisting([earlier, later], [transaction()]), 1); });
-    assert.equal(calls.filter(call => call.url.includes('/api/')).length, 1);
-    assert.deepEqual(calls[0].body, { workspaceId, changes: [{ id: 'entry', bankAccountId: 'bank', toAccountId: 'rent', expectedUpdatedAt: '2026-10-01T00:00:00.000Z' }] });
+    const financialRequests = calls.filter(call => call.url.includes('/transactions/recategorize'));
+    assert.equal(financialRequests.length, 1);
+    assert.deepEqual(financialRequests[0].body, { workspaceId, changes: [{ id: 'entry', bankAccountId: 'bank', toAccountId: 'rent', expectedUpdatedAt: '2026-10-01T00:00:00.000Z' }] });
+    assert.equal(calls.filter(call => call.url.includes('/api/v1/commands/autorule.recordhits')).length, 1);
     assert.equal(useLedgerStore.getState().transactions[0].updatedAt, '2026-10-06T12:00:00.000Z');
     assert.equal(useLedgerStore.getState().transactions[0].lines[1].accountId, 'rent');
-    assert.ok(calls.filter(call => call.url.includes('/rpc/')).every(call => call.body.p_table === 'autoRules'));
+    assert.equal(calls.filter(call => call.url.includes('/rpc/')).length, 0, 'live rule hit counters no longer use browser RPC writes');
   });
 
   it('refusals keep the preview and entry; retry sends the expected version and succeeds', async () => {
@@ -201,8 +218,8 @@ describe('Rules use the validated financial writer', () => {
     const a = rule({ id: 'a', action: { descriptionPrefix: '[cloud] ' } });
     const b = rule({ id: 'b', action: { addTags: ['cloud'] }, priority: 20 });
     await act(async () => { assert.equal(await result.current.applyToExisting([a, b], [transaction()]), 1); });
-    const api = calls.filter(call => call.url.includes('/api/'));
-    assert.equal(api.length, 1); assert.ok(api[0].url.endsWith('/batch'));
+    const api = calls.filter(call => call.url.includes('/transactions/batch'));
+    assert.equal(api.length, 1);
     const updates = api[0].body.updates as Array<{ id: string; data: Partial<Transaction> }>;
     assert.equal(updates.length, 1); assert.equal(updates[0].data.description, '[cloud] AWS שירות');
     assert.deepEqual(updates[0].data.tags, ['cloud']);
@@ -221,9 +238,10 @@ describe('Account/type settings controls', () => {
     fireEvent.change(screen.getByLabelText('Expense / transfer classification'), { target: { value: 'transfer' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }));
     await waitFor(() => assert.equal(Boolean(screen.queryByRole('dialog')), false));
-    const saved = calls.find(call => call.url.includes('/rpc/lf_set'))!.body.p_data as AutoRule;
+    const command = calls.find(call => call.url.endsWith('/api/v1/commands/autorule.create'))!;
+    const saved = (command.body.input as { rule: AutoRule }).rule;
     assert.deepEqual(saved.action, { targetAccountId: 'savings', bankAccountId: 'bank', targetTransactionKind: 'transfer' });
-    assert.equal(calls.filter(call => call.url.includes('/api/')).length, 0, 'saving a definition never posts an entry');
+    assert.equal(calls.filter(call => call.url.includes('/transactions/')).length, 0, 'saving a definition never posts a ledger entry');
   });
 
   it('mixed-action save is refused with its draft retained; blocked layouts are visible in the dry run', async () => {

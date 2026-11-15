@@ -102,3 +102,4 @@ export function useActionContext() {
 }
 
 export type ActionContext = ReturnType<typeof useActionContext>;
+export type RunRegisteredCommand = (name: string, input: Record<string, unknown>, successMsg?: string) => Promise<Record<string, unknown>>;

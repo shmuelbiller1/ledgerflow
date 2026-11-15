@@ -51,7 +51,13 @@ interface PartyModalProps {
   /** The contact to edit; none for a new one. */
   initial?: Party | null;
   onClose: () => void;
-  onSave: (party: Party) => void;
+  onSave: (party: Party) => unknown;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return value !== null
+    && (typeof value === 'object' || typeof value === 'function')
+    && typeof (value as { then?: unknown }).then === 'function';
 }
 
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD', 'JPY', 'CHF'];
@@ -127,8 +133,16 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
     }
     if (Object.keys(cleanDocumentDefaults(form.documentDefaults)).length || initial?.metadata?.documentDefaults) party.metadata = defaultsMetadata(party.metadata || initial?.metadata, form.documentDefaults);
     if (contacts.length || (editing && initial?.contacts?.length)) party.contacts = contacts;
-    onSave(editing ? { ...party, id: initial!.id } : party);
-    if (!editing) setForm(blank());
+    const saveResult = onSave(editing ? { ...party, id: initial!.id } : party);
+    if (!editing) {
+      if (isPromiseLike(saveResult)) {
+        void Promise.resolve(saveResult)
+          .then(result => { if (result !== false) setForm(blank()); })
+          .catch(() => { /* Preserve the form so a failed save can be retried. */ });
+      } else if (saveResult !== false) {
+        setForm(blank());
+      }
+    }
   };
 
   const currencies = [...new Set([workspaceCurrency, ...(form.currency ? [form.currency] : []), ...COMMON_CURRENCIES])];

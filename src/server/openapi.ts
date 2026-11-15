@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { TransactionSchema } from '../schemas';
+import { COMMAND_MANIFEST } from '../lib/commands.generated';
+import { COMMAND_INPUT_SCHEMA_NAMES } from './commands/openApiSchemas.generated';
 
 import { BRAND_NAME } from '../config/brand';
 /**
  * The public API described for tools (Z-01): an OpenAPI 3.1 document built from the code. The entry
  * shape is the same schema the server checks requests with (`TransactionSchema`, as JSON Schema), so
- * the two cannot drift; the paths are the transaction endpoints API keys use. Served at
+ * the two cannot drift. Command input schemas and names come from the generated command manifest. Served at
  * GET /api/v1/openapi.json (no sign-in needed: it describes, it does not open anything).
  */
 const generated = z.toJSONSchema(TransactionSchema, { io: 'input', unrepresentable: 'any' }) as { required?: string[] } & Record<string, unknown>;
@@ -16,6 +18,18 @@ const error = (description: string) => ({ description, content: { 'application/j
 const json = (schema: object) => ({ 'application/json': { schema } });
 const workspaceParam = { name: 'workspaceId', in: 'query', required: true, schema: { type: 'string' } };
 const idParam = { name: 'id', in: 'path', required: true, schema: { type: 'string' } };
+const commandNameParam = { name: 'name', in: 'path', required: true, description: 'A registered dotted command name.', schema: { type: 'string', enum: COMMAND_MANIFEST.map(command => command.name) } };
+const commandInputSchemaRefs = COMMAND_MANIFEST.map(command => ({ $ref: `#/components/schemas/${COMMAND_INPUT_SCHEMA_NAMES[command.name]}` }));
+const commandInputSchemas = Object.fromEntries(COMMAND_MANIFEST.map(command => [COMMAND_INPUT_SCHEMA_NAMES[command.name], command.inputSchema]));
+const commandRequest = {
+  type: 'object', required: ['input'],
+  properties: {
+    workspaceId: { type: 'string', description: 'Omit only when an API key supplies its own workspace.' },
+    input: { oneOf: commandInputSchemaRefs },
+  },
+  additionalProperties: false,
+};
+const commandDefinition = { type: 'object', required: ['name', 'area', 'roles', 'risk', 'description', 'inputSchema', 'runPath', 'previewPath'], properties: { name: { type: 'string' }, area: { type: 'string' }, roles: { type: 'array', items: { type: 'string' } }, risk: { type: 'string', enum: ['normal', 'high'] }, description: { type: 'object', additionalProperties: true }, inputSchema: { type: 'object', additionalProperties: true }, runPath: { type: 'string' }, previewPath: { type: 'string' } } };
 
 export function openApiDocument(serverUrl = '/') {
   return {
@@ -35,9 +49,40 @@ export function openApiDocument(serverUrl = '/') {
       schemas: {
         Transaction: entrySchema,
         Error: { type: 'object', properties: { status: { type: 'string' }, error: { type: 'string' }, message: { type: 'string' } } },
+        CommandRequest: commandRequest,
+        CommandDefinition: commandDefinition,
+        CommandPreview: { type: 'object', required: ['title', 'lines'], properties: { title: { type: 'string' }, lines: { type: 'array', items: { type: 'string' } }, accounts: { type: 'array', items: { type: 'object', additionalProperties: true } } } },
+        ...commandInputSchemas,
       },
     },
     paths: {
+      '/api/v1/commands': {
+        get: {
+          summary: 'List typed commands available to the authenticated caller',
+          responses: { 200: { description: 'Command names, authorization roles, examples, refusals, and input JSON Schemas', content: json({ type: 'object', properties: { status: { type: 'string' }, commands: { type: 'array', items: { $ref: '#/components/schemas/CommandDefinition' } } } }) }, 403: error('API key needs read:transactions scope') },
+        },
+      },
+      '/api/v1/commands/{name}': {
+        get: {
+          summary: 'Describe one typed command',
+          parameters: [commandNameParam],
+          responses: { 200: { description: 'Command definition', content: json({ type: 'object', properties: { status: { type: 'string' }, command: { $ref: '#/components/schemas/CommandDefinition' } } }) }, 404: error('Unknown command') },
+        },
+        post: {
+          summary: 'Execute a typed command',
+          parameters: [commandNameParam, { name: 'Idempotency-Key', in: 'header', description: 'Stable operation ID reused for a retry; the same ID with a different request is refused.', schema: { type: 'string' } }],
+          requestBody: { required: true, content: json({ $ref: '#/components/schemas/CommandRequest' }) },
+          responses: { 200: { description: 'Command completed or an idempotent prior result was replayed' }, 400: error('Invalid input or closed posting period'), 402: error('Plan capacity refused the command'), 403: error('Not a workspace writer, API-key scope missing, or two-step verification required'), 404: error('Workspace or command not found'), 409: error('Operation ID was reused for different input') },
+        },
+      },
+      '/api/v1/commands/{name}/preview': {
+        post: {
+          summary: 'Preview a typed command without committing writes',
+          parameters: [commandNameParam],
+          requestBody: { required: true, content: json({ $ref: '#/components/schemas/CommandRequest' }) },
+          responses: { 200: { description: 'Read-only command preview', content: json({ type: 'object', properties: { status: { type: 'string' }, command: { type: 'string' }, preview: { $ref: '#/components/schemas/CommandPreview' } } }) }, 400: error('Invalid input or closed posting period'), 403: error('Not authorized or API-key scope missing'), 404: error('Workspace or command not found') },
+        },
+      },
       '/api/v1/transactions': {
         get: {
           summary: 'List entries, newest first',

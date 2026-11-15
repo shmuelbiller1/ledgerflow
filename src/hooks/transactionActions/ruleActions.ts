@@ -1,4 +1,5 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } from '../../lib/db/firestore';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { db } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { Transaction, AutoRule, ChartAccount } from '../../types';
@@ -6,46 +7,66 @@ import { toast } from 'sonner';
 import { parseLocalDate } from '../../lib/utils';
 import { AhoCorasick } from '../../lib/algorithms';
 import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
-import type { ActionContext } from './shared';
+import type { ActionContext, RunRegisteredCommand } from './shared';
 
 /** Automation rules: add, change, delete and apply to existing entries. (F-05, moved from useTransactionActions.) */
-export function createRuleActions(ctx: ActionContext) {
+export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredCommand) {
   const { user, currentWorkspaceId, setTransactions, accounts, setIsSyncing } = ctx;
 
   const handleAddRule = async (data: Partial<AutoRule>) => {
     if (!user || !currentWorkspaceId) return;
     try {
-      await addDoc(collection(db, 'autoRules'), {
-        ...data,
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        createdAt: new Date().toISOString()
-      });
+      const { uid: _uid, workspaceId: _workspaceId, createdAt: _createdAt, hitCount: _hitCount, lastTriggeredAt: _lastTriggeredAt, ...ruleData } = data;
+      let saved: AutoRule;
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        const ref = await addDoc(collection(db, 'autoRules'), {
+          ...ruleData, uid: user.uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString(),
+        });
+        saved = { ...ruleData, id: ref.id, uid: user.uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString() } as AutoRule;
+      } else {
+        const result = await runCommand('autorule.create', { rule: ruleData as Record<string, unknown> });
+        saved = result.rule as AutoRule;
+      }
+      const rules = useLedgerStore.getState().autoRules as AutoRule[];
+      useLedgerStore.getState().setAutoRules(rules.some(rule => rule.id === saved.id) ? rules.map(rule => rule.id === saved.id ? saved : rule) : [...rules, saved]);
       toast.success('Categorization rule synced');
-    } catch {
-      toast.error('Failed to save rule');
+    } catch (error) {
+      toast.error('Failed to save rule', { description: error instanceof Error ? error.message : String(error) });
     }
   };
 
   const handleDeleteRule = async (id: string) => {
+    if (!user || !currentWorkspaceId) return;
+    const existing = (useLedgerStore.getState().autoRules as AutoRule[]).find(rule => rule.id === id && rule.workspaceId === currentWorkspaceId);
+    if (!existing) return;
     try {
-      await deleteDoc(doc(db, 'autoRules', id));
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) await deleteDoc(doc(db, 'autoRules', id));
+      else await runCommand('autorule.delete', { id });
+      useLedgerStore.getState().setAutoRules((useLedgerStore.getState().autoRules as AutoRule[]).filter(rule => rule.id !== id));
       toast.success('Rule removed');
-    } catch {
-      toast.error('Failed to delete rule');
+    } catch (error) {
+      toast.error('Failed to delete rule', { description: error instanceof Error ? error.message : String(error) });
     }
   };
 
   const handleUpdateRule = async (id: string, updates: Partial<AutoRule>) => {
+    if (!user || !currentWorkspaceId) return;
+    const existing = (useLedgerStore.getState().autoRules as AutoRule[]).find(rule => rule.id === id && rule.workspaceId === currentWorkspaceId);
+    if (!existing) return;
     try {
-      await updateDoc(doc(db, 'autoRules', id), {
-        ...updates,
-        updatedAt: new Date().toISOString()
-      });
+      const editable = ['name', 'groupName', 'groupIsActive', 'condition', 'action', 'confidence', 'isHardened', 'priority', 'isActive', 'stopProcessingOnMatch'];
+      const data = Object.fromEntries(editable.filter(key => (updates as Record<string, unknown>)[key] !== undefined).map(key => [key, (updates as Record<string, unknown>)[key]]));
+      if (!Object.keys(data).length) return;
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        await updateDoc(doc(db, 'autoRules', id), { ...data, updatedAt: new Date().toISOString() });
+      } else {
+        await runCommand('autorule.update', { id, data });
+      }
+      useLedgerStore.getState().setAutoRules((useLedgerStore.getState().autoRules as AutoRule[]).map(rule => rule.id === id ? { ...rule, ...data } : rule));
       toast.success('Rule configuration updated');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `autoRules/${id}`);
-      toast.error('Failed to update rule');
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) handleFirestoreError(error, OperationType.UPDATE, `autoRules/${id}`);
+      toast.error('Failed to update rule', { description: error instanceof Error ? error.message : String(error) });
     }
   };
 

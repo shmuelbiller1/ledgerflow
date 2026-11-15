@@ -58,6 +58,8 @@ const PAYMENT_METHODS = new Set(['cash', 'check', 'bank_transfer', 'card', 'othe
 /** Server-only authorization context, supplied from the authenticated user, never the payment body. */
 interface PaymentAuthorization {
   platformAdmin?: boolean;
+  /** The command runner owns the command audit when this is false. */
+  writeAudit?: boolean;
 }
 
 export async function createPaymentAtomic(rawDb: unknown, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
@@ -508,19 +510,21 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       }, { dueCents: allocDocs[i].dueCents }));
     }
 
-    await writeServerAuditLog({
-      workspaceId,
-      uid,
-      action: 'PAYMENT_RECORDED',
-      entityType: 'payment',
-      entityId: paymentId,
-      details: {
-        description: `Payment ${paymentNumber} of ${formatCurrency(amountCents, paymentCurrency || baseCurrency)} recorded for ${entityName || 'contact'}.`,
-        paymentNumber,
-        amountCents,
-        paymentMethod
-      }
-    }, { db, tx });
+    if (authorization?.writeAudit !== false) {
+      await writeServerAuditLog({
+        workspaceId,
+        uid,
+        action: 'PAYMENT_RECORDED',
+        entityType: 'payment',
+        entityId: paymentId,
+        details: {
+          description: `Payment ${paymentNumber} of ${formatCurrency(amountCents, paymentCurrency || baseCurrency)} recorded for ${entityName || 'contact'}.`,
+          paymentNumber,
+          amountCents,
+          paymentMethod
+        }
+      }, { db, tx });
+    }
 
     return { paymentId, transactionId: ledgerTxRef.id, payment: paymentData as DocumentData, ledgerTransaction: ledgerTxData as DocumentData };
   }

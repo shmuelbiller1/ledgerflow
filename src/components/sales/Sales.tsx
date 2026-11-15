@@ -760,7 +760,12 @@ export default function Sales() {
           customers={customers} accounts={accounts} initialInvoice={newInvoiceFor} />
       )}
       <CustomerModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}
-        onSave={async (cust) => { await onAddCustomer(cust); setIsCustomerModalOpen(false); }} />
+        onSave={async (cust) => {
+          const saved = await onAddCustomer(cust);
+          if (!saved) return false;
+          setIsCustomerModalOpen(false);
+          return true;
+        }} />
       {isPaymentModalOpen && paymentDocumentId && paymentContactId && (
         <ReceivePaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)}
           defaultDirection="received" defaultDocumentId={paymentDocumentId} defaultContactId={paymentContactId} />

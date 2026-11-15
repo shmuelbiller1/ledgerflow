@@ -21,9 +21,8 @@ const rule = (id: string, extra: Partial<AutoRule> = {}): AutoRule => ({
 });
 const tx = () => makeTransaction({ id: 'tx', workspaceId: 'component-workspace', description: 'AWS שירות', totalAmountCents: 12345,
   lines: [{ accountId: 'bank', amountCents: -12345 }, { accountId: 'expense', amountCents: 12345 }] });
-type Op = { table: string; id: string; data: Partial<AutoRule>; op: string };
 let durable: AutoRule[];
-let writes: { endpoint: string; body: { p_ops?: Op[]; p_data?: Partial<AutoRule>; p_set?: Partial<AutoRule>; p_id?: string } }[];
+let writes: { endpoint: string; body: { workspaceId?: string; input?: Record<string, unknown> } }[];
 let refuse: boolean;
 let release: (() => void) | undefined;
 let hold: boolean;
@@ -42,19 +41,42 @@ beforeEach(() => {
       const limit = Number(params.get('limit') || 1000);
       return Response.json(durable.filter(r => !workspace || r.workspaceId === workspace).slice(offset, offset + limit).map(r => ({ id: r.id, data: r })));
     }
-    if (endpoint.includes('/rpc/lf_')) {
+    if (endpoint.includes('/api/v1/commands/autorule.')) {
       const body = JSON.parse(String(init?.body)) as typeof writes[number]['body'];
       writes.push({ endpoint, body });
       if (hold) await new Promise<void>(resolve => { release = resolve; });
-      if (refuse) return Response.json({ message: 'Permission denied', code: '42501' }, { status: 403 });
-      if (body.p_ops) for (const op of body.p_ops) durable = durable.map(r => r.id === op.id ? { ...r, ...op.data } : r);
-      if (body.p_set && body.p_id) durable = durable.map(r => r.id === body.p_id ? { ...r, ...body.p_set } : r);
-      if (body.p_id && body.p_data) {
-        const index = durable.findIndex(r => r.id === body.p_id);
-        if (index >= 0) durable[index] = { ...durable[index], ...body.p_data } as AutoRule;
-        else durable.push(body.p_data as AutoRule);
+      if (refuse) return Response.json({ status: 'error', message: 'Permission denied', code: 'ROLE_REQUIRED' }, { status: 403 });
+      const input = body.input || {};
+      const name = endpoint.split('/').at(-1);
+      let data: Record<string, unknown> = {};
+      if (name === 'autorule.group') {
+        const groupName = String(input.groupName);
+        const members = durable.filter(rule => rule.workspaceId === body.workspaceId && (rule.groupName || 'General') === groupName);
+        if (typeof input.newName === 'string') {
+          for (const rule of members) rule.groupName = input.newName;
+        } else {
+          for (const rule of members) rule.groupIsActive = input.groupIsActive as boolean;
+        }
+        data = { groupName: input.newName || groupName, ruleIds: members.map(rule => rule.id) };
+      } else if (name === 'autorule.update') {
+        const id = String(input.id);
+        const patch = input.data as Partial<AutoRule>;
+        durable = durable.map(rule => rule.id === id ? { ...rule, ...patch } : rule);
+        data = { rule: durable.find(rule => rule.id === id) };
+      } else if (name === 'autorule.create') {
+        const rule = input.rule as Partial<AutoRule>;
+        const created = { ...rule, id: rule.id || 'created-rule', uid: 'test-user', workspaceId: body.workspaceId, createdAt: '2026-11-15T00:00:00.000Z', hitCount: 0 } as AutoRule;
+        durable.push(created);
+        data = { rule: created };
+      } else if (name === 'autorule.delete') {
+        durable = durable.filter(rule => rule.id !== input.id);
+        data = { id: input.id };
+      } else if (name === 'autorule.recordhits') {
+        const updates = input.rules as Array<{ id: string; hits: number }>;
+        for (const update of updates) durable = durable.map(rule => rule.id === update.id ? { ...rule, hitCount: (rule.hitCount || 0) + update.hits } : rule);
+        data = { updated: updates.map(update => ({ id: update.id, hitCount: durable.find(rule => rule.id === update.id)?.hitCount || update.hits, lastTriggeredAt: '2026-11-15T00:00:00.000Z' })) };
       }
-      return Response.json(null);
+      return Response.json({ status: 'success', data, replayed: false });
     }
     return Response.json({});
   }) as typeof fetch;
@@ -94,10 +116,8 @@ describe('Durable rule group writes', () => {
     useLedgerStore.setState({ autoRules: durable.slice(0, 2) });
     const { result } = renderHook(() => useAutoRules());
     await act(async () => { await result.current.updateGroup('תוכנה / SaaS', { groupIsActive: false }); });
-    const ops = writes[0].body.p_ops!;
-    assert.deepEqual(ops.map(op => op.id), ['first', 'paused', 'uncached']);
-    assert.ok(ops.every(op => op.table === 'autoRules' && op.op === 'update'));
-    assert.deepEqual(ops.map(op => op.data), [{ groupIsActive: false }, { groupIsActive: false }, { groupIsActive: false }]);
+    assert.deepEqual(writes[0].body.input, { groupName: 'תוכנה / SaaS', groupIsActive: false });
+    assert.deepEqual(durable.filter(r => r.workspaceId === 'component-workspace' && r.groupName === 'תוכנה / SaaS').map(r => r.groupIsActive), [false, false, false]);
     await act(async () => { await result.current.updateGroup('תוכנה / SaaS', { groupIsActive: true }); });
     assert.equal(durable.find(r => r.id === 'paused')!.isActive, false);
     assert.equal(durable.find(r => r.id === 'foreign')!.groupIsActive, undefined);
@@ -110,7 +130,8 @@ describe('Durable rule group writes', () => {
     const { result } = renderHook(() => useAutoRules());
     await act(async () => { await result.current.updateGroup('תוכנה / SaaS', { groupIsActive: false }); });
     assert.equal(writes.length, 1);
-    assert.equal(writes[0].body.p_ops!.length, 1001);
+    assert.deepEqual(writes[0].body.input, { groupName: 'תוכנה / SaaS', groupIsActive: false });
+    assert.equal(durable.filter(rule => rule.groupIsActive === false).length, 1001);
     assert.equal(durable[1000].groupIsActive, false);
   });
 
@@ -163,7 +184,8 @@ describe('Rules settings group interactions', () => {
     fireEvent.keyDown(priority, { key: 'Enter' });
     await waitFor(() => assert.equal(screen.getByRole('button', { name: inlineEditName('Edit Priority of first') }).textContent?.trim(), 'Priority #0'));
     assert.equal(durable.find(r => r.id === 'first')!.priority, 0);
-    assert.deepEqual(writes.at(-1)!.body.p_set, { priority: 0 });
+    assert.equal(writes.at(-1)!.endpoint.endsWith('/autorule.update'), true);
+    assert.equal((writes.at(-1)!.body.input?.data as Record<string, unknown>).priority, 0);
   });
 
   it('keeps paused individual switches and shows group-off state after reload', async () => {

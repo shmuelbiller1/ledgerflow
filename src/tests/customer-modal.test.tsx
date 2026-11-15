@@ -3,7 +3,7 @@ import { stubFetch } from './helpers/dom';
 import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import CustomerModal from '../components/sales/CustomerModal';
 import type { Customer } from '../types';
 
@@ -33,6 +33,18 @@ describe('customer dialog', () => {
     fireEvent.change(screen.getByLabelText('Customer Name'), { target: { value: '   ' } });
     fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
     assert.equal(saved.length, 0);
+  });
+
+  test('keeps the entered fields when an asynchronous save resolves false', async () => {
+    let resolveSave!: (saved: boolean) => void;
+    const save = new Promise<boolean>(resolve => { resolveSave = resolve; });
+    const view = render(<CustomerModal isOpen onClose={() => {}} onSave={() => save} />);
+    const name = view.getByLabelText('Customer Name') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'Acme' } });
+    fireEvent.submit(name.closest('form')!);
+    assert.equal(name.value, 'Acme', 'do not clear before the server confirms the save');
+    await act(async () => { resolveSave(false); await save; });
+    assert.equal(name.value, 'Acme', 'keep the draft available for retry');
   });
 
   test('Escape closes it', () => {

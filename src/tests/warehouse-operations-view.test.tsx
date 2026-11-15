@@ -2,7 +2,7 @@ import { inlineEditName } from './helpers/inlineEditName';
 /**
  * A-64–A-67 on the existing Inventory Cycle Count host: bin metadata, an open-pick/packing-slip
  * view and tracking annotation, two-person return workflow, and serial-linked warranty dates.
- * Writes are asserted at the existing nested-field RPC boundary; none posts stock or money.
+ * Metadata-only annotations use the existing nested-field RPC boundary; RMA and warranty workflows use server commands.
  */
 import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
@@ -13,6 +13,7 @@ import WarehouseOperationsReportView from '../components/reporting/WarehouseOper
 import CycleCountReportView from '../components/reporting/CycleCountReportView';
 import { DELIVERY_COGS_TYPE } from '../lib/deliveries';
 import { binLocationKey } from '../lib/warehouseWorkflows';
+import { warrantyRecordKey } from '../lib/warehouseRecords';
 import { getLocalDateISO } from '../lib/utils';
 import { getSupabase } from '../lib/db/client';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
@@ -66,11 +67,15 @@ function prepare(role: 'owner' | 'accountant' | 'bookkeeper' | 'viewer' = 'owner
     inventory: [item], estimates: [order], invoices: [invoice], transactions: [deliveryEntry],
     customers: [customer], creditNotes: [], dimensionNodes: [location], truncatedCollections: {},
   });
-  calls = stubFetchWithBodies(200, null);
+  calls = stubFetchWithBodies(200, { status: 'success', data: { id: 'test-record', changed: true } });
 }
 
 function rpcWrites() {
   return calls.filter(call => call.url.includes('/rpc/lf_update'));
+}
+
+function commandWrites(name: string) {
+  return calls.filter(call => call.url.includes(`/api/v1/commands/${name}`));
 }
 
 describe('Warehouse operations views (A-64–A-67)', () => {
@@ -183,18 +188,18 @@ describe('Warehouse operations views (A-64–A-67)', () => {
       fireEvent.change(input, { target: { value: '2027-10-15' } });
       fireEvent.keyDown(input, { key: 'Enter' });
     });
-    await waitFor(() => assert.equal(rpcWrites().length, 1));
-    const body = rpcWrites()[0].body as { p_table: string; p_id: string; p_set: Record<string, unknown> };
-    assert.equal(body.p_table, 'customers');
-    assert.equal(body.p_id, customer.id);
-    const path = Object.keys(body.p_set).find(key => key.startsWith('metadata.warrantiesById.w_'));
-    assert.ok(path);
-    const saved = body.p_set[path!] as { serial: string; endDate: string; changeLog: Array<{ previousEndDate: string | null }> };
-    assert.equal(saved.serial, 'SN-001');
-    assert.equal(saved.endDate, '2027-10-15');
-    assert.equal(saved.changeLog.length, 1);
-    assert.equal(saved.changeLog[0].previousEndDate, null);
-    assert.equal('amountCents' in saved, false);
+    await waitFor(() => assert.equal(commandWrites('warranty.update').length, 1));
+    const request = commandWrites('warranty.update')[0];
+    const body = request.body as { workspaceId: string; input: { candidate: Record<string, string>; endDate: string } };
+    assert.equal(request.method, 'POST');
+    assert.equal(body.workspaceId, workspaceId);
+    assert.deepEqual(body.input.candidate, {
+      id: warrantyRecordKey({ invoiceId: invoice.id, invoiceLineId: 'invoice-line-1', itemId: item.id, serial: 'SN-001' }),
+      workspaceId, customerId: customer.id, invoiceId: invoice.id,
+      invoiceLineId: 'invoice-line-1', itemId: item.id, serial: 'SN-001',
+    });
+    assert.equal(body.input.endDate, '2027-10-15');
+    assert.equal(rpcWrites().length, 0, 'warranty history must not be patched through a browser RPC');
   });
 
   test('both inventory tablists are keyboard reachable, wrap, and keep valid panel references', async () => {
