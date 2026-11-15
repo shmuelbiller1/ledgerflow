@@ -20,6 +20,8 @@ import { useCurrentRole } from '../hooks/useCurrentRole';
 import { postingToday } from '../services/ledgerPost/postingCore';
 import { showBudgetWarnings } from '../lib/budgetWarnings';
 import { reportCreditLimitRefusal } from '../lib/creditLimitPrompt';
+import { mergeMetadataPatch } from '../lib/metadataPatch';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD } from '../lib/warehouseRecords';
 import type { InvoiceApprovalRecord } from '../lib/invoiceApproval';
 import type { Bill, CreditNote, Customer, Invoice, Transaction, VendorCredit } from '../types';
 
@@ -28,7 +30,7 @@ interface EntityInput {
   lines?: { accountId?: string; accountName?: string }[];
 }
 
-type StoredDocumentPath = 'invoices' | 'bills' | 'creditNotes' | 'vendorCredits' | 'customers';
+type StoredDocumentPath = 'invoices' | 'bills' | 'creditNotes' | 'vendorCredits' | 'customers' | 'vendors';
 
 /** What the auto-email after a save looks at: the customer, the text, and the two gates (Y-27, BE-04). */
 interface InvoiceForEmail {
@@ -54,6 +56,34 @@ async function savedRecord<T>(path: StoredDocumentPath, id: string): Promise<T |
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertCustomerHistoryServerManaged(path: string, data: Record<string, unknown>): void {
+  if (path !== 'customers') return;
+  const protectedKeys = [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD];
+  const metadata = data.metadata;
+  const patchesProtectedSubtree = isRecord(metadata) && protectedKeys.some(key => Object.hasOwn(metadata, key));
+  const patchesProtectedPath = Object.keys(data).some(field => protectedKeys.some(key => {
+    const protectedPath = `metadata.${key}`;
+    return field === protectedPath || field.startsWith(`${protectedPath}.`);
+  }));
+  if (patchesProtectedSubtree || patchesProtectedPath) {
+    throw new Error('Warranty and return-authorization history can only be changed through their dedicated server workflows.');
+  }
+}
+
+async function mergeLocalPartyMetadata(
+  path: 'customers' | 'vendors',
+  id: string,
+  workspaceId: string,
+  updates: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  // Read the current row rather than the possibly stale list cache: sequential sample-company
+  // edits must merge over the latest persisted metadata, just like the server command transaction.
+  const snapshot = await getDoc(doc(db, path, id));
+  const saved = snapshot.data();
+  if (!isRecord(saved) || saved.workspaceId !== workspaceId) throw new Error('Contact not found in this workspace.');
+  return mergeMetadataPatch(saved.metadata, updates, path === 'customers' ? [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD] : []);
 }
 
 function isActiveDocumentContext(actorUid: string, workspaceId: string): boolean {
@@ -268,6 +298,7 @@ export function useEntityOperations() {
     if (!user || !currentWorkspaceId) return;
     const sampleSession = guestSession();
     try {
+      assertCustomerHistoryServerManaged(path, data as Record<string, unknown>);
       const docId = doc(collection(db, path)).id;
       const finalData = {
         ...data,
@@ -424,10 +455,9 @@ export function useEntityOperations() {
         ...changes,
         updatedAt: new Date().toISOString()
       };
-      // Keep the warranty workflow's dotted metadata patch on its existing atomic field-path write until it has a dedicated command.
-      const hasWarrantyPathPatch = path === 'customers' && Object.keys(finalData).some(key => key.startsWith('metadata.warrantiesById.'));
+      assertCustomerHistoryServerManaged(path, finalData as Record<string, unknown>);
       const usePartyCommand = (path === 'customers' || path === 'vendors')
-        && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID && !hasWarrantyPathPatch;
+        && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID;
 
       // Email the invoice when it becomes "sent" (after it is posted below)
       const previousInvoice = path === 'invoices' ? await savedRecord<Invoice>('invoices', id) : undefined;
@@ -504,7 +534,12 @@ export function useEntityOperations() {
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(`Direct browser updates on ${path} are disabled; use the server ledger API.`);
       } else {
-        await updateDoc(doc(db, path, id), finalData);
+        const localData: Record<string, unknown> = { ...finalData };
+        const metadataPatch = (finalData as Record<string, unknown>).metadata;
+        if ((path === 'customers' || path === 'vendors') && isRecord(metadataPatch) && currentWorkspaceId) {
+          localData.metadata = await mergeLocalPartyMetadata(path, id, currentWorkspaceId, metadataPatch);
+        }
+        await updateDoc(doc(db, path, id), localData);
       }
 
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here

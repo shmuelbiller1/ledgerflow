@@ -39,8 +39,8 @@ export default function PartyProfilePanel({ side, party }: { side: PartySide; pa
   const saveNote = async () => {
     if (!note.trim()) return;
     const next = addNote(notes, note, user?.email || undefined, new Date().toISOString(), crypto.randomUUID());
-    await updateEntity(path, party.id, { noteLog: next }, 'Note added');
-    setNote('');
+    const saved = await updateEntity(path, party.id, { noteLog: next }, 'Note added').catch(() => false);
+    if (saved) setNote('');
   };
 
   return (
@@ -194,8 +194,9 @@ export default function PartyProfilePanel({ side, party }: { side: PartySide; pa
         initial={party}
         onClose={() => setEditing(false)}
         onSave={async ({ id: partyId, ...changes }) => {
-          setEditing(false);
-          await updateEntity(path, partyId || party.id, changes, `${side === 'customer' ? 'Customer' : 'Vendor'} updated`);
+          const saved = await updateEntity(path, partyId || party.id, changes, `${side === 'customer' ? 'Customer' : 'Vendor'} updated`).catch(() => false);
+          if (saved) setEditing(false);
+          return saved;
         }}
       />
       {merging && <MergePartyDialog side={side} party={party} onClose={() => setMerging(false)} />}

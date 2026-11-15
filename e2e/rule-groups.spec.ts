@@ -11,7 +11,41 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', error => errors.push(error.message));
   records = ['AWS', 'Paused'].map((name, i) => ({ id: `rule-${i}`, uid: 'rules-user', workspaceId: 'rules-browser', name,
     groupName: 'תוכנה / SaaS', priority: (i + 1) * 10, isActive: i === 0, condition: { descriptionContains: 'AWS' }, action: { addTags: ['cloud'] }, confidence: 1, isHardened: true, createdAt: '2026-10-01' }));
-  await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
+  await page.route('**/api/**', async route => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() !== 'POST') return route.fulfill({ status: 200, json: {} });
+    const body = request.postDataJSON() as { input?: Record<string, unknown> };
+    const input = body.input || {};
+    if (pathname === '/api/v1/commands/autorule.group') {
+      if (refuse) return route.fulfill({ status: 403, json: { status: 'error', message: 'Rule save refused', code: 'FORBIDDEN' } });
+      const groupName = String(input.groupName || '');
+      const newName = typeof input.newName === 'string' ? input.newName : undefined;
+      const groupIsActive = typeof input.groupIsActive === 'boolean' ? input.groupIsActive : undefined;
+      const ruleIds: string[] = [];
+      records = records.map(rule => {
+        if (rule.groupName !== groupName) return rule;
+        ruleIds.push(rule.id);
+        return { ...rule, ...(newName ? { groupName: newName } : {}), ...(groupIsActive !== undefined ? { groupIsActive } : {}) };
+      });
+      return route.fulfill({ status: 200, json: {
+        status: 'success', command: 'autorule.group', replayed: false,
+        data: { groupName: newName || groupName, ruleIds, ...(groupIsActive !== undefined ? { groupIsActive } : {}) },
+      } });
+    }
+    if (pathname === '/api/v1/commands/autorule.update') {
+      const ruleId = String(input.id || '');
+      const data = input.data as Partial<Rule> | undefined;
+      let saved: Rule | undefined;
+      records = records.map(rule => {
+        if (rule.id !== ruleId) return rule;
+        saved = { ...rule, ...(data || {}) };
+        return saved;
+      });
+      return route.fulfill({ status: 200, json: { status: 'success', command: 'autorule.update', data: { rule: saved }, replayed: false } });
+    }
+    return route.fulfill({ status: 200, json: {} });
+  });
   await page.route('**/rest/v1/**', async route => {
     const url = route.request().url();
     if (url.includes('/rpc/lf_batch')) {

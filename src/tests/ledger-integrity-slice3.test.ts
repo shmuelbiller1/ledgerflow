@@ -69,7 +69,7 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
       'bill.create', 'bill.update', 'bill.delete',
       'creditnote.create', 'creditnote.update', 'creditnote.delete',
       'vendorcredit.create', 'vendorcredit.update', 'vendorcredit.delete',
-    ]) assert.ok(ops.includes(`executeDocumentCommand('${command}'`), `Expected browser UI to invoke ${command}`);
+    ]) assert.ok(ops.includes(`runDocumentCommand('${command}'`), `Expected browser UI to invoke ${command}`);
     assert.match(ops, /sampleSession \|\| currentWorkspaceId === SAMPLE_WORKSPACE_ID/);
     assert.match(ops, /withSamplePosting/);
     assert.match(ops, /replaceAll\('-', ''\)/, 'generated command idempotency keys must pass the server validator');
@@ -78,7 +78,7 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
   test('AF-13: customer and vendor create/update paths use profile commands outside guest/sample workspaces', () => {
     const ops = read('src/hooks/useEntityOperations.ts');
     for (const command of ['customer.create', 'vendor.create']) {
-      assert.ok(ops.includes(`executeDocumentCommand('${command}'`), `Expected party UI to invoke ${command}`);
+      assert.ok(ops.includes(`runDocumentCommand('${command}'`), `Expected party UI to invoke ${command}`);
     }
     assert.ok(ops.includes("'customer.update'"), 'Expected customer updates to use customer.update');
     assert.ok(ops.includes("'vendor.update'"), 'Expected vendor updates to use vendor.update');
@@ -86,13 +86,16 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     assert.match(ops, /path === 'vendors'/);
     assert.match(ops, /sampleSession \|\| currentWorkspaceId === SAMPLE_WORKSPACE_ID/);
     assert.match(ops, /await setDoc\(doc\(db, path, docId\), finalData\)/, 'guest/sample creation must keep its local database path');
-    assert.match(ops, /await updateDoc\(doc\(db, path, id\), finalData\)/, 'guest/sample edits must keep their local database path');
+    assert.match(ops, /await updateDoc\(doc\(db, path, id\), localData\)/, 'guest/sample edits must keep their local database path');
   });
 
   test('AF-14: warranty dates use an authorized server command and reject browser metadata bypasses', () => {
     const panel = read('src/components/reporting/WarrantyRegisterPanel.tsx');
     assert.ok(panel.includes("runCommand('warranty.update'"), 'WarrantyRegisterPanel must save through the command runner');
     assert.ok(!panel.includes("updateEntity('customers'"), 'WarrantyRegisterPanel must not patch customer metadata directly');
+    const operations = read('src/hooks/useEntityOperations.ts');
+    assert.ok(operations.includes('assertCustomerHistoryServerManaged(path,'), 'Local create/update paths must reject direct warranty and RMA history writes');
+    assert.ok(!operations.includes('hasWarrantyPathPatch'), 'No legacy bypass may route warranty field paths around the command');
     const command = read('src/server/commands/customers.ts');
     assert.ok(command.includes('warrantyCandidates([invoice]'), 'The command must revalidate the selected issued-invoice serial');
     assert.ok(command.includes('createWarrantyRecord('), 'The server must build the actor-stamped warranty history');

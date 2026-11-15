@@ -13,6 +13,7 @@ import {
   type WarrantyRecord,
 } from '../../lib/warehouseRecords';
 import { normalizeSerial } from '../../lib/serialNumbers';
+import { mergeMetadataPatch } from '../../lib/metadataPatch';
 import type { CommandContext, CommandDefinition } from './types';
 
 const optionalId = z.string().min(1).max(200).refine(id => !id.includes('/'), 'Id cannot contain a slash').optional();
@@ -174,7 +175,7 @@ export const customerUpdateCommand: CommandDefinition<typeof customerUpdateInput
     if (!customer || customer.workspaceId !== ctx.workspaceId) throw new HttpError('Customer not found in this workspace', 404);
     return {
       title: `Update customer ${String(input.data.name || customer.name || input.id)}`,
-      lines: Object.keys(input.data).length ? Object.keys(input.data).sort() : ['No profile fields changed'],
+      lines: Object.keys(input.data).length ? Object.keys(input.data).sort((a, b) => a.localeCompare(b, 'en')) : ['No profile fields changed'],
     };
   },
   audit(_input, result) {
@@ -211,19 +212,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Apply a metadata patch: null deletes an editable key; server-managed histories always come from the DB snapshot. */
+/** Apply a metadata patch without allowing server-managed histories to be edited here. */
 function mergeCustomerMetadata(currentValue: unknown, updates: Record<string, unknown>): Record<string, unknown> {
-  const current = isRecord(currentValue) ? currentValue : {};
-  const merged = new Map(Object.entries(current));
-  for (const [key, value] of Object.entries(updates)) {
-    if (value === null) merged.delete(key);
-    else merged.set(key, value);
-  }
-  for (const field of [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD]) {
-    if (Object.hasOwn(current, field)) merged.set(field, current[field]);
-  }
-  // Object.fromEntries defines even special names such as "__proto__" as data properties.
-  return Object.fromEntries(merged);
+  return mergeMetadataPatch(currentValue, updates, [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD]);
 }
 
 function customerMetadata(value: unknown): EntityMetadata {

@@ -284,7 +284,9 @@ export function describeSaveFailures(c: SaveCase): void {
       toasts.calls.length = 0; // only what the save says counts
       const before = snapshotLedger();
       await c.save();
-      await settle();
+      // Document commands retry one network failure after 250 ms; let that retry and its refusal
+      // surface before checking the error toast or retained draft.
+      await settle(scenario.reply === 'network' ? 70 : 8);
       assert.ok(server.saves().length >= 1, 'the save was sent');
       assertNoSuccess(toasts);
       assertErrorInWords(toasts, words);

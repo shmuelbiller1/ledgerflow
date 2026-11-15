@@ -25,7 +25,7 @@ const commandRequest = {
   type: 'object', required: ['input'],
   properties: {
     workspaceId: { type: 'string', description: 'Omit only when an API key supplies its own workspace.' },
-    input: { oneOf: commandInputSchemaRefs },
+    input: { anyOf: commandInputSchemaRefs },
   },
   additionalProperties: false,
 };

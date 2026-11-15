@@ -120,6 +120,6 @@ describe('On screen', () => {
     fireEvent.change(screen.getByLabelText('Language of their documents'), { target: { value: '' } });
     fireEvent.change(screen.getByLabelText(/Their own terms/), { target: { value: '' } });
     fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
-    assert.deepEqual(saved[1].metadata, { memo: 'keep' });
+    assert.deepEqual(saved[1].metadata, { memo: 'keep', documentLanguage: null, documentTerms: null }, 'null marks the saved customer preferences for deletion on the server');
   });
 });

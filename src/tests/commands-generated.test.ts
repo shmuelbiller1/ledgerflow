@@ -75,10 +75,12 @@ test('generated command metadata, OpenAPI schemas, and SDK names match the regis
     assert.deepEqual(schemas[COMMAND_INPUT_SCHEMA_NAMES[definition.name]], definition.inputSchema,
       `${definition.name} OpenAPI input schema is stale`);
   }
-  const commandRequest = schemas.CommandRequest as { properties?: { input?: { oneOf?: Array<{ $ref?: string }> } } };
-  assert.deepEqual(commandRequest.properties?.input?.oneOf, COMMAND_MANIFEST.map(command => ({
+  const commandRequest = schemas.CommandRequest as { properties?: { input?: { anyOf?: Array<{ $ref?: string }>; oneOf?: Array<{ $ref?: string }> } } };
+  assert.deepEqual(commandRequest.properties?.input?.anyOf, COMMAND_MANIFEST.map(command => ({
     $ref: `#/components/schemas/${COMMAND_INPUT_SCHEMA_NAMES[command.name]}`,
   })));
+  assert.equal(commandRequest.properties?.input?.oneOf, undefined,
+    'shared requests allow inputs that match more than one registered command schema (for example, delete IDs)');
   for (const [relativePath, expected] of Object.entries(renderCommandArtifacts())) {
     assert.equal(fs.readFileSync(relativePath, 'utf8'), expected,
       `${relativePath} is stale; run npm run commands:generate`);

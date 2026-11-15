@@ -134,8 +134,10 @@ export default function Purchases() {
   }, [vendors, searchTerm, vendorTag, showArchivedVendors]);
 
   const handleAddVendor = async (data: Partial<Vendor>) => {
-    await addEntity('vendors', data, 'Vendor successfully created');
+    const created = await addEntity('vendors', data, 'Vendor successfully created');
+    if (!created) return false;
     setIsVendorModalOpen(false);
+    return true;
   };
 
   /** Ensures bill dimension labels exist in the workspace, then creates or updates the bill and its attachments. */

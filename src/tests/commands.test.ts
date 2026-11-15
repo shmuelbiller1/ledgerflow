@@ -569,6 +569,7 @@ test('vendor.create and vendor.update keep balance and identity server-managed',
   const vendor = {
     id: 'vendor-1', workspaceId, name: 'Paper Co', category: 'Office Supplies', status: 'active',
     bankDetails: { accountName: 'Paper Co', accountNumber: '1234', routingCode: '021000021' },
+    metadata: { existingLabel: 'preserve' },
   };
   assert.equal(vendorCreateInput.safeParse({ vendor }).success, true);
   assert.equal(vendorCreateInput.safeParse({ vendor: { ...vendor, balanceCents: 999 } }).success, false);
@@ -581,13 +582,18 @@ test('vendor.create and vendor.update keep balance and identity server-managed',
   assert.equal(db.read('vendors/vendor-1')?.balanceCents, 0);
   assert.equal(db.read('vendors/vendor-1')?.uid, owner.uid);
 
-  const input = vendorUpdateInput.parse({ id: 'vendor-1', data: { billsExpected: false, bankDetails: { accountName: 'Paper Co Ltd' } } });
+  const input = vendorUpdateInput.parse({ id: 'vendor-1', data: {
+    billsExpected: false,
+    bankDetails: { accountName: 'Paper Co Ltd' },
+    metadata: { savedNote: 'update only this key' },
+  } });
   const update = await executeCommand(fakeRequest(owner, { workspaceId, input }), captureResponse().response,
     { definition: vendorUpdateCommand, workspaceId, input }, runnerDependencies(db));
   assert.equal(update.ok, true);
   assert.equal(db.read('vendors/vendor-1')?.balanceCents, 0);
   assert.equal(db.read('vendors/vendor-1')?.billsExpected, false);
   assert.deepEqual(db.read('vendors/vendor-1')?.bankDetails, { accountName: 'Paper Co Ltd' });
+  assert.deepEqual(db.read('vendors/vendor-1')?.metadata, { existingLabel: 'preserve', savedNote: 'update only this key' });
 });
 
 test('warranty.update revalidates an issued invoice serial and writes an audited history entry transactionally', async () => {

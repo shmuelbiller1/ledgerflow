@@ -121,16 +121,26 @@ describe('On the estimates screen', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push({ url, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-      const body = url.endsWith('/next-number') ? { number } : url.endsWith('/transactions/bulk') ? { status: 'ok' } : /\/rpc\//.test(url) ? null : [];
+      const body = url.endsWith('/next-number') ? { number }
+        : url.includes('/api/v1/commands/') ? { status: 'success', data: {} }
+          : url.endsWith('/transactions/bulk') ? { status: 'ok' } : /\/rpc\//.test(url) ? null : [];
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     return calls;
   };
   type Row = Record<string, unknown>;
   const written = (calls: Array<{ url: string; body: unknown }>, table: string): Row[] => calls.flatMap(c => {
-    const body = (c.body || {}) as { p_table?: string; p_set?: Row; p_data?: Row; entityMutation?: { collection: string; data: Row } };
+    const body = (c.body || {}) as {
+      p_table?: string; p_set?: Row; p_data?: Row; entityMutation?: { collection: string; data: Row };
+      input?: { invoice?: Row; bill?: Row };
+    };
     const post = c.url.match(/\/api\/v1\/documents\/(invoices|bills)\/[^/]+\/post$/);
     if (post) return post[1] === table ? [(body as { data: Row }).data] : [];
+    const commandName = c.url.endsWith('/api/v1/commands/invoice.create') ? 'invoice' : c.url.endsWith('/api/v1/commands/bill.create') ? 'bill' : null;
+    if (commandName && `${commandName}s` === table) {
+      const document = commandName === 'invoice' ? body.input?.invoice : body.input?.bill;
+      return document ? [document] : [];
+    }
     if (c.url.endsWith('/transactions/bulk')) return body.entityMutation?.collection === table ? [body.entityMutation.data] : [];
     return /\/rpc\/lf_\w+/.test(c.url) && body.p_table === table ? [(body.p_set || body.p_data)!] : [];
   });

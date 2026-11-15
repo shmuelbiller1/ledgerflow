@@ -2,7 +2,7 @@ import './helpers/dom';
 import test, { afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Sales from '../components/sales/Sales';
 import Purchases from '../components/purchases/Purchases';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -69,4 +69,25 @@ test('empty bills offer a working first-bill action', () => {
   assert.ok(screen.getByText('No bills yet'));
   fireEvent.click(screen.getByRole('button', { name: 'Record first bill' }));
   assert.ok(screen.getByRole('dialog'));
+});
+
+test('a refused vendor.create command keeps the vendor form draft open', async () => {
+  markComponentCollectionsLoaded('bills', 'recurring', 'vendors');
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+    calls.push({ url, body });
+    return Response.json({ message: 'Vendor create refused' }, { status: 403 });
+  }) as typeof fetch;
+  render(<Purchases />);
+  fireEvent.click(screen.getByRole('button', { name: 'Vendors (0)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add first vendor' }));
+  const name = screen.getByLabelText('Vendor Name') as HTMLInputElement;
+  fireEvent.change(name, { target: { value: 'Retain this vendor' } });
+  await act(async () => { fireEvent.submit(name.closest('form')!); });
+  await waitFor(() => assert.equal(calls.length, 1));
+  assert.equal(calls[0].url, '/api/v1/commands/vendor.create');
+  assert.ok(screen.getByRole('dialog', { name: 'Add Vendor' }));
+  assert.equal((screen.getByLabelText('Vendor Name') as HTMLInputElement).value, 'Retain this vendor');
 });

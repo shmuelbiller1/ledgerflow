@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { mergeMetadataPatch } from '../../lib/metadataPatch';
 import type { CommandDefinition } from './types';
 
 const optionalVendorId = z.string().min(1).max(200).refine(id => !id.includes('/'), 'Vendor id cannot contain a slash').optional();
@@ -113,7 +114,13 @@ export const vendorUpdateCommand: CommandDefinition<typeof vendorUpdateInput, Ve
     const snapshot = await tx.get(ref);
     const current = snapshot.data();
     if (!current || current.workspaceId !== ctx.workspaceId) throw Object.assign(new HttpError('Vendor not found in this workspace', 404), { code: 'NOT_FOUND' });
-    const patch = { ...input.data, updatedAt: new Date().toISOString() };
+    const patch = {
+      ...input.data,
+      ...(input.data.metadata !== undefined
+        ? { metadata: mergeMetadataPatch(current.metadata, input.data.metadata) }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    };
     tx.update(ref, patch);
     return { vendor: { ...current, ...patch } };
   },
@@ -122,7 +129,7 @@ export const vendorUpdateCommand: CommandDefinition<typeof vendorUpdateInput, Ve
     if (!vendor || vendor.workspaceId !== ctx.workspaceId) throw new HttpError('Vendor not found in this workspace', 404);
     return {
       title: `Update vendor ${String(input.data.name || vendor.name || input.id)}`,
-      lines: Object.keys(input.data).length ? Object.keys(input.data).sort((a, b) => a.localeCompare(b)) : ['No profile fields changed'],
+      lines: Object.keys(input.data).length ? Object.keys(input.data).sort((a, b) => a.localeCompare(b, 'en')) : ['No profile fields changed'],
     };
   },
   audit(_input, result) {

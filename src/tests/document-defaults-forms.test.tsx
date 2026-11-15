@@ -85,7 +85,7 @@ test('party form saves defaults, clears them on edit, and preserves unrelated me
   render(<PartyModal side="customer" isOpen initial={initial} onClose={() => {}} onSave={value => { saved = value; }} />);
   change('Default account', '');
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save Customer' })); });
-  assert.deepEqual(saved?.metadata, { note: 'שלום' });
+  assert.deepEqual(saved?.metadata, { note: 'שלום', documentDefaults: null }, 'null marks the saved defaults for deletion on the server');
   cleanup();
   render(<PartyModal side="vendor" isOpen onClose={() => {}} onSave={value => { saved = value; }} />);
   change('Vendor Name', 'Vendor'); change('Default account', 'exp'); change('Default Project', 'P1'); change('Default tax', 'gst');

@@ -60,15 +60,16 @@ describe('Sending stock back on a vendor credit', () => {
     fireEvent.click(screen.getByRole('button', { name: /Credit their cost: \$20\.00/ }));
     assert.equal((screen.getByLabelText(/^Amount \(/) as HTMLInputElement).value, '20.00');
     await act(async () => { fireEvent.submit(screen.getByLabelText(/^Amount \(/).closest('form')!); });
-    // L94-STEP2B: the vendor credit goes to the server's document route; the entry is built there from the same builder
-    const route = /\/documents\/vendorCredits\/[^/]+\/post$/;
+    // The registered command carries the document input; the server builds its ledger entries from this payload.
+    const route = /\/api\/v1\/commands\/vendorcredit\.create$/;
     await waitFor(() => assert.ok(calls.some(c => route.test(c.url))));
-    const body = calls.find(c => route.test(c.url))!.body as { action: string; data: Record<string, unknown> };
-    assert.equal(body.action, 'create');
-    assert.deepEqual(body.data.returnedGoods, [{ billLine: 0, itemId: 'chair', quantity: 2, valueCents: 2000 }]);
+    const body = calls.find(c => route.test(c.url))!.body as { workspaceId: string; input: { vendorCredit: Record<string, unknown> } };
+    const data = body.input.vendorCredit;
+    assert.equal(body.workspaceId, workspace.id);
+    assert.deepEqual(data.returnedGoods, [{ billLine: 0, itemId: 'chair', quantity: 2, valueCents: 2000 }]);
     const context: LedgerPostContext = { accounts: useLedgerStore.getState().accounts, workspaces: [workspace], transactions: [], inventory: [], lockDate: null, uid: 'u1', today: '2026-10-22', capture: [] };
-    const id = String(body.data.id || calls.find(c => route.test(c.url))!.url.split('/').slice(-2)[0]);
-    await postVendorCreditLedger(id, body.data as never, workspace.id, 'u1', { collection: 'vendorCredits', docId: id, action: 'create', data: body.data }, context);
+    const id = String(data.id);
+    await postVendorCreditLedger(id, data as never, workspace.id, 'u1', { collection: 'vendorCredits', docId: id, action: 'create', data }, context);
     const entry = context.capture!.flatMap(c => c.txs).find(t => t.metadata?.type === 'vendor-credit-issuance')!;
     assert.deepEqual(entry.lines.map(l => [l.accountId, l.amountCents]), [['ap', 2000], ['inv-acct', -2000]]);
     // DIM-2 phase 2: each line sent back also names the bill line it came in on
@@ -81,6 +82,6 @@ describe('Sending stock back on a vendor credit', () => {
     fireEvent.change(screen.getByLabelText('How many of Chairs go back'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '100' } });
     await act(async () => { fireEvent.submit(screen.getByLabelText(/^Amount \(/).closest('form')!); });
-    assert.equal(calls.some(c => /\/transactions\/bulk$|\/documents\//.test(c.url)), false);
+    assert.equal(calls.some(c => /\/transactions\/bulk$|\/documents\/|\/commands\/vendorcredit\.create$/.test(c.url)), false);
   });
 });
