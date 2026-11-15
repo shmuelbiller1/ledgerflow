@@ -12,7 +12,7 @@ previous version of this file drifted because it repeated a count nobody re-meas
 
 Source of truth for every number below is `quality-baseline.json` + the live counter (`computeQualityMetrics`), not prose. **A box is only ticked when the number moved or the named test exists and passes.**
 
-Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **89** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **0**.
+Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **81** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **0**.
 
 ---
 
@@ -21,7 +21,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **89** 
 | counter | start | now | target | state |
 |---|---|---|---|---|
 | `rawTables` | 195 | **184** | 0 | 🟡 11 moved |
-| `handTypedApiCalls` | 170 | **89** | 0 | 🟡 started — the counter was blind to 3 shapes and under-reported by ~30; see `UI_REBUILD_RATCHETS.md` |
+| `handTypedApiCalls` | 170 | **81** | 0 | 🟡 started — the counter was blind to 3 shapes and under-reported by ~30; see `UI_REBUILD_RATCHETS.md` |
 | `directDbWrites` | 93 | **93** | 0 | 🔴 not started |
 | `unreachableActions` | 0 | **0** | 0 | ✅ **met** |
 | `screensWithManyPrimaryButtons` | 19 | **0** | 0 | ✅ **met** |
