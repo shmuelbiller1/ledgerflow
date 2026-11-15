@@ -147,21 +147,29 @@ function computeOrphanFiles(rootDir: string): number {
   return orphans;
 }
 
-/** Files under `src/components` that are screens (not tests, not the shared list itself). */
-function componentFiles(rootDir: string, dir = path.join(rootDir, 'src/components')): string[] {
+/**
+ * Every `.ts`/`.tsx` under a directory, skipping tests, declaration files and the excluded folders.
+ *
+ * `.ts` as well as `.tsx` matters here: a store or hook that sits beside its screen makes API calls
+ * too, and reading only `.tsx` left those sites uncounted for the whole life of the call counter.
+ */
+function sourceFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name !== 'tests') out.push(...componentFiles(rootDir, full));
+      if (entry.name !== 'tests') out.push(...sourceFiles(full));
     } else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.') && !entry.name.endsWith('.d.ts')) {
-      // `.ts` as well as `.tsx`: a store or hook that sits beside its screen makes calls too, and
-      // reading only `.tsx` left those seven sites uncounted for the whole life of this ratchet.
       out.push(full);
     }
   }
   return out;
+}
+
+/** Files under `src/components` that are screens (not tests, not the shared list itself). */
+function componentFiles(rootDir: string): string[] {
+  return sourceFiles(path.join(rootDir, 'src/components'));
 }
 
 /**
@@ -208,21 +216,6 @@ const API_CALLER_FILES = (rootDir: string) => [
   ...sourceFiles(path.join(rootDir, 'src/hooks')),
 ];
 
-/** Every non-test `.ts`/`.tsx` under a directory, so a service or hook is not missed. */
-function sourceFiles(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name !== 'tests') out.push(...sourceFiles(full));
-    } else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.')) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
 function computeHandTypedApiCalls(rootDir: string): number {
   let count = 0;
   for (const file of API_CALLER_FILES(rootDir)) {
@@ -262,14 +255,14 @@ function sendsOwnToken(text: string, at: number): boolean {
   if (/getIdToken\(\)/.test(call)) return true;
   if (!/Bearer \$\{\s*([\w.?]+)\s*\}/.test(call)) return false;
   const name = /Bearer \$\{\s*([\w.?]+)\s*\}/.exec(call)![1];
-  // the token was fetched just above and handed in by name — `await getIdToken()` or
-  // `await user.getIdToken()`, which ~20 sites use and the first version of this missed
+  // The token was fetched just above and handed in by name — `await getIdToken()`,
+  // `await user.getIdToken()`, or `auth.currentUser?.getIdToken()`. The name is compared as a plain
+  // string rather than built into a pattern: a browser identifier can never contain a backslash, but
+  // a regular expression assembled from a matched string is the sort of thing that one day can.
   const above = text.slice(Math.max(0, at - 600), at);
-  const tokenFetched = new RegExp(`(?:const|let|var)\\s+${name.replace(/\./g, '\\.')}\\s*=\\s*await\\s+[\\w.?]*getIdToken\\(\\)`).test(above);
-  // `auth.currentUser?.getIdToken()` names the same helper through the auth object
-  if (tokenFetched) return true;
-  const chained = new RegExp(`(?:const|let|var)\\s+${name.replace(/\./g, '\\.')}\\s*=\\s*await\\s+[\\w.?]*currentUser[.?]+getIdToken\\(\\)`).test(above);
-  return chained;
+  const assigned = [...above.matchAll(/(?:const|let|var)\s+([\w.$]+?)\s*=\s*await\s+([\w.?]+)\s*\(/g)]
+    .some(([, variable, helper]) => variable === name && /getIdToken$/.test(helper));
+  return assigned;
 }
 
 /** Writes to the database from the browser: screens call the server, they do not post the books. */
