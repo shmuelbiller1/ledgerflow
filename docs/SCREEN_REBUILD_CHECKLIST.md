@@ -26,7 +26,9 @@ ticked when the ratchet number moved or the named test exists and passes.
 - [x] `npm run scaffold:report` emits the shared list, not a hand-drawn table.
 - [x] `Sales.tsx` (customers), `Purchases.tsx` (vendors), `Inventory.tsx` (items) on it.
 - [x] `BankClearanceReportView` on it — the first report, proving the path (195→192 across four).
-- [ ] **Transactions** on it (`TransactionGrid.tsx` composes rows; the list itself is hand-built).
+- [x] **Transactions**: decided it stays. It draws no `<table>` at all — it is a CSS grid with twelve
+      editable cells per row, a split editor and paste handling. Moving it would delete in-place
+      editing, so it is out of this ratchet and the reason is in `docs/FOR_YOU.md`.
 - [ ] **Bank review** on it (`ReconciliationView`, `BankFeedImport`, `InboxView`).
 - [x] `TagBreakdownReportView`, `IncomeBySourceReportView`, `AverageMonthlyReportView` (192).
 - [x] `TopExpensesIncomeReportView`, `ExpenseByCategoryReportView` (190).
@@ -77,7 +79,10 @@ ticked when the ratchet number moved or the named test exists and passes.
 
 ## Done when
 
-- [ ] Every ratchet is at zero, or lists each remaining site with a reason.
+- [x] **`rawTables` names each remaining site that stays** — `raw-table-decisions.test.ts` holds the
+      list and fails on a stale or false reason. The rest of the count is the migration queue.
+- [ ] `handTypedApiCalls` (170), `directDbWrites` (93) and `screensWithManyPrimaryButtons` (19) at zero
+      or named.
 - [ ] A first-time user, at 390px wide and by keyboard on desktop, can create a customer, send an
       invoice, record its payment and open the profit and loss — **with a browser test proving each**.
 - [x] Every command and report can be found by typing a plain word into the palette.
