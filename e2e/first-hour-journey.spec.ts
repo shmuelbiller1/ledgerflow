@@ -54,7 +54,8 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
         headers: request.headers(),
         data: request.postDataBuffer() ?? undefined,
       });
-      if (/\/commands\/(?:invoice\.create|payment\.receive)$/.test(url.pathname)) {
+      // the two writes this journey makes: an invoice than a received payment
+      if (/\/commands\/invoice\.create$|\/api\/v1\/payments$/.test(url.pathname)) {
         postings.push({ path: url.pathname, status: response.status(), body: request.postDataJSON() as Record<string, unknown> });
       }
       await route.fulfill({ response });
@@ -134,7 +135,7 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await page.keyboard.press('Enter');
 
     await expect.poll(() => postings.length).toBe(2);
-    expect(postings[1].path).toBe('/api/v1/commands/payment.receive');
+    expect(postings[1].path).toBe('/api/v1/payments');
     expect(postings[1].status).toBe(200);
     await expect.poll(async () => (await server.all('invoices'))[0]?.status).toBe('paid');
 
