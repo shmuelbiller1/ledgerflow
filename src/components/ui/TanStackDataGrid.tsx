@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -24,6 +24,7 @@ import {
 import { cn } from '../../lib/utils';
 import { downloadCsv, type CsvValue } from '../../lib/csvExport';
 import { useCompactViewport } from '../../lib/useCompactViewport';
+import { isRowNavKey, nextRowId, rowAnnouncement } from '../../lib/rowKeyboardNav';
 import { EmptyState } from './EmptyState';
 import { LoadingState } from './LoadingState';
 import ListColumnChooser from './ListColumnChooser';
@@ -84,6 +85,11 @@ export interface TanStackDataGridProps<TData extends object> {
   cardFooterContent?: React.ReactNode;
   afterTable?: React.ReactNode;
   getRowProps?: (row: TData) => DataGridRowProps;
+  /**
+   * What the keyboard's live region says when the highlight lands on a row ("Row 3 of 12: Invoice
+   * 1042, Acme Corp"). Without it the row is announced by position only.
+   */
+  announceRow?: (row: TData) => string;
   mobileLayout?: 'cards' | 'table';
   renderCard?: (row: TData) => React.ReactNode;
   hidePaginationOnSinglePage?: boolean;
@@ -128,6 +134,7 @@ export function TanStackDataGrid<TData extends object>({
   cardFooterContent,
   afterTable,
   getRowProps,
+  announceRow,
   mobileLayout = 'cards',
   renderCard,
   hidePaginationOnSinglePage = false,
@@ -152,6 +159,15 @@ export function TanStackDataGrid<TData extends object>({
   const [internalFilter, setInternalFilter] = useState('');
   const [internalSelection, setInternalSelection] = useState<Set<string>>(() => new Set());
   const isCompact = useCompactViewport();
+
+  /**
+   * The row the keyboard is on, by record id. The highlight is logical because only the rows on the
+   * current page are drawn: the arrow keys move it and the row that holds it scrolls into view. Rows
+   * are not tab stops of their own — the list is one focusable region — so a person tabbing through
+   * the page meets the list once, and Tab can always leave it.
+   */
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const isControlledSearch = searchValue !== undefined;
   const activeSearch = isControlledSearch ? searchValue : internalFilter;
@@ -258,6 +274,37 @@ export function TanStackDataGrid<TData extends object>({
   const filteredRows = table.getFilteredRowModel().rows;
   const visibleRows = table.getRowModel().rows;
   const pageCount = table.getPageCount() || 1;
+
+  const rowIds = useMemo(() => visibleRows.map(row => resolveRowId(row.original as TData, row.index)), [visibleRows, resolveRowId]);
+  const activeRowVisible = activeRowId !== null && rowIds.includes(activeRowId);
+
+  // U-1: while the list holds focus, the arrow keys move the highlight and Home/End jump to the ends;
+  // Tab is never taken, so the list can always be left, and keys pressed in a control inside a row (a
+  // button, a link, a tick box) belong to that control.
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target !== node && target.closest('button, input, select, textarea, a, [contenteditable="true"], [role="menu"], [role="listbox"]')) return;
+      if (!isRowNavKey(event.key)) return;
+      const next = nextRowId(rowIds.map(id => ({ id })), activeRowId, event.key);
+      if (next === null) return;
+      event.preventDefault();
+      setActiveRowId(next);
+      node.querySelector(`[data-grid-row-keyboard="${next}"]`)?.scrollIntoView({ block: 'nearest' });
+    };
+    node.addEventListener('keydown', onKeyDown);
+    return () => node.removeEventListener('keydown', onKeyDown);
+    // `showCards` is a dependency because the region element itself changes: the cards and the table are
+    // two different nodes, so a viewport crossing the breakpoint must re-attach the listener to the new one
+  }, [rowIds, activeRowId, showCards]);
+
+  const rowKeyboardProps = (id: string) => ({
+    'data-grid-row-keyboard': id,
+    'data-grid-active-row': activeRowVisible && activeRowId === id ? 'true' : undefined,
+  });
+
   const showPagination = !hidePaginationOnSinglePage || pageCount > 1 || data.length > pageSize;
 
   const wrapWithColumnScope = (node: React.ReactNode) =>
@@ -342,6 +389,23 @@ export function TanStackDataGrid<TData extends object>({
         </div>
       )}
 
+      {/* One polite live region for the whole list: which row the keyboard is on. It is mounted as soon
+          as there are rows and stays mounted, because a live region that appears already holding text is
+          not announced — the text has to change while the region is in the page. It carries aria-live
+          rather than role="status" so it is not confused with a screen's own status notices. */}
+      {rowIds.length > 0 && (
+        <p
+          data-grid-live-region
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {activeRowVisible && activeRowId !== null
+            ? rowAnnouncement(rowIds.map(id => ({ id })), activeRowId, (row, index) => (announceRow ? announceRow(row) : `Row ${index + 1}`), visibleRows.map(row => row.original as TData))
+            : ''}
+        </p>
+      )}
+
       {showCards ? (
         <div className="space-y-3">
           {visibleRows.length === 0 ? (
@@ -351,13 +415,16 @@ export function TanStackDataGrid<TData extends object>({
               </div>
             )
           ) : (
-            <div role="list" aria-label={caption} className="space-y-3">
+            <div ref={gridRef} role="region" aria-label={caption} tabIndex={0} className="space-y-3 outline-none rounded-2xl">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+            <div role="list" className="space-y-3">
               {visibleRows.map(row => {
                 const extra = getRowProps ? getRowProps(row.original) : {};
+                const rowId = resolveRowId(row.original as TData, row.index);
                 return (
                   <div
                     key={row.id}
                     id={extra.id}
+                    {...rowKeyboardProps(rowId)}
                     data-record-id={extra['data-record-id']}
                     data-grid-row
                     role="listitem"
@@ -395,11 +462,18 @@ export function TanStackDataGrid<TData extends object>({
                 );
               })}
             </div>
+            </div>
           )}
           {filteredRows.length > 0 && cardFooterContent}
         </div>
       ) : (
-        <div role="region" aria-label={caption} tabIndex={0} className="lg:overflow-auto lg:max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs">
+        <div
+          ref={gridRef}
+          role="region"
+          aria-label={caption}
+          tabIndex={0}
+          className="lg:overflow-auto lg:max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none"
+        >
           <table className="w-full text-start border-collapse">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10">
@@ -454,14 +528,23 @@ export function TanStackDataGrid<TData extends object>({
               ) : (
                 visibleRows.map(row => {
                   const extra = getRowProps ? getRowProps(row.original) : {};
+                  const rowId = resolveRowId(row.original as TData, row.index);
                   return (
                     <tr
                       key={row.id}
                       id={extra.id}
                       data-record-id={extra['data-record-id']}
                       data-grid-row
+                      {...rowKeyboardProps(rowId)}
+                      onClick={event => {
+                        const target = event.target as HTMLElement;
+                        if (target.closest('button, input, select, textarea, a')) return;
+                        setActiveRowId(rowId);
+                        gridRef.current?.focus({ preventScroll: true });
+                      }}
                       className={cn(
                         'hover:bg-[var(--elevated)]/60 transition-colors',
+                        activeRowVisible && activeRowId === rowId && 'bg-[var(--elevated)]/70',
                         extra.className,
                       )}
                     >
