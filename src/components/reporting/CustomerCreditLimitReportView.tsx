@@ -105,7 +105,7 @@ export default function CustomerCreditLimitReportView() {
                     if (!customer) return;
                     const cents = typeof next === 'number' ? next : 0;
                     await updateEntity('customers', customer.id, {
-                      metadata: { ...(customer.metadata || {}), [CREDIT_LIMIT_METADATA_KEY]: cents },
+                      metadata: { [CREDIT_LIMIT_METADATA_KEY]: cents },
                     }, `Credit limit of ${row.name} saved`);
                   }} />
               </td>

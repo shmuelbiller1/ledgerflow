@@ -10,6 +10,7 @@ import { createImportActions } from './transactionActions/importActions';
 import { createWorkspaceActions } from './transactionActions/workspaceActions';
 import { createReconcileActions } from './transactionActions/reconcileActions';
 import { createIntegrityActions } from './transactionActions/integrityActions';
+import { useEntityOperations } from './useEntityOperations';
 
 /** How long "Undo" stays on screen after adding or voiding a transaction (I-09). */
 export { UNDO_WINDOW_MS } from './transactionActions/shared';
@@ -20,8 +21,9 @@ export { UNDO_WINDOW_MS } from './transactionActions/shared';
  */
 export function useTransactionActions() {
   const ctx = useActionContext();
-  const posting = createPostingHelpers(ctx);
-  const rules = createRuleActions(ctx);
+  const { runCommand } = useEntityOperations();
+  const posting = createPostingHelpers(ctx, runCommand);
+  const rules = createRuleActions(ctx, runCommand);
   const entries = createEntryActions(ctx, posting, rules);
   const imported = createImportActions(ctx, posting, entries);
   const workspace = createWorkspaceActions(ctx);

@@ -1,3 +1,4 @@
+import { normalizeSearchText } from './textNormalization';
 /**
  * Customer and vendor extras (Y-21 Y-22 Y-24 Y-25 + A-136 contact roles): the people to deal with
  * at a company (including standard roles: Billing, Shipping, Accounts payable, Purchasing, Owner,
@@ -111,3 +112,24 @@ export const hasTag = (party: { tags?: string[] }, tag: string | null) =>
 export function isArchivedParty(party: { status?: string }): boolean {
   return party.status === 'inactive' || party.status === 'archived';
 }
+
+/**
+ * The existing customer or vendor a typed name means: an exact id or name first; otherwise one whose name
+ * matches ignoring capitals and spaces, but only when exactly one does. Archived parties are never matched
+ * (they are restored first). `ambiguous` is true when several match loosely and the person must pick.
+ */
+export function matchPartyByName<T extends { id: string; name?: string; status?: string; metadata?: unknown }>(
+  parties: readonly T[], typed: string, keepIds: readonly (string | undefined)[] = [],
+): { party?: T; ambiguous: boolean } {
+  // `keepIds`: archived parties still offered, e.g. the customer an invoice being edited already has
+  const live = parties.filter(p => !isArchivedParty(p) || keepIds.includes(p.id));
+  const exact = live.find(p => p.id === typed || p.name === typed);
+  if (exact) return { party: exact, ambiguous: false };
+  // the shared comparison folding: capitals, spaces, Hebrew vowel marks and invisible direction marks
+  const fold = (text: string) => normalizeSearchText(text).trim();
+  const key = fold(typed);
+  if (!key) return { ambiguous: false };
+  const loose = live.filter(p => fold(String(p.name || '')) === key);
+  return loose.length === 1 ? { party: loose[0], ambiguous: false } : { ambiguous: loose.length > 1 };
+}
+

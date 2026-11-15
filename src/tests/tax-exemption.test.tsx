@@ -37,7 +37,7 @@ describe('Tax exemption certificates', () => {
     render(<PartyModal side="customer" isOpen initial={{ id: 'c1', name: 'Food Bank', metadata: saved[0].metadata }} onClose={() => {}} onSave={p => { saved.push(p); }} />);
     fireEvent.change(screen.getByLabelText('Tax exemption certificate'), { target: { value: '' } });
     fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
-    assert.deepEqual(saved[1].metadata, { memo: 'keep' });
+    assert.deepEqual(saved[1].metadata, { memo: 'keep', taxExemption: null }, 'null marks the saved certificate for deletion on the server');
     cleanup();
     render(<PartyModal side="vendor" isOpen initial={null} onClose={() => {}} onSave={() => {}} />);
     assert.equal(screen.queryByLabelText('Tax exemption certificate'), null);

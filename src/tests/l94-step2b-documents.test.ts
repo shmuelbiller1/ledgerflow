@@ -57,6 +57,14 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     return { status: res.status, body: await res.json() as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
   const post = (type: string, id: string, action: string, data?: Record<string, unknown>) => call(`/api/v1/documents/${type}/${id}/post`, { workspaceId: ws, action, ...(data ? { data } : {}) });
+  const command = async (name: string, input: Record<string, unknown>, preview = false) => {
+    const res = await fetch(`${base}/api/v1/commands/${name}${preview ? '/preview' : ''}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-uid': OWNER, 'idempotency-key': crypto.randomUUID() },
+      body: JSON.stringify({ workspaceId: ws, input }),
+    });
+    return { status: res.status, body: await res.json() as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
 
   before(async () => {
     process.env.DATABASE_URL = url;
@@ -70,6 +78,7 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
     app.use('/api/v1/transactions', transactionRouter);
     app.use('/api/v1/documents', (await import('../server/routes/documentPostRoutes')).documentPostRouter);
+    app.use('/api/v1/commands', (await import('../server/routes/commandRoutes')).commandRouter);
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
@@ -106,6 +115,58 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     const written = await entries('vendorCreditId', vc.id);
     assert.deepEqual(postingFingerprint(written), expected);
     assert.equal(sum(written, 'ap'), 11_800);
+  });
+
+  test('credit-note and vendor-credit CRUD commands preview, post edits, and reverse on delete', async () => {
+    const cnId = `${ws}_cmd_cn`;
+    const creditNote = { id: cnId, workspaceId: ws, number: 'CN-CMD', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'partially_applied', currency: 'EUR', exchangeRate: 1, amountCents: 5_500, remainingCents: 4_500, taxAmountCents: 500, taxVersion: 2 };
+    const cnMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'create', data: creditNote };
+    const cnExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, creditNote as unknown as Partial<CreditNote>, ws, OWNER, cnMutation, c)));
+    const cnPreview = await command('creditnote.create', { creditNote }, true);
+    assert.equal(cnPreview.status, 200, JSON.stringify(cnPreview.body));
+    assert.equal((await db.collection('creditNotes').doc(cnId).get()).exists, false, 'preview does not save the credit');
+    const cnCreate = await command('creditnote.create', { creditNote });
+    assert.equal(cnCreate.status, 200, JSON.stringify(cnCreate.body));
+    assert.deepEqual(postingFingerprint(cnCreate.body.data.transactions), cnExpected);
+
+    const changedCreditNote = { ...creditNote, amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 };
+    const cnUpdateMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'update', data: changedCreditNote };
+    const cnUpdateExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, changedCreditNote as unknown as Partial<CreditNote>, ws, OWNER, cnUpdateMutation, c)));
+    const cnUpdate = await command('creditnote.update', { id: cnId, data: { amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 } });
+    assert.equal(cnUpdate.status, 200, JSON.stringify(cnUpdate.body));
+    assert.deepEqual(postingFingerprint(cnUpdate.body.data.transactions), cnUpdateExpected);
+    const savedCreditNote = (await db.collection('creditNotes').doc(cnId).get()).data();
+    assert.equal(savedCreditNote?.amountCents, 6_600);
+    assert.equal(savedCreditNote?.status, 'partially_applied', 'a partial update preserves the non-default credit status');
+    assert.equal(savedCreditNote?.currency, 'EUR', 'a partial update preserves the non-default currency');
+    const cnDeleteExpected = postingFingerprint(await browserBuild(c => deletePostings(cnId, 'creditNoteId', ws, { collection: 'creditNotes', docId: cnId, action: 'delete' }, c)));
+    const cnDelete = await command('creditnote.delete', { id: cnId });
+    assert.equal(cnDelete.status, 200, JSON.stringify(cnDelete.body));
+    assert.deepEqual(postingFingerprint(cnDelete.body.data.transactions), cnDeleteExpected);
+    assert.equal((await db.collection('creditNotes').doc(cnId).get()).exists, false);
+
+    const vcId = `${ws}_cmd_vc`;
+    const vendorCredit = { id: vcId, workspaceId: ws, number: 'VC-CMD', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'partially_applied', currency: 'ILS', exchangeRate: 1, amountCents: 7_700, remainingCents: 6_700, taxAmountCents: 700, taxVersion: 2 };
+    const vcMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'create', data: vendorCredit };
+    const vcExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, vendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcMutation, c)));
+    const vcCreate = await command('vendorcredit.create', { vendorCredit });
+    assert.equal(vcCreate.status, 200, JSON.stringify(vcCreate.body));
+    assert.deepEqual(postingFingerprint(vcCreate.body.data.transactions), vcExpected);
+
+    const changedVendorCredit = { ...vendorCredit, amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 };
+    const vcUpdateMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'update', data: changedVendorCredit };
+    const vcUpdateExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, changedVendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcUpdateMutation, c)));
+    const vcUpdate = await command('vendorcredit.update', { id: vcId, data: { amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 } });
+    assert.equal(vcUpdate.status, 200, JSON.stringify(vcUpdate.body));
+    assert.deepEqual(postingFingerprint(vcUpdate.body.data.transactions), vcUpdateExpected);
+    const savedVendorCredit = (await db.collection('vendorCredits').doc(vcId).get()).data();
+    assert.equal(savedVendorCredit?.status, 'partially_applied', 'a partial update preserves the non-default credit status');
+    assert.equal(savedVendorCredit?.currency, 'ILS', 'a partial update preserves the non-default currency');
+    const vcDeleteExpected = postingFingerprint(await browserBuild(c => deletePostings(vcId, 'vendorCreditId', ws, { collection: 'vendorCredits', docId: vcId, action: 'delete' }, c)));
+    const vcDelete = await command('vendorcredit.delete', { id: vcId });
+    assert.equal(vcDelete.status, 200, JSON.stringify(vcDelete.body));
+    assert.deepEqual(postingFingerprint(vcDelete.body.data.transactions), vcDeleteExpected);
+    assert.equal((await db.collection('vendorCredits').doc(vcId).get()).exists, false);
   });
 
   test('INV-1 deleted: its entry reversed on the server, A/R nets to −110.00 (CN-1 alone), the deletion in the audit trail', async () => {

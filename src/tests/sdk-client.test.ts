@@ -8,12 +8,83 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { LedgerFlowClient, LedgerFlowError, type LedgerEntry } from '../../sdk/ledgerflowClient';
+import { LedgerFlowClient, LedgerFlowError, type CommandDefinition, type LedgerEntry } from '../../sdk/ledgerflowClient';
 import type { Firestore } from '../server/db/pgFirestore';
 
 import { BRAND_NAME } from '../config/brand';
 const url = process.env.LF_TEST_DATABASE_URL;
 const reply = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+
+test('typed command SDK methods discover, preview, and execute a command with its stable operation key', async () => {
+  const definition = {
+    name: 'customer.create', area: 'customer', roles: ['owner', 'accountant', 'bookkeeper'], risk: 'normal' as const,
+    description: { sentence: 'Create a customer, not an invoice.', example: { customer: { name: 'Acme' } }, refusals: [] },
+    inputSchema: { type: 'object' }, runPath: '/api/v1/commands/customer.create', previewPath: '/api/v1/commands/customer.create/preview',
+  };
+  const answers = [
+    { status: 'success', commands: [definition] },
+    { status: 'success', command: definition },
+    { status: 'success', command: 'customer.create', preview: { title: 'Create customer Acme', lines: ['Acme'] } },
+    { status: 'success', command: 'customer.create', data: { customer: { id: 'cust-1' } }, replayed: false },
+  ];
+  const sent: Array<{ url: string; init: RequestInit }> = [];
+  let dropCommandRequest = true;
+  const client = new LedgerFlowClient({
+    apiKey: 'lf_id_ws_1.secret',
+    sleep: async () => {},
+    fetch: (async (url: string, init: RequestInit) => {
+      sent.push({ url, init });
+      if (init.method === 'POST' && url === '/api/v1/commands/customer.create' && dropCommandRequest) {
+        dropCommandRequest = false;
+        throw new TypeError('connection lost');
+      }
+      return reply(200, answers.shift());
+    }) as unknown as typeof fetch,
+  });
+
+  assert.deepEqual(await client.listCommands(), [definition]);
+  assert.deepEqual(await client.describeCommand('customer.create'), definition);
+  assert.deepEqual(await client.previewCommand('customer.create', 'ws-1', { customer: { name: 'Acme' } }), { title: 'Create customer Acme', lines: ['Acme'] });
+  assert.deepEqual(await client.executeCommand<{ customer: { id: string } }>('customer.create', 'ws-1', { customer: { name: 'Acme' } }, { idempotencyKey: 'customer-op' }), {
+    data: { customer: { id: 'cust-1' } }, replayed: false,
+  });
+  assert.deepEqual(sent.map(request => request.url), [
+    '/api/v1/commands', '/api/v1/commands/customer.create',
+    '/api/v1/commands/customer.create/preview', '/api/v1/commands/customer.create',
+    '/api/v1/commands/customer.create',
+  ]);
+  assert.deepEqual(JSON.parse(String(sent[2].init.body)), { workspaceId: 'ws-1', input: { customer: { name: 'Acme' } } });
+  const operationKeys = sent.slice(3).map(request => (request.init.headers as Record<string, string>)['Idempotency-Key']);
+  assert.deepEqual(operationKeys, ['customer-op', 'customer-op'], 'a network retry must preserve the command operation key');
+});
+
+test('findCommand ranks command metadata and performs no preview or execution', async () => {
+  const definitions: CommandDefinition[] = [
+    {
+      name: 'payment.receive', area: 'payment', roles: ['owner'], risk: 'normal',
+      description: { sentence: 'Record money received from a customer.', example: { allocations: [{ documentType: 'invoice' }] }, refusals: [] },
+      inputSchema: { type: 'object' }, runPath: '/api/v1/commands/payment.receive', previewPath: '/api/v1/commands/payment.receive/preview',
+    },
+    {
+      name: 'invoice.create', area: 'invoice', roles: ['owner'], risk: 'normal',
+      description: { sentence: 'Create an invoice from a customer sale.', example: { invoice: { number: 'INV-1' } }, refusals: [] },
+      inputSchema: { type: 'object' }, runPath: '/api/v1/commands/invoice.create', previewPath: '/api/v1/commands/invoice.create/preview',
+    },
+  ];
+  const sent: Array<{ url: string; method: string }> = [];
+  const client = new LedgerFlowClient({
+    apiKey: 'lf_id_ws_1.secret',
+    fetch: (async (url: string, init: RequestInit) => {
+      sent.push({ url, method: String(init.method) });
+      return reply(200, { status: 'success', commands: definitions });
+    }) as unknown as typeof fetch,
+  });
+
+  const found = await client.findCommand('invoice', 1);
+  assert.deepEqual(found.map(command => command.name), ['invoice.create']);
+  assert.deepEqual(sent, [{ url: '/api/v1/commands', method: 'GET' }], 'metadata discovery must not preview or execute writes');
+  assert.deepEqual(await client.findCommand('not-a-command'), []);
+});
 
 test(`a 429 is waited out (Retry-After) and retried; a refusal becomes a ${BRAND_NAME}Error`, async () => {
   const waits: number[] = [];

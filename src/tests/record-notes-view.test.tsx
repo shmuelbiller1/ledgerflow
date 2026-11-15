@@ -12,15 +12,27 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import RecordNotesReportView from '../components/reporting/RecordNotesReportView';
 import RecordNotesPanel from '../components/common/RecordNotesPanel';
 import { recordNotesFromMetadata, RECORD_NOTES_METADATA_KEY } from '../lib/recordNotes';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD } from '../lib/warehouseRecords';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 
-/** Database writes go through the Supabase `lf_update` RPC; let those succeed and nothing else. */
-function stubDbWrites(): void {
-  globalThis.fetch = (async (input: RequestInfo | URL) => (
-    String(input).includes('/rpc/') ? new Response('{}', { status: 200 }) : new Response('{}', { status: 404 })
-  )) as typeof fetch;
+/** Capture typed party-command writes; emulate list reads with PostgREST's array response. */
+type CommandWrite = { url: string; method: string; body: Record<string, unknown> };
+let commandWrites: CommandWrite[] = [];
+function stubDbWrites(commandStatus = 200): void {
+  commandWrites = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+    if (url.startsWith('/api/v1/commands/')) {
+      commandWrites.push({ url, method: init?.method || 'GET', body });
+      return Response.json(commandStatus === 200 ? { status: 'success', data: { customer: {}, vendor: {} } } : { message: 'Profile update refused' }, { status: commandStatus });
+    }
+    if (url.includes('/rest/v1/')) return Response.json([]);
+    if (url.includes('/rpc/')) return Response.json({});
+    return Response.json({}, { status: 404 });
+  }) as typeof fetch;
 }
 
 const note = (id: string, body: string, at: string, entityId = 'c1', entityType = 'customer') => ({
@@ -30,10 +42,15 @@ const note = (id: string, body: string, at: string, entityId = 'c1', entityType 
 const customers = [
   {
     id: 'c1', name: 'Acme Ltd', workspaceId: 'w1',
-    metadata: { [RECORD_NOTES_METADATA_KEY]: [
-      note('n1', 'Called about the late invoice', '2026-10-01T09:00:00Z'),
-      note('n2', 'Late invoice paid, they asked for Net 45', '2026-10-02T09:00:00Z'),
-    ] },
+    metadata: {
+      [RECORD_NOTES_METADATA_KEY]: [
+        note('n1', 'Called about the late invoice', '2026-10-01T09:00:00Z'),
+        note('n2', 'Late invoice paid, they asked for Net 45', '2026-10-02T09:00:00Z'),
+      ],
+      [WARRANTIES_METADATA_FIELD]: { serial_one: { endDate: '2028-01-01' } },
+      [RMAS_METADATA_FIELD]: { rma_one: { status: 'approved' } },
+      profileExtra: 'keep in storage, do not echo in a note write',
+    },
   },
   { id: 'c2', name: 'Beta GmbH', workspaceId: 'w1', metadata: {} },
 ];
@@ -110,6 +127,27 @@ describe('Record notes screen', () => {
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Add note' })); });
     await waitFor(() => assert.ok(within(panel).getByText('Promised a PO by Friday')));
     assert.match(within(panel).getByText('Promised a PO by Friday').closest('li')?.textContent || '', /dana@shop\.test/);
+    const write = commandWrites.find(call => call.url === '/api/v1/commands/customer.update');
+    assert.ok(write);
+    const input = write.body.input as { data: { metadata: Record<string, unknown> } };
+    assert.deepEqual(Object.keys(input.data.metadata), [RECORD_NOTES_METADATA_KEY]);
+    assert.equal(WARRANTIES_METADATA_FIELD in input.data.metadata, false);
+    assert.equal(RMAS_METADATA_FIELD in input.data.metadata, false);
+  });
+
+  test('document note updates retain the complete metadata payload expected by posting commands', async () => {
+    stubDbWrites();
+    render(<RecordNotesPanel entityType="invoice" entityId="inv-1" entityName="INV-1"
+      metadata={{ documentLanguage: 'he', customField: 'preserve' }} />);
+    const panel = screen.getByRole('region', { name: 'Notes on INV-1' });
+    fireEvent.change(within(panel).getByLabelText('New note on INV-1'), { target: { value: 'Keep invoice metadata' } });
+    await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Add note' })); });
+    await waitFor(() => assert.ok(commandWrites.some(call => call.url === '/api/v1/commands/invoice.update')));
+    const write = commandWrites.find(call => call.url === '/api/v1/commands/invoice.update')!;
+    const input = write.body.input as { data: { metadata: Record<string, unknown> } };
+    assert.equal(input.data.metadata.documentLanguage, 'he');
+    assert.equal(input.data.metadata.customField, 'preserve');
+    assert.equal((input.data.metadata[RECORD_NOTES_METADATA_KEY] as Array<{ body: string }>)[0].body, 'Keep invoice metadata');
   });
 
   test('a missing secure random source refuses the note and retains its draft', async () => {
@@ -133,6 +171,37 @@ describe('Record notes screen', () => {
     const panel = screen.getByRole('region', { name: 'Notes on Acme Ltd' });
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Add note' })); });
     assert.ok(within(panel).getByText('Write something first.'));
+  });
+
+  test('a refused command keeps note and comment drafts', async () => {
+    stubDbWrites(403);
+    useAuthStore.setState({
+      isGuest: false, user: { uid: 'u1', email: 'dana@shop.test' } as never,
+      currentWorkspaceId: 'w1', workspaces: [{ id: 'w1', uid: 'u1', name: 'W', currency: 'USD' }] as never,
+    });
+    const { unmount } = render(<RecordNotesPanel entityType="customer" entityId="c1" entityName="Acme Ltd"
+      metadata={{ [RECORD_NOTES_METADATA_KEY]: [note('n1', 'Existing note', '2026-10-01T09:00:00Z')] }} />);
+    const panel = screen.getByRole('region', { name: 'Notes on Acme Ltd' });
+    const noteInput = within(panel).getByLabelText('New note on Acme Ltd') as HTMLTextAreaElement;
+    fireEvent.change(noteInput, { target: { value: 'Retry this note' } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Add note' }));
+    await waitFor(() => assert.equal(commandWrites.length, 1));
+    assert.equal(noteInput.value, 'Retry this note');
+    assert.ok(![...panel.querySelectorAll('li')].some(item => item.textContent?.includes('Retry this note')),
+      'a refused note stays in the editor, not in the saved-note list');
+    assert.deepEqual(Object.keys((commandWrites[0].body.input as { data: { metadata: Record<string, unknown> } }).data.metadata), [RECORD_NOTES_METADATA_KEY]);
+    unmount();
+    render(<RecordNotesPanel entityType="customer" entityId="c1" entityName="Acme Ltd" metadata={{}} />);
+    const threadPanel = screen.getByRole('region', { name: 'Notes on Acme Ltd' });
+    const replyInput = screen.getByLabelText('New comment on Acme Ltd') as HTMLTextAreaElement;
+    fireEvent.change(replyInput, { target: { value: 'Retry this reply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() => assert.equal(commandWrites.length, 2));
+    assert.equal(replyInput.value, 'Retry this reply');
+    assert.ok(![...threadPanel.querySelectorAll('li')].some(item => item.textContent?.includes('Retry this reply')),
+      'a refused reply stays in the editor, not in the saved thread');
+    assert.equal(commandWrites.length, 2);
+    assert.deepEqual(Object.keys((commandWrites[1].body.input as { data: { metadata: Record<string, unknown> } }).data.metadata), ['commentThread']);
   });
 
   test('a viewer reads the notes but gets no note box', () => {

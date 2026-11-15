@@ -8,16 +8,13 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { downloadCsv } from '../../lib/csvExport';
 import { getLocalDateISO } from '../../lib/utils';
 import {
-  createWarrantyRecord,
   warrantyCandidates,
-  warrantyFieldPath,
   warrantyRecordForCandidate,
   warrantyRecordsFromMetadata,
   warrantyStatus,
   type WarrantyCandidate,
   type WarrantyRecord,
 } from '../../lib/warehouseRecords';
-import type { WorkflowActor } from '../../lib/warehouseRecordUtils';
 import type { Customer, InventoryItem, Invoice } from '../../types';
 import InlineEdit from '../ui/InlineEdit';
 import ReportTableScroll from './ReportTableScroll';
@@ -25,10 +22,6 @@ import ReportTableScroll from './ReportTableScroll';
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Customer', 'Invoice', 'Invoice date', 'Item', 'SKU', 'Serial number', 'Warranty end date', 'Status', 'Last updated', 'Updated by'];
 type WarrantyFilter = 'under warranty' | 'all' | 'expired' | 'not set';
-
-function actorFor(user: { uid: string; displayName?: string | null; email?: string | null } | null, role: string): WorkflowActor {
-  return { uid: user?.uid || '', name: user?.displayName || user?.email || 'Workspace user', role };
-}
 
 export default function WarrantyRegisterPanel() {
   const customers = useLedgerStore(state => state.customers) as Customer[];
@@ -41,7 +34,7 @@ export default function WarrantyRegisterPanel() {
   const isGuest = useAuthStore(state => state.isGuest);
   const role = useCurrentRole();
   const { loading } = useLedgerCollections('customers', 'invoices', 'inventory');
-  const { updateEntity } = useEntityOperations();
+  const { runCommand } = useEntityOperations();
   const [filter, setFilter] = useState<WarrantyFilter>('under warranty');
   const [query, setQuery] = useState('');
 
@@ -77,17 +70,18 @@ export default function WarrantyRegisterPanel() {
     if (!customer || !workspaceId || !user) throw new Error('The customer record or workspace session is not available.');
     if (!canEdit) throw new Error('A workspace editor is required to change a warranty date.');
     if (loading || partial) throw new Error('Warranty dates are read-only while a required list is loading, capped, or failed.');
-    const existing = warrantyRecordForCandidate(recordsByCustomer.get(candidate.customerId) || [], candidate);
-    const record = createWarrantyRecord({
-      candidate,
+    await runCommand('warranty.update', {
+      candidate: {
+        id: candidate.id,
+        workspaceId: candidate.workspaceId,
+        customerId: candidate.customerId,
+        invoiceId: candidate.invoiceId,
+        invoiceLineId: candidate.invoiceLineId,
+        itemId: candidate.itemId,
+        serial: candidate.serial,
+      },
       endDate: String(next),
-      actor: actorFor(user, role),
-      at: new Date().toISOString(),
-      existing,
-    });
-    await updateEntity('customers', customer.id, {
-      [warrantyFieldPath(candidate)]: record,
-    } as Record<string, unknown>, `Warranty end date saved for ${candidate.serial}.`);
+    }, `Warranty end date saved for ${candidate.serial}.`);
   };
 
   const csvRows = rows.map(({ candidate, warranty, endDate }) => [

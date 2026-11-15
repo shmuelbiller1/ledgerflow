@@ -57,7 +57,7 @@ describe('AUD-09 step 3: API keys (routes on the app)', { skip: !url && 'needs L
 
   it('only an owner makes a key', async () => {
     for (const uid of [stranger, viewer, book]) assert.equal(await call(uid, 'POST', '/api/v1/keys/provision', { workspaceId: ws, name: 'k' }), 403, `${uid} refused`);
-    assert.equal(await call(owner, 'POST', '/api/v1/keys/provision', { workspaceId: ws, name: 'k' }), 201);
+    assert.equal(await call(owner, 'POST', '/api/v1/keys/provision', { workspaceId: ws, name: 'k', scopes: ['read:transactions'] }), 201);
   });
 
   it('only an owner revokes a workspace key', async () => {

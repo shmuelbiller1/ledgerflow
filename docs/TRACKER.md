@@ -23,6 +23,24 @@ then the checks: `npx tsc --noEmit -p tsconfig.json`, `LF_TEST_DATABASE_URL=... 
 
 ---
 
+# COMMANDS AND THE ASSISTANT — the plan (owner, 15 Nov 2026)
+
+Goal: every change to stored data goes through one list of named commands on the server, then an
+in-app assistant works in a sandbox copy of the books and proposes changes the person accepts.
+
+| step | prompt | state |
+|---|---|---|
+| CMD-1 Batch 0: runner, direct address, ratchet, generator, first 24 commands | `docs/prompts/CMD-1-commands.md` | merged as #719 (15 Nov); migration applied by the owner 15 Nov |
+| CMD-1 Batches 1–N: workspace, tasks, periods, accounts, inventory, then the rest; full OpenAPI + SDK; `risk: high` commands | same | not started |
+| CMD-1 browser writes, table by table, each with its migration (closes the rest of #646) | same | 4 document tables + rules in #719 |
+| CMD-1 proposals, undo, assistant tools (`assistant/tools.json`, system prompt, read tools) | same | after ≥ 25 commands across areas |
+| SBX-1 the assistant's sandbox: overlay copy of the books, accept / partial / edit / reject, re-check | `docs/prompts/SBX-1-assistant-sandbox.md` | after CMD-1 workspace, accounts, periods and inventory batches |
+| SBX-2 speed: answer without the model when code can, remembered decisions, caching, two models | to write | after SBX-1 |
+
+Migrations from this work are applied to the live database only **after** their PR is merged **and**
+Vercel has deployed it: a migration that removes a browser write before the new code is live breaks
+saving for everyone.
+
 # NOW — working straight on `main` (2026-09-24, late)
 
 **How we work now (your rule, in CLAUDE.md):** Claude commits and pushes directly to `main`.

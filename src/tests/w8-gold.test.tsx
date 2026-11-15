@@ -301,6 +301,10 @@ describe('W8 with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
       ['Texas state sales tax', 6.25, 200_000, 12_500, 0, 12_500],
     ]);
     // F-08: with three US state permits, each state's return is filed per permit registration
+    // (#661: the kept copy's figures are checked, not only its kind) — each state collects its own tax from the
+    // rate table above, and the three add up to the whole quarter's box 1
+    const stateTax: Record<string, number> = { CA: 10_875, NY: 3_200, TX: 12_500 };
+    let filedTotal = 0;
     for (const permit of usQuarterPermits(PROFILES, Q3.endDate)) {
       const filed = await send('POST', `/api/v1/workspaces/${ws}/tax-returns`, {
         ...Q3,
@@ -310,7 +314,12 @@ describe('W8 with worked figures', { skip: !url && 'LF_TEST_DATABASE_URL not set
       assert.equal(filed.status, 200, JSON.stringify(filed.body));
       assert.equal(filed.body.return.kind, 'sales_tax');
       assert.equal(filed.body.return.jurisdiction, permit.state);
+      const boxes = Object.fromEntries((filed.body.return.boxes as Array<{ key: string; cents: number }>).map(b => [b.key, b.cents]));
+      assert.equal(boxes['1'], stateTax[permit.state], `${permit.state}: the tax collected in the filed copy`);
+      assert.equal(boxes['5'], boxes['1'], `${permit.state}: nothing to reclaim, so net payable is the tax collected`);
+      filedTotal += boxes['1'];
     }
+    assert.equal(filedTotal, 26_575, 'the three state returns add up to the quarter');
   });
 
   test('use tax, TX, Q3: UT-1 taxable 120,000 → 7,500, groceries 30,000 exempt; 430,000 of service lines left for a person', async () => {

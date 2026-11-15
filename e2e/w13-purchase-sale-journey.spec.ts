@@ -33,7 +33,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
         const response = await page.request.fetch(`${server.base}${url.pathname}${url.search}`, {
           method: request.method(), headers: request.headers(), data: request.postDataBuffer() ?? undefined,
         });
-        if (/\/documents\/(bills|invoices)\/.+\/post$/.test(url.pathname)) postings.push({ path: url.pathname, body: request.postDataJSON(), status: response.status(), response: await response.json() });
+        if (/\/commands\/(bill|invoice)\.create$/.test(url.pathname)) postings.push({ path: url.pathname, body: request.postDataJSON(), status: response.status(), response: await response.json() });
         await route.fulfill({ response });
       };
       await page.route('**/api/**', forwardApi);
@@ -93,8 +93,13 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
       expect(postings).toHaveLength(3);
       expect(postings[2].status).toBe(200);
       for (const post of postings) {
-        expect(post.body.action).toBe('create'); expect(post.body.workspaceId).toBe(workspaceId);
-        expect(post.body).not.toHaveProperty('entries'); expect(post.body).not.toHaveProperty('transactions');
+        expect(post.path).toMatch(/^\/api\/v1\/commands\/(?:bill|invoice)\.create$/);
+        expect(post.body.workspaceId).toBe(workspaceId);
+        const commandInput = post.body.input as Record<string, unknown>;
+        const document = commandInput.bill || commandInput.invoice;
+        expect(document).toBeTruthy();
+        expect(document).not.toHaveProperty('entries');
+        expect(document).not.toHaveProperty('transactions');
       }
       const savedInvoice = (await server.all('invoices'))[0];
       expect(savedInvoice.amountCents).toBe(108000);

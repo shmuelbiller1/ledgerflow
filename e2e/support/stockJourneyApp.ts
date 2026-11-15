@@ -11,14 +11,16 @@ async function start() {
   const url = process.env.LF_TEST_DATABASE_URL;
   if (!url) throw new Error('W13 real stock journey requires LF_TEST_DATABASE_URL (isolated test Postgres).');
   process.env.DATABASE_URL = url;
-  const [{ default: express }, { getDb }, { documentPostRouter }, { workspaceRouter }, { reportRouter }, { inventoryRouter }] = await Promise.all([
-    import('express'), import('../../src/server/db/firestore'), import('../../src/server/routes/documentPostRoutes'),
-    import('../../src/server/routes/workspaceRoutes'), import('../../src/server/routes/reportRoutes'), import('../../src/server/routes/inventoryRoutes'),
+  const [{ default: express }, { getDb }, { commandRouter }, { documentPostRouter }, { workspaceRouter }, { reportRouter }, { inventoryRouter }] = await Promise.all([
+    import('express'), import('../../src/server/db/firestore'), import('../../src/server/routes/commandRoutes'),
+    import('../../src/server/routes/documentPostRoutes'), import('../../src/server/routes/workspaceRoutes'),
+    import('../../src/server/routes/reportRoutes'), import('../../src/server/routes/inventoryRoutes'),
   ]);
   const db = getDb();
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => { Object.assign(req, { user: { uid: JOURNEY_USER.uid, email: JOURNEY_USER.email } }); next(); });
+  app.use('/api/v1/commands', commandRouter);
   app.use('/api/v1/documents', documentPostRouter);
   app.use('/api/v1/workspaces', workspaceRouter);
   app.use('/api/v1/reports', reportRouter);

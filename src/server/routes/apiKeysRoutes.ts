@@ -8,6 +8,7 @@ import { SecurityService } from "../../services/securityService";
 import { getDb, FieldValue } from "../db/firestore";
 import { apiKeyLimit } from "../middleware/rateLimiters";
 import { openApiDocument } from "../openapi";
+import { validateApiKeyScopes } from "../../lib/apiScopes";
 import { writeServerAuditLog } from "../services/auditLogService";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
@@ -27,6 +28,14 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
       }
 
       const authReq = req as AuthenticatedRequest;
+      const scopeValidation = validateApiKeyScopes(scopes);
+      if (!scopeValidation.ok) {
+        const message = scopeValidation.reason === 'missing' ? 'Choose at least one API key scope.'
+          : scopeValidation.reason === 'duplicate' ? 'API key scopes must not contain duplicates.'
+            : 'One or more API key scopes are not supported.';
+        return res.status(400).json({ status: "error", message });
+      }
+
       await authorizeWorkspace(authReq, workspaceId);
 
       const userId = authReq.user.uid;
@@ -46,24 +55,13 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
         expiresAtValue = d.toISOString();
       }
 
-      const defaultScopes = [
-        'read:transactions',
-        'write:transactions',
-        'read:projects',
-        'write:projects',
-        'read:ledger',
-        'write:ledger',
-        'read:workspaces',
-        'brain:analyze'
-      ];
-
       const keyPayload = {
         id: keyId,
         workspaceId,
         uid: userId,
         name: name || 'Production Integration Key',
         keyHash: computedHash,
-        scopes: Array.isArray(scopes) && scopes.length > 0 ? scopes : defaultScopes,
+        scopes: scopeValidation.scopes,
         expiresAt: expiresAtValue || 'never',
         createdAt: new Date().toISOString(),
         lastUsedAt: null,
