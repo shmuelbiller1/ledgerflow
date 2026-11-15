@@ -18,6 +18,16 @@ afterEach(() => {
   for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+/** One screen holding the given file lines, for the counters to read. */
+function screenWith(lines: string[], file = 'src/components/sales/Sales.tsx'): string {
+  return scratch({ [file]: lines.join('\n') });
+}
+
+/** The count of screens that show more than one filled button. */
+function primaryButtonScreens(root: string): number {
+  return computeQualityMetrics(root).screensWithManyPrimaryButtons;
+}
+
 /** A minimal tree the counters can read: one screen and the shared list. */
 function scratch(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ratchet-'));
@@ -120,29 +130,25 @@ describe('the five interface ratchets', () => {
   test('a faint tint on a selected row is not a primary button', () => {
     // `bg-indigo-600/[0.03]` is a wash behind a selectable row, and `\b` matched it because `/` is not
     // a word character — so a list row counted as one of a screen's filled buttons.
-    const root = scratch({
-      'src/components/sales/Rows.tsx': [
-        'export const R = () => (<ul>',
-        '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
-        '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
-        '</ul>);',
-      ].join('\n'),
-    });
-    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
+    const root = screenWith([
+      'export const R = () => (<ul>',
+      '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+      '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+      '</ul>);',
+    ], 'src/components/sales/Rows.tsx');
+    assert.equal(primaryButtonScreens(root), 0);
   });
 
   test('a filled button outside the steps counts against the step that is showing', () => {
     // A wizard's shared action is on screen with whichever step is showing. Counting it in a group of
     // its own let a wizard show two filled buttons and still total one per group. Reported by review.
-    const root = scratch({
-      'src/components/sales/Wizard.tsx': [
-        'export const W = ({ step }) => (<>',
-        '  <button className="btn-primary">Help</button>',
-        '  {step === 2 && (<button className="btn-primary">Finish</button>)}',
-        '</>);',
-      ].join('\n'),
-    });
-    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'two filled buttons on screen at once');
+    const root = screenWith([
+      'export const W = ({ step }) => (<>',
+      '  <button className="btn-primary">Help</button>',
+      '  {step === 2 && (<button className="btn-primary">Finish</button>)}',
+      '</>);',
+    ], 'src/components/sales/Wizard.tsx');
+    assert.equal(primaryButtonScreens(root), 1, 'two filled buttons on screen at once');
   });
 
   test('the API documentation and the one place itself are not counted as a screen typing an address', () => {

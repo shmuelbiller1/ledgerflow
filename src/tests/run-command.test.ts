@@ -27,6 +27,20 @@ function answer(status: number, body: unknown) {
   }) as unknown as typeof fetch;
 }
 
+/**
+ * Capture the headers of one call. Four tests check what a single request carried, and each had its
+ * own copy of this stub — the kind of duplication that, when Sonar flags it, is worth removing rather
+ * than waiving.
+ */
+function captureHeaders() {
+  const sent: { value: Record<string, string> } = { value: {} };
+  globalThis.fetch = (async (_path: string, init: RequestInit) => {
+    sent.value = init.headers as Record<string, string>;
+    return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
+  }) as unknown as typeof fetch;
+  return sent;
+}
+
 beforeEach(() => { calls.length = 0; });
 afterEach(() => { globalThis.fetch = realFetch; });
 
@@ -149,11 +163,7 @@ describe('runCommand is the one place a screen calls its server', () => {
   });
 
   test('extra headers are sent, so an idempotency key survives the move off hand-typed calls', async () => {
-    let sent: Record<string, string> = {};
-    globalThis.fetch = (async (_path: string, init: RequestInit) => {
-      sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
-    }) as unknown as typeof fetch;
+    const sent = captureHeaders();
     await runCommand({
       path: '/api/v1/transactions',
       method: 'POST',
@@ -161,10 +171,10 @@ describe('runCommand is the one place a screen calls its server', () => {
       token: 't',
       headers: { 'Idempotency-Key': 'abc' },
     });
-    assert.equal(sent['Idempotency-Key'], 'abc');
+    assert.equal(sent.value['Idempotency-Key'], 'abc');
     // and adding one does not drop the token or the content type
-    assert.equal(sent.Authorization, 'Bearer t');
-    assert.equal(sent['Content-Type'], 'application/json');
+    assert.equal(sent.value.Authorization, 'Bearer t');
+    assert.equal(sent.value['Content-Type'], 'application/json');
   });
 
   test('rawBody sends already-serialized text as-is, which a backup restore needs', async () => {
@@ -196,14 +206,10 @@ describe('runCommand is the one place a screen calls its server', () => {
   });
 
   test('a null token means no session, so no credentials are attached', async () => {
-    let sent: Record<string, string> = {};
-    globalThis.fetch = (async (_path: string, init: RequestInit) => {
-      sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
-    }) as unknown as typeof fetch;
+    const sent = captureHeaders();
     await runCommand({ path: '/api/v1/invoices/public/abc', token: null });
     // the whole point: a public page asking as a visitor must not send the visitor's own session
-    assert.equal(sent.Authorization, undefined);
+    assert.equal(sent.value.Authorization, undefined);
   });
 
   test('a 200 whose body was cut off fails instead of reporting an empty success', async () => {
@@ -218,13 +224,9 @@ describe('runCommand is the one place a screen calls its server', () => {
   });
 
   test('a raw body still says it is JSON, which is what the restore route reads', async () => {
-    let sent: Record<string, string> = {};
-    globalThis.fetch = (async (_path: string, init: RequestInit) => {
-      sent = init.headers as Record<string, string>;
-      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
-    }) as unknown as typeof fetch;
+    const sent = captureHeaders();
     await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: '{}', token: 't' });
     // without this the request goes out as text/plain and the route cannot read it as the backup
-    assert.equal(sent['Content-Type'], 'application/json');
+    assert.equal(sent.value['Content-Type'], 'application/json');
   });
 });
