@@ -39,3 +39,13 @@ test('linked entries whose link matches are valid; a link that does not match is
   assert.equal(bad.hashChainValid, false);
   assert.equal(bad.brokenChainIndex, 1);
 });
+
+test('a recorded link that does not match an unlinked signed entry before it is still reported', () => {
+  const result = DoubleEntryAuditor.auditLedger([
+    entry('a', '2026-11-01T10:00:00Z', { hash: 'ha' }),
+    entry('b', '2026-11-02T10:00:00Z', { hash: 'hb', previousHash: 'tampered' }),
+  ], accounts);
+  assert.equal(result.hashChainValid, false);
+  assert.equal(result.brokenChainIndex, 1);
+});
+
