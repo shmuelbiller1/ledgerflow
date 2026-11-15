@@ -3,6 +3,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -28,7 +29,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
 }) => {
   const accounts = useLedgerStore(s => s.accounts);
   const bills = useLedgerStore(s => s.bills);
-  const { loading: billsLoading } = useLedgerCollections('bills');
+  const { loading } = useLedgerCollections('bills');
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const cacheWorkspace = useDataNeedsStore(s => s.loadedWorkspaceId);
@@ -93,7 +94,9 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
 
       <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
         accounts={accounts} bills={bills} startDate={start} endDate={end}
-        loading={billsLoading} incomplete={listIncomplete} currency={currency} />
+        loading={loading} incomplete={listIncomplete} currency={currency} />
+
+      {loading && <LoadingState what="expenses by category" rows={4} />}
 
       <TanStackDataGrid
         caption="Expenses by category"

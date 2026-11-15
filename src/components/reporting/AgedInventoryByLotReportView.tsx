@@ -20,6 +20,7 @@ import {
   type AgedLotRow,
 } from '../../lib/agedInventoryByLot';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -86,7 +87,9 @@ export default function AgedInventoryByLotReportView({
   }, [rows]);
 
   if (loading || (ordersLoading && !purchaseOrdersProp)) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading lot aging…</p>;
+    // a named placeholder, not a bare spinner: the list below can be empty, and I-05 asks the screen
+    // that can say "nothing here" to say "still loading" while it does not know yet
+    return <LoadingState what="lot aging" rows={5} />;
   }
 
   return (
