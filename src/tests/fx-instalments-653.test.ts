@@ -17,7 +17,9 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { postInvoiceLedger } from '../services/ledgerPost/invoicePosting';
 import type { LedgerPostContext } from '../services/ledgerPost/postingKit';
-import type { ChartAccount, Transaction, Workspace } from '../types';
+import type { ChartAccount, Invoice, Transaction, Workspace } from '../types';
+import { DATA_CHECKS, type CheckContext } from '../lib/dataChecks';
+import { allocationsOf } from '../server/services/allocationLedger';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 
@@ -92,7 +94,7 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
   after(async () => {
     globalThis.fetch = realFetch;
     server?.close();
-    for (const table of ['transactions', 'invoices', 'bills', 'payments', 'customers', 'vendors', 'chartAccounts', 'auditLogs', 'idempotencyKeys', 'documentSeries', 'workspaces']) {
+    for (const table of ['paymentAllocations', 'allocationOperations', 'transactions', 'invoices', 'bills', 'payments', 'customers', 'vendors', 'chartAccounts', 'auditLogs', 'idempotencyKeys', 'documentSeries', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
     }
     const { getSupabase } = await import('../lib/db/client');
@@ -113,15 +115,43 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
       customerId, allocations: [{ documentId: inv.id, documentType: 'invoice', amountCents: cents }],
     });
     const cleared: number[] = [];
+    const paymentIds: string[] = [];
+    const assertControlBalance = async () => {
+      const ctx: CheckContext = { transactions: await all<Transaction>('transactions'), accounts: Object.values(acct), invoices: await all<Invoice>('invoices'), bills: [], recurring: [], today: '2025-06-01', baseCurrency: 'USD', allocations: await all<NonNullable<CheckContext['allocations']>[number]>('paymentAllocations') };
+      assert.deepEqual(DATA_CHECKS.find(check => check.id === 'control-balance')!.run(ctx), []);
+    };
     for (const [date, cents] of [['2025-05-10', 3_333], ['2025-05-20', 3_333], ['2025-05-30', 3_334]] as const) {
       const res = await pay(date, cents);
       assert.equal(res.status, 200, JSON.stringify(res.body));
       const entry = (await all<Transaction>('transactions')).find(t => t.id === res.body.data.transactionId);
-      cleared.push(-(entry?.lines?.find(l => l.accountId === acct['1100'].id)?.amountCents || 0));
+      const actual = -(entry?.lines?.filter(l => l.accountId === acct['1100'].id).reduce((sum, l) => sum + l.amountCents, 0) || 0);
+      cleared.push(actual);
+      paymentIds.push(res.body.data.paymentId);
+      const rows = await allocationsOf(db, null, ws, inv.id);
+      assert.deepEqual(rows.map(row => [row.baseClearedCents, row.baseSettledCents, row.realizedFxCents]), cleared.map(c => [c, c, 0]));
+      await assertControlBalance();
     }
     assert.deepEqual(cleared, [3_614, 3_613, 3_615]);
     assert.deepEqual(await sheet('2025-05-31'), [10_842, 0, 0, 10_842, true], 'Checking 108.42, A/R 0.00');
     const paid = (await db.collection('invoices').doc(inv.id).get()).data();
     assert.equal(paid?.status, 'paid');
+
+    // Voiding the middle instalment must reverse its exact 3613, not a fresh 3614.
+    const voided = await send('POST', `/api/v1/payments/${paymentIds[1]}/void`, { workspaceId: ws, date: '2025-06-01', reason: 'Replace payment' });
+    assert.equal(voided.status, 200, JSON.stringify(voided.body));
+    assert.deepEqual(await sheet('2025-06-01'), [7229, 3613, 0, 10842, true]);
+    const afterVoid = await allocationsOf(db, null, ws, inv.id, { asOf: '2025-06-01' });
+    assert.deepEqual(afterVoid.filter(r => r.kind === 'reversal').map(r => [r.baseClearedCents, r.baseSettledCents, r.realizedFxCents]), [[-3613, -3613, 0]]);
+    await assertControlBalance();
+
+    const replaced = await pay('2025-06-02', 3333);
+    assert.equal(replaced.status, 200, JSON.stringify(replaced.body));
+    const live = await allocationsOf(db, null, ws, inv.id);
+    assert.equal(live.find(r => r.date === '2025-06-02')?.baseClearedCents, 3613);
+    assert.equal(live.reduce((sum, r) => sum + r.baseClearedCents, 0), 10842);
+    assert.equal(live.reduce((sum, r) => sum + r.realizedFxCents, 0), 0);
+    assert.deepEqual(await sheet('2025-06-02'), [10842, 0, 0, 10842, true]);
+    assert.equal((await db.collection('invoices').doc(inv.id).get()).data()?.status, 'paid');
+    await assertControlBalance();
   });
 });
