@@ -9,7 +9,8 @@ import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../serv
 import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from '../server/commands/time';
 import { watchCreateCommand, watchRemoveCommand } from '../server/commands/watches';
 import type { AlertSettingsWriteResult } from '../server/services/bookAlertService';
-import { executeCommand, previewCommand } from '../server/utils/commandExecutor';
+import { executeCommand, previewCommand, withLegacyInputIdempotencyHash } from '../server/utils/commandExecutor';
+import { TASK_KIND } from '../lib/tasks';
 import {
   captureResponse,
   fakeRequest,
@@ -46,6 +47,42 @@ test('task, watch, entry-link, time, and stage commands publish validated exampl
   assert.deepEqual(entryLinkCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
   assert.deepEqual(timeLogCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
   assert.deepEqual(stageDefineCommand.roles, ['owner', 'accountant']);
+});
+
+test('legacy route idempotency hashes include path targets for task deletes and status updates', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const seedTask = (id: string) => db.seed(`documents/${id}`, {
+    id, kind: TASK_KIND, workspaceId, title: `Task ${id}`, assignee: owner.uid, createdBy: owner.uid,
+    createdAt: '2026-11-15T00:00:00.000Z', status: 'open',
+  });
+  seedTask('remove-target-a');
+  seedTask('remove-target-b');
+  seedTask('status-target-a');
+  seedTask('status-target-b');
+  const dependencies = runnerDependencies(db);
+
+  const remove = withLegacyInputIdempotencyHash(taskRemoveCommand);
+  const firstDelete = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-a' } }, dependencies);
+  assert.equal(firstDelete.ok, true);
+  assert.equal(db.read('documents/remove-target-a'), undefined);
+  const reusedDelete = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-b' } }, dependencies);
+  assert.equal(reusedDelete.ok, false);
+  if (!reusedDelete.ok) assert.equal(reusedDelete.status, 409);
+  assert.ok(db.read('documents/remove-target-b'), 'a replay for another path target must not delete it');
+
+  const status = withLegacyInputIdempotencyHash(taskStatusCommand);
+  const firstUpdate = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-a', status: 'done' } }, dependencies);
+  assert.equal(firstUpdate.ok, true);
+  assert.equal(db.read('documents/status-target-a')?.status, 'done');
+  const reusedUpdate = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-b', status: 'done' } }, dependencies);
+  assert.equal(reusedUpdate.ok, false);
+  if (!reusedUpdate.ok) assert.equal(reusedUpdate.status, 409);
+  assert.equal(db.read('documents/status-target-b')?.status, 'open', 'a replay must not return one task under another task URL');
 });
 
 test('the command runner omits audit records for idempotent no-op results', async () => {

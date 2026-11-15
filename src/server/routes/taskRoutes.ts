@@ -5,7 +5,7 @@ import { myWatches, WatchError } from '../services/watchService';
 import { LinkError, linksOf } from '../services/entryLinkService';
 import { listTime, TimeError } from '../services/timeService';
 import { readStages, StageError } from '../services/stageService';
-import { executeCommand } from '../utils/commandExecutor';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
 import type { CommandDefinition, CommandExecutionOutcome } from '../commands/types';
 import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../commands/tasks';
 import { watchCreateCommand, watchRemoveCommand } from '../commands/watches';
@@ -40,7 +40,7 @@ async function runLegacyCommand<Schema extends import('zod').ZodType, Result, Pr
   roleFailure?: string,
 ) {
   await executeCommand(req, res, {
-    definition,
+    definition: withLegacyInputIdempotencyHash(definition),
     workspaceId: String((req.params as Record<string, string>).workspaceId),
     input,
     formatResponse(outcome: CommandExecutionOutcome) {
