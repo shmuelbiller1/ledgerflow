@@ -188,7 +188,7 @@ export default function BillingSettings() {
                   }`}
                 >
                   {p.badge && !isCurrent && (
-                    <div className="absolute -top-3 right-4 bg-indigo-600 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">
+                    <div className="absolute -top-3 right-4 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">
                       {p.badge}
                     </div>
                   )}

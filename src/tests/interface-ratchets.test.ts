@@ -165,6 +165,28 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
   });
 
+  test('an arrow function in an attribute does not end the tag', () => {
+    // `onClick={() => …}` puts a `>` inside the tag; a `[^>]*` regex stops there and sees no button
+    const root = scratch({
+      'src/components/arrow/Arrow.tsx': [
+        '<button type="button" onClick={() => save()} className="btn-primary">Save</button>',
+        '<button type="button" onClick={() => send()}',
+        '  className="bg-indigo-600">Send</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
+  });
+
+  test('a conditional in another attribute does not discard a real primary button', () => {
+    const root = scratch({
+      'src/components/other/Other.tsx': [
+        '<button type="button" disabled={busy ? true : false} className="btn-primary">Save</button>',
+        '<button type="button" className="bg-indigo-600">Send</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'the ternary is in disabled, not className');
+  });
+
   test('an icon tile and a selected chip on their own lines are still not buttons', () => {
     const root = scratch({
       'src/components/decoration/Decoration.tsx': [

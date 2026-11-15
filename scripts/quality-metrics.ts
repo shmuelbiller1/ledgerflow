@@ -259,20 +259,55 @@ function computeScreensWithManyPrimaryButtons(rootDir: string): number {
     const text = fs.readFileSync(file, 'utf8');
     const perStep = new Map<string, number>();
     let step = '';
-    // each opening element with its attributes, so a class on any line of it is read with the tag it
-    // belongs to; `[^>]*` is enough because a className string cannot contain a bare `>`
-    for (const element of text.matchAll(/<(button|AsyncButton|a)\b([^>]*)>/g)) {
-      const attributes = element[2];
-      const before = text.slice(0, element.index);
-      const stepHere = [...before.matchAll(/\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/g)].at(-1);
+    for (const tag of openingButtonTags(text)) {
+      const stepHere = [...text.slice(0, tag.index).matchAll(/\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/g)].at(-1);
       if (stepHere) step = stepHere[1].trim();
-      if (!filled.test(attributes)) continue;
-      // a class that is one arm of a ternary is a selected state, not an action
-      if (/[?:]\s*["']/.test(attributes)) continue;
+      if (!filled.test(tag.attributes)) continue;
+      // a class that is one arm of a ternary is a selected state, not an action. Test only the
+      // className value, not every attribute: `disabled={a ? b : c}` is not a selected state.
+      if (/[?:]\s*["']/.test(classNameValue(tag.attributes) ?? '')) continue;
       perStep.set(step, (perStep.get(step) ?? 0) + 1);
     }
     return [...perStep.values()].some(n => n > 1);
   }).length;
+}
+
+/** The value of the className attribute in a tag's attribute text, or null when there is none. */
+function classNameValue(attributes: string): string | null {
+  const match = /className\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\{[^}]*\})/.exec(attributes);
+  return match ? match[1] : null;
+}
+
+/**
+ * Every opening `<button>`, `<AsyncButton>` and `<a>` with its full attribute text.
+ *
+ * A regular expression over `[^>]*` stops at the `>` inside `onClick={() => …}`, which is in most of
+ * this codebase's buttons — so it found almost none of them. This walks the tag by hand, tracking
+ * quotes, braces and comments, and only ends the tag at a `>` that is outside all three.
+ */
+function openingButtonTags(text: string): Array<{ index: number; attributes: string }> {
+  const tags: Array<{ index: number; attributes: string }> = [];
+  const opener = /<(button|AsyncButton|a)\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = opener.exec(text))) {
+    let i = match.index + match[0].length;
+    let braces = 0;
+    let quote: string | null = null;
+    for (; i < text.length; i++) {
+      const c = text[i];
+      if (quote) {
+        if (c === '\\') { i++; continue; }
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+      if (c === '{') { braces++; continue; }
+      if (c === '}') { braces--; continue; }
+      if (c === '>' && braces === 0) break;
+    }
+    tags.push({ index: match.index, attributes: text.slice(match.index, i + 1) });
+  }
+  return tags;
 }
 
 export function computeQualityMetrics(rootDir: string = process.cwd()): QualityMetrics {
