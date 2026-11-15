@@ -3,6 +3,10 @@ import { CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getIdToken } from '../../firebase';
 import { formatCurrency } from '../../lib/utils';
 import type { SnapshotChange } from '../../lib/closingSnapshot';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import { csvMoney } from '../../lib/csvExport';
+import type { ColumnDef } from '@tanstack/react-table';
 
 /**
  * Closing balance check (CA-06): a closed month's balances on its last day, worked out again by
@@ -42,6 +46,17 @@ export default function ClosingBalanceCheck({ workspaceId, month, currency }: { 
   if (error) return <p role="alert" className="text-sm text-rose-600">{error}</p>;
   if (!result?.snapshot) return null;
   const { snapshot, changes } = result;
+
+  /**
+   * The accounts that moved since the month was closed: what the balance was then, what it is now,
+   * and the difference. The account names the row, so it is a row header.
+   */
+  const columns: ColumnDef<SnapshotChange, unknown>[] = [
+    { id: 'account', accessorFn: row => `${row.code ? `${row.code} · ` : ''}${row.name}`, header: 'Account', cell: info => <bdi>{String(info.getValue())}</bdi> },
+    { id: 'atClose', accessorFn: row => row.atCloseCents, header: 'At the close', cell: info => <span className="tabular-nums">{money(Number(info.getValue()))}</span> },
+    { id: 'now', accessorFn: row => row.nowCents, header: 'Now', cell: info => <span className="tabular-nums">{money(Number(info.getValue()))}</span> },
+    { id: 'difference', accessorFn: row => row.differenceCents, header: 'Difference', cell: info => <span className="tabular-nums font-semibold">{money(Number(info.getValue()))}</span> },
+  ];
   const closedOn = snapshot.takenAt.slice(0, 10);
 
   return (
@@ -62,27 +77,25 @@ export default function ClosingBalanceCheck({ workspaceId, month, currency }: { 
               The Audit Trail shows what was posted or changed in the closed dates.
             </span>
           </p>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Balances on {snapshot.asOfDate}: at the close and now</caption>
-            <thead>
-              <tr className="text-xs text-[var(--muted)] text-left">
-                <th scope="col" className="py-1">Account</th>
-                <th scope="col" className="py-1 text-right">At the close</th>
-                <th scope="col" className="py-1 text-right">Now</th>
-                <th scope="col" className="py-1 text-right">Difference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {changes.map(c => (
-                <tr key={c.accountId} className="border-t border-[var(--line)]">
-                  <td className="py-1"><bdi>{c.code ? `${c.code} · ` : ''}{c.name}</bdi></td>
-                  <td className="py-1 text-right tabular-nums">{money(c.atCloseCents)}</td>
-                  <td className="py-1 text-right tabular-nums">{money(c.nowCents)}</td>
-                  <td className="py-1 text-right tabular-nums font-semibold">{money(c.differenceCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TanStackDataGrid
+            caption={`Balances on ${snapshot.asOfDate}: at the close and now`}
+            data={changes}
+            columns={columns}
+            rowHeaderColumn="account"
+            pageSize={25}
+            searchPlaceholder="Search accounts..."
+            searchLabel="Search accounts with a different balance"
+            columnScope="closing-balance-check"
+            columnLabel="Balances since the close columns"
+            columnNames={['Account', 'At the close', 'Now', 'Difference']}
+            exportConfig={{
+              filename: `balances-since-close-${month}.csv`,
+              label: 'Export CSV',
+              headers: ['Account', 'Code', 'At the close', 'Now', 'Difference'],
+              mapRow: row => [`${row.code ? `${row.code} · ` : ''}${row.name}`, row.code, csvMoney(row.atCloseCents), csvMoney(row.nowCents), csvMoney(row.differenceCents)],
+            }}
+            filteredEmptyState={<EmptyState title="No account matches your search" description="Try another account name or code." />}
+          />
           <p className="text-xs text-[var(--muted)]">Balances are debits positive, credits negative, as in the trial balance.</p>
         </>
       )}
