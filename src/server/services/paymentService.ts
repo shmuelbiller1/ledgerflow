@@ -5,9 +5,10 @@ import { ledgerCreate } from './ledgerDoor';
 import { deriveScopedOperationKey } from '../utils/idempotency';
 import { isWithholdingAccount } from '../../lib/tax/withholding';
 import { calculateAmountDue, depositAppliedCents, settledStatus } from '../../lib/documentMath';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 import { writeServerAuditLog } from './auditLogService';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import type { ChartAccount } from '../../types';
+import type { ChartAccount, Transaction as LedgerTransaction } from '../../types';
 import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
 import { isIsoDate } from '../../lib/warehouseRecordUtils';
 
@@ -18,7 +19,7 @@ import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
 import type { DocumentData, DocumentReference, Firestore, Transaction } from '../db/firestore';
-import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, liveStoredRowsOf, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
+import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, liveStoredRowsOf, liveStoredRowsOfSource, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
 import { allocateCents, spreadLabels, type LineAccountWeight } from '../../kernel/templates/TransactionTemplates';
 
 export interface CreatePaymentPayload {
@@ -644,6 +645,7 @@ export async function applyUnappliedPayment(db: Firestore, input: {
     const docUpdates: Array<{ ref: DocumentReference; updates: Record<string, unknown> }> = [];
     const labelWeights: Array<{ cents: number; dimensions?: Record<string, string> }> = [];
     const allocDocs: Array<{ partyId: string | null; dueCents: number }> = [];
+    const clearedByAlloc: number[] = [];
     for (const alloc of allocations) {
       if (alloc.documentType !== wanted) throw new PaymentApplyError(400, `A payment ${received ? 'received' : 'made'} is applied to ${wanted}s`);
       const ref = db.collection(received ? 'invoices' : 'bills').doc(alloc.documentId);
@@ -664,6 +666,7 @@ export async function applyUnappliedPayment(db: Firestore, input: {
       allocDocs.push({ partyId: (received ? doc.customerId : doc.vendorId) || null, dueCents: due });
       if (alloc.amountCents > due) throw new PaymentApplyError(409, `${doc.number || alloc.documentId} has only ${formatCurrency(due, paymentCurrency)} left to pay`);
       const paid = (Number(doc.amountPaidCents) || 0) + alloc.amountCents;
+      clearedByAlloc.push(await documentClearing(db, tx, workspaceId, doc, alloc, paymentCurrency, baseCurrency, docRate, ledgerReady));
       labelWeights.push(...documentLabelWeights(doc, alloc.documentType, alloc.amountCents));
       docUpdates.push({ ref, updates: {
         amountPaidCents: paid,
@@ -676,9 +679,52 @@ export async function applyUnappliedPayment(db: Firestore, input: {
     // the money waited in Customer Deposits / Vendor Prepayments: move it to A/R or A/P now
     const heldIn = String(payment.advanceAccountId || payment.offsetAccountId || '');
     const offset = String(payment.offsetAccountId || '');
+    const clearedBase = clearedByAlloc.reduce((sum, cents) => sum + cents, 0);
+    let heldBase = unapplied;
+    if (paymentCurrency !== baseCurrency) {
+      if (!heldIn || !offset) throw new PaymentApplyError(409, 'The original foreign advance has no recorded account; reconcile the payment before applying it.');
+      // A separate advance account gives an exact remaining carrying amount
+      // from the original posting and previous application entries.
+      if (heldIn !== offset) {
+        const entries = (await tx.get(db.collection('transactions').where('workspaceId', '==', workspaceId).where('metadata.paymentId', '==', paymentId))).docs
+          .map(d => ({ ...d.data(), id: d.id } as LedgerTransaction)).filter(isPostable);
+        if (!entries.some(e => e.metadata?.type === 'payment-posting' || e.metadata?.type === 'standalone-payment')) {
+          throw new PaymentApplyError(409, 'The original foreign advance posting could not be found; reconcile the payment before applying it.');
+        }
+        heldBase = (received ? -1 : 1) * entries.reduce((sum, e) => sum + (e.lines || [])
+          .filter(l => l.accountId === heldIn).reduce((s, l) => s + lineAmount(l, e), 0), 0);
+      } else if (Number.isSafeInteger(payment.unappliedBaseCents)) {
+        heldBase = Number(payment.unappliedBaseCents);
+      } else {
+        // Legacy advances held directly in the control account have no separate
+        // journal leg. Recover their carrying amount only from complete rows.
+        const rows = ledgerReady ? await liveStoredRowsOfSource(db, tx, workspaceId, 'payment', paymentId) : [];
+        const applied = rows.reduce((sum, row) => sum + Number(row.data.amountCents), 0);
+        const entries = (await tx.get(db.collection('transactions').where('workspaceId', '==', workspaceId).where('metadata.paymentId', '==', paymentId))).docs
+          .map(d => ({ ...d.data(), id: d.id } as LedgerTransaction)).filter(isPostable);
+        const original = entries.filter(e => e.metadata?.type === 'payment-posting' || e.metadata?.type === 'standalone-payment');
+        if (original.length !== 1 || applied !== Number(payment.amountCents) - unapplied) {
+          throw new PaymentApplyError(409, 'The foreign advance has incomplete settlement history; reconcile its original control-account carrying amount before applying it.');
+        }
+        const posted = (received ? -1 : 1) * (original[0].lines || []).filter(l => l.accountId === offset).reduce((sum, l) => sum + lineAmount(l, original[0]), 0);
+        heldBase = posted - rows.reduce((sum, row) => sum + Number(row.data.baseClearedCents), 0);
+      }
+    }
+    if (!Number.isSafeInteger(heldBase) || heldBase < 0) {
+      throw new PaymentApplyError(409, 'The advance carrying amount is inconsistent; reconcile the payment before applying it.');
+    }
+    // Release precisely the remaining booked advance on its final application.
+    const releasedBase = total === unapplied ? heldBase : Math.round(heldBase * (total / unapplied));
+    const difference = releasedBase - clearedBase;
     let ledgerTx: Record<string, unknown> | null = null;
-    if (heldIn && offset && heldIn !== offset) {
-      const baseCents = Math.round(total * minorUnitRate(rate, paymentCurrency, baseCurrency));
+    let applicationFxAccount: ChartAccount | undefined;
+    if (heldIn && offset && (heldIn !== offset || difference !== 0)) {
+      if (difference !== 0) {
+        const chart = await tx.get(db.collection('chartAccounts').where('workspaceId', '==', workspaceId));
+        applicationFxAccount = paymentFxAccount(chart.docs.map(d => ({ ...d.data(), id: d.id } as ChartAccount)), true);
+        if (!applicationFxAccount) throw new PaymentApplyError(409, 'Add an exchange gain/loss or rounding account to apply this advance without changing its booked amount');
+      }
+      const baseCents = Math.max(Math.abs(clearedBase), releasedBase);
       const description = `Payment ${payment.number || paymentId} applied (${received ? 'customer deposit' : 'vendor prepayment'})`;
       const { TransactionValidator } = await import('../../kernel/validation/TransactionValidator');
       ledgerTx = await TransactionValidator.validateAndPrepare(
@@ -686,10 +732,15 @@ export async function applyUnappliedPayment(db: Firestore, input: {
           id: db.collection('transactions').doc().id, workspaceId, uid, date, description, currency: baseCurrency, exchangeRate: 1,
           status: 'completed', type: 'actual', totalAmountCents: baseCents,
           metadata: { type: 'payment-application', paymentId, documents: allocations.map(a => a.documentId) },
-          // DIM-1: the move to A/R or A/P carries the applied documents' labels
-          lines: payeeLabels(labelWeights, total, received
-            ? [{ accountId: heldIn, amountCents: baseCents, description }, { accountId: offset, amountCents: -baseCents, description }]
-            : [{ accountId: offset, amountCents: baseCents, description }, { accountId: heldIn, amountCents: -baseCents, description }]),
+          // DIM-1: release the exact historical carrying amount, clear the exact
+          // document remainder, and book their difference without touching cash.
+          lines: payeeLabels(labelWeights, total, [
+            ...(heldIn === offset
+              ? [{ accountId: offset, amountCents: (received ? 1 : -1) * difference, description }]
+              : [{ accountId: heldIn, amountCents: (received ? 1 : -1) * releasedBase, description },
+                 { accountId: offset, amountCents: (received ? -1 : 1) * clearedBase, description }]),
+            ...(applicationFxAccount ? [{ accountId: applicationFxAccount.id, amountCents: (received ? -1 : 1) * difference, description: 'Currency rounding or exchange difference on advance application' }] : []),
+          ]),
         },
         { workspaceId, user: { uid }, wsData }, undefined, tx,
       ) as unknown as Record<string, unknown>;
@@ -699,6 +750,7 @@ export async function applyUnappliedPayment(db: Firestore, input: {
     tx.update(paymentRef, {
       allocations: [...(payment.allocations || []), ...allocations],
       unappliedCents: unapplied - total,
+      unappliedBaseCents: heldBase - releasedBase,
       updatedAt: new Date().toISOString(),
     });
     if (ledgerTx) ledgerCreate(tx, db.collection('transactions').doc(String(ledgerTx.id)), { ...ledgerTx, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
@@ -706,12 +758,13 @@ export async function applyUnappliedPayment(db: Firestore, input: {
     if (ledgerReady) {
       // EG-2: one advance_application row per allocation, dated the application date, at the advance's rate
       const side: AllocationSide = received ? 'receivable' : 'payable';
-      const split = splitAllocations({ allocations, side, currency: paymentCurrency, baseCurrency, documentRate: rate, settlementRate: rate, settledBaseCents: Math.round(total * minorUnitRate(rate, paymentCurrency, baseCurrency)) });
+      const split = splitAllocations({ allocations, side, currency: paymentCurrency, baseCurrency, documentRate: rate, settlementRate: rate, settledBaseCents: releasedBase, clearedBaseCents: clearedByAlloc });
+      const fxLineIndex = applicationFxAccount && ledgerTx ? (ledgerTx.lines as Array<{ accountId: string }>).findIndex(l => l.accountId === applicationFxAccount!.id) : -1;
       allocations.forEach((alloc, i) => recordAllocation(db, tx, {
         workspaceId, side, partyId: partyId || allocDocs[i].partyId, documentType: alloc.documentType, documentId: alloc.documentId,
         kind: 'advance_application', sourceType: 'payment', sourceId: paymentId, operationId, date,
         amountCents: alloc.amountCents, currency: paymentCurrency, documentRate: rate, settlementRate: rate, ...split[i],
-        transactionId: result.transactionId, fxLineIndex: null, createdBy: uid,
+        transactionId: result.transactionId, fxLineIndex: fxLineIndex >= 0 ? fxLineIndex : null, createdBy: uid,
       }, { dueCents: allocDocs[i].dueCents }));
       if (operationRef) tx.set(operationRef, { id: operationRef.id, workspaceId, actor: uid, operationType: 'PAYMENT_APPLY', paymentId, requestHash, result, createdAt: new Date().toISOString() });
     }
