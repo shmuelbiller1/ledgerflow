@@ -23,7 +23,8 @@ jobs:
   #  - documentation only (Markdown anywhere, or a non-code asset under docs/ or audit/, both excluded
   #    from the deployment by .vercelignore) runs the unit tests that read a doc, and nothing long;
   #  - a build input changed (anything that is not a doc, a unit test, a browser spec or a screenshot)
-  #    runs the production build;
+  #    runs the production build; the three tests that assert on dist/ (BUNDLE_INVARIANT_TESTS) count
+  #    as build inputs, because those assertions only execute in the build job;
   #  - the browser mode is full (five shards), targeted (only the changed specs) or skipped.
   # Source, workflow, dependency and migration changes always run the full test matrix. Pushes to main
   # and runs by hand always run everything. The two gate checks below still report for every mode, so
@@ -291,7 +292,8 @@ jobs:
     # Only a change to a bundle input can change dist/ or build/. A documentation, unit-test,
     # browser-spec or screenshot change cannot reach the Vite client or the Express entrypoint
     # (`scripts/ci-build-inputs.test.mjs` walks the two entry graphs and proves it), so the check
-    # reports "skipped" instead of rebuilding the same output.
+    # reports "skipped" instead of rebuilding the same output. The exception is the three tests that
+    # assert on dist/ (BUNDLE_INVARIANT_TESTS): their artifact assertions run only in this job.
     if: ${{ needs.changes.outputs.build_mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

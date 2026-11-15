@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { importEdges } from './import-edges.mjs';
-import { isUnitTestPath } from './ci-change-scope.mjs';
+import { isUnitTestPath, classifyChangedPaths, BUNDLE_INVARIANT_TESTS } from './ci-change-scope.mjs';
 
 /**
  * Evidence for the `build_mode` output in `.github/workflows/ci.yml`:
@@ -61,7 +61,7 @@ export function bundleInputs() {
       if (resolved && !visited.has(resolved)) queue.push(resolved);
     }
   }
-  return [...visited].sort();
+  return [...visited].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 function walk(dir, found = []) {
@@ -108,4 +108,16 @@ test('every script test is named by the validate job', () => {
   const named = new Set([...workflow.matchAll(/scripts\/([\w.-]+\.test\.mjs)/g)].map(match => match[1]));
   assert.deepEqual(onDisk.filter(name => !named.has(name)), [],
     'these script tests run in no CI job: add them to the `node --test scripts/...` steps in ci.yml');
+});
+
+test('the classifier builds for exactly the tests that assert on the built artifacts', () => {
+  // `test:bundle` is the only place those assertions run: the unit shards have no dist/.
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const named = [...pkg.scripts['test:bundle'].matchAll(/src\/[\w./-]+\.test\.ts/g)]
+    .map(match => match[0]).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  assert.deepEqual([...BUNDLE_INVARIANT_TESTS].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), named,
+    'BUNDLE_INVARIANT_TESTS must stay equal to the files `npm run test:bundle` runs');
+  for (const file of named) {
+    assert.equal(classifyChangedPaths([{ status: 'M', path: file }]).build_mode, 'full', file);
+  }
 });

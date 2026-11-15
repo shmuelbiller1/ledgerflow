@@ -22,7 +22,8 @@ import { resolve } from 'node:path';
  * `eslint .` covers them, so they still run the validate job.
  *
  * A browser spec is not a build input and not a unit test, so a spec-only change skips the
- * production build. It does NOT skip the unit suite: `src/tests/browser-wait-guard.test.ts` reads
+ * production build. The exception is the three tests that assert on the built artifacts
+ * (`BUNDLE_INVARIANT_TESTS`), which are build inputs. A spec-only change does NOT skip the unit suite: `src/tests/browser-wait-guard.test.ts` reads
  * every spec, so a spec can fail a unit test (measured 15 Nov 2026; see
  * `audit/ci-test-routing-2026-11-15.md`).
  */
@@ -32,8 +33,26 @@ export const isDocumentationPath = p => /\.md$/i.test(p) || (/^(?:docs|audit)\//
 
 export const isUnitTestPath = p =>
   /^(?:src\/tests\/[^/]+\.test\.tsx?|src\/lib\/[^/]+\.test\.ts|src\/server\/utils\/[^/]+\.test\.ts)$/.test(p);
-export const isBrowserSpecPath = p => /^e2e\/(?:[^/]+)*[^/]+\.spec\.tsx?$/.test(p);
+// `(?:[^/]+\/)*`, not `(?:[^/]+)*`: each repetition must consume a whole segment. Without the
+// separator the two quantifiers partition the same filename, which backtracks exponentially —
+// measured on this branch before the fix: `e2e/journey-a11y-baseline.json` 1.8 s, a 28-character
+// name 61 s, inside the `changes` job every other job waits on (CodeQL, Sonar S5852, Codex, Gitar).
+// It also could not match a nested spec such as `e2e/journeys/w1.spec.ts`.
+export const isBrowserSpecPath = p => /^e2e\/(?:[^/]+\/)*[^/]+\.spec\.tsx?$/.test(p);
 export const isScreenshotPath = p => /^e2e\/__screenshots__\//.test(p);
+
+/**
+ * The unit tests that assert on the built artifacts — exactly the files `npm run test:bundle` runs
+ * with `LF_REQUIRE_BUILT_DIST=1`. They also run in the unit shards, but there is no `dist/` there, so
+ * their artifact assertions are skipped silently: a change to one of them must build, or the edited
+ * assertion never executes (Codex review, 15 Nov). `scripts/ci-build-inputs.test.mjs` keeps this list
+ * equal to the `test:bundle` command.
+ */
+export const BUNDLE_INVARIANT_TESTS = Object.freeze([
+  'src/tests/pwa-bundle-optimization.test.ts',
+  'src/tests/server-bundle-boundary.test.ts',
+  'src/tests/stage6-footprint-optimization.test.ts',
+]);
 
 const normalize = x => typeof x === 'string' ? { status: 'M', path: x } : x;
 const valid = f => Boolean(f) && typeof f.path === 'string' && Boolean(f.path.trim())
@@ -51,7 +70,9 @@ export function classifyChangedPaths(changes) {
   // Build inputs: everything that is not documentation, a unit test, a browser spec or a
   // screenshot baseline. The bundle and the server entry cannot be reached from those.
   const buildInputs = files.some(f => !isDocumentationPath(f.path) && !isUnitTestPath(f.path)
-    && !isBrowserSpecPath(f.path) && !isScreenshotPath(f.path));
+    && !isBrowserSpecPath(f.path) && !isScreenshotPath(f.path))
+    // A test that asserts on dist/ only runs those assertions in the build job.
+    || files.some(f => BUNDLE_INVARIANT_TESTS.includes(f.path));
   // The browser suite can only be affected by something other than docs and unit tests
   // (a deleted spec counts: it may still be referenced by a shared helper).
   const browserRelevant = files.some(f => !isDocumentationPath(f.path) && !isUnitTestPath(f.path));

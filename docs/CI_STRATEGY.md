@@ -29,10 +29,16 @@ git diff --name-status --no-renames -z origin/main...HEAD | node scripts/ci-chan
 | The change touches | Jobs that run | Jobs that report **skipped** |
 |---|---|---|
 | **Documentation only**: Markdown anywhere, or a non-code asset under `docs/` or `audit/` | `changes`, `docs_checks` (the unit tests that read a doc), `unit_gate`, `e2e` | `validate`, `unit` ×4, `timezones` ×6, `build`, `e2e_shards` ×5, `e2e_targeted` |
-| **Unit tests only** | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e` | `docs_checks`, `build`, browser jobs |
+| **Unit tests only** | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e` (plus `build` for the three bundle-invariant tests below) | `docs_checks`, `build`, browser jobs |
 | **Browser specs only** | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e_targeted` (the changed specs), `e2e` | `docs_checks`, `build`, `e2e_shards` |
 | **Screenshot baselines only** (`e2e/__screenshots__/`) | `changes`, `validate`, `unit` ×4, `unit_gate`, `timezones` ×6, `e2e_shards` ×5, `e2e` | `docs_checks`, `build` |
 | **Anything else**: application code, configuration, a workflow, a dependency, a migration | every job — 20 runners | — |
+
+One exception runs through the table: the three tests that `npm run test:bundle` runs
+(`stage6-footprint-optimization`, `pwa-bundle-optimization`, `server-bundle-boundary`) assert on
+`dist/`, which exists only in the build job — the unit shards skip those assertions silently. A change
+to one of them therefore always runs the build, and `scripts/ci-build-inputs.test.mjs` keeps
+`BUNDLE_INVARIANT_TESTS` equal to the `test:bundle` command.
 
 Three rules keep the table honest, each with a test rather than a comment:
 

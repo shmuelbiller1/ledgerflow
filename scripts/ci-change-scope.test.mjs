@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { classifyChangedPaths, isDocsOnlyChangedPaths, planJobs, formatPlan } from './ci-change-scope.mjs';
+import {
+  classifyChangedPaths, isDocsOnlyChangedPaths, planJobs, formatPlan, isBrowserSpecPath, BUNDLE_INVARIANT_TESTS,
+} from './ci-change-scope.mjs';
 
 const M = path => ({ status:'M', path });
 const D = path => ({ status:'D', path });
@@ -22,11 +24,20 @@ const cases = [
   [[M('docs/archive/audit/agent7-probes/y35-fuzz.ts')], 'full', false, [], 'full'],
   [[M('audit/agent11/probes/j2-qbo-wizard-csv.ts')], 'full', false, [], 'full'],
   [[M('src/tests/posting.test.ts')], 'skip', false, [], 'skip'],
+  // The three tests that assert on dist/ only make those assertions in the build job.
+  [[M('src/tests/stage6-footprint-optimization.test.ts')], 'skip', false, [], 'full'],
+  [[M('src/tests/pwa-bundle-optimization.test.ts')], 'skip', false, [], 'full'],
+  [[M('src/tests/server-bundle-boundary.test.ts')], 'skip', false, [], 'full'],
   [[M('src/tests/report.test.tsx'), M('docs/guide.md')], 'skip', false, [], 'skip'],
   [[M('src/lib/compute.test.ts')], 'skip', false, [], 'skip'],
   [[M('src/server/utils/access.test.ts')], 'skip', false, [], 'skip'],
   [[M('e2e/reports.spec.ts')], 'targeted', false, ['e2e/reports.spec.ts'], 'skip'],
   [[A('e2e/new.spec.ts'), M('e2e/ledger.spec.ts')], 'targeted', false, ['e2e/new.spec.ts','e2e/ledger.spec.ts'], 'skip'],
+  // A spec in a subdirectory is still a spec (the pattern must keep the directory separator).
+  [[M('e2e/journeys/w10-backup-restore.spec.ts')], 'targeted', false, ['e2e/journeys/w10-backup-restore.spec.ts'], 'skip'],
+  [[A('e2e/journeys/w14-access.spec.ts'), M('e2e/journeys/w1-gold.spec.ts')], 'targeted', false,
+    ['e2e/journeys/w14-access.spec.ts','e2e/journeys/w1-gold.spec.ts'], 'skip'],
+  [[M('e2e/support/nested/helper.ts')], 'full', false, [], 'full'],
   [[D('e2e/old.spec.ts')], 'skip', false, [], 'skip'],
   [[D('e2e/old.spec.ts'), M('e2e/new.spec.ts')], 'targeted', false, ['e2e/new.spec.ts'], 'skip'],
   // A screenshot baseline is verified by the browser suite, not by the bundle build.
@@ -110,4 +121,32 @@ test('a spec-only change keeps the unit suite, because a unit test reads every s
     .filter(step => step.runs).flatMap(step => step.jobs));
   assert.ok(runs.has('unit'), 'the unit suite must run for a spec change');
   assert.ok(!runs.has('build'), 'a spec is not a bundle input');
+});
+
+test('a nested spec is a spec, and a non-spec path under e2e/ classifies in linear time', () => {
+  assert.equal(isBrowserSpecPath('e2e/journeys/w10-backup-restore.spec.ts'), true);
+  assert.equal(isBrowserSpecPath('e2e/a/b/c/d.spec.tsx'), true);
+  assert.equal(isBrowserSpecPath('e2e/journey-a11y-baseline.json'), false);
+
+  // The regression this pins: `(?:[^/]+)*[^/]+` backtracks exponentially. On the branch that
+  // introduced it, `e2e/journey-a11y-baseline.json` took 1.8 s and a 28-character name 61 s, inside
+  // the `changes` job every other job waits on (CodeQL, Sonar S5852, Codex and Gitar all reported it).
+  const pathological = 'e2e/' + 'a'.repeat(64) + '.json';
+  const started = process.hrtime.bigint();
+  assert.equal(isBrowserSpecPath(pathological), false);
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsedMs < 250, `a 64-character non-spec path took ${elapsedMs.toFixed(1)} ms to reject`);
+});
+
+test('only the three test:bundle tests make a unit-test change run the build', () => {
+  assert.deepEqual([...BUNDLE_INVARIANT_TESTS].sort(), [
+    'src/tests/pwa-bundle-optimization.test.ts',
+    'src/tests/server-bundle-boundary.test.ts',
+    'src/tests/stage6-footprint-optimization.test.ts',
+  ]);
+  assert.equal(classifyChangedPaths([M('src/tests/document-totals.test.tsx')]).build_mode, 'skip');
+  for (const file of BUNDLE_INVARIANT_TESTS) {
+    assert.equal(classifyChangedPaths([M(file)]).build_mode, 'full', file);
+    assert.equal(classifyChangedPaths([M('docs/PLAN.md'), M(file)]).build_mode, 'full', file);
+  }
 });

@@ -38,7 +38,7 @@ other row in the table is measured against.
 |---|---|---|
 | Documentation only (`.md` anywhere, or an asset under `docs/`) | 4 | 4 |
 | A documentation **artifact** (`docs/CODE_ATLAS.jsonl`, `docs/eval/*.json`, `docs/verification/*.png`, `audit/*.csv`) | **20** | **4** |
-| Unit tests only | 15 | **14** (the build is not a function of a test) |
+| Unit tests only | 15 | **14** (the build is not a function of a test; 15 for the three bundle-invariant tests, §7.2) |
 | Browser specs only | 16 | **15** (the build is not a function of a spec) |
 | Screenshot baselines only | 20 | **19** |
 | Application code, config, workflow, dependency, migration | 20 | 20 |
@@ -83,7 +83,14 @@ test or a browser spec. Neither is a bundle input: the Vite client is built from
 the server bundle from `server.ts`.
 
 **Evidence.** `bundleInputs()` in `scripts/ci-build-inputs.test.mjs` now walks both graphs —
-**1,581 modules** — and finds no reachable test, spec or document. (The same walk is the reason the
+**1,581 modules** — and finds no reachable test, spec or document.
+
+**One exception, found by review (§7.2).** Three unit tests assert on the *built* artifacts
+(`stage6-footprint-optimization`, `pwa-bundle-optimization`, `server-bundle-boundary`). They also run
+in the unit shards, but `LF_REQUIRE_BUILT_DIST` and `dist/` exist only in the build job, so their
+artifact assertions are skipped there and the edited assertion would never run. Those three files
+(`BUNDLE_INVARIANT_TESTS`) are therefore build inputs, and a test keeps that list equal to the
+`npm run test:bundle` command. (The same walk is the reason the
 `vercel-ignore-boundary` test can claim its >1,000 modules.)
 
 **Fix.** New `build_mode` output: `full` only when a file that is not a doc, a unit test, a browser
@@ -221,6 +228,42 @@ Nothing in `src/` changed, so no financial, posting or tax behaviour is touched.
 
 ---
 
+## 7. What review of this pull request caught
+
+The bots on PR #715 found three defects, two of them introduced by the first commit of this audit. They
+are worth recording because the audit's own subject is "does the routing notice what it should".
+
+### 7.1 A regular expression I broke — the worst kind of regression in this file (fixed)
+
+Rewriting `ci-change-scope.mjs`, I changed `(?:[^/]+\/)*` to `(?:[^/]+)*` in `isBrowserSpecPath`. Two
+consequences: a nested spec (`e2e/journeys/w1.spec.ts`) no longer counted as a spec, and the two
+adjacent quantifiers partition the same filename, so rejection backtracks exponentially.
+
+**Measured on that commit** (the command is in Appendix A): `e2e/journey-a11y-baseline.json` — a file
+that exists — **1.8 s** per match; a 24-character name 3.9 s; a 28-character name **61 s**. The
+classifier asks up to three times per path, in the `changes` job that every other job `needs:`, whose
+timeout is five minutes. A 30-character baseline file name would have stopped the whole pipeline.
+
+Found by CodeQL (`security/code-scanning/79`), SonarCloud (`javascript:S5852`, HIGH security,
+CRITICAL), Codex and Gitar — four tools, one line. The separator is restored and pinned two ways: a
+nested-spec classification case, and a timing test that rejects a 64-character non-spec path in under
+250 ms.
+
+### 7.2 Three tests assert on the build, and the new `build_mode` skipped it (fixed)
+
+Codex (P2). `src/tests/stage6-footprint-optimization.test.ts` reads `dist/assets` and only *requires*
+it under `LF_REQUIRE_BUILT_DIST=1` — set in the build job alone. A pull request editing that test
+therefore ran its edited assertions in no job at all. §4.1 is corrected: those three files are build
+inputs.
+
+### 7.3 `[…].sort()` without a comparator (fixed)
+
+SonarCloud `javascript:S2871` (CRITICAL, reliability) on `scripts/ci-doc-tests.mjs`: the docs-test list
+was sorted with the default comparator. It is a code-point comparator now, in both the producer and the
+test that pins the order.
+
+---
+
 ## Appendix A — reproduce every number
 
 ```bash
@@ -256,6 +299,10 @@ npx tsc -p tsconfig.e2e-probe.json --noEmit | wc -l     # 161 (119 browser-conte
 
 # Lint ceiling (§4.7)
 npm run lint:eslint                                     # 2 warnings, 0 errors
+
+# The ReDoS of §7.1, on the commit that had it (do not run the 28-character case casually):
+node -e "const re=/^e2e\/(?:[^/]+)*[^/]+\.spec\.tsx?$/; for (const p of ['e2e/journey-a11y-baseline.json','e2e/'+'a'.repeat(24)+'.json']) { const t=process.hrtime.bigint(); re.test(p); console.log(p.length, Number(process.hrtime.bigint()-t)/1e6, 'ms'); }"
+# fixed version, same inputs: microseconds (scripts/ci-change-scope.test.mjs asserts < 250 ms)
 ```
 
 ## Appendix B — the routing rules in one line each

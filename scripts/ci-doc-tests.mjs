@@ -68,12 +68,15 @@ export function referencesDocumentation(file, text, root = process.cwd()) {
   });
 }
 
+/** Code-point order: the same list on every machine, and not an alphabetical sort of numbers. */
+const byCodePoint = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 /** Sorted repository paths of the unit tests that read a document. */
 export function docReadingTests(root = process.cwd(), dirs = UNIT_TEST_DIRS) {
   const files = dirs.flatMap(dir => fs.readdirSync(path.resolve(root, dir))
     .filter(name => /\.test\.tsx?$/.test(name))
     .map(name => `${dir}/${name}`))
-    .sort();
+    .sort(byCodePoint);
   return files.filter(file => !EXCLUDED.includes(file)
     && referencesDocumentation(file, fs.readFileSync(path.resolve(root, file), 'utf8'), root));
 }

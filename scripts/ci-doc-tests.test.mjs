@@ -10,7 +10,8 @@ const script = fileURLToPath(new URL('./ci-doc-tests.mjs', import.meta.url));
 test('the selection is the unit tests that name a document, not the ones that mention one', () => {
   const selected = docReadingTests();
   assert.ok(selected.length > 0, 'a docs-only run must not be empty');
-  assert.deepEqual(selected, [...selected].sort(), 'stable order (the workflow prints it)');
+  assert.deepEqual(selected, [...selected].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    'stable order (the workflow prints it)');
   for (const file of selected) assert.ok(!EXCLUDED.includes(file), `${file} is excluded on purpose`);
 
   // Pinned: a documentation change must start these. Adding a doc-reading test updates this list
