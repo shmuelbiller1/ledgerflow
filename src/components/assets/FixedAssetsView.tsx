@@ -7,7 +7,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { formatCurrency, formatDate, formatTzDate, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -112,14 +112,13 @@ export const FixedAssetsView: React.FC = () => {
     if (!workspace?.id) return;
     setUndoing(asset.id);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/assets/${encodeURIComponent(asset.id)}/disposal`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${await getIdToken()}` },
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/assets/${encodeURIComponent(asset.id)}/disposal`,
+        method: 'DELETE',
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The disposal could not be undone');
       toast.success(`${asset.name} is back on the books; its disposal entry is void`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setUndoing('');
     }
@@ -130,14 +129,13 @@ export const FixedAssetsView: React.FC = () => {
     if (!workspace?.id) return;
     setUndoing(asset.id);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/assets/${encodeURIComponent(asset.id)}/transfer`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${await getIdToken()}` },
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/assets/${encodeURIComponent(asset.id)}/transfer`,
+        method: 'DELETE',
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The move could not be undone');
       toast.success(`${asset.name} is back where it was`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setUndoing('');
     }
@@ -186,14 +184,14 @@ export const FixedAssetsView: React.FC = () => {
     if (!workspace?.id) return;
     setRunning(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/periods/${runMonth}/depreciation`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: '{}',
+      const data = await runCommand<{ assets?: number; totalCents?: number }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/periods/${runMonth}/depreciation`,
+        method: 'POST',
+        body: {},
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The depreciation could not be posted');
       toast.success(data.assets ? `Posted ${formatCurrency(data.totalCents)} depreciation for ${runMonth} (${data.assets} asset${data.assets === 1 ? '' : 's'}).` : `Nothing to post for ${runMonth}: everything is up to date.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'The depreciation could not be posted');
+      toast.error(commandErrorMessage(err));
     } finally {
       setRunning(false);
     }

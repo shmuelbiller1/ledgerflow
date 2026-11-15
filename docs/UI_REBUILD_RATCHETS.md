@@ -12,8 +12,8 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 |---|---|---|
 | `unreachableActions` | **0** | Every registered screen, report and settings tab can be found by typing a word into the search box. Zero is the only acceptable value. Proven in `src/tests/palette-reachability-guard.test.ts`, which searches the real registry, in English and Hebrew. |
 | `screensWithManyPrimaryButtons` | **19** | EASE_OF_USE U-2: one filled button per screen. |
-| `handTypedApiCalls` | **170** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
-| `rawTables` | **186** | A screen uses the shared list instead of drawing its own `<table>`. |
+| `handTypedApiCalls` | **164** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
+| `rawTables` | **184** | A screen uses the shared list instead of drawing its own `<table>`. |
 | `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
 ## The sites that remain, and why each is still there
@@ -32,13 +32,16 @@ number it can; the rest are listed so the next person starts from the truth.
   demoting the wrong one moves the person's eye off the thing they came to do.
 - `auth/AcceptInviteView.tsx`, `common/ViewErrorBoundary.tsx`: two states of one screen (signed in / not).
 
-### `handTypedApiCalls` — 170
+### `handTypedApiCalls` — 164
 
-Most are in the settings and forensics screens that call a route the browser has always called
-directly (`/api/admin/…`, `/api/reports/…`). They move to `useCommand` in the step that builds it
-(prompt 2, part 3), which needs the generated client and command schemas from CMD-1.
+`src/lib/runCommand.ts` is now the one place a screen's request goes: it adds the token, sends the
+method and body, and raises a `ServerCommandError` that carries the server's own words plus a message a
+person can act on (a dead session reads differently from a refused action). The assets group moved
+first — `FixedAssetsView`, `ConstructionActions`, `DisposeAssetDialog`, `TransferAssetDialog` now hold
+no hand-typed call at all. Each screen that moves loses its own copy of the token header, its own
+`res.ok` check and its own guess at the error message.
 
-### `rawTables` — 186
+### `rawTables` — 184
 
 The codemod moves the most-used screens first: Sales, Purchases and Inventory are on the shared list
 (the first slice); Transactions, Bank review, Customers and Vendors are next.

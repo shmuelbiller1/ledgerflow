@@ -10,8 +10,8 @@ ticked when the ratchet number moved or the named test exists and passes.
 
 | counter | now | target | meaning |
 |---|---|---|---|
-| `rawTables` | **186** | 0 | screen files drawing their own `<table>` instead of the shared list |
-| `handTypedApiCalls` | **170** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
+| `rawTables` | **184** | 0 | screen files drawing their own `<table>` instead of the shared list |
+| `handTypedApiCalls` | **164** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
 | `directDbWrites` | **93** | 0 | direct database writes in `src/components`, `src/hooks`, `src/stores` |
 | `unreachableActions` | **0** | 0 ✅ | commands/reports no palette search can find |
 | `screensWithManyPrimaryButtons` | **19** | 0 | screens with more than one filled button |
@@ -45,9 +45,14 @@ ticked when the ratchet number moved or the named test exists and passes.
 ## 3. One way to act — `useCommand(name)`
 
 - [x] The generated client exists (`sdk/ledgerflowClient.ts`).
-- [ ] `useCommand(name)` over it: runs the command, shows the result with **Undo** where an inverse
-      exists, and offers the next step ("Invoice saved. Send it · Record a payment · New invoice").
-- [ ] Replace hand-typed `fetch('/api/…')` (170) and direct database writes (93), screen by screen.
+- [x] `runCommand` — the first half: one place the address, token, method, body and error handling
+      come from (`src/lib/runCommand.ts`), with the server's own refusal text and a message that
+      separates a dead session (401) from a refused role (403).
+- [ ] `useCommand(name)` on top of it: runs the command, shows the result with **Undo** where an
+      inverse exists, and offers the next step ("Invoice saved. Send it · Record a payment · New invoice").
+- [x] The assets group is off hand-typed calls (170 → 164): `FixedAssetsView`, `ConstructionActions`,
+      `DisposeAssetDialog`, `TransferAssetDialog`.
+- [ ] The rest of the 164, screen by screen, plus direct database writes (93).
 
 ## 4. Forms from the schema
 

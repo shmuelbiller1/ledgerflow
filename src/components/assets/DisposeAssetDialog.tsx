@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
-import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { disposalGainLoss, partialDisposalInput, portionOf, portionProblem } from '../../lib/assetDisposal';
 import { isCashAccount } from '../../lib/txFilters';
@@ -64,19 +64,17 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
   const submit = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/disposal`, {
+      const data = await runCommand<{ gainLossCents?: number }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/disposal`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({
+        body: {
           date, proceedsCents,
           ...(proceedsCents > 0 && proceedsAccountId ? { proceedsAccountId } : {}),
           ...(gainLossAccountId ? { gainLossAccountId } : {}),
           ...(!asset.assetAccountId && assetAccountId ? { assetAccountId } : {}),
           ...(share ? { portionPercent: percent } : {}),
-        }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The asset could not be disposed of');
       toast.success(`${share ? `${percent}% of ` : ''}${asset.name} ${proceedsCents > 0 ? 'sold' : 'scrapped'}${data.gainLossCents ? `: ${data.gainLossCents > 0 ? 'gain' : 'loss'} of ${formatCurrency(Math.abs(data.gainLossCents), currency)}` : ''}`);
       onClose();
     } catch (err) {
