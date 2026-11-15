@@ -237,7 +237,15 @@ jobs:
         run: npm run db:test-setup
 
       - name: Unit tests, this part (with coverage)
-        run: npm run test:shard:cov
+        run: |
+          set +e
+          set -o pipefail
+          npm run test:shard:cov 2>&1 | tee "$RUNNER_TEMP/test-shard.log"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            node scripts/ci-annotate-test-failures.mjs "$RUNNER_TEMP/test-shard.log"
+          fi
+          exit "$status"
         env:
           TEST_SHARD: ${{ matrix.shard }}/4
           TEST_SHARD_INDEX: ${{ matrix.shard }}
@@ -372,7 +380,15 @@ jobs:
         run: npm run db:test-setup
 
       - name: Unit tests, this part
-        run: npm run test:shard
+        run: |
+          set +e
+          set -o pipefail
+          npm run test:shard 2>&1 | tee "$RUNNER_TEMP/test-shard.log"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            node scripts/ci-annotate-test-failures.mjs "$RUNNER_TEMP/test-shard.log"
+          fi
+          exit "$status"
         env:
           TZ: ${{ matrix.tz }}
           TEST_SHARD: ${{ matrix.shard }}/3
