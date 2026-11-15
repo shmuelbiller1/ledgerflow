@@ -105,7 +105,9 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect(addInvoice).toBeVisible();
     await addInvoice.focus();
     await page.keyboard.press('Enter');
-    expect((await numbering).status()).toBe(200);
+    const numbered = await numbering;
+    // name the reason if the server refused the number, instead of an unexplained status
+    expect(numbered.status(), `next-number said: ${(await numbered.text()).slice(0, 300)}`).toBe(200);
 
     const invoice = page.getByRole('dialog');
     await expect(invoice).toBeVisible();
