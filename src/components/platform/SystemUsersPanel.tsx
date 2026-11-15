@@ -4,10 +4,52 @@ import { Users, Wrench } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 import { Labelled } from '../ui/Labelled';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import type { ColumnDef } from '@tanstack/react-table';
 
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
 export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel }) {
  const { formatPlatformUsdQuota, formId, usersList, editingUser, setEditingUser, savingUser, userFormState, setUserFormState, startEditingUser, handleSaveUser } = model;
+
+  /**
+   * One row per platform user: who they are, their role, the two limits (or "System Default" when
+   * none is set), and Modify. The user names the row; Modify keeps opening the same editor.
+   */
+  const columns: ColumnDef<(typeof usersList)[number], unknown>[] = [
+    { id: 'user', accessorFn: row => `${row.email || 'Unknown Email'} ${row.uid}`, header: 'User Details', cell: info => {
+      const row = info.row.original as (typeof usersList)[number];
+      return (
+        <span className="flex flex-col">
+          <span className="text-xs font-bold break-all">{row.email || 'Unknown Email'}</span>
+          <span className="text-[10px] font-mono text-[var(--muted)] break-all">{row.uid}</span>
+        </span>
+      );
+    } },
+    { id: 'role', accessorFn: row => row.role || 'client', header: 'Role', cell: info => (
+      <span className={cn(
+        'text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded-full border',
+        info.getValue() === 'admin' ? 'bg-[#0047AB]/10 text-[#0047AB] border-[#0047AB]/20' : 'bg-slate-100 text-slate-600 border-[var(--line)]',
+      )}>{String(info.getValue())}</span>
+    ) },
+    { id: 'customLimit', accessorFn: row => row.customLimit ?? 0, header: 'Custom Limit ($)', cell: info => {
+      const row = info.row.original as (typeof usersList)[number];
+      return <span className="text-xs font-mono font-bold">{row.customLimit ? formatPlatformUsdQuota(row.customLimit) : 'System Default'}</span>;
+    } },
+    { id: 'computeLimit', accessorFn: row => row.computeCreditLimit ?? 0, header: 'Compute Limit (Cr)', cell: info => {
+      const row = info.row.original as (typeof usersList)[number];
+      return <span className="text-xs font-mono font-bold">{row.computeCreditLimit ? row.computeCreditLimit.toLocaleString() : 'System Default'}</span>;
+    } },
+    { id: 'actions', header: 'Actions', cell: info => (
+      <button
+        type="button"
+        onClick={() => startEditingUser(info.row.original as (typeof usersList)[number])}
+        className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-[var(--line)] bg-[var(--surface)] text-slate-600 hover:bg-[var(--ink)] transition-all"
+      >
+        Modify
+      </button>
+    ) },
+  ];
  return (<div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
               <div className="xl:col-span-2 space-y-8">
                 <div className="bg-[var(--surface)] border border-[var(--line)] rounded-[32px] shadow-3xs overflow-hidden">
@@ -17,65 +59,20 @@ export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel })
                       <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Platform User Ledger</h2>
                     </div>
                   </div>
-                  <div role="region" aria-label="Scrollable system users" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-                    <table className="w-full text-left">
-                      <caption className="sr-only">Platform users</caption>
-                      <thead>
-                        <tr className="border-b border-[var(--line)] bg-[var(--surface)] text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                          <th scope="col" className="py-4 px-6 font-medium">User Details</th>
-                          <th scope="col" className="py-4 px-6 font-medium">Role</th>
-                          <th scope="col" className="py-4 px-6 font-medium text-right">Custom Limit ($)</th>
-                          <th scope="col" className="py-4 px-6 font-medium text-right">Compute Limit (Cr)</th>
-                          <th scope="col" className="py-4 px-6 text-center font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-ledger-line/50">
-                        {usersList.map((u) => (
-                          <tr key={u.uid} className="hover:bg-[var(--ink)]/50 transition-colors group">
-                            <td className="py-4 px-6">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-bold text-[var(--text)]">{u.email || 'Unknown Email'}</span>
-                                <span className="text-[10px] font-mono text-[var(--muted)]">{u.uid}</span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className={cn(
-                                "text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded-full border",
-                                u.role === 'admin' ? "bg-[#0047AB]/10 text-[#0047AB] border-[#0047AB]/20" : "bg-slate-100 text-slate-600 border-[var(--line)]"
-                              )}>
-                                {u.role || 'client'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6 text-right">
-                              <span className="text-xs font-mono font-bold text-slate-700">
-                                {u.customLimit ? formatPlatformUsdQuota(u.customLimit) : 'System Default'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6 text-right">
-                              <span className="text-xs font-mono font-bold text-slate-700">
-                                {u.computeCreditLimit ? u.computeCreditLimit.toLocaleString() : 'System Default'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6 text-center">
-                              <button
-                                onClick={() => startEditingUser(u)}
-                                className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-[var(--line)] bg-[var(--surface)] text-slate-600 hover:bg-[var(--ink)] transition-all opacity-50 group-hover:opacity-100"
-                              >
-                                Modify
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {usersList.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-12 text-center text-[10px] uppercase font-bold tracking-widest text-[var(--muted)]">
-                              No user records located.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TanStackDataGrid
+                    caption="Platform users"
+                    data={usersList}
+                    columns={columns}
+                    rowHeaderColumn="user"
+                    pageSize={25}
+                    searchPlaceholder="Search users, roles and limits..."
+                    searchLabel="Search platform users"
+                    columnScope="platform-users"
+                    columnLabel="Platform users columns"
+                    columnNames={['User Details', 'Role', 'Custom Limit ($)', 'Compute Limit (Cr)', 'Actions']}
+                    emptyState={<EmptyState title="No user records yet" description="Users appear here when they sign in to this deployment." />}
+                    filteredEmptyState={<EmptyState title="No user matches your search" description="Try another email, role or id." />}
+                  />
                 </div>
               </div>
 

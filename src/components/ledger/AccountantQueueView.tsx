@@ -18,6 +18,10 @@ import {
   type AccountantQueueItem,
   type AccountantQueueKind,
 } from '../../lib/accountantQueue';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
+import type { ColumnDef } from '@tanstack/react-table';
 
 const KIND_LABELS: Record<'all' | AccountantQueueKind, string> = {
   all: 'All items',
@@ -66,6 +70,36 @@ export default function AccountantQueueView({
     [queries, invoices, purchaseOrders, bills, transactions, workspace],
   );
 
+  /**
+   * One row per thing waiting for an accountant: what kind it is, what it is about, the date, the
+   * amount when there is one, and the way in. The item names the row; Review still opens it.
+   */
+  const columns: ColumnDef<AccountantQueueItem, unknown>[] = [
+    { id: 'kind', accessorFn: row => KIND_LABELS[row.kind], header: 'Category', cell: info => (
+      <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-[var(--elevated)] text-[var(--text)]">{String(info.getValue())}</span>
+    ) },
+    { id: 'item', accessorFn: row => `${row.title} ${row.subtitle}`, header: 'Item', cell: info => {
+      const row = info.row.original as AccountantQueueItem;
+      return (
+        <span className="block">
+          <span className="block font-semibold"><bdi>{row.title}</bdi></span>
+          <span className="block text-xs text-[var(--muted)]"><bdi>{row.subtitle}</bdi></span>
+        </span>
+      );
+    } },
+    { id: 'date', accessorFn: row => row.date || '', header: 'Date', cell: info => <span className="tabular-nums text-[var(--muted)]">{String(info.getValue()) || '—'}</span> },
+    { id: 'amount', accessorFn: row => row.amountFormatted || '', header: 'Amount', cell: info => <span className="tabular-nums font-semibold">{String(info.getValue()) || '—'}</span> },
+    { id: 'open', header: 'Open', cell: info => (
+      <button
+        type="button"
+        onClick={() => handleOpen(info.row.original as AccountantQueueItem)}
+        className="min-h-10 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-300 inline-flex items-center gap-1"
+      >
+        Review <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
+    ) },
+  ];
+
   const visible = useMemo(
     () => (filterKind === 'all' ? queue : queue.filter(i => i.kind === filterKind)),
     [queue, filterKind],
@@ -79,7 +113,8 @@ export default function AccountantQueueView({
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading accountant queue…</p>;
+    // a named placeholder: the queue below can say "queue clear", so it must say "still loading" first
+    return <LoadingState what="the accountant queue" rows={5} />;
   }
 
   return (
@@ -117,57 +152,26 @@ export default function AccountantQueueView({
         })}
       </div>
 
-      {visible.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">Queue clear</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            No open questions, held approvals, unposted adjustments, or lock-date exceptions need attention right now.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">Accountant triage queue</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">Category</th>
-                <th scope="col" className="px-4 py-3 text-start">Item</th>
-                <th scope="col" className="px-4 py-3 text-start">Date</th>
-                <th scope="col" className="px-4 py-3 text-end">Amount</th>
-                <th scope="col" className="px-4 py-3 text-end">Open</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {visible.map(item => (
-                <tr key={item.id}>
-                  <td className="px-4 py-3">
-                    <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                      {KIND_LABELS[item.kind]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-900 dark:text-white">{item.title}</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">{item.subtitle}</div>
-                  </td>
-                  <td className="px-4 py-3 tabular-nums text-slate-600 dark:text-slate-400">{item.date || '—'}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-semibold text-slate-900 dark:text-white">
-                    {item.amountFormatted || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-end">
-                    <button
-                      type="button"
-                      onClick={() => handleOpen(item)}
-                      className="min-h-10 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-300 inline-flex items-center gap-1"
-                    >
-                      Review <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TanStackDataGrid
+        caption="Accountant triage queue"
+        data={visible}
+        columns={columns}
+        rowHeaderColumn="item"
+        pageSize={25}
+        searchPlaceholder="Search questions, items and dates..."
+        searchLabel="Search the triage queue"
+        columnScope="accountant-queue"
+        columnLabel="Triage queue columns"
+        columnNames={['Category', 'Item', 'Date', 'Amount', 'Open']}
+        exportConfig={{
+          filename: 'accountant-triage-queue.csv',
+          label: 'Export CSV',
+          headers: ['Category', 'Item', 'Detail', 'Date', 'Amount'],
+          mapRow: row => [KIND_LABELS[row.kind], row.title, row.subtitle, row.date || '', row.amountFormatted || ''],
+        }}
+        emptyState={<EmptyState title="Queue clear" description="No open questions, held approvals, unposted adjustments or lock-date exceptions need attention right now." />}
+        filteredEmptyState={<EmptyState title="Nothing in the queue matches your search" description="Try another word, or clear the search." />}
+      />
     </div>
   );
 }
