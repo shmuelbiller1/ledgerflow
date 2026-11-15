@@ -342,7 +342,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   onChange={(e) => {
                     const typed = e.target.value.trim().toLocaleLowerCase();
                     // an existing customer is matched whatever the capitals or spaces, so it is never created twice
-                    const cust = safeCustomers.find(c => c.id === e.target.value || (typed !== '' && String(c.name || '').trim().toLocaleLowerCase() === typed));
+                    const loose = typed === '' ? [] : safeCustomers.filter(c => String(c.name || '').trim().toLocaleLowerCase() === typed);
+                    // exact id or name first; a loose match only when it is the only one (ACME and Acme stay apart)
+                    const cust = safeCustomers.find(c => c.id === e.target.value || c.name === e.target.value) || (loose.length === 1 ? loose[0] : undefined);
                     // a new invoice starts in the customer's currency (Y-22); an existing one keeps its own
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};

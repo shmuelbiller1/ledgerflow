@@ -124,7 +124,10 @@ export default function Sales() {
       // a customer of that name may already exist (typed with other capitals or spaces, or added a moment ago):
       // use it instead of refusing the invoice
       const sameName = (c: { name?: string }) => String(c.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase();
-      const existing = useLedgerStore.getState().customers.find(sameName);
+      const all = useLedgerStore.getState().customers;
+      const loose = all.filter(sameName);
+      // exact name first; a loose match only when it is the only one, so two customers like ACME and Acme stay apart
+      const existing = all.find(c => c.name === name) || (loose.length === 1 ? loose[0] : undefined);
       if (existing) {
         data = { ...data, customerId: existing.id, customerName: existing.name };
       } else {

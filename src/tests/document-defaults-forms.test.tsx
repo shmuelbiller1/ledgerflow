@@ -189,3 +189,15 @@ test('a customer typed with other capitals or spaces is the existing customer, n
   assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales');
   assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'gst');
 });
+
+test('two customers whose names differ only in capitals stay apart: the exact one is chosen', () => {
+  const twins = [makeCustomer({ id: 'upper', name: 'ACME', metadata: { documentDefaults: { accountId: 'alt' } } }), makeCustomer({ id: 'lower', name: 'Acme', metadata: { documentDefaults: { accountId: 'rev' } } })];
+  render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={twins} accounts={accounts} />);
+  change('Customer', 'Acme');
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales', 'Acme, not ACME');
+  cleanup();
+  render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={twins} accounts={accounts} />);
+  change('Customer', 'acme');
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, '', 'ambiguous: neither is picked for you');
+});
+
