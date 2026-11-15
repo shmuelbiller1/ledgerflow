@@ -640,3 +640,12 @@ way, and keyboard movement between rows. All three are in this pull request; thr
   settings tab that only renders one of its three buttons at a time). Fixing them means reading each
   one, not deleting buttons. *Default used:* the counter records 19 and may only go down; the list is in
   `docs/UI_REBUILD_RATCHETS.md`.
+
+## 15 Nov — migration from PR #719 (commands, Batch 0): wait for the deploy
+
+`supabase/migrations/20261115000000_document_commands_server_only.sql` stops the browser writing
+invoices, bills, credit notes, estimates and automation rules directly; they go through the server
+commands instead. **Run it only after #719 is merged and Vercel has finished deploying `main`** (check
+that saving an invoice works on the live site first). Run before that, and saving documents breaks.
+The plan for the whole commands and assistant work is at the top of `docs/TRACKER.md`.
+
