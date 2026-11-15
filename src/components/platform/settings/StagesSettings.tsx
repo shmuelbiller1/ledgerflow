@@ -2,7 +2,6 @@ import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase
 import { readGuestStages, saveGuestStages } from '../../../lib/guestSettings';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { MAX_STAGES, stagesProblem, type StageKind, type StageSets } from '../../../lib/stages';
@@ -31,8 +30,9 @@ export default function StagesSettings() {
     (async () => {
       if (guestSession()) return readGuestStages(workspaceId, 'bill').sets;
       if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages?kind=bill`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      return res.ok ? ((await res.json()).sets || {}) as StageSets : {};
+      // an unread is an empty set of stages, not a broken screen: the person can retype them
+      const answer = await runCommand<{ sets?: StageSets }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages?kind=bill` }).catch(() => null);
+      return answer?.sets || {};
     })().then(sets => { if (live) setText({ invoice: (sets.invoice || []).join('\n'), bill: (sets.bill || []).join('\n') }); }).catch(() => { if (live) setText({ invoice: '', bill: '' }); });
     return () => { live = false; };
   }, [workspaceId]);

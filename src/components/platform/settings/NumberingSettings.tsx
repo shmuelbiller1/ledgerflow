@@ -1,3 +1,4 @@
+import { runCommand } from '../../../lib/runCommand';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
 import { readGuestNumbering, saveGuestNumbering } from '../../../lib/guestNumbering';
 import { useEffect, useId, useState } from 'react';
@@ -5,7 +6,6 @@ import { toast } from 'sonner';
 import { Hash } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
 import { previewNumber } from '../../../lib/documentNumbers';
 
 type NumberedType = 'invoice' | 'bill' | 'estimate' | 'creditNote' | 'vendorCredit' | 'payment';
@@ -13,19 +13,24 @@ interface SeriesView { type: NumberedType; prefix: string; nextNumber: number; p
 
 const LABELS: Record<NumberedType, string> = { invoice: 'Invoices', bill: 'Bills', estimate: 'Estimates', creditNote: 'Credit notes', vendorCredit: 'Vendor credits', payment: 'Payments' };
 
-async function api(workspaceId: string, path: string, init?: RequestInit) {
+async function api(workspaceId: string, path: string, init?: RequestInit): Promise<NumberingAnswer> {
   if (guestSession()) {
     if (!init || init.method !== 'PUT') return { series: readGuestNumbering(workspaceId) };
     return { series: saveGuestNumbering(workspaceId, path.slice(1) as NumberedType, JSON.parse(String(init.body))) };
   }
   if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/numbering${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
+  const data = await runCommand<NumberingAnswer>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/numbering${path}`,
+    method: (init?.method as 'GET' | 'POST' | 'PUT' | 'DELETE') || 'GET',
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Document numbering is not available');
   return data;
+}
+
+/** What the numbering routes answer: the whole set, or the one series just saved. */
+interface NumberingAnswer {
+  series?: SeriesView[] | SeriesView;
+  message?: string;
+  [key: string]: unknown;
 }
 
 function SeriesRow({ series, workspaceId, onSaved }: { series: SeriesView; workspaceId: string; onSaved: (s: SeriesView) => void }) {
@@ -43,8 +48,9 @@ function SeriesRow({ series, workspaceId, onSaved }: { series: SeriesView; works
       const sampleSession = guestSession();
       const data = await api(workspaceId, `/${series.type}`, { method: 'PUT', body: JSON.stringify({ prefix, nextNumber: Number(next), padding: Number(padding) }) });
       if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-      onSaved(data.series);
-      toast.success(`${LABELS[series.type]}: the next number is ${data.series.next}`);
+      const saved = data.series as SeriesView;
+      onSaved(saved);
+      toast.success(`${LABELS[series.type]}: the next number is ${saved.next}`);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -101,7 +107,7 @@ export default function NumberingSettings() {
     let cancelled = false;
     if (!workspaceId || !canChange) return undefined;
     api(workspaceId, '/')
-      .then(d => { if (!cancelled) setSeries(d.series); })
+      .then(d => { if (!cancelled) setSeries((Array.isArray(d.series) ? d.series : []) as SeriesView[]); })
       .catch(err => { if (!cancelled) setError((err as Error).message); });
     return () => { cancelled = true; };
   }, [workspaceId, canChange, version]);

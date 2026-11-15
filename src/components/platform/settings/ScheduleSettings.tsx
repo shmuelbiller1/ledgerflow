@@ -1,6 +1,6 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
-import { getIdToken } from '../../../firebase';
 import type { ScheduledJobView, ScheduleView } from '../../../lib/jobSchedule';
 
 /**
@@ -39,10 +39,9 @@ export default function ScheduleSettings() {
     let live = true;
     void (async () => {
       try {
-        const res = await fetch('/api/v1/schedule', { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-        const data = await res.json().catch(() => ({}));
+        const data = await runCommand<{ status?: string; message?: string; schedule?: unknown }>({ path: '/api/v1/schedule' });
         if (!live) return;
-        if (!res.ok || data.status !== 'ok') throw new Error(String(data.message || data.error || ''), { cause: 'answered-no' });
+        if (data.status !== 'ok') throw new Error(String(data.message || ''), { cause: 'answered-no' });
         setSchedule(data.schedule as ScheduleView);
       } catch (err) {
         // the server's own sentence when it answered, our words when it did not answer at all
