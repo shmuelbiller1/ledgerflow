@@ -24,6 +24,8 @@ import { useTimeout } from '../../hooks/useTimeout';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useDialog } from '../../hooks/useDialog';
 import { focusOnMount } from '../../lib/focusOnMount';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { commandsWithRoles, roleMayRun } from '../../lib/paletteRoleFilter';
 import { pageIndex, searchPages } from '../../config/pageIndex';
 import { pageKey, type PinnedPage } from '../../lib/pinnedPages';
 import { inBackground } from '../../lib/inBackground';
@@ -141,6 +143,9 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
   const modules = useAuthStore(s => s.getCurrentWorkspace()?.modules);
   const workspaces = useAuthStore(s => s.workspaces);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  // Part 5: the palette offers what this person may actually run. Without it a viewer can pick
+  // "Delete invoice", fill the form, press the button and only then be told their role cannot do it.
+  const role = useCurrentRole();
   const switcherUid = useAuthStore(s => s.user?.uid || '');
   const pages = useMemo(() => pageIndex(language, { developerMode, modules }), [language, developerMode, modules]);
 
@@ -166,8 +171,18 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
       icon: <ArrowRight aria-hidden="true" size={16} />
     }));
     
-    return [...base, ...lenses];
-  }, [language]);
+    // A command whose manifest roles exclude this person is still shown — silently hiding it is how
+    // the interface hides the server — but it says so, and choosing it explains instead of opening a
+    // form that would be refused at the end.
+    const withheld = new Map(commandsWithRoles().map(entry => [entry.name, roleMayRun(entry.roles, role)]));
+
+    return [...base, ...lenses].map(command => {
+      const allowed = withheld.get(command.id);
+      return allowed === false
+        ? { ...command, label: `${command.label} — your role cannot do this`, withheld: true }
+        : command;
+    });
+  }, [language, role]);
 
   // Deep Omnisearch across the entire business model
   const dataResults = useMemo(() => {
@@ -433,6 +448,16 @@ const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? []
       onClose();
       return;
     }
+    // A withheld command explains itself and stops here, rather than opening a form the server would
+    // refuse at the end. The role check mirrors the manifest the server generates.
+    if ((item as { withheld?: boolean }).withheld) {
+      toast.error(`${item.label.replace(' — your role cannot do this', '')} needs a higher role.`, {
+        description: 'Ask a workspace owner or accountant to do it, or to change your role.',
+      });
+      onClose();
+      return;
+    }
+
     setIsExecuting(true);
 
     // Core Application Action Mappings

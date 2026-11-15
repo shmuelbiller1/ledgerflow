@@ -91,10 +91,13 @@ ticked when the ratchet number moved or the named test exists and passes.
 
 - [x] **`rawTables` names each remaining site that stays** — `raw-table-decisions.test.ts` holds the
       list and fails on a stale or false reason. The rest of the count is the migration queue.
-- [ ] `handTypedApiCalls` (170), `directDbWrites` (93) and `screensWithManyPrimaryButtons` (19) at zero
-      or named.
-- [ ] A first-time user, at 390px wide and by keyboard on desktop, can create a customer, send an
-      invoice, record its payment and open the profit and loss — **with a browser test proving each**.
+- [x] `screensWithManyPrimaryButtons` and `unreachableActions` at **0**. `handTypedApiCalls` (84) and
+      `directDbWrites` (93) are each down to the sites named in `docs/UI_REBUILD_RATCHETS.md`.
+- [x] A first-time user, at 390px wide and by keyboard, can create a customer, send an invoice, record
+      its payment and open the profit and loss — `e2e/first-hour-journey.spec.ts` proves each step with
+      no `click()` and the real server behind it. Writing it exposed that the palette had no phone
+      trigger at all (`hidden md:flex` search bar, ⌘K only); the header has one now, and a second test
+      guards it.
 - [x] Every command and report can be found by typing a plain word into the palette.
 
 ## Order of work
