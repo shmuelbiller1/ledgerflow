@@ -209,3 +209,14 @@ test('typing a longer new name next to an existing one keeps every character', (
   assert.equal((screen.getByLabelText('Customer') as HTMLInputElement).value, 'Client Ltd');
 });
 
+
+test('"Other rate…" stays chosen, the rate can be typed, and the total shows that tax', () => {
+  useLedgerStore.setState({ taxRates: [] });
+  invoice();
+  assert.match(document.body.textContent || '', /No sales tax rates are set up yet/);
+  change('Tax', 'custom');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'custom', 'it does not snap back to No tax');
+  change('Tax rate (%)', '17');
+  assert.equal((screen.getByLabelText('Tax rate (%)') as HTMLInputElement).value, '17');
+  assert.match(document.body.textContent || '', /17%/, 'the totals name the rate used');
+});
