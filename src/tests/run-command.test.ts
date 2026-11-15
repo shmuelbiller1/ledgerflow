@@ -111,6 +111,15 @@ describe('runCommand is the one place a screen calls its server', () => {
   test('the message a person reads separates a dead session from a refused action', () => {
     assert.match(commandErrorMessage(new ServerCommandError(401, 'nope')), /session has ended/i);
     assert.match(commandErrorMessage(new ServerCommandError(403, 'nope')), /role cannot do that/i);
+    // but a 403 that carries an instruction the person can act on keeps the server's words
+    assert.match(
+      commandErrorMessage(new ServerCommandError(403, 'Access Denied: Please verify your email protocol.')),
+      /verify your email/i,
+    );
+    assert.match(
+      commandErrorMessage(new ServerCommandError(403, 'Set up two-step login to continue')),
+      /two-step login/i,
+    );
     assert.equal(commandErrorMessage(new ServerCommandError(422, 'Closed month')), 'Closed month');
     assert.equal(commandErrorMessage('boom'), 'boom');
     assert.equal(commandErrorMessage(undefined), 'That did not work');
@@ -161,5 +170,38 @@ describe('runCommand is the one place a screen calls its server', () => {
     assert.equal(headers['Content-Type'], undefined);
     assert.ok(init.body instanceof FormData);
     assert.equal(headers.Authorization, 'Bearer t');
+  });
+
+  test('a null token means no session, so no credentials are attached', async () => {
+    let sent: Record<string, string> = {};
+    globalThis.fetch = (async (_path: string, init: RequestInit) => {
+      sent = init.headers as Record<string, string>;
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+    await runCommand({ path: '/api/v1/invoices/public/abc', token: null });
+    // the whole point: a public page asking as a visitor must not send the visitor's own session
+    assert.equal(sent.Authorization, undefined);
+  });
+
+  test('a 200 whose body was cut off fails instead of reporting an empty success', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
+    })) as unknown as typeof fetch;
+    // `{}` here would let a backup export write an empty archive and call it verified
+    await assert.rejects(
+      () => runCommand({ path: '/api/v1/workspaces/w/export', token: 't' }),
+      (error: unknown) => error instanceof ServerCommandError && /cut off/i.test(error.message),
+    );
+  });
+
+  test('a raw body still says it is JSON, which is what the restore route reads', async () => {
+    let sent: Record<string, string> = {};
+    globalThis.fetch = (async (_path: string, init: RequestInit) => {
+      sent = init.headers as Record<string, string>;
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+    await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: '{}', token: 't' });
+    // without this the request goes out as text/plain and the route cannot read it as the backup
+    assert.equal(sent['Content-Type'], 'application/json');
   });
 });

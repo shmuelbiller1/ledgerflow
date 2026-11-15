@@ -62,12 +62,14 @@ export interface CommandRequest<T> {
  */
 export async function runCommand<T = unknown>(request: CommandRequest<T>): Promise<T> {
   const { path, method = 'GET', body, rawBody, form, parse, signal, headers } = request;
-  const token = request.token ?? await getIdToken();
+  // `token: null` is the explicit "no session yet" a public page passes. `??` would treat it as
+  // missing and attach the signed-in person's credentials to a request that must not have them.
+  const token = request.token === null ? null : request.token ?? await getIdToken();
   const res = await fetch(path, {
     method,
     ...(signal ? { signal } : {}),
     headers: {
-      ...(body === undefined || form ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined && rawBody === undefined || form ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
@@ -75,9 +77,19 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
       : rawBody !== undefined ? { body: rawBody }
         : body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ServerCommandError(res.status, refusalMessage(raw, res.status), raw);
+    // a refusal's body is sometimes not JSON at all (an HTML error page from a proxy); the status
+    // is the part that matters, so read the body best-effort
+    const refusal = await res.json().catch(() => ({}));
+    throw new ServerCommandError(res.status, refusalMessage(refusal, res.status), refusal);
+  }
+  let raw: unknown;
+  try {
+    raw = await res.json();
+  } catch {
+    // 200 headers then a cut connection: answering `{}` here would report an empty success and, for
+    // the backup export, skip the client fallback and write an empty archive
+    throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined);
   }
   return parse ? parse(raw) : raw as T;
 }
@@ -101,10 +113,26 @@ function refusalMessage(raw: unknown, status: number): string {
 }
 
 /** What went wrong, in words a person can act on. Never empty, never "undefined". */
+/**
+ * A 403 in this app means more than one thing, and only one of them is about a role:
+ *
+ * - a role refusal, which the screen explains as "your role cannot do that";
+ * - "verify your email", which the person can actually do right now;
+ * - "set up two-step login", which also comes with a code the screen acts on.
+ *
+ * Replacing the server's sentence in the last two cases hides the one instruction that would let the
+ * person through, so the server's own words are kept whenever they are more specific than a role.
+ */
+const SERVER_403_IS_MORE_SPECIFIC = /verify|two.?step|two_step|recovery/i;
+
 export function commandErrorMessage(error: unknown): string {
   if (error instanceof ServerCommandError) {
     if (error.status === 401) return 'Your session has ended. Sign in again and retry.';
-    if (error.status === 403) return 'Your role cannot do that. Ask an owner or admin.';
+    if (error.status === 403) {
+      return SERVER_403_IS_MORE_SPECIFIC.test(error.message)
+        ? error.message
+        : 'Your role cannot do that. Ask an owner or admin.';
+    }
     return error.message;
   }
   if (error instanceof Error) return error.message || 'That did not work';
