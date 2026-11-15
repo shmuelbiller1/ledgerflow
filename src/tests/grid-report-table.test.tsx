@@ -242,7 +242,13 @@ describe('the second review pass', () => {
     // the clearance column puts the printed words and the sort key in one value, so both work:
     // searching "Outstanding" must not need the reader to know it sorts as "2Outstanding"
     const source = fs.readFileSync(path.join(process.cwd(), 'src/components/reporting/BankClearanceReportView.tsx'), 'utf8');
-    assert.match(source, /accessorFn: row => `\$\{clearedText\(row\)\} \$\{clearedSortKey\(row\)\}`/,
-      'the searchable value is the printed text plus the sort key, kept apart');
+    // search reads what the cell prints; the sort reads the key. The key must not lead the accessor,
+    // or the grid's filter would see it and the printed order would decide the sort again.
+    assert.match(source, /accessorFn: clearedText/, 'the searchable value is what the cell prints');
+    assert.match(source, /sortingFn: \(a, b\) => clearedSortKey\(a\.original\)/, 'the sort compares the key');
+    assert.ok(
+      !/accessorFn: row => `\$\{clearedSortKey/.test(source),
+      'the sort key must not lead the searchable value',
+    );
   });
 });

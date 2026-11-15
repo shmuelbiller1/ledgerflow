@@ -58,13 +58,18 @@ export default function BankClearanceReportView() {
     /**
      * Sorted on the stored date, with the two states on either side of the dates: sorting the printed
      * date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of month.
-     * Two jobs, kept apart. Sorting follows the stored date with the two states on either side
-     * (`clearedSortKey`), because sorting the printed date put "Feb 01, 2026" before "Jan 20, 2026".
-     * Searching follows the words on screen (`clearedText`), so typing "Outstanding" finds every
-     * outstanding entry — including the ones that cleared after the period — and "Reconciled" does
-     * not also return them.
+     * Two jobs, kept apart.
+     *
+     * Sorting: `sortingFn` compares `clearedSortKey`, which starts with the state and then the stored
+     * date (`0Reconciled` / `1<iso date>` / `2Outstanding`). The printed date cannot be the sort value —
+     * "Feb 01, 2026" sorted before "Jan 20, 2026", and a day-first format sorted by day of month.
+     *
+     * Searching: `accessorFn` returns what the cell prints, so typing "Outstanding" finds every
+     * outstanding entry — including the ones that cleared after the period — and "Reconciled" does not
+     * also return them. The key must not lead the accessor: the grid's global filter compares the
+     * accessor, and a key in front of it would put the printed-first ordering back.
      */
-    { id: 'cleared', accessorFn: row => `${clearedText(row)} ${clearedSortKey(row)}`, sortingFn: 'text', header: 'Cleared', cell: info => {
+    { id: 'cleared', accessorFn: clearedText, sortingFn: (a, b) => clearedSortKey(a.original).localeCompare(clearedSortKey(b.original)), header: 'Cleared', cell: info => {
       // the cell prints the record's own state; only the sort key carries the stored date
       const text = clearedText(info.row.original as ClearanceRow);
       return text === 'Outstanding' ? <span className="text-amber-700 dark:text-amber-400">{text}</span> : <span className="text-xs">{text}</span>;
