@@ -283,6 +283,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   const restoreDraft = (kept: typeof draftValue) => {
     // a new invoice keeps the number it was just given; the kept one may have been used since
     setInvoice(prev => ({ ...kept.invoice, ...(prev.id ? {} : { number: prev.number }) }));
+    setCustomTax(!kept.invoice.taxCodeId && Number(kept.invoice.taxRate) > 0);
     setItems(kept.items); setMemo(kept.memo); setTerms(kept.terms); setDirty(true);
   };
   const draft = useFormDraft({
@@ -444,8 +445,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   />
                 )}
                 {fieldError('inv-custom-tax-rate')}
-                {salesCodes.length === 0 && <p className="text-[11px] text-[var(--muted)]">Add tax codes in Taxes.</p>}
-                <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => { defaults.markTax(); setCustomTax(false); setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 }); }} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { defaults.markTax(); const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
+                <TaxExemptionNotice customer={safeCustomers.find(c => c.id === invoice.customerId)} date={invoice.date || ''} charging={totals.taxCents > 0} onNoTax={() => { defaults.markTax(); setCustomTax(false); setInvoice({ ...invoice, taxCodeId: salesCodes.find(c => c.treatment === 'exempt')?.id, taxRate: 0 }); }} lineLabels={items[0]?.dimensions} lineCategories={items.filter(i => i.itemId || i.description.trim() || i.amountCents).map(i => lineTaxCategory(i, inventoryItems, !inventoryLoading && !inventoryCapped))} currentRate={taxCode ? effectiveRate(taxCode.components) : 0} currentTreatment={taxCode?.treatment} salesTreatments={salesCodes.map(c => c.treatment)} onUseRate={(rate, treatment) => { defaults.markTax(); const choice = taxChoiceFor(rate, salesCodes, effectiveRate, treatment); setCustomTax(!choice.taxCodeId && Number(choice.taxRate) > 0); setInvoice({ ...invoice, taxCodeId: choice.taxCodeId, taxRate: choice.taxRate }); }} allocation={{ netCents: totals.netCents, taxCents: totals.taxCents, currency, exchangeRate: invoice.exchangeRate, value: String(invoice.metadata?.ilAllocationNumber || ''), onChange: v => setInvoice({ ...invoice, metadata: { ...invoice.metadata, ilAllocationNumber: v || undefined } }) }} />
             </div>
             <div className="space-y-2 flex flex-col justify-end pb-3">
               <label htmlFor="inv-tax-inclusive" className="flex items-center gap-2 cursor-pointer">
