@@ -28,6 +28,11 @@ export interface CommandRequest<T> {
   /** Sent as JSON when present. */
   body?: unknown;
   /**
+   * A body that is already serialized, for the one call that restores a backup: the file's own text
+   * is the body, so JSON-encoding it again would wrap the whole backup in quotes.
+   */
+  rawBody?: string;
+  /**
    * Extra headers, for the calls that need one: a journal entry sends `Idempotency-Key` so a retry
    * records once (R-05), and the transactions route takes `x-operation-id` for the same reason.
    */
@@ -51,17 +56,19 @@ export interface CommandRequest<T> {
  * telling apart from a validation refusal — both arrive as the same error with a different status.
  */
 export async function runCommand<T = unknown>(request: CommandRequest<T>): Promise<T> {
-  const { path, method = 'GET', body, parse, signal, headers } = request;
+  const { path, method = 'GET', body, rawBody, parse, signal, headers } = request;
   const token = request.token ?? await getIdToken();
   const res = await fetch(path, {
     method,
     ...(signal ? { signal } : {}),
     headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined && rawBody === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(rawBody !== undefined
+      ? { body: rawBody }
+      : body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {

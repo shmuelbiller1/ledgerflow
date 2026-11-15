@@ -134,4 +134,16 @@ describe('runCommand is the one place a screen calls its server', () => {
     assert.equal(sent.Authorization, 'Bearer t');
     assert.equal(sent['Content-Type'], 'application/json');
   });
+
+  test('rawBody sends already-serialized text as-is, which a backup restore needs', async () => {
+    let sent: string | undefined;
+    globalThis.fetch = (async (_path: string, init: RequestInit) => {
+      sent = init.body as string;
+      return { ok: true, status: 200, json: async () => ({ message: 'restored' }) };
+    }) as unknown as typeof fetch;
+    const text = '{"schemaVersion":1,"transactions":[]}';
+    await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: text, token: 't' });
+    // exactly the file's bytes: not JSON.stringify'd into a quoted string
+    assert.equal(sent, text);
+  });
 });
