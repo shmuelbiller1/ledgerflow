@@ -32,6 +32,7 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import { baseFigures } from '../server/services/allocationLedger';
+import { setCredit } from './helpers/creditFixtures';
 import { DATA_CHECKS, type CheckContext } from '../lib/dataChecks';
 
 test('base figures round as posting does (yen through minorUnitRate)', () => {
@@ -71,7 +72,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
       workspaceId: ws, uid: 'owner-1', customerId, customerName: customerId, number: key, date: '2026-10-01', dueDate: '2026-10-31',
       status: 'sent', currency, exchangeRate: rate, amountCents, amountPaidCents: 0, arAccountId: id('ar'),
     });
-    const note = (key: string, customerId: string, currency: string, amountCents: number, rate: number, date: string) => db.collection('creditNotes').doc(id(key)).set({
+    const note = (key: string, customerId: string, currency: string, amountCents: number, rate: number, date: string) => setCredit(db, 'creditNotes', id(key), {
       workspaceId: ws, uid: 'owner-1', customerId, number: key, date, status: 'open', currency, exchangeRate: rate, amountCents, remainingCents: amountCents,
     });
     await invoice('INV-1', 'acme', 'EUR', 100000, 1.1);
@@ -83,7 +84,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     await note('CN-2', 'beta', 'EUR', 10000, 1.1, '2026-10-02');
     await note('CN-3', 'beta', 'EUR', 10000, 1.12, '2026-10-03');
     await db.collection('bills').doc(id('B-1')).set({ workspaceId: ws, uid: 'owner-1', vendorId: 'v1', vendorName: 'Supplier', number: 'B-1', date: '2026-10-01', status: 'unpaid', currency: 'USD', amountCents: 10000, amountPaidCents: 0, apAccountId: id('ap') });
-    await db.collection('vendorCredits').doc(id('VC-1')).set({ workspaceId: ws, uid: 'owner-1', vendorId: 'v1', number: 'VC-1', date: '2026-10-10', status: 'open', currency: 'USD', amountCents: 4000, remainingCents: 4000 });
+    await setCredit(db, 'vendorCredits', id('VC-1'), { workspaceId: ws, uid: 'owner-1', vendorId: 'v1', number: 'VC-1', date: '2026-10-10', status: 'open', currency: 'USD', amountCents: 4000, remainingCents: 4000 });
   });
   after(async () => {
     for (const table of ['paymentAllocations', 'allocationOperations', 'idempotencyKeys', 'transactions', 'payments', 'invoices', 'bills', 'creditNotes', 'vendorCredits', 'chartAccounts', 'auditLogs', 'numberingSeries', 'workspaces']) {
@@ -134,7 +135,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
 
   test('vendor credit at another rate: a loss, CR A/P / DR exchange loss', async () => {
     await db.collection('bills').doc(id('B-E')).set({ workspaceId: ws, uid: 'owner-1', vendorId: 've', number: 'B-E', date: '2026-10-01', status: 'unpaid', currency: 'EUR', exchangeRate: 1.1, amountCents: 10000, amountPaidCents: 0, apAccountId: id('ap') });
-    await db.collection('vendorCredits').doc(id('VC-E')).set({ workspaceId: ws, uid: 'owner-1', vendorId: 've', number: 'VC-E', date: '2026-10-05', status: 'open', currency: 'EUR', exchangeRate: 1.11, amountCents: 10000, remainingCents: 10000 });
+    await setCredit(db, 'vendorCredits', id('VC-E'), { workspaceId: ws, uid: 'owner-1', vendorId: 've', number: 'VC-E', date: '2026-10-05', status: 'open', currency: 'EUR', exchangeRate: 1.11, amountCents: 10000, remainingCents: 10000 });
     await apply('vendor', 'VC-E', 'B-E', 10000, '2026-10-06');
     const rows = await live('B-E');
     assert.deepEqual(rows.map(r => r.realizedFxCents), [-100]);
@@ -198,7 +199,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
   test('period locks: a hard close refuses everyone, a soft close the bookkeeper (manual and auto)', async () => {
     const wsRef = db.collection('workspaces').doc(ws);
     await db.collection('invoices').doc(id('INV-G')).set({ workspaceId: ws, uid: 'owner-1', customerId: 'gamma', number: 'INV-G', date: '2026-10-01', status: 'sent', currency: 'USD', amountCents: 5000, amountPaidCents: 0 });
-    await db.collection('creditNotes').doc(id('CN-4')).set({ workspaceId: ws, uid: 'owner-1', customerId: 'gamma', number: 'CN-4', date: '2026-10-01', status: 'open', currency: 'USD', amountCents: 1000, remainingCents: 1000 });
+    await setCredit(db, 'creditNotes', id('CN-4'), { workspaceId: ws, uid: 'owner-1', customerId: 'gamma', number: 'CN-4', date: '2026-10-01', status: 'open', currency: 'USD', amountCents: 1000, remainingCents: 1000 });
     const auto = (uid: string) => credits.autoApplyCredits(db, { workspaceId: ws, kind: 'customer', partyId: 'gamma', uid });
     const locked = (e: Error & { status?: number }) => e.status === 409 && /Period Locked/.test(e.message);
     await wsRef.update({ lockDate: '2099-12-31', roles: { 'bk-1': 'bookkeeper' } });
@@ -217,7 +218,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     const bill = (key: string, issueDate: string) => db.collection('bills').doc(id(key)).set({ workspaceId: ws, uid: 'owner-1', vendorId: 'v2', number: key, issueDate, status: 'unpaid', currency: 'USD', amountCents: 5000, amountPaidCents: 0 });
     await bill('B-F', '2099-01-01');
     await bill('B-G', '2026-10-01');
-    await db.collection('vendorCredits').doc(id('VC-2')).set({ workspaceId: ws, uid: 'owner-1', vendorId: 'v2', number: 'VC-2', date: '2026-10-01', status: 'open', currency: 'USD', amountCents: 1000, remainingCents: 1000 });
+    await setCredit(db, 'vendorCredits', id('VC-2'), { workspaceId: ws, uid: 'owner-1', vendorId: 'v2', number: 'VC-2', date: '2026-10-01', status: 'open', currency: 'USD', amountCents: 1000, remainingCents: 1000 });
     const result = await credits.autoApplyCredits(db, { workspaceId: ws, kind: 'vendor', partyId: 'v2', uid: 'owner-1' });
     assert.deepEqual(result.applications.map(a => [a.documentId, a.amountCents]), [[id('B-G'), 1000]]);
     assert.equal((await live('B-F')).length, 0);

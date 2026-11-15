@@ -117,10 +117,10 @@ console.log('=== V1: a 0-decimal document currency (JPY) in 2-decimal books (USD
   );
 
   report(
-    'V1c the divergence is exactly the minor-unit factor, not some other difference',
-    aging === Math.round(100_000 * 0.0067) && ar === Math.round(100_000 * minorUnitRate(0.0067, 'JPY', 'USD')),
-    `aging ${aging} = round(100000 x 0.0067) and ledger ${ar} = round(100000 x ${minorUnitRate(0.0067, 'JPY', 'USD')}): ` +
-      `the ratio is the 10^(digits(books) - digits(document)) factor alone.`,
+    'V1c the aging uses the same minor-unit conversion as the ledger (fixed 2026-11-12: #641)',
+    aging === ar && ar === Math.round(100_000 * minorUnitRate(0.0067, 'JPY', 'USD')),
+    `aging ${aging} = ledger ${ar} = round(100000 x ${minorUnitRate(0.0067, 'JPY', 'USD')}) — the two consumers of the ` +
+      `same document agree, so #641's 10^(digits(books) - digits(document)) divergence is gone at this pin.`,
   );
 }
 
@@ -180,12 +180,16 @@ console.log('=== V4: how far the un-adjusted conversion spreads (call sites of t
     'src/server/reports/partyReports.ts:53 customer balances (and 12 more sites in that file)',
   ];
   for (const s of sites) console.log(`       ${s}`);
+  // #641's fix landed in the helper itself (toBaseCents -> convertMinorUnits with the document and base currency),
+  // so every consumer listed above inherits it. Checked here rather than assumed.
+  const { toBaseCents } = await import('../../../src/server/reports/partyReports');
+  const helper = toBaseCents(100_000, 0.0067, 'JPY', 'USD');
   report(
-    'V4 the defect is confined to aging',
-    false,
-    'every figure above is derived from toBaseCents, so each carries the same 10^(digits) error for a minor-unit ' +
-      'mismatch. #641 lists 40 call sites across 14 files; this probe verified the three that matter for the ' +
-      'acceptance criterion (aging vs the A/R control) rather than all 40.',
+    'V4 the shared helper itself now converts with the currency minor units (fixed 2026-11-12: #641)',
+    helper === 67_000,
+    `toBaseCents(¥100,000 at 0.0067, JPY -> USD) = ${helper} cents (correct 67,000), so every caller listed above ` +
+      `carries the fix. Sites still holding their own inline conversion are outside the helper and are #651's ` +
+      `case (V7/V8) — both fixed on this branch.`,
   );
 }
 
@@ -392,14 +396,16 @@ console.log('=== V7: sales-rep commission — NOT in #641\'s blast radius, and i
     date: '2026-10-22', currency, amountCents, taxAmountCents: 0,
     items: [{ id: 'l1', description: 'Licence', quantity: 1, rateCents: amountCents, amountCents }],
   } as unknown as Invoice);
-  const pay = (id: string, exchangeRate: number, amountCents: number, documentId: string) => ({
-    id, status: 'posted', paymentDate: '2026-11-05', exchangeRate,
+  // 2026-11-12: the payment's own currency is now part of the shape (#651 was fixed by threading it through
+  // and converting with `convertMinorUnits`). A row without it keeps the old rate-only reading (legacy data).
+  const pay = (id: string, exchangeRate: number, amountCents: number, documentId: string, currency?: string) => ({
+    id, status: 'posted', paymentDate: '2026-11-05', exchangeRate, currency,
     allocations: [{ documentId, documentType: 'invoice', amountCents }],
   });
 
   // A ¥100,000 invoice ($670.00 at 0.0067) paid in full, rep on 10%.
   // Independent arithmetic: commission = 10% of $670.00 = $67.00 = 6,700 cents.
-  const jpyLines = commissionLines(reps, [inv('inv-jpy', 'JPY', 100_000)], [pay('p-jpy', 0.0067, 100_000, 'inv-jpy')], '2026-11-01', '2026-11-30');
+  const jpyLines = commissionLines(reps, [inv('inv-jpy', 'JPY', 100_000)], [pay('p-jpy', 0.0067, 100_000, 'inv-jpy', 'JPY')], '2026-11-01', '2026-11-30', [], 'USD');
   const jpyCommission = jpyLines.reduce((sum, l) => sum + (l.commissionCents || 0), 0);
   const correct = 6_700;
 
@@ -419,7 +425,7 @@ console.log('=== V7: sales-rep commission — NOT in #641\'s blast radius, and i
   );
 
   // Control: the same $670.00 as a USD payment. rate 1 needs no adjustment, so commission must be right.
-  const usdLines = commissionLines(reps, [inv('inv-usd', 'USD', 67_000)], [pay('p-usd', 1, 67_000, 'inv-usd')], '2026-11-01', '2026-11-30');
+  const usdLines = commissionLines(reps, [inv('inv-usd', 'USD', 67_000)], [pay('p-usd', 1, 67_000, 'inv-usd', 'USD')], '2026-11-01', '2026-11-30', [], 'USD');
   const usdCommission = usdLines.reduce((sum, l) => sum + (l.commissionCents || 0), 0);
   report(
     'V7b control: the SAME $670.00 as a USD payment earns the correct commission',
@@ -458,11 +464,11 @@ console.log('=== V8: cash-basis revenue recognition — a ratio whose two sides 
 
   // The same ¥100,000 paid in full: the allocation is in the PAYMENT's own minor units.
   const payment = {
-    id: 'p-jpy', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 0.0067,
+    id: 'p-jpy', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 0.0067, currency: 'JPY',
     allocations: [{ documentId: 'inv-jpy-cb', documentType: 'invoice' as const, amountCents: 100_000 }],
   };
 
-  const out = cashBasisEntries(accounts, [accrual as never], [payment]);
+  const out = cashBasisEntries(accounts, [accrual as never], [payment], 'USD');
   const paidEntry = out.entries.find(e => String(e.id).endsWith(':paid:p-jpy'));
   const recognised = (paidEntry?.lines || []).reduce((sum, l) => sum + Math.abs(l.amountCents || 0), 0);
   // Fully paid, so the whole $670.00 of revenue must be recognised: 67,000 cents.
@@ -490,9 +496,9 @@ console.log('=== V8: cash-basis revenue recognition — a ratio whose two sides 
   await postInvoiceLedger(invUsd.id!, invUsd, WS, 'u1', { collection: 'invoices', docId: invUsd.id!, action: 'create' }, c2);
   const accrualUsd = (c2.capture ?? [])[0]?.txs[0] as never;
   const outUsd = cashBasisEntries(accounts, [accrualUsd as never], [{
-    id: 'p-usd', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 1,
+    id: 'p-usd', status: 'posted', paymentDate: '2026-11-05', exchangeRate: 1, currency: 'USD',
     allocations: [{ documentId: 'inv-usd-cb', documentType: 'invoice' as const, amountCents: 67_000 }],
-  }]);
+  }], 'USD');
   const paidUsd = outUsd.entries.find(e => String(e.id).endsWith(':paid:p-usd'));
   const recognisedUsd = (paidUsd?.lines || []).reduce((sum, l) => sum + Math.abs(l.amountCents || 0), 0);
   report(
@@ -508,6 +514,6 @@ console.log('=== V8: cash-basis revenue recognition — a ratio whose two sides 
 
 console.log('');
 console.log(failures === 0
-  ? 'all cases OK — #641 does not reproduce; the aging reconciles to the ledger'
-  : `${failures} case(s) reported DEFECT — #641 reproduces independently against the real libraries`);
+  ? 'all cases OK — #641 and #651 do not reproduce at this pin: the aging reconciles to the ledger, the shared helper converts with minor units, and commission and cash-basis revenue use it'
+  : `${failures} case(s) reported DEFECT — re-read the failing cases above before quoting them`);
 process.exit(0);

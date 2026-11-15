@@ -1,0 +1,155 @@
+diff --git a/src/server/services/depreciationService.ts b/src/server/services/depreciationService.ts
+index f3fb8815c..36bdac5fd 100644
+--- a/src/server/services/depreciationService.ts
++++ b/src/server/services/depreciationService.ts
+@@ -49,6 +49,20 @@ export async function runDepreciation(db: Firestore, input: { workspaceId: strin
+ 
+     const assetDocs = (await t.get(db.collection('assets').where('workspaceId', '==', input.workspaceId))).docs;
+     const accounts = (await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId))).docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
++    const txDocs = (await t.get(db.collection('transactions').where('workspaceId', '==', input.workspaceId))).docs;
++    const glPostedByAsset = new Map<string, number>();
++    for (const txDoc of txDocs) {
++      const tx = txDoc.data();
++      if (tx.status === 'void' || tx.status === 'draft' || tx.reversalEventId || tx.deletedAt) continue;
++      const meta = (tx.metadata || {}) as { type?: string; assets?: Array<{ assetId?: string; amountCents?: number }> };
++      if (meta.type === 'depreciation-run' && Array.isArray(meta.assets)) {
++        for (const item of meta.assets) {
++          if (item.assetId) {
++            glPostedByAsset.set(item.assetId, (glPostedByAsset.get(item.assetId) || 0) + (Number(item.amountCents) || 0));
++          }
++        }
++      }
++    }
+     const byId = new Map(accounts.map(a => [a.id, a]));
+     const defaults = defaultDepreciationAccounts(accounts);
+ 
+@@ -58,7 +72,8 @@ export async function runDepreciation(db: Firestore, input: { workspaceId: strin
+       const asset = { ...d.data(), id: d.id } as FixedAsset;
+       if (asset.status === 'disposed') continue;
+       const target = depreciationThrough(asset, input.month);
+-      const amount = target - (asset.accumulatedDepreciationCents || 0);
++      const effectiveAccumulated = Math.max(asset.accumulatedDepreciationCents || 0, glPostedByAsset.get(asset.id) || 0);
++      const amount = target - effectiveAccumulated;
+       if (amount <= 0) continue;
+       const expense = (asset.expenseAccountId && byId.get(asset.expenseAccountId)) || defaults.expense;
+       const accumulated = (asset.accumulatedAccountId && byId.get(asset.accumulatedAccountId)) || defaults.accumulated;
+diff --git a/src/server/services/payrollImportService.ts b/src/server/services/payrollImportService.ts
+index f3a8723af..0e57bd614 100644
+--- a/src/server/services/payrollImportService.ts
++++ b/src/server/services/payrollImportService.ts
+@@ -4,7 +4,7 @@ import { FieldValue, validateWorkspaceAccounts } from '../db/firestore';
+ import { ledgerWrite } from './ledgerDoor';
+ import { writeServerAuditLog } from './auditLogService';
+ import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
+-import { lockMessage, postingLock } from '../../lib/periodLock';
++import { lockMessage, postingLock, workspaceRole } from '../../lib/periodLock';
+ import { isCashAccount } from '../../lib/txFilters';
+ import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
+ import {
+@@ -103,6 +103,10 @@ export async function importPayroll(db: Firestore, input: PayrollImportInput): P
+   return db.runTransaction(async t => {
+     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
+     if (!workspace) throw new PayrollImportError(404, 'Workspace not found');
++    const role = workspaceRole(workspace, input.uid);
++    if (role !== 'owner' && role !== 'accountant') {
++      throw new PayrollImportError(403, 'Only owners and accountants can import payroll entries');
++    }
+     const currency = String(workspace.currency || 'USD');
+     // every pay date's period open, every pay date new, before anything is written
+     const planned: Array<{ payDate: PayrollPayDate; key: string; ref: DocumentReference }> = [];
+diff --git a/supabase/migrations/20261113000001_agent7_assets_rls_and_trigger_dedup.sql b/supabase/migrations/20261113000001_agent7_assets_rls_and_trigger_dedup.sql
+new file mode 100644
+index 000000000..ef218be51
+--- /dev/null
++++ b/supabase/migrations/20261113000001_agent7_assets_rls_and_trigger_dedup.sql
+@@ -0,0 +1,90 @@
++-- Agent #7 (2026-11-13) — A7N-06, #646, and #640/#647 trigger deduplication:
++-- 1. A7N-06: Guard server-managed accounting state on public.assets (`accumulatedDepreciationCents`,
++--    `depreciatedThrough`, `lastDepreciationTransactionId`, `placedInService`, `disposedOn`,
++--    `disposalProceedsCents`, `disposalGainLossCents`, `disposalTransactionId`) against direct
++--    authenticated client tampering, and lock depreciable basis once depreciation/service has posted.
++-- 2. #646: Require non-null dates (`date_required = true`) on dated commercial documents in public.lf_rules
++--    and block direct client INSERT of `open`/`issued` credit documents (`creditNotes`, `vendorCredits`).
++-- 3. #640/#647: Drop duplicate legacy period-lock & immutability triggers on public.transactions while
++--    retaining `transactions_enforce_period_lock` and `transactions_enforce_immutability`.
++
++create or replace function public.lf_asset_accounting_guard() returns trigger
++language plpgsql security definer set search_path = public
++as $$
++declare
++  has_posted_activity boolean;
++begin
++  if not public.lf_is_client() then
++    return coalesce(new, old);
++  end if;
++
++  if tg_op = 'INSERT' then
++    if coalesce((new.data->>'accumulatedDepreciationCents')::numeric, 0) <> 0
++       or new.data ? 'depreciatedThrough'
++       or new.data ? 'lastDepreciationTransactionId'
++       or new.data ? 'disposedOn'
++       or new.data ? 'disposalProceedsCents'
++       or new.data ? 'disposalGainLossCents'
++       or new.data ? 'disposalTransactionId'
++       or new.data ? 'placedInService'
++       or coalesce(new.data->>'status', 'active') = 'disposed' then
++      raise exception 'Fixed-asset depreciation and disposal fields are managed only by the server ledger'
++        using errcode = '42501';
++    end if;
++    return new;
++  elsif tg_op = 'UPDATE' then
++    if (new.data->>'accumulatedDepreciationCents') is distinct from (old.data->>'accumulatedDepreciationCents')
++       or (new.data->>'depreciatedThrough') is distinct from (old.data->>'depreciatedThrough')
++       or (new.data->>'lastDepreciationTransactionId') is distinct from (old.data->>'lastDepreciationTransactionId')
++       or (new.data->>'disposedOn') is distinct from (old.data->>'disposedOn')
++       or (new.data->>'disposalProceedsCents') is distinct from (old.data->>'disposalProceedsCents')
++       or (new.data->>'disposalGainLossCents') is distinct from (old.data->>'disposalGainLossCents')
++       or (new.data->>'disposalTransactionId') is distinct from (old.data->>'disposalTransactionId')
++       or (new.data->'placedInService') is distinct from (old.data->'placedInService')
++       or (coalesce(new.data->>'status', '') = 'disposed' and coalesce(old.data->>'status', '') <> 'disposed') then
++      raise exception 'Fixed-asset depreciation and disposal fields are managed only by the server ledger'
++        using errcode = '42501';
++    end if;
++
++    has_posted_activity := coalesce((old.data->>'accumulatedDepreciationCents')::numeric, 0) > 0
++                           or old.data ? 'lastDepreciationTransactionId'
++                           or old.data ? 'placedInService'
++                           or old.data ? 'disposalTransactionId'
++                           or coalesce(old.data->>'status', '') = 'disposed';
++    if has_posted_activity and (
++       (new.data->>'purchasePriceCents') is distinct from (old.data->>'purchasePriceCents')
++       or (new.data->>'salvageValueCents') is distinct from (old.data->>'salvageValueCents')
++       or (new.data->>'usefulLifeYears') is distinct from (old.data->>'usefulLifeYears')
++       or (new.data->>'depreciationMethod') is distinct from (old.data->>'depreciationMethod')
++       or (new.data->>'purchaseDate') is distinct from (old.data->>'purchaseDate')
++    ) then
++      raise exception 'Depreciable basis cannot be modified directly after asset postings exist'
++        using errcode = '42501';
++    end if;
++    return new;
++  elsif tg_op = 'DELETE' then
++    if coalesce((old.data->>'accumulatedDepreciationCents')::numeric, 0) > 0
++       or old.data ? 'lastDepreciationTransactionId'
++       or old.data ? 'placedInService'
++       or old.data ? 'disposalTransactionId'
++       or coalesce(old.data->>'status', '') = 'disposed' then
++      raise exception 'Assets with posted ledger activity cannot be deleted directly'
++        using errcode = '42501';
++    end if;
++    return old;
++  end if;
++
++  return coalesce(new, old);
++end $$;
++
++drop trigger if exists lf_asset_accounting_guard_trg on public."assets";
++create trigger lf_asset_accounting_guard_trg
++  before insert or update or delete on public."assets"
++  for each row execute function public.lf_asset_accounting_guard();
++
++update public.lf_rules
++   set date_required = true
++ where table_name in ('invoices', 'bills', 'creditNotes', 'vendorCredits');
++
++drop trigger if exists trg_transactions_period_lock on public."transactions";
++drop trigger if exists trg_transactions_posted_immutability on public."transactions";

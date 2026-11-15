@@ -21,6 +21,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
+import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -271,6 +272,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       // For partial updates (like flagging or voiding)
       if (partialUpdate) {
         let authoritativeWsId = '';
+        let beforeEdit: Record<string, unknown> | null = null;
+        let afterEdit: Record<string, unknown> | null = null;
         await db.runTransaction(async (t) => {
            const txRef = db.collection('transactions').doc(id);
            const doc = await t.get(txRef);
@@ -295,12 +298,22 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            if ((txData?.status === 'certified' || txData?.status === 'void') && !user.admin) {
              throw new Error(`Forbidden: Transaction status is locked (${txData?.status}).`);
            }
-         
-           // ISS-130; EG-6 review: a partial update that changes the status, type or metadata (which could strip the
-           // entry's type and with it the lock) is refused for these entries, not only a status change
+
+           // #652/#662: a document's entry is changed through the document, and a posted entry is never
+           // un-posted in place (a status of failed/draft drops it from every report). Same rule as the
+           // browser's isDocumentEntry, applied where it cannot be bypassed.
+           // ISS-130 is a more specific lock; preserve its existing refusal
+           // and response code before applying the general posted-entry guards.
            const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
            const revaluation = lockedField ? revaluationEntryLock(txData) : null;
            if (revaluation) throw new Error(revaluation);
+           const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
+           if (documentRefusal) throw new HttpError(documentRefusal, 409);
+           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
+             postedDeletionRefusal(txData as Partial<Transaction>, partialUpdate as Partial<Transaction>, Boolean(user.admin));
+           if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+           beforeEdit = auditSnapshot(txData as Partial<Transaction>);
+         
            if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
              throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
            }
@@ -316,6 +329,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            delete safePartial.id;
            delete safePartial.expectedUpdatedAt;
 
+           afterEdit = auditSnapshot({ ...txData, ...safePartial } as Partial<Transaction>);
            t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() });
         });
 
@@ -327,7 +341,10 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
           entityType: "transaction",
           entityId: id,
           details: {
-            description: `Partial update on transaction ref [${id}].`
+            description: `Partial update on transaction ref [${id}].`,
+            // #652(d): an auditor needs what changed, not only that something did
+            before: beforeEdit,
+            after: afterEdit,
           }
         }, { db });
 
@@ -346,6 +363,12 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       // Load existing tx to pass to validator
       const existingTxSnap = await db.collection('transactions').doc(id).get();
       const existingTx = existingTxSnap.exists ? existingTxSnap.data() as Transaction : undefined;
+
+      // #652: a document's entry is changed through the document; the browser already refuses it.
+      const documentRefusal = documentEntryRefusal(existingTx as { metadata?: Record<string, unknown> } | undefined, Boolean(user.admin));
+      if (documentRefusal) return res.status(409).json({ error: documentRefusal });
+      let beforeEdit: Record<string, unknown> | null = null;
+      let afterEdit: Record<string, unknown> | null = null;
 
       const validatedTx = await TransactionValidator.validateAndPrepare(transaction, {
         workspaceId: transaction.workspaceId,
@@ -368,17 +391,26 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         }
 
         if (doc.data()?.workspaceId !== transaction.workspaceId) throw new Error('Workspace mismatch');
+        // Recheck against the row read inside this same database transaction: an
+        // entry can acquire a document link after the earlier validation read.
+        const currentDocumentRefusal = documentEntryRefusal(doc.data() as { metadata?: Record<string, unknown> }, Boolean(user.admin));
+        if (currentDocumentRefusal) throw new HttpError(currentDocumentRefusal, 409);
         const revaluation = revaluationEntryLock(doc.data()); // ISS-130
         if (revaluation) throw new Error(revaluation);
         if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
           throw new Error('Cannot modify certified, cleared, or voided transactions');
         }
+        const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin)) ||
+          postedDeletionRefusal(doc.data() as Partial<Transaction>, transaction as Partial<Transaction>, Boolean(user.admin));
+        if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+        beforeEdit = auditSnapshot(doc.data() as Partial<Transaction>);
         // audit F3: the old and the new date against the workspace as it is now, inside the save
         assertStillOpen((await t.get(db.collection('workspaces').doc(transaction.workspaceId))).data(), user, [doc.data()?.date, validatedTx.date]);
 
         const txToSave = { ...validatedTx };
         delete (txToSave as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
 
+        afterEdit = auditSnapshot(txToSave as Partial<Transaction>);
         t.update(txRef, { ...txToSave, updatedAt: FieldValue.serverTimestamp() });
       });
 
@@ -390,7 +422,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         entityType: "transaction",
         entityId: id,
         details: {
-          description: `Full update on transaction ref [${id}].`
+          description: `Full update on transaction ref [${id}].`,
+          before: beforeEdit,
+          after: afterEdit,
         }
       }, { db });
 
@@ -409,6 +443,11 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       }
       if (errorMessage(e) === 'Not a member' || errorMessage(e) === 'Workspace mismatch' || errorMessage(e).includes('Forbidden')) {
          return res.status(403).json({ error: errorMessage(e) });
+      }
+      // #652/#662: a refusal that carries its own status (a document entry is a 409, not a malformed request)
+      const refusedStatus = (e as { status?: unknown }).status;
+      if (typeof refusedStatus === 'number' && refusedStatus >= 400 && refusedStatus < 500) {
+        return res.status(refusedStatus).json({ error: errorMessage(e) });
       }
       res.status(400).json({ error: errorMessage(e) }); 
     }
@@ -451,7 +490,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
         return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
       }
-      if (data?.status === 'completed' && !user.admin) {
+      if (isPostedEntry(data as Partial<Transaction>) && !user.admin) {
         return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
       }
 
@@ -464,7 +503,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
         const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
         if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
-        if (nowData?.status === 'completed' && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
+        if (isPostedEntry(nowData as Partial<Transaction>) && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
         const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
         try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
         t.delete(txRef);

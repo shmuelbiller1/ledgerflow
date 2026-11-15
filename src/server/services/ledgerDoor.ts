@@ -38,8 +38,11 @@ export function checkLedgerEntry(entry: Record<string, unknown>): void {
   }
   DoubleEntryValidator.validateJournalEntry(entry as unknown as Transaction);
   const debits = lines.reduce((sum, l) => sum + Math.max(0, Number(l.amountCents)), 0);
+  // #654: the validator writes the total in the home currency (#88/N15, FX-aware line amounts); older writers
+  // put the entry currency's debits. Either matches; anything else is a total that does not fit its lines.
+  const homeDebits = lines.reduce((sum, l) => sum + Math.max(0, lineAmount(l as TransactionLine, entry as unknown as Transaction)), 0);
   const total = entry.totalAmountCents;
-  if (typeof total === 'number' && total !== 0 && Math.abs(total) !== debits) {
+  if (typeof total === 'number' && total !== 0 && Math.abs(total) !== debits && Math.abs(total) !== homeDebits) {
     throw new LedgerDoorError(`The entry total (${total}) does not match its lines (${debits})`);
   }
 }

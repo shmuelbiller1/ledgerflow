@@ -173,4 +173,20 @@ describe('The daily recurring job', { skip: !url && 'LF_TEST_DATABASE_URL not se
     await processRecurring(db, '2026-09-05');
     assert.equal((await db.collection('estimates').where('workspaceId', '==', ws).get()).docs.length, 1, 'one draft per estimate and date');
   });
+
+  test('#654: a schedule at a foreign rate posts an entry that balances in the books currency', async () => {
+    // books in EUR here; the template says USD at 1.5: 3.33 + 3.33 debit, 6.66 credit → 5.00 + 5.00 against 9.99, settled
+    await rule('fx', { nextOccurrence: '2026-09-07', anchorDay: 7, template: { currency: 'USD', exchangeRate: 1.5, lines: [
+      { accountId: id('rent'), amountCents: 333 }, { accountId: id('rent'), amountCents: 333 }, { accountId: id('bank'), amountCents: -666 },
+    ] } });
+    await processRecurring(db, '2026-09-07');
+    const posted = (await db.collection('transactions').where('workspaceId', '==', ws).get()).docs.map(d => d.data())
+      .find(t => (t.lines || []).length === 3);
+    assert.ok(posted, 'the entry was posted');
+    const home = (posted!.lines as Array<{ amountCents: number; baseAmountCents?: number; exchangeRate?: number }>)
+      .map(l => Number.isInteger(l.baseAmountCents) ? l.baseAmountCents! : Math.round(l.amountCents * (l.exchangeRate ?? posted!.exchangeRate ?? 1)));
+    assert.equal(home.reduce((a, b) => a + b, 0), 0, 'debits equal credits in EUR');
+    assert.equal(posted!.totalAmountCents, home.filter(c => c > 0).reduce((a, b) => a + b, 0), 'the total is the home-currency debits');
+  });
 });
+

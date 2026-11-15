@@ -1,0 +1,215 @@
+diff --git a/src/server/reports/computeReports.ts b/src/server/reports/computeReports.ts
+index aa02327b3..3e15b4797 100644
+--- a/src/server/reports/computeReports.ts
++++ b/src/server/reports/computeReports.ts
+@@ -1,7 +1,7 @@
+ import { calculateNetIncome, isPostable, isRevenueAccount, isExpenseAccount, lineAmount, isTransactionInDateRange } from "../../lib/txFilters";
+ import { isUndepositedFundsAccount, openingDebitCents, resolveAccountRole } from "../../lib/accountUtils";
+ import type { Invoice, Bill, Payment, Customer, Vendor, Transaction, ChartAccount, TransactionLine, CreditNote, VendorCredit } from "../../types";
+-import { INVOICE_IS_ISSUED, BILL_IS_ISSUED } from "./partyReports";
++import { INVOICE_IS_ISSUED, BILL_IS_ISSUED, toBaseCents } from "./partyReports";
+ 
+ export { INVOICE_IS_ISSUED, BILL_IS_ISSUED };
+ 
+@@ -175,15 +175,28 @@ export function computeTrialBalance(accounts: ChartAccount[], transactions: Tran
+     if (asOfDate && !isTransactionInDateRange(tx, undefined, asOfDate)) continue;
+     tx.lines?.forEach((line: TransactionLine) => {
+       const amount = lineAmount(line, tx);
+-      if (trialBalance[line.accountId]) {
+-        const isDebitNature = ['asset', 'expense', 'cost_of_goods'].includes(trialBalance[line.accountId].type);
+-        if (amount > 0) {
+-          trialBalance[line.accountId].debit += amount;
+-        } else {
+-          trialBalance[line.accountId].credit += Math.abs(amount);
+-        }
+-        trialBalance[line.accountId].netSigned += (isDebitNature ? amount : -amount);
++      if (amount === 0) return;
++      if (!trialBalance[line.accountId]) {
++        trialBalance.__orphaned__ ||= {
++          name: 'Orphaned / Missing Account',
++          code: '9999-ORPHAN',
++          type: 'asset',
++          debit: 0,
++          credit: 0,
++          netSigned: 0,
++        };
++        if (amount > 0) trialBalance.__orphaned__.debit += amount;
++        else trialBalance.__orphaned__.credit += Math.abs(amount);
++        trialBalance.__orphaned__.netSigned += amount;
++        return;
++      }
++      const isDebitNature = ['asset', 'expense', 'cost_of_goods'].includes(trialBalance[line.accountId].type);
++      if (amount > 0) {
++        trialBalance[line.accountId].debit += amount;
++      } else {
++        trialBalance[line.accountId].credit += Math.abs(amount);
+       }
++      trialBalance[line.accountId].netSigned += (isDebitNature ? amount : -amount);
+     });
+   }
+   const totalDebit = Object.values(trialBalance).reduce((sum, acc) => sum + acc.debit, 0);
+@@ -249,6 +262,18 @@ export function computeCashFlow(accounts: ChartAccount[], transactions: Transact
+     };
+     if (!lines.some(isCash)) return;
+ 
++    const metaType = (tx.metadata as { type?: string } | undefined)?.type;
++    if (metaType === 'asset-disposal') {
++      const cashDelta = lines.filter(isCash).reduce((sum, line) => sum + lineAmount(line, tx), 0);
++      if (cashDelta !== 0) {
++        cashFlow.investing.total += cashDelta;
++        if (cashDelta > 0) cashFlow.investing.inflow += cashDelta;
++        else cashFlow.investing.outflow += -cashDelta;
++        cashFlow.investing.items.push({ name: tx.description, amount: cashDelta });
++      }
++      return;
++    }
++
+     lines.forEach((line: TransactionLine) => {
+       const acc = byId.get(line.accountId);
+       if (!acc || isCashFlowCashAccount(acc)) return;
+@@ -368,35 +393,44 @@ export function computeStatement(
+   endDate: string,
+   type: 'customer' | 'vendor',
+   /** credit notes (customer) or vendor credits (vendor); each counts less what was refunded (L-160) */
+-  credits: Array<CreditNote | VendorCredit> = []
++  credits: Array<CreditNote | VendorCredit> = [],
++  baseCurrency: string = 'USD',
+ ) {
+   const start = startDate || "1970-01-01";
+   const end = endDate || "2099-12-31";
++  const base = String(baseCurrency || 'USD').trim().toUpperCase();
+ 
+   const contactId = contact?.id || '';
+   const isCustomer = type === 'customer';
++  const docBase = (cents: number | undefined, rate?: number, cur?: string | null) => toBaseCents(cents || 0, rate, cur, base);
+ 
+   // Build prior balance
+   let openingBalanceCents = 0;
+ 
+   if (isCustomer) {
+     invoices.filter((inv) => inv.customerId === contactId && (inv.date || '') < start && INVOICE_IS_ISSUED.has(inv.status)).forEach((inv) => {
+-      openingBalanceCents += (inv.amountCents || 0);
++      openingBalanceCents += docBase(inv.amountCents, inv.exchangeRate, inv.currency);
+     });
+     payments.filter((p) => p.contactId === contactId && (p.date || '') < start && p.direction === 'received' && p.status === 'posted').forEach((p) => {
+-      openingBalanceCents -= (p.amountCents || 0);
++      openingBalanceCents -= docBase(p.amountCents, p.exchangeRate, p.currency);
+     });
+   } else {
+     bills.filter((b) => b.vendorId === contactId && (b.date || b.issueDate || '') < start && BILL_IS_ISSUED.has(b.status)).forEach((b) => {
+-      openingBalanceCents += (b.amountCents || 0);
++      openingBalanceCents += docBase(b.amountCents, b.exchangeRate, b.currency);
+     });
+     payments.filter((p) => p.contactId === contactId && (p.date || '') < start && p.direction === 'made' && p.status === 'posted').forEach((p) => {
+-      openingBalanceCents -= (p.amountCents || 0);
++      openingBalanceCents -= docBase(p.amountCents, p.exchangeRate, p.currency);
+     });
+   }
+ 
+-  const contactCredits = credits.filter(c => (isCustomer ? (c as CreditNote).customerId : (c as VendorCredit).vendorId) === contactId && c.status !== 'void' && c.status !== 'draft');
+-  const creditNet = (c: CreditNote | VendorCredit) => (c.amountCents || 0) - (c.refundedCents || 0);
++  const contactCredits = credits.filter(c =>
++    (isCustomer ? (c as CreditNote).customerId : (c as VendorCredit).vendorId) === contactId &&
++    c.status !== 'void' &&
++    c.status !== 'draft' &&
++    (c as { posted?: boolean }).posted !== false,
++  );
++  const creditNet = (c: CreditNote | VendorCredit) =>
++    docBase((c.amountCents || 0) - (c.refundedCents || 0), c.exchangeRate, c.currency);
+   contactCredits.filter(c => (c.date || '') < start).forEach(c => { openingBalanceCents -= creditNet(c); });
+ 
+   // Activity stream in range
+@@ -412,47 +446,51 @@ export function computeStatement(
+ 
+   if (isCustomer) {
+     invoices.filter((inv) => inv.customerId === contactId && (inv.date || '') >= start && (inv.date || '') <= end && INVOICE_IS_ISSUED.has(inv.status)).forEach((inv) => {
++      const amt = docBase(inv.amountCents, inv.exchangeRate, inv.currency);
+       activityItems.push({
+         id: inv.id,
+         date: inv.date || '',
+         type: 'Invoice',
+         reference: inv.number || inv.id,
+-        amountCents: (inv.amountCents || 0),
++        amountCents: amt,
+         creditCents: 0,
+-        debitCents: (inv.amountCents || 0)
++        debitCents: amt
+       });
+     });
+     payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'received' && p.status === 'posted').forEach((p) => {
++      const amt = docBase(p.amountCents, p.exchangeRate, p.currency);
+       activityItems.push({
+         id: p.id,
+         date: p.date || '',
+         type: 'Payment',
+         reference: p.reference || p.id,
+-        amountCents: -(p.amountCents || 0),
+-        creditCents: (p.amountCents || 0),
++        amountCents: -amt,
++        creditCents: amt,
+         debitCents: 0
+       });
+     });
+   } else {
+     bills.filter((b) => b.vendorId === contactId && (b.date || b.issueDate || '') >= start && (b.date || b.issueDate || '') <= end && BILL_IS_ISSUED.has(b.status)).forEach((b) => {
++      const amt = docBase(b.amountCents, b.exchangeRate, b.currency);
+       activityItems.push({
+         id: b.id,
+         date: b.date || b.issueDate || '',
+         type: 'Bill',
+         reference: b.number || b.id,
+-        amountCents: (b.amountCents || 0),
++        amountCents: amt,
+         creditCents: 0,
+-        debitCents: (b.amountCents || 0)
++        debitCents: amt
+       });
+     });
+     payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'made' && p.status === 'posted').forEach((p) => {
++      const amt = docBase(p.amountCents, p.exchangeRate, p.currency);
+       activityItems.push({
+         id: p.id,
+         date: p.date || '',
+         type: 'Payment',
+         reference: p.reference || p.id,
+-        amountCents: -(p.amountCents || 0),
+-        creditCents: (p.amountCents || 0),
++        amountCents: -amt,
++        creditCents: amt,
+         debitCents: 0
+       });
+     });
+diff --git a/src/server/reports/partyReports.ts b/src/server/reports/partyReports.ts
+index b4a123030..e87b5a0a3 100644
+--- a/src/server/reports/partyReports.ts
++++ b/src/server/reports/partyReports.ts
+@@ -68,6 +68,7 @@ export function computeCustomerBalanceSummary(
+     const custCreditNotes = creditNotes.filter(cn => {
+       if (cn.customerId !== custId) return false;
+       if (cn.status === 'void' || cn.status === 'draft') return false;
++      if ((cn as { posted?: boolean }).posted === false) return false;
+       const docDate = cn.date || '';
+       if (docDate && docDate > end) return false;
+       return true;
+@@ -152,6 +153,7 @@ export function computeVendorBalanceSummary(
+     const custVendorCredits = vendorCredits.filter(vc => {
+       if (vc.vendorId !== vendorId) return false;
+       if (vc.status === 'void' || vc.status === 'draft') return false;
++      if ((vc as { posted?: boolean }).posted === false) return false;
+       const docDate = vc.date || '';
+       if (docDate && docDate > end) return false;
+       return true;
+diff --git a/src/server/services/statementService.ts b/src/server/services/statementService.ts
+index 5bc6b0673..598510835 100644
+--- a/src/server/services/statementService.ts
++++ b/src/server/services/statementService.ts
+@@ -57,7 +57,8 @@ export async function loadStatement(db: Firestore, workspaceId: string, contactI
+   // the statement only reads this contact's payments: no need to load the whole workspace's
+   const payments = await rows<Payment>('payments', 'contactId');
+   const credits = contactType === 'customer' ? await rows<CreditNote>('creditNotes', 'customerId') : await rows<VendorCredit>('vendorCredits', 'vendorId');
+-  const stmt = computeStatement(contact, invoices, bills, payments, scope.startDate, scope.endDate, contactType, credits);
++  const homeCurrency = typeof workspace.currency === 'string' && workspace.currency ? workspace.currency : 'USD';
++  const stmt = computeStatement(contact, invoices, bills, payments, scope.startDate, scope.endDate, contactType, credits, homeCurrency);
+   return {
+     contactType,
+     contact,

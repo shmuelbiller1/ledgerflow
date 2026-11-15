@@ -1,6 +1,7 @@
 import ChartFrame, { ChartTooltip } from '../charts/ChartFrame';
 import { D3LedgerVisualizer } from './D3LedgerVisualizer';
 import { CHANNELS } from './intelligenceChannels';
+import IntelligenceChannelGroup from './IntelligenceChannelGroup';
 import { ProjectProfitMatrix } from './ProjectProfitMatrix';
 
 import React, { useState, useMemo } from 'react';
@@ -97,6 +98,7 @@ export default function AnalyticalCenter() {
   const filteredChannels = useMemo(() => {
     return CHANNELS.map(g => ({
       ...g,
+      allItems: g.items,
       items: g.items.filter((i) =>
         i?.label?.en?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         i?.desc?.en?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -184,51 +186,8 @@ export default function AnalyticalCenter() {
           {/* Categorized Options List as Cards */}
           <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar select-none">
             {filteredChannels.map(group => (
-              <div key={group.group.en} className="space-y-1">
-                <div className="px-2 pb-1 flex items-center justify-between">
-                  <span className="text-[8.5px] font-mono font-bold uppercase tracking-widest text-[var(--muted)] block">
-                    {group.group[language] || group.group['en']}
-                  </span>
-                  <span className="text-[8px] font-mono text-[var(--faint)] font-semibold">{group.items.length} LENSES</span>
-                </div>
-                
-                <div className="space-y-0.5">
-                  {group.items.map((item) => {
-                    const isActive = activeChannel === item.id;
-                    const IconComponent = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setActiveChannel(item.id)}
-                        className={cn(
-                          "w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all duration-150 border cursor-pointer group",
-                          isActive
-                            ? "bg-[var(--brass-soft)] border-[var(--brass-line)] text-[var(--text)] shadow-xs font-semibold"
-                            : "bg-transparent border-transparent text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--text)]"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                          isActive ? "bg-[var(--brass)] text-[var(--ink)] font-bold" : "bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] group-hover:text-[var(--text)]"
-                        )}>
-                          <IconComponent size={12} className="stroke-[2.2px]" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={cn("text-[11.5px] leading-none tracking-tight transition-colors", isActive ? "font-bold text-[var(--text)]" : "font-medium text-[var(--text)]")}>
-                            {((item).label?.[language] || (item).label?.['en']) || (item).name || item.id}
-                          </p>
-                          <p className="text-[9px] text-[var(--muted)] mt-1 leading-normal font-medium truncate group-hover:text-[var(--text)] transition-colors">
-                            {((item).desc?.[language] || (item).desc?.['en']) || item.description || ''}
-                          </p>
-                        </div>
-                        {isActive && (
-                          <div className="w-1 h-3 rounded-full bg-[var(--brass)] shrink-0 self-center" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <IntelligenceChannelGroup key={group.group.en} variant="panel" group={group.group} allItems={group.allItems} items={group.items}
+                activeChannel={activeChannel} language={language} onSelect={setActiveChannel} />
             ))}
             
             {filteredChannels.length === 0 && (
@@ -706,35 +665,8 @@ export default function AnalyticalCenter() {
               {/* Channels navigation selector */}
               <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar select-none">
                 {CHANNELS.map(group => (
-                  <div key={group.group.en} className="space-y-1">
-                    <span className="text-[8.5px] font-bold text-[var(--muted)] uppercase tracking-widest px-2 block">
-                      {group.group[language] || group.group['en']}
-                    </span>
-                    <div className="space-y-0.5">
-                      {group.items.map((item) => {
-                        const isActive = activeChannel === item.id;
-                        const IconComponent = item.icon;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActiveChannel(item.id);
-                              setMobileMenuOpen(false);
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border cursor-pointer text-[11.5px]",
-                              isActive
-                                ? "bg-[var(--brass)]/15 border-[var(--brass-line)] text-[var(--text)] font-bold"
-                                : "bg-transparent border-transparent text-[var(--muted)] hover:bg-[var(--ink)]"
-                            )}
-                          >
-                            <IconComponent size={13} className={cn(isActive ? "text-indigo-600" : "text-[var(--muted)]")} />
-                            <span>{((item).label?.[language] || (item).label?.['en']) || (item).name || item.id}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <IntelligenceChannelGroup key={group.group.en} variant="drawer" group={group.group} allItems={group.items} items={group.items}
+                    activeChannel={activeChannel} language={language} onSelect={id => { setActiveChannel(id); setMobileMenuOpen(false); }} />
                 ))}
               </div>
             </motion.div>

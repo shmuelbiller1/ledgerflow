@@ -583,3 +583,14 @@ the check can be tightened at the true count. Say "raise the ledger-door baselin
 
 - ~~**Apply migration `supabase/migrations/20261112000000_report_schedule_send_day.sql`** (merged in #665).~~ **Done 12 Nov** — applied by the owner, together with `20261111120000_ledger_server_only_and_balance_check.sql`; a check query confirmed all of 20261110000000…20261112000000 are live. Until it is applied, a scheduled report set to send on any day other than Monday / the 1st cannot be saved (the database refuses the new `sendDay` field); schedules on the default day work as before.
 - **EU-I2 "Sent with …" on the customer portal** (in draft #675): built as on for everyone, with a Branding setting to turn it off. Whether turning it off should need a paid plan is your decision; default used: anyone can turn it off.
+
+## 14 Nov — the last part of #646: what a browser may still write (AI #1)
+
+The server now refuses to apply or refund a credit with no entry in the books (#712), and the database rules
+already stop a browser from marking documents paid or changing paid amounts. What a signed-in browser can still
+do, straight against the database: create an open credit note, or change an issued invoice's or bill's total or
+set it to void without reversing its entry. The app itself creates documents from the browser, so simply
+forbidding these writes would break normal saving.
+*Default I'm using:* the fix moves "issue" and "void" for invoices, bills and credits behind the server (as
+payments already are), then the database rule refuses a browser change to an issued document's money fields or
+status. It is a multi-step change; I'll do it after the open money issues (#653). Say if you want it sooner.

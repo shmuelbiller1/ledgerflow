@@ -35,6 +35,7 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import { DATA_CHECKS, type CheckContext } from '../lib/dataChecks';
+import { setCredit } from './helpers/creditFixtures';
 import { balancedChunks } from '../server/services/paymentVoidService';
 
 test('balancedChunks: label pairs packed into balanced chunks of at most max lines', () => {
@@ -87,7 +88,7 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     });
     await invoice('INV-1', 'EUR', 100000, 1.1);
     await invoice('INV-D', 'USD', 50000, 1);
-    await db.collection('creditNotes').doc(id('CN-1')).set({ workspaceId: ws, uid: 'owner-1', customerId: 'acme', number: 'CN-1', date: '2026-10-20', status: 'open', currency: 'EUR', exchangeRate: 1.11, amountCents: 10000, remainingCents: 10000 });
+    await setCredit(db, 'creditNotes', id('CN-1'), { workspaceId: ws, uid: 'owner-1', customerId: 'acme', number: 'CN-1', date: '2026-10-20', status: 'open', currency: 'EUR', exchangeRate: 1.11, amountCents: 10000, remainingCents: 10000 });
   });
   after(async () => {
     for (const table of ['paymentAllocations', 'allocationOperations', 'idempotencyKeys', 'transactions', 'payments', 'invoices', 'creditNotes', 'chartAccounts', 'auditLogs', 'numberingSeries', 'workspaceShards', 'workspaces']) {

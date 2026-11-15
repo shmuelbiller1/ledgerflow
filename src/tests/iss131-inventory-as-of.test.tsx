@@ -207,6 +207,15 @@ describe('ISS-131 review on the screen', () => {
     assert.doesNotMatch(document.body.textContent || '', /agree\./);
   });
 
+  test('#131: capped entries cannot pass as the whole Inventory account: not compared, for a past date and for today', async () => {
+    for (const date of ['2026-09-30', '']) {
+      await mount(date, { transactions: true });
+      await waitFor(() => assert.match(document.body.textContent || '', /The loaded entries are capped, so the Inventory account here may be incomplete and is not compared with the stock\./));
+      assert.doesNotMatch(document.body.textContent || '', /agree\.|more than the Inventory account|less than the Inventory account/);
+      cleanup();
+    }
+  });
+
   test('a date after today: said plainly, not compared', async () => {
     await mount('2999-01-01', {});
     assert.match(screen.getByRole('alert').textContent || '', /2999-01-01 is after today, so there is no stock or books valuation for it yet/);

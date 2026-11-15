@@ -223,7 +223,7 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
     <div className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/85 shadow-3xs overflow-hidden">
       {archivedCount > 0 && (
         <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}
-          className="m-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
+          className="option-state m-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
           <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
         </button>
       )}

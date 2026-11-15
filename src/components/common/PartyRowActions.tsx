@@ -95,7 +95,7 @@ export function ShowArchivedToggle({ count, on, onChange, noun }: { count: numbe
   if (count === 0) return null;
   return (
     <button type="button" aria-pressed={on} onClick={() => onChange(!on)}
-      className="mx-4 mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
+      className="option-state mx-4 mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
       <Archive aria-hidden="true" className="w-3.5 h-3.5" /> {on ? `Hide archived ${noun}s` : `Show archived ${noun}s (${count})`}
     </button>
   );
