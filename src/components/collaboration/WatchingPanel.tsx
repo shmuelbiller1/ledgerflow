@@ -1,6 +1,6 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { TASK_RECORD_TYPES } from '../../lib/tasks';
@@ -11,18 +11,23 @@ import { useRecordChoices } from './recordChoices';
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 async function call(workspaceId: string, path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks/watching${path}`, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  return runCommand<WatchesAnswer>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks/watching${path}`,
+    method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+    body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'That did not work');
-  return data;
 }
 
 /**
  * Watching records (BG-04) on Tasks: the records I watch, each opening from here, and "Watch" for
  * another. Once a day I am told about any that changed (or were deleted) since I was last told.
  */
+/** What the watching routes answer: the list, or the one watch just made. */
+interface WatchesAnswer {
+  watches?: Watch[];
+  watch?: Watch;
+}
+
 export default function WatchingPanel() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const openRecord = useUIStore(s => s.openRecord);
@@ -44,16 +49,18 @@ export default function WatchingPanel() {
     const label = choices.find(c => c.id === id)?.label || id;
     try {
       const data = await call(workspaceId, '', 'POST', { record: { type, id, label } });
-      setWatches(list => [data.watch, ...(list || []).filter(w => w.id !== data.watch.id)]);
+      const created = data.watch;
+      if (!created) throw new Error('The watch was saved but the server did not send it back. Reload to see it.');
+      setWatches(list => [created, ...(list || []).filter(w => w.id !== created.id)]);
       setType(''); setId('');
       toast.success(`Watching ${label}: you are told once a day when it changes`);
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err)); }
   };
   const stop = async (w: Watch) => {
     try {
       await call(workspaceId, `/${encodeURIComponent(w.id)}`, 'DELETE');
       setWatches(list => (list || []).filter(x => x.id !== w.id));
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err)); }
   };
 
   return (

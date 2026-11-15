@@ -1,6 +1,6 @@
+import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { runOnce } from '../../lib/serverAction';
 import React, { useState, useMemo, useId, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -135,13 +135,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       data: { lines: (tx.lines || []).map(l => (isCashAccount(accounts.find(a => a.id === l.accountId)) ? l : { ...l, accountId: clearing.id, accountName: clearing.name })), isTransfer: true, transferDetails },
     }));
     try {
-      const res = await fetch('/api/v1/transactions/batch', {
+      await runCommand({
+        path: '/api/v1/transactions/batch',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ workspaceId: currentWorkspace?.id, updates }),
+        body: { workspaceId: currentWorkspace?.id, updates },
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message || body.error || 'The transfer was not paired');
       toast.success('Paired as one transfer between your accounts');
       return true;
     } catch (err) {

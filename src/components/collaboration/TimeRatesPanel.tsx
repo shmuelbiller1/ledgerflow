@@ -1,6 +1,6 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency } from '../../lib/utils';
@@ -29,12 +29,10 @@ export default function TimeRatesPanel({ workspaceId, rates, onSaved, people }: 
   const nameOf = (k: Kind, key: string) => names[k].find(n => n.id === key)?.name || key;
   const save = async (next: TimeRates) => {
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time/rates`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ rates: next }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The rates were not saved');
-      onSaved(data.rates);
+      const data = await runCommand<{ rates?: TimeRates }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time/rates`, method: 'PUT', body: { rates: next } });
+      onSaved(data.rates ?? next);
       setId(''); setAmount('');
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err)); }
   };
   const cents = Math.round(Number(amount.replace(',', '.')) * 100);
   const set = () => save({ ...rates, [kind]: { ...(rates[kind] || {}), [id]: cents } });
