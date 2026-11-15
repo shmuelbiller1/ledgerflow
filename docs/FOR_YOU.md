@@ -5,7 +5,28 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-10-07.
+Last updated: 2026-11-15.
+
+## The ledger screen cannot become a plain list (default taken: keep it as it is)
+
+The task says to move the seven most-used screens onto the shared list, Transactions first. I moved
+every report I could and stopped at Transactions on purpose, because **it is not a list**:
+
+`TransactionGridBody.tsx` is a 544-line grid with **12 editable cells per row** — you type the account,
+the amount and the memo straight into the row, with a split editor, per-cell validation and a paste
+handler. The shared list is a read-only table with a search box. Moving the ledger onto it would delete
+the ability to edit an entry in place and split it, which is a feature, not a way of building a screen.
+
+**Default I took:** Transactions keeps its own grid, and the ratchet names it with that reason.
+The reports and the plain lists (customers, vendors, items, invoices, bills, journal entries) move.
+If you would rather the ledger lose in-place editing and become a uniform list, say so and I will do
+it — but I would be removing something that works, so I did not assume it.
+
+Two more sites are named rather than moved: `StockClosingPanel` (a four-column block printed inside a
+larger statement, not a list of records) and `JournalSheetReportView` (the lines of one journal entry,
+drawn inside that entry's card).
+
+
 
 *Done and superseded items were moved to [docs/archive/FOR_YOU_DONE.md](archive/FOR_YOU_DONE.md) on 10 Nov 2026 (AI #13 cleanup). Item numbers below keep their original values.*
 
@@ -594,3 +615,28 @@ forbidding these writes would break normal saving.
 *Default I'm using:* the fix moves "issue" and "void" for invoices, bills and credits behind the server (as
 payments already are), then the database rule refuses a browser change to an issued document's money fields or
 status. It is a multi-step change; I'll do it after the open money issues (#653). Say if you want it sooner.
+
+## 15 Nov — the screen rebuild, second slice (AI #9): one decision, one default
+
+The review of the last slice said three things were missing: a test that proves every action and
+report can be *reached* (not merely imported), the counters that stop new screens being built the old
+way, and keyboard movement between rows. All three are in this pull request; three choices are yours.
+
+- **The Admin Panel is now in the search box, but only in developer mode** — as the sidebar already did.
+  It is the server's control room (workspaces, jobs, diagnostics): a first-time person should not land
+  there from a typo. *Default used:* listed when developer mode is on, absent otherwise, and the
+  reachability test checks it in that mode.
+- **Search now folds "&" to "and" and drops punctuation**, so "profit and loss" and "who owes me" find
+  the right report. *Default used:* folding is search-only — stored labels, ids and import fingerprints
+  are unchanged. If you would rather the report be *named* "Profit and loss" than have the search
+  translate, that is a words decision (U-5) for you.
+- **The Hebrew name of a screen is searched as written.** Hebrew search for reports and settings works
+  today; for a handful of screen names the folder misses because some names carry a definite article
+  (ה) or a prefix (ל, ב) — "לסקירה" is typed as "סקירה" by most people. *Default used:* left as is,
+  because folding Hebrew prefixes is its own change with its own tests; it is the next item in
+  `docs/TRACKER.md` under the screen rebuild. Say if you want it before the rest.
+- **Screens with more than one filled button: 19 today.** They are counted, not fixed, because U-2 says
+  one filled button *per screen* and several of these are one screen in two states (a wizard step, a
+  settings tab that only renders one of its three buttons at a time). Fixing them means reading each
+  one, not deleting buttons. *Default used:* the counter records 19 and may only go down; the list is in
+  `docs/UI_REBUILD_RATCHETS.md`.

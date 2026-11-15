@@ -14,6 +14,13 @@ interface Props {
   label: string;
   /** One name per rendered column, including Selection and Actions. */
   columns: string[];
+  /**
+   * Indexes the reader may not hide, because the list stops working without them. The first and last
+   * columns are always locked (selection and actions); a list whose rows are named by a row header adds
+   * that column here, since hiding it would leave every row without its name and, on a report, without
+   * the only button that opens the record.
+   */
+  lockedColumns?: number[];
 }
 
 /**
@@ -27,8 +34,9 @@ export default function ListColumnChooser(props: Props) {
   return <ScopedChooser key={`${key}:${props.columns.length}`} {...props} storageKey={key} />;
 }
 
-function ScopedChooser({ scope, label, columns, storageKey }: Props & { storageKey: string }) {
-  const [hidden, setHidden] = useState(() => readListHidden(storageKey, columns.length));
+function ScopedChooser({ scope, label, columns, storageKey, lockedColumns }: Props & { storageKey: string }) {
+  // a locked column is never hidden, even if an older saved choice hid it
+  const [hidden, setHidden] = useState(() => readListHidden(storageKey, columns.length).filter(index => !lockedColumns?.includes(index)));
   const [storageWarning, setStorageWarning] = useState(false);
 
   function change(index: number) {
@@ -56,7 +64,7 @@ function ScopedChooser({ scope, label, columns, storageKey }: Props & { storageK
         <fieldset className="flex flex-wrap gap-3">
           <legend className="sr-only">Columns to show in {label}</legend>
           {columns.map((name, index) => {
-            const locked = index === 0 || index === columns.length - 1;
+            const locked = index === 0 || index === columns.length - 1 || Boolean(lockedColumns?.includes(index));
             const descriptionId = `${scope}-column-${index}`;
             return (
               <div key={name} className="flex min-h-11 items-center gap-1">

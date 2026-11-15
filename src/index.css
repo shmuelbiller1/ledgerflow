@@ -264,6 +264,11 @@
     height: auto !important; max-height: none !important; overflow: visible !important; position: static !important;
   }
   .print-only-title { display: block !important; }
+  /* The shared list's column headings are sort buttons, and the rule above hides every button on
+     paper — which took the headings with it. The heading text is the table's labels, so it prints;
+     the chevron is decoration and stays hidden. */
+  [data-grid-sort-header] { display: inline-flex !important; }
+  [data-grid-sort-header] svg { display: none !important; }
   .font-mono, .tabular-nums { color: #000 !important; }
   a[href]::after { content: none !important; }
   @page { margin: 12mm; }

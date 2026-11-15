@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useServerTopLines } from '../../hooks/useServerTopLines';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import { csvMoney } from '../../lib/csvExport';
+import type { ColumnDef } from '@tanstack/react-table';
 
 interface Props {
   selectedYear?: number;
@@ -23,6 +27,24 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
   const { topExpenses, topIncome, source } = useServerTopLines(start, end, 25);
 
   const activeItems = activeTab === 'expenses' ? topExpenses : topIncome;
+
+  /**
+   * The biggest lines of the period, one row each. The description names the row (a payee underneath,
+   * as the old table showed); the amount is coloured by the tab, and the sort is on the cents.
+   */
+  const columns: ColumnDef<(typeof activeItems)[number], unknown>[] = [
+    { id: 'date', accessorFn: row => row.date, header: 'Date', cell: info => <span className="font-mono whitespace-nowrap">{formatDate(String(info.getValue()))}</span> },
+    { id: 'description', accessorFn: row => `${row.description} ${row.payee ?? ''}`.trim(), header: 'Description & Payee', cell: info => {
+      const row = info.row.original as (typeof activeItems)[number];
+      return <span className="font-medium"><bdi>{row.description}</bdi>{row.payee ? <span className="block text-[11px] text-[var(--muted)] mt-0.5"><bdi>{row.payee}</bdi></span> : null}</span>;
+    } },
+    { id: 'account', accessorFn: row => row.accountName, header: 'Account / Category', cell: info => (
+      <span className="bg-[var(--elevated)] px-2 py-0.5 rounded-sm border border-[var(--line)] text-[11px]"><bdi>{String(info.getValue())}</bdi></span>
+    ) },
+    { id: 'amount', accessorFn: row => row.amountCents, header: 'Amount', cell: info => (
+      <span className={`font-mono font-bold ${activeTab === 'expenses' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(Number(info.getValue()))}</span>
+    ) },
+  ];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="top-expenses-income-report">
@@ -70,52 +92,26 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
         </p>
       )}
 
-      {activeItems.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 text-neutral-500 text-xs">
-          No records found for the selected view.
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden shadow-xs">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Top expenses and income</caption>
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4 w-12 text-center">#</th>
-                <th scope="col" className="py-3 px-4">Date</th>
-                <th scope="col" className="py-3 px-4">Description & Payee</th>
-                <th scope="col" className="py-3 px-4">Account / Category</th>
-                <th scope="col" className="py-3 px-4 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {activeItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-neutral-50/80 transition-colors">
-                  <td className="py-3 px-4 text-center font-mono text-neutral-400 font-medium">
-                    {idx + 1}
-                  </td>
-                  <td className="py-3 px-4 text-neutral-600 font-mono whitespace-nowrap">
-                    {formatDate(item.date)}
-                  </td>
-                  <td className="py-3 px-4 font-medium text-neutral-900">
-                    <div>{item.description}</div>
-                    {item.payee && (
-                      <div className="text-[11px] text-neutral-500 mt-0.5">{item.payee}</div>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-neutral-600">
-                    <span className="bg-neutral-100 px-2 py-0.5 rounded-sm border border-neutral-200 text-[11px]">
-                      {item.accountName}
-                    </span>
-                  </td>
-                  <td className={`py-3 px-4 text-right font-mono font-bold ${activeTab === 'expenses' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {formatCurrency(item.amountCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TanStackDataGrid
+        caption="Top expenses and income"
+        data={activeItems}
+        columns={columns}
+        rowHeaderColumn="description"
+        pageSize={25}
+        searchPlaceholder="Search descriptions, payees and accounts..."
+        searchLabel="Search descriptions, payees and accounts"
+        columnScope={`report-top-lines-${activeTab}`}
+        columnLabel={`Top ${activeTab} columns`}
+        columnNames={['Date', 'Description & Payee', 'Account / Category', 'Amount']}
+        exportConfig={{
+          filename: `top-${activeTab}.csv`,
+          label: 'Export CSV',
+          headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
+          mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
+        }}
+        emptyState={<EmptyState title={`No ${activeTab} in this period`} description="Try a wider period." />}
+        filteredEmptyState={<EmptyState title="No record matches your search" description="Try another word or account." />}
+      />
     </div>
   );
 };

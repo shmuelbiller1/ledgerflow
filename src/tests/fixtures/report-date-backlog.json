@@ -22,7 +22,6 @@
   "src/components/reporting/AgedInventoryByLotReportView.tsx",
   "src/components/reporting/AgedReceivablesByRepReportView.tsx",
   "src/components/reporting/AssetRegisterReportView.tsx",
-  "src/components/reporting/BankClearanceReportView.tsx",
   "src/components/reporting/BankHolidaysReportView.tsx",
   "src/components/reporting/BillRetentionReportView.tsx",
   "src/components/reporting/BlanketOrdersReportView.tsx",

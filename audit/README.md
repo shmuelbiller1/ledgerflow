@@ -27,6 +27,14 @@ All 9 bookkeeping workflows (W1, W2, W3, W4, W5, W6, W9, W10, W14) are Connected
 8. **[`ARCHITECTURE_AND_STRATEGY_REVIEW.md`](ARCHITECTURE_AND_STRATEGY_REVIEW.md)** — Architectural invariants, Layer 1–3 model, and data rules.
 9. **[`MISSING_CONNECTIONS_AND_SHORTCUTS.md`](../docs/archive/audit/MISSING_CONNECTIONS_AND_SHORTCUTS.md)** — Structural integration review and UI action audit.
 
+### CI routing
+
+- **[`ci-test-routing-2026-11-15.md`](ci-test-routing-2026-11-15.md)** — Which change runs which CI job and test. Seven
+  routing defects with evidence, five of them fixed in that pull request (the two largest: the docs-only runner ran 73
+  tests that read no document, and the production build ran for changes that cannot change the bundle), the rest with
+  what was deliberately left alone and why. The short table lives in
+  [`docs/CI_STRATEGY.md`](../docs/CI_STRATEGY.md) "What a change runs".
+
 ### Structural & Inventory Maps
 10. **`FEATURE_COMPLETENESS_MATRIX.csv`** — 210 features mapped with implementation, verification, and limits.
 11. **`COMPLETE_FILE_INVENTORY.csv`** — Full inventory of all 2,178 tracked project files.

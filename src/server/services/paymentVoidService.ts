@@ -172,7 +172,7 @@ export async function voidPayment(db: Firestore, input: { workspaceId: string; u
       paymentId, date, transactionIds: reversals.flatMap(r => r.chunks.map(c => String(c.id))), reversedAllocationIds,
       documents: docUpdates.map(u => ({ documentId: u.documentId, amountPaidCents: u.amountPaidCents, status: u.status })),
     };
-    tx.update(paymentRef, { status: 'void', unappliedCents: 0, voidedAt: now, voidDate: date, voidReason: reason || null, voidedBy: uid, voidResult: result, updatedAt: now });
+    tx.update(paymentRef, { status: 'void', unappliedCents: 0, unappliedBaseCents: 0, voidedAt: now, voidDate: date, voidReason: reason || null, voidedBy: uid, voidResult: result, updatedAt: now });
     await writeServerAuditLog({
       workspaceId, uid, action: 'PAYMENT_VOIDED', entityType: 'payment', entityId: paymentId,
       details: { description: `Payment ${payment.number || paymentId} voided on ${date}${received ? '' : ' (payment made)'}`, transactionIds: result.transactionIds, documents: result.documents },

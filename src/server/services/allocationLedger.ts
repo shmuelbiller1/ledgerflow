@@ -134,6 +134,8 @@ export interface SplitInput {
   settlementRate: number;
   /** the applied part of the gross settled amount in base (cash + withholding − the unapplied part) */
   settledBaseCents: number;
+  /** #653: each allocation's cleared base as the entry cleared it, when the caller worked it out (else split here) */
+  clearedBaseCents?: number[];
 }
 
 /**
@@ -144,7 +146,7 @@ export function splitAllocations(input: SplitInput): Array<{ baseClearedCents: n
   const amounts = input.allocations.map(a => a.amountCents);
   const total = amounts.reduce((s, a) => s + a, 0);
   const clearedTotal = Math.round(total * minorUnitRate(input.documentRate, input.currency, input.baseCurrency));
-  const cleared = allocateCents(clearedTotal, amounts);
+  const cleared = input.clearedBaseCents && input.clearedBaseCents.length === amounts.length ? input.clearedBaseCents : allocateCents(clearedTotal, amounts);
   const settled = allocateCents(input.settledBaseCents, amounts);
   return amounts.map((_, i) => ({
     baseClearedCents: cleared[i],

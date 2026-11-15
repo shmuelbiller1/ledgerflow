@@ -16,6 +16,19 @@ export interface QualityMetrics {
   untestedViews: number;
   /** full-screen overlays (`fixed inset-0`) not marked as a dialog (useDialog / role="dialog") or hidden */
   overlaysWithoutDialog: number;
+  /**
+   * Prompt 2 ("Rebuild the way screens are made"), the counters that may only go down:
+   *  - screen files that draw a table by hand instead of using the shared list;
+   *  - hand-typed server addresses in the screens;
+   *  - direct database writes from the browser;
+   *  - actions and reports nothing can reach from the search box;
+   *  - screens with more than one filled button (EASE_OF_USE U-2).
+   */
+  rawTables: number;
+  handTypedApiCalls: number;
+  directDbWrites: number;
+  unreachableActions: number;
+  screensWithManyPrimaryButtons: number;
 }
 
 function computeOrphanFiles(rootDir: string): number {
@@ -134,6 +147,101 @@ function computeOrphanFiles(rootDir: string): number {
   return orphans;
 }
 
+/** Files under `src/components` that are screens (not tests, not the shared list itself). */
+function componentFiles(rootDir: string, dir = path.join(rootDir, 'src/components')): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'tests') out.push(...componentFiles(rootDir, full));
+    } else if (/\.tsx$/.test(entry.name) && !entry.name.includes('.test.')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * A table drawn by hand: `<table` in a screen file. The shared list (`TanStackDataGrid.tsx`) is the one
+ * place a table is allowed to be built, so it is left out of the count.
+ */
+function computeRawTables(rootDir: string): number {
+  const sharedList = path.join(rootDir, 'src/components/ui/TanStackDataGrid.tsx');
+  return componentFiles(rootDir)
+    .filter(file => path.resolve(file) !== path.resolve(sharedList))
+    .filter(file => /<table\b/.test(fs.readFileSync(file, 'utf8')))
+    .length;
+}
+
+/**
+ * `fetch('/api/…')` typed into a screen: the address should come from one place, not twenty. A call is
+ * counted once per `fetch(` whose address starts with the API path, whichever quote style it uses.
+ */
+function computeHandTypedApiCalls(rootDir: string): number {
+  let count = 0;
+  for (const file of componentFiles(rootDir)) {
+    const text = fs.readFileSync(file, 'utf8');
+    count += [...text.matchAll(/fetch\([^;]{0,200}?\/api\//g)].length;
+  }
+  return count;
+}
+
+/** Writes to the database from the browser: screens call the server, they do not post the books. */
+function computeDirectDbWrites(rootDir: string): number {
+  const dirs = ['src/components', 'src/hooks', 'src/stores'].map(d => path.join(rootDir, d));
+  // The modular Firestore API is called bare (`await updateDoc(ref, …)`), and one call can be written
+  // with a leading dot. The pattern must not capture, or `match.length` would count a group, not a call.
+  const writes = /\b(?:setDoc|updateDoc|addDoc|deleteDoc|writeBatch|runTransaction)\s*\(/g;
+  let count = 0;
+  const scan = (dir: string) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'tests') scan(full);
+      } else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) {
+        const text = fs.readFileSync(full, 'utf8');
+        count += [...text.matchAll(writes)].length;
+      }
+    }
+  };
+  dirs.forEach(scan);
+  return count;
+}
+
+/**
+ * Registered screens, reports and settings tabs that the search box cannot reach. Zero is the only
+ * acceptable number: a screen nothing can open is a feature nobody has.
+ */
+function computeUnreachableActions(rootDir: string): number {
+  const registryPath = path.join(rootDir, 'src/config/registry.tsx');
+  const index = fs.readFileSync(path.join(rootDir, 'src/config/pageIndex.ts'), 'utf8');
+  if (!fs.existsSync(registryPath)) return 0;
+  const registry = fs.readFileSync(registryPath, 'utf8');
+  // the index builds itself from the registry (screens, extras, reports, settings), so the honest check
+  // lives in src/tests/palette-reachability-guard.test.ts; here we count only a registry that stopped
+  // feeding it, which is the shape a regression takes.
+  const feedsIndex = ['APP_TABS', 'REPORT_TABS_REGISTRY', 'SCREEN_TABS_REGISTRY', 'SETTINGS_TABS_REGISTRY']
+    .filter(name => !index.includes(name));
+  void registry;
+  return feedsIndex.length;
+}
+
+/** Screens that break EASE_OF_USE U-2: more than one filled (primary) button on one screen. */
+function computeScreensWithManyPrimaryButtons(rootDir: string): number {
+  const filled = /\bbg-indigo-600\b|\bbtn-primary\b|\bbg-\[var\(--gold\)\]/;
+  return componentFiles(rootDir).filter(file => {
+    const text = fs.readFileSync(file, 'utf8');
+    let count = 0;
+    for (const line of text.split('\n')) {
+      if (!line.includes('className')) continue;
+      if (filled.test(line)) count++;
+    }
+    return count > 1;
+  }).length;
+}
+
 export function computeQualityMetrics(rootDir: string = process.cwd()): QualityMetrics {
   let anyCount = 0;
   let utcDateCount = 0;
@@ -235,6 +343,11 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
     suppressionCount,
     untestedViews,
     overlaysWithoutDialog,
+    rawTables: computeRawTables(rootDir),
+    handTypedApiCalls: computeHandTypedApiCalls(rootDir),
+    directDbWrites: computeDirectDbWrites(rootDir),
+    unreachableActions: computeUnreachableActions(rootDir),
+    screensWithManyPrimaryButtons: computeScreensWithManyPrimaryButtons(rootDir),
   };
 }
 

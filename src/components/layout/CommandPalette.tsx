@@ -346,8 +346,24 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
       }
     });
 
+    // 8. Inventory Items
+    ledger.inventory?.forEach(item => {
+      if (match(item.name) || match(item.sku) || match(item.category)) {
+        results.push({
+          id: `item-${item.id}`,
+          type: 'data',
+          label: `${item.name}${item.sku ? ` (${item.sku})` : ''}`,
+          category: `Item • ${item.category || 'Inventory'}`,
+          actionId: 'switch-tab',
+          record: { type: 'item', id: item.id },
+          payload: { tab: 'inventory', id: item.id },
+          icon: <Tags aria-hidden="true" size={16} className="text-emerald-500 shrink-0" />
+        });
+      }
+    });
+
     return results.slice(0, 50); // Limit to top 50 results
-  }, [query, ledger.transactions, ledger.projects, ledger.customers, ledger.vendors, ledger.accounts, ledger.invoices, ledger.bills]);
+  }, [query, ledger.transactions, ledger.projects, ledger.customers, ledger.vendors, ledger.accounts, ledger.invoices, ledger.bills, ledger.inventory]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -385,7 +401,12 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
   const recentResults: PaletteResult[] = query.trim() ? [] : recentRecords.map(record => ({ id: `recent-${record.type}-${record.id}`, type: 'recent', label: recentRecordLabel(record, ledger), category: 'Recent items', record, icon: <FileText aria-hidden="true" size={16} /> }));
 
 const pageResults: PaletteResult[] = useMemo(() => (query.trim().length < 2 ? [] : searchPages(pages, query).slice(0, 8).map(p => ({
-    id: `page-${pageKey(p.page)}`, type: 'page', label: `Go to ${p.label}`, category: 'Pages', payload: p.page, icon: <ArrowRight aria-hidden="true" size={16} />,
+    id: `page-${pageKey(p.page)}${p.disabledModuleId ? `-${p.disabledModuleId}` : ''}`,
+    type: 'page',
+    label: p.disabledModuleId ? p.label : `Go to ${p.label}`,
+    category: p.disabledModuleId ? 'Modules (Turn on in Settings)' : 'Pages',
+    payload: p.page,
+    icon: <ArrowRight aria-hidden="true" size={16} />,
   }))), [pages, query]);
 
   // K-34: "Switch to …" for the workspaces the person belongs to
