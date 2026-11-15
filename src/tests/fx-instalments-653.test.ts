@@ -19,7 +19,20 @@ import { postInvoiceLedger } from '../services/ledgerPost/invoicePosting';
 import type { LedgerPostContext } from '../services/ledgerPost/postingKit';
 import type { ChartAccount, Invoice, Transaction, Workspace } from '../types';
 import { DATA_CHECKS, type CheckContext } from '../lib/dataChecks';
-import { allocationsOf } from '../server/services/allocationLedger';
+import { allocationsOf, splitAllocations } from '../server/services/allocationLedger';
+
+test('exact document clearing is preserved when allocating same-rate and separately quoted payments', () => {
+  const allocations = [{ documentId: 'a', documentType: 'invoice' as const, amountCents: 3333 },
+    { documentId: 'b', documentType: 'invoice' as const, amountCents: 3333 }];
+  const input = { allocations, side: 'receivable' as const, currency: 'EUR', baseCurrency: 'USD',
+    documentRate: 1.0842, settlementRate: 1.0842, clearedBaseByAllocation: [3613, 3614] };
+  assert.deepEqual(splitAllocations({ ...input, settledBaseCents: 7227, settleAtCleared: true }),
+    [{ baseClearedCents: 3613, baseSettledCents: 3613, realizedFxCents: 0 },
+     { baseClearedCents: 3614, baseSettledCents: 3614, realizedFxCents: 0 }]);
+  const quoted = splitAllocations({ ...input, settlementRate: 1.1, settledBaseCents: 7333 });
+  assert.equal(quoted.reduce((sum, r) => sum + r.baseClearedCents, 0), 7227);
+  assert.equal(quoted.reduce((sum, r) => sum + r.realizedFxCents, 0), 106);
+});
 
 const url = process.env.LF_TEST_DATABASE_URL;
 
@@ -110,9 +123,10 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
       items: [{ id: 'l1', description: 'Beans', quantity: 1, rateCents: 10_000, amountCents: 10_000, accountId: acct['4000'].id }],
     };
     await postInvoiceLedger(inv.id, inv as never, ws, OWNER, { collection: 'invoices', docId: inv.id, action: 'create', data: inv }, await context());
-    const pay = (date: string, cents: number) => send('POST', '/api/v1/payments', {
+    const pay = (date: string, cents: number, paymentExchangeRate?: number) => send('POST', '/api/v1/payments', {
       workspaceId: ws, amountCents: cents, paymentDate: date, cashAccountId: acct['1000'].id, paymentMethod: 'bank_transfer',
       customerId, allocations: [{ documentId: inv.id, documentType: 'invoice', amountCents: cents }],
+      ...(paymentExchangeRate === undefined ? {} : { paymentExchangeRate }),
     });
     const cleared: number[] = [];
     const paymentIds: string[] = [];
@@ -152,6 +166,19 @@ describe('#653 instalments at the invoice rate', { skip: !url && 'LF_TEST_DATABA
     assert.equal(live.reduce((sum, r) => sum + r.realizedFxCents, 0), 0);
     assert.deepEqual(await sheet('2025-06-02'), [10842, 0, 0, 10842, true]);
     assert.equal((await db.collection('invoices').doc(inv.id).get()).data()?.status, 'paid');
+    await assertControlBalance();
+
+    // A separately quoted bank rate must produce the actual realized FX,
+    // with the same amount in both the allocation ledger and general ledger.
+    const revoid = await send('POST', `/api/v1/payments/${replaced.body.data.paymentId}/void`, { workspaceId: ws, date: '2025-06-03' });
+    assert.equal(revoid.status, 200, JSON.stringify(revoid.body));
+    const quoted = await pay('2025-06-04', 3333, 1.1);
+    assert.equal(quoted.status, 200, JSON.stringify(quoted.body));
+    const row = (await allocationsOf(db, null, ws, inv.id)).find(r => r.date === '2025-06-04');
+    assert.deepEqual([row?.baseClearedCents, row?.baseSettledCents, row?.realizedFxCents], [3613, 3666, 53]);
+    const quotedEntry = (await all<Transaction>('transactions')).find(t => t.id === quoted.body.data.transactionId);
+    assert.equal(quotedEntry?.lines.filter(l => l.accountId === acct['4910'].id).reduce((sum, l) => sum + l.amountCents, 0), -53);
+    assert.deepEqual(await sheet('2025-06-04'), [10895, 0, 0, 10895, true]);
     await assertControlBalance();
   });
 });
