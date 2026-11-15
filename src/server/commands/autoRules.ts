@@ -177,7 +177,7 @@ export const autoRuleUpdateCommand: CommandDefinition<typeof autoRuleUpdateInput
     const snapshot = await ctx.db.collection('autoRules').doc(input.id).get();
     const current = snapshot.data();
     if (!snapshot.exists || current?.workspaceId !== ctx.workspaceId) throw new HttpError('Rule not found in this workspace.', 404);
-    return { title: `Update rule ${String(input.data.name || current.name || input.id)}`, lines: Object.keys(input.data).sort() };
+    return { title: `Update rule ${String(input.data.name || current.name || input.id)}`, lines: Object.keys(input.data).sort((a, b) => a.localeCompare(b)) };
   },
   audit(_input, result) {
     return { action: 'AUTO_RULE_UPDATED', entityType: 'autoRules', entityId: result.rule.id, description: `Updated rule "${String(result.rule.name || result.rule.id)}"` };

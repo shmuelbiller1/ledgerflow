@@ -2,6 +2,7 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } 
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { db } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { Transaction, AutoRule, ChartAccount } from '../../types';
 import { toast } from 'sonner';
 import { parseLocalDate } from '../../lib/utils';
@@ -10,28 +11,38 @@ import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
 import type { ActionContext, RunRegisteredCommand } from './shared';
 
 /** Automation rules: add, change, delete and apply to existing entries. (F-05, moved from useTransactionActions.) */
+function isActiveRuleContext(actorUid: string, workspaceId: string): boolean {
+  const auth = useAuthStore.getState();
+  return auth.user?.uid === actorUid && auth.currentWorkspaceId === workspaceId;
+}
+
 export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredCommand) {
   const { user, currentWorkspaceId, setTransactions, accounts, setIsSyncing } = ctx;
 
   const handleAddRule = async (data: Partial<AutoRule>) => {
     if (!user || !currentWorkspaceId) return;
+    const actorUid = user.uid;
+    const originWorkspaceId = currentWorkspaceId;
     try {
       const { uid: _uid, workspaceId: _workspaceId, createdAt: _createdAt, hitCount: _hitCount, lastTriggeredAt: _lastTriggeredAt, ...ruleData } = data;
       let saved: AutoRule;
-      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+      if (guestSession() || originWorkspaceId === SAMPLE_WORKSPACE_ID) {
         const ref = await addDoc(collection(db, 'autoRules'), {
-          ...ruleData, uid: user.uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString(),
+          ...ruleData, uid: actorUid, workspaceId: originWorkspaceId, createdAt: new Date().toISOString(),
         });
-        saved = { ...ruleData, id: ref.id, uid: user.uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString() } as AutoRule;
+        saved = { ...ruleData, id: ref.id, uid: actorUid, workspaceId: originWorkspaceId, createdAt: new Date().toISOString() } as AutoRule;
       } else {
         const result = await runCommand('autorule.create', { rule: ruleData as Record<string, unknown> });
         saved = result.rule as AutoRule;
       }
+      if (!isActiveRuleContext(actorUid, originWorkspaceId)) return;
       const rules = useLedgerStore.getState().autoRules as AutoRule[];
       useLedgerStore.getState().setAutoRules(rules.some(rule => rule.id === saved.id) ? rules.map(rule => rule.id === saved.id ? saved : rule) : [...rules, saved]);
       toast.success('Categorization rule synced');
     } catch (error) {
-      toast.error('Failed to save rule', { description: error instanceof Error ? error.message : String(error) });
+      if (isActiveRuleContext(actorUid, originWorkspaceId)) {
+        toast.error('Failed to save rule', { description: error instanceof Error ? error.message : String(error) });
+      }
     }
   };
 

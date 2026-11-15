@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import CustomerModal from '../components/sales/CustomerModal';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD } from '../lib/warehouseRecords';
 import type { Customer } from '../types';
 
 function setup() {
@@ -26,6 +27,32 @@ describe('customer dialog', () => {
     fireEvent.change(screen.getByLabelText('Phone Number'), { target: { value: ' 555 0100 ' } });
     fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
     assert.deepEqual(saved, [{ name: 'Acme Ltd', email: 'billing@acme.test', phone: '555 0100', status: 'active', balanceCents: 0 }]);
+  });
+
+  test('profile edits omit server-managed warranty and return histories from the metadata payload', () => {
+    const saved: Partial<Customer>[] = [];
+    const initial: Partial<Customer> = {
+      id: 'customer-1', name: 'Acme Ltd', status: 'active',
+      metadata: {
+        documentLanguage: 'en', custom: 'keep', documentDefaults: { accountId: 'rent' },
+        [WARRANTIES_METADATA_FIELD]: { serial_one: { endDate: '2028-01-01' } },
+        [RMAS_METADATA_FIELD]: { rma_one: { status: 'approved' } },
+      },
+    };
+    render(<CustomerModal isOpen onClose={() => {}} initial={initial} onSave={customer => { saved.push(customer); }} />);
+    fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
+    assert.deepEqual(saved[0].metadata, { documentLanguage: 'en', custom: 'keep', documentDefaults: { accountId: 'rent' } });
+  });
+
+  test('clearing a saved profile metadata field sends an explicit delete marker', () => {
+    const saved: Partial<Customer>[] = [];
+    render(<CustomerModal isOpen onClose={() => {}} initial={{
+      id: 'customer-1', name: 'Acme Ltd', status: 'active', metadata: { documentLanguage: 'en', custom: 'keep' },
+    }} onSave={customer => { saved.push(customer); }} />);
+    fireEvent.change(screen.getByLabelText('Language of their documents'), { target: { value: '' } });
+    fireEvent.submit(screen.getByLabelText('Customer Name').closest('form')!);
+    assert.equal(saved[0].metadata?.documentLanguage, null);
+    assert.equal(saved[0].metadata?.custom, 'keep');
   });
 
   test('a name of only spaces is not saved', () => {

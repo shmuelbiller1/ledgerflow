@@ -6,6 +6,8 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@t
 import { applyRuleAction, dryRunRules, executeRulesOnTransactions } from '../lib/rulesEngine';
 import { isTransferTransaction } from '../lib/txFilters';
 import { useAutoRules } from '../hooks/useAutoRules';
+import { useEntityOperations } from '../hooks/useEntityOperations';
+import { createRuleActions } from '../hooks/transactionActions/ruleActions';
 import { RulesSettings } from '../components/platform/settings/RulesSettings';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -154,6 +156,72 @@ beforeEach(() => {
   }) as typeof fetch;
 });
 afterEach(() => { release?.(); cleanup(); getSupabase().auth.dispose(); });
+
+describe('Rule creation workspace scoping', () => {
+  it('does not cache a rule into a different actor or workspace after the create command resolves', async () => {
+    const workspace = setComponentWorkspace();
+    const user = useAuthStore.getState().user!;
+    const foreignRule = rule({ id: 'foreign-rule', workspaceId: 'next-workspace' });
+    useLedgerStore.setState({ autoRules: [] });
+    let resolveCreate!: (value: { rule: AutoRule }) => void;
+    let requestStarted = false;
+    const response = new Promise<{ rule: AutoRule }>(resolve => { resolveCreate = resolve; });
+    const runCommand = (() => { requestStarted = true; return response; }) as never;
+    const actions = createRuleActions({
+      user,
+      currentWorkspaceId: workspace.id,
+      setTransactions: useLedgerStore.getState().setTransactions,
+      accounts: [],
+      setIsSyncing: () => {},
+    } as never, runCommand);
+
+    const pending = actions.handleAddRule({
+      id: 'created-in-old-workspace', name: 'Old workspace', workspaceId: workspace.id,
+      condition: { descriptionContains: 'old' }, action: { addTags: ['old'] },
+    });
+    assert.equal(requestStarted, true);
+    act(() => {
+      useAuthStore.setState({ currentWorkspaceId: 'next-workspace' });
+      useLedgerStore.setState({ autoRules: [foreignRule] });
+    });
+    resolveCreate({ rule: { ...rule({ id: 'created-in-old-workspace' }), workspaceId: workspace.id } });
+    await act(async () => { await pending; });
+    assert.deepEqual(useLedgerStore.getState().autoRules, [foreignRule]);
+  });
+
+  it('does not install a command response after the signed-in actor changes in the same workspace', async () => {
+    setComponentWorkspace();
+    const originalUser = useAuthStore.getState().user!;
+    useLedgerStore.setState({ transactions: [] });
+    let resolveResponse!: (response: Response) => void;
+    let requestStarted = false;
+    const pendingResponse = new Promise<Response>(resolve => { resolveResponse = resolve; });
+    globalThis.fetch = (async () => {
+      requestStarted = true;
+      return pendingResponse;
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useEntityOperations());
+    let pending!: Promise<Record<string, unknown>>;
+    act(() => { pending = result.current.runCommand('customer.create', { customer: { name: 'Scoped' } }); });
+    await waitFor(() => assert.equal(requestStarted, true));
+    act(() => { useAuthStore.setState({ user: { ...originalUser, uid: 'replacement-user' } }); });
+    resolveResponse(Response.json({ status: 'success', data: { transactions: [transaction({ id: 'stale-result' })] } }));
+    await act(async () => { await pending; });
+    assert.deepEqual(useLedgerStore.getState().transactions, [], 'an old actor response must not enter the current actor’s store');
+  });
+
+  it('treats a successful empty command response as an empty result rather than dereferencing null', async () => {
+    setComponentWorkspace();
+    globalThis.fetch = (async () => Response.json(null)) as typeof fetch;
+    const { result } = renderHook(() => useEntityOperations());
+    let commandResult!: Record<string, unknown>;
+    await act(async () => {
+      commandResult = await result.current.runCommand('customer.update', { id: 'customer-1', data: { name: 'Updated' } });
+    });
+    assert.deepEqual(commandResult, {});
+  });
+});
 
 describe('Rules use the validated financial writer', () => {
   it('persists classification-only changes even when the counterparty line already matches', async () => {

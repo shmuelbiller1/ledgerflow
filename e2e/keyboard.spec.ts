@@ -227,11 +227,37 @@ test.describe('Keyboard', () => {
         await route.fulfill({ status: 200, json: { number: 'INV-1001' } });
         return;
       }
-      if (req.method() === 'POST' && /\/api\/v1\/documents\/invoices\/([^/]+)\/post$/.test(url.pathname)) {
-        const match = url.pathname.match(/\/api\/v1\/documents\/invoices\/([^/]+)\/post$/);
-        const docId = decodeURIComponent(match?.[1] || 'inv-h3-1');
-        const body = req.postDataJSON() as { data?: Partial<Invoice>; postingDay?: string };
-        const invData = body.data || {};
+      if (req.method() === 'POST' && url.pathname === '/api/v1/commands/customer.create') {
+        const body = req.postDataJSON() as { input?: { customer?: Partial<Customer> } };
+        const input = body.input?.customer || {};
+        const customer = {
+          ...input,
+          id: String(input.id || 'cust-h3-1'),
+          uid,
+          workspaceId,
+          status: input.status || 'active',
+          balanceCents: 0,
+        } as Customer;
+        const existingIndex = customers.findIndex(item => item.id === customer.id);
+        if (existingIndex >= 0) customers[existingIndex] = customer;
+        else customers.push(customer);
+        await syncPageStores();
+        await route.fulfill({ status: 200, json: {
+          status: 'success', command: 'customer.create', data: { customer }, replayed: false,
+        } });
+        return;
+      }
+      const invoiceCommand = url.pathname === '/api/v1/commands/invoice.create';
+      const legacyInvoicePost = url.pathname.match(/\/api\/v1\/documents\/invoices\/([^/]+)\/post$/);
+      if (req.method() === 'POST' && (invoiceCommand || legacyInvoicePost)) {
+        const body = req.postDataJSON() as {
+          input?: { invoice?: Partial<Invoice>; postingDay?: string };
+          data?: Partial<Invoice>;
+          postingDay?: string;
+        };
+        const invData = invoiceCommand ? body.input?.invoice || {} : body.data || {};
+        const docId = String(invData.id || (legacyInvoicePost ? decodeURIComponent(legacyInvoicePost[1]) : 'inv-h3-1'));
+        const postingDay = invoiceCommand ? body.input?.postingDay : body.postingDay;
         const totalCents = Number(invData.amountCents) || 25000;
         const invoiceRecord: Invoice = {
           id: docId,
@@ -240,7 +266,7 @@ test.describe('Keyboard', () => {
           number: String(invData.number || 'INV-1001'),
           customerId: String(invData.customerId || customers[0]?.id || 'cust-h3-1'),
           customerName: String(invData.customerName || customers[0]?.name || 'H3 Keyboard Customer'),
-          date: String(invData.date || body.postingDay || '2026-10-26'),
+          date: String(invData.date || postingDay || '2026-10-26'),
           dueDate: String(invData.dueDate || invData.date || '2026-11-25'),
           status: (invData.status as Invoice['status']) || 'pending',
           amountCents: totalCents,
@@ -265,7 +291,15 @@ test.describe('Keyboard', () => {
         });
         transactions.push(invTx);
         await syncPageStores();
-        await route.fulfill({ status: 200, json: { id: docId, transactions: [invTx] } });
+        await route.fulfill(invoiceCommand
+          ? { status: 200, json: {
+              status: 'success', command: 'invoice.create', replayed: false,
+              data: {
+                collection: 'invoices', action: 'create', documentId: docId,
+                documentNumber: invoiceRecord.number, body: { status: 'success' }, transactions: [invTx],
+              },
+            } }
+          : { status: 200, json: { id: docId, transactions: [invTx] } });
         return;
       }
       if (req.method() === 'POST' && url.pathname.endsWith('/api/v1/payments')) {

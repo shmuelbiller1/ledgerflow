@@ -56,33 +56,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function putCommandTransactions(workspaceId: string, transactions: unknown): void {
-  if (!Array.isArray(transactions) || transactions.length === 0 || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
+function isActiveDocumentContext(actorUid: string, workspaceId: string): boolean {
+  const auth = useAuthStore.getState();
+  return auth.user?.uid === actorUid && auth.currentWorkspaceId === workspaceId;
+}
+
+class StaleDocumentCommandContextError extends Error {
+  constructor() {
+    super('The signed-in user or workspace changed before the command was sent.');
+    this.name = 'StaleDocumentCommandContextError';
+  }
+}
+
+function isStaleDocumentCommandContext(error: unknown): boolean {
+  return error instanceof StaleDocumentCommandContextError;
+}
+
+function putCommandTransactions(actorUid: string, workspaceId: string, transactions: unknown): void {
+  if (!Array.isArray(transactions) || transactions.length === 0 || !isActiveDocumentContext(actorUid, workspaceId)) return;
   const written = transactions as Transaction[];
   const posted = new Set(written.map(transaction => transaction.id));
   const store = useLedgerStore.getState();
   store.setTransactions([...written, ...(store.transactions || []).filter(transaction => !posted.has(transaction.id))]);
 }
 
+async function sendDocumentCommandRequest(name: string, workspaceId: string, input: Record<string, unknown>, operationId: string, token: string | null): Promise<Response> {
+  return fetch(`/api/v1/commands/${encodeURIComponent(name)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': operationId,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ workspaceId, input }),
+  });
+}
+
 /** Execute one registered document command with a stable operation key across safe network/429 retries. */
-async function executeDocumentCommand(name: string, workspaceId: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function executeDocumentCommand(name: string, workspaceId: string, input: Record<string, unknown>, actorUid: string): Promise<Record<string, unknown>> {
   const token = await getIdToken().catch(() => null);
+  if (!isActiveDocumentContext(actorUid, workspaceId)) throw new StaleDocumentCommandContextError();
   // The command runner accepts IDs matching [A-Za-z0-9_.:-]; remove UUID separators so
   // the same key survives automatic retries instead of being rejected before execution.
   const operationId = crypto.randomUUID().replaceAll('-', '');
   let response: Response;
   for (let attempt = 0; ; attempt++) {
+    if (!isActiveDocumentContext(actorUid, workspaceId)) throw new StaleDocumentCommandContextError();
     try {
-      response = await fetch(`/api/v1/commands/${encodeURIComponent(name)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': operationId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ workspaceId, input }),
-      });
+      response = await sendDocumentCommandRequest(name, workspaceId, input, operationId, token);
     } catch (error) {
+      if (!isActiveDocumentContext(actorUid, workspaceId)) throw new StaleDocumentCommandContextError();
       if (attempt >= 1) throw error;
       await new Promise(resolve => setTimeout(resolve, 250));
       continue;
@@ -94,10 +117,13 @@ async function executeDocumentCommand(name: string, workspaceId: string, input: 
     }
     break;
   }
-  const answer = await response.json().catch(() => ({})) as Record<string, unknown>;
+  const payload = await response.json().catch(() => null);
+  const answer = isRecord(payload) ? payload : {};
   if (!response.ok) {
+    if (!isActiveDocumentContext(actorUid, workspaceId)) throw new StaleDocumentCommandContextError();
     const details = isRecord(answer.details) ? answer.details : {};
-    if (details.code === 'CREDIT_LIMIT' && (name === 'invoice.create' || name === 'invoice.update')) {
+    if (details.code === 'CREDIT_LIMIT' && isActiveDocumentContext(actorUid, workspaceId)
+      && (name === 'invoice.create' || name === 'invoice.update')) {
       reportCreditLimitRefusal({
         docId: String(input.id || (isRecord(input.invoice) ? input.invoice.id : '')),
         message: String(details.error || answer.message || 'The customer credit limit was exceeded.'),
@@ -108,11 +134,12 @@ async function executeDocumentCommand(name: string, workspaceId: string, input: 
   }
 
   const result = isRecord(answer.data) ? answer.data : {};
+  if (!isActiveDocumentContext(actorUid, workspaceId)) return result;
   const body = isRecord(result.body) ? result.body : {};
   if (Array.isArray(body.warnings)) body.warnings.forEach(warning => toast.warning(String(warning)));
   if (typeof body.creditLimitNote === 'string') toast.info(body.creditLimitNote);
   showBudgetWarnings(body);
-  putCommandTransactions(workspaceId, result.transactions);
+  putCommandTransactions(actorUid, workspaceId, result.transactions);
   return result;
 }
 
@@ -129,6 +156,10 @@ function documentDataAndOverride(data: Record<string, unknown>): { document: Rec
 export function useEntityOperations() {
   const user = useAuthStore(workspaceActor);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const runDocumentCommand = (name: string, workspaceId: string, input: Record<string, unknown>) => {
+    if (!user?.uid) return Promise.reject(new Error('Sign in before running a document command.'));
+    return executeDocumentCommand(name, workspaceId, input, user.uid);
+  };
   const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const role = useCurrentRole();
   const analyticalPatternCache = useLedgerStore(s => s.analyticalPatternCache);
@@ -254,7 +285,7 @@ export function useEntityOperations() {
           posted = await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postInvoiceLedger(docId, finalData as unknown as Partial<Invoice>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context)) as Record<string, unknown>;
         } else {
           const { document, override } = documentDataAndOverride(finalData);
-          posted = await executeDocumentCommand('invoice.create', currentWorkspaceId, {
+          posted = await runDocumentCommand('invoice.create', currentWorkspaceId, {
             invoice: document,
             postingDay: postingToday(),
             ...(override ? { creditLimitOverride: override } : {}),
@@ -266,34 +297,34 @@ export function useEntityOperations() {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postBillLedger(docId, finalData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
         } else {
-          await executeDocumentCommand('bill.create', currentWorkspaceId, { bill: finalData, postingDay: postingToday() });
+          await runDocumentCommand('bill.create', currentWorkspaceId, { bill: finalData, postingDay: postingToday() });
         }
         if (finalData.vendorId) void syncEntityBalance('vendors', finalData.vendorId, sampleSession);
       } else if (path === 'creditNotes') {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postCreditNoteLedger(docId, finalData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
         } else {
-          await executeDocumentCommand('creditnote.create', currentWorkspaceId, { creditNote: finalData, postingDay: postingToday() });
+          await runDocumentCommand('creditnote.create', currentWorkspaceId, { creditNote: finalData, postingDay: postingToday() });
         }
       } else if (path === 'vendorCredits') {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(docId, finalData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId, action: 'create', data: finalData }, context));
         } else {
-          await executeDocumentCommand('vendorcredit.create', currentWorkspaceId, { vendorCredit: finalData, postingDay: postingToday() });
+          await runDocumentCommand('vendorcredit.create', currentWorkspaceId, { vendorCredit: finalData, postingDay: postingToday() });
         }
       } else if (path === 'customers' && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID) {
         const customer = { ...data, id: docId, workspaceId: currentWorkspaceId } as Record<string, unknown>;
         delete customer.uid;
         delete customer.createdAt;
         delete customer.balanceCents;
-        await executeDocumentCommand('customer.create', currentWorkspaceId, { customer });
+        await runDocumentCommand('customer.create', currentWorkspaceId, { customer });
       } else if (path === 'vendors' && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID) {
         const vendor = { ...data, id: docId, workspaceId: currentWorkspaceId } as Record<string, unknown>;
         delete vendor.uid;
         delete vendor.createdAt;
         delete vendor.updatedAt;
         delete vendor.balanceCents;
-        await executeDocumentCommand('vendor.create', currentWorkspaceId, { vendor });
+        await runDocumentCommand('vendor.create', currentWorkspaceId, { vendor });
       } else if (path === 'transactions') {
         const token = await getIdToken();
         const res = await fetch('/api/v1/transactions', {
@@ -332,7 +363,7 @@ export function useEntityOperations() {
 
       return doc(db, path, docId);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+      if (!isStaleDocumentCommandContext(error)) handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 
@@ -415,7 +446,7 @@ export function useEntityOperations() {
           if (posted.cogsPendingReason) toast.warning(posted.cogsPendingReason);
         } else {
           const { document, override } = documentDataAndOverride(finalData);
-          const posted = await executeDocumentCommand('invoice.update', currentWorkspaceId, {
+          const posted = await runDocumentCommand('invoice.update', currentWorkspaceId, {
             id,
             data: document,
             postingDay: postingToday(),
@@ -432,7 +463,7 @@ export function useEntityOperations() {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postBillLedger(id, mergedData as unknown as Partial<Bill>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
         } else {
-          await executeDocumentCommand('bill.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
+          await runDocumentCommand('bill.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
         }
         const targetVendId = mergedData.vendorId || finalData.vendorId;
         if (targetVendId) void syncEntityBalance('vendors', targetVendId, sampleSession);
@@ -443,7 +474,7 @@ export function useEntityOperations() {
           const mergedData = { ...existing, ...finalData };
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postCreditNoteLedger(id, mergedData as unknown as Partial<CreditNote>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
         } else {
-          await executeDocumentCommand('creditnote.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
+          await runDocumentCommand('creditnote.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
         }
       } else if (path === 'vendorCredits') {
         if (!user || !currentWorkspaceId) throw new Error('Sign in and choose a workspace before updating a vendor credit.');
@@ -452,13 +483,13 @@ export function useEntityOperations() {
           const mergedData = { ...existing, ...finalData };
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.postVendorCreditLedger(id, mergedData as unknown as Partial<VendorCredit>, currentWorkspaceId, user.uid, { collection: path, docId: id, action: 'update', data: finalData }, context));
         } else {
-          await executeDocumentCommand('vendorcredit.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
+          await runDocumentCommand('vendorcredit.update', currentWorkspaceId, { id, data: finalData, postingDay: postingToday() });
         }
       } else if ((path === 'customers' || path === 'vendors') && (!user || !currentWorkspaceId)) {
         throw new Error('Sign in and choose a workspace before updating this contact.');
       } else if (usePartyCommand) {
         const { updatedAt: _updatedAt, ...data } = finalData;
-        await executeDocumentCommand(path === 'customers' ? 'customer.update' : 'vendor.update', currentWorkspaceId!, { id, data });
+        await runDocumentCommand(path === 'customers' ? 'customer.update' : 'vendor.update', currentWorkspaceId!, { id, data });
       } else if (path === 'transactions' && currentWorkspaceId) {
         const token = await getIdToken();
         const res = await fetch(`/api/v1/transactions/${encodeURIComponent(id)}`, {
@@ -481,8 +512,8 @@ export function useEntityOperations() {
       if (emailAfterSave) await sendInvoiceEmail(id, { ...(previousInvoice || {}), ...finalData });
       return true;
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `${path}/${id}`);
-      return false; // the error was shown; EU-B5 callers offer Undo only after a save
+      if (!isStaleDocumentCommandContext(error)) handleFirestoreError(error, OperationType.UPDATE, `${path}/${id}`);
+      return false; // no error is shown for a response made stale by switching actor or workspace
     }
   };
 
@@ -495,7 +526,7 @@ export function useEntityOperations() {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'invoiceId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         } else {
-          await executeDocumentCommand('invoice.delete', currentWorkspaceId, { id, postingDay: postingToday() });
+          await runDocumentCommand('invoice.delete', currentWorkspaceId, { id, postingDay: postingToday() });
         }
         if (existingInvoice?.customerId) void syncEntityBalance('customers', existingInvoice.customerId, sampleSession);
       } else if (path === 'bills') {
@@ -504,7 +535,7 @@ export function useEntityOperations() {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'billId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         } else {
-          await executeDocumentCommand('bill.delete', currentWorkspaceId, { id, postingDay: postingToday() });
+          await runDocumentCommand('bill.delete', currentWorkspaceId, { id, postingDay: postingToday() });
         }
         if (existingBill?.vendorId) void syncEntityBalance('vendors', existingBill.vendorId, sampleSession);
       } else if (path === 'creditNotes') {
@@ -512,14 +543,14 @@ export function useEntityOperations() {
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'creditNoteId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         } else {
-          await executeDocumentCommand('creditnote.delete', currentWorkspaceId, { id, postingDay: postingToday() });
+          await runDocumentCommand('creditnote.delete', currentWorkspaceId, { id, postingDay: postingToday() });
         }
       } else if (path === 'vendorCredits') {
         if (!user || !currentWorkspaceId) throw new Error('Sign in and choose a workspace before deleting a vendor credit.');
         if (sampleSession || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
           await withSamplePosting(currentWorkspaceId, sampleSession, context => LedgerPostService.deletePostings(id, 'vendorCreditId', currentWorkspaceId, { collection: path, docId: id, action: 'delete' }, context));
         } else {
-          await executeDocumentCommand('vendorcredit.delete', currentWorkspaceId, { id, postingDay: postingToday() });
+          await runDocumentCommand('vendorcredit.delete', currentWorkspaceId, { id, postingDay: postingToday() });
         }
       } else if (path === 'transactions' && currentWorkspaceId) {
         const token = await getIdToken();
@@ -544,14 +575,14 @@ export function useEntityOperations() {
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here
       if (successMsg) announceSaved(successMsg, currentWorkspaceId);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `${path}/${id}`);
+      if (!isStaleDocumentCommandContext(error)) handleFirestoreError(error, OperationType.DELETE, `${path}/${id}`);
     }
   };
 
   const runCommand = async (name: string, input: Record<string, unknown>, successMsg?: string) => {
     if (!user || !currentWorkspaceId) throw new Error('Sign in and choose a workspace before running this command.');
     if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) throw new Error('This command is available only in a live workspace.');
-    const result = await executeDocumentCommand(name, currentWorkspaceId, input);
+    const result = await runDocumentCommand(name, currentWorkspaceId, input);
     if (successMsg) announceSaved(successMsg, currentWorkspaceId);
     return result;
   };

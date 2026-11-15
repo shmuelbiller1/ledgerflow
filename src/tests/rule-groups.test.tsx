@@ -124,6 +124,21 @@ describe('Durable rule group writes', () => {
     assert.equal(dryRunRules(durable.filter(r => r.workspaceId === 'component-workspace'), [tx()]).matches.length, 2);
   });
 
+  it('submits only mutable rule fields when a saved rule carries a server timestamp', async () => {
+    const timestamped = { ...rule('first'), updatedAt: '2026-11-14T00:00:00.000Z' } as AutoRule;
+    durable = [timestamped, rule('paused', { isActive: false, priority: 20 })];
+    useLedgerStore.setState({ autoRules: durable });
+    const { result } = renderHook(() => useAutoRules());
+    await act(async () => { assert.equal(await result.current.saveRule(timestamped), true); });
+    const payload = writes.find(write => write.endpoint.endsWith('/autorule.update'))?.body.input?.data as Record<string, unknown>;
+    assert.ok(payload);
+    assert.equal('updatedAt' in payload, false);
+    assert.equal('hitCount' in payload, false);
+    assert.equal('lastTriggeredAt' in payload, false);
+    assert.deepEqual(payload.condition, timestamped.condition);
+    assert.deepEqual(payload.action, timestamped.action);
+  });
+
   it('reads beyond the 1000-rule cache cap before disabling a group', async () => {
     durable = Array.from({ length: 1001 }, (_, index) => rule(`r-${index}`));
     useLedgerStore.setState({ autoRules: durable.slice(0, 1000) });

@@ -122,7 +122,7 @@ export const vendorUpdateCommand: CommandDefinition<typeof vendorUpdateInput, Ve
     if (!vendor || vendor.workspaceId !== ctx.workspaceId) throw new HttpError('Vendor not found in this workspace', 404);
     return {
       title: `Update vendor ${String(input.data.name || vendor.name || input.id)}`,
-      lines: Object.keys(input.data).length ? Object.keys(input.data).sort() : ['No profile fields changed'],
+      lines: Object.keys(input.data).length ? Object.keys(input.data).sort((a, b) => a.localeCompare(b)) : ['No profile fields changed'],
     };
   },
   audit(_input, result) {

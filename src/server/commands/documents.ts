@@ -65,8 +65,11 @@ export const vendorCreditCreateInput = z.object({
 
 const invoiceUpdateData = InvoiceSchema.omit({ id: true, uid: true, workspaceId: true }).partial();
 const billUpdateData = BillSchema.omit({ id: true, uid: true, workspaceId: true }).partial();
-const creditNoteUpdateData = CreditNoteSchema.omit({ id: true, uid: true, workspaceId: true }).partial();
-const vendorCreditUpdateData = VendorCreditSchema.omit({ id: true, uid: true, workspaceId: true }).partial();
+const creditStatus = z.enum(['draft', 'open', 'applied', 'partially_applied', 'void']).optional();
+const creditNoteUpdateData = CreditNoteSchema.omit({ id: true, uid: true, workspaceId: true })
+  .extend({ status: creditStatus, currency: z.string().optional() }).partial();
+const vendorCreditUpdateData = VendorCreditSchema.omit({ id: true, uid: true, workspaceId: true })
+  .extend({ status: creditStatus, currency: z.string().optional() }).partial();
 
 export const invoiceUpdateInput = z.object({
   id: requiredDocumentId,

@@ -33,8 +33,8 @@ import { createCommandRouter } from '../server/routes/commandRoutes';
 import { executeCommand, previewCommand, type CommandRunnerDependencies } from '../server/utils/commandExecutor';
 import { paymentRequestHash } from '../server/services/paymentService';
 import { CREDIT_LIMIT_METADATA_KEY } from '../lib/customerCreditLimits';
-import { deriveScopedOperationKey } from '../server/utils/idempotency';
-import { warrantyRecordKey } from '../lib/warehouseRecords';
+import { deriveScopedOperationKey, requestPayloadHash } from '../server/utils/idempotency';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD, warrantyRecordKey } from '../lib/warehouseRecords';
 import { autoRuleCreateCommand, autoRuleCreateInput, autoRuleUpdateCommand, autoRuleUpdateInput, autoRuleGroupCommand, autoRuleGroupInput, autoRuleRecordHitsCommand, autoRuleRecordHitsInput, autoRuleDeleteCommand, autoRuleDeleteInput } from '../server/commands/autoRules';
 
 function clone<T>(value: T): T {
@@ -94,6 +94,22 @@ class MemoryDb {
     } else {
       this.documents.set(write.path, clone(write.data || {}));
     }
+  }
+}
+
+class ReplayOnRetryMemoryDb extends MemoryDb {
+  replayRecord?: { key: string; data: Record<string, unknown> };
+
+  override async runTransaction<T>(handler: (tx: MemoryTransaction) => Promise<T>): Promise<T> {
+    if (!this.replayRecord) return super.runTransaction(handler);
+    const record = this.replayRecord;
+    this.replayRecord = undefined;
+    await handler(new MemoryTransaction(this)); // a concurrent transaction wins; discard this attempt's writes
+    this.seed(`idempotencyKeys/${record.key}`, record.data);
+    const retry = new MemoryTransaction(this);
+    const result = await handler(retry);
+    retry.commit();
+    return result;
   }
 }
 
@@ -267,6 +283,18 @@ test('document CRUD commands publish valid examples and keep document ids and wo
   assert.equal('workspaceId' in attemptedScopeChange.data, false);
 });
 
+test('credit-note and vendor-credit partial updates do not inject create-time status or currency defaults', () => {
+  const customerCredit = creditNoteUpdateInput.parse({ id: 'cn-1', data: { reason: 'Damaged item' } });
+  const supplierCredit = vendorCreditUpdateInput.parse({ id: 'vc-1', data: { remainingCents: 500 } });
+  assert.deepEqual(customerCredit.data, { reason: 'Damaged item' });
+  assert.deepEqual(supplierCredit.data, { remainingCents: 500 });
+
+  assert.deepEqual(creditNoteUpdateInput.parse({ id: 'cn-1', data: { status: 'applied', currency: 'EUR' } }).data,
+    { status: 'applied', currency: 'EUR' });
+  assert.deepEqual(vendorCreditUpdateInput.parse({ id: 'vc-1', data: { status: 'partially_applied', currency: 'ILS' } }).data,
+    { status: 'partially_applied', currency: 'ILS' });
+});
+
 test('registry refuses duplicate or malformed registrations and unregisters only its own entry', () => {
   const registry = new CommandRegistry();
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
@@ -366,6 +394,40 @@ test('operation IDs replay the committed result once, refuse changed input, and 
   assert.equal(counters.runs, 1);
 });
 
+test('an idempotency replay on transaction retry discards callbacks from the losing attempt', async () => {
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const command = recordingCommand(counters);
+  const db = new ReplayOnRetryMemoryDb();
+  seedWorkspace(db);
+  const operationId = 'operation-race-retry';
+  const body = { workspaceId, input: invocationInput() };
+  const scopedKey = deriveScopedOperationKey(workspaceId, command.name, operationId);
+  db.replayRecord = {
+    key: scopedKey,
+    data: {
+      id: scopedKey,
+      actor: owner.uid,
+      workspaceId,
+      operationType: command.name,
+      payloadHash: requestPayloadHash(body),
+      status: 'success',
+      result: { saved: true, value: 'competing request' },
+      createdAt: '2026-11-15T00:00:00.000Z',
+      expiresAt: '2026-12-15T00:00:00.000Z',
+    },
+  };
+
+  const outcome = await executeCommand(fakeRequest(owner, body, operationId), captureResponse().response,
+    { definition: command, workspaceId, input: invocationInput() }, runnerDependencies(db, counters));
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) {
+    assert.equal(outcome.replayed, true);
+    assert.deepEqual(outcome.data, { saved: true, value: 'competing request' });
+  }
+  assert.equal(counters.runs, 1, 'the losing attempt ran once; the replay did not rerun the handler');
+  assert.equal(counters.afterCommit, 0, 'no callback from the rolled-back attempt ran');
+});
+
 test('API-key workspace binding and high-risk two-step rules are enforced before command writes', async () => {
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const highRisk = recordingCommand(counters, 'demo.secure', 'high');
@@ -417,6 +479,10 @@ test('customer.create accepts the PartyModal fields, ignores client identity, an
   assert.equal(customerCreateInput.safeParse({ customer: { ...party, uid: 'spoofed-user' } }).success, false);
   assert.equal(customerCreateInput.safeParse({ customer: { ...party, balanceCents: 10000 } }).success, false);
   assert.equal(customerCreateInput.safeParse({ customer: { ...party, portalToken: 'server-only' } }).success, false);
+  for (const field of [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD]) {
+    assert.equal(customerCreateInput.safeParse({ customer: { ...party, metadata: { [field]: { forged: true } } } }).success, false,
+      `customer.create rejects client-managed ${field}`);
+  }
 
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const outcome = await executeCommand(fakeRequest(owner, { workspaceId, input: { customer: party } }), captureResponse().response,
@@ -435,14 +501,24 @@ test('customer.create accepts the PartyModal fields, ignores client identity, an
 test('customer.update validates profile fields, protects derived/immutable fields, and checks linked-vendor scope', async () => {
   const db = new MemoryDb();
   seedWorkspace(db);
+  const protectedMetadata = {
+    custom: 'retained',
+    documentLanguage: 'en',
+    [WARRANTIES_METADATA_FIELD]: { serial_one: { endDate: '2028-01-01', updatedByUid: 'system' } },
+    [RMAS_METADATA_FIELD]: { rma_one: { status: 'approved', requestedByUid: 'owner-1' } },
+  };
   db.seed('customers/customer-1', {
     id: 'customer-1', uid: owner.uid, workspaceId, name: 'Old Name', balanceCents: 4250,
-    importBatchId: 'import-batch-1', createdAt: '2026-01-01T00:00:00.000Z',
+    importBatchId: 'import-batch-1', createdAt: '2026-01-01T00:00:00.000Z', metadata: protectedMetadata,
   });
   db.seed('vendors/vendor-1', { id: 'vendor-1', uid: owner.uid, workspaceId, name: 'Vendor One' });
   const input = customerUpdateInput.parse({ id: 'customer-1', data: { name: 'New Name', linkedVendorId: 'vendor-1', metadata: { [CREDIT_LIMIT_METADATA_KEY]: 10000 } } });
   assert.equal(customerUpdateInput.safeParse({ id: 'customer-1', data: { balanceCents: 0 } }).success, false);
   assert.equal(customerUpdateInput.safeParse({ id: 'customer-1', data: { importBatchId: 'spoofed' } }).success, false);
+  for (const field of [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD]) {
+    assert.equal(customerUpdateInput.safeParse({ id: 'customer-1', data: { metadata: { [field]: { forged: true } } } }).success, false,
+      `customer.update rejects client-managed ${field}`);
+  }
 
   const outcome = await executeCommand(fakeRequest(owner, { workspaceId, input }), captureResponse().response,
     { definition: customerUpdateCommand, workspaceId, input }, runnerDependencies(db));
@@ -453,6 +529,18 @@ test('customer.update validates profile fields, protects derived/immutable field
   assert.equal(saved?.balanceCents, 4250);
   assert.equal(saved?.importBatchId, 'import-batch-1');
   assert.equal(saved?.uid, owner.uid);
+  assert.deepEqual(saved?.metadata, { ...protectedMetadata, [CREDIT_LIMIT_METADATA_KEY]: 10000 },
+    'partial metadata updates merge editable keys and retain server-managed warranty and return-authorization history');
+
+  const clearMetadataInput = customerUpdateInput.parse({ id: 'customer-1', data: { metadata: { documentLanguage: null } } });
+  const cleared = await executeCommand(fakeRequest(owner, { workspaceId, input: clearMetadataInput }), captureResponse().response,
+    { definition: customerUpdateCommand, workspaceId, input: clearMetadataInput }, runnerDependencies(db));
+  assert.equal(cleared.ok, true);
+  const afterClear = db.read('customers/customer-1')?.metadata as Record<string, unknown>;
+  assert.equal('documentLanguage' in afterClear, false, 'null removes an editable metadata key');
+  assert.equal(afterClear.custom, 'retained');
+  assert.deepEqual(afterClear[WARRANTIES_METADATA_FIELD], protectedMetadata[WARRANTIES_METADATA_FIELD]);
+  assert.deepEqual(afterClear[RMAS_METADATA_FIELD], protectedMetadata[RMAS_METADATA_FIELD]);
 
   const foreignDb = new MemoryDb();
   seedWorkspace(foreignDb);

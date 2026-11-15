@@ -388,7 +388,10 @@ async function runRegisteredCommand(
         payloadHash,
         db,
         ...(command.legacyKey ? { legacyKey: command.legacyKey(workspaceId, operationId) } : {}),
-      }, handlerInTransaction);
+      }, handlerInTransaction, () => {
+        afterCommitCallbacks.length = 0;
+        didRunHandler = false;
+      });
     } else {
       result = await db.runTransaction(handlerInTransaction);
     }

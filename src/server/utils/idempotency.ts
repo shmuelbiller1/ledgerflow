@@ -84,6 +84,7 @@ export function extractCanonicalOperationId(req: { headers?: Record<string, unkn
  * @param scopedOperationId The canonical scoped key (e.g., "workspace1:TRANSACTION_CREATE:op123")
  * @param metadata Contextual info about the operation
  * @param transactionHandler Callback receiving the active Firestore transaction
+ * @param onTransactionAttempt Reset attempt-local state before every transaction callback, including replays
  */
 export async function executeIdempotent<T>(
   scopedOperationId: string,
@@ -95,12 +96,14 @@ export async function executeIdempotent<T>(
     legacyKey?: string;
     db?: ReturnType<typeof getDb>;
   },
-  transactionHandler: (t: FirestoreTransaction) => Promise<T>
+  transactionHandler: (t: FirestoreTransaction) => Promise<T>,
+  onTransactionAttempt?: () => void,
 ): Promise<T> {
   const db = metadata.db ?? getDb();
   const keyRef = db.collection('idempotencyKeys').doc(scopedOperationId);
 
   return await db.runTransaction(async (t) => {
+    onTransactionAttempt?.();
     // 1. Read idempotency record (and optional pre-upgrade legacy key) before any writes
     const doc = await t.get(keyRef);
 

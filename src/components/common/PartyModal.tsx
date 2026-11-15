@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { Labelled } from '../ui/Labelled';
 import { cleanContacts, parseTags, STANDARD_CONTACT_ROLES } from '../../lib/contacts';
 import { DELIVERY_METHODS, preferredDelivery } from '../../lib/delivery';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD } from '../../lib/warehouseRecords';
 import type { DeliveryMethod } from '../../lib/delivery';
 import type { ContactPerson } from '../../lib/contacts';
 
@@ -58,6 +59,21 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return value !== null
     && (typeof value === 'object' || typeof value === 'function')
     && typeof (value as { then?: unknown }).then === 'function';
+}
+
+function profileMetadata(metadata: Record<string, unknown> | undefined, side: PartySide): Record<string, unknown> {
+  if (side !== 'customer' || !metadata) return metadata || {};
+  const {
+    [WARRANTIES_METADATA_FIELD]: _warranties,
+    [RMAS_METADATA_FIELD]: _returnAuthorizations,
+    ...editable
+  } = metadata;
+  return editable;
+}
+
+function metadataPatchField<T>(key: string, value: T | null, current?: Record<string, unknown>): Record<string, T | null> {
+  if (value !== null) return { [key]: value };
+  return Object.hasOwn(current || {}, key) ? { [key]: null } : {};
 }
 
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD', 'JPY', 'CHF'];
@@ -127,11 +143,28 @@ export default function PartyModal({ side, isOpen, initial, onClose, onSave }: P
     const withholding = Number.isFinite(whtRate) && whtRate >= 0 && whtRate <= 100 ? { ratePercent: whtRate, ...(form.whtNumber.trim() ? { number: form.whtNumber.trim() } : {}), ...(form.whtUntil ? { expires: form.whtUntil } : {}) } : null;
     const exemption = form.exemptNumber.trim() ? { number: form.exemptNumber.trim(), ...(form.exemptUntil ? { expires: form.exemptUntil } : {}) } : null;
     if (form.language || form.terms.trim() || exemption || taxPlace || withholding || form.vatNumber.trim() || initial?.metadata?.vatNumber || initial?.metadata?.withholding || initial?.metadata?.documentLanguage || initial?.metadata?.documentTerms || initial?.metadata?.taxExemption || initial?.metadata?.taxPlace) {
-      // the whole `metadata` is saved, so a choice taken back is simply left out
-      const { documentLanguage: _l, documentTerms: _t, taxExemption: _x, taxPlace: _p, withholding: _w, vatNumber: _v, ...rest } = initial?.metadata || {};
-      party.metadata = { ...rest, ...(form.language ? { documentLanguage: form.language } : {}), ...(form.terms.trim() ? { documentTerms: form.terms.trim() } : {}), ...(exemption ? { taxExemption: exemption } : {}), ...(taxPlace ? { taxPlace } : {}), ...(withholding ? { withholding } : {}), ...(form.vatNumber.trim() ? { vatNumber: form.vatNumber.trim() } : {}) };
+      // Explicit null markers clear prior profile values; customer.update converts them to metadata deletes.
+      const {
+        documentLanguage: _l, documentTerms: _t, taxExemption: _x, taxPlace: _p, withholding: _w, vatNumber: _v,
+        ...rest
+      } = profileMetadata(initial?.metadata, side);
+      party.metadata = {
+        ...rest,
+        ...metadataPatchField('documentLanguage', form.language || null, initial?.metadata),
+        ...metadataPatchField('documentTerms', form.terms.trim() || null, initial?.metadata),
+        ...metadataPatchField('taxExemption', exemption, initial?.metadata),
+        ...metadataPatchField('taxPlace', taxPlace, initial?.metadata),
+        ...metadataPatchField('withholding', withholding, initial?.metadata),
+        ...metadataPatchField('vatNumber', form.vatNumber.trim() || null, initial?.metadata),
+      };
     }
-    if (Object.keys(cleanDocumentDefaults(form.documentDefaults)).length || initial?.metadata?.documentDefaults) party.metadata = defaultsMetadata(party.metadata || initial?.metadata, form.documentDefaults);
+    const savedDefaults = cleanDocumentDefaults(form.documentDefaults);
+    const hadSavedDefaults = Object.hasOwn(initial?.metadata || {}, 'documentDefaults');
+    if (Object.keys(savedDefaults).length || hadSavedDefaults) {
+      const metadata = defaultsMetadata(profileMetadata(party.metadata || initial?.metadata, side), savedDefaults);
+      if (!Object.keys(savedDefaults).length && hadSavedDefaults) metadata.documentDefaults = null;
+      party.metadata = metadata;
+    }
     if (contacts.length || (editing && initial?.contacts?.length)) party.contacts = contacts;
     const saveResult = onSave(editing ? { ...party, id: initial!.id } : party);
     if (!editing) {

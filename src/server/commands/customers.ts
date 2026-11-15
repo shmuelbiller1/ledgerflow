@@ -7,6 +7,7 @@ import {
   warrantyEndDateProblem,
   warrantyRecordForCandidate,
   warrantyRecordsFromMetadata,
+  RMAS_METADATA_FIELD,
   WARRANTIES_METADATA_FIELD,
   type WarrantyCandidate,
   type WarrantyRecord,
@@ -17,6 +18,10 @@ import type { CommandContext, CommandDefinition } from './types';
 const optionalId = z.string().min(1).max(200).refine(id => !id.includes('/'), 'Id cannot contain a slash').optional();
 const requiredId = z.string().min(1).max(200).refine(id => !id.includes('/'), 'Id cannot contain a slash');
 const workspaceIdInput = z.string().min(1).max(200).optional();
+const customerMetadataInput = z.record(z.string(), z.unknown())
+  .refine(metadata => !Object.hasOwn(metadata, WARRANTIES_METADATA_FIELD) && !Object.hasOwn(metadata, RMAS_METADATA_FIELD),
+    'Warranty and return-authorization history can only be changed through their dedicated workflows.')
+  .optional();
 
 const customerFields = {
   name: z.string().trim().min(1).max(200),
@@ -29,7 +34,7 @@ const customerFields = {
   probability: z.number().min(0).max(1).optional(),
   score: z.number().optional(),
   tags: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: customerMetadataInput,
   notes: z.string().optional(),
   isForeign: z.boolean().optional(),
   address: z.string().optional(),
@@ -154,7 +159,13 @@ export const customerUpdateCommand: CommandDefinition<typeof customerUpdateInput
     if (!snapshot.exists || current?.workspaceId !== ctx.workspaceId) throw Object.assign(new HttpError('Customer not found in this workspace', 404), { code: 'NOT_FOUND' });
     if (input.data.linkedVendorId !== undefined) await assertLinkedVendorAvailable(ctx, tx, input.data.linkedVendorId, input.id);
     if (input.data.name) await assertNameAvailable(ctx, tx, 'customers', input.data.name, input.id);
-    const patch = { ...input.data, updatedAt: new Date().toISOString() };
+    const patch = {
+      ...input.data,
+      ...(input.data.metadata !== undefined
+        ? { metadata: mergeCustomerMetadata(current?.metadata, input.data.metadata) }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    };
     tx.update(ref, patch);
     return { customer: { ...current, ...patch } };
   },
@@ -172,8 +183,8 @@ export const customerUpdateCommand: CommandDefinition<typeof customerUpdateInput
   inverse() { return null; },
   risk: 'normal',
   describe: {
-    sentence: 'Update a customer profile without changing its server-managed identity or balance; do not use this command to record a payment.',
-    example: { id: 'customer_123', data: { email: 'billing@example.test', linkedVendorId: 'vendor_123' } },
+    sentence: 'Update a customer profile without changing its server-managed identity or balance; metadata keys merge, and send null to remove one. Do not use this command to record a payment.',
+    example: { id: 'customer_123', data: { email: 'billing@example.test', linkedVendorId: 'vendor_123', metadata: { creditLimitCents: 500000 } } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The customer id or one of the supplied profile fields is invalid.', next: 'Correct the customer details and retry.' },
       { code: 'NOT_FOUND', when: 'The customer is not in the selected workspace.', next: 'Reload the workspace and choose an existing customer.' },
@@ -198,6 +209,21 @@ type WarrantyUpdateResult = { id: string; changed: boolean };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Apply a metadata patch: null deletes an editable key; server-managed histories always come from the DB snapshot. */
+function mergeCustomerMetadata(currentValue: unknown, updates: Record<string, unknown>): Record<string, unknown> {
+  const current = isRecord(currentValue) ? currentValue : {};
+  const merged = new Map(Object.entries(current));
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === null) merged.delete(key);
+    else merged.set(key, value);
+  }
+  for (const field of [WARRANTIES_METADATA_FIELD, RMAS_METADATA_FIELD]) {
+    if (Object.hasOwn(current, field)) merged.set(field, current[field]);
+  }
+  // Object.fromEntries defines even special names such as "__proto__" as data properties.
+  return Object.fromEntries(merged);
 }
 
 function customerMetadata(value: unknown): EntityMetadata {

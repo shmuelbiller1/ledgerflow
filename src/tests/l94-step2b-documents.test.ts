@@ -119,7 +119,7 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
 
   test('credit-note and vendor-credit CRUD commands preview, post edits, and reverse on delete', async () => {
     const cnId = `${ws}_cmd_cn`;
-    const creditNote = { id: cnId, workspaceId: ws, number: 'CN-CMD', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'open', currency: 'USD', amountCents: 5_500, remainingCents: 5_500, taxAmountCents: 500, taxVersion: 2 };
+    const creditNote = { id: cnId, workspaceId: ws, number: 'CN-CMD', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'partially_applied', currency: 'EUR', exchangeRate: 1, amountCents: 5_500, remainingCents: 4_500, taxAmountCents: 500, taxVersion: 2 };
     const cnMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'create', data: creditNote };
     const cnExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, creditNote as unknown as Partial<CreditNote>, ws, OWNER, cnMutation, c)));
     const cnPreview = await command('creditnote.create', { creditNote }, true);
@@ -129,13 +129,16 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal(cnCreate.status, 200, JSON.stringify(cnCreate.body));
     assert.deepEqual(postingFingerprint(cnCreate.body.data.transactions), cnExpected);
 
-    const changedCreditNote = { ...creditNote, amountCents: 6_600, remainingCents: 6_600, taxAmountCents: 600 };
+    const changedCreditNote = { ...creditNote, amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 };
     const cnUpdateMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'update', data: changedCreditNote };
     const cnUpdateExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, changedCreditNote as unknown as Partial<CreditNote>, ws, OWNER, cnUpdateMutation, c)));
-    const cnUpdate = await command('creditnote.update', { id: cnId, data: { amountCents: 6_600, remainingCents: 6_600, taxAmountCents: 600 } });
+    const cnUpdate = await command('creditnote.update', { id: cnId, data: { amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 } });
     assert.equal(cnUpdate.status, 200, JSON.stringify(cnUpdate.body));
     assert.deepEqual(postingFingerprint(cnUpdate.body.data.transactions), cnUpdateExpected);
-    assert.equal((await db.collection('creditNotes').doc(cnId).get()).data()?.amountCents, 6_600);
+    const savedCreditNote = (await db.collection('creditNotes').doc(cnId).get()).data();
+    assert.equal(savedCreditNote?.amountCents, 6_600);
+    assert.equal(savedCreditNote?.status, 'partially_applied', 'a partial update preserves the non-default credit status');
+    assert.equal(savedCreditNote?.currency, 'EUR', 'a partial update preserves the non-default currency');
     const cnDeleteExpected = postingFingerprint(await browserBuild(c => deletePostings(cnId, 'creditNoteId', ws, { collection: 'creditNotes', docId: cnId, action: 'delete' }, c)));
     const cnDelete = await command('creditnote.delete', { id: cnId });
     assert.equal(cnDelete.status, 200, JSON.stringify(cnDelete.body));
@@ -143,19 +146,22 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal((await db.collection('creditNotes').doc(cnId).get()).exists, false);
 
     const vcId = `${ws}_cmd_vc`;
-    const vendorCredit = { id: vcId, workspaceId: ws, number: 'VC-CMD', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'open', currency: 'USD', amountCents: 7_700, remainingCents: 7_700, taxAmountCents: 700, taxVersion: 2 };
+    const vendorCredit = { id: vcId, workspaceId: ws, number: 'VC-CMD', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'partially_applied', currency: 'ILS', exchangeRate: 1, amountCents: 7_700, remainingCents: 6_700, taxAmountCents: 700, taxVersion: 2 };
     const vcMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'create', data: vendorCredit };
     const vcExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, vendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcMutation, c)));
     const vcCreate = await command('vendorcredit.create', { vendorCredit });
     assert.equal(vcCreate.status, 200, JSON.stringify(vcCreate.body));
     assert.deepEqual(postingFingerprint(vcCreate.body.data.transactions), vcExpected);
 
-    const changedVendorCredit = { ...vendorCredit, amountCents: 8_800, remainingCents: 8_800, taxAmountCents: 800 };
+    const changedVendorCredit = { ...vendorCredit, amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 };
     const vcUpdateMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'update', data: changedVendorCredit };
     const vcUpdateExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, changedVendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcUpdateMutation, c)));
-    const vcUpdate = await command('vendorcredit.update', { id: vcId, data: { amountCents: 8_800, remainingCents: 8_800, taxAmountCents: 800 } });
+    const vcUpdate = await command('vendorcredit.update', { id: vcId, data: { amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 } });
     assert.equal(vcUpdate.status, 200, JSON.stringify(vcUpdate.body));
     assert.deepEqual(postingFingerprint(vcUpdate.body.data.transactions), vcUpdateExpected);
+    const savedVendorCredit = (await db.collection('vendorCredits').doc(vcId).get()).data();
+    assert.equal(savedVendorCredit?.status, 'partially_applied', 'a partial update preserves the non-default credit status');
+    assert.equal(savedVendorCredit?.currency, 'ILS', 'a partial update preserves the non-default currency');
     const vcDeleteExpected = postingFingerprint(await browserBuild(c => deletePostings(vcId, 'vendorCreditId', ws, { collection: 'vendorCredits', docId: vcId, action: 'delete' }, c)));
     const vcDelete = await command('vendorcredit.delete', { id: vcId });
     assert.equal(vcDelete.status, 200, JSON.stringify(vcDelete.body));

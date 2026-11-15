@@ -21,6 +21,13 @@ import type { AutoRule, Transaction } from '../types';
 
 /** Fields of a transaction a rule may change (rulesEngine applyRuleAction), sent when they differ. */
 const RULE_FIELDS = ['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category'] as const;
+const RULE_EDITABLE_FIELDS = ['name', 'groupName', 'groupIsActive', 'condition', 'action', 'confidence', 'isHardened', 'priority', 'isActive', 'stopProcessingOnMatch'] as const satisfies readonly (keyof AutoRule)[];
+
+function commandRuleData(rule: AutoRule): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  for (const key of RULE_EDITABLE_FIELDS) if (rule[key] !== undefined) data[key] = rule[key];
+  return data;
+}
 
 export function changedRuleFields(before: Transaction, after: Transaction): Partial<Transaction> {
   const out: Record<string, unknown> = {};
@@ -131,10 +138,10 @@ export function useAutoRules() {
       if (isLocalSampleWorkspace(workspaceId)) {
         await setDoc(doc(db, 'autoRules', full.id), full as never);
       } else {
-        const { id, uid: _uid, workspaceId: _workspaceId, createdAt: _createdAt, hitCount: _hitCount, lastTriggeredAt: _lastTriggeredAt, ...data } = full;
+        const data = commandRuleData(full);
         const result = existing
-          ? await runCommand('autorule.update', { id, data })
-          : await runCommand('autorule.create', { rule: { id, ...data } });
+          ? await runCommand('autorule.update', { id: full.id, data })
+          : await runCommand('autorule.create', { rule: { id: full.id, ...data } });
         if (result.rule && typeof result.rule === 'object') saved = result.rule as AutoRule;
       }
       if (!currentContext()) return true;
