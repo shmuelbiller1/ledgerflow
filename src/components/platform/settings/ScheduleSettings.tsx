@@ -1,4 +1,4 @@
-import { runCommand } from '../../../lib/runCommand';
+import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
 import type { ScheduledJobView, ScheduleView } from '../../../lib/jobSchedule';
@@ -44,8 +44,10 @@ export default function ScheduleSettings() {
         if (data.status !== 'ok') throw new Error(String(data.message || ''), { cause: 'answered-no' });
         setSchedule(data.schedule as ScheduleView);
       } catch (err) {
-        // the server's own sentence when it answered, our words when it did not answer at all
-        if (live) setError(err instanceof Error && err.cause === 'answered-no' && err.message ? err.message : 'The schedule could not be read. The jobs may still have run — it is the record of them that cannot be read.');
+        // the server's own sentence when it answered, our words when it did not answer at all.
+        // A refusal arrives as ServerCommandError carrying that sentence; a dead connection does not.
+        const answered = err instanceof ServerCommandError ? err.message : '';
+        if (live) setError(answered || 'The schedule could not be read. The jobs may still have run — the record of them is what is missing.');
       } finally {
         if (live) setLoading(false);
       }
