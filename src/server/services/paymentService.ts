@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { ledgerCreate } from './ledgerDoor';
 import { deriveScopedOperationKey } from '../utils/idempotency';
 import { isWithholdingAccount } from '../../lib/tax/withholding';
-import { calculateAmountDue, settledStatus } from '../../lib/documentMath';
+import { calculateAmountDue, depositAppliedCents, settledStatus } from '../../lib/documentMath';
 import { writeServerAuditLog } from './auditLogService';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import type { ChartAccount } from '../../types';
@@ -150,6 +150,48 @@ function payeeLabels<T extends { accountId: string; amountCents: number }>(weigh
   return spreadLabels(lines as never, all) as unknown as T[];
 }
 
+/** Final foreign settlement must clear the actual remaining home balance, not a nominal estimate.
+ * A document's own deposit and manual payment were posted separately at its recorded rate.
+ * Missing settlement history is not evidence of what the ledger cleared.
+ */
+async function documentClearing(
+  db: Firestore, tx: Transaction, workspaceId: string, doc: DocumentData,
+  alloc: CreatePaymentPayload['allocations'][number], currency: string, base: string,
+  rate: number, ledgerReady: boolean,
+): Promise<number> {
+  const home = (cents: number) => Math.round(cents * minorUnitRate(rate, currency, base));
+  const plain = home(alloc.amountCents);
+  if (currency === base || alloc.amountCents !== calculateAmountDue(doc)) return plain;
+  const paid = Number(doc.amountPaidCents) || 0;
+  const deposit = depositAppliedCents(doc);
+  const rows = ledgerReady && paid > 0
+    ? (await liveStoredRowsOf(db, tx, workspaceId, alloc.documentId)).filter(r =>
+      r.data.documentType === alloc.documentType && r.data.kind !== 'deposit' && r.data.kind !== 'manual')
+    : [];
+  const recorded = rows.reduce((sum, r) => sum + Number(r.data.amountCents), 0);
+  const cleared = rows.reduce((sum, r) => sum + Number(r.data.baseClearedCents), 0);
+  // Only an explicit split between document-owned cash and separate records, or
+  // complete settlement rows, establishes the prior control-account amount.
+  const expected = typeof doc.settledByRecordsCents === 'number' ? doc.settledByRecordsCents : paid;
+  if (!Number.isSafeInteger(expected) || expected < 0 || expected > paid ||
+      !Number.isSafeInteger(recorded) || recorded !== expected || !Number.isSafeInteger(cleared)) {
+    throw new PaymentApplyError(409, 'The prior foreign settlements are missing or incomplete in the payment ledger. Reconcile or backfill the document settlement history before recording its final payment.');
+  }
+  const remainder = home(Number(doc.amountCents) || 0) - home(deposit) - home(paid - expected) - cleared;
+  // A negative rounding remainder corrects earlier over-clearing by debiting A/R
+  // (or crediting A/P); clamping it would leave the paid document out of balance.
+  if (!Number.isSafeInteger(remainder) || Math.abs(remainder - plain) > rows.length + 2) {
+    throw new PaymentApplyError(409, 'The foreign document has a non-rounding settlement discrepancy. Reconcile its ledger before recording the final payment.');
+  }
+  return remainder;
+}
+
+function paymentFxAccount(accounts: ChartAccount[], sameRate: boolean): ChartAccount | undefined {
+  const eligible = accounts.filter(a => !a.isArchived && ['income', 'expense', 'revenue'].includes(String(a.type).toLowerCase()));
+  return (sameRate ? eligible.find(a => resolveAccountRole(a) === 'fx_rounding') : undefined) ||
+    eligible.find(a => resolveAccountRole(a) === 'fx_rounding' || /exchange|fx/i.test(String(a.name || '')));
+}
+
 export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown, payload: CreatePaymentPayload, authorization?: PaymentAuthorization) {
   const db = rawDb as Firestore;
   const tx = rawTx as Transaction;
@@ -238,8 +280,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const labelWeights: Array<{ cents: number; dimensions?: Record<string, string> }> = [];
     // EG-2: what each payment-ledger row needs from its document
     const allocDocs: Array<{ partyId: string | null; dueCents: number }> = [];
-    // #653: per allocation, the document's own total and what it had paid before (its own currency)
-    const allocTotals: Array<{ documentId: string; totalCents: number; paidBefore: number; settles: boolean }> = [];
+    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
+    const clearedByAlloc: number[] = [];
 
     for (const alloc of allocations) {
       totalAllocatedCents += alloc.amountCents;
@@ -280,7 +322,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       }
 
       const newPaid = currentPaid + alloc.amountCents;
-      allocTotals.push({ documentId: alloc.documentId, totalCents: Number(docData.amountCents) || 0, paidBefore: currentPaid, settles: alloc.amountCents === remainingBalance });
+      clearedByAlloc.push(await documentClearing(db, tx, workspaceId, docData, alloc, docCurrency, baseCurrency, paymentRate, ledgerReady));
 
       const newStatus = newPaid > 0 ? settledStatus(docData, newPaid) : docData.status;
 
@@ -393,42 +435,25 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     // last of a foreign document: that clears exactly what is left of the document in the home currency (its
     // converted total less what its live settlement rows already cleared), so parts paid at the same rate never
     // leave a cent in receivables or payables. Only when those rows account for everything settled before.
-    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
-    const toBase = (cents: number) => Math.round(cents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency));
-    const clearedByAlloc: number[] = [];
-    for (const [i, alloc] of allocations.entries()) {
-      const info = allocTotals[i];
-      let cleared = toBase(alloc.amountCents);
-      if (ledgerReady && info.settles && paymentRate !== 1 && info.paidBefore > 0) {
-        const rows = await liveStoredRowsOf(db, tx as never, workspaceId, info.documentId);
-        const rowsCents = rows.reduce((sum, r) => sum + (Number(r.data.amountCents) || 0), 0);
-        const rowsCleared = rows.reduce((sum, r) => sum + (Number(r.data.baseClearedCents) || 0), 0);
-        if (rowsCents === info.paidBefore && rowsCents + alloc.amountCents === info.totalCents) {
-          const remainder = toBase(info.totalCents) - rowsCleared;
-          // a rounding remainder only: anything larger means the history is not what this assumes
-          if (Math.abs(remainder - cleared) <= rows.length + 1) cleared = remainder;
-        }
-      }
-      clearedByAlloc.push(cleared);
-    }
     const clearedBaseCents = clearedByAlloc.reduce((a, b) => a + b, 0);
-    const unmatchedBaseCents = toBase(amountCents - totalAllocatedCents);
-    const baseAmountCents = clearedBaseCents + unmatchedBaseCents;
-    // L-192: a foreign document paid at another day's rate: the bank gets what really arrived (or left),
-    // the receivable/payable is cleared at the document's own rate, and the difference is realized
-    // exchange gain or loss. Without a payment-day rate, both sides stay at the document's rate.
+    // Cash is converted independently, even at the document's own rate. The
+    // held advance is valued at the rate actually used to settle the payment.
     const dayRate = payload.paymentExchangeRate;
     const foreignPayment = paymentCurrency !== null && paymentCurrency !== baseCurrency;
-    const cashBaseCents = foreignPayment && typeof dayRate === 'number' && dayRate > 0 ? Math.round(amountCents * minorUnitRate(dayRate, paymentCurrency, baseCurrency)) : baseAmountCents;
+    const hasDayRate = foreignPayment && typeof dayRate === 'number' && Number.isFinite(dayRate) && dayRate > 0;
+    const settlementRate = hasDayRate ? dayRate : paymentRate;
+    const toCashBase = (cents: number) => Math.round(cents * minorUnitRate(settlementRate, paymentCurrency, baseCurrency));
+    const unmatchedBaseCents = toCashBase(amountCents - totalAllocatedCents);
+    const baseAmountCents = clearedBaseCents + unmatchedBaseCents;
+    const cashBaseCents = toCashBase(amountCents);
     const realizedFxCents = cashBaseCents - baseAmountCents;
     // the unmatched part goes to the deposits/prepayments account when there is one (BE-12)
     const advanceBaseCents = advance ? unmatchedBaseCents : 0;
     const offsetBaseCents = baseAmountCents - advanceBaseCents;
     let fxAccount: { id: string; name?: string } | undefined;
     if (realizedFxCents !== 0) {
-      fxAccount = (await chartAccounts())
-        .find((a: ChartAccount) => !a.isArchived && (resolveAccountRole(a) === 'fx_rounding' || /exchange|fx/i.test(String(a.name || ''))) && ['income', 'expense', 'revenue'].includes(String(a.type).toLowerCase()));
-      if (!fxAccount) throw new Error('Add an exchange gain/loss account (category "Rounding Differences") before recording a payment at a different rate');
+      fxAccount = paymentFxAccount(await chartAccounts(), settlementRate === paymentRate);
+      if (!fxAccount) throw new PaymentApplyError(409, 'Add an exchange gain/loss or rounding account (category "Rounding Differences") to record this payment without changing the bank amount');
     }
 
     // IL-5: tax withheld at source: out of what settles the bills, the vendor is paid the rest and the
@@ -445,8 +470,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
 
     // BM-06: the two rates a foreign payment's entry uses: the document's on what it clears, the payment day's on the cash
     const bookedRate = foreignPayment ? rateUsedFor({ currency: paymentCurrency!, base: baseCurrency, rate: paymentRate, date: documentRate?.date || paymentDate, recorded: documentRate?.recorded }) : null;
-    const cashRate = foreignPayment && realizedFxCents !== 0 && typeof dayRate === 'number'
-      ? { currency: paymentCurrency!, base: baseCurrency, rate: dayRate, date: paymentDate, source: (payload.paymentRateSource || 'typed') as RateUsed['source'] }
+    const cashRate = hasDayRate
+      ? { currency: paymentCurrency!, base: baseCurrency, rate: settlementRate, date: paymentDate, source: (payload.paymentRateSource || 'typed') as RateUsed['source'] }
       : bookedRate;
     const rateOn = (r: RateUsed | null) => (r ? { rateUsedId: rateUsedId(r) } : {});
 
@@ -466,7 +491,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
         paymentId,
         type: 'payment-posting',
         ...(paymentRate !== 1 ? { documentCurrency: paymentCurrency, documentAmountCents: amountCents, documentExchangeRate: paymentRate } : {}),
-        ...(realizedFxCents !== 0 ? { paymentExchangeRate: dayRate, realizedFxCents } : {}),
+        ...(realizedFxCents !== 0 ? { paymentExchangeRate: settlementRate, realizedFxCents, ...(settlementRate === paymentRate ? { roundingDifferenceCents: realizedFxCents } : {}) } : {}),
         ...(bookedRate ? { ratesUsed: cashRate && cashRate !== bookedRate ? [bookedRate, cashRate] : [bookedRate] } : {}),
       },
       lines: payeeLabels(labelWeights, amountCents, [
@@ -497,12 +522,14 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
         ...(fxAccount ? [{
           accountId: fxAccount.id,
           amountCents: isReceipt ? -realizedFxCents : realizedFxCents,
-          description: `Realized exchange ${(isReceipt ? realizedFxCents > 0 : realizedFxCents < 0) ? 'gain' : 'loss'} for Payment ${paymentId}`
+          description: `${settlementRate === paymentRate ? 'Currency rounding difference' : 'Realized exchange ' + ((isReceipt ? realizedFxCents > 0 : realizedFxCents < 0) ? 'gain' : 'loss')} for Payment ${paymentId}`
         }] : [])
       ])
     };
 
-    if (realizedFxCents !== 0) Object.assign(paymentData, { paymentExchangeRate: dayRate, realizedFxCents });
+    Object.assign(paymentData, { unappliedBaseCents: unmatchedBaseCents });
+    if (hasDayRate || realizedFxCents !== 0) Object.assign(paymentData, { paymentExchangeRate: settlementRate });
+    if (realizedFxCents !== 0) Object.assign(paymentData, { realizedFxCents });
     if (withheld) Object.assign(paymentData, {
       withheldCents: withheld,
       ...(payload.withholdingRatePercent !== undefined ? { withholdingRatePercent: payload.withholdingRatePercent } : {}),
@@ -521,9 +548,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       // EG-2: one payment-ledger row per allocation; the settled base is the applied part of the gross
       // (cash + withholding) less the unapplied part at the settlement rate, split by largest remainder
       const currency = paymentCurrency || baseCurrency;
-      const settlementRate = foreignPayment && typeof dayRate === 'number' && dayRate > 0 ? dayRate : paymentRate;
       const side: AllocationSide = isReceipt ? 'receivable' : 'payable';
-      const settledBaseCents = cashBaseCents - Math.round(unmatchedCents * minorUnitRate(settlementRate, currency, baseCurrency));
+      const settledBaseCents = cashBaseCents - unmatchedBaseCents;
       const split = splitAllocations({ allocations, side, currency, baseCurrency, documentRate: paymentRate, settlementRate, settledBaseCents, clearedBaseCents: clearedByAlloc });
       const fxLineIndex = fxAccount ? ledgerTxData.lines.findIndex((l: { accountId: string }) => l.accountId === fxAccount!.id) : -1;
       allocations.forEach((alloc, i) => recordAllocation(db, tx, {
