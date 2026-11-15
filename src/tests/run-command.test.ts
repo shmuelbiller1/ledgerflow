@@ -67,6 +67,23 @@ describe('runCommand is the one place a screen calls its server', () => {
     );
   });
 
+  test('a route that answers { error } keeps its explanation, not a status code', async () => {
+    // every inventory route answers this way — a delivery refused for stock says exactly why, and that
+    // sentence is the only thing that tells the person what to change
+    answer(409, { error: 'Only 3 left on that order' });
+    await assert.rejects(
+      () => runCommand({ path: '/api/v1/inventory/deliveries/x', method: 'POST', body: {}, token: 't' }),
+      (error: unknown) => error instanceof ServerCommandError && error.message === 'Only 3 left on that order',
+    );
+  });
+
+  test('`message` wins when a body carries both, and an empty one falls through to `error`', async () => {
+    answer(400, { message: 'Check the fields', error: 'zod: path' });
+    await assert.rejects(() => runCommand({ path: '/api/v1/x', token: 't' }), /Check the fields/);
+    answer(400, { message: '   ', error: 'The date is in a closed month' });
+    await assert.rejects(() => runCommand({ path: '/api/v1/x', token: 't' }), /closed month/);
+  });
+
   test('a refusal with no message still says something usable', async () => {
     answer(500, {});
     await assert.rejects(

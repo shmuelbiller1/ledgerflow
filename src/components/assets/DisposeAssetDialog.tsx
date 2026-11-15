@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { disposalGainLoss, partialDisposalInput, portionOf, portionProblem } from '../../lib/assetDisposal';
 import { isCashAccount } from '../../lib/txFilters';
@@ -78,7 +78,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
       toast.success(`${share ? `${percent}% of ` : ''}${asset.name} ${proceedsCents > 0 ? 'sold' : 'scrapped'}${data.gainLossCents ? `: ${data.gainLossCents > 0 ? 'gain' : 'loss'} of ${formatCurrency(Math.abs(data.gainLossCents), currency)}` : ''}`);
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setSaving(false);
     }

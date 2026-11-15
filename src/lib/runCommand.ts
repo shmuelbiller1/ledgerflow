@@ -55,10 +55,27 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = (raw as { message?: string })?.message;
-    throw new ServerCommandError(res.status, message || `The server answered ${res.status}`, raw);
+    throw new ServerCommandError(res.status, refusalMessage(raw, res.status), raw);
   }
   return parse ? parse(raw) : raw as T;
+}
+
+/**
+ * The server's own explanation of a refusal. This app's routes answer in more than one shape and both
+ * are real: most say `{ message }`, and the inventory routes say `{ error }` (a delivery refused because
+ * more was sent than was left answers `{ error: 'Only 3 left' }`, which is the one sentence that tells
+ * the person what to change). Reading only one of them turns those refusals into "The server answered
+ * 409" — so all the shapes this app actually uses are read, in order, and the first non-empty wins.
+ */
+function refusalMessage(raw: unknown, status: number): string {
+  if (raw && typeof raw === 'object') {
+    const body = raw as Record<string, unknown>;
+    for (const key of ['message', 'error']) {
+      const value = body[key];
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+  }
+  return `The server answered ${status}`;
 }
 
 /** What went wrong, in words a person can act on. Never empty, never "undefined". */
