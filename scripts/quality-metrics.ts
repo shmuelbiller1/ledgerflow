@@ -177,10 +177,20 @@ function computeRawTables(rootDir: string): number {
 /**
  * `fetch('/api/…')` typed into a screen: the address should come from one place, not twenty. A call is
  * counted once per `fetch(` whose address starts with the API path, whichever quote style it uses.
+ *
+ * Two things are deliberately not counted, because neither is a screen calling the server:
+ *  - **documentation.** `ApiHubView`'s code samples are template strings inside `<pre>` — a `fetch(` that
+ *    the reader copies into their own program. Counting them made the ratchet reward deleting the docs.
+ *  - **the one place itself.** `src/lib/runCommand.ts` is where the address is meant to live; the files
+ *    that have moved onto it keep no `fetch(` at all, so this only matters as it grows.
  */
+const NOT_A_SCREEN_CALL = [/^src\/lib\/runCommand\.ts$/, /^src\/components\/platform\/ApiHub(CoreDocs|AnalysisDocs)\.tsx$/];
+
 function computeHandTypedApiCalls(rootDir: string): number {
   let count = 0;
   for (const file of componentFiles(rootDir)) {
+    const relative = path.relative(rootDir, file).replace(/\\/g, '/');
+    if (NOT_A_SCREEN_CALL.some(pattern => pattern.test(relative))) continue;
     const text = fs.readFileSync(file, 'utf8');
     count += [...text.matchAll(/fetch\([^;]{0,200}?\/api\//g)].length;
   }

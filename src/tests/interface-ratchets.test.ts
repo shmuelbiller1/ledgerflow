@@ -57,6 +57,18 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).handTypedApiCalls, 3);
   });
 
+  test('the API documentation and the one place itself are not counted as a screen typing an address', () => {
+    // A code sample a reader copies is not the app calling its server, and counting it made the ratchet
+    // reward deleting the docs. The one place the address lives is excluded for the same reason.
+    const root = scratch({
+      'src/components/platform/ApiHubAnalysisDocs.tsx': 'const sample = `fetch("/api/v1/metrics")`;',
+      'src/components/platform/ApiHubCoreDocs.tsx': 'const sample = `fetch("/api/v1/core")`;',
+      'src/lib/runCommand.ts': 'await fetch(path);',
+      'src/components/sales/Sales.tsx': 'fetch("/api/invoices");',
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1, 'only the real screen call counts');
+  });
+
   test('a direct database write from a screen, a hook or a store raises directDbWrites', () => {
     const root = scratch({
       // the modular Firestore API is called bare — no leading dot (the first version of this counter
