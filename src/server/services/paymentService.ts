@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { ledgerCreate } from './ledgerDoor';
 import { deriveScopedOperationKey } from '../utils/idempotency';
 import { isWithholdingAccount } from '../../lib/tax/withholding';
-import { calculateAmountDue, settledStatus } from '../../lib/documentMath';
+import { calculateAmountDue, depositAppliedCents, settledStatus } from '../../lib/documentMath';
 import { writeServerAuditLog } from './auditLogService';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import type { ChartAccount } from '../../types';
@@ -18,7 +18,7 @@ import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
 import type { DocumentData, DocumentReference, Firestore, Transaction } from '../db/firestore';
-import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
+import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, liveStoredRowsOf, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
 import { allocateCents, spreadLabels, type LineAccountWeight } from '../../kernel/templates/TransactionTemplates';
 
 export interface CreatePaymentPayload {
@@ -238,8 +238,9 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const labelWeights: Array<{ cents: number; dimensions?: Record<string, string> }> = [];
     // EG-2: what each payment-ledger row needs from its document
     const allocDocs: Array<{ partyId: string | null; dueCents: number }> = [];
-    // #653: what each allocation had paid before and after, in the document's own currency
-    const paidSteps: Array<{ before: number; after: number }> = [];
+    // Read the live payment-ledger projection in the same serializable transaction as the posting.
+    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
+    const clearedBaseByAllocation: number[] = [];
 
     for (const alloc of allocations) {
       totalAllocatedCents += alloc.amountCents;
@@ -280,7 +281,28 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       }
 
       const newPaid = currentPaid + alloc.amountCents;
-      paidSteps.push({ before: currentPaid, after: newPaid });
+      const toBase = (cents: number) => Math.round(cents * minorUnitRate(paymentRate, docCurrency, baseCurrency));
+      // A void reverses the exact original clearing, not a new conversion of
+      // its nominal amount. Use the surviving allocation rows rather than
+      // assuming their sum is round(currentPaid * rate). Legacy amounts without
+      // rows retain their historical cumulative-conversion fallback.
+      const rows = ledgerReady && docCurrency !== baseCurrency && currentPaid > 0
+        ? (await liveStoredRowsOf(db, tx, workspaceId, alloc.documentId))
+          .filter(row => row.data.documentType === alloc.documentType && row.data.kind !== 'deposit')
+        : [];
+      const represented = rows.reduce((sum, row) => sum + Number(row.data.amountCents), 0);
+      const previouslyCleared = rows.reduce((sum, row) => sum + Number(row.data.baseClearedCents), 0);
+      if (!Number.isSafeInteger(represented) || represented < 0 || represented > currentPaid ||
+          !Number.isSafeInteger(previouslyCleared) || previouslyCleared < 0) {
+        throw new Error('Payment allocation history does not match the document; reconcile its settlements before recording another payment');
+      }
+      const deposit = depositAppliedCents(docData);
+      const target = toBase(newPaid + deposit) - toBase(deposit);
+      const cleared = target - previouslyCleared - toBase(currentPaid - represented);
+      if (!Number.isSafeInteger(cleared) || cleared < 0) {
+        throw new Error('Payment allocation history exceeds the amount to clear; reconcile its settlements first');
+      }
+      clearedBaseByAllocation.push(cleared);
 
       const newStatus = newPaid > 0 ? settledStatus(docData, newPaid) : docData.status;
 
@@ -394,7 +416,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     // (33.33 + 33.33 + 33.34 EUR at 1.0842 clear 36.14 + 36.13 + 36.15 = 108.42 USD), so no cent is left
     // in receivables or payables once it is paid. The unmatched part is converted on its own.
     const toBase = (cents: number) => Math.round(cents * minorUnitRate(paymentRate, paymentCurrency, baseCurrency));
-    const clearedBaseCents = paidSteps.reduce((sum, step) => sum + toBase(step.after) - toBase(step.before), 0);
+    const clearedBaseCents = clearedBaseByAllocation.reduce((sum, cents) => sum + cents, 0);
     const unmatchedBaseCents = toBase(amountCents - totalAllocatedCents);
     const baseAmountCents = clearedBaseCents + unmatchedBaseCents;
     // L-192: a foreign document paid at another day's rate: the bank gets what really arrived (or left),
@@ -491,7 +513,6 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       ...(payload.withholdingRatePercent !== undefined ? { withholdingRatePercent: payload.withholdingRatePercent } : {}),
       ...(payload.withholdingCertificate ? { withholdingCertificate: payload.withholdingCertificate } : {}),
     });
-    const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
     paymentNumber = await allocateInTransaction(db, tx, workspaceId, 'payment');
     paymentData.number = paymentNumber;
 
@@ -508,7 +529,11 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
       const settlementRate = foreignPayment && typeof dayRate === 'number' && dayRate > 0 ? dayRate : paymentRate;
       const side: AllocationSide = isReceipt ? 'receivable' : 'payable';
       const settledBaseCents = cashBaseCents - Math.round(unmatchedCents * minorUnitRate(settlementRate, currency, baseCurrency));
-      const split = splitAllocations({ allocations, side, currency, baseCurrency, documentRate: paymentRate, settlementRate, settledBaseCents });
+      const split = splitAllocations({
+        allocations, side, currency, baseCurrency, documentRate: paymentRate, settlementRate, settledBaseCents,
+        clearedBaseByAllocation,
+        settleAtCleared: !(foreignPayment && typeof dayRate === 'number' && dayRate > 0),
+      });
       const fxLineIndex = fxAccount ? ledgerTxData.lines.findIndex((l: { accountId: string }) => l.accountId === fxAccount!.id) : -1;
       allocations.forEach((alloc, i) => recordAllocation(db, tx, {
         workspaceId, side, partyId: customerId || vendorId || allocDocs[i].partyId, documentType: alloc.documentType, documentId: alloc.documentId,
