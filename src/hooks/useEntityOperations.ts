@@ -1,4 +1,5 @@
-import { runCommand } from '../lib/runCommand';
+import { getIdToken } from '../firebase';
+import { runCommand as runServerCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
@@ -358,7 +359,7 @@ export function useEntityOperations() {
         delete vendor.balanceCents;
         await runDocumentCommand('vendor.create', currentWorkspaceId, { vendor });
       } else if (path === 'transactions') {
-        await runCommand({
+        await runServerCommand({
           path: '/api/v1/transactions',
           method: 'POST',
           body: { workspaceId: currentWorkspaceId, transaction: finalData },
@@ -420,7 +421,7 @@ export function useEntityOperations() {
       return false;
     }
     try {
-      const data = await runCommand<{ to?: string }>({
+      const data = await runServerCommand<{ to?: string }>({
         path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/emails/invoices/${encodeURIComponent(id)}`,
         method: 'POST',
         body: {
@@ -512,7 +513,7 @@ export function useEntityOperations() {
         const { updatedAt: _updatedAt, ...data } = finalData;
         await runDocumentCommand(path === 'customers' ? 'customer.update' : 'vendor.update', currentWorkspaceId!, { id, data });
       } else if (path === 'transactions' && currentWorkspaceId) {
-        await runCommand({
+        await runServerCommand({
           path: `/api/v1/transactions/${encodeURIComponent(id)}`,
           method: 'PUT',
           body: { workspaceId: currentWorkspaceId, partialUpdate: finalData },
@@ -574,7 +575,7 @@ export function useEntityOperations() {
           await runDocumentCommand('vendorcredit.delete', currentWorkspaceId, { id, postingDay: postingToday() });
         }
       } else if (path === 'transactions' && currentWorkspaceId) {
-        await runCommand({
+        await runServerCommand({
           path: `/api/v1/transactions/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(currentWorkspaceId)}`,
           method: 'DELETE',
         });
