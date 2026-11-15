@@ -111,3 +111,21 @@ export const hasTag = (party: { tags?: string[] }, tag: string | null) =>
 export function isArchivedParty(party: { status?: string }): boolean {
   return party.status === 'inactive' || party.status === 'archived';
 }
+
+/**
+ * The existing customer or vendor a typed name means: an exact id or name first; otherwise one whose name
+ * matches ignoring capitals and spaces, but only when exactly one does. Archived parties are never matched
+ * (they are restored first). `ambiguous` is true when several match loosely and the person must pick.
+ */
+export function matchPartyByName<T extends { id: string; name?: string; status?: string; metadata?: unknown }>(
+  parties: readonly T[], typed: string,
+): { party?: T; ambiguous: boolean } {
+  const live = parties.filter(p => !isArchivedParty(p));
+  const exact = live.find(p => p.id === typed || p.name === typed);
+  if (exact) return { party: exact, ambiguous: false };
+  const key = typed.trim().toLocaleLowerCase();
+  if (!key) return { ambiguous: false };
+  const loose = live.filter(p => String(p.name || '').trim().toLocaleLowerCase() === key);
+  return loose.length === 1 ? { party: loose[0], ambiguous: false } : { ambiguous: loose.length > 1 };
+}
+

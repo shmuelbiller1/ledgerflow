@@ -1,4 +1,5 @@
 import { useDocumentDefaults } from '../../hooks/useDocumentDefaults';
+import { matchPartyByName } from '../../lib/contacts';
 import { documentDefaultsOf } from '../../lib/documentDefaults';
 import DocumentMoreOptions from '../common/DocumentMoreOptions';
 import { hasInvoiceOptions } from '../../lib/documentOptions';
@@ -340,11 +341,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   list="invoice-customer-list"
                   value={invoice.customerName || invoice.customerId || ''}
                   onChange={(e) => {
-                    const typed = e.target.value.trim().toLocaleLowerCase();
-                    // an existing customer is matched whatever the capitals or spaces, so it is never created twice
-                    const loose = typed === '' ? [] : safeCustomers.filter(c => String(c.name || '').trim().toLocaleLowerCase() === typed);
-                    // exact id or name first; a loose match only when it is the only one (ACME and Acme stay apart)
-                    const cust = safeCustomers.find(c => c.id === e.target.value || c.name === e.target.value) || (loose.length === 1 ? loose[0] : undefined);
+                    // the existing customer the typed name means (exact first; a capitals/spaces match only when it is the only one)
+                    const cust = matchPartyByName(safeCustomers, e.target.value).party;
                     // a new invoice starts in the customer's currency (Y-22); an existing one keeps its own
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};

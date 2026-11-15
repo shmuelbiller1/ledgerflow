@@ -19,7 +19,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import CustomerModal from './CustomerModal';
 import TagFilter from '../common/TagFilter';
-import { allTags, hasTag, isArchivedParty } from '../../lib/contacts';
+import { allTags, hasTag, isArchivedParty, matchPartyByName } from '../../lib/contacts';
 import PartyRowActions, { ArchivedBadge, ShowArchivedToggle } from '../common/PartyRowActions';
 import EmailStatementsButton from './EmailStatementsButton';
 import DocumentTotalsFoot from '../ui/DocumentTotalsFoot';
@@ -122,12 +122,12 @@ export default function Sales() {
         throw new Error('No customer name');
       }
       // a customer of that name may already exist (typed with other capitals or spaces, or added a moment ago):
-      // use it instead of refusing the invoice
-      const sameName = (c: { name?: string }) => String(c.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase();
-      const all = useLedgerStore.getState().customers;
-      const loose = all.filter(sameName);
-      // exact name first; a loose match only when it is the only one, so two customers like ACME and Acme stay apart
-      const existing = all.find(c => c.name === name) || (loose.length === 1 ? loose[0] : undefined);
+      // use it instead of refusing the invoice; several near-identical names: ask, never add another
+      const { party: existing, ambiguous } = matchPartyByName(useLedgerStore.getState().customers, name);
+      if (ambiguous) {
+        toast.error(`More than one customer is called "${name}" in different capitals. Pick the customer from the list.`);
+        throw new Error('Ambiguous customer name');
+      }
       if (existing) {
         data = { ...data, customerId: existing.id, customerName: existing.name };
       } else {
