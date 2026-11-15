@@ -54,7 +54,11 @@ export const DoubleEntryAuditor = {
 
     // Causal Integrity Check: All transactions with a verification block are part of the cryptographic sequence.
     // We do NOT filter to isPostable() because void/deleted transactions still exist in the immutable chain.
-    const chainTxs = chronosTxs.filter(t => t.verification?.hash || t.verification?.previousHash);
+    // Only entries that record a link (`previousHash`) are checked: the server signs every entry it writes
+    // (`hash`) without linking it, and an unlinked signed entry is not a broken link.
+    const chainTxs = chronosTxs.filter(t => typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '');
+    // the first linked entry may point at an unlinked signed entry (or 'genesis'); any other pointer is broken
+    const signedHashes = new Set(chronosTxs.map(t => t.verification?.hash).filter((h): h is string => typeof h === 'string'));
     const chainTxIndexMap = new Map<string, number>();
     chainTxs.forEach((ct, idx) => {
       if (ct.id) chainTxIndexMap.set(ct.id, idx);
@@ -69,14 +73,15 @@ export const DoubleEntryAuditor = {
       const isActive = isPostable(t);
       
       // Verify Cryptographic Link (O(1) map lookup to eliminate O(N^2) inner loop - F6)
-      if (t.verification?.hash && t.id) {
+      if (typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '' && t.id) {
         const chainIdx = chainTxIndexMap.get(t.id);
-        if (chainIdx !== undefined && chainIdx > 0) {
-          const prevTx = chainTxs[chainIdx - 1];
-          if (t.verification.previousHash !== prevTx.verification?.hash) {
-            hashChainValid = false;
-            if (brokenChainIndex === null) brokenChainIndex = i;
-          }
+        const link = t.verification.previousHash;
+        const broken = chainIdx === undefined ? false
+          : chainIdx > 0 ? link !== chainTxs[chainIdx - 1].verification?.hash
+          : link !== 'genesis' && !signedHashes.has(link as string);
+        if (broken) {
+          hashChainValid = false;
+          if (brokenChainIndex === null) brokenChainIndex = i;
         }
       }
 

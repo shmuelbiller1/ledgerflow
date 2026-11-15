@@ -1,4 +1,5 @@
 import { useDocumentDefaults } from '../../hooks/useDocumentDefaults';
+import { matchPartyByName } from '../../lib/contacts';
 import { documentDefaultsOf } from '../../lib/documentDefaults';
 import DocumentMoreOptions from '../common/DocumentMoreOptions';
 import { hasInvoiceOptions } from '../../lib/documentOptions';
@@ -340,7 +341,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                   list="invoice-customer-list"
                   value={invoice.customerName || invoice.customerId || ''}
                   onChange={(e) => {
-                    const cust = safeCustomers.find(c => c.name === e.target.value || c.id === e.target.value);
+                    // the existing customer the typed name means (exact first; a capitals/spaces match only when it is the only one)
+                    const cust = matchPartyByName(safeCustomers, e.target.value, [initialInvoice?.customerId]).party;
                     // a new invoice starts in the customer's currency (Y-22); an existing one keeps its own
                     const custCurrency = cust && !editingExisting ? (cust.currency || workspaceCurrency) : null;
                     const currencyChange = custCurrency && custCurrency !== currency ? { currency: custCurrency, exchangeRate: 1 } : {};
@@ -355,7 +357,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                     const hints = documentDefaultsOf(cust);
                     if (!editingExisting && cust) setItems(prev => prev.map(line => defaults.fill(line, hints)));
                     const defaultTax = defaults.taxAvailable() && !invoice.taxCodeId && !invoice.taxRate && salesCodes.some(c => c.id === hints.taxCodeId) ? { taxCodeId: hints.taxCodeId } : {};
-                    setInvoice({ ...invoice, ...defaultTax, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: cust ? cust.name : e.target.value, ...currencyChange, ...termsChange });
+                    setInvoice({ ...invoice, ...defaultTax, customerId: cust ? cust.id : `new-${crypto.randomUUID()}`, customerName: e.target.value, ...currencyChange, ...termsChange });
                   }}
                   placeholder="Type or select customer"
                   className="w-full px-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
