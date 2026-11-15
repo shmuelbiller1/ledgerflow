@@ -86,6 +86,20 @@ export interface TanStackDataGridProps<TData extends object> {
   afterTable?: React.ReactNode;
   getRowProps?: (row: TData) => DataGridRowProps;
   /**
+   * The id of the column that names each row. It is drawn as a row header (`<th scope="row">`) and is
+   * never hidden by the column chooser, so a screen reader always has a name for the row it is in —
+   * the rule `table-a11y-guard` enforces. Off by default: a list whose rows are named by a button or a
+   * link keeps plain cells.
+   */
+  rowHeaderColumn?: string;
+  /**
+   * A totals row under the body (`<tfoot>`), for lists whose last line is a sum. `colSpan` fills the
+   * columns to its left, so the total lines up with the column it totals. Because it is drawn by the
+   * grid it survives the column chooser (a hidden column hides the same index in the footer) and it
+   * disappears with the empty state, which is what a report wants.
+   */
+  totals?: { label: string; value: React.ReactNode; columnsBefore?: number };
+  /**
    * What the keyboard's live region says when the highlight lands on a row ("Row 3 of 12: Invoice
    * 1042, Acme Corp"). Without it the row is announced by position only.
    */
@@ -135,6 +149,8 @@ export function TanStackDataGrid<TData extends object>({
   afterTable,
   getRowProps,
   announceRow,
+  rowHeaderColumn,
+  totals,
   mobileLayout = 'cards',
   renderCard,
   hidePaginationOnSinglePage = false,
@@ -189,6 +205,16 @@ export function TanStackDataGrid<TData extends object>({
 
   const effectiveTotalCount = totalCount ?? data.length;
   const showCards = mobileLayout === 'cards' && isCompact;
+
+  /**
+   * The totals row lands on the column it totals: `columnsBefore` columns are filled to its left (the
+   * label sits in them), the value is the next one, and any columns after it are filled so the row is
+   * as wide as the table. Clamped, so a totals row can never widen the table past its columns.
+   */
+  const totalColumns = rowHeaderColumn === undefined ? columns.length : columns.length;
+  const totalsBefore = Math.min(Math.max(totals?.columnsBefore ?? totalColumns - 1, 0), totalColumns - 1);
+  const before = totalsBefore;
+  const after = Math.max(0, totalColumns - totalsBefore - 1);
 
   const pageRowsIds = useMemo(() => data.map((row, idx) => resolveRowId(row, idx)), [data, resolveRowId]);
   const selectedRows = useMemo(
@@ -247,6 +273,8 @@ export function TanStackDataGrid<TData extends object>({
    * node survives. No cell in the app uses hooks, which is what makes this safe; a cell that did would need to
    * become a named component instead.
    */
+  const isRowHeader = (cell: Cell<TData, unknown>) => rowHeaderColumn !== undefined && cell.column.id === rowHeaderColumn;
+
   const renderCellContent = (cell: Cell<TData, unknown>) => {
     const content = cell.column.columnDef.cell;
     return typeof content === 'function'
@@ -548,16 +576,36 @@ export function TanStackDataGrid<TData extends object>({
                         extra.className,
                       )}
                     >
-                      {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className="px-4 py-3 text-xs text-[var(--text)] font-medium">
-                          {renderCellContent(cell)}
-                        </td>
-                      ))}
+                      {row.getVisibleCells().map(cell =>
+                        isRowHeader(cell) ? (
+                          <th
+                            key={cell.id}
+                            scope="row"
+                            className="px-4 py-3 text-xs text-[var(--text)] font-medium text-start"
+                          >
+                            {renderCellContent(cell)}
+                          </th>
+                        ) : (
+                          <td key={cell.id} className="px-4 py-3 text-xs text-[var(--text)] font-medium">
+                            {renderCellContent(cell)}
+                          </td>
+                        ),
+                      )}
                     </tr>
                   );
                 })
               )}
             </tbody>
+            {totals && filteredRows.length > 0 && (
+              <tfoot className="border-t border-[var(--line)]">
+                <tr className="font-semibold">
+                  {/* the label sits in the columns to the left of the total; an unlabelled total spans them */}
+                  {before > 0 && <th scope="row" colSpan={before} className="px-4 py-3 text-xs text-start">{totals.label}</th>}
+                  <td className="px-4 py-3 text-xs text-[var(--text)] tabular-nums">{totals.value}</td>
+                  {after > 0 && <td colSpan={after} />}
+                </tr>
+              </tfoot>
+            )}
             {filteredRows.length > 0 && footerContent}
           </table>
         </div>
