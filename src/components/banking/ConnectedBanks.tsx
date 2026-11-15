@@ -1,7 +1,6 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { bankHealth, readBankStatuses, type BankStatus, type SyncLogEntry } from '../../lib/bankFeedStatus';
@@ -33,8 +32,13 @@ export default function ConnectedBanks() {
     const ws = workspaceId;
     let live = true;
     (async () => {
-      const raw = await runCommand({ path: `/api/v1/plaid/banks?workspaceId=${encodeURIComponent(ws)}` });
-      return readBankStatuses(raw);
+      try {
+        return readBankStatuses(await runCommand({ path: `/api/v1/plaid/banks?workspaceId=${encodeURIComponent(ws)}` }));
+      } catch (err) {
+        // a failed read keeps this screen's own sentence, which names what failed, rather than the
+        // server's status code; the original error is kept so nothing about it is lost
+        throw new Error('The server could not list your bank connections', { cause: err });
+      }
     })().then(list => { if (live) setRead({ workspace: ws, state: 'ready', banks: list, error: '' }); }).catch(err => {
       // a read that failed is not "no connections": say so, and offer the one action that retries it
       if (live) setRead({ workspace: ws, state: 'error', banks: [], error: err instanceof Error ? err.message : 'The server could not list your bank connections' });

@@ -35,7 +35,8 @@ test('AF-001-F2: the Banking screen "Sync Feed" path needs no rows of its own (t
 
 test('AF-001-F3: the legacy feed importer no longer books the rows the server already stored', () => {
   const importer = read('src/components/ledger/BankFeedImport.tsx');
-  assert.match(importer, /fetch\('\/api\/v1\/plaid\/sync'/, 'the importer calls sync');
+  // the call is still here; since part 3 it names its path in runCommand rather than typing its own fetch
+  assert.match(importer, /path: '\/api\/v1\/plaid\/sync'/, 'the importer calls sync');
   // the rows are bank lines on the server; mapping them into the review list would book them twice (Codex on #439)
   assert.equal(/data\.transactions\s*\|\|\s*\[\]\)\.map/.test(importer), false, 'returned rows are not staged for a second import');
   assert.equal(/data\.modified|data\.removed/.test(importer), false,
