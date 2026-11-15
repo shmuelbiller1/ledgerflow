@@ -22,6 +22,8 @@ async function api(workspaceId: string, path: string, init?: RequestInit): Promi
   const data = await runCommand<NumberingAnswer>({
     path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/numbering${path}`,
     method: (init?.method as 'GET' | 'POST' | 'PUT' | 'DELETE') || 'GET',
+    // the body is serialized text here, so it goes as it is: the route already read it that way
+    rawBody: init?.body === undefined ? undefined : String(init.body),
   });
   return data;
 }
