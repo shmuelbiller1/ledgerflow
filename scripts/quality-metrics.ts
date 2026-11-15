@@ -155,7 +155,9 @@ function componentFiles(rootDir: string, dir = path.join(rootDir, 'src/component
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name !== 'tests') out.push(...componentFiles(rootDir, full));
-    } else if (/\.tsx$/.test(entry.name) && !entry.name.includes('.test.')) {
+    } else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.') && !entry.name.endsWith('.d.ts')) {
+      // `.ts` as well as `.tsx`: a store or hook that sits beside its screen makes calls too, and
+      // reading only `.tsx` left those seven sites uncounted for the whole life of this ratchet.
       out.push(full);
     }
   }
@@ -184,17 +186,83 @@ function computeRawTables(rootDir: string): number {
  *  - **the one place itself.** `src/lib/runCommand.ts` is where the address is meant to live; the files
  *    that have moved onto it keep no `fetch(` at all, so this only matters as it grows.
  */
+
+/**
+ * A hand-typed call is a `fetch` that this app makes to its own API and for which the screen reads a
+ * token itself. `runCommand` is the one place that does both.
+ *
+ * This used to count one thing: `fetch(...)` followed by a literal `/api/` path, inside
+ * `src/components`. Both limits hid real calls. A wrapper takes its address as a parameter —
+ * `fetch(path, ...)` — so a screen behind a wrapper counted as zero no matter how it was written;
+ * and `src/hooks` and `src/services` were never read at all, though 56 of these calls live there.
+ * A screen could be converted, or left alone, with the number unmoved either way.
+ *
+ * The signature that actually distinguishes the two is the token. `runCommand` reads it once; a
+ * hand-typed call reads it at the call site. So the count is now `fetch` sites that read a token,
+ * across everything that talks to the API.
+ */
 const NOT_A_SCREEN_CALL = [/^src\/lib\/runCommand\.ts$/, /^src\/components\/platform\/ApiHub(CoreDocs|AnalysisDocs)\.tsx$/];
+const API_CALLER_FILES = (rootDir: string) => [
+  ...componentFiles(rootDir),
+  ...sourceFiles(path.join(rootDir, 'src/services')),
+  ...sourceFiles(path.join(rootDir, 'src/hooks')),
+];
+
+/** Every non-test `.ts`/`.tsx` under a directory, so a service or hook is not missed. */
+function sourceFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'tests') out.push(...sourceFiles(full));
+    } else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 function computeHandTypedApiCalls(rootDir: string): number {
   let count = 0;
-  for (const file of componentFiles(rootDir)) {
+  for (const file of API_CALLER_FILES(rootDir)) {
     const relative = path.relative(rootDir, file).replace(/\\/g, '/');
     if (NOT_A_SCREEN_CALL.some(pattern => pattern.test(relative))) continue;
     const text = fs.readFileSync(file, 'utf8');
-    count += [...text.matchAll(/fetch\([^;]{0,200}?\/api\//g)].length;
+    for (let i = text.indexOf('fetch('); i !== -1; i = text.indexOf('fetch(', i + 1)) {
+      if (sendsOwnToken(text, i)) count++;
+    }
   }
   return count;
+}
+
+/**
+ * Does the `fetch(` at `at` send this app's credential?
+ *
+ * The token is read either inline (`Bearer ${await getIdToken()}`) or a few lines above into a local
+ * and interpolated here — `const token = await getIdToken(); ... fetch(path, { ... Bearer ${token} })`.
+ * Both are the same hand-typed call, and a regex over one line only ever saw the first, so the second
+ * shape was invisible: the wrapper conversions that remove these calls could not move the number.
+ */
+function sendsOwnToken(text: string, at: number): boolean {
+  // the whole call, so a nested `getIdToken()` in the options is inside the slice
+  let depth = 0;
+  let end = at;
+  for (let j = at + 5; j < text.length; j++) {
+    const ch = text[j];
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) { end = j + 1; break; }
+    }
+  }
+  const call = text.slice(at, end || text.length);
+  if (call.includes('getIdToken()')) return true;
+  if (!/Bearer \$\{\s*(\w+)\s*\}/.test(call)) return false;
+  const name = /Bearer \$\{\s*(\w+)\s*\}/.exec(call)![1];
+  // the token was fetched just above and handed in by name
+  const above = text.slice(Math.max(0, at - 600), at);
+  return new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*await\\s+getIdToken\\(\\)`).test(above);
 }
 
 /** Writes to the database from the browser: screens call the server, they do not post the books. */

@@ -48,13 +48,60 @@ describe('the five interface ratchets', () => {
   test('a hand-typed server address raises handTypedApiCalls, whatever the quote style', () => {
     const root = scratch({
       'src/components/sales/Sales.tsx': [
-        "fetch('/api/invoices');",
-        'fetch(`/api/bills/${id}`);',
-        "fetch(\"https://api.ledgerflow.io/api/v1/x\");",
+        'fetch(\'/api/invoices\', { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        'fetch(`/api/bills/${id}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        'fetch(\"https://api.ledgerflow.io/api/v1/x\", { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
         'const note = "no call here";',
       ].join('\n'),
     });
     assert.equal(computeQualityMetrics(root).handTypedApiCalls, 3);
+  });
+
+  test('a call is hand-typed because it reads the token itself, not because its address is literal', () => {
+    // The first counter tested the address for `/api/`, so a wrapper taking its path as a parameter
+    // (`fetch(path, ...)`) counted as zero however it was written. The token is what separates the two
+    // ways of making the call: runCommand reads it once, a hand-typed call reads it at the call site.
+    const root = scratch({
+      'src/components/sales/Sales.tsx': [
+        'async function post(path, body) {',
+        '  return fetch(path, { method: \'POST\', body: JSON.stringify(body),',
+        '    headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        '}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1, 'a parameterised address is still hand-typed');
+  });
+
+  test('a token read into a variable above the call counts too', () => {
+    // `const token = await getIdToken(); ... fetch(path, { ... Bearer ${token} })` is the shape 34 real
+    // calls had, and a regex over the one line `fetch(` appears on saw none of them.
+    const root = scratch({
+      'src/components/sales/Sales.tsx': [
+        'export async function post(path, body) {',
+        '  const token = await getIdToken();',
+        '  return fetch(path, {',
+        '    method: \'POST\',',
+        '    headers: { Authorization: `Bearer ${token}` },',
+        '    body: JSON.stringify(body),',
+        '  });',
+        '}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1);
+  });
+
+  test('a call made from a service, a hook or a beside-the-screen .ts file counts as one', () => {
+    // These three places held 63 of the calls and the counter read none of them: it walked
+    // `src/components` for `.tsx` only. A number that cannot see the majority of what it measures
+    // reports progress that converting those files never made.
+    const body = 'fetch(path, { headers: { Authorization: `Bearer ${await getIdToken()}` } });\n';
+    const root = scratch({
+      'src/services/posting.ts': body,
+      'src/hooks/useThing.ts': body,
+      'src/components/banking/stageStore.ts': body,
+      'src/components/sales/Sales.tsx': body,
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 4);
   });
 
   test('the API documentation and the one place itself are not counted as a screen typing an address', () => {
@@ -63,8 +110,8 @@ describe('the five interface ratchets', () => {
     const root = scratch({
       'src/components/platform/ApiHubAnalysisDocs.tsx': 'const sample = `fetch("/api/v1/metrics")`;',
       'src/components/platform/ApiHubCoreDocs.tsx': 'const sample = `fetch("/api/v1/core")`;',
-      'src/lib/runCommand.ts': 'await fetch(path);',
-      'src/components/sales/Sales.tsx': 'fetch("/api/invoices");',
+      'src/lib/runCommand.ts': 'await fetch(path, { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+      'src/components/sales/Sales.tsx': 'fetch("/api/invoices", { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
     });
     assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1, 'only the real screen call counts');
   });

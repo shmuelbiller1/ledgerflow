@@ -12,7 +12,7 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 |---|---|---|
 | `unreachableActions` | **0** | Every registered screen, report and settings tab can be found by typing a word into the search box. Zero is the only acceptable value. Proven in `src/tests/palette-reachability-guard.test.ts`, which searches the real registry, in English and Hebrew. |
 | `screensWithManyPrimaryButtons` | **19** | EASE_OF_USE U-2: one filled button per screen. |
-| `handTypedApiCalls` | **78** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
+| `handTypedApiCalls` | **89** | A screen calls the server through one place, not by fetching it and attaching the token itself. |
 | `rawTables` | **184** | A screen uses the shared list instead of drawing its own `<table>`. |
 | `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
@@ -32,19 +32,39 @@ number it can; the rest are listed so the next person starts from the truth.
   demoting the wrong one moves the person's eye off the thing they came to do.
 - `auth/AcceptInviteView.tsx`, `common/ViewErrorBoundary.tsx`: two states of one screen (signed in / not).
 
-### `handTypedApiCalls` — 78
+### `handTypedApiCalls` — 89
 
-`src/lib/runCommand.ts` is now the one place a screen's request goes: it adds the token, sends the
-method and body, and raises a `ServerCommandError` that carries the server's own words plus a message a
-person can act on (a dead session reads differently from a refused action). The assets group moved
-first — `FixedAssetsView`, `ConstructionActions`, `DisposeAssetDialog`, `TransferAssetDialog` now hold
-no hand-typed call at all. Each screen that moves loses its own copy of the token header, its own
-`res.ok` check and its own guess at the error message.
+`src/lib/runCommand.ts` is the one place a screen's request goes: it adds the token, sends the method
+and body, and raises a `ServerCommandError` that carries the server's own words plus a message a person
+can act on (a dead session reads differently from a refused action). Each screen that moves loses its
+own copy of the token header, its own `res.ok` check and its own guess at the error message.
 
-The counter also stopped counting two things that were never calls: the API documentation's code
-samples (`ApiHubCoreDocs`, `ApiHubAnalysisDocs` hold `fetch("/api/…")` inside `<pre>` template strings
-that the *reader* copies into their own program) and `runCommand.ts` itself. Counting them made this
-ratchet reward deleting the docs. That is 16 of the 170 — so the real starting point was 154, not 170.
+**This number went up, and that is the point.** It read 81 before this PR and reads 89 after, on a tree
+where nine more calls had been converted. The counter had been unable to see most of what it claimed to
+measure, in three separate ways:
+
+- it matched `fetch(` followed by a literal `/api/` path, so a wrapper that takes its address as a
+  parameter — `fetch(path, …)` — counted as zero. Six screen wrappers and three service functions were
+  invisible this way, which is why converting one of them left the number unmoved.
+- it matched on one line, so the shape where the token is read into a variable first — 34 real calls —
+  never matched. Only the inline `Bearer ${await getIdToken()}` shape did.
+- it walked `src/components` for `.tsx` only. `src/services` and `src/hooks` were never read, and
+  neither were the `.ts` stores that sit beside their screens: 63 calls lived in files the counter
+  could not open.
+
+A counter that cannot see its own subject reports success either way. The signal that distinguishes the
+two ways of making a call is the token: `runCommand` reads it once, a hand-typed call reads it at the
+call site, whether inline or into a local. That is what is counted now, across every file that talks to
+the API. The three blindnesses are pinned by tests in `src/tests/interface-ratchets.test.ts` so they
+cannot come back quietly.
+
+The counter still leaves out two things that were never calls: the API documentation's code samples
+(`ApiHubCoreDocs`, `ApiHubAnalysisDocs` hold `fetch("/api/…")` inside `<pre>` template strings that the
+*reader* copies into their own program) and `runCommand.ts` itself. Counting them made this ratchet
+reward deleting the docs.
+
+The remaining sites cluster in `src/hooks/transactionActions` and `src/hooks/useEntityOperations`,
+where a hook wraps a call and hands it to a screen; those convert by the wrapper, not by the screen.
 
 ### `rawTables` — 184
 

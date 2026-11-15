@@ -1,10 +1,10 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Mail, X } from 'lucide-react';
 import type { Invoice } from '../../types';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { getIdToken } from '../../firebase';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { deliveryLabel, deliveryPhrase, preferredDelivery } from '../../lib/delivery';
 import { approvalDetail, approvalStatus, isApproverRole } from '../../lib/invoiceApproval';
@@ -20,11 +20,10 @@ interface LogEvent { event: string; recipient: string; subject: string | null; t
 
 const EVENT_LABEL: Record<string, string> = { sent: 'Sent', failed: 'Failed', bounced: 'Bounced', complaint: 'Marked as spam', delivered: 'Delivered' };
 
-async function authorized(path: string, init?: RequestInit) {
-  const res = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}`, ...(init?.headers || {}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The request failed');
-  return data;
+interface SendAnswer { to?: string }
+interface LogAnswer { events?: LogEvent[] }
+async function authorized(path: string, init?: { method?: 'POST' | 'PUT'; body?: unknown; rawBody?: string }) {
+  return runCommand<SendAnswer & LogAnswer>({ path, method: init?.method, body: init?.body, rawBody: init?.rawBody });
 }
 
 export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {

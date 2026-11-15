@@ -12,7 +12,7 @@ previous version of this file drifted because it repeated a count nobody re-meas
 
 Source of truth for every number below is `quality-baseline.json` + the live counter (`computeQualityMetrics`), not prose. **A box is only ticked when the number moved or the named test exists and passes.**
 
-Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **78** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **0**.
+Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **89** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **0**.
 
 ---
 
@@ -21,7 +21,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **78** 
 | counter | start | now | target | state |
 |---|---|---|---|---|
 | `rawTables` | 195 | **184** | 0 | 🟡 11 moved |
-| `handTypedApiCalls` | 170 | **78** | 0 | 🟡 started (real start was 154; 16 were docs) |
+| `handTypedApiCalls` | 170 | **89** | 0 | 🟡 started — the counter was blind to 3 shapes and under-reported by ~30; see `UI_REBUILD_RATCHETS.md` |
 | `directDbWrites` | 93 | **93** | 0 | 🔴 not started |
 | `unreachableActions` | 0 | **0** | 0 | ✅ **met** |
 | `screensWithManyPrimaryButtons` | 19 | **0** | 0 | ✅ **met** |
@@ -58,7 +58,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **78** 
 - [x] Settings group: `ModulesSettings`, `StagesSettings`, `BillingSettings`, `SecuritySettings`
 - [x] `ConnectedBanks`, `TimeView`, `SupportView`, `AcceptInviteView`
 - [ ] `useCommand(name)` on top: result with **Undo** where an inverse exists + offered next step ("Invoice saved. Send it · Record a payment · New invoice") — needs the command schemas
-- [ ] The rest of the **78**, by area:
+- [ ] The rest of the **76**, by area:
 
 | area | calls | state |
 |---|---|---|
@@ -126,11 +126,19 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **78** 
 
 ## This PR
 
-`handTypedApiCalls` **170 → 154**, `rawTables` **186 → 184**.
+`handTypedApiCalls` **170 → 89**, `rawTables` **186 → 184**.
 
 ### `runCommand` — why this before more tables
 
-`handTypedApiCalls` and `directDbWrites` are the two ratchets that block nothing else and are blocked by nothing else. Each of the 154 sites currently types its own address, its own `Authorization` header, its own `res.ok` check and its own reading of the error body — and they disagree.
+`handTypedApiCalls` and `directDbWrites` are the two ratchets that block nothing else and are blocked by nothing else. Each remaining site types its own address, its own `Authorization` header, its own `res.ok` check and its own reading of the error body — and they disagree.
+
+### The counter was reading less than half the sites
+
+It said 76 on the same tree where a separate count found 89, and the difference was not a rounding
+argument — it was three blind spots, each of which made converting a file a no-op on the number:
+a parameterised address (`fetch(path, …)`) never matched, a token read into a variable above the call
+never matched, and `src/services`, `src/hooks` and beside-the-screen `.ts` files were never opened.
+All three are fixed and pinned by tests. The number is higher and it is now true.
 
 ### Two ratchet corrections, both real
 
