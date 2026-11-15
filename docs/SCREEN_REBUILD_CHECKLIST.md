@@ -12,7 +12,7 @@ previous version of this file drifted because it repeated a count nobody re-meas
 
 Source of truth for every number below is `quality-baseline.json` + the live counter (`computeQualityMetrics`), not prose. **A box is only ticked when the number moved or the named test exists and passes.**
 
-Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **154** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **19**.
+Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **151** · `directDbWrites` **93** · `unreachableActions` **0** · `screensWithManyPrimaryButtons` **19**.
 
 ---
 
@@ -21,7 +21,7 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **154**
 | counter | start | now | target | state |
 |---|---|---|---|---|
 | `rawTables` | 195 | **184** | 0 | 🟡 11 moved |
-| `handTypedApiCalls` | 170 | **154** | 0 | 🟡 started (real start was 154; 16 were docs) |
+| `handTypedApiCalls` | 170 | **151** | 0 | 🟡 started (real start was 154; 16 were docs) |
 | `directDbWrites` | 93 | **93** | 0 | 🔴 not started |
 | `unreachableActions` | 0 | **0** | 0 | ✅ **met** |
 | `screensWithManyPrimaryButtons` | 19 | **19** | 0 | 🔴 not started |
@@ -55,12 +55,13 @@ Last measured on this branch: `rawTables` **184** · `handTypedApiCalls` **154**
 - [x] `src/lib/runCommand.ts` — one place the address, token, method, body and error handling come from; `ServerCommandError` carries the server's own words; `commandErrorMessage` separates a dead session (401) from a refused role (403); reads **both** `{ message }` and `{ error }` because the inventory routes use the latter
 - [x] Assets group off hand-typed calls: `FixedAssetsView`, `ConstructionActions`, `DisposeAssetDialog`, `TransferAssetDialog`
 - [x] `OrderDeliveryDialog` JSON calls
+- [x] Settings group started: `ModulesSettings`, `StagesSettings`
 - [ ] `useCommand(name)` on top: result with **Undo** where an inverse exists + offered next step ("Invoice saved. Send it · Record a payment · New invoice") — needs the command schemas
-- [ ] The rest of the **154**, by area:
+- [ ] The rest of the **151**, by area:
 
 | area | calls | state |
 |---|---|---|
-| platform | 53 | largest, untouched |
+| platform | 47 | started (6 moved) |
 | reporting | 17 | — |
 | ledger | 13 | — |
 | sales | 13 | 1 file done |

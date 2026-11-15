@@ -7,6 +7,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { MAX_STAGES, stagesProblem, type StageKind, type StageSets } from '../../../lib/stages';
 import { resetStages } from '../../collaboration/stageStore';
+import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const LABEL: Record<StageKind, string> = { invoice: 'Invoices', bill: 'Bills' };
@@ -48,14 +49,16 @@ export default function StagesSettings() {
         saveGuestStages(workspaceId, sets);
       } else {
         if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages/sets`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ sets }) });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || 'The stages were not saved');
+        await runCommand({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/stages/sets`,
+          method: 'PUT',
+          body: { sets },
+        });
       }
       if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       resetStages();
       toast.success('Stages saved');
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
   };
 
   return (
