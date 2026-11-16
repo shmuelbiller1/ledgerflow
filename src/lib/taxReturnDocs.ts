@@ -5,6 +5,7 @@
  */
 import { calculateDocumentNet, calculateDocumentTax } from './documentMath';
 import type { DocumentTaxInput } from './documentMath';
+import { minorUnitRate } from './currencyMinorUnits';
 import { computeTaxReturn, COUNTED_PURCHASES, COUNTED_SALES } from './taxCodes';
 import type { TaxReturn, TaxReturnDocument, TaxTreatment } from './taxCodes';
 
@@ -13,6 +14,7 @@ export interface TaxableDocument extends DocumentTaxInput {
   date?: string;
   issueDate?: string;
   status?: string;
+  currency?: string;
   exchangeRate?: number;
   taxTreatment?: TaxTreatment;
   selfAssessedTaxCents?: number;
@@ -25,6 +27,7 @@ export function taxReturnDocument(doc: TaxableDocument): TaxReturnDocument {
     id: doc.id,
     date: doc.date || doc.issueDate,
     status: doc.status,
+    currency: doc.currency,
     exchangeRate: doc.exchangeRate,
     taxTreatment: doc.taxTreatment,
     netCents: calculateDocumentNet(doc),
@@ -40,10 +43,12 @@ export function buildTaxReturn(input: {
   vendorCredits?: TaxableDocument[];
   startDate: string;
   endDate: string;
+  baseCurrency?: string;
 }): TaxReturn {
   return computeTaxReturn({
     startDate: input.startDate,
     endDate: input.endDate,
+    baseCurrency: input.baseCurrency,
     sales: input.invoices.map(taxReturnDocument),
     salesCredits: (input.creditNotes || []).map(taxReturnDocument),
     purchases: input.bills.map(taxReturnDocument),
@@ -96,9 +101,13 @@ export function taxByRate(input: {
   vendorCredits?: TaxableDocument[];
   startDate: string;
   endDate: string;
+  baseCurrency?: string;
 }): TaxRateRow[] {
   const rows = new Map<string, TaxRateRow>();
-  const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
+  const toBase = (cents: number, rate?: number, currency?: string) => {
+    const r = rate && rate > 0 ? rate : 1;
+    return Math.round(cents * (currency && input.baseCurrency ? minorUnitRate(r, currency, input.baseCurrency) : r));
+  };
   const add = (docs: TaxableDocument[] | undefined, counted: Set<string>, sign: 1 | -1, side: 'sales' | 'purchases') => {
     for (const doc of docs || []) {
       const day = String(doc.date || doc.issueDate || '').slice(0, 10);
@@ -113,8 +122,8 @@ export function taxByRate(input: {
       parts.forEach((part, i) => {
         const key = `${part.name}|${part.rate}`;
         const row = rows.get(key) || { name: part.name, rate: part.rate, salesNetCents: 0, salesTaxCents: 0, purchasesNetCents: 0, purchasesTaxCents: 0, netTaxCents: 0 };
-        row[`${side}NetCents`] += sign * toBase(net, doc.exchangeRate);
-        row[`${side}TaxCents`] += sign * toBase(shares[i], doc.exchangeRate);
+        row[`${side}NetCents`] += sign * toBase(net, doc.exchangeRate, doc.currency);
+        row[`${side}TaxCents`] += sign * toBase(shares[i], doc.exchangeRate, doc.currency);
         rows.set(key, row);
       });
     }

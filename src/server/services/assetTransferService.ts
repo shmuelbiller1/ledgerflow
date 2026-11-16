@@ -119,9 +119,15 @@ export async function undoTransfer(db: Firestore, input: Actor) {
     if (last.transactionId) {
       const lock = postingLock(last.date, workspace as never, input.uid);
       if (lock) throw new TransferError(409, lockMessage(last.date, lock));
+      if (asset.depreciatedThrough && asset.depreciatedThrough > last.date.slice(0, 7)) {
+        throw new TransferError(409, `Depreciation for ${String(asset.name)} was posted after this transfer (through ${String(asset.depreciatedThrough)}); undo that first`);
+      }
     }
     const entryRef = last.transactionId ? db.collection('transactions').doc(last.transactionId) : null;
     const entry = entryRef ? (await t.get(entryRef)).data() : undefined;
+    if (entry && entry.workspaceId !== input.workspaceId) {
+      throw new TransferError(403, 'Transfer transaction does not belong to this workspace');
+    }
     const now = new Date().toISOString();
     if (entryRef && entry && entry.status !== 'void') t.update(entryRef, { status: 'void', voidedReason: 'Move undone', voidedAt: now, updatedAt: now });
     t.update(assetRef, {

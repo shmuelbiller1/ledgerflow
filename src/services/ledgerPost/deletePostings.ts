@@ -15,7 +15,8 @@ export async function deletePostings(
 ) {
   if (!workspaceId || !id) return;
 
-  const allTxs = getTransactions(context).filter(t => t.metadata?.[keyName] === id);
+  const BAD_DEBT_TYPES = new Set(['invoice-bad-debt-writeoff', 'invoice-bad-debt-recovery']);
+  const allTxs = getTransactions(context).filter(t => t.metadata?.[keyName] === id && !BAD_DEBT_TYPES.has(String(t.metadata?.type || '')));
   const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
   
   const existingTxs = allTxs.filter(t => 
