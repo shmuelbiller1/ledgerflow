@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { decodeJwt } from 'jose';
 import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * Two-step login required by a workspace (Y-30). A session that has not passed two-step login asks
@@ -14,9 +15,11 @@ export async function fetchTwoStepRequirement(): Promise<TwoStepRequirement> {
   const token = await getIdToken();
   if (!token) return { setupRequired: false, workspaces: [] };
   if (decodeJwt(token).aal === 'aal2') return { setupRequired: false, workspaces: [] };
-  const res = await fetch('/api/v1/account/two-step', { headers: { Authorization: `Bearer ${token}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return { setupRequired: false, workspaces: [] };
+  // `token` is passed as given: this runs before the session store is settled, and `null` means send none at all
+  const data = await runCommand<{ setupRequired?: unknown; workspaces?: unknown }>({
+    path: '/api/v1/account/two-step', token,
+  }).catch(() => null);
+  if (!data) return { setupRequired: false, workspaces: [] };
   return { setupRequired: data.setupRequired === true, workspaces: Array.isArray(data.workspaces) ? data.workspaces : [] };
 }
 

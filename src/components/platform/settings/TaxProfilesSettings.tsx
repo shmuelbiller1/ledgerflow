@@ -1,3 +1,4 @@
+import { getIdToken } from '../../../firebase';
 import UsAddressHelp from './UsAddressHelp';
 import TaxIdentifierHelp from './TaxIdentifierHelp';
 import VatNumberHelp from './VatNumberHelp';
@@ -5,12 +6,13 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken, db } from '../../../firebase';
+import { db } from '../../../firebase';
 import { doc, getDoc } from '../../../lib/db/firestore';
 import { resolveSellerProfile, taxProfilesProblem, type TaxProfile, type TaxProfiles, type TaxRegistration } from '../../../lib/tax/profile';
 import { validCustomReportPeriod } from '../../../lib/reportCustomPeriod';
 import { ISO_COUNTRIES, isoCountryOptionLabel } from '../../../lib/isoCountryReference';
 import { useUIStore } from '../../../stores/useUIStore';
+import { runCommand } from '../../../lib/runCommand';
 
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const kinds: TaxRegistration['kind'][] = ['vat','sales_tax','employer','income_tax','withholding'];
@@ -69,14 +71,28 @@ function ScopedTaxProfiles() {
       if(taxProfilesProblem(latest))throw new Error('The current tax profiles are not readable. Reload before editing.');
       if(JSON.stringify(own(submitted.target,latest))!==JSON.stringify(submitted.original))throw new Error('This profile changed while you were editing. Your draft is retained; cancel and reopen it to review the newer version.');
       const next:TaxProfiles=submitted.target==='books'?{...latest,books:submitted.draft}:{...latest,labels:{...latest.labels,[submitted.target]:submitted.draft}};
-      const token=await getIdToken();if(!current())return;
-      if(!token)throw new Error('Sign in again before saving this profile.');
+      if(!current())return;
       const active=useAuthStore.getState(), activeWorkspace=active.getCurrentWorkspace();
       const activeRole=activeWorkspace?.uid===uid?'owner':activeWorkspace?.roles?.[uid];
       if(active.isGuest||(activeRole!=='owner'&&activeRole!=='accountant'))throw new Error('Your permissions changed. The draft is retained; reopen this workspace before saving.');
-      const res=await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/tax-profiles`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({profiles:next})});
-      const result=await res.json().catch(()=>({}));if(!current())return;
-      if(!res.ok)throw new Error(result.message||result.error||'The tax profile was not saved.');
+      // The permission check above runs before the request. The token is fetched here, and the role is checked
+      // again once it is in hand: that fetch can take a moment, and a role removed during it must still stop the
+      // write. `token` is passed so `runCommand` uses this one rather than fetching a second, later one.
+      const token = await getIdToken();
+      if (!current()) return;
+      if (!token) throw new Error('Sign in again before saving this profile.');
+      const again = useAuthStore.getState(), againWorkspace = again.getCurrentWorkspace();
+      const againRole = againWorkspace?.uid === uid ? 'owner' : againWorkspace?.roles?.[uid];
+      if (again.isGuest || (againRole !== 'owner' && againRole !== 'accountant')) {
+        throw new Error('Your permissions changed. The draft is retained; reopen this workspace before saving.');
+      }
+      const result = await runCommand<{ status?: string; profiles?: TaxProfiles }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/tax-profiles`,
+        method: 'PUT',
+        body: { profiles: next },
+        token,
+      });
+      if(!current())return;
       if(result.status!=='success'||taxProfilesProblem(result.profiles))throw new Error('The server did not confirm valid tax profiles. Reload to check the saved state.');
       const auth=useAuthStore.getState();auth.setWorkspaces(auth.workspaces.map(row=>row.id===workspace.id?{...row,taxProfiles:result.profiles}:row));
       setEditing(null);setNotice('Tax profile saved.');

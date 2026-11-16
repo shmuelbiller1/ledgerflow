@@ -11,9 +11,9 @@ import {
 import type { ReadinessPayment, ReadinessVendor } from '../../lib/vendor1099Readiness';
 import { downloadCsv } from '../../lib/csvExport';
 import { monthCloseState } from '../../lib/periodLock';
-import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const QUARTER_TEXT = /^\d{4}-Q[1-4]$/;
@@ -66,10 +66,7 @@ export default function UsQuarterJourneyReportView() {
     const load = async () => {
       try {
         if (!workspaceId) { if (!cancelled) setFiledPeriods([]); return; }
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns`, {
-          headers: { Authorization: `Bearer ${await getIdToken()}` },
-        });
-        const data = await res.json().catch(() => ({}));
+        const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns` }) ?? {};
         if (cancelled) return;
         setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string; kind?: 'vat' | 'sales_tax' }>)
           .filter(r => typeof r.startDate === 'string' && typeof r.endDate === 'string')

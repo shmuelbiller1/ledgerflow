@@ -11,11 +11,11 @@ import { verifyAuditHashChain, type HashChainableAuditEntry } from '../../../lib
 import { buildLenderReadyPackage, lenderPackageFileName } from '../../../lib/lenderReadyPackage';
 import { verifiedBackupCollections } from '../../../lib/workspaceArchive';
 import { workspaceScope } from '../../../lib/serverAction';
-import { getIdToken } from '../../../firebase';
 import { localDay } from '../../../lib/accessReview';
 import { buildStoredZip } from '../../../lib/zips';
 import { LoadingState } from '../../ui/LoadingState';
 import type { Bill, ChartAccount, Invoice, Payment, ReconciliationSession, Transaction } from '../../../types';
+import { runCommand, type CommandBody } from '../../../lib/runCommand';
 
 /**
  * Settings → Security → Audit evidence pack (BJ-02 / C-36). For a chosen period it downloads one
@@ -142,14 +142,8 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     setLenderBusy(true);
     try {
-      const token = await getIdToken();
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        throw new Error('The authoritative server ledger could not be fetched. No partial lender package was built.');
-      }
-      const collections = await verifiedBackupCollections(await res.json(), workspace.id);
+      const body = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export` });
+      const collections = await verifiedBackupCollections(body, workspace.id);
       if (!scope.isCurrent()) return;
 
       const serverAccounts = ((collections.chartAccounts || collections.accounts || []) as ChartAccount[]);

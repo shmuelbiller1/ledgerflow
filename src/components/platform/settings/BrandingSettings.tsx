@@ -9,6 +9,7 @@ import { BRANDED_DOCUMENTS, BRANDED_DOCUMENT_LABELS, DEFAULT_BRAND_COLOR, DOCUME
 import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { DOCUMENT_LANGUAGES } from '../../../lib/documentLanguage';
 import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
+import { runCommand } from '../../../lib/runCommand';
 
 /**
  * Settings → Branding (Y-11…Y-14, Y-33, Y-34): logo, colour, address, footer and default terms for
@@ -19,15 +20,28 @@ import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUp
 
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
-async function brandingRequest(workspaceId: string, path: '' | '/preview', method: 'PUT' | 'POST', branding: WorkspaceBranding) {
-  return fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/branding${path}`, {
-    method,
+/** Saves the branding; the answer is the branding as stored, which is what the editor then shows. */
+function saveBranding(workspaceId: string, branding: WorkspaceBranding) {
+  return runCommand<{ branding: WorkspaceBranding }>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/branding`,
+    method: 'PUT',
+    body: { branding },
+  });
+}
+
+/**
+ * The preview is a **PDF**, not JSON, so it stays a plain fetch: `runCommand` reads an answer as JSON, and the
+ * blob is the point of this call. `brandingPdfFailure` is the same "what do I tell the person" question for it.
+ */
+async function previewBranding(workspaceId: string, branding: WorkspaceBranding) {
+  return fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/branding/preview`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
     body: JSON.stringify({ branding }),
   });
 }
 
-async function failure(res: Response, fallback: string): Promise<string> {
+async function brandingPdfFailure(res: Response, fallback: string): Promise<string> {
   const body = await res.json().catch(() => ({}));
   return body.message || fallback;
 }
@@ -69,9 +83,7 @@ function BrandingSettingsContent() {
     if (!workspace?.id) return;
     setBusy('save');
     try {
-      const res = await brandingRequest(workspace.id, '', 'PUT', draft);
-      if (!res.ok) throw new Error(await failure(res, 'The branding could not be saved'));
-      const { branding } = await res.json();
+      const { branding } = await saveBranding(workspace.id, draft);
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, branding } : w)));
       setDraft(branding);
       clearDirtyTracking(panelRef.current);
@@ -89,8 +101,8 @@ function BrandingSettingsContent() {
     const tab = window.open('', '_blank');
     setBusy('preview');
     try {
-      const res = await brandingRequest(workspace.id, '/preview', 'POST', draft);
-      if (!res.ok) throw new Error(await failure(res, 'The preview could not be made'));
+      const res = await previewBranding(workspace.id, draft);
+      if (!res.ok) throw new Error(await brandingPdfFailure(res, 'The preview could not be made'));
       const url = URL.createObjectURL(await res.blob());
       if (tab) tab.location.href = url; else window.location.assign(url);
     } catch (err) {

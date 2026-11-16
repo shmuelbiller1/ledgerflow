@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { addDoc, collection } from '../../lib/db/firestore';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -18,6 +18,7 @@ import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { commandErrorMessage, runCommand as sendCommand, writeWasAccepted } from '../../lib/runCommand';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -144,14 +145,20 @@ export default function InboxView() {
       if (lines) updates.push({ id: tx.id, data: { lines, status: 'completed', isReviewed: true } });
     }
     if (!updates.length) { toast.error('Nothing to accept: the suggested accounts are missing or archived.'); return false; }
-    const token = await getIdToken();
-    const res = await fetch('/api/v1/transactions/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(body.error || body.message || 'Could not save the accepted entries'); return false; }
+    try {
+      await sendCommand({
+        path: '/api/v1/transactions/batch',
+        method: 'POST',
+        body: { workspaceId: currentWorkspaceId, updates },
+      });
+    } catch (error) {
+      // A cut-off answer means the batch was applied; only a refusal leaves the entries unaccepted. Carrying
+      // on below with the patch we sent is the honest reading of a 2xx whose body was cut in half.
+      if (!writeWasAccepted(error)) {
+        toast.error(commandErrorMessage(error));
+        return false;
+      }
+    }
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(
       useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),

@@ -2,10 +2,10 @@ import React, { useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
-import { getIdToken } from '../../firebase';
 import type { ChartAccount, DimensionDefinition } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { isCashAccount } from '../../lib/txFilters';
+import { commandErrorMessage, runCommand, ServerCommandError } from '../../lib/runCommand';
 import {
   PAYROLL_ACCOUNT_ROLES, PAYROLL_COLUMN_SETS, payrollEntries, readPayrollCsv,
   type PayrollAccountRole, type PayrollAccounts, type PayrollProvider,
@@ -70,18 +70,23 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
     setSaving(true);
     setServerProblems([]);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/pay-runs/imports`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ provider, csv, fileName, accounts: chosen, ...(labelDimensionId ? { labelDimensionId } : {}) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (mine !== requestSeq.current) return;
-      if (!res.ok) {
-        setServerProblems([String(data.message || 'The payroll could not be imported'), ...(Array.isArray(data.problems) ? data.problems.map(String) : [])]);
+      // a refusal here lists every row the payroll file could not be read as — that list is what the dialog is
+      // for, so the thrown body is unpacked rather than replaced by one sentence
+      let data: { entries?: Array<{ payDate: string }>; message?: string; problems?: unknown[] };
+      try {
+        data = await runCommand<{ entries?: Array<{ payDate: string }> }>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/pay-runs/imports`,
+          method: 'POST',
+          body: { provider, csv, fileName, accounts: chosen, ...(labelDimensionId ? { labelDimensionId } : {}) },
+        }) ?? {};
+      } catch (error) {
+        if (mine !== requestSeq.current) return;
+        const refusal = error instanceof ServerCommandError ? error.body as { message?: string; problems?: unknown[] } | null : null;
+        setServerProblems([String(refusal?.message || commandErrorMessage(error)), ...(Array.isArray(refusal?.problems) ? refusal.problems.map(String) : [])]);
         return;
       }
-      const posted = (data.entries || []) as Array<{ payDate: string }>;
+      if (mine !== requestSeq.current) return;
+      const posted = data.entries || [];
       toast.success(`Payroll recorded: ${posted.length} ${posted.length === 1 ? 'entry' : 'entries'} (${posted.map(p => p.payDate).join(', ')})`);
       onClose();
     } catch (err) {

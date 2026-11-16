@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 import Markdown from "react-markdown";
 import { maskCardNumbers } from '../../lib/cardNumberMask';
 import { motion, AnimatePresence } from 'motion/react';
+import { runCommand } from '../../lib/runCommand';
 
 const SUGGESTIONS = [
   "What is my true Cash runway based on recent burn?",
@@ -130,29 +131,18 @@ export default function Copilot() {
       };
 
       try {
-        const res = await fetch("/api/ai/process", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { "Authorization": `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ 
-              task: "chat", 
-              payload: { 
-                query: safeQuestion,
-                workspaceId: currentWorkspaceId,
-                selectedModel,
-                ledgerSummary
-              } 
-            })
+        // `token: null` when the person is not signed in: the AI route is reachable signed out, and sending
+        // no session is the honest request there. A refusal throws, and the catch below answers offline.
+        const data = await runCommand<{ answer?: string; detail?: string; message?: string }>({
+          path: "/api/ai/process",
+          method: "POST",
+          token: token ?? null,
+          body: {
+            task: "chat",
+            payload: { query: safeQuestion, workspaceId: currentWorkspaceId, selectedModel, ledgerSummary },
+          },
         });
-        const data = await res.json();
-        
-        if (res.ok) {
-            answer = data.answer;
-        } else {
-            throw new Error(data.detail || data.message || "Execution exception");
-        }
+        answer = data.answer ?? '';
       } catch (err) {
         console.warn("AI Backend unreachable:", err);
         answer = `*Ledger Intelligence Offline Fallback*\n\n**Financial Snapshot:**\n- **Verified Cash:** ${ledgerSummary.totalCash}\n- **Estimated Burn Rate:** ${ledgerSummary.monthlyBurn} / mo\n- **Runway:** ${ledgerSummary.runwayMonths} months\n- **Accounts Receivable:** ${ledgerSummary.totalAccountsReceivable}\n- **Accounts Payable:** ${ledgerSummary.totalAccountsPayable}\n\n*(Notice: Live Gemini backend unreachable: ${(err as Error).message}. Operating in deterministic heuristic mode).*`;

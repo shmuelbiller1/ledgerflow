@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
 import { getLocalDateISO } from '../lib/utils';
 import { addPendingReversals, mergedActivity, overlapRevision, withoutReplacedPostings, type ActivityByMonth, type PendingReversals, type ServerActivity } from '../lib/periodActivity';
+import { runCommand } from '../lib/runCommand';
 
 /**
  * L-123 step 3e: the activity per account per month over `from`…`to` that a period screen sums
@@ -39,9 +39,10 @@ export function useServerActivity(from: string, to: string, excludeDocumentId?: 
     let live = true;
     (async () => {
       const query = new URLSearchParams({ workspaceId, from, to, ...(excludeDocumentId ? { excludeDocumentId } : {}) }).toString();
-      const res = await fetch(`/api/v1/balances/activity?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as { months?: ActivityByMonth; pendingReversal?: PendingReversals };
-      if (!res.ok || !body.months || typeof body.months !== 'object') throw new Error(`activity ${res.status}`);
+      const body = await runCommand<{ months?: ActivityByMonth; pendingReversal?: PendingReversals }>({
+        path: `/api/v1/balances/activity?${query}`,
+      }) ?? {};
+      if (!body.months || typeof body.months !== 'object') throw new Error('activity: no months in the answer');
       return { workspaceId, from, to, months: body.months, ...(body.pendingReversal ? { pendingReversal: body.pendingReversal } : {}) };
     })().then(server => {
       if (live && scope.isCurrent()) setAnswer({ key, server });

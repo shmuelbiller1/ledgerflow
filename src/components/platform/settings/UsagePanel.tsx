@@ -1,10 +1,10 @@
 import { planFor } from '../../../lib/plans';
 import React, { useEffect, useState } from 'react';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { formatCurrency } from '../../../lib/utils';
 
 import { BRAND_NAME } from '../../../config/brand';
+import { runCommand } from '../../../lib/runCommand';
 
 interface Meter {
   used: number;
@@ -38,11 +38,8 @@ export default function UsagePanel() {
     if (!workspaceId) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/usage`, {
-        headers: { Authorization: `Bearer ${await getIdToken()}` },
-      });
-      const body = await res.json().catch(() => ({}));
-      return res.ok && body.usage ? (body.usage as Usage) : null;
+      const body = await runCommand<{ usage?: Usage }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/usage` });
+      return body?.usage ?? null;
     })()
       .then(u => {
         if (live) setUsage(u);

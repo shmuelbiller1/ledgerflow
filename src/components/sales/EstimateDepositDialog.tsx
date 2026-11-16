@@ -5,11 +5,11 @@ import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { getIdToken } from '../../firebase';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { advanceAccount } from '../../lib/advancePayments';
 import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import type { Estimate } from '../../types';
+import { runCommand } from '../../lib/runCommand';
 
 const field = 'w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 const SHARES = [25, 50, 100];
@@ -41,20 +41,19 @@ export default function EstimateDepositDialog({ estimate, onClose }: { estimate:
     if (problem || saving) return;
     setSaving(true);
     try {
-      const token = await getIdToken().catch(() => null);
       const paymentBody = JSON.stringify({
           workspaceId, amountCents: cents, paymentDate: date, cashAccountId, paymentMethod: method,
           customerId: estimate.customerId, entityName: estimate.customerName || '', estimateId: estimate.id,
           memo: `Deposit for estimate ${estimate.number || estimate.id}`, allocations: [],
         });
       const operationId = operationIdFor(paymentOps.current, paymentBody);
-      const res = await fetch('/api/v1/payments', {
+      // the id is a hash of this exact text, so the text is what goes on the wire (see ReceivePaymentModal)
+      await runCommand({
+        path: '/api/v1/payments',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-operation-id': operationId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: paymentBody,
+        headers: { 'x-operation-id': operationId },
+        rawBody: paymentBody,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The deposit could not be recorded');
       toast.success(`Deposit of ${formatCurrency(cents, currency)} recorded`);
       onClose();
     } catch (err) {

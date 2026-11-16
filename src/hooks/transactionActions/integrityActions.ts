@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { isPostable } from '../../lib/txFilters';
 import { collection, getDocs, query, where } from '../../lib/db/firestore';
 import { db } from '../../firebase';
@@ -21,12 +22,13 @@ export function createIntegrityActions(ctx: ActionContext) {
     try {
       const batchRepair = repairedTxs.map(tx => ({ id: tx.id, data: { verification: tx.verification } }));
       if (batchRepair.length > 0) {
-         const res = await fetch('/api/v1/transactions/batch', {
+         // one call, one place that reads the answer: `runCommand` throws with the server's own words
+         // instead of a fixed sentence, so a refusal says why
+         await runCommand({
+            path: '/api/v1/transactions/batch',
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-            body: JSON.stringify({ workspaceId: currentWorkspaceId, updates: batchRepair })
+            body: { workspaceId: currentWorkspaceId, updates: batchRepair }
          });
-         if (!res.ok) throw new Error('Batch repair API rejected updates');
       }
       toast.success('Ledger chain cryptographically certified.', { id: loader });
     } catch (error) {

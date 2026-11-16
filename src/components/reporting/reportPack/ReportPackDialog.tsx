@@ -9,6 +9,7 @@ import { PACK_REPORTS, packReportUrl, packSection } from '../../../lib/reportPac
 import type { PackReport, PackSection } from '../../../lib/reportPack';
 import { printElementById } from '../../../lib/printRoot';
 import { useReportDates } from '../useReportDates';
+import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 
 export default function ReportPackDialog({ startDate, endDate, onClose }: { startDate: string; endDate: string; onClose: () => void }) {
   const user = useAuthStore(s => s.user);
@@ -48,9 +49,15 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
       if (!token) throw new Error('Sign in again to read the reports.');
       const names = Object.fromEntries(accounts.map(a => [a.id, a.name]));
       const sections = await Promise.all(selected.map(async kind => {
-        const response = await fetch(packReportUrl(kind, workspaceId, startDate, endDate), { headers: { Authorization: `Bearer ${token}` }, signal: abort.signal });
-        if (!response.ok) throw new Error(`${PACK_REPORTS[kind]} could not load (${response.status}). Retry to prepare the whole pack.`);
-        const result = await response.json();
+        // the section's own name in the sentence ("Profit and Loss could not load (503)") is what tells the
+        // reader which report to deselect, so the status is read off the refusal rather than replaced
+        let result: Record<string, unknown>;
+        try {
+          result = await runCommand<Record<string, unknown>>({ path: packReportUrl(kind, workspaceId, startDate, endDate), signal: abort.signal });
+        } catch (error) {
+          const status = error instanceof ServerCommandError ? error.status : 'network';
+          throw new Error(`${PACK_REPORTS[kind]} could not load (${status}). Retry to prepare the whole pack.`, { cause: error });
+        }
         try {
           const section = packSection(kind, result.data ?? result, names);
           // C-84: a section the service answered with nothing is not printed as a blank page — the

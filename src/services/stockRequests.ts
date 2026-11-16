@@ -1,5 +1,4 @@
-import { getIdToken } from '../firebase';
-import { runCommand } from '../lib/runCommand';
+import { runCommand, ServerCommandError } from '../lib/runCommand';
 
 export interface StockMove {
   itemId: string;
@@ -102,14 +101,15 @@ export class LandedCostRequestError extends Error {
 
 /** EG-6: previews (dryRun) or posts a landed cost; the same body twice posts once. */
 export async function landedCostRequest(body: Record<string, unknown>): Promise<LandedCostPostResult> {
-  const res = await fetch('/api/v1/inventory/landed-cost', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new LandedCostRequestError(data.error || 'The landed cost was not posted', data.plan);
-  return data as LandedCostPostResult;
+  try {
+    return await runCommand<LandedCostPostResult>({ path: '/api/v1/inventory/landed-cost', method: 'POST', body });
+  } catch (error) {
+    // A 409 here is not just a refusal: it carries the plan that changed, so the person can review it and
+    // post again. That body is the reason this service keeps its own error type.
+    const changed = error instanceof ServerCommandError ? (error.body as { plan?: LandedCostPostResult } | undefined)?.plan : undefined;
+    if (changed) throw new LandedCostRequestError(error instanceof Error ? error.message : String(error), changed);
+    throw error;
+  }
 }
 
 /** EG-6: undoes a landed cost (its entry and its stock moves together). */

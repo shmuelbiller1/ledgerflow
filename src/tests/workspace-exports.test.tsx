@@ -10,10 +10,12 @@ import {prepareImport,applyMapping,guessMapping} from '../lib/recordImport';
 import {generateOFX} from '../lib/ofx-exporter';
 import WorkspaceExportDialog from '../components/platform/settings/WorkspaceExportDialog';
 import {useAuthStore} from '../stores/useAuthStore';
+import {auth as firebaseAuth} from '../firebase';
 import {useLedgerStore} from '../stores/useLedgerStore';
 import {makeChartAccount,makeTransaction,makeCustomer,makeVendor} from './fixtures';
 const auth=useAuthStore.getState(),ledger=useLedgerStore.getState(),fetchOriginal=globalThis.fetch;
-afterEach(()=>{cleanup();useAuthStore.setState(auth,true);useLedgerStore.setState(ledger,true);globalThis.fetch=fetchOriginal;});
+
+afterEach(()=>{cleanup();(firebaseAuth as unknown as {currentUser:unknown}).currentUser=null;useAuthStore.setState(auth,true);useLedgerStore.setState(ledger,true);globalThis.fetch=fetchOriginal;});
 const period={startDate:'2024-02-29',endDate:'2024-03-31'};
 test('posted ledger CSV keeps every line, unknown account, boundary dates and exact shared FX',()=>{
  const tx=makeTransaction({date:'2024-02-29',description:'חשבונית #1, A',exchangeRate:2,lines:[{accountId:'acc-1',amountCents:101},{accountId:'missing',amountCents:-101},{accountId:'acc-1',amountCents:5,exchangeRate:3}]});
@@ -63,6 +65,9 @@ test('a workspace change closes an open export dialog before stale data can down
 });
 test('complete server export refuses duplicate requests and does not fall back on server refusal',async()=>{
  const user={providerId:'password',uid:'u-1',displayName:null,email:null,photoURL:null,emailVerified:true,isAnonymous:false,tenantId:null,providerData:[],metadata:{},getIdToken:async()=> 'test-token',getIdTokenResult:async()=>({token:'test-token',claims:{},expirationTime:'',issuedAtTime:'',signInProvider:null}),reload:async()=>{}};
+ // `runCommand` reads the token from the auth singleton, not the store: without this the screen looked
+ // signed-in and sent no Authorization header at all
+ (firebaseAuth as unknown as {currentUser:unknown}).currentUser=user;
  useAuthStore.setState({isGuest:false,user,currentWorkspaceId:'ws-1'});
  let calls=0,release:(value:Response)=>void=()=>{};
  globalThis.fetch=async(input,options)=>{calls++;assert.equal(String(input),'/api/v1/workspaces/ws-1/export');assert.equal((options?.headers as Record<string,string>).Authorization,'Bearer test-token');return new Promise<Response>(resolve=>{release=resolve;});};

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff, type ServerOpening } from '../lib/serverBalances';
 import type { Transaction } from '../types';
+import { runCommand } from '../lib/runCommand';
 
 /**
  * L-123 step 3: the server's account balances through the oldest loaded day (src/lib/serverBalances.ts), read again
@@ -26,9 +26,10 @@ export function useServerOpening(transactions: Transaction[]): ServerOpening | n
     let live = true;
     (async () => {
       const query = new URLSearchParams({ workspaceId, asOf }).toString();
-      const res = await fetch(`/api/v1/balances?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as { accounts?: Record<string, number> };
-      if (!res.ok || !body.accounts || typeof body.accounts !== 'object') throw new Error(`balances ${res.status}`);
+      const body = await runCommand<{ accounts?: Record<string, number> }>({
+        path: `/api/v1/balances?${query}`,
+      }) ?? {};
+      if (!body.accounts || typeof body.accounts !== 'object') throw new Error('balances: no accounts in the answer');
       return { workspaceId, asOf, accounts: body.accounts };
     })().then(opening => {
       if (live && scope.isCurrent()) setAnswer({ key, opening });

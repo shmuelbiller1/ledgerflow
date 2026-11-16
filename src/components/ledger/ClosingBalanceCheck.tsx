@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, AlertTriangle } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { formatCurrency } from '../../lib/utils';
 import type { SnapshotChange } from '../../lib/closingSnapshot';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * Closing balance check (CA-06): a closed month's balances on its last day, worked out again by
@@ -29,11 +29,10 @@ export default function ClosingBalanceCheck({ workspaceId, month, currency }: { 
     let live = true;
     void (async () => {
       try {
-        const token = await getIdToken().catch(() => null);
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods/${month}/balance-check`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        const data = await res.json().catch(() => ({}));
+        const data = await runCommand<Omit<CheckResult, 'snapshot'> & { snapshot?: CheckResult['snapshot'] }>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods/${month}/balance-check`,
+        }) ?? { changes: [] };
         if (!live) return;
-        if (!res.ok) throw new Error(data.message || 'The balances could not be checked');
         setResult({ snapshot: data.snapshot ?? null, entriesNow: data.entriesNow, changes: Array.isArray(data.changes) ? data.changes : [] });
         setError('');
       } catch (err) {

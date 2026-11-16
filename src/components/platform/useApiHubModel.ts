@@ -81,20 +81,11 @@ export function useApiHubModel() {
   const loadBillingStatus = useCallback(async function loadBillingStatus() {
     if (!workspaceId || !userUid) return;
     try {
-      const token = await getIdToken();
-      const res = await fetch(`/api/v1/billing/status?workspaceId=${workspaceId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const data = await runCommand<{ seatCount?: number }>({
+        path: `/api/v1/billing/status?workspaceId=${workspaceId}`,
       });
       if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-      if (res.ok) {
-        const data = await res.json();
-        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-        if (data.seatCount) {
-          setSimSeatsCount(data.seatCount);
-        }
-      }
+      if (data?.seatCount) setSimSeatsCount(data.seatCount);
     } catch (e) {
       console.error("Failed to load billing status", e);
     }
@@ -103,19 +94,11 @@ export function useApiHubModel() {
   const handleCheckout = async (plan: string) => {
     if (!currentWorkspace?.id || !user) return;
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/billing/checkout', {
+      const data = await runCommand<{ url?: string; message?: string }>({
+        path: '/api/v1/billing/checkout',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          workspaceId: currentWorkspace.id,
-          plan: plan
-        })
-      });
-      const data = await res.json();
+        body: { workspaceId: currentWorkspace.id, plan },
+      }) ?? {};
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -158,17 +141,14 @@ export function useApiHubModel() {
     if (!workspaceId) return;
     try {
       const token = userUid ? await getIdToken() : '';
-      const authHeader = `Bearer ${(apiKey || token)}`;
-      const res = await fetch(`/api/v1/logs?workspaceId=${workspaceId}`, {
-        headers: {
-          'Authorization': authHeader
-        }
+      const data = await runCommand<typeof apiLogs>({
+        path: `/api/v1/logs?workspaceId=${workspaceId}`,
+        // an API key answers for the integration itself, so the session token is not a substitute
+        headers: { Authorization: `Bearer ${apiKey || token}` },
+        token: apiKey ? null : undefined,
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
-        setApiLogs(data);
-      }
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
+      setApiLogs(data);
     } catch (e) {
       console.error("Failed to fetch logs", e);
     }
@@ -217,30 +197,20 @@ export function useApiHubModel() {
     if (!currentWorkspace?.id || !user) return;
     setIsRegenerating(true);
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/keys/provision', {
+      // a refusal throws with the server's own message, which is the sentence this toast was built from
+      const data = await runCommand<{ apiKey?: string }>({
+        path: '/api/v1/keys/provision',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+        body: {
           workspaceId: currentWorkspace.id,
           name: newKeyName || 'Production Integration Key',
           scopes: selectedScopes,
-          expiration: expiration,
-          rateLimitPerMinute: perMinute
-        })
+          expiration,
+          rateLimitPerMinute: perMinute,
+        },
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Key generation endpoint rejected request.');
-      }
-
-      const data = await res.json();
       keyGeneration.current += 1;
-      setApiKey(data.apiKey);
+      setApiKey(data.apiKey ?? '');
       setIsCopied(false);
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
@@ -258,18 +228,10 @@ export function useApiHubModel() {
   const revokeKey = async (keyId: string) => {
     if (!currentWorkspace?.id || !user) return;
     try {
-      const token = await getIdToken();
-      const res = await fetch(`/api/v1/keys/revoke/${keyId}`, {
+      await runCommand({
+        path: `/api/v1/keys/revoke/${keyId}`,
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Key revoking endpoint rejected request.');
-      }
 
       toast.success('Key Revoked.');
       void loadWorkspaceKeys();

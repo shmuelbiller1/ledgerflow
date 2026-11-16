@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useDialog } from '../../hooks/useDialog';
+import { runCommand, writeWasAccepted } from '../../lib/runCommand';
 
 export interface BankLineActionTarget {
   mode: 'pay' | 'split';
@@ -67,20 +67,24 @@ export default function BankLineActionDialog({ target, onClose }: { target: Bank
     if (mode === 'split' && total !== lineCents) return toast.error(`The lines must add up to ${formatCurrency(lineCents)}`);
     setBusy(true);
     try {
-      const token = await getIdToken().catch(() => null);
       const body = mode === 'pay'
         ? { workspaceId, bankAccountId, allocations: chosen }
         : { workspaceId, bankAccountId, splits: splits.map(x => ({ accountId: x.accountId, amountCents: cents(x.amount), description: x.description || undefined })) };
-      const res = await fetch(`/api/v1/transactions/bank-lines/${encodeURIComponent(line.id)}/${mode}`, {
+      await runCommand({
+        path: `/api/v1/transactions/bank-lines/${encodeURIComponent(line.id)}/${mode}`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(body),
+        body,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'The bank line could not be cleared');
       toast.success(mode === 'pay' ? 'Payment recorded and bank line matched' : 'Bank line split and matched');
       onClose();
     } catch (err) {
+      // the server recorded the payment and only the answer was cut off — closing is correct here, and an
+      // open dialog with an error would invite paying the same line twice
+      if (writeWasAccepted(err)) {
+        toast.success(mode === 'pay' ? 'Payment recorded and bank line matched' : 'Bank line split and matched');
+        onClose();
+        return;
+      }
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);

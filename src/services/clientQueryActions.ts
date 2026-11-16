@@ -1,27 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { db, getIdToken } from '../firebase';
+import { db } from '../firebase';
 import { collection, getDocs, limit, onSnapshot, query, where } from '../lib/db/firestore';
 import { sortQueries, type ClientQuery } from '../lib/clientQueries';
+import { runCommand } from '../lib/runCommand';
 
 /** Questions about entries (BD-07): written through the server, which checks who may ask, answer or close. */
-async function call(workspaceId: string, path: string, body: unknown) {
-  const token = await getIdToken().catch(() => null);
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/queries${path}`, {
+async function call<T>(workspaceId: string, path: string, body: unknown): Promise<T> {
+  const data = await runCommand<{ data?: T }>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/queries${path}`,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The question could not be sent');
-  return data.data;
+    body,
+  }) ?? {};
+  return data.data as T;
 }
 
 export async function askAboutEntry(workspaceId: string, transactionId: string, question: string): Promise<ClientQuery> {
-  return (await call(workspaceId, '', { transactionId, question })).query as ClientQuery;
+  return (await call<{ query: ClientQuery }>(workspaceId, '', { transactionId, question })).query;
 }
 
 export async function replyToQuery(workspaceId: string, queryId: string, text: string): Promise<ClientQuery> {
-  return (await call(workspaceId, `/${encodeURIComponent(queryId)}/reply`, { text })).query as ClientQuery;
+  return (await call<{ query: ClientQuery }>(workspaceId, `/${encodeURIComponent(queryId)}/reply`, { text })).query;
 }
 
 export async function closeQuery(workspaceId: string, queryId: string): Promise<void> {

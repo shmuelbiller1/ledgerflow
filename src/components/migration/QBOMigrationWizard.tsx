@@ -13,6 +13,7 @@ import { parseCsvChecked } from '../../lib/csv';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { QBOMigrationWizardView } from './QBOMigrationWizardView';
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand } from '../../lib/runCommand';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -503,23 +504,16 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
         for (let i = 0; i < txList.length; i += BATCH_SIZE) {
           const chunk = txList.slice(i, i + BATCH_SIZE);
-          const res = await fetch('/api/v1/transactions/bulk', {
+          await runCommand({
+            path: '/api/v1/transactions/bulk',
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'Idempotency-Key': `${migrationRunKey}_chunk_${i}`,
-            },
-            body: JSON.stringify({
+            // per chunk: a retried chunk is recorded once, not twice
+            headers: { 'Idempotency-Key': `${migrationRunKey}_chunk_${i}` },
+            body: {
               transactions: chunk,
               workspaceId: currentWorkspaceId
-            })
+            }
           });
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            const reason = errBody?.error || errBody?.message || `Server refused batch (HTTP ${res.status})`;
-            throw new Error(reason);
-          }
         }
 
         toast.success(`Successfully migrated ${parsedRows.length} transactions into ${BRAND_NAME}!`);

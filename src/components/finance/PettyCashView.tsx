@@ -18,7 +18,6 @@ import { AlertTriangle, ArrowDownToLine, ClipboardCheck, ReceiptText, Wallet } f
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { cn, formatCurrency, getLocalDateISO, isAmountText, parseAmountToCents } from '../../lib/utils';
 import { EmptyState } from '../ui/EmptyState';
 import {
@@ -39,6 +38,7 @@ import type { ChartAccount, Transaction } from '../../types';
 import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand, writeWasAccepted } from '../../lib/runCommand';
 const inputClass = 'w-full p-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 const labelClass = 'block text-xs font-semibold text-[var(--muted)] mb-1';
 const buttonClass = 'px-4 py-2 rounded-lg bg-[var(--text)] text-[var(--surface)] text-sm font-bold disabled:opacity-50';
@@ -76,23 +76,26 @@ function writePreference(workspaceId: string, preference: BoxPreference) {
  */
 async function postEntry(transaction: Partial<Transaction>): Promise<string> {
   const id = `tx_petty_${crypto.randomUUID()}`;
-  const token = await getIdToken();
-  const res = await fetch('/api/v1/transactions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'x-operation-id': id },
-    body: JSON.stringify({
-      transaction: {
-        ...transaction,
-        id,
-        isCleared: false,
-        schemaVersion: '1.1',
-        createdAt: new Date().toISOString(),
+  try {
+    await runCommand({
+      path: '/api/v1/transactions',
+      method: 'POST',
+      // the entry's own id is the idempotency key: a retry posts one entry, not two
+      headers: { 'x-operation-id': id },
+      body: {
+        transaction: {
+          ...transaction,
+          id,
+          isCleared: false,
+          schemaVersion: '1.1',
+          createdAt: new Date().toISOString(),
+        },
       },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string; message?: string };
-    throw new Error(body.message || body.error || `The entry was refused (HTTP ${res.status}).`);
+    });
+  } catch (error) {
+    // A cut-off answer is not a failed spend. The entry is committed; showing the error would leave the
+    // amount in the form and invite a second click, which posts a second spend under a fresh id.
+    if (!writeWasAccepted(error)) throw error;
   }
   return id;
 }

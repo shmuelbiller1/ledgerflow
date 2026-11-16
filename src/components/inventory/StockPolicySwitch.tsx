@@ -9,10 +9,10 @@
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { goodsLeaveWith, type GoodsLeaveWith } from '../../lib/deliveries';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 export default function StockPolicySwitch() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -34,13 +34,7 @@ export default function StockPolicySwitch() {
   const save = async (body: { refuseNegativeStock: boolean } | { goodsLeaveWith: GoodsLeaveWith }, done: string) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/v1/inventory/stock-policy', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ workspaceId: workspace.id, ...body }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'The setting was not saved');
+      await runCommand<CommandBody>({ path: '/api/v1/inventory/stock-policy', method: 'PUT', body: { workspaceId: workspace.id, ...body } });
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, ...body } : w)));
       toast.success(done);
     } catch (err) {

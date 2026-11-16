@@ -1,119 +1,143 @@
-# Screen rebuild — the running checklist
+# Screen rebuild — PR #730 checklist
 
-The task: **every action and report the server offers can be reached, and a new person still sees only
-a few things.** Do not add features. Connect and simplify what exists.
+The task is unchanged: **every action and report the server offers can be reached, and a new person
+still sees only a few things.** Connect and simplify what exists. Do not add features.
 
-State is measured from `quality-baseline.json` and the guard tests, not from prose. A box is only
-ticked when the ratchet number moved or the named test exists and passes.
+#724 closed parts 3, 4 and 5 and landed the acceptance journey. This PR takes what is left, and for each
+item names the **fastest honest route** — a codemod where the shape repeats, a hand edit where it does
+not. Anything that cannot be done mechanically is marked ✋ and says why.
 
-## Where we are (measured 2026-11-15, after #722 and #724)
+State is measured, never described: `quality-baseline.json` and the guard tests are the truth. A box is
+ticked only when the number moved or the named test passes.
 
-| counter | now | target | meaning |
+## Where we are
+
+| counter | now | target | what it counts |
 |---|---|---|---|
-| `rawTables` | **184** | 0 | screen files drawing their own `<table>` instead of the shared list |
-| `handTypedApiCalls` | **84** | 0 | `fetch('/api/…')` typed by hand in `src/components` |
-| `directDbWrites` | **93** | 0 | direct database writes in `src/components`, `src/hooks`, `src/stores` |
-| `unreachableActions` | **0** | 0 ✅ | commands/reports no palette search can find |
-| `screensWithManyPrimaryButtons` | **0** | 0 ✅ | screens with more than one filled button |
+| `rawTables` | **184** | 0 | screens drawing their own `<table>` instead of the shared grid |
+| `handTypedApiCalls` | **5** (was 84) | 5, each named | `fetch('/api/…')` typed by hand |
+| `directDbWrites` | **93** | 0 | the browser writing the books instead of asking the server |
+| `screensWithManyPrimaryButtons` | **0** | 0 | ✅ done |
+| `unreachableActions` | **0** | 0 | ✅ done |
+
+## How this PR goes fast
+
+| lever | what it does | expected |
+|---|---|---|
+| `scripts/codemod-run-command.ts` | `--report` inventories every hand-typed call and names the blocker — including **its own header**: any key other than `Content-Type`/`Authorization` (an idempotency key above all) is a decision for a person, pinned by `codemod-run-command-classification.test.ts`. `--write` applies only blocker-free calls and **reverts a file it cannot finish** | done the boring half, not guessed it |
+| `scripts/codemod-table-to-grid.ts` | sorts every raw table into mechanical / by hand / stays with the reason | **139 / 31 / 73** |
+| `npm run ratchet:update` | moves the baseline after each batch | seconds |
+| one commit per **group**, not per file | the commit message carries the batch | ~6 commits, not 60 |
 
 ## 1. One list — the shared grid is the only list
 
-- [x] The grid has sort, search, column chooser, export, saved views, row keyboard movement, tick
-      boxes with a total of the selected rows, cards at 390px, and the one-sentence empty state that
-      hides the tools.
-- [x] Report screens can move onto it: `rowHeaderColumn` (`<th scope="row">`) and `totals`
-      (`<tfoot>`, one cell per drawn column so the chooser hides it in step).
-- [x] `npm run scaffold:report` emits the shared list, not a hand-drawn table.
-- [x] `Sales.tsx` (customers), `Purchases.tsx` (vendors), `Inventory.tsx` (items) on it.
-- [x] `BankClearanceReportView` on it — the first report, proving the path (195→192 across four).
-- [x] **Transactions**: decided it stays. It draws no `<table>` at all — it is a CSS grid with twelve
-      editable cells per row, a split editor and paste handling. Moving it would delete in-place
-      editing, so it is out of this ratchet and the reason is in `docs/FOR_YOU.md`.
-- [ ] **Bank review** on it (`ReconciliationView`, `BankFeedImport`, `InboxView`).
-- [x] `TagBreakdownReportView`, `IncomeBySourceReportView`, `AverageMonthlyReportView` (192).
-- [x] `TopExpensesIncomeReportView`, `ExpenseByCategoryReportView` (190).
-- [ ] Report tail, the rest of the 195, each PR lowering `rawTables`.
-- [ ] The 39 files with more than one table, and the 12 with columns built by `.map()`.
-- [ ] Non-report screens: finance (10), platform (15), hr (4), dashboard (2).
+- [x] **Split the 184 into buckets before touching any** — `scripts/codemod-table-to-grid.ts` (committed
+      here, `npx tsx scripts/codemod-table-to-grid.ts --files`). Measured: **243 tables in 185 files →
+      139 mechanical, 31 by hand, 73 stays.** That is the number the rest of part 1 is planned from, and
+      it is the reason this PR does not finish part 1: converting 139 screens in one PR is how the PR
+      becomes unreviewable.
+- [ ] Convert the **short convertible files** first (`≤120` lines, 1 table).
+- [ ] Convert the **2–3 table** files.
+- [ ] The **4-table** files (`TaxLiabilityView`, `SerialLotLookupReportView`,
+      `IsraelMonthJourneyReportView`, `GoodsNotBilledReportView`, `PurchaseOrdersView`).
+- [ ] **Bank review** on the grid (`ReconciliationView`, `BankFeedImport`, `InboxView`).
+- [ ] Non-report screens: finance, platform, hr, dashboard.
+- [ ] Named reasons for whatever stays, in `raw-table-decisions.test.ts` — the ratchet fails on a stale
+      or false reason, so "not worth it" has to be written down honestly.
 
 ## 2. One record page
 
-- [ ] A shared single-record layout: fields editable in place, path at the top
-      (Draft → Sent → Paid with the next-step button), related records, files, history.
-- [ ] Invoices on it first.
+The foundation exists and invoices are already on it — this part is **connecting**, not building.
 
-## 3. One way to act — `useCommand(name)`
+- [ ] `InvoiceRecordPage` takes its next step from the **manifest** (`useCommand('invoice.update').next`)
+      instead of a hard-coded `if (isDraft) … else …`. A next step a screen invents can drift from what
+      the server will accept; one it reads cannot.
+- [ ] A green/handled path that a `viewer` cannot see (the role gate from `paletteRoleFilter`).
+- [ ] `CustomerRecordPage`, `BillRecordPage` on the same `RecordPage` shell — same three sections, so the
+      second and third are mostly column definitions.
 
-- [x] The generated client exists (`sdk/ledgerflowClient.ts`).
-- [x] `runCommand` is the one send: one place reads the answer, so a 200 with no body is not a cut
-      connection, and a 2xx whose answer could not be read is marked `accepted` so a committed write is
-      never reported as failed and submitted twice.
-- [x] `useCommand(name)` over the generated manifest (`src/hooks/useCommand.ts`): the address is never
-      typed, the refusal sentence and the next step come from the command's own `description.refusals`,
-      a second press while one is in flight sends nothing, and a request that never reached the server
-      says so. 5 tests in `src/tests/use-command.test.tsx`.
-- [x] First screen on it: `PartyLinkPanel` shows the manifest's own next step ("unlink the other
-      customer first") when the vendor is already linked.
-- [ ] Undo on the result, and the offered next action in the toast ("Invoice saved. Send it · Record a
-      payment · New invoice"). `deleteWithUndo` exists for records holding no postings; wiring it into
-      `useCommand`'s result is the remaining piece.
-- [ ] Replace hand-typed `fetch('/api/…')` (84) and direct database writes (93), screen by screen.
+## 3. One way to act
 
-## 4. Forms from the schema
+- [x] **`transactionActions` — nine hand-typed calls, one shape.** Done; `integrityActions`, `ruleActions`,
+      `entryActions` (6) and `importActions` send through `runCommand`. The 409 version conflict and the
+      budget warnings survive because `ServerCommandError` carries `.status` and `.body`.
+- [x] `services/` — `clearanceActions`, `receiptActions`, `depositActions`, `journalTemplateActions`,
+      `clientQueryActions`, `documentNumbers`, `spreadActions`, `attachmentActions`, `workspacePriceLists`,
+      `stockRequests`, `postingKit` (2). The download/blob ones stay, by name (below).
+- [x] The `/api/v1/transactions` cluster across `components/` — entry, petty cash, bank-line, inbox, import,
+      intercompany, QBO migration, forensic scan, vault injection.
+- [x] The report views (six, by codemod), the settings screens (eleven), the customer-facing pages (three),
+      the export snapshots (five), the plumber hooks (`useServer*`, `useLedgerData`, `useHandOvers`).
+- [ ] **Undo on the result**: `deleteWithUndo` wired into `useCommand`'s result where the command's inverse
+      exists. (Not started — it needs the command schemas, part 3's second half.)
+- [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
 
-- [x] `SchemaForm.tsx` renders a zod object: labels, errors under the field.
-- [ ] Drive it from the **command input schema**, required fields first, the rest under
-      "More options", labels from the dictionary.
-- [ ] Hand-built forms stay for invoices, bills and journal entries, on the same field components.
+### What the sweep learned, in the order it learned it
 
-## 5. One box that can do anything — the palette
+These are the findings that decide how the rest of the list gets done. Each cost a failing test or a wrong
+first attempt, so they are cheaper to read than to rediscover.
 
-- [x] Lists every command and every registered report; searches plain words in English and Hebrew.
-- [x] Reachability test that types each name in both languages and can fail (proved by breaking it).
-- [ ] Filter the list by **role**, so it offers what the person may actually run.
-- [ ] A switched-off module appears as "Payroll — turn on", not as nothing.
+1. **`rawBody` exists for a reason.** `DrillDownModal` passed a JSON *string* as `body`; `runCommand` encoded it
+   again and the endpoint received a quoted string. A caller that already holds the request text passes
+   `rawBody`. The same applies to the payment modals: their idempotency key is a hash **of the serialized body**,
+   so re-serializing an object can change the key and record a second payment.
+2. **A refusal body is sometimes the feature.** The landed-cost 409 carries the *new plan* so the panel can show
+   it; the credit-limit 409 carries `canOverride` so the screen can offer "post anyway"; a dead public invoice
+   link carries a sentence written for the customer. `ServerCommandError.body` keeps all three, and each caller
+   says which one it needs.
+3. **"Not an exception" is not "success".** `handleToggleFlag` toasted the error and returned normally; the
+   per-function ratchet in `bug-patterns.test.ts` flagged it as a *new* risk location. It returns `false` now.
+4. **Ordering around the token is load-bearing.** `TaxProfilesSettings` re-checks the role *after* the token
+   arrives; `PlaidConnectButton` aborts *after* it arrives. Both had tests. A conversion that lets `runCommand`
+   fetch the token silently moves the check earlier.
+5. **`token: null` is a security boundary, not a default.** The public invoice and portal pages must not send
+   the signed-in person's credentials to a public route. `runCommand` attaches a token unless told not to.
+6. **Two AbortSignal cases were not problems.** `runCommand` takes a `signal`; the codemod was over-reporting 6
+   calls as "needs a person". Correcting the tool changed the plan from 14 hand edits to 8.
+7. **The test fixture was signing in the wrong place.** `setComponentWorkspace` set the store user but not the
+   auth singleton that `runCommand` reads, so ~271 tests exercised screens that sent no `Authorization` header.
 
-## 6. Short by default
+### What stays hand-typed, by name — and why
 
-- [x] Menu is Overview, To review, Sales, Purchases, Bank, Reports, Settings.
-- [x] Each area opens on its most used list, one filled button.
-- [x] Business type chooses the modules that start switched on.
-- [ ] `screensWithManyPrimaryButtons` 19 → 0.
+Five calls. Each one is a case where `runCommand`'s contract does not fit the answer or the question the screen
+is asking, so converting it would lose something:
 
-## 7. Assistant proposals
+| where | what the call does | why it cannot move |
+|---|---|---|
+| `documentDownloads.ts` (×2) | payslip, invoice and delivery-note **PDFs**, and the ZIP batch | the answer is bytes. `runCommand` reads JSON; a blob passed through it would have to be base64'd and decoded again to no benefit |
+| `PayRunHistory.tsx` | one payslip PDF | same |
+| `BrandingSettings.tsx` | `POST /branding/preview` | answers with a rendered image, not JSON |
+| `OrderDeliveryDialog.tsx` | the delivery note | opens a blob URL in a new tab |
+| `useApiHubModel.ts` sandbox | any endpoint, and it **reports the status code as a result** | "HTTP Status 503" is the point of a sandbox. `runCommand` turns a status into an exception, which is exactly the information this screen exists to show |
 
-- [ ] "Waiting for you" list, one row per proposal with Accept / Edit / Reject, "Accept all" per group.
-- [ ] A switch showing the books with it applied, using the server's overlay.
-- [ ] High-risk rows accepted one at a time after a two-step confirmation; Undo after accepting.
-- [ ] The screen says nothing in the list has changed the books yet.
+### A rule this sweep produced, now enforced by a test
 
-## Done when
+**A committed write whose answer was cut off is not a failure.** Two bots found this in five places, all of them
+mine: the hand-typed calls read a success body with `res.json().catch(() => ({}))`, so a 2xx whose body was cut
+mid-flight counted as saved. `runCommand` throws `ServerCommandError(accepted: true)` there, and every caller I
+had converted treated any throw as failure — telling the person "Failed to add transaction" over an entry that was
+already recorded, and inviting the second click that records it twice.
 
-- [x] **`rawTables` names each remaining site that stays** — `raw-table-decisions.test.ts` holds the
-      list and fails on a stale or false reason. The rest of the count is the migration queue.
-- [x] `screensWithManyPrimaryButtons` and `unreachableActions` at **0**. `handTypedApiCalls` (84) and
-      `directDbWrites` (93) are each down to the sites named in `docs/UI_REBUILD_RATCHETS.md`.
-- [x] A first-time user, at 390px wide and by keyboard, can create a customer, send an invoice, record
-      its payment and open the profit and loss — `e2e/first-hour-journey.spec.ts` proves each step with
-      no `click()` and the real server behind it. Writing it exposed that the palette had no phone
-      trigger at all (`hidden md:flex` search bar, ⌘K only); the header has one now, and a second test
-      guards it.
-- [x] Every command and report can be found by typing a plain word into the palette.
+It is now the library's job, not each caller's: `writeWasAccepted(error)` and `runWrite(request)` in
+`runCommand.ts`, pinned by three tests in `run-command.test.ts`. **Every future conversion of a write should use
+one of those two, not `runCommand` directly.**
 
-## Order of work
+### Two build-time boundaries that fail *outside* the test suite
 
-1. [x] The list component and the first three screens.
-2. [ ] The record page, on invoices.
-3. [ ] `useCommand` and the Sales screens.
-4. [x] The palette and the reachability test.
-5. [ ] Remaining screens by use, lowering a ratchet in every PR.
-6. [ ] The proposals list.
+Both of these cost a red pipeline while every unit test was green, so they are written down:
 
-## Rules for every PR in this list
+- **`.vercelignore` decides what exists at build time.** `npm run build` runs before Vite; anything a script in it
+  needs must be re-included there, and listed in `vercel-ignore-boundary.test.ts`. A generator added to `build`
+  without that line fails the deployment with `Cannot find module` while building perfectly on a laptop — build
+  from a copy of the tree containing only the non-ignored files to reproduce it.
+- **A JSON module cannot be imported by source.** A JSON import needs an attribute plain Node and Playwright
+  loaders do not supply, and e2e specs import source files directly, so one JSON import anywhere takes out the
+  whole browser suite in *setup*. `supabase-config.json` is generated into `src/config/supabaseProject.ts` for
+  this reason; `supabase-config-generated.test.ts` fails if a source file goes back to importing the JSON.
 
-- A branch and a pull request per step, CI green. Never skip or loosen a test to get green.
-- No change to how money is calculated or posted. Screens call commands; they do not build postings.
-- Every touched screen: light and dark, 1280 and 390, keyboard only, English and Hebrew from the
-  dictionary, existing axe checks passing. Visual baselines refreshed and looked at.
-- Words follow `docs/EASE_OF_USE.md` Part 4 (U-5). Owner decisions go in `docs/FOR_YOU.md` with the
-  default used.
+### The measurement itself was wrong once
+
+`scripts/codemod-run-command.ts` walked `components`, `hooks`, `services`, `stores` — so `src/lib`, `src/modules`
+and `src/core` were invisible to every report it printed while `quality-metrics.ts` counted them. Seven calls sat
+in that blind spot. If a number and the tool that is supposed to explain it disagree, the tool is the first thing
+to check.

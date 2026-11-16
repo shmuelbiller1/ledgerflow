@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import supabaseConfig from '../../../supabase-config.json';
+import { SUPABASE_PROJECT } from '../../config/supabaseProject';
+const supabaseConfig = SUPABASE_PROJECT;
 
 // The project URL and publishable key are public (like the old Firebase web config).
 // A build can point at another project with VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY.

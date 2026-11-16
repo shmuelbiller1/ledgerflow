@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { getIdToken } from '../firebase';
+import { commandErrorMessage, runCommand, writeWasAccepted } from '../lib/runCommand';
 import { depositApplication } from '../lib/advancePayments';
 import { formatCurrency } from '../lib/utils';
 
@@ -14,18 +14,22 @@ export async function applyEstimateDeposits(
   waiting: Array<{ id: string; unappliedCents?: number }>,
   dueCents: number,
 ): Promise<number> {
-  const token = await getIdToken().catch(() => null);
   let applied = 0;
   for (const part of depositApplication(waiting, dueCents)) {
-    const res = await fetch(`/api/v1/payments/${encodeURIComponent(part.paymentId)}/apply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ workspaceId, allocations: [{ documentId: invoice.id, documentType: 'invoice', amountCents: part.amountCents }] }),
-    }).catch(() => null);
-    const data = await res?.json().catch(() => ({}));
-    if (!res?.ok) {
-      toast.error(data?.message || 'The deposit could not be applied');
-      break;
+    try {
+      await runCommand({
+        path: `/api/v1/payments/${encodeURIComponent(part.paymentId)}/apply`,
+        method: 'POST',
+        body: { workspaceId, allocations: [{ documentId: invoice.id, documentType: 'invoice', amountCents: part.amountCents }] },
+      });
+    } catch (error) {
+      // committed, answer cut off: the deposit *was* applied, so it counts — stopping here would leave the
+      // invoice short and the screen claiming nothing was applied
+      if (!writeWasAccepted(error)) {
+        // the server's own words, so a refusal says which rule it broke
+        toast.error(commandErrorMessage(error));
+        break;
+      }
     }
     applied += part.amountCents;
   }

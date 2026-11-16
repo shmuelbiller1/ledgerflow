@@ -17,6 +17,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import WithholdingField, { type Withholding } from '../purchases/WithholdingField';
+import { runCommand } from '../../lib/runCommand';
 
 const cn = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(' ');
 
@@ -211,7 +212,6 @@ export default function ReceivePaymentModal({
         }
       });
 
-      const token = await user?.getIdToken();
       const contactType = direction === 'received' ? 'customer' : 'vendor';
       const memo = '';
 
@@ -236,20 +236,14 @@ export default function ReceivePaymentModal({
           }))
         });
       const operationId = operationIdFor(paymentOps.current, paymentBody);
-      const res = await fetch('/api/v1/payments', {
+      // `paymentBody` is the serialized text the operation id was derived from, so it is sent as-is: sending
+      // a re-serialized object could differ by key order and turn a retry into a second payment
+      await runCommand({
+        path: '/api/v1/payments',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-operation-id': operationId,
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: paymentBody
+        headers: { 'x-operation-id': operationId },
+        rawBody: paymentBody,
       });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({ message: 'Payment processing failed' }));
-        throw new Error(errJson.message || 'Payment processing failed');
-      }
 
       // PREV-5: another workspace was opened while the payment was on its way: say where it went
       if (workspaceChangedSince(currentWorkspaceId)) toast.info(savedInOtherWorkspace(`The payment of ${formatCurrency(paymentAmountCents, payCurrency)}`, currentWorkspaceId));

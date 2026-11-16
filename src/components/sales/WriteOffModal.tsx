@@ -1,7 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { Invoice } from '../../types';
@@ -10,6 +9,7 @@ import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { toast } from 'sonner';
 import { describeError } from '../../lib/errorRemedies';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 interface WriteOffModalProps {
   isOpen: boolean;
@@ -45,13 +45,7 @@ export default function WriteOffModal({ isOpen, onClose, invoice }: WriteOffModa
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(invoice.id)}/write-off`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ reason, ...(badDebtAccountId ? { badDebtAccountId } : {}) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Failed to write off bad debt');
+      await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(invoice.id)}/write-off`, method: 'POST', body: { reason, ...(badDebtAccountId ? { badDebtAccountId } : {}) } });
       toast.success(`Written off ${formatCurrency(remainingCents, invoice.currency)} as bad debt`);
       onClose();
     } catch (err) {

@@ -1,21 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Link2 } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatCurrency } from '../../lib/utils';
 import { MAX_LINK_NOTE, otherEnd, type EntryLink } from '../../lib/entryLinks';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
-async function call(workspaceId: string, path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/entry-links${path}`, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'That did not work');
-  return data;
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+async function call<T = CommandBody>(workspaceId: string, path: string, method: Method = 'GET', body?: unknown): Promise<T> {
+  return runCommand<T>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/entry-links${path}`,
+    method,
+    ...(body === undefined ? {} : { body }),
+  }) ?? {} as T;
 }
 
 /**
@@ -38,7 +39,7 @@ export default function EntryLinks({ transactionId }: { transactionId: string })
   useEffect(() => {
     if (!workspaceId || !uid) return;
     let live = true;
-    call(workspaceId, `?transactionId=${encodeURIComponent(transactionId)}`).then(data => { if (live) setLinks(data.links || []); }).catch((err) => { console.warn('[EntryLinks] Could not load entry links:', err); });
+    call<{ links?: EntryLink[] }>(workspaceId, `?transactionId=${encodeURIComponent(transactionId)}`).then(data => { if (live) setLinks(data.links || []); }).catch((err) => { console.warn('[EntryLinks] Could not load entry links:', err); });
     return () => { live = false; };
   }, [workspaceId, uid, transactionId]);
 
@@ -52,7 +53,7 @@ export default function EntryLinks({ transactionId }: { transactionId: string })
 
   const link = async () => {
     try {
-      const data = await call(workspaceId, '', 'POST', { a: transactionId, b: other, ...(note.trim() ? { note } : {}) });
+      const data = await call<{ link: EntryLink }>(workspaceId, '', 'POST', { a: transactionId, b: other, ...(note.trim() ? { note } : {}) });
       setLinks(list => [...list.filter(l => l.id !== data.link.id), data.link]);
       setOther(''); setNote(''); setAdding(false);
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }

@@ -13,7 +13,6 @@ import { useDialog } from '../../hooks/useDialog';
 import { useUIStore } from '../../stores/useUIStore';
 import { NO_LOCATION, orderedMoves, STOCK_MOVE_LABEL, stockByLocation, stockHistoryProblem, transferProblem, type StockMove } from '../../lib/stockMoves';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
-import { getIdToken } from '../../firebase';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { isCollectionCapped } from '../../lib/ledgerCollections';
 import type { LedgerKey } from '../../lib/ledgerCollections';
@@ -24,6 +23,7 @@ import type { InventoryItem, PurchaseOrder } from '../../types';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { stockTrail, stockTrailSummary, type StockTrailDocs, type TrailStep } from '../../lib/stockTrail';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 export default function StockHistoryDialog({ item, workspaceId, currency, onClose }: { item: InventoryItem; workspaceId: string; currency: string; onClose: () => void }) {
   const { dialogProps, titleId } = useDialog(onClose, true);
@@ -78,13 +78,7 @@ export default function StockHistoryDialog({ item, workspaceId, currency, onClos
     if (moveProblem || !move.quantity) return;
     setMoving(true);
     try {
-      const res = await fetch('/api/v1/inventory/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ workspaceId, itemId: item.id, from: move.from, to: move.to.trim(), quantity: Number(move.quantity), date: move.date }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'The stock was not moved');
+      await runCommand<CommandBody>({ path: '/api/v1/inventory/transfer', method: 'POST', body: { workspaceId, itemId: item.id, from: move.from, to: move.to.trim(), quantity: Number(move.quantity), date: move.date } });
       toast.success(`Moved ${move.quantity} to ${locationName(move.to.trim())}`);
       setMove(m => ({ ...m, quantity: '' }));
       setReload(n => n + 1);

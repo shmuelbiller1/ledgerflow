@@ -10,7 +10,7 @@ import {
   orderBy,
   getDocs
 } from '../lib/db/firestore';
-import { db, getIdToken } from '../firebase';
+import { db } from '../firebase';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Transaction, ChartAccount, RecurringTransaction, Workspace, CustomTemplate, UserProfile, DimensionNode } from '../types';
@@ -28,6 +28,7 @@ import { LEDGER_COLLECTIONS, closedThroughFrom, entryListPartial, keysToStart } 
 import type { LedgerCollectionSpec, LedgerKey } from "../lib/ledgerCollections";
 import { effectiveLockDate } from '../lib/periodLock';
 import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
+import { runCommand, type CommandBody } from '../lib/runCommand';
 
 type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
@@ -162,14 +163,9 @@ export function useLedgerData() {
     const sessionLoginKey = `login_logged_${currentWorkspaceId}_${userUid}`;
     if (!sessionStorage.getItem(sessionLoginKey)) {
       sessionStorage.setItem(sessionLoginKey, 'true');
-      void getIdToken().then(token => {
-        if (!token) return;
-        return fetch('/api/v1/auth/audit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ event: 'login', workspaceId: currentWorkspaceId }),
-        });
-      }).catch(err => console.error('Failed to write login audit:', err));
+      // fire and forget: an audit line that cannot be written must never hold up the sign-in
+      void runCommand({ path: '/api/v1/auth/audit', method: 'POST', body: { event: 'login', workspaceId: currentWorkspaceId } })
+        .catch(err => console.error('Failed to write login audit:', err));
     }
 
     // Clear data immediately to prevent ghosting between workspaces
@@ -392,8 +388,8 @@ const CLOSED_THROUGH_RECHECK_MS = 5 * 60 * 1000;
 /** The newest fresh year-end snapshot's day; null when there is none; undefined when there is no answer (offline, a guest). */
 async function closedThroughDay(workspaceId: string): Promise<string | null | undefined> {
   try {
-    const res = await fetch(`/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-    return res.ok ? closedThroughFrom(await res.json().catch(() => null)) : undefined;
+    // best-effort: runCommand throws on a refusal, which the catch below already treats as "unknown"
+    return closedThroughFrom(await runCommand<CommandBody>({ path: `/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}` }));
   } catch {
     return undefined;
   }

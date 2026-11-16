@@ -1,7 +1,7 @@
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { moveGuestStage, readGuestStages } from '../../lib/guestSettings';
 import { create } from 'zustand';
-import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 import type { StageKind } from '../../lib/stages';
 
 /**
@@ -32,9 +32,11 @@ export const useStageStore = create<StageState>((set, get) => ({
     if (get().asked[key]) return;
     set(s => ({ asked: { ...s.asked, [key]: true } }));
     (async () => {
-      const res = await fetch(`${url(workspaceId)}?kind=${kind}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      if (!res.ok) return;
-      const data = await res.json();
+      // a stage list that cannot be read just leaves the chip off; the refusal is not the person's problem
+      const data = await runCommand<{ stages?: unknown; current?: Record<string, string> }>({
+        path: `${url(workspaceId)}?kind=${kind}`,
+      }).catch(() => null);
+      if (!data) return;
       set(s => ({ byKey: { ...s.byKey, [key]: { stages: Array.isArray(data.stages) ? data.stages : [], current: data.current || {} } } }));
     })().catch((err) => { console.warn('[stageStore] Could not load workflow stages:', err); });
   },
@@ -44,9 +46,8 @@ export const useStageStore = create<StageState>((set, get) => ({
       moveGuestStage(workspaceId, kind, id, stage);
     } else {
       if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
-      const res = await fetch(url(workspaceId), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ kind, id, stage }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The stage was not saved');
+      // `runCommand` throws the server's own sentence for a refusal, which is what this error was built from
+      await runCommand({ path: url(workspaceId), method: 'PUT', body: { kind, id, stage } });
     }
     if (guestSession() !== sampleSession) return;
     const key = keyOf(workspaceId, kind);

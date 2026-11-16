@@ -8,7 +8,7 @@
  */
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommand, commandErrorMessage, ServerCommandError } from '../lib/runCommand';
+import { runCommand, runWrite, writeWasAccepted, commandErrorMessage, ServerCommandError } from '../lib/runCommand';
 
 const realFetch = globalThis.fetch;
 const calls: Array<{ url: string; init: RequestInit }> = [];
@@ -250,5 +250,42 @@ describe('runCommand is the one place a screen calls its server', () => {
     await runCommand({ path: '/api/v1/workspaces/w/restore', method: 'POST', rawBody: '{}', token: 't' });
     // without this the request goes out as text/plain and the route cannot read it as the backup
     assert.equal(sent.value['Content-Type'], 'application/json');
+  });
+
+  /**
+   * A write is not the same promise as a read. When a 2xx arrives with a body cut in half, the server has
+   * already committed the entry — and the hand-typed calls these replaced all shrugged at that
+   * (`res.json().catch(() => ({}))`). A wrapper that instead *fails* here is worse than the code it replaced:
+   * it tells the person "try again", and trying again posts the same invoice a second time.
+   */
+  test('a write whose answer was cut off is committed, and says so', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200, text: async () => '{"saved": tr', json: async () => { throw new SyntaxError('cut'); },
+    })) as unknown as typeof fetch;
+    const failure = await runCommand({ path: '/api/v1/transactions', method: 'POST', body: {}, token: 't' })
+      .then(() => null, (error: unknown) => error);
+    assert.ok(failure instanceof ServerCommandError);
+    // the distinction a write path needs: it happened, only the answer did not arrive
+    assert.equal(writeWasAccepted(failure), true);
+  });
+
+  test('runWrite reads a cut-off answer as done, and still throws a refusal', async () => {
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200, text: async () => '{"budgetWarnings": [', json: async () => { throw new SyntaxError('cut'); },
+    })) as unknown as typeof fetch;
+    assert.deepEqual(await runWrite({ path: '/api/v1/transactions', method: 'POST', body: {}, token: 't' }), {});
+
+    answer(409, { message: 'The period is locked' });
+    // a refusal means the write did *not* happen — swallowing it would lose the only sentence explaining why
+    await assert.rejects(
+      () => runWrite({ path: '/api/v1/transactions', method: 'POST', body: {}, token: 't' }),
+      (error: unknown) => error instanceof ServerCommandError && error.status === 409,
+    );
+  });
+
+  test('an ordinary answer is not affected by either', async () => {
+    answer(200, { changed: 2 });
+    assert.deepEqual(await runWrite({ path: '/api/v1/transactions/batch', method: 'POST', body: {}, token: 't' }), { changed: 2 });
+    assert.equal(writeWasAccepted(new Error('network')), false);
   });
 });

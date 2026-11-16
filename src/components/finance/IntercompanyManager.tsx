@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import AsyncButton from '../ui/AsyncButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { Labelled } from '../ui/Labelled';
+import { runCommand } from '../../lib/runCommand';
 
 export default function IntercompanyManager() {
   useAuthStore(s => s.user);
@@ -55,16 +56,10 @@ export default function IntercompanyManager() {
     }
 
     try {
-      const user = useAuthStore.getState().user;
-      const token = user ? await user.getIdToken() : '';
-      
-      const response = await fetch('/api/v1/transactions/intercompany/post', {
+      await runCommand({
+        path: '/api/v1/transactions/intercompany/post',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+        body: {
           sourceWorkspaceId: currentWorkspaceId,
           targetWorkspaceId: formData.targetWorkspaceId,
           amountCents: formData.amountCents,
@@ -73,11 +68,8 @@ export default function IntercompanyManager() {
           sourceAccountId: formData.sourceAccountId,
           targetAccountId: formData.targetAccountId,
           ...(crossCurrency ? { targetAmountCents: formData.targetAmountCents } : {})
-        })
+        }
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to post intercompany transaction');
 
       toast.success('Intercompany transfer synchronized successfully');
       setIsAdding(false);

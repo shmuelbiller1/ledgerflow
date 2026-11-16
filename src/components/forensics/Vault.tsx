@@ -28,7 +28,7 @@ import {
   doc,
   updateDoc
 } from '../../lib/db/firestore';
-import { db, auth } from '../../firebase';
+import { db } from '../../firebase';
 import { CloudDocument, Transaction } from '../../types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -45,6 +45,7 @@ import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../l
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { inBackground } from '../../lib/inBackground';
+import { runCommand } from '../../lib/runCommand';
 
 export default function Vault() {
   const uploadId = useId();
@@ -249,27 +250,13 @@ export default function Vault() {
         }
       };
 
-      const token = await auth.currentUser?.getIdToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-operation-id': newTx.id || ''
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch('/api/v1/transactions', {
+      // the entry's own id is the idempotency key: injecting the same document twice posts one entry
+      const resData = await runCommand<{ transaction?: { id?: string }; id?: string }>({
+        path: '/api/v1/transactions',
         method: 'POST',
-        headers,
-        body: JSON.stringify({ transaction: newTx })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to inject into ledger');
-      }
-
-      const resData = await res.json();
+        headers: { 'x-operation-id': newTx.id || '' },
+        body: { transaction: newTx }
+      }) ?? {};
       const createdTxId = resData.transaction?.id || resData.id;
 
       if (createdTxId) {

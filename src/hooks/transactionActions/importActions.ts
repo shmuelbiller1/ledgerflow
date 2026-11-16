@@ -14,6 +14,7 @@ import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWork
 import type { ActionContext, ImportedTransaction, ImportedBankLine } from './shared';
 import type { PostingHelpers } from './postingHelpers';
 import type { EntryActions } from './entryActions';
+import { runCommand } from '../../lib/runCommand';
 
 /** Bringing entries in: statement/file import and receipt reading. (F-05, moved from useTransactionActions.) */
 export function createImportActions(ctx: ActionContext, posting: PostingHelpers, entries: EntryActions) {
@@ -145,26 +146,17 @@ export function createImportActions(ctx: ActionContext, posting: PostingHelpers,
       let skipped = 0;
       let storedTxs = processedTxs;
       if (processedTxs.length > 0 || bankLineRecords.length > 0) {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/v1/transactions/bulk', {
+        const answer = await runCommand<{ skippedDuplicates?: number; transactions?: Array<{ id?: string }> }>({
+          path: '/api/v1/transactions/bulk',
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
+          body: {
             workspaceId: currentWorkspaceId,
             transactions: processedTxs,
             bankLines: bankLineRecords.map(({ id, date, description, amountCents, status, matchedTransactionId, importIdentity }) => ({ id, date, description, amountCents, status, matchedTransactionId, ...(importIdentity ? { importIdentity } : {}) }))
-          })
-        });
+          }
+        }) ?? {};
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Server rejected bulk transaction import.');
-        }
         // EG-9: lines of the statement already imported are skipped by the server, with their entries
-        const answer = await res.json().catch(() => ({})) as { skippedDuplicates?: number; transactions?: Array<{ id?: string }> };
         skipped = Number(answer.skippedDuplicates) || 0;
         const saved = answer.transactions;
         if (skipped > 0 && Array.isArray(saved)) {

@@ -11,6 +11,7 @@ import type { WorkspaceBranding } from '../../../lib/brandingConstants';
 import { brandingForLabels, brandingProfilesProblem, labelKey } from '../../../lib/entityBranding';
 import type { BrandingProfiles } from '../../../lib/entityBranding';
 import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
+import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const areaField = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
@@ -141,18 +142,24 @@ function Scoped() {
       const activeWorkspace = active.getCurrentWorkspace();
       const activeRole = activeWorkspace?.uid === uid ? 'owner' : activeWorkspace?.roles?.[uid];
       if (active.isGuest || (activeRole !== 'owner' && activeRole !== 'accountant')) throw new Error('Your permissions changed. The draft is retained; reopen this workspace before saving.');
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/branding-profiles`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ profiles: next }),
-      });
-      const result: Record<string, unknown> = await res.json().catch(() => ({}));
-      if (!current()) return;
-      if (!res.ok) {
-        const msg = (result.message as string) || (result.error as string) || '';
-        if (res.status === 404) throw new Error(msg || 'Branding profiles are not yet writable on the server (AI#1 wiring). Your draft is kept; try again after the server update.');
-        throw new Error(msg || 'The branding profile was not saved.');
+      let result: Record<string, unknown>;
+      try {
+        result = await runCommand<Record<string, unknown>>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/branding-profiles`,
+          method: 'PUT',
+          body: { profiles: next },
+        }) ?? {};
+      } catch (error) {
+        if (!current()) return;
+        // a 404 here is not a refusal of the data: the route is not on the server yet, and the draft is kept
+        if (error instanceof ServerCommandError && error.status === 404) {
+          // `cause` keeps the server's body reachable for anyone debugging; the message is the one the
+          // editor shows, which names the wiring rather than "not found"
+          throw new Error('Branding profiles are not yet writable on the server (AI#1 wiring). Your draft is kept; try again after the server update.', { cause: error });
+        }
+        throw error;
       }
+      if (!current()) return;
       if (result.status !== 'success' || brandingProfilesProblem((result.profiles as BrandingProfiles) || next)) throw new Error('The server did not confirm valid branding profiles. Reload to check the saved state.');
       const auth = useAuthStore.getState();
       auth.setWorkspaces(auth.workspaces.map(row => (row.id === workspace.id ? { ...row, brandingProfiles: result.profiles as BrandingProfiles } : row)));

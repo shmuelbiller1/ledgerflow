@@ -5,6 +5,7 @@ import { useLedgerStore } from './useLedgerStore';
 import { useSavedViewsStore } from './useSavedViewsStore';
 import { registerBrowserWorkspacePrefs } from '../lib/workspacePrefs';
 import { startGuestDatabase, endGuestDatabase, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { runCommand } from '../lib/runCommand';
 
 if (typeof localStorage !== 'undefined' && localStorage.getItem('isGuest') === 'true') startGuestDatabase();
 
@@ -185,24 +186,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/v1/admin/users/${user.uid}/role`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ role })
-      });
-
-      if (res.ok) {
-        await user.getIdToken(true);
-        if (userProfile) {
-          set({ userProfile: { ...userProfile, role } });
-        }
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Server rejected role update: ${res.statusText}`);
+      await runCommand({ path: `/api/v1/admin/users/${user.uid}/role`, method: 'PUT', body: { role } });
+      // the server accepted it, so the claims the app reads must be the new ones
+      await user.getIdToken(true);
+      if (userProfile) {
+        set({ userProfile: { ...userProfile, role } });
       }
     } catch (error) {
       console.error("Failed to update user role:", error);
