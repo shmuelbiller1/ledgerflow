@@ -57,6 +57,7 @@ test('the default registry is sorted and unique across the registered command do
     'entrylink.create', 'entrylink.remove',
     'invoice.create', 'invoice.delete', 'invoice.update',
     'journal.create', 'payment.receive',
+    'period.close', 'period.closesteps', 'period.depreciation', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock',
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
     'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
@@ -67,9 +68,16 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
+  assert.ok(registry.get('period.close'));
+  assert.ok(registry.get('period.closesteps'));
+  assert.ok(registry.get('period.depreciation'));
+  assert.ok(registry.get('period.relock'));
+  assert.ok(registry.get('period.reopen'));
+  assert.ok(registry.get('period.signoff'));
+  assert.ok(registry.get('period.unlock'));
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
@@ -166,6 +174,9 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/creditNote.create'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendorCredit.update/preview'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/payment.receive/preview'), 'write:transactions');
+  for (const name of ['period.close', 'period.closesteps', 'period.depreciation', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+  }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });

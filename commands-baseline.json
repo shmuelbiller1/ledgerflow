@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 194,
+  "writeRoutes": 187,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
@@ -40,7 +40,6 @@
     "src/server/routes/paymentRoutes.ts": 8,
     "src/server/routes/payrollImportRoutes.ts": 1,
     "src/server/routes/payRunRoutes.ts": 5,
-    "src/server/routes/periodRoutes.ts": 7,
     "src/server/routes/placeInServiceRoutes.ts": 2,
     "src/server/routes/plaidRoutes.ts": 6,
     "src/server/routes/plaidWebhookRoutes.ts": 1,

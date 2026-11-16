@@ -18,6 +18,15 @@ import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, au
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import {
+  periodCloseCommand,
+  periodCloseStepsCommand,
+  periodDepreciationCommand,
+  periodRelockCommand,
+  periodReopenCommand,
+  periodSignOffCommand,
+  periodUnlockCommand,
+} from './periods';
+import {
   billCreateCommand,
   billDeleteCommand,
   billUpdateCommand,
@@ -48,6 +57,13 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceSetupCompleteCommand);
   registry.register(workspaceInviteRevokeCommand);
   registry.register(workspaceCancelDeletionCommand);
+  registry.register(periodCloseCommand);
+  registry.register(periodDepreciationCommand);
+  registry.register(periodReopenCommand);
+  registry.register(periodUnlockCommand);
+  registry.register(periodRelockCommand);
+  registry.register(periodSignOffCommand);
+  registry.register(periodCloseStepsCommand);
   registry.register(entryLinkCreateCommand);
   registry.register(entryLinkRemoveCommand);
   registry.register(stageDefineCommand);
