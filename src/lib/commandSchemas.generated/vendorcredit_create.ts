@@ -18,16 +18,16 @@ export const COMMAND_INPUT_SCHEMA = {
         "remainingCents": COMMAND_SCHEMA_PARTS.part64,
         "date": COMMAND_SCHEMA_PARTS.part10,
         "reason": COMMAND_SCHEMA_PARTS.part34,
-        "status": COMMAND_SCHEMA_PARTS.part86,
+        "status": COMMAND_SCHEMA_PARTS.part88,
         "currency": COMMAND_SCHEMA_PARTS.part28,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part41,
         "tags": COMMAND_SCHEMA_PARTS.part43,
-        "metadata": COMMAND_SCHEMA_PARTS.part76,
+        "metadata": COMMAND_SCHEMA_PARTS.part77,
         "taxAmountCents": COMMAND_SCHEMA_PARTS.part64,
         "taxInclusive": COMMAND_SCHEMA_PARTS.part12,
         "taxVersion": COMMAND_SCHEMA_PARTS.part19,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part83,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part124
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part84,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part126
       },
       "required": [
         "vendorId",

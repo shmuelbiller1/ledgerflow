@@ -7,6 +7,7 @@ import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
+import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
@@ -27,6 +28,7 @@ export const COMMAND_MANIFEST = [
   ...ENTRYLINK_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
+  ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,

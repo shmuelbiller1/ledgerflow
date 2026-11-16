@@ -10,7 +10,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "columns": COMMAND_SCHEMA_PARTS.part127,
+          "columns": COMMAND_SCHEMA_PARTS.part129,
           "skipRows": COMMAND_SCHEMA_PARTS.part46,
           "savedAt": COMMAND_SCHEMA_PARTS.part10
         },

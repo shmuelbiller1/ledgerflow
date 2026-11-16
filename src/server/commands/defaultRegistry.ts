@@ -17,6 +17,7 @@ import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
+import { numberingUpdateCommand } from './numbering';
 import {
   periodCloseCommand,
   periodCloseStepsCommand,
@@ -93,6 +94,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(vendorCreateCommand);
   registry.register(vendorUpdateCommand);
   registry.register(journalCreateCommand);
+  registry.register(numberingUpdateCommand);
   registry.register(paymentReceiveCommand);
   registry.register(invoiceCreateCommand);
   registry.register(billCreateCommand);

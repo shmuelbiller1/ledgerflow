@@ -18,6 +18,7 @@ import { watchCreateCommand } from '../server/commands/watches';
 import { customerCreateCommand, customerCreateInput, customerUpdateCommand, customerUpdateInput, warrantyUpdateCommand, warrantyUpdateInput } from '../server/commands/customers';
 import { vendorCreateCommand, vendorCreateInput, vendorUpdateCommand, vendorUpdateInput } from '../server/commands/vendors';
 import { paymentReceiveCommand, paymentReceiveInput } from '../server/commands/payments';
+import { numberingUpdateCommand } from '../server/commands/numbering';
 import { periodBalancesRebuildCommand, periodCloseStepsCommand, periodFxRevaluationCommand, periodFxRevaluationUndoCommand, periodYearCloseCommand } from '../server/commands/periods';
 import { snapshotRebuildDates, type PeriodBalances } from '../server/services/balanceService';
 import {
@@ -58,7 +59,7 @@ test('the default registry is sorted and unique across the registered command do
     'customer.create', 'customer.update',
     'entrylink.create', 'entrylink.remove',
     'invoice.create', 'invoice.delete', 'invoice.update',
-    'journal.create', 'payment.receive',
+    'journal.create', 'numbering.update', 'payment.receive',
     'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose',
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
@@ -70,9 +71,10 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
+  assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
   assert.equal(registry.get('period.balancesrebuild'), periodBalancesRebuildCommand);
   assert.equal(periodBalancesRebuildCommand.allowPlatformAdmin, true);
   assert.ok(registry.get('period.close'));
@@ -168,7 +170,7 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.group'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/alerts.update'), 'write:workspaces');
-  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move', 'workspace.importmap', 'workspace.restoremaps', 'workspace.canceldeletion']) {
+  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move', 'workspace.importmap', 'workspace.restoremaps', 'workspace.canceldeletion', 'numbering.update']) {
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
   }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendor.create'), 'write:vendors');

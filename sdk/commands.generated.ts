@@ -21,6 +21,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "invoice.delete",
   "invoice.update",
   "journal.create",
+  "numbering.update",
   "payment.receive",
   "period.balancesrebuild",
   "period.close",

@@ -16,16 +16,16 @@ export const COMMAND_INPUT_SCHEMA = {
         "remainingCents": COMMAND_SCHEMA_PARTS.part64,
         "date": COMMAND_SCHEMA_PARTS.part59,
         "reason": COMMAND_SCHEMA_PARTS.part34,
-        "status": COMMAND_SCHEMA_PARTS.part78,
+        "status": COMMAND_SCHEMA_PARTS.part79,
         "currency": COMMAND_SCHEMA_PARTS.part10,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part41,
         "tags": COMMAND_SCHEMA_PARTS.part43,
-        "metadata": COMMAND_SCHEMA_PARTS.part76,
+        "metadata": COMMAND_SCHEMA_PARTS.part77,
         "taxAmountCents": COMMAND_SCHEMA_PARTS.part64,
         "taxInclusive": COMMAND_SCHEMA_PARTS.part12,
         "taxVersion": COMMAND_SCHEMA_PARTS.part19,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part83,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part121
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part84,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part123
       }
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part10
