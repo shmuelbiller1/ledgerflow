@@ -23,17 +23,18 @@ export default function VendorReturnFields({ lines, value, onChange, currency, o
     <fieldset className="space-y-2 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
       <legend className="px-1 text-sm font-medium text-gray-700 dark:text-gray-300">Goods sent back</legend>
       <p className="text-xs text-gray-500">What goes back leaves stock at the bill line's cost. Leave 0 for a credit without goods (a rebate or a price correction).</p>
-            <RowTable
+      <RowTable
         rowHeaderColumn={false}
         caption={(<>Stock lines of the credited bill</>)}
         rows={lines}
         rowKey={line => line.billLine}
         headRowClassName="text-gray-500"
+        bodyClassName=""
         columns={[
-          { header: "Item", className: "font-semibold py-1", cell: (line) => <bdi>{line.description || line.itemId}</bdi> },
-          { header: "Bought", align: 'right', className: "font-semibold py-1 font-mono", cell: (line) => line.quantity },
-          { header: "Already back", align: 'right', className: "font-semibold py-1 font-mono", cell: (line) => line.returned },
-          { header: "Sent back now", align: 'right', className: "font-semibold py-1 w-24 pl-2", cell: (line) => <input aria-label={`How many of ${line.description || line.itemId} go back`} inputMode="decimal" value={value[line.billLine] ?? ''} placeholder="0"
+          { header: "Item", className: "py-1", headClassName: "font-semibold py-1", cell: (line) => <bdi>{line.description || line.itemId}</bdi> },
+          { header: "Bought", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.quantity },
+          { header: "Already back", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.returned },
+          { header: "Sent back now", align: 'right', className: "py-1 pl-2", headClassName: "font-semibold py-1 w-24", cell: (line) => <input aria-label={`How many of ${line.description || line.itemId} go back`} inputMode="decimal" value={value[line.billLine] ?? ''} placeholder="0"
                   disabled={line.returned >= line.quantity}
                   onChange={e => onChange({ ...value, [line.billLine]: e.target.value })}
                   className="w-full p-1.5 text-right font-mono bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg" /> },

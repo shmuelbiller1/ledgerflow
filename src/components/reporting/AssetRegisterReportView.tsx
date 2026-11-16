@@ -32,18 +32,21 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
     {report?.source === 'server' && <p role="status" data-testid="asset-register-source">Every asset and depreciation run was read from the server.</p>}
     {partial && <p role="alert" data-testid="asset-register-partial">Loaded asset or transaction history is incomplete. Figures are provisional; CSV is disabled.</p>}
     {!!report?.historicalChanges && <p role="alert">{report.historicalChanges} asset(s) were changed after the chosen date. Their current cost/account details may not represent that earlier date; verify historical records before using this report.</p>}
-    {report && <><ReportTableScroll>    <RowTable
+    {report && <><ReportTableScroll><RowTable
       caption={(<>Asset register through {date}</>)}
       rows={report.rows}
       rowKey={r => r.id}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Category / asset", cell: (r) => <bdi>{r.category} — {r.name}</bdi> },
-        { header: "Tag", cell: (r) => r.tag },
-        { header: "Purchase date", cell: (r) => r.purchaseDate },
-        { header: "Cost", align: 'right', cell: (r) => money(r.costCents) },
-        { header: "Depreciation", align: 'right', cell: (r) => money(r.depreciationCents) },
-        { header: "Book value", align: 'right', cell: (r) => money(r.bookValueCents) },
+        { header: "Category / asset", headClassName: "", cell: (r) => <bdi>{r.category} — {r.name}</bdi> },
+        { header: "Tag", headClassName: "", cell: (r) => r.tag },
+        { header: "Purchase date", headClassName: "", cell: (r) => r.purchaseDate },
+        { header: "Cost", align: 'right', headClassName: "", cell: (r) => money(r.costCents) },
+        { header: "Depreciation", align: 'right', headClassName: "", cell: (r) => money(r.depreciationCents) },
+        { header: "Book value", align: 'right', headClassName: "", cell: (r) => money(r.bookValueCents) },
       ]}
     /></ReportTableScroll>
     <ReportTableScroll><table className="w-full text-sm"><caption>Category totals as of {date}</caption><thead><tr><th scope="col">Category</th><th scope="col">Assets</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.categories.map(g => <tr key={g.category}><th scope="row" className="text-left"><bdi>{g.category}</bdi></th><td>{g.count}</td><td>{money(g.costCents)}</td><td>{money(g.depreciationCents)}</td><td>{money(g.bookValueCents)}</td></tr>)}</tbody><tfoot><tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr></tfoot></table></ReportTableScroll>

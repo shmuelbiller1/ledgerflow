@@ -62,17 +62,19 @@ export default function PaymentFlowsByMethodPanel({
       ? <p className="text-sm text-neutral-600">No dated posted payments found in this period.</p>
       : null}
     {summary && summary.rows.length > 0 && <div className="max-w-full overflow-x-auto rounded-lg border border-neutral-200">
-            <RowTable
+      <RowTable
         rowClassName="border-t border-neutral-100"
         caption={(<>Posted payment document totals by method and currency, received and paid separately</>)}
         rows={summary.rows}
         rowKey={row => row.method + ':' + row.currency}
         tableClassName="min-w-full text-left text-sm"
+        headRowClassName="bg-neutral-50"
+        bodyClassName=""
         columns={[
-          { header: "Method", className: "p-2 font-medium", cell: (row) => row.method },
-          { header: "Currency", className: "p-2", cell: (row) => row.currency },
-          { header: "Received", align: 'right', className: "p-2", cell: (row) => (<>{row.receivedCount} / {formatCurrency(row.receivedCents, row.currency)}</>) },
-          { header: "Paid", align: 'right', className: "p-2", cell: (row) => (<>{row.madeCount} / {formatCurrency(row.madeCents, row.currency)}</>) },
+          { header: "Method", className: "p-2 font-medium", headClassName: "p-2", cell: (row) => row.method },
+          { header: "Currency", className: "p-2", headClassName: "p-2", cell: (row) => row.currency },
+          { header: "Received", align: 'right', className: "p-2", headClassName: "p-2", cell: (row) => (<>{row.receivedCount} / {formatCurrency(row.receivedCents, row.currency)}</>) },
+          { header: "Paid", align: 'right', className: "p-2", headClassName: "p-2", cell: (row) => (<>{row.madeCount} / {formatCurrency(row.madeCents, row.currency)}</>) },
         ]}
       />
     </div>}

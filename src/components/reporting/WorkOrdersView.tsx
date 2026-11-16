@@ -177,25 +177,26 @@ export default function WorkOrdersView() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                    <RowTable
+          <RowTable
             rowHeaderColumn={false}
             caption={(<>Kit assembly work orders</>)}
             rows={workOrders}
             rowKey={wo => wo.id}
             tableClassName="w-full text-sm text-start"
+            headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
             bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
             columns={[
-              { header: "Work order", className: "px-4 py-3 text-start font-mono font-semibold text-indigo-700 dark:text-indigo-300", cell: (wo) => wo.woNumber },
-              { header: "Kit", className: "px-4 py-3 text-start font-medium text-slate-900 dark:text-white", cell: (wo) => (<>{wo.kitName}
+              { header: "Work order", className: "px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300", headClassName: "px-4 py-3 text-start", cell: (wo) => wo.woNumber },
+              { header: "Kit", className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (wo) => (<>{wo.kitName}
                     {wo.notes && <div className="text-xs text-slate-500">{wo.notes}</div>}</>) },
-              { header: "Qty to build", className: "px-4 py-3 text-end tabular-nums font-semibold", cell: (wo) => wo.quantityToBuild },
-              { header: "Component check", className: "px-4 py-3 text-start text-xs", cell: (wo) => wo.plan?.problem ? (
+              { header: "Qty to build", className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (wo) => wo.quantityToBuild },
+              { header: "Component check", className: "px-4 py-3 text-xs", headClassName: "px-4 py-3 text-start", cell: (wo) => wo.plan?.problem ? (
                       <span className="text-amber-700 dark:text-amber-300 font-medium">{wo.plan.problem}</span>
                     ) : (
                       <span className="text-emerald-700 dark:text-emerald-300 font-medium">All parts on hand</span>
                     ) },
-              { header: "Target date", className: "px-4 py-3 text-start tabular-nums text-slate-600 dark:text-slate-400", cell: (wo) => wo.dueDate || '—' },
-              { header: "Status", className: "px-4 py-3 text-start", cell: (wo) => canWrite ? (
+              { header: "Target date", className: "px-4 py-3 tabular-nums text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (wo) => wo.dueDate || '—' },
+              { header: "Status", className: "px-4 py-3", headClassName: "px-4 py-3 text-start", cell: (wo) => canWrite ? (
                       <select
                         aria-label={`Status for ${wo.woNumber}`}
                         value={wo.status}

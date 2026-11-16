@@ -142,18 +142,19 @@ export default function OrderDeliveryDialog({ order, canWrite, onClose }: { orde
         </div>
         <div className="p-5 space-y-4 text-sm">
           <p className="text-xs text-[var(--muted)]">The units that leave now come out of stock and their cost is booked. Invoicing is separate.</p>
-                    <RowTable
+          <RowTable
             rowHeaderColumn={false}
             rowClassName="border-b border-[var(--line)]/50"
             caption={(<>Items of order {name}</>)}
             rows={lines}
             rowKey={l => l.position}
             headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
+            bodyClassName=""
             columns={[
-              { header: "Item", className: "font-semibold py-1", cell: (l) => <bdi>{l.description || 'Item'}</bdi> },
-              { header: "Ordered", align: 'right', className: "font-semibold py-1 font-mono", cell: (l) => l.ordered },
-              { header: "Delivered", align: 'right', className: "font-semibold py-1 font-mono", cell: (l) => l.delivered },
-              { header: "Now", align: 'right', className: "font-semibold py-1", cell: (l) => <input aria-label={`Deliver now: ${l.description || 'item'}`} inputMode="decimal" value={now[l.position] ?? ''} disabled={!canWrite || l.left === 0}
+              { header: "Item", className: "py-1", headClassName: "font-semibold py-1", cell: (l) => <bdi>{l.description || 'Item'}</bdi> },
+              { header: "Ordered", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => l.ordered },
+              { header: "Delivered", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => l.delivered },
+              { header: "Now", align: 'right', className: "py-1", headClassName: "font-semibold py-1", cell: (l) => <input aria-label={`Deliver now: ${l.description || 'item'}`} inputMode="decimal" value={now[l.position] ?? ''} disabled={!canWrite || l.left === 0}
                       onChange={e => setNow(n => ({ ...n, [l.position]: e.target.value }))} className={`${field} w-20 text-right font-mono`} /> },
             ]}
           />

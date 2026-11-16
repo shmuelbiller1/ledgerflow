@@ -88,7 +88,7 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
               </div>
 
               <div className="mt-3 overflow-x-auto">
-                                <RowTable
+                <RowTable
                   rowHeaderColumn={false}
                   caption={`Lines of ${entry.description || entry.id}`}
                   rows={entry.lines}
@@ -96,10 +96,10 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
                   tableClassName="w-full text-left text-xs"
                   headRowClassName="text-[var(--muted)] font-bold uppercase text-[10px]"
                   columns={[
-                    { header: "Account", className: "pb-2 py-2 font-medium", cell: (line) => line.accountName },
-                    { header: "Memo", className: "pb-2 py-2 text-[var(--muted)]", cell: (line) => line.description || '—' },
-                    { header: "Debit", align: 'right', className: "pb-2 py-2 font-mono", cell: (line) => line.debitCents ? formatCurrency(line.debitCents) : '—' },
-                    { header: "Credit", align: 'right', className: "pb-2 py-2 font-mono", cell: (line) => line.creditCents ? formatCurrency(line.creditCents) : '—' },
+                    { header: "Account", className: "py-2 font-medium", headClassName: "pb-2", cell: (line) => line.accountName },
+                    { header: "Memo", className: "py-2 text-[var(--muted)]", headClassName: "pb-2", cell: (line) => line.description || '—' },
+                    { header: "Debit", align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.debitCents ? formatCurrency(line.debitCents) : '—' },
+                    { header: "Credit", align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.creditCents ? formatCurrency(line.creditCents) : '—' },
                   ]}
                 />
               </div>

@@ -130,24 +130,26 @@ export default function Form856ReportView() {
             {notes.map(note => <li key={note}>{note}</li>)}
           </ul>
           <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-                        <RowTable
+            <RowTable
               rowClassName="border-b border-[var(--line)]/50"
               caption={(<>Per vendor ({rows.length})</>)}
               rows={rows}
               rowKey={row => row.contactId}
+              captionClassName="text-left font-semibold text-[var(--text)] pb-1"
               tableClassName="w-full text-sm"
               headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+              bodyClassName=""
               columns={[
-                { header: "Vendor", headClassName: `text-left ${th}`, className: "font-normal py-1 px-2", cell: (row) => <bdi>{row.name}</bdi> },
-                { header: "Tax id", headClassName: `text-left ${th}`, className: "py-1 px-2 font-mono", cell: (row) => row.taxId || '—' },
-                { header: "Payments", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => row.payments },
-                { header: "Paid", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => money(row.paidCents) },
-                { header: "Base", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => money(row.baseCents) },
-                { header: "Withheld", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => money(row.withheldCents) },
-                { header: "Rate", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => (<>{row.effectiveRatePercent}%</>) },
-                { header: "Certificates", headClassName: `text-left ${th}`, className: "py-1 px-2", cell: (row) => <bdi>{row.certificates.join(', ') || '—'}</bdi> },
-                { header: "Months", headClassName: `text-left ${th}`, className: "py-1 px-2 font-mono", cell: (row) => row.months.join(', ') },
-                { header: "Missing", align: 'right', headClassName: `text-right ${th}`, className: "font-mono py-1 px-2", cell: (row) => row.missingCertificates || '—' },
+                { header: "Vendor", className: "font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.name}</bdi> },
+                { header: "Tax id", className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.taxId || '—' },
+                { header: "Payments", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.payments },
+                { header: "Paid", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.paidCents) },
+                { header: "Base", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.baseCents) },
+                { header: "Withheld", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.withheldCents) },
+                { header: "Rate", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => (<>{row.effectiveRatePercent}%</>) },
+                { header: "Certificates", className: "py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.certificates.join(', ') || '—'}</bdi> },
+                { header: "Months", className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.months.join(', ') },
+                { header: "Missing", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.missingCertificates || '—' },
               ]}
             />
           </div>

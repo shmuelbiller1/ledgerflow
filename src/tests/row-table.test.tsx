@@ -68,7 +68,7 @@ describe('RowTable', () => {
 
   test('a repeated column renders one header and one cell per item, and the CSV names each one', () => {
     const months = ['2026-01', '2026-02'];
-    const rows = [{ cohort: 'Retail', values: { '2026-01': 3, '2026-02': 5 } }];
+    const rows: { cohort: string; values: Record<string, number> }[] = [{ cohort: 'Retail', values: { '2026-01': 3, '2026-02': 5 } }];
     render(
       <RowTable
         caption="Cohorts by month"
@@ -76,13 +76,13 @@ describe('RowTable', () => {
         rowKey={row => row.cohort}
         columns={[
           { header: 'Cohort', cell: row => row.cohort },
-          { over: months, header: month => month, cell: (row, month) => row.values[month], align: 'right', csvHeader: month => `Customers ${month}` },
+          { over: months, head: (month: string) => month, cell: (row, month) => row.values[month], align: 'right', csvHeader: (month: string) => `Customers ${month}` },
         ]}
       />,
     );
     assert.deepEqual([...screen.getAllByRole('columnheader')].map(cell => cell.textContent), ['Cohort', '2026-01', '2026-02']);
     assert.deepEqual([...screen.getAllByRole('row')[1].querySelectorAll('td')].map(cell => cell.textContent), ['3', '5']);
-    const csv = rowTableCsv([{ over: months, header: month => month, cell: (row: (typeof rows)[0], month) => row.values[month], csvHeader: month => `Customers ${month}` }], rows);
+    const csv = rowTableCsv([{ over: months, head: (month: string) => month, cell: (row: (typeof rows)[0], month) => row.values[month], csvHeader: (month: string) => `Customers ${month}` }], rows);
     assert.deepEqual(csv.headers, ['Customers 2026-01', 'Customers 2026-02']);
     assert.deepEqual(csv.rows, [['3', '5']]);
   });

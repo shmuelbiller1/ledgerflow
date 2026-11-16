@@ -89,16 +89,18 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
           {byQuantity ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--muted)]">This order has stock items, so it is invoiced by quantity: stock and cost move with what is invoiced. To take money before delivery, use Deposit on the order.</p>
-                            <RowTable
+              <RowTable
                 rowHeaderColumn={false}
                 caption={(<>How many to invoice now</>)}
                 rows={lines}
                 rowKey={line => line.position}
+                captionClassName="text-left text-xs font-semibold text-[var(--muted)] mb-1"
+                bodyClassName=""
                 columns={[
-                  { header: "Line", className: "font-semibold py-0.5 pr-2", cell: (line) => (<>{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</>) },
-                  { header: "Ordered", align: 'right', className: "font-semibold py-0.5 font-mono", cell: (line) => line.quantity },
-                  { header: "Left", align: 'right', className: "font-semibold py-0.5 font-mono", cell: (line) => line.leftQuantity },
-                  { header: "Now", align: 'right', className: "font-semibold py-0.5 pl-2", cell: (line) => <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
+                  { header: "Line", className: "py-0.5 pr-2", headClassName: "font-semibold py-0.5", cell: (line) => (<>{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</>) },
+                  { header: "Ordered", align: 'right', className: "py-0.5 font-mono", headClassName: "font-semibold py-0.5", cell: (line) => line.quantity },
+                  { header: "Left", align: 'right', className: "py-0.5 font-mono", headClassName: "font-semibold py-0.5", cell: (line) => line.leftQuantity },
+                  { header: "Now", align: 'right', className: "py-0.5 pl-2", headClassName: "font-semibold py-0.5", cell: (line) => <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
                           disabled={line.leftQuantity <= 0}
                           onChange={e => { setDirty(true); setQuantities(qs => qs.map((q, i) => (i === line.position ? e.target.value : q))); }} className={`${field} w-20 font-mono text-right`} /> },
                 ]}

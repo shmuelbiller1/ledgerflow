@@ -152,7 +152,7 @@ export default function LandedCostPostPanel({ workspaceId, currency, bills, acco
       {plan && (
         <div className="space-y-2 overflow-x-auto">
           <p className="text-sm">{plan.dryRun ? 'Will post' : 'Posted'} on {plan.date}{plan.movedToOpenDay ? ' (today: the day asked for is locked)' : ''}:</p>
-                    <RowTable
+          <RowTable
             rowHeaderColumn={false}
             rowClassName="border-b"
             caption={(<>Entry the landed cost posts</>)}
@@ -160,10 +160,11 @@ export default function LandedCostPostPanel({ workspaceId, currency, bills, acco
             rowKey={l => `${l.accountId}|${l.description}|${l.amountCents}`}
             tableClassName="w-full text-sm border-collapse"
             headRowClassName="border-b text-left"
+            bodyClassName=""
             columns={[
-              { header: "Account", className: "py-1 pr-3", cell: (l) => l.accountName || l.accountId },
-              { header: "Line", className: "py-1 pr-3", cell: (l) => l.description },
-              { header: "Amount", align: 'right', className: "py-1 tabular-nums", cell: (l) => formatCurrency(l.amountCents, currency) },
+              { header: "Account", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.accountName || l.accountId },
+              { header: "Line", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.description },
+              { header: "Amount", align: 'right', className: "py-1 tabular-nums", headClassName: "py-1", cell: (l) => formatCurrency(l.amountCents, currency) },
             ]}
           />
           <ul className="text-sm">

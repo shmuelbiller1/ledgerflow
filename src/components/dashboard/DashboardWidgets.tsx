@@ -198,14 +198,16 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
       const targetReport = ['cash', 'networth'].includes(metric) ? 'balance-sheet' : 'pnl';
       return <><a href={reportLink(targetReport)} onPointerEnter={() => preloadReportView(targetReport)} onFocus={() => preloadReportView(targetReport)} onClick={event => openReportInSpa(event, targetReport)} className="min-h-11 flex items-center text-2xl font-bold tabular-nums">{formatCurrency(widgetData.current[metric], currency)}<span className="sr-only"> Open {LABELS[id]} report</span></a>
         <p className="text-sm">{['cash', 'networth'].includes(metric) ? `As of ${period.endDate}` : 'Selected period activity'}</p><p className="text-sm">Vs previous period: {formatCurrency(delta.amount, currency)} ({reportPercent(delta.percent)})</p>
-        <DashboardTrendChart chartId={`dashboard-${metric}`} rows={widgetData.months.map(month => ({ label: month.label, cents: month[metric] }))} label={LABELS[id]} currency={currency} /><details><summary className="cursor-pointer min-h-11 flex items-center">Monthly values</summary>        <RowTable
+        <DashboardTrendChart chartId={`dashboard-${metric}`} rows={widgetData.months.map(month => ({ label: month.label, cents: month[metric] }))} label={LABELS[id]} currency={currency} /><details><summary className="cursor-pointer min-h-11 flex items-center">Monthly values</summary><RowTable
           caption={(<>{LABELS[id]} last 12 months, last month through {period.endDate}</>)}
           rows={widgetData.months}
           rowKey={month => month.label}
           tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
           columns={[
-            { header: "Month", className: "font-normal", cell: (month) => month.label },
-            { header: "Amount", align: 'right', className: "tabular-nums", cell: (month) => formatCurrency(month[metric], currency) },
+            { header: "Month", className: "font-normal", headClassName: "", cell: (month) => month.label },
+            { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (month) => formatCurrency(month[metric], currency) },
           ]}
         /></details></>;
     }

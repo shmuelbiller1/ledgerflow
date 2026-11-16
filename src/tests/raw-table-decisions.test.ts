@@ -25,10 +25,6 @@ const ROOT = process.cwd();
 const STAYS_WITH_A_REASON: Record<string, string> = {
   'src/components/ledger/PivotSheetView.tsx':
     'A pivot sheet: the reader builds the rows and columns from the accounts they pick, so its shape is chosen at runtime and there is no fixed column list to sort, search or export.',
-  'src/components/reporting/StockClosingPanel.tsx':
-    'A four-column block printed inside a larger statement, not a list of records; it has no rows of its own to search, sort or export.',
-  'src/components/reporting/JournalSheetReportView.tsx':
-    'The debit and credit lines of one journal entry, drawn inside that entry\'s card. The entry itself is the record; these are its lines.',
 };
 
 /** The directories a screen lives in. */

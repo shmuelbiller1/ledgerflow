@@ -28,16 +28,16 @@ export default function DepreciationScheduleTable({ asset }: { asset: FixedAsset
           <Download className="w-3.5 h-3.5" aria-hidden="true" /> Monthly schedule (.csv)
         </button>
       </div>
-            <RowTable
+      <RowTable
         caption={(<>Depreciation schedule of {asset.name} by year</>)}
         rows={years}
         rowKey={y => y.year}
         columns={[
-          { header: "Year", className: "py-1 font-semibold", cell: (y) => (<>{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</>) },
-          { header: "Depreciation", align: 'right', className: "py-1 font-mono", cell: (y) => formatCurrency(y.amountCents) },
-          { header: "Accumulated", align: 'right', className: "py-1 font-mono", cell: (y) => formatCurrency(y.accumulatedCents) },
-          { header: "Book value", align: 'right', className: "py-1 font-mono", cell: (y) => formatCurrency(y.bookValueCents) },
-          { header: "Posted", className: "py-1 pl-3 text-[var(--muted)]", cell: (y) => y.posted ? 'yes' : 'not yet' },
+          { header: "Year", className: "py-1 font-semibold", headClassName: "py-1", cell: (y) => (<>{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</>) },
+          { header: "Depreciation", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.amountCents) },
+          { header: "Accumulated", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.accumulatedCents) },
+          { header: "Book value", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.bookValueCents) },
+          { header: "Posted", className: "py-1 pl-3 text-[var(--muted)]", headClassName: "py-1 pl-3", cell: (y) => y.posted ? 'yes' : 'not yet' },
         ]}
       />
     </div>

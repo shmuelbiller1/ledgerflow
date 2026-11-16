@@ -24,13 +24,17 @@
 import type { ReactNode } from 'react';
 import { planColumns, type RowTableColumns } from '../../lib/rowTable';
 
-export type { RowTableColumn, RowTableRepeatedColumn, RowTableColumns } from '../../lib/rowTable';
+export type { RowTableColumn, RowTableColumns } from '../../lib/rowTable';
 
-export interface RowTableProps<T> {
-  /** The table's accessible name, rendered as a `<caption>`. Screen-reader only; the screen shows its own heading. */
+export interface RowTableProps<T, C = never> {
+  /** The table's accessible name, rendered as a `<caption>`. Screen-reader only unless `captionClassName` says
+   *  otherwise; the screen usually shows its own heading. */
   caption: ReactNode;
+  /** A class for the caption. A screen that showed the caption as a visible line above the table — "Sales by
+   *  month", a schedule's own title — passes the class it used, so the sweep does not hide that line. */
+  captionClassName?: string;
   rows: readonly T[];
-  columns: RowTableColumns<T>;
+  columns: RowTableColumns<T, C>;
   /** A stable identity per row. Defaults to the index, which is only safe for a static table. */
   rowKey?: (row: T, index: number) => string | number;
   /** The first column is a row header — the record's own name. */
@@ -41,6 +45,7 @@ export interface RowTableProps<T> {
   /** A class for every row — the screen's row separator. A class that depends on the row stays hand-written. */
   rowClassName?: string;
   tableClassName?: string;
+  /** A class for the `<thead>` — `sticky top-0 bg-…` on a long list, which is a class of the head, not of a row. */
   headRowClassName?: string;
   bodyClassName?: string;
   /** A totals row (or rows) under the body, rendered as the caller wrote it. */
@@ -49,8 +54,9 @@ export interface RowTableProps<T> {
   empty?: ReactNode;
 }
 
-export function RowTable<T>({
+export function RowTable<T, C = never>({
   caption,
+  captionClassName = 'sr-only',
   rows,
   columns,
   rowKey,
@@ -62,40 +68,36 @@ export function RowTable<T>({
   bodyClassName = 'divide-y divide-[var(--line)]',
   footer,
   empty,
-}: RowTableProps<T>) {
+}: RowTableProps<T, C>) {
   if (rows.length === 0 && empty !== undefined) return <>{empty}</>;
   const keyOf = rowKey ?? ((_row: T, position: number) => position);
   const planned = planColumns(columns);
   return (
     <table className={tableClassName}>
-      <caption className="sr-only">{caption}</caption>
+      <caption className={captionClassName}>{caption}</caption>
       <thead className={headRowClassName}>
         <tr>
-          {planned.map(plannedColumn => {
-            const align = 'single' in plannedColumn ? plannedColumn.single.align : plannedColumn.repeated.align;
-            const headClassName = 'single' in plannedColumn ? plannedColumn.single.headClassName : plannedColumn.repeated.headClassName;
-            const header = 'single' in plannedColumn ? plannedColumn.single.header : plannedColumn.repeated.header(plannedColumn.item);
-            return (
-              <th key={plannedColumn.key} scope="col" className={`${align === 'right' ? 'text-right' : 'text-left'} ${headClassName ?? 'py-2 font-semibold'}`.trim()}>
-                {header}
-              </th>
-            );
-          })}
+          {planned.map(column => (
+            <th
+              key={column.key}
+              scope="col"
+              className={`${column.align === 'right' ? 'text-right' : 'text-left'} ${column.headClassName ?? 'py-2 font-semibold'}`.trim()}
+            >
+              {column.header}
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody className={bodyClassName}>
         {rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={rowClassName}>
-            {planned.map(plannedColumn => {
-              const align = 'single' in plannedColumn ? plannedColumn.single.align : plannedColumn.repeated.align;
-              const extra = 'single' in plannedColumn ? plannedColumn.single.className : plannedColumn.repeated.className;
-              const className = `${align === 'right' ? 'text-right' : 'text-left'} ${extra ?? ''}`.trim();
-              const content = 'single' in plannedColumn ? plannedColumn.single.cell(row) : plannedColumn.repeated.cell(row, plannedColumn.item);
+            {planned.map((column, index) => {
+              const className = `${column.align === 'right' ? 'text-right' : 'text-left'} ${column.className ?? ''}`.trim();
               // the first column names the record, so it is a header cell for the row it starts
-              if (plannedColumn.key === planned[0].key && rowHeaderColumn) {
-                return <th key={plannedColumn.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()}>{content}</th>;
+              if (index === 0 && rowHeaderColumn) {
+                return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()}>{column.cell(row)}</th>;
               }
-              return <td key={plannedColumn.key} className={className}>{content}</td>;
+              return <td key={column.key} className={className}>{column.cell(row)}</td>;
             })}
           </tr>
         ))}

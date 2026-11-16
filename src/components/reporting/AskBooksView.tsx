@@ -159,7 +159,7 @@ export default function AskBooksView() {
             <span className="ml-2 text-sm font-normal text-[var(--muted)]">{sense === 'spent' ? 'spent' : sense === 'earned' ? 'earned' : 'net (debits less credits)'} · {shown.data.entries} entr{shown.data.entries === 1 ? 'y' : 'ies'}</span>
           </p>
           {shown.data.lines.length > 0 && (
-                        <RowTable
+            <RowTable
               rowHeaderColumn={false}
               rowClassName="border-b border-[var(--line)]/50"
               caption={(<>The entries behind the answer</>)}
@@ -167,15 +167,16 @@ export default function AskBooksView() {
               rowKey={l => l.key}
               tableClassName="w-full text-sm"
               headRowClassName="text-xs text-[var(--muted)] border-b border-[var(--line)]"
+              bodyClassName=""
               columns={[
-                { header: "Date", className: "font-semibold py-1 font-mono text-xs", cell: (l) => l.date ? formatDate(l.date) : '' },
-                { header: "Entry", className: "font-semibold py-1", cell: (l) => (<>{l.document ? (
+                { header: "Date", className: "py-1 font-mono text-xs", headClassName: "font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
+                { header: "Entry", className: "py-1", headClassName: "font-semibold py-1", cell: (l) => (<>{l.document ? (
                         <button type="button" className="text-left text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: l.document!.type, id: l.document!.id })}>
                           <bdi>{l.description || l.payee || 'Entry'}</bdi><span className="sr-only"> (open the {l.document.type === 'transaction' ? 'entry' : l.document.type})</span>
                         </button>
                       ) : <bdi>{l.description}</bdi>}
                       <span className="block text-[10px] text-[var(--muted)]"><bdi>{l.accountName}</bdi>{l.bankMatched ? ' · matched to the bank' : ''}{l.attachments > 0 ? ` · ${l.attachments} file${l.attachments === 1 ? '' : 's'}` : ''}</span></>) },
-                { header: "Amount", align: 'right', className: "font-semibold py-1 font-mono", cell: (l) => formatCurrency(answerCents(l.amountCents, sense), currency) },
+                { header: "Amount", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => formatCurrency(answerCents(l.amountCents, sense), currency) },
               ]}
             />
           )}

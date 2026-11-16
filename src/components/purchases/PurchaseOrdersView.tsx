@@ -372,19 +372,20 @@ export const PurchaseOrdersView: React.FC = () => {
             ))}
           </div>
           <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="3-way match table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-                        <RowTable
+            <RowTable
               rowHeaderColumn={false}
               caption={(<>3-way match</>)}
               rows={matchSummary.results}
               rowKey={res => res.poId}
               tableClassName="w-full text-left text-xs"
+              headRowClassName="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider"
               columns={[
-                { header: "Order", className: "py-3 px-4 font-mono font-bold", cell: (res) => res.poNumber },
-                { header: "Ordered", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => formatCurrency(res.poAmountCents) },
-                { header: "Received", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => formatCurrency(res.receiptAmountCents) },
-                { header: "Billed", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => res.billAmountCents > 0 ? formatCurrency(res.billAmountCents) : '—' },
-                { header: "Result", className: "py-3 px-4 text-center", cell: (res) => <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(res.status)}`}>{res.status.replace('_', ' ')}</span> },
-                { header: "Notes", className: "py-3 px-4 text-[11px]", cell: (res) => res.discrepancies.length > 0
+                { header: "Order", className: "py-3 px-4 font-mono font-bold", headClassName: "py-3 px-4", cell: (res) => res.poNumber },
+                { header: "Ordered", align: 'right', className: "py-3 px-4 font-mono", headClassName: "py-3 px-4", cell: (res) => formatCurrency(res.poAmountCents) },
+                { header: "Received", align: 'right', className: "py-3 px-4 font-mono", headClassName: "py-3 px-4", cell: (res) => formatCurrency(res.receiptAmountCents) },
+                { header: "Billed", align: 'right', className: "py-3 px-4 font-mono", headClassName: "py-3 px-4", cell: (res) => res.billAmountCents > 0 ? formatCurrency(res.billAmountCents) : '—' },
+                { header: "Result", className: "py-3 px-4 text-center", headClassName: "py-3 px-4 text-center", cell: (res) => <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(res.status)}`}>{res.status.replace('_', ' ')}</span> },
+                { header: "Notes", className: "py-3 px-4 text-[11px]", headClassName: "py-3 px-4", cell: (res) => res.discrepancies.length > 0
                         ? <ul className="space-y-0.5 text-[var(--neg)]">{res.discrepancies.map(d => <li key={d}>• {d}</li>)}</ul>
                         : <span className="text-[var(--pos)] inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Order, receipt and bill agree</span> },
               ]}

@@ -69,20 +69,23 @@ export default function ImportServicesReportView({ endDate = '' }: { endDate?: s
       <p className="text-sm text-[var(--muted)]">Not listed: {review.skipped.israeliVendor} bill(s) from vendors recorded in Israel · {review.skipped.countryNotRecorded} whose vendor's country is not recorded (review them — they cannot be told from here) · {review.skipped.otherCurrency} in another currency (counted, never converted) · {review.skipped.undated} without a date · {review.skipped.notRecorded} draft, void or cancelled.</p>
     </>}
 
-    {review.rows.length > 0 && <ReportTableScroll>    <RowTable
+    {review.rows.length > 0 && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)] align-top"
       caption={(<>Bills dated {from} to {to} from vendors whose recorded country is not Israel</>)}
       rows={review.rows}
       rowKey={row => row.billId}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Bill", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
-        { header: "Vendor", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
-        { header: "Country", cell: (row) => row.vendorCountry },
-        { header: "Amount", align: 'right', className: "tabular-nums", cell: (row) => money(row.amountCents) },
-        { header: "VAT on the bill", align: 'right', className: "tabular-nums", cell: (row) => row.vatOnBillCents > 0 ? money(row.vatOnBillCents) : '—' },
-        { header: "IL rate", align: 'right', className: "tabular-nums", cell: (row) => row.ilRate !== undefined ? `${(row.ilRate * 100).toFixed(0)}%` : '—' },
-        { header: "Reference VAT", align: 'right', className: "tabular-nums", cell: (row) => money(row.referenceVatCents) },
+        { header: "Bill", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
+        { header: "Vendor", headClassName: "", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
+        { header: "Country", headClassName: "", cell: (row) => row.vendorCountry },
+        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
+        { header: "VAT on the bill", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.vatOnBillCents > 0 ? money(row.vatOnBillCents) : '—' },
+        { header: "IL rate", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.ilRate !== undefined ? `${(row.ilRate * 100).toFixed(0)}%` : '—' },
+        { header: "Reference VAT", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.referenceVatCents) },
       ]}
     /></ReportTableScroll>}
 

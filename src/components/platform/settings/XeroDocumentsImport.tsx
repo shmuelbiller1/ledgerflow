@@ -277,22 +277,23 @@ export default function XeroDocumentsImport({ onSave }: XeroDocumentsImportProps
 
           {preview.ready.length > 0 && (
             <div className="overflow-x-auto">
-                            <RowTable
+              <RowTable
                 rowHeaderColumn={false}
                 rowClassName="border-t border-[var(--line)]"
                 caption={(<>Drafts that will be created</>)}
                 rows={preview.ready}
                 rowKey={doc => doc.number}
                 headRowClassName="text-left text-[var(--muted)]"
+                bodyClassName=""
                 columns={[
-                  { header: "Number", className: "py-1 pr-3 font-semibold text-[var(--text)]", cell: (doc) => doc.number },
-                  { header: kind === 'invoices' ? 'Customer' : 'Vendor', className: "py-1 pr-3 text-[var(--text)]", cell: (doc) => doc.contactName },
-                  { header: "Date", className: "py-1 pr-3", cell: (doc) => doc.date },
-                  { header: "Due", className: "py-1 pr-3", cell: (doc) => doc.dueDate },
-                  { header: "Lines", align: 'right', className: "py-1 pr-3", cell: (doc) => doc.lines.length },
-                  { header: "Net", align: 'right', className: "py-1 pr-3", cell: (doc) => money(doc.netCents) },
-                  { header: "Tax", align: 'right', className: "py-1 pr-3", cell: (doc) => money(doc.taxCents) },
-                  { header: "Total", align: 'right', className: "py-1 font-semibold text-[var(--text)]", cell: (doc) => money(doc.totalCents) },
+                  { header: "Number", className: "py-1 pr-3 font-semibold text-[var(--text)]", headClassName: "py-1 pr-3", cell: (doc) => doc.number },
+                  { header: kind === 'invoices' ? 'Customer' : 'Vendor', className: "py-1 pr-3 text-[var(--text)]", headClassName: "py-1 pr-3", cell: (doc) => doc.contactName },
+                  { header: "Date", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (doc) => doc.date },
+                  { header: "Due", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (doc) => doc.dueDate },
+                  { header: "Lines", align: 'right', className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (doc) => doc.lines.length },
+                  { header: "Net", align: 'right', className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (doc) => money(doc.netCents) },
+                  { header: "Tax", align: 'right', className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (doc) => money(doc.taxCents) },
+                  { header: "Total", align: 'right', className: "py-1 font-semibold text-[var(--text)]", headClassName: "py-1", cell: (doc) => money(doc.totalCents) },
                 ]}
               />
             </div>

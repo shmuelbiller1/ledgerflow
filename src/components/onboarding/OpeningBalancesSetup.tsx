@@ -72,7 +72,7 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
             {!equity ? (
               <p className="text-sm text-[var(--neg)]">Add an &quot;Opening Balance Equity&quot; account to the chart of accounts first, or start from zero.</p>
             ) : (
-                            <RowTable
+              <RowTable
                 rowHeaderColumn={false}
                 rowClassName="border-t border-[var(--line)]"
                 caption={(<>Opening balance per account</>)}
@@ -80,9 +80,10 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
                 rowKey={a => a.id}
                 tableClassName="w-full text-sm"
                 headRowClassName="text-left text-xs text-[var(--muted)]"
+                bodyClassName=""
                 columns={[
-                  { header: "Account", className: "py-1 py-1.5", cell: (a) => <label htmlFor={`ob-${a.id}`}>{a.code ? `${a.code} · ` : ''}{a.name}</label> },
-                  { header: "Balance ({currency})", align: 'right', className: "py-1 py-1.5", cell: (a) => <input id={`ob-${a.id}`} type="number" step="0.01" inputMode="decimal" className={`${field} w-36 text-right font-mono`}
+                  { header: "Account", className: "py-1.5", headClassName: "py-1", cell: (a) => <label htmlFor={`ob-${a.id}`}>{a.code ? `${a.code} · ` : ''}{a.name}</label> },
+                  { header: (<>Balance ({currency})</>), align: 'right', className: "py-1.5", headClassName: "py-1", cell: (a) => <input id={`ob-${a.id}`} type="number" step="0.01" inputMode="decimal" className={`${field} w-36 text-right font-mono`}
                           value={amounts[a.id] || ''} placeholder="0.00" onChange={e => setAmounts({ ...amounts, [a.id]: e.target.value })} /> },
                 ]}
               />

@@ -216,20 +216,21 @@ export function FxRevaluationPanel() {
           )}
           {plan.unpriced.length === 0 && plan.details.length > 0 && (
             <div className="overflow-x-auto">
-                            <RowTable
+              <RowTable
                 rowClassName="border-t border-[var(--line)]"
                 caption={(<>What the revaluation moves, document by document</>)}
                 rows={plan.details}
                 rowKey={d => `${d.side}:${d.id}`}
                 tableClassName="w-full border-collapse"
                 headRowClassName="text-left text-[var(--muted)]"
+                bodyClassName=""
                 columns={[
-                  { header: "Document", className: "py-1 pr-3 font-semibold font-normal text-[var(--text)]", cell: (d) => (<>{d.number}<span className="block text-[var(--muted)]">{d.partyName}</span></>) },
-                  { header: "Open", className: "py-1 pr-3 font-semibold text-[var(--text)] whitespace-nowrap", cell: (d) => money(d.openCents, d.currency) },
-                  { header: "Booked at", align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums", cell: (d) => d.bookedRate.toFixed(4) },
-                  { header: historical ? `Rate on ${valuationDate}` : 'Today at', align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums", cell: (d) => d.todayRate.toFixed(4) },
-                  { header: "In {base}", align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums whitespace-nowrap", cell: (d) => (<>{money(d.bookedBaseCents)} → {money(d.todayBaseCents)}</>) },
-                  { header: "Moves by", align: 'right', className: "py-1 font-semibold tabular-nums text-[var(--text)]", cell: (d) => money(d.deltaCents) },
+                  { header: "Document", className: "py-1 pr-3 font-normal text-[var(--text)]", headClassName: "py-1 pr-3 font-semibold", cell: (d) => (<>{d.number}<span className="block text-[var(--muted)]">{d.partyName}</span></>) },
+                  { header: "Open", className: "py-1 pr-3 text-[var(--text)] whitespace-nowrap", headClassName: "py-1 pr-3 font-semibold", cell: (d) => money(d.openCents, d.currency) },
+                  { header: "Booked at", align: 'right', className: "py-1 pr-3 text-[var(--muted)] tabular-nums", headClassName: "py-1 pr-3 font-semibold", cell: (d) => d.bookedRate.toFixed(4) },
+                  { header: historical ? `Rate on ${valuationDate}` : 'Today at', align: 'right', className: "py-1 pr-3 text-[var(--muted)] tabular-nums", headClassName: "py-1 pr-3 font-semibold", cell: (d) => d.todayRate.toFixed(4) },
+                  { header: (<>In {base}</>), align: 'right', className: "py-1 pr-3 text-[var(--muted)] tabular-nums whitespace-nowrap", headClassName: "py-1 pr-3 font-semibold", cell: (d) => (<>{money(d.bookedBaseCents)} → {money(d.todayBaseCents)}</>) },
+                  { header: "Moves by", align: 'right', className: "py-1 font-semibold tabular-nums text-[var(--text)]", headClassName: "py-1 font-semibold", cell: (d) => money(d.deltaCents) },
                 ]}
               />
             </div>

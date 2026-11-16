@@ -1,10 +1,12 @@
-# Screen rebuild — PR #731 checklist
+# Screen rebuild — PR #733 checklist
 
 The task is unchanged: **every action and report the server offers can be reached, and a new person still sees
 only a few things.** Connect and simplify what exists. Do not add features.
 
 #730 measured the remainder and split it into buckets. This PR is about **the fastest honest route through the
-list**: the work that repeats gets a tool, and the work that does not gets a reason. Every box below is a number
+list**: the work that repeats gets a tool, and the work that does not gets a reason. It also ends the first phase
+of that tool: the sweep it ships is now one a reviewer can trust cell for cell, which is what the second phase
+(the 199 tables it still refuses, §2) depends on. Every box below is a number
 from `computeQualityMetrics()` (`scripts/quality-metrics.ts`) or a named test, never a description.
 
 State is measured, never described. `quality-baseline.json`, `raw-table-decisions.test.ts` and the guard tests are
@@ -22,25 +24,53 @@ the truth.
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
 | `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
 
-`rawTables` is a count of **files**, so converting 45 tables in 42 files moved it 184 → 158: the first table in a
-file is the one the counter sees, and a second table in a file is free. The plan below is ordered by that fact.
+`rawTables` is a count of **files**, so converting 45 tables in 41 files moved it 184 → 158: the first table in a
+file is the one the counter sees, and a second table in a file is free. 14 of those 41 files still draw a second
+table the codemod refuses, which is why 41 files moved the counter by 26. The plan below is ordered by that fact.
 
 ## 1. One list — landed in this PR
 
-- [x] **A declarative table for the table that is part of a sentence.** `src/components/ui/RowTable.tsx`
-      (37 lines of component, guards in `src/lib/rowTable.ts`). It renders the markup the screens already
-      rendered — same table class, head class, row-header class, cell classes — and adds the four things a
-      hand-written table mostly lacked: a caption, a row header, `align: 'right'`, and CSV built from the same
-      columns. Pinned by `src/tests/row-table.test.tsx` (7 tests: accessible name, row header, right-aligned CSV
-      decimal, row order, repeated column, footer, empty state).
+- [x] **A declarative table for the table that is part of a sentence.** `src/components/ui/RowTable.tsx`, with the
+      column shapes and the CSV built from the same columns in `src/lib/rowTable.ts`. It renders the markup the
+      screens already rendered — same table class, head class, row-header class, cell classes — and adds the four
+      things a hand-written table mostly lacked: a caption, a row header, `align: 'right'`, and CSV built from the
+      same columns. Pinned by `src/tests/row-table.test.tsx` (7 tests: accessible name, row header, right-aligned
+      CSV decimal, row order, repeated column, footer, empty state).
+- [x] **One column spec, not a union of two.** A column declared once and a column that repeats over a list were
+      two interfaces in a union, and TypeScript cannot contextually type a function-typed property of a union of
+      object types: every inline `columns={[{ header: 'Year', cell: row => row.year }]}` wrote `row` as an implicit
+      `any` — 238 `tsc` errors across the 41 swept files. `over` is now a property of the one spec, so `row` comes
+      from `rows` and a repeated column names its heading with `head`. `RowTable<T, C>` carries the item type, and
+      both are inferred at the call site.
 - [x] **A codemod that can write, not just survey.** `scripts/codemod-row-table.ts` — `--write` converts,
-      `--files` names every table it refuses and why. 10 rules pinned by `src/tests/row-table-codemod.test.ts`,
+      `--files` names every table it refuses and why. 14 rules pinned by `src/tests/row-table-codemod.test.ts`,
       including the two ways it could destroy a screen: a dropped `<tfoot>` totals row, and an interpolated class
-      `${th}` turned into the text `${th}`. Both refusals exist because both happened and a test caught it.
-- [x] **45 tables in 42 files converted**, `rawTables` 184 → 158, −139 net lines, `arrayIndexKeys` still 0,
-      `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the 2 pre-existing warnings,
-      **2211/2211 UI tests green**.
+      `${th}` turned into the text `${th}`.
+- [x] **The five review findings on the first draft are fixed, each with the test that would have caught it.**
+      The codemod's first draft passed every structural refusal and still changed screens, because a table that
+      converts is not the same as a table that looks the same:
+      1. a header cell's class was merged into the body cell's `className` — so `Posted`'s `pl-3` left the header
+         and the body cell gained `py-2 font-semibold`. Now each side keeps its own (`headClassName`), and a header
+         with no class of its own says `headClassName: ""` so the default weight is not invented for it;
+      2. every caption became `sr-only`, hiding the visible caption line five screens show above their table. Now
+         `captionClassName` carries the class the `<caption>` had, `""` when it had none;
+      3. a header that mixes text and an expression — `Balance ({currency})`, `Last rate (1 = … {home})`,
+         `In {base}` — was written as the literal text of the expression. Now it stays JSX;
+      4. a `<thead className="sticky top-0 …">` lost its class, because only the `<tr>` was read. Now both move
+         onto the one element the component classes;
+      5. a `<table key={side}>` inside a `map` lost its `key`, which React warned about in the browser smoke test.
+         Now the key is kept, and a table carrying any other attribute (`aria-label`, `id`) — a name this
+         component has no prop for — is refused rather than silently losing the name a screen reader announces.
+      Two more of the same kind were found while re-running the sweep: a bare `<thead>`/`<tbody>` must not inherit
+      the component's default `text-[var(--muted)]` / `divide-y`, and the replacement must not double the indent
+      the source keeps.
+- [x] **45 tables in 41 files converted**, `rawTables` 184 → 158, 41 screen files −60 lines net (the explicit
+      class props cost lines and buy exactness), `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the
+      two pre-existing warnings, **5315/5315 unit tests green**.
 - [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 158`, so a new hand-written table fails CI.
+- [x] **Two lists told the truth again.** `StockClosingPanel` and `JournalSheetReportView` left
+      `raw-table-decisions.test.ts` (they no longer draw a table, so their reasons were false) and
+      `PickPackShipPanel` left the H-8 date backlog (its dates now go through the resolver).
 
 ## 2. One list — what is left, in the order that moves the counter
 
@@ -50,14 +80,16 @@ Measured now by `npx tsx scripts/codemod-row-table.ts` → **199 tables in 158 f
 |---|---|---|---|---|
 | 1 | a totals row in a `<tfoot>` | 17 | ✋ `RowTable` has `footer`; move the totals row across by hand | 17 |
 | 2 | a body that is not one expression (an empty-state row beside the rows) | 26 | ✋ pass `empty`, then the body is one map | ~24 |
-| 3 | a header row that is not one of the four shapes | 46 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
+| 3 | a header row that is not one of the four shapes the table can take | 46 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
 | 4 | a row that does not line up with its header | 37 | ✋ usually a nested list, or a cell that spans — name which | ~37 |
 | 5 | a map that does not return a row | 28 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~28 |
 | 6 | a callback that is destructured, or has a body | 10 | ✋ `({id, name}) => …` or a `{ const x = …; return <tr> }` body | 10 |
 | 7 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
 | 8 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
 | 9 | a class computed from the row | 5 | ✋ same: the class belongs inside the cell | 5 |
-| 10 | no header row / no caption / one-row key / >1 map / nested-cell edge cases | 15 | ✋ individually | 15 |
+| 10 | a table attribute a rewrite would drop (`aria-label`) | 3 | ✋ `PeriodClosingPanel`'s three totals tables: give `RowTable` the name, or keep the table | 1 |
+| 11 | more than one map in the body / a row header after the first column | 6 | ✋ the second map is a second table, or a `rows` list built outside | 6 |
+| 12 | no header row / no caption / one-row key / nested-cell edge cases | 6 | ✋ individually | 6 |
 
 **Fast order.** 1 and 2 first: `footer` and `empty` already exist, so each is a mechanical edit of a table the
 codemod has already normalised in every other way, and 43 tables move for it. 3, 4, 5 are the bulk (111) and are

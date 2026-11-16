@@ -198,16 +198,19 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
     </p>
 
     <ReportTableScroll>
-            <RowTable
+      <RowTable
         rowClassName="border-b border-[var(--line)]/50"
         caption={(<>Owner-specified country review timetable — verify before acting</>)}
         rows={RECORD_RETENTION_REVIEW_PERIODS}
         rowKey={period => period.countryCode}
+        captionClassName=""
         tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
         columns={[
-          { header: "Country", className: "font-normal py-1 px-2", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
-          { header: "Review period", className: "py-1 px-2", cell: (period) => (<>{period.years} years</>) },
-          { header: "Basis", className: "py-1 px-2", cell: (period) => period.source },
+          { header: "Country", className: "font-normal py-1 px-2", headClassName: "", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
+          { header: "Review period", className: "py-1 px-2", headClassName: "", cell: (period) => (<>{period.years} years</>) },
+          { header: "Basis", className: "py-1 px-2", headClassName: "", cell: (period) => period.source },
         ]}
       />
     </ReportTableScroll>

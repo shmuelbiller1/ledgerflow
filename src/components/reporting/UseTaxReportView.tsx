@@ -80,21 +80,24 @@ export default function UseTaxReportView({ endDate = '' }: { endDate?: string })
       <p className="text-sm text-[var(--muted)]">Skipped: {review.skipped.taxCharged} bill(s) already carry sales tax · {review.skipped.otherCurrency} in another currency (not converted) · {review.skipped.undated} without a date · {review.skipped.notRecorded} draft, void or cancelled.</p>
     </>}
 
-    {review.rows.length > 0 && <ReportTableScroll>    <RowTable
+    {review.rows.length > 0 && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)] align-top"
       caption={(<>Bills dated {from} to {to} with no sales tax recorded, reviewed for {chosenState} use tax</>)}
       rows={review.rows}
       rowKey={row => row.billId}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Bill", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi>{row.note && <div className="text-xs text-[var(--muted)]">{row.note}</div>}</>) },
-        { header: "Vendor", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
-        { header: "Taxable", align: 'right', className: "tabular-nums", cell: (row) => money(row.taxableCents) },
-        { header: "Reduced", align: 'right', className: "tabular-nums", cell: (row) => row.reducedCents ? money(row.reducedCents) : '—' },
-        { header: "Exempt", align: 'right', className: "tabular-nums", cell: (row) => row.exemptCents ? money(row.exemptCents) : '—' },
-        { header: "Needs review", align: 'right', className: "tabular-nums", cell: (row) => row.unclearCents ? money(row.unclearCents) : '—' },
-        { header: "State rate", align: 'right', className: "tabular-nums", cell: (row) => row.rate !== undefined ? `${(row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%` : '—' },
-        { header: "Estimated use tax", align: 'right', className: "tabular-nums", cell: (row) => money(row.estimatedUseTaxCents) },
+        { header: "Bill", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi>{row.note && <div className="text-xs text-[var(--muted)]">{row.note}</div>}</>) },
+        { header: "Vendor", headClassName: "", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
+        { header: "Taxable", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.taxableCents) },
+        { header: "Reduced", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.reducedCents ? money(row.reducedCents) : '—' },
+        { header: "Exempt", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.exemptCents ? money(row.exemptCents) : '—' },
+        { header: "Needs review", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.unclearCents ? money(row.unclearCents) : '—' },
+        { header: "State rate", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.rate !== undefined ? `${(row.rate * 100).toFixed(3).replace(/\.?(?<!0)0+$/, '')}%` : '—' },
+        { header: "Estimated use tax", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.estimatedUseTaxCents) },
       ]}
     /></ReportTableScroll>}
 

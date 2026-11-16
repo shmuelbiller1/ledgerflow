@@ -152,9 +152,10 @@ function jsxValue(content: string): string {
 }
 
 /**
- * The class entries of a column: one `className` when both cells carry the same plain classes, and separate
- * `className` / `headClassName` when either side interpolates — `${th}` must stay a variable, and the two sides
- * then keep exactly the classes they had instead of being merged into one.
+ * The class entries of a column. A header cell and a body cell keep **their own** classes: `RowTable` gives a
+ * header cell `py-2 font-semibold` and a body cell nothing, so merging the two lists both drops a header's
+ * `pl-3` and bolds a body cell that was never bold. The header entry is always written, `""` when the header
+ * carried no class, so a plain `<th scope="col">` does not silently pick up the default weight.
  */
 function classesOf(headRaw: string | undefined, cellRaw: string | undefined, headClasses: string[], cellClasses: string[]): string[] {
   const isExpression = (raw?: string) => Boolean(raw && (raw.includes('${') ||
@@ -163,27 +164,26 @@ function classesOf(headRaw: string | undefined, cellRaw: string | undefined, hea
     const inner = raw.startsWith('{') ? raw.slice(1, -1).trim() : raw.slice(1, -1);
     return inner;
   };
-  if (isExpression(headRaw) || isExpression(cellRaw)) {
-    const entries: string[] = [];
-    if (cellRaw && isExpression(cellRaw)) entries.push(`className: ${source(cellRaw)}`);
-    if (headRaw && isExpression(headRaw)) entries.push(`headClassName: ${source(headRaw)}`);
-    if (!entries.some(entry => entry.startsWith('className:')) && cellClasses.length) {
-      entries.push(`className: ${JSON.stringify(cellClasses.filter(name => !ALIGNMENT.has(name)).join(' '))}`);
-    }
-    if (!entries.some(entry => entry.startsWith('headClassName:')) && headClasses.length) {
-      entries.push(`headClassName: ${JSON.stringify(headClasses.filter(name => !ALIGNMENT.has(name)).join(' '))}`);
-    }
-    return entries.filter(entry => !entry.endsWith(': ""'));
+  const entries: string[] = [];
+  if (cellRaw && isExpression(cellRaw)) {
+    entries.push(`className: ${source(cellRaw)}`);
+  } else {
+    const names = cellClasses.filter(name => !ALIGNMENT.has(name));
+    if (names.length) entries.push(`className: ${JSON.stringify(names.join(' '))}`);
   }
-  const classes = [...new Set([...headClasses, ...cellClasses].filter(name => !ALIGNMENT.has(name)))];
-  return classes.length ? [`className: ${JSON.stringify(classes.join(' '))}`] : [];
+  if (headRaw && isExpression(headRaw)) {
+    entries.push(`headClassName: ${source(headRaw)}`);
+  } else {
+    entries.push(`headClassName: ${JSON.stringify(headClasses.filter(name => !ALIGNMENT.has(name)).join(' '))}`);
+  }
+  return entries;
 }
 
 /* ───────────────────────────── the shapes ───────────────────────────── */
 
 interface LiteralHead {
   kind: 'literal';
-  headers: { content: string; classes: string[]; raw: string }[];
+  headers: { content: string; classes: string[]; raw?: string }[];
 }
 
 interface ArrayHead {
@@ -209,7 +209,7 @@ interface ComputedHead {
 interface VirtualHead {
   kind: 'virtual';
   /** A column the header writes out itself, before the computed ones. */
-  fixed: { content: string; classes: string[] }[];
+  fixed: { content: string; classes: string[]; raw?: string }[];
   list: string;
   parameter: string;
   text: string;
@@ -242,7 +242,7 @@ function readHead(inner: string): HeadShape | undefined {
   }
 
   // literal header cells, possibly after one written-out cell of their own
-  const cells: { content: string; classes: string[]; raw: string }[] = [];
+  const cells: { content: string; classes: string[]; raw?: string }[] = [];
   let at = 0;
   const trimmed = inner.trim();
   while (at < trimmed.length) {
@@ -334,10 +334,22 @@ export function attemptConvert(source: string, start: number): Attempt {
   const tableEnd = skipElement(source, start, 'table');
   const table = source.slice(start, tableEnd);
 
+  // a `<table key={side}>` in a map keeps its key, or React re-uses the previous table's DOM; any other
+  // attribute of the table (`aria-label`, `id`) is a name this component does not have a prop for, so the
+  // table is hand work rather than silently losing the name a screen reader announces it by
+  const tableKey = attributeOf(tableOpen, 'key');
+  const otherAttributes = [...tableOpen.matchAll(/\s([A-Za-z_][-\w:.]*)\s*=/g)]
+    .map(match => match[1])
+    .filter(name => name !== 'className' && name !== 'key');
+  if (otherAttributes.length > 0) {
+    return { reason: `a table attribute a rewrite would drop (${otherAttributes.join(', ')})` };
+  }
+
   const captionAt = table.indexOf('<caption');
   if (captionAt === -1) return { reason: 'no caption: a caption the script would invent is a hand decision' };
   const captionEnd = skipElement(table, captionAt, 'caption');
   const captionBody = table.slice(skipOpeningTag(table, captionAt), captionEnd - '</caption>'.length).trim();
+  const captionClass = classOf(openTagAt(table, captionAt)).join(' ');
   if (!captionBody) return { reason: 'an empty caption' };
 
   const headAt = table.indexOf('<thead');
@@ -346,6 +358,7 @@ export function attemptConvert(source: string, start: number): Attempt {
   const thead = table.slice(headAt, theadEnd);
   const headRowAt = thead.indexOf('<tr');
   if (headRowAt === -1) return { reason: 'a header row this script could not read' };
+  const theadOpen = openTagAt(table, headAt);
   const headRow = openTagAt(thead, headRowAt);
   const headInner = thead.slice(skipOpeningTag(thead, headRowAt), thead.lastIndexOf('</tr>'));
   if (attributeOf(headRow, 'onClick') !== undefined) return { reason: 'a sortable header row (the grid owns sorting)' };
@@ -418,7 +431,8 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (cells.some(cell => cell.rawClass && readsRow.test(cell.rawClass))) {
     return { reason: 'a class computed from the row, which belongs inside the cell' };
   }
-  if (head.kind !== 'array' && (head.headTag && readsRow.test(head.headTag))) {
+  const headTag = 'headTag' in head ? head.headTag : undefined;
+  if (headTag && readsRow.test(headTag)) {
     return { reason: 'a header class that reads the row' };
   }
   if (classSource(tableOpen) && readsRow.test(classSource(tableOpen)!)) return { reason: 'a table class that reads the row' };
@@ -428,7 +442,9 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (cells.slice(1).some(cell => cell.rowHeader)) return { reason: 'a row header after the first column' };
 
   const tableClass = classOf(tableOpen).join(' ');
-  const headRowClass = classOf(headRow).join(' ');
+  // the head's class is on the `<thead>` when it is `sticky top-0`, and on the `<tr>` when it is a colour:
+  // both move onto the one element `RowTable` classes, the `<thead>`, so neither is dropped
+  const headRowClass = [...new Set([...classOf(theadOpen), ...classOf(headRow)])].join(' ');
   const bodyClass = classOf(tbodyOpen).join(' ');
 
   const entries: string[] = [];
@@ -456,7 +472,7 @@ export function attemptConvert(source: string, start: number): Attempt {
     const cell = literalCells[index];
     const text = header.content;
     entries.push(entry([
-      typeof text === 'string' && !text.includes('<') && !text.startsWith('{') ? `header: ${literal(text)}` : `header: ${jsxValue(text)}`,
+      /[<{]/.test(text) ? `header: ${jsxValue(text)}` : `header: ${literal(text)}`,
       header.classes.includes('text-right') || cell.classes.includes('text-right') ? "align: 'right'" : '',
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
       `cell: (${row}) => ${jsxValue(cell.content)}`,
@@ -469,7 +485,7 @@ export function attemptConvert(source: string, start: number): Attempt {
     const headClasses = classOf(head.cellTag);
     entries.push(entry([
       `over: ${nested.list}`,
-      `header: (${nested.parameter}) => ${head.kind === 'array' ? nested.parameter : head.text}`,
+      `head: (${nested.parameter}) => ${head.kind === 'array' ? nested.parameter : head.text}`,
       headClasses.includes('text-right') || nestedCells[0].classes.includes('text-right') ? "align: 'right'" : '',
       ...classesOf(classSource(head.cellTag), nestedCells[0].rawClass, headClasses, nestedCells[0].classes),
       `cell: (${row}, ${nested.parameter}) => ${jsxValue(nested.content)}`,
@@ -498,19 +514,25 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (entries.length === 0) return { reason: 'a table with no columns this script could write' };
 
   const props: string[] = [];
+  if (tableKey) props.push(`        key={${tableKey}}`);
   if (!rowHeaderColumn) props.push('        rowHeaderColumn={false}');
   if (rowClassName) props.push(`        rowClassName=${attr(rowClassName)}`);
   props.push(`        caption={${jsxValue(captionBody)}}`);
   props.push(`        rows={${list}}`);
   props.push(`        rowKey={${row} => ${trKey}}`);
-  if (tableClass && tableClass !== 'w-full text-xs') props.push(`        tableClassName=${attr(tableClass)}`);
-  if (headRowClass && headRowClass !== 'text-[var(--muted)]') props.push(`        headRowClassName=${attr(headRowClass)}`);
-  if (bodyClass && bodyClass !== 'divide-y divide-[var(--line)]') props.push(`        bodyClassName=${attr(bodyClass)}`);
+  // every class the original table had, and the absence of one: `<thead>` with no class must not inherit the
+  // component's default `text-[var(--muted)]`, and a bare `<tbody>` must not gain `divide-y`
+  if (captionClass !== 'sr-only') props.push(`        captionClassName=${attr(captionClass)}`);
+  if (tableClass !== 'w-full text-xs') props.push(`        tableClassName=${attr(tableClass)}`);
+  if (headRowClass !== 'text-[var(--muted)]') props.push(`        headRowClassName=${attr(headRowClass)}`);
+  if (bodyClass !== 'divide-y divide-[var(--line)]') props.push(`        bodyClassName=${attr(bodyClass)}`);
 
   const lineStart = source.lastIndexOf('\n', start) + 1;
   const lineIndent = (source.slice(lineStart, start).match(/^\s*/) ?? [''])[0];
+  // the source keeps whatever precedes `<table` on its line, the indent included, so the first line of the
+  // replacement carries none of its own
   const replacement = [
-    `${lineIndent}<RowTable`,
+    '<RowTable',
     ...props.map(row => `${lineIndent}  ${row.trimStart()}`),
     `${lineIndent}  columns={[`,
     ...entries.map(row => `${lineIndent}    ${row.trimStart()}`),

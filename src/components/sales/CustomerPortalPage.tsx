@@ -196,7 +196,7 @@ export default function CustomerPortalPage() {
               <section aria-label="Quotes and proposals" className="space-y-2 pt-2">
                 <h2 className="text-lg font-bold">Estimates &amp; proposals</h2>
                 <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-                                    <RowTable
+                  <RowTable
                     rowHeaderColumn={false}
                     rowClassName="border-t border-[var(--line)]"
                     caption={(<>Quotes and proposals for {data.customer}</>)}
@@ -204,13 +204,14 @@ export default function CustomerPortalPage() {
                     rowKey={q => q.estimateId}
                     tableClassName="w-full text-sm"
                     headRowClassName="text-left text-xs text-[var(--muted)]"
+                    bodyClassName=""
                     columns={[
-                      { header: "Quote", className: "p-3 font-semibold", cell: (q) => (<><bdi>{q.number}</bdi>{q.versionLabel ? <div className="text-xs font-normal text-[var(--muted)]"><bdi>{q.versionLabel} — the latest is shown</bdi></div> : null}</>) },
-                      { header: "Title", className: "p-3", cell: (q) => <bdi>{q.title}</bdi> },
-                      { header: "Valid until", className: "p-3 tabular-nums", cell: (q) => q.expiryDate || '—' },
-                      { header: "Amount", align: 'right', className: "p-3 tabular-nums", cell: (q) => formatCurrency(q.amountCents, q.currency || data.currency) },
-                      { header: "Status", className: "p-3", cell: (q) => QUOTE_STATE[q.state] },
-                      { header: <span className="sr-only">Accept</span>, className: "p-3", cell: (q) => q.canAccept && q.signToken && (
+                      { header: "Quote", className: "p-3 font-semibold", headClassName: "p-3", cell: (q) => (<><bdi>{q.number}</bdi>{q.versionLabel ? <div className="text-xs font-normal text-[var(--muted)]"><bdi>{q.versionLabel} — the latest is shown</bdi></div> : null}</>) },
+                      { header: "Title", className: "p-3", headClassName: "p-3", cell: (q) => <bdi>{q.title}</bdi> },
+                      { header: "Valid until", className: "p-3 tabular-nums", headClassName: "p-3", cell: (q) => q.expiryDate || '—' },
+                      { header: "Amount", align: 'right', className: "p-3 tabular-nums", headClassName: "p-3", cell: (q) => formatCurrency(q.amountCents, q.currency || data.currency) },
+                      { header: "Status", className: "p-3", headClassName: "p-3", cell: (q) => QUOTE_STATE[q.state] },
+                      { header: <span className="sr-only">Accept</span>, className: "p-3", headClassName: "p-3", cell: (q) => q.canAccept && q.signToken && (
                               <a href={`/e/${encodeURIComponent(q.signToken)}`} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
                                 Review and accept<span className="sr-only"> quote {q.number}</span>
                               </a>

@@ -66,7 +66,6 @@
   "src/components/reporting/PartyLinkedTrialBalanceView.tsx",
   "src/components/reporting/PartyPeriodSummaryView.tsx",
   "src/components/reporting/PaymentMethodSummaryView.tsx",
-  "src/components/reporting/PickPackShipPanel.tsx",
   "src/components/reporting/RegistrationThresholdWatchReportView.tsx",
   "src/components/reporting/Reports.tsx",
   "src/components/reporting/RetentionReviewReportView.tsx",

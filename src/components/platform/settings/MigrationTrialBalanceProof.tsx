@@ -100,17 +100,19 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
               <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Credits</th><td className="text-right">{amount(proof.sourceCreditCents)}</td><td className="text-right">{amount(proof.ledgerCreditCents)}</td><td className="text-right">{amount(proof.creditDifferenceCents)}</td></tr>
             </tbody>
           </table></div>
-          {proof.differences.length > 0 && <div className="max-h-60 overflow-auto">          <RowTable
+          {proof.differences.length > 0 && <div className="max-h-60 overflow-auto"><RowTable
             rowHeaderColumn={false}
             rowClassName="border-t border-[var(--line)]"
             caption={(<>Accounts with discrepancies</>)}
             rows={proof.differences}
             rowKey={row => row.accountId}
             tableClassName="w-full text-xs tabular-nums"
+            headRowClassName=""
+            bodyClassName=""
             columns={[
-              { header: "Account", className: "py-2", cell: (row) => row.account },
-              { header: "Reason", cell: (row) => row.problem.replaceAll('-', ' ') },
-              { header: "Difference", align: 'right', cell: (row) => amount(row.differenceCents) },
+              { header: "Account", className: "py-2", headClassName: "", cell: (row) => row.account },
+              { header: "Reason", headClassName: "", cell: (row) => row.problem.replaceAll('-', ' ') },
+              { header: "Difference", align: 'right', headClassName: "", cell: (row) => amount(row.differenceCents) },
             ]}
           /></div>}
           <p className="text-xs font-semibold text-[var(--text)]">Financial migration NOT verified. A/R, A/P, cash and tax payable still need independently sourced totals and Agent #1's server-side AU-4 check. Even matching balances do not certify posting, documents, opening stock, currency, completeness or unchanged data between requests.</p>

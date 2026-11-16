@@ -41,18 +41,19 @@ export const StockClosingPanel: React.FC<{ workspaceId: string | null | undefine
               {closing.complete === false && (
                 <p>Incomplete: the stock value leaves out {(closing.incompleteItems || []).map(i => `${i.itemName} (${i.reason || `the history starts with ${i.quantity} units it has no value for`})`).join('; ')}.</p>
               )}
-                            <RowTable
+              <RowTable
                 rowHeaderColumn={false}
                 caption={(<>Stock at the closing of {closing.asOf}, by item and location</>)}
                 rows={closing.rows}
                 rowKey={r => `${r.itemId}|${r.locationId}`}
                 tableClassName="mt-1 w-full"
                 headRowClassName="text-left text-[var(--muted)]"
+                bodyClassName=""
                 columns={[
-                  { header: "Item", cell: (r) => r.itemName },
-                  { header: "Location", cell: (r) => r.locationId || 'No location' },
-                  { header: "Quantity", align: 'right', cell: (r) => r.quantity },
-                  { header: "Value", align: 'right', cell: (r) => money(r.valueCents) },
+                  { header: "Item", headClassName: "", cell: (r) => r.itemName },
+                  { header: "Location", headClassName: "", cell: (r) => r.locationId || 'No location' },
+                  { header: "Quantity", align: 'right', headClassName: "", cell: (r) => r.quantity },
+                  { header: "Value", align: 'right', headClassName: "", cell: (r) => money(r.valueCents) },
                 ]}
               />
             </div>

@@ -31,18 +31,21 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
     {loading && <p role="status">Loading transactions and bank statements…</p>}
     {!valid && <p role="alert">Choose a valid report end date.</p>}
     {partial && <p role="alert">History is incomplete or failed to load. Missing counterpart warnings are provisional.</p>}
-    {valid && !loading && <ReportTableScroll>    <RowTable
+    {valid && !loading && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)]"
       caption={(<>Transfer counterpart review as of {endDate}</>)}
       rows={rows}
       rowKey={row => row.id}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Date / transaction", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
-        { header: "From", cell: (row) => <bdi>{row.fromAccount}</bdi> },
-        { header: "To", cell: (row) => <bdi>{row.toAccount}</bdi> },
-        { header: "Amount", align: 'right', className: "tabular-nums", cell: (row) => formatCurrency(row.amountCents, currency) },
-        { header: "Why review", cell: (row) => row.status },
+        { header: "Date / transaction", headClassName: "", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
+        { header: "From", headClassName: "", cell: (row) => <bdi>{row.fromAccount}</bdi> },
+        { header: "To", headClassName: "", cell: (row) => <bdi>{row.toAccount}</bdi> },
+        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.amountCents, currency) },
+        { header: "Why review", headClassName: "", cell: (row) => row.status },
       ]}
     />{!rows.length && <p>No one-sided transfer warnings in the loaded history.</p>}</ReportTableScroll>}
   </section>;

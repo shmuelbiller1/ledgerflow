@@ -101,19 +101,22 @@ export default function ExpensePolicyReportView({ endDate = '' }: { endDate?: st
     {dropped > 0 && <p role="alert">{dropped} stored policy row(s) could not be read and were ignored; fix them on the workspace record ({EXPENSE_POLICY_METADATA_KEY}).</p>}
     {!policy.rows.length && <p role="note">This workspace has no expense policy rows yet, so every claim is within policy by default. Add rows to <code>{EXPENSE_POLICY_METADATA_KEY}</code> (id, accountId or category, maxAmountCents and/or receiptFromCents, validFrom) to check claims.</p>}
 
-    {rows.length > 0 && <ReportTableScroll>    <RowTable
+    {rows.length > 0 && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)] align-top"
       caption={(<>Expense claims from {from} to {to} checked against the policy in force on each claim's date</>)}
       rows={rows}
       rowKey={row => `${row.bill.id}-${row.line}-${row.finding}-${row.rule}`}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Claim", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
-        { header: "State", cell: (row) => row.claim?.state || '' },
-        { header: "Account", cell: (row) => <code>{row.account || '—'}</code> },
-        { header: "Amount", align: 'right', className: "tabular-nums", cell: (row) => money(row.amountCents) },
-        { header: "Finding", cell: (row) => row.finding },
-        { header: "What the policy asks", cell: (row) => row.ask || (policy.rows.length ? 'The policy rows in force match nothing on this claim' : '') },
+        { header: "Claim", headClassName: "", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
+        { header: "State", headClassName: "", cell: (row) => row.claim?.state || '' },
+        { header: "Account", headClassName: "", cell: (row) => <code>{row.account || '—'}</code> },
+        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
+        { header: "Finding", headClassName: "", cell: (row) => row.finding },
+        { header: "What the policy asks", headClassName: "", cell: (row) => row.ask || (policy.rows.length ? 'The policy rows in force match nothing on this claim' : '') },
       ]}
     /></ReportTableScroll>}
 

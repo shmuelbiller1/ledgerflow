@@ -103,27 +103,30 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
     {report && report.unclassifiedRevenueLineCount > 0 && <p role="alert">{report.unclassifiedRevenueLineCount} posted revenue line(s) have no supported activity label and are excluded from threshold comparisons.</p>}
     {report && report.invalidSplitLineCount > 0 && <p role="alert">{report.invalidSplitLineCount} posted revenue line(s) have invalid split-allocation weights and are excluded.</p>}
 
-    {report && report.rows.length > 0 && <ReportTableScroll>    <RowTable
+    {report && report.rows.length > 0 && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)] align-top"
       caption={(<>Posted-sales threshold comparisons as of {asOf}</>)}
       rows={report.rows}
       rowKey={row => row.id}
+      captionClassName=""
       tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
       columns={[
-        { header: "Entity", cell: (row) => (<><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></>) },
-        { header: "Threshold / test", cell: (row) => (<><bdi>{row.rule.name}</bdi><div className="text-xs text-[var(--muted)]">{row.rule.source.authority}</div><div className="text-xs text-[var(--muted)]"><bdi>Effective {row.rule.validFrom}{row.rule.validTo ? ` – ${row.rule.validTo}` : ' onward'}</bdi></div></>) },
-        { header: "Period", cell: (row) => (<><bdi>{row.periodLabel}</bdi><div className="text-xs text-[var(--muted)]">{row.periodStart} – {row.periodEnd}</div></>) },
-        { header: "Posted sales", align: 'right', className: "tabular-nums", cell: (row) => money(row.salesCents, row.baseCurrency) },
-        { header: "Threshold", align: 'right', className: "tabular-nums", cell: (row) => formatCurrency(row.thresholdCents, row.thresholdCurrency) },
-        { header: "Progress", align: 'right', className: "tabular-nums", cell: (row) => row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%` },
-        { header: "Comparison", cell: (row) => row.result === 'currency-mismatch'
+        { header: "Entity", headClassName: "", cell: (row) => (<><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></>) },
+        { header: "Threshold / test", headClassName: "", cell: (row) => (<><bdi>{row.rule.name}</bdi><div className="text-xs text-[var(--muted)]">{row.rule.source.authority}</div><div className="text-xs text-[var(--muted)]"><bdi>Effective {row.rule.validFrom}{row.rule.validTo ? ` – ${row.rule.validTo}` : ' onward'}</bdi></div></>) },
+        { header: "Period", headClassName: "", cell: (row) => (<><bdi>{row.periodLabel}</bdi><div className="text-xs text-[var(--muted)]">{row.periodStart} – {row.periodEnd}</div></>) },
+        { header: "Posted sales", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.salesCents, row.baseCurrency) },
+        { header: "Threshold", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.thresholdCents, row.thresholdCurrency) },
+        { header: "Progress", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%` },
+        { header: "Comparison", headClassName: "", cell: (row) => row.result === 'currency-mismatch'
           ? `Not compared: ledger base ${row.baseCurrency || 'unknown'}, threshold ${row.thresholdCurrency}`
           : row.result === 'over'
             ? `${money(Math.abs(row.remainingCents || 0), row.baseCurrency)} over — review scope and dates`
             : row.result === 'at'
               ? 'At threshold — review scope and dates'
               : `${money(row.remainingCents || 0, row.baseCurrency)} below` },
-        { header: "Official sources", className: "whitespace-nowrap", cell: (row) => (<><a className="underline" href={row.rule.source.url} target="_blank" rel="noopener noreferrer">Rule source</a>
+        { header: "Official sources", className: "whitespace-nowrap", headClassName: "", cell: (row) => (<><a className="underline" href={row.rule.source.url} target="_blank" rel="noopener noreferrer">Rule source</a>
           {row.rule.effect.kind === 'registration-threshold' && row.rule.effect.guidanceUrl && <> · <a className="underline" href={row.rule.effect.guidanceUrl} target="_blank" rel="noopener noreferrer">Scope guidance</a></>}</>) },
       ]}
     /></ReportTableScroll>}

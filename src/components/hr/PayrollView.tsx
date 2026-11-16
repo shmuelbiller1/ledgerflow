@@ -674,19 +674,20 @@ const PayrollViewContent: React.FC = () => {
 
               {/* Employee Breakdown */}
               <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                                <RowTable
+                <RowTable
                   rowHeaderColumn={false}
                   caption={(<>Pay run by employee</>)}
                   rows={calculatedPayRun.items}
                   rowKey={item => item.employee.id}
                   tableClassName="w-full text-left text-[11px]"
+                  headRowClassName="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold"
                   bodyClassName="divide-y divide-neutral-100"
                   columns={[
-                    { header: "Employee", className: "py-2 px-3 font-medium text-neutral-900", cell: (item) => <EmployeeInlineDetails employee={item.employee} /> },
-                    { header: "Gross", align: 'right', className: "py-2 px-3 font-mono", cell: (item) => formatCurrency(item.calc.grossPayCents) },
-                    { header: "Income Tax W/H", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", cell: (item) => formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents) },
-                    { header: "FICA & Med", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", cell: (item) => formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents) },
-                    { header: "Net Pay", align: 'right', className: "py-2 px-3 font-mono font-bold text-emerald-600", cell: (item) => formatCurrency(item.calc.netPayCents) },
+                    { header: "Employee", className: "py-2 px-3 font-medium text-neutral-900", headClassName: "py-2 px-3", cell: (item) => <EmployeeInlineDetails employee={item.employee} /> },
+                    { header: "Gross", align: 'right', className: "py-2 px-3 font-mono", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.grossPayCents) },
+                    { header: "Income Tax W/H", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents) },
+                    { header: "FICA & Med", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents) },
+                    { header: "Net Pay", align: 'right', className: "py-2 px-3 font-mono font-bold text-emerald-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.netPayCents) },
                   ]}
                 />
               </div>

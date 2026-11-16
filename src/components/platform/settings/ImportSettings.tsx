@@ -554,15 +554,17 @@ export default function ImportSettings() {
 
             {issuesAfterPreview.length > 0 && (
               <div className="max-h-64 overflow-auto border border-[var(--line)] rounded-xl">
-                                <RowTable
+                <RowTable
                   rowHeaderColumn={false}
                   rowClassName="border-t border-[var(--line)]"
                   caption={(<>Rows with problems</>)}
                   rows={issuesAfterPreview.slice(0, 200)}
                   rowKey={issue => `${issue.row}:${issue.field ?? ''}:${issue.message}`}
+                  headRowClassName="bg-[var(--panel)] text-[var(--muted)]"
+                  bodyClassName=""
                   columns={[
-                    { header: "Row", className: "px-3 py-2 py-1.5 font-mono", cell: (issue) => issue.row },
-                    { header: "Problem", className: "px-3 py-2 py-1.5 text-[var(--text)]", cell: (issue) => (<><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</>) },
+                    { header: "Row", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2", cell: (issue) => issue.row },
+                    { header: "Problem", className: "px-3 py-1.5 text-[var(--text)]", headClassName: "px-3 py-2", cell: (issue) => (<><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</>) },
                   ]}
                 />
                 {issuesAfterPreview.length > 200 && (

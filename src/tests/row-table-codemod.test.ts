@@ -49,8 +49,8 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.match(conversion.after, /caption=\{\(<>Every order and its value<\/>\)\}/);
     assert.match(conversion.after, /rows=\{orders\}/);
     assert.match(conversion.after, /rowKey=\{order => order\.id\}/);
-    assert.match(conversion.after, /\{ header: "Order", className: "py-1 font-mono", cell: \(order\) => order\.number \}/);
-    assert.match(conversion.after, /\{ header: "Value", align: 'right', className: "py-1 font-mono", cell: \(order\) => money\(order\.cents\) \}/);
+    assert.match(conversion.after, /\{ header: "Order", className: "py-1 font-mono", headClassName: "py-1", cell: \(order\) => order\.number \}/);
+    assert.match(conversion.after, /\{ header: "Value", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: \(order\) => money\(order\.cents\) \}/);
     // and no `th`/`td`/`table` survives: the markup now lives in one place
     assert.doesNotMatch(conversion.after, /<t[hd]\b|<table\b/);
   });
@@ -130,6 +130,66 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.match(conversion.after, /over: row\.months/);
     assert.match(conversion.after, /cell: \(row, month\) =>/);
   });
+
+  test('a header cell keeps its own class, and the default weight does not leak into the body', () => {
+    const { conversion } = convert(page(`      <table className="w-full text-xs">
+        <caption>Depreciation</caption>
+        <thead><tr><th scope="col" className="text-left py-1">Year</th><th scope="col" className="text-left pl-3 py-1">Posted</th><th scope="col">Note</th></tr></thead>
+        <tbody>{years.map(y => <tr key={y.year}><th scope="row" className="text-left py-1">{y.year}</th><td className="py-1 pl-3 text-[var(--muted)]">{y.posted}</td><td>{y.note}</td></tr>)}</tbody>
+      </table>`));
+    assert.ok(conversion);
+    // the header's `pl-3` stays on the header, and the body cell keeps its own grown class list
+    assert.match(conversion.after, /header: "Posted", className: "py-1 pl-3 text-\[var\(--muted\)\]", headClassName: "pl-3 py-1",/);
+    // a header with no class of its own says so, so `py-2 font-semibold` is not invented for it
+    assert.match(conversion.after, /headClassName: "",/);
+  });
+
+  test('a visible caption stays visible, and the head keeps the class it had on the thead', () => {
+    const { conversion } = convert(page(`      <table className="w-full text-sm">
+        <caption>Currencies used besides {home}</caption>
+        <thead className="sticky top-0 bg-[var(--panel)]"><tr><th scope="col">Code</th></tr></thead>
+        <tbody>{rows.map(r => <tr key={r.code}><th scope="row">{r.code}</th></tr>)}</tbody>
+      </table>`));
+    assert.ok(conversion);
+    // a `<caption>` with no class was a line on the screen; `sr-only` is the component's default, not this table's
+    assert.match(conversion.after, /captionClassName=""/);
+    // and `sticky top-0` lives on the `<thead>`, which is the element the component classes
+    assert.match(conversion.after, /headRowClassName="sticky top-0 bg-\[var\(--panel\)\]"/);
+  });
+
+  test('a header that mixes text and an expression stays an expression, not the text of one', () => {
+    const { conversion } = convert(page(`      <table className="w-full text-xs">
+        <caption>Opening balances</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Balance ({currency})</th></tr></thead>
+        <tbody>{accounts.map(a => <tr key={a.id}><th scope="row">{a.name}</th><td>{a.cents}</td></tr>)}</tbody>
+      </table>`));
+    assert.ok(conversion);
+    assert.match(conversion.after, /header: \(<>Balance \(\{currency\}\)<\/>\)/);
+    assert.doesNotMatch(conversion.after, /header: "Balance \(\{currency\}\)"/);
+  });
+
+  test('a table with a name this component has no prop for is hand work, not a lost name a11y', () => {
+    const { conversion, reason } = convert(page(`      <table aria-label="Profit and loss">
+        <caption>Profit and loss</caption>
+        <thead><tr><th scope="col">Line</th></tr></thead>
+        <tbody>{lines.map(l => <tr key={l.id}><th scope="row">{l.name}</th></tr>)}</tbody>
+      </table>`));
+    assert.equal(conversion, undefined);
+    assert.match(reason, /table attribute a rewrite would drop/);
+  });
+
+  test('a table mapped in a list keeps its key', () => {
+    const { conversion } = convert(page(`      {(['sales', 'purchases'] as const).map(side => (
+        <table key={side} className="w-full text-xs">
+          <caption>By treatment</caption>
+          <thead><tr><th scope="col">Treatment</th></tr></thead>
+          <tbody>{treatments.map(t => <tr key={t}><th scope="row">{t}</th></tr>)}</tbody>
+        </table>
+      ))}`));
+    assert.ok(conversion);
+    // without the key React re-uses the first table's DOM for the second
+    assert.match(conversion.after, /key=\{side\}/);
+  });
 });
 
 describe('the sweep and the counter agree', () => {
@@ -144,7 +204,8 @@ describe('the sweep and the counter agree', () => {
     assert.ok(conversion);
     assert.doesNotMatch(conversion.after, /<table\b/);
     // and the conversion is a component, not a string: the caller adds the import the codemod reports
-    assert.match(conversion.after, /^ {6}<RowTable$/m);
+    // the source keeps the indent that precedes `<table`, so the component's first line carries none
+    assert.match(conversion.after, /^<RowTable$/m);
   });
 });
 

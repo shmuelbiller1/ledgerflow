@@ -15,14 +15,15 @@ export default function ReadCounterPanel() {
       </div>
       <p className="text-xs text-[var(--muted)]">{total} rows in all since this tab opened (or since Start again). Open a screen and come back to see what it read.</p>
       {rows.length > 0 && (
-                <RowTable
+        <RowTable
           caption={(<>Rows read per table</>)}
           rows={rows}
           rowKey={r => r.table}
+          bodyClassName=""
           columns={[
-            { header: "Table", className: "py-1 font-mono font-normal py-0.5", cell: (r) => r.table },
-            { header: "Rows", align: 'right', className: "py-1 font-mono", cell: (r) => r.rows },
-            { header: "Reads", align: 'right', className: "py-1 font-mono", cell: (r) => r.reads },
+            { header: "Table", className: "font-mono font-normal py-0.5", headClassName: "py-1", cell: (r) => r.table },
+            { header: "Rows", align: 'right', className: "font-mono", headClassName: "py-1", cell: (r) => r.rows },
+            { header: "Reads", align: 'right', className: "font-mono", headClassName: "py-1", cell: (r) => r.reads },
           ]}
         />
       )}

@@ -86,19 +86,21 @@ export default function ImportAcceptanceView() {
           </div>
           {acceptance.differences.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-                            <RowTable
+              <RowTable
                 rowClassName="border-b border-[var(--line)]/50"
                 caption={(<>Accounts that differ (balances as debits; credits are negative). {acceptance.agreeing} agree.</>)}
                 rows={acceptance.differences}
                 rowKey={d => d.label}
+                captionClassName="text-left font-semibold text-[var(--text)] pb-1"
                 tableClassName="w-full text-sm"
                 headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                bodyClassName=""
                 columns={[
-                  { header: "Account", className: "font-semibold py-1 font-normal", cell: (d) => <bdi>{d.label}</bdi> },
-                  { header: "Why", className: "font-semibold py-1", cell: (d) => d.why },
-                  { header: "Source", align: 'right', className: "font-semibold py-1 font-mono", cell: (d) => money(d.sourceCents) },
-                  { header: BRAND_NAME, align: 'right', className: "font-semibold py-1 font-mono", cell: (d) => money(d.ledgerCents) },
-                  { header: "Difference", align: 'right', className: "font-semibold py-1 font-mono text-rose-600", cell: (d) => money(d.differenceCents) },
+                  { header: "Account", className: "font-normal py-1", headClassName: "font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
+                  { header: "Why", className: "py-1", headClassName: "font-semibold py-1", cell: (d) => d.why },
+                  { header: "Source", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.sourceCents) },
+                  { header: BRAND_NAME, align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.ledgerCents) },
+                  { header: "Difference", align: 'right', className: "font-mono py-1 text-rose-600", headClassName: "font-semibold py-1", cell: (d) => money(d.differenceCents) },
                 ]}
               />
             </div>

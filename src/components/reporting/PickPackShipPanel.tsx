@@ -276,17 +276,20 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
       {problem && <p role="alert" className="text-sm text-[var(--neg)]">{problem}</p>}
 
       <ReportTableScroll>
-                <RowTable
+        <RowTable
           rowClassName="border-b border-[var(--line)]/50"
           caption={(<>Shipment tracking history for {order?.number || order?.id || 'selected sales order'}</>)}
           rows={existingShipments}
           rowKey={record => record.id}
+          captionClassName=""
           tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
           columns={[
-            { header: "Source", className: "py-2 px-2 font-normal", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
-            { header: "Shipped", className: "py-2 px-2", cell: (record) => record.shippedDate },
-            { header: "Carrier", className: "py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
-            { header: "Tracking number", className: "py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
+            { header: "Source", className: "font-normal py-2 px-2", headClassName: "py-2 px-2", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
+            { header: "Shipped", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => record.shippedDate },
+            { header: "Carrier", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
+            { header: "Tracking number", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
           ]}
         />
         {!existingShipments.length && <p className="p-3 text-sm text-[var(--muted)]">No shipment tracking has been recorded for this order.</p>}

@@ -56,15 +56,18 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
       {(truncated.invoices || truncated.bills || truncated.payments || truncated.transactions || failed.transactions) && <p role="alert">Loaded history is incomplete. These rates are provisional.</p>}
       {valid && !loading && (
         <ReportTableScroll>
-                    <RowTable
+          <RowTable
             caption={currency ? `${currency} rates used: ${startDate} – ${endDate}` : `Exchange rates used: ${startDate} – ${endDate}`}
             rows={uses}
             rowKey={u => `${u.date}-${u.rate}`}
+            captionClassName=""
             tableClassName="w-full text-sm"
+            headRowClassName=""
+            bodyClassName=""
             columns={[
-              { header: "Date", cell: (u) => u.date },
-              { header: (<>{home} for 1 {currency || '…'}</>), align: 'right', className: "font-mono", cell: (u) => u.rate },
-              { header: "Documents", align: 'right', cell: (u) => u.count },
+              { header: "Date", headClassName: "", cell: (u) => u.date },
+              { header: (<>{home} for 1 {currency || '…'}</>), align: 'right', className: "font-mono", headClassName: "", cell: (u) => u.rate },
+              { header: "Documents", align: 'right', headClassName: "", cell: (u) => u.count },
             ]}
           />
           {currencies.length === 0 && <p>No document in another currency yet.</p>}

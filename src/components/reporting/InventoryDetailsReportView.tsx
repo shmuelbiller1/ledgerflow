@@ -54,18 +54,20 @@ export default function InventoryDetailsReportView() {
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {shown?.items && shown.items.length === 0 && <p className="text-sm text-[var(--muted)]">No stock and no movements in this period.</p>}
       {shown?.items && purchasesByItem(shown.items).length > 0 && (
-                <RowTable
+        <RowTable
           rowClassName="border-b border-[var(--line)]/50"
           caption={(<>Bought in the period</>)}
           rows={purchasesByItem(shown.items)}
           rowKey={p => p.itemId}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
           tableClassName="w-full text-sm"
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
           columns={[
-            { header: "Item", className: "font-semibold py-1 font-normal", cell: (p) => <bdi>{p.itemName}</bdi> },
-            { header: "Units", align: 'right', className: "font-semibold py-1 font-mono", cell: (p) => qty(p.quantity) },
-            { header: "Cost", align: 'right', className: "font-semibold py-1 font-mono", cell: (p) => formatCurrency(p.valueCents, currency) },
-            { header: "Per unit", align: 'right', className: "font-semibold py-1 font-mono", cell: (p) => formatCurrency(p.averageCents, currency) },
+            { header: "Item", className: "font-normal py-1", headClassName: "font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
+            { header: "Units", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
+            { header: "Cost", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
+            { header: "Per unit", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },
           ]}
         />
       )}

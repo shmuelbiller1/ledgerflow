@@ -89,19 +89,21 @@ export default function ExpenseBillCategories({
       {selectedBills.length === 0
         ? <p className="text-neutral-500">{loading ? 'Loading bill records…' : 'No loaded bills match this category and period.'}</p>
         : <div role="region" aria-label="Bills by expense category" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-neutral-200">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-                    <RowTable
+          <RowTable
             rowHeaderColumn={false}
             rowClassName="border-t border-neutral-100"
             caption={(<>Bills matching the selected expense account category</>)}
             rows={selectedBills}
             rowKey={bill => bill.id}
             tableClassName="w-full text-left text-xs"
+            headRowClassName="sticky top-0 bg-neutral-50"
+            bodyClassName=""
             columns={[
-              { header: "Vendor", className: "p-2", cell: (bill) => bill.vendorName || bill.vendorId },
-              { header: "Bill", className: "p-2", cell: (bill) => bill.number || bill.id },
-              { header: "Date", className: "p-2", cell: (bill) => bill.date || bill.issueDate || 'Unknown' },
-              { header: "Status", className: "p-2", cell: (bill) => bill.status },
-              { header: "Document amount", align: 'right', className: "p-2", cell: (bill) => formatCurrency(bill.amountCents, bill.currency || currency) },
+              { header: "Vendor", className: "p-2", headClassName: "p-2", cell: (bill) => bill.vendorName || bill.vendorId },
+              { header: "Bill", className: "p-2", headClassName: "p-2", cell: (bill) => bill.number || bill.id },
+              { header: "Date", className: "p-2", headClassName: "p-2", cell: (bill) => bill.date || bill.issueDate || 'Unknown' },
+              { header: "Status", className: "p-2", headClassName: "p-2", cell: (bill) => bill.status },
+              { header: "Document amount", align: 'right', className: "p-2", headClassName: "p-2", cell: (bill) => formatCurrency(bill.amountCents, bill.currency || currency) },
             ]}
           />
         </div>}
