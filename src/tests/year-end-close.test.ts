@@ -113,7 +113,7 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
-    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'YEC', currency: 'USD', members: ['owner-1', 'acc-1', 'view-1'], roles: { 'acc-1': 'accountant', 'view-1': 'viewer' } });
+    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'YEC', currency: 'USD', members: ['owner-1', 'acc-1', 'book-1'], roles: { 'acc-1': 'accountant', 'book-1': 'bookkeeper' } });
     for (const a of accounts) await db.collection('chartAccounts').doc(id(a.id)).set({ ...a, id: id(a.id), workspaceId: ws });
     for (const t of year) await db.collection('transactions').doc(id(t.id)).set({ ...t, id: id(t.id), workspaceId: ws, lines: t.lines.map(l => ({ ...l, accountId: id(l.accountId) })) });
     // another workspace's sale in the same year must not count in this one's profit
@@ -155,7 +155,7 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
     assert.equal(invalidMonth.status, 400);
     assert.deepEqual(invalidMonth.body, { error: 'Month must be YYYY-MM' });
 
-    const refused = await closeMonth('view-1', '2026-08');
+    const refused = await closeMonth('book-1', '2026-08');
     assert.equal(refused.status, 403);
     assert.deepEqual(refused.body, { error: 'Only owner or accountant can close a period' });
 
