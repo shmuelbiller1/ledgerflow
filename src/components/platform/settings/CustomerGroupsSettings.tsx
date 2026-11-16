@@ -1,12 +1,12 @@
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { termOptions } from '../../../lib/paymentTerms';
 import { customerGroupNameKey, MAX_CUSTOMER_GROUPS, MAX_CUSTOMER_GROUP_NAME, normalizeCustomerGroups, type CustomerGroup } from '../../../lib/customerGroups';
 import InlineEdit from '../../ui/InlineEdit';
+import { commandErrorMessage, runCommand } from '../../../lib/runCommand';
 
 /**
  * CC-11: the workspace's customer groups and their defaults. A customer in a group starts each new
@@ -41,13 +41,15 @@ export function CustomerGroupsSettings() {
     if (!workspaceId || saving || !canEdit) return Promise.reject(new Error('Not saved'));
     setSaving(true);
     const startedBy = useAuthStore.getState().user?.uid;
-    return getIdToken().catch(() => null).then(token => fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/customer-groups`, {
+    // `shown` marks a refusal whose sentence is already the one to display; anything else is a connection
+    // problem and gets the "check the connection" line in the catch below.
+    return runCommand<{ customerGroups?: unknown }>({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/customer-groups`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(change),
-    })).then(async res => {
-      const data = await res.json().catch(() => ({})) as { message?: string; customerGroups?: unknown };
-      if (!res.ok) throw Object.assign(new Error(data.message || 'Customer groups could not be saved (owners and accountants can change them).'), { shown: true });
+      body: change,
+    }).catch((error: unknown) => {
+      throw Object.assign(new Error(commandErrorMessage(error) || 'Customer groups could not be saved (owners and accountants can change them).'), { shown: true });
+    }).then(async (data) => {
       const customerGroups = normalizeCustomerGroups(data.customerGroups);
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;

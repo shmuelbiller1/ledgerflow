@@ -1,12 +1,12 @@
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '../../../lib/accountDefaults';
 import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, paymentTypeNameKey, type PaymentType } from '../../../lib/paymentTypes';
 import InlineEdit from '../../ui/InlineEdit';
+import { commandErrorMessage, runCommand } from '../../../lib/runCommand';
 
 /**
  * CC-09: the workspace's own payment types (for example "PayPal" under Card). Record payment offers
@@ -39,13 +39,15 @@ export function PaymentTypesSettings() {
     if (!workspaceId || saving || !canEdit) return Promise.reject(new Error('Not saved'));
     setSaving(true);
     const startedBy = useAuthStore.getState().user?.uid;
-    return getIdToken().catch(() => null).then(token => fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/payment-types`, {
+    // `shown` marks a refusal whose sentence is already the one to display; anything else is a connection
+    // problem and gets the "check the connection" line in the catch below.
+    return runCommand<{ paymentTypes?: unknown }>({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/payment-types`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(change),
-    })).then(async res => {
-      const data = await res.json().catch(() => ({})) as { message?: string; paymentTypes?: unknown };
-      if (!res.ok) throw Object.assign(new Error(data.message || 'Payment types could not be saved (owners and accountants can change them).'), { shown: true });
+      body: change,
+    }).catch((error: unknown) => {
+      throw Object.assign(new Error(commandErrorMessage(error) || 'Payment types could not be saved (owners and accountants can change them).'), { shown: true });
+    }).then(async (data) => {
       const paymentTypes = normalizePaymentTypes(data.paymentTypes);
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;

@@ -5,7 +5,6 @@ import { assertReadableText, mapBankCsvRows } from '../../lib/bankCsvRows';
 import { headerSignature, mappingToSaved, savedToMapping } from '../../lib/importColumnMaps';
 import type { LedgerState } from '../../stores/useLedgerStore';
 import type { ColumnMapping } from '../../lib/importColumnMaps';
-import { getIdToken } from '../../firebase';
 import { 
   X, 
   FileText, 
@@ -38,6 +37,7 @@ import { readIsraeliBankCsv, type IsraeliBankDateOrder } from '../../lib/israeli
 import StatementFormatControls from './StatementFormatControls';
 
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand } from '../../lib/runCommand';
 function withOccurrenceKeys<T>(items: readonly T[], identity: (item: T) => string) {
   const occurrences = new Map<string, number>();
   return items.map(item => {
@@ -282,13 +282,11 @@ export default function StatementImporter({
     const signature = headerSignature(header);
     const saved = mappingToSaved(used, header);
     try {
-      const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-maps`, {
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-maps`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ signature, ...saved }),
+        body: { signature, ...saved },
       });
-      if (!res.ok) return;
       const { workspaces, setWorkspaces } = useAuthStore.getState();
       setWorkspaces(workspaces.map(w => (w.id === workspaceId
         ? { ...w, importColumnMaps: { ...(w.importColumnMaps || {}), [signature]: { ...saved, savedAt: new Date().toISOString() } } }
