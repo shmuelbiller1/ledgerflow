@@ -245,7 +245,7 @@ export default function Purchases() {
           <InlineEdit
             value={b.number}
             display={b.number || b.id.slice(0, 8).toUpperCase()}
-            label={`${purchasesText('label.billNumberFrom', 'Number of bill from')} ${b.vendorName || purchasesText('fallback.vendor', 'vendor')}`}
+            label={purchasesText('label.billNumberFrom', 'Number of bill from {vendor}').replace('{vendor}', b.vendorName || purchasesText('fallback.vendor', 'vendor'))}
             canEdit={canEditContacts && b.status !== 'void'}
             onSave={x => updateEntity('bills', b.id, { number: String(x) }, 'Bill number saved')}
             className="text-slate-600 dark:text-slate-400 font-mono text-xs"
@@ -667,7 +667,7 @@ export default function Purchases() {
               <EmptyState
                 title={purchasesText('empty.noBills', 'No bills yet')}
                 description={purchasesText('empty.noBillsHint', 'Record your first bill to track what the business owes.')}
-                actionLabel="Record first bill"
+                actionLabel={purchasesText('action.recordFirstBill', 'Record first bill')}
                 onAction={() => setIsBillModalOpen(true)}
               />
             )}
@@ -675,7 +675,7 @@ export default function Purchases() {
               <EmptyState
                 title={purchasesText('empty.noBillMatch', 'No bills match your search')}
                 description={purchasesText('empty.noBillMatchHint', 'Try another vendor, number, or clear the search.')}
-                actionLabel="Clear search"
+                actionLabel={purchasesText('action.clearSearch', 'Clear search')}
                 onAction={() => setSearchTerm('')}
               />
             )}
@@ -743,7 +743,7 @@ export default function Purchases() {
                 <EmptyState
                   title={purchasesText('empty.noVendors', 'No vendors yet')}
                   description={purchasesText('empty.noVendorsHint', 'Add a vendor before recording their first bill.')}
-                  actionLabel="Add first vendor"
+                  actionLabel={purchasesText('action.addFirstVendor', 'Add first vendor')}
                   onAction={() => setIsVendorModalOpen(true)}
                 />
               )}
@@ -751,7 +751,7 @@ export default function Purchases() {
                 <EmptyState
                   title={purchasesText('empty.noVendorMatch', 'No vendors match your search')}
                   description={purchasesText('empty.noVendorMatchHint', 'Try another name or clear the search.')}
-                  actionLabel="Clear search"
+                  actionLabel={purchasesText('action.clearSearch', 'Clear search')}
                   onAction={() => setSearchTerm('')}
                 />
               )}

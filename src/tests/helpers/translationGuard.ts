@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { SCREEN_TRANSLATION_TABLE, type TranslatedScreenId } from '../../lib/i18n/screenTranslations';
 
 /** Props whose value a person reads or hears. */
-const VISIBLE_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'placeholder', 'alt', 'what']);
+const VISIBLE_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'placeholder', 'alt', 'what', 'actionLabel']);
 const hasLetters = (text: string) => /[A-Za-z]/.test(text);
 
 export interface TranslationReport {

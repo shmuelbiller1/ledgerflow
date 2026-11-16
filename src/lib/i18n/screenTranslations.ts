@@ -173,7 +173,9 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'aria.spread', en: 'Spread bill {n} over months', he: 'פריסה של חשבונית {n} על פני חודשים' },
       { key: 'aria.deleteDraft', en: 'Delete draft bill {n}', he: 'מחיקת טיוטת חשבונית {n}' },
       { key: 'fallback.unknownVendor', en: 'Unknown Vendor', he: 'ספק לא ידוע' },
-      { key: 'label.billNumberFrom', en: 'Number of bill from', he: 'מספר החשבונית מ' },
+      { key: 'label.billNumberFrom', en: 'Number of bill from {vendor}', he: 'מספר החשבונית מ{vendor}' },
+      { key: 'action.recordFirstBill', en: 'Record first bill', he: 'רישום החשבונית הראשונה' },
+      { key: 'action.addFirstVendor', en: 'Add first vendor', he: 'הוספת הספק הראשון' },
       { key: 'fallback.vendor', en: 'vendor', he: 'ספק' },
       { key: 'status.unpaid', en: 'Unpaid', he: 'לא שולם' },
       { key: 'title.preview', en: 'Preview / download PDF', he: 'תצוגה / הורדת PDF' },
@@ -208,6 +210,7 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'empty.noVendorMatch', en: 'No vendors match your search', he: 'אין ספקים שמתאימים לחיפוש' },
       { key: 'empty.noVendorMatchHint', en: 'Try another name or clear the search.', he: 'נסו שם אחר או נקו את החיפוש.' },
       { key: 'title.bill', en: 'Bill', he: 'חשבונית' },
+      { key: 'action.clearSearch', en: 'Clear search', he: 'ניקוי החיפוש' },
     ],
   },
   {
