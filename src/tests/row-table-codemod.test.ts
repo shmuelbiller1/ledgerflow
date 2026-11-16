@@ -92,6 +92,27 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.match(reason, /a header class that reads the header item/);
   });
 
+  test('an empty-state row and the rows as one ternary become the empty row and the rows', () => {
+    const { conversion } = convert(page(`      <table className="w-full">
+        <caption>Transfers</caption>
+        <thead><tr><th scope="col">Date</th><th scope="col">Amount</th></tr></thead>
+        <tbody>
+          {transfers.length === 0 ? (
+            <tr><td colSpan={2} className="py-12">No transfers recorded.</td></tr>
+          ) : (
+            transfers.map(t => (
+              <tr key={t.id}><td>{t.date}</td><td>{t.amount}</td></tr>
+            ))
+          )}
+        </tbody>
+      </table>`));
+    assert.ok(conversion, 'the empty row and the rows are one expression, and both halves convert');
+    assert.match(conversion.after, /rows=\{transfers\}/);
+    assert.match(conversion.after, /emptyRow=\{<tr>/);
+    assert.match(conversion.after, /colSpan=\{2\}/);
+    assert.doesNotMatch(conversion.after, /\.length === 0/);
+  });
+
   test('a totals row in the footer becomes the footer, not a column', () => {
     const { conversion } = convert(page(`      <table>
         <caption>Per vendor</caption>

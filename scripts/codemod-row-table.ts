@@ -522,6 +522,78 @@ function splitExpressions(source: string): string[] | undefined {
   return chunks;
 }
 
+/** The first `target` at nesting depth zero, skipping strings. */
+function topLevelIndexOf(text: string, target: string): number {
+  let depth = 0;
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at];
+    if (char === "'" || char === '"' || char === '`') {
+      const end = endOfString(text, at);
+      if (end === -1) return -1;
+      at = end;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth++;
+    else if (char === ')' || char === ']' || char === '}') depth--;
+    else if (depth === 0 && text.startsWith(target, at)) return at;
+  }
+  return -1;
+}
+
+/** The `:` that closes the ternary opened by the `?` at `from`. */
+function matchingColon(text: string, from: number): number {
+  let depth = 0;
+  let questions = 0;
+  for (let at = from + 1; at < text.length; at++) {
+    const char = text[at];
+    if (char === "'" || char === '"' || char === '`') {
+      const end = endOfString(text, at);
+      if (end === -1) return -1;
+      at = end;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth++;
+    else if (char === ')' || char === ']' || char === '}') depth--;
+    else if (depth === 0 && char === '?') questions++;
+    else if (depth === 0 && char === ':') {
+      if (questions === 0) return at;
+      questions--;
+    }
+  }
+  return -1;
+}
+
+/**
+ * `{list.length === 0 ? <tr>…</tr> : list.map(row => <tr>…</tr>)}` — the sentence and the rows as one
+ * expression, in either order — read as the map and the row it stands in for.
+ */
+function readEmptyStateTernary(chunk: string): { map: string; row: string } | undefined {
+  const text = chunk.slice(1, -1).trim();
+  const questionAt = topLevelIndexOf(text, '?');
+  if (questionAt === -1) return undefined;
+  const colonAt = matchingColon(text, questionAt);
+  if (colonAt === -1) return undefined;
+  const condition = text.slice(0, questionAt).trim();
+  if (!/(\.length\s*===?\s*0|!\s*[A-Za-z_$][\w$.]*\s*\.length)/.test(condition)) return undefined;
+  const whenEmpty = text.slice(questionAt + 1, colonAt).trim();
+  const whenRows = text.slice(colonAt + 1).trim();
+  // `(\n <tr>…</tr>\n)` and `(\n list.map(…)\n)` are the same branches without their wrapper
+  const unwrap = (value: string): string => {
+    const text = value.trim();
+    return text.startsWith('(') && closingParen(text, 0) === text.length - 1 ? text.slice(1, -1).trim() : text;
+  };
+  for (const [side, other] of [[whenEmpty, whenRows], [whenRows, whenEmpty]] as const) {
+    const mapped = unwrap(side);
+    if (!readMapped(`{${mapped}}`)) continue;
+    const row = unwrap(other);
+    if (!/^<tr\b/.test(row)) continue;
+    const end = skipElement(row, 0, 'tr');
+    if (end === 0 || row.slice(end).trim() !== '') continue;
+    return { map: mapped, row: row.slice(0, end) };
+  }
+  return undefined;
+}
+
 /**
  * `{list.length === 0 && <tr>…</tr>}` — the sentence a report prints inside its body when it has no rows — as
  * the row itself. A row that appears conditionally for another reason is not an empty state and is refused: the
@@ -610,14 +682,16 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (!chunks || chunks.length === 0) return notOneExpression;
   const maps = chunks.filter(chunk => readMapped(chunk) !== undefined);
   if (maps.length > 1) return { reason: 'a body with more than one map' };
-  if (maps.length === 0) return { reason: 'a body that is not a map' };
-  const extra = chunks.filter(chunk => chunk !== maps[0]);
+  // `{cond ? <tr>empty</tr> : list.map(…)}` is one expression, not a map: read both halves out of it
+  const ternary = maps.length === 0 && chunks.length === 1 ? readEmptyStateTernary(chunks[0]) : undefined;
+  if (maps.length === 0 && !ternary) return { reason: 'a body that is not a map' };
+  const extra = maps.length > 0 ? chunks.filter(chunk => chunk !== maps[0]) : [];
   if (extra.length > 1) return { reason: 'a body with more than one map' };
   // the row a report shows when its list is empty stays a row inside the body: the component renders it in place
   // of the rows, so the table, its head and its columns are still there to say what the sentence is about
-  const emptyRow = extra.length === 1 ? readEmptyStateRow(extra[0]) : undefined;
-  if (extra.length === 1 && emptyRow === undefined) return notOneExpression;
-  const expression = maps[0].slice(1, -1).trim();
+  const emptyRow = ternary ? ternary.row : extra.length === 1 ? readEmptyStateRow(extra[0]) : undefined;
+  if (!ternary && extra.length === 1 && emptyRow === undefined) return notOneExpression;
+  const expression = (ternary ? ternary.map : maps[0].slice(1, -1).trim()).trim();
   const mapAt = expression.indexOf('.map(');
   if (mapAt === -1) return { reason: 'a body that is not a map' };
   const list = expression.slice(0, mapAt).trim();

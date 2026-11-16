@@ -18,6 +18,7 @@ import AsyncButton from '../ui/AsyncButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { Labelled } from '../ui/Labelled';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 export default function IntercompanyManager() {
   useAuthStore(s => s.user);
@@ -154,66 +155,42 @@ export default function IntercompanyManager() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <caption className="sr-only">Intercompany transfers</caption>
-            <thead>
-              <tr className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest border-b border-[var(--line)]">
-                <th scope="col" className="px-6 py-4 text-left">Date</th>
-                <th scope="col" className="px-6 py-4 text-left">Source Entity</th>
-                <th scope="col" className="px-6 py-4 text-center">Direction</th>
-                <th scope="col" className="px-6 py-4 text-left">Target Entity</th>
-                <th scope="col" className="px-6 py-4 text-left">Description</th>
-                <th scope="col" className="px-6 py-4 text-right">Amount</th>
-                <th scope="col" className="px-6 py-4 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {intercompanyTransactions.length === 0 ? (
-                <tr>
+          <RowTable
+            rowHeaderColumn={false}
+            rowClassName="hover:bg-slate-50/50 transition-colors group"
+            caption={(<>Intercompany transfers</>)}
+            rows={intercompanyTransactions}
+            rowKey={t => t.id}
+            tableClassName="w-full"
+            headRowClassName="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest border-b border-[var(--line)]"
+            emptyRow={<tr>
                   <td colSpan={7} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-4 opacity-40">
                       <ArrowLeftRight aria-hidden="true" size={48} className="text-slate-300" />
                       <p className="font-bold text-[var(--muted)]">No intercompany transfers recorded.</p>
                     </div>
                   </td>
-                </tr>
-              ) : (
-                intercompanyTransactions.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-600">{t.date}</td>
-                    <td className="px-6 py-4">
-                       <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
+                </tr>}
+            columns={[
+              { header: "Date", className: "px-6 py-4 text-sm font-bold text-slate-600", headClassName: "px-6 py-4 text-left", cell: (t) => t.date },
+              { header: "Source Entity", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
                          {workspaces.find(w => w.id === t.workspaceId)?.name || 'Unknown'}
-                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 rounded-full text-[#0047AB]">
+                       </span> },
+              { header: "Direction", className: "px-6 py-4 text-center", headClassName: "px-6 py-4 text-center", cell: (t) => <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 rounded-full text-[#0047AB]">
                         <ArrowRight aria-hidden="true" size={16} />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                       <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
+                      </div> },
+              { header: "Target Entity", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
                          {workspaces.find(w => w.id === t.metadata?.targetWorkspaceId)?.name || 'Unknown'}
-                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-slate-600 truncate max-w-xs">{t.description}</p>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-black text-[var(--text)]">{formatCurrency(t.totalAmountCents || 0)}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                       <div className="flex justify-center">
+                       </span> },
+              { header: "Description", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <p className="text-sm font-medium text-slate-600 truncate max-w-xs">{t.description}</p> },
+              { header: "Amount", align: 'right', className: "px-6 py-4", headClassName: "px-6 py-4", cell: (t) => <span className="text-sm font-black text-[var(--text)]">{formatCurrency(t.totalAmountCents || 0)}</span> },
+              { header: "Status", className: "px-6 py-4", headClassName: "px-6 py-4 text-center", cell: (t) => <div className="flex justify-center">
                          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
                            Synchronized
                          </span>
-                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                       </div> },
+            ]}
+          />
         </div>
       </div>
 
