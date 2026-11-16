@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -7,6 +6,7 @@ import type { ItemDetails } from '../../lib/stockMoves';
 import { inventoryTurnover, turnoverCsvRows, TURNOVER_CSV_HEADERS } from '../../lib/inventoryTurnover';
 import ReportTableScroll from './ReportTableScroll';
 import { inBackground } from '../../lib/inBackground';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const ratio = (n: number | null) => (n === null ? '—' : n.toFixed(2));
@@ -35,9 +35,7 @@ export default function InventoryTurnoverReportView() {
     inBackground((async () => {
       try {
         const query = new URLSearchParams({ workspaceId, startDate: from, endDate: to }).toString();
-        const res = await fetch(`/api/v1/reports/inventory-details?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || data.error || `The stock history could not be read (${res.status})`);
+        const data = await runCommand<CommandBody>({ path: `/api/v1/reports/inventory-details?${query}` }) ?? {};
         if (alive) setResult({ key, items: data.items || [] });
       } catch (error) {
         if (alive) setResult({ key, error: error instanceof Error ? error.message : String(error) });

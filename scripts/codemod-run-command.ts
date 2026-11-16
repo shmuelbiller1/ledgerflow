@@ -140,6 +140,141 @@ export function findCandidates(file: string, source: string): Candidate[] {
   return found;
 }
 
+
+/**
+ * The two shapes this rewrites, and no others.
+ *
+ * Both were confirmed by reading every site rather than assumed: a GET that sets only an auth header, and
+ * the `res` / `res.json().catch(() => ({}))` pair that follows it. A site that matches neither is left
+ * exactly as it is and stays in the report — the point of the tool is to do the boring half in one pass and
+ * leave the decisions visible.
+ */
+const GET_ONLY_AUTH =
+  /const res = await fetch\((`[^`]*`|'[^']*'), \{ headers: \{ Authorization: `Bearer \$\{await getIdToken\(\)\}` \} \}\);/;
+
+function importLine(file: string): string | null {
+  const afterSrc = file.split('/src/')[1];
+  if (!afterSrc) return null;
+  // minus the file itself: src/a/b/C.tsx is two directories up from src/lib
+  const up = afterSrc.split('/').length - 1;
+  return `${'../'.repeat(up)}lib/runCommand`;
+}
+
+/** Adds or widens the runCommand import. Returns null when the file cannot be handled automatically. */
+function withImport(source: string, names: string, file: string): string | null {
+  const existing = /import \{ ([^}]+) \} from '((?:\.\.\/)+|\.\/)lib\/runCommand';/.exec(source);
+  if (existing) {
+    const have = existing[1].split(',').map(x => x.trim());
+    const want = names.split(',').map(x => x.trim());
+    const missing = want.filter(w => !have.includes(w));
+    if (!missing.length) return source;
+    return source.replace(existing[0], `import { ${[...have, ...missing].join(', ')} } from '${existing[2]}lib/runCommand';`);
+  }
+  const specifier = importLine(file);
+  if (!specifier) return null;
+  // after the last import line, keeping whatever blank line followed it
+  const anchor = source.lastIndexOf('\nimport ');
+  if (anchor === -1) return null;
+  // a multi-line import ends at the line that closes it
+  const lines = source.split('\n');
+  const startLine = source.slice(0, anchor + 1).split('\n').length - 1;
+  let end = startLine;
+  while (end < lines.length && !lines[end].trimEnd().endsWith(';')) end++;
+  const insertAt = lines.slice(0, end + 1).join('\n').length + 1;
+  return source.slice(0, insertAt) + `import { ${names} } from '${specifier}';\n` + source.slice(insertAt);
+}
+
+/** The GET that sets only the auth header, followed by how its answer is read. */
+export function rewrite(source: string, file: string): { source: string; changed: number } {
+  let changed = 0;
+  let names = 'runCommand, type CommandBody';
+
+  // (a) the GET, the answer read as JSON, and (usually) one `if (!res.ok …)` line right after it.
+  //
+  // That line is *kept* and only narrowed: `if (!res.ok || !Array.isArray(body.items)) throw …` is two
+  // checks in one, and `runCommand` has already done the first. Dropping the whole line would drop the
+  // shape check with it; keeping it whole leaves a test for a `res` that no longer exists.
+  let next = source;
+  while (true) {
+    const match = GET_ONLY_AUTH.exec(next);
+    if (!match) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^\n[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n([ \t]*if \([^\n]*\) \{\n[^\n]*;\n[ \t]*\}\n|[ \t]*if \([^\n]*\) throw[^\n]*;\n)?/s.exec(after);
+    if (!tail) break;
+    const [, bodyVar, check] = tail;
+    let keptCheck = check ?? '';
+    if (keptCheck) {
+      const condition = /if \(([\s\S]*?)\) (?:\{|throw)/.exec(keptCheck);
+      if (condition && /!\(?res\.ok\)?/.test(condition[1])) {
+        // `!res.ok` alone is exactly what runCommand throws for; anything `||`-ed onto it still matters
+        const rest = condition[1].replace(/!\(?res\.ok\)?\s*\|\|\s*/, '').trim();
+        if (rest === '!res.ok' || rest === '') {
+          keptCheck = '';
+        } else {
+          keptCheck = keptCheck
+            .replace(condition[0], condition[0].replace(condition[1], rest))
+            .replace(/(body|data|answer)\.message \|\| (body|data|answer)\.error \|\| /, `${bodyVar}.message || ${bodyVar}.error || `);
+        }
+      }
+    }
+    // `body.message ||` inside a kept check referred to the variable that still exists, so leave it be
+    const replacement =
+      `const ${bodyVar} = await runCommand<CommandBody>({ path: ${match[1]} }) ?? {};\n` + keptCheck;
+    next = next.slice(0, match.index) + replacement +
+      next.slice(match.index + match[0].length + (tail[0]).length);
+    changed++;
+  }
+
+  // (b) the same GET but the answer is only looked at: `if (!res.ok) return; const data = await res.json();`
+  while (true) {
+    const match = GET_ONLY_AUTH.exec(next);
+    if (!match) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^\n(\s*)if \(!res\.ok\) return;\n\s*const (\w+) = await res\.json\(\);\n/.exec(after);
+    if (!tail) break;
+    next = next.slice(0, match.index) +
+      `const ${tail[2]} = await runCommand<CommandBody>({ path: ${match[1]} }) ?? {};\n` +
+      next.slice(match.index + match[0].length + tail[0].length);
+    changed++;
+  }
+
+
+  // (c) the same GET written over three lines, and the answer read as JSON with no `res` afterwards
+  while (true) {
+    const match = /const res = await fetch\((`[^`]*`|'[^']*'), \{\n\s*headers: \{ Authorization: `Bearer \$\{await getIdToken\(\)\}` \},?\n\s*\}\);/ .exec(next);
+    if (!match) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^\n[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n/.exec(after);
+    if (!tail) break;
+    next = next.slice(0, match.index) +
+      `const ${tail[1]} = await runCommand<CommandBody>({ path: ${match[1]} }) ?? {};\n` +
+      next.slice(match.index + match[0].length + tail[0].length);
+    changed++;
+  }
+
+  if (!changed) return { source, changed };
+
+  // A site that still reads `res.ok` further down is not the shape these rules were written for (the
+  // status decided something other than "throw"). Reverting the file is the honest answer: the report
+  // lists it as needing a hand, and `tsc` would otherwise be the one to notice.
+  // (a rewritten site leaves no `const … = await fetch(` behind, so a remaining `res.ok` is a read that
+  // was not part of the shape)
+  const stillReadsStatus = /\bres\.(ok|status|headers)\b/.test(next);
+  if (stillReadsStatus) return { source, changed: 0 };
+
+  const imported = withImport(next, names, file);
+  if (!imported) return { source, changed: 0 };
+  // the hand-typed call was the only user of getIdToken in most of these files; leaving the import
+  // behind compiles fine and quietly suggests the token still matters here
+  const withoutToken = imported.split('getIdToken').length === 2
+    ? imported
+        .replace(/^import \{ getIdToken \} from '[^']+';\n/m, '')
+        .replace(/\{ ([^}]*?), getIdToken \}/, '{ $1 }')
+        .replace(/\{ getIdToken, ([^}]*?) \}/, '{ $1 }')
+    : imported;
+  return { source: withoutToken, changed };
+}
+
 function report(candidates: Candidate[]) {
   const byFile = new Map<string, Candidate[]>();
   for (const candidate of candidates) {
@@ -165,5 +300,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const cwd = process.cwd();
   const candidates = ROOTS.flatMap(root => walk(path.join(cwd, root)).flatMap(file => findCandidates(file, fs.readFileSync(file, 'utf8'))));
   report(candidates);
-  if (write) console.log('\n--write: the rewrite is intentionally not enabled until the shape is confirmed against every file.');
+  if (write) {
+    let files = 0;
+    let sites = 0;
+    for (const file of new Set(candidates.filter(c => !c.blockers.length).map(c => c.file))) {
+      const before = fs.readFileSync(file, 'utf8');
+      const result = rewrite(before, file);
+      if (!result.changed) continue;
+      fs.writeFileSync(file, result.source);
+      files++;
+      sites += result.changed;
+    }
+    console.log(`\n--write: ${sites} call(s) in ${files} file(s). Run \`tsc\` — every site it did not match is still there.`);
+  }
 }
