@@ -122,6 +122,19 @@ It is now the library's job, not each caller's: `writeWasAccepted(error)` and `r
 `runCommand.ts`, pinned by three tests in `run-command.test.ts`. **Every future conversion of a write should use
 one of those two, not `runCommand` directly.**
 
+### Two build-time boundaries that fail *outside* the test suite
+
+Both of these cost a red pipeline while every unit test was green, so they are written down:
+
+- **`.vercelignore` decides what exists at build time.** `npm run build` runs before Vite; anything a script in it
+  needs must be re-included there, and listed in `vercel-ignore-boundary.test.ts`. A generator added to `build`
+  without that line fails the deployment with `Cannot find module` while building perfectly on a laptop — build
+  from a copy of the tree containing only the non-ignored files to reproduce it.
+- **A JSON module cannot be imported by source.** A JSON import needs an attribute plain Node and Playwright
+  loaders do not supply, and e2e specs import source files directly, so one JSON import anywhere takes out the
+  whole browser suite in *setup*. `supabase-config.json` is generated into `src/config/supabaseProject.ts` for
+  this reason; `supabase-config-generated.test.ts` fails if a source file goes back to importing the JSON.
+
 ### The measurement itself was wrong once
 
 `scripts/codemod-run-command.ts` walked `components`, `hooks`, `services`, `stores` — so `src/lib`, `src/modules`
