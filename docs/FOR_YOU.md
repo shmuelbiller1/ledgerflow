@@ -5,7 +5,7 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-15.
+Last updated: 2026-11-16.
 
 ## The ledger screen cannot become a plain list (default taken: keep it as it is)
 
@@ -662,3 +662,31 @@ To allow it, write here "OK to scan <address>" (passive scan only). *Default:* n
 - **Record imports and labels (EU-E9):** customers, vendors, items and accounts have no label field, so their CSV imports do not read label columns. *Default:* left as is. Labels are on entries and lines only. Write here "add labels to records" to change it.
 - **Free invoice maker (EU-I3, `/make-invoice`):** "Save this and track who paid" opens the **sample company** with the invoice as a draft. Nothing is saved to a server until the person signs up. *Default:* this flow. Write here if you want it to go to sign-up first instead.
 - **EU-A4b, Israeli importers (AI #9, 16 Nov).** Hashavshevet, Rivhit and Priority don't publish their export columns, and I won't guess them. If you can, export one small file from each (chart of accounts and customers) and put it in the repo or the tracker. Until then, their exports can still come in through "Standard spreadsheet", which already reads Hebrew headings. Odoo is done.
+
+## 16 Nov — account routes become commands: two defaults taken (person scope, API keys)
+
+Batch 4 of CMD-1 moves the ten `/api/v1/account` writes (recovery codes, the notice-email choice,
+and groups of books) onto registered commands. These routes are about **you the person**, not about
+one workspace, so they needed two decisions that were never written down:
+
+- **Person scope.** A command can now be scoped to a person instead of a workspace: no workspace
+  membership, role, or capacity gate applies (your account is yours; there is no "role" on it), and
+  the audit entry is filed under you. *Default used:* roles stay informational for these commands —
+  a signed-in person is always the owner of their own account data. If you later want, say, a
+  shared "family admin" to be able to manage someone else's groups, that is a new decision.
+- **API keys may call them, like before.** The legacy routes sat behind the API-key check only, so
+  a developer's API key could already make recovery codes or share a group as its owner. *Default
+  used:* keys keep working under the key owner's person scope and keep the same `write:transactions`
+  permission the old routes required — no new key permission was invented. If you would rather walls
+  these off from API keys entirely, say so and I will add a "session only" flag.
+
+**One visible change in this batch.** Recovery codes are shown once. Before, if the browser
+retried "make new codes" after a dropped connection it got the same ten codes back; now the retry
+comes back as *"these codes were already shown — make new ones if you did not keep them"*. That is
+deliberate: keeping the codes so they could be replayed meant ten working ways past two-step login
+sat in plain text in the database and its backups for a month. The screen marks the request so a
+retry is rare; when it happens the answer now tells you what to do instead of pretending.
+
+One more detail of that flow: if the authenticator cannot be removed (Supabase auth tables briefly
+unavailable), the code is put back and the answer is an error telling you to try again — not a
+success that has quietly used up a code while your old authenticator is still the one signing you in.

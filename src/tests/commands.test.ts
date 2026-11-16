@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { RequestUser } from '../server/auth/requestUser';
-import { requiredApiKeyScope } from '../server/auth/apiAuthenticate';
+import { acceptsPasswordOnlySession, requiredApiKeyScope } from '../server/auth/apiAuthenticate';
 import { API_KEY_SCOPE_IDS, validateApiKeyScopes } from '../lib/apiScopes';
 import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
@@ -52,12 +52,14 @@ import {
 test('the default registry is sorted and unique across the registered command domains', () => {
   const registry = createDefaultCommandRegistry();
   assert.deepEqual(registry.names(), [
+    'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode',
     'alerts.update',
     'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.recordhits', 'autorule.update',
     'bill.create', 'bill.delete', 'bill.update',
     'creditnote.create', 'creditnote.delete', 'creditnote.update',
     'customer.create', 'customer.update',
     'entrylink.create', 'entrylink.remove',
+    'groups.create', 'groups.delete', 'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare', 'groups.update',
     'invoice.create', 'invoice.delete', 'invoice.update',
     'journal.create', 'numbering.update', 'payment.receive',
     'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose',
@@ -71,7 +73,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
@@ -165,6 +167,14 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.deepEqual(validateApiKeyScopes(['write:vendors', 'write:vendors']), { ok: false, reason: 'duplicate' });
   assert.deepEqual(AVAILABLE_SCOPES.map(scope => scope.id), [...API_KEY_SCOPE_IDS]);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.create'), 'write:customers');
+  // L-85: the lost-authenticator call is the one that accepts a password-only session, and it must
+  // work through the command that replaced the legacy URL's body.
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/account/recovery-codes/use'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode?x=1'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.makerecoverycodes'), false);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/groups.share'), false);
+  assert.equal(acceptsPasswordOnlySession('GET', '/api/v1/commands/account.userecoverycode'), false);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/warranty.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');
@@ -192,6 +202,10 @@ test('API-key scopes validate exact, unique permissions and command paths use th
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
   }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
+  // Person-scoped commands keep the scope the legacy /api/v1/account writes always required.
+  for (const name of ['account.makerecoverycodes', 'account.userecoverycode', 'account.setnotificationemail', 'groups.create', 'groups.share', 'groups.delete']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+  }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });
 

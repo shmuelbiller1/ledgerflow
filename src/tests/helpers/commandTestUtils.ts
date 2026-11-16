@@ -92,11 +92,16 @@ class MemoryRef {
 }
 
 class MemoryQuery {
-  private readonly filters: Array<{ field: string; value: unknown }>;
-  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; value: unknown }> = []) { this.filters = filters; }
-  where(field: string, _op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, value }]); }
+  private readonly filters: Array<{ field: string; op: string; value: unknown }>;
+  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; op: string; value: unknown }> = []) { this.filters = filters; }
+  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }]); }
   async get(): Promise<{ docs: MemorySnapshot[]; size: number; empty: boolean }> {
-    const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => row.data[filter.field] === filter.value))
+    const matches = (row: Record<string, unknown>, filter: { field: string; op: string; value: unknown }) => {
+      const current = row[filter.field];
+      if (filter.op === 'array-contains') return Array.isArray(current) && current.includes(filter.value);
+      return current === filter.value;
+    };
+    const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => matches(row.data, filter)))
       .map(row => new MemorySnapshot(row.data, row.id));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }

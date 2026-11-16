@@ -1,3 +1,4 @@
+import { fill, useReportText } from './useReportText';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -18,6 +19,7 @@ interface PartyAgingReportViewProps {
 
 
 export default function PartyAgingReportView({ side }: PartyAgingReportViewProps) {
+  const reportText = useReportText();
   const isCustomer = side === 'customer';
   // A-270: the keyboard path. Opening a row's drill-down must leave focus on that row when it
   // closes, whichever control opened it (the row itself, its arrow, or Enter on either).
@@ -129,10 +131,10 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         <div>
           <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Clock aria-hidden="true" className="w-6 h-6 text-indigo-500" />
-            {isCustomer ? 'Accounts Receivable (AR) Aging' : 'Accounts Payable (AP) Aging'}
+            {isCustomer ? reportText('r.accounts-receivable-ar-aging', 'Accounts Receivable (AR) Aging') : reportText('r.accounts-payable-ap-aging', 'Accounts Payable (AP) Aging')}
           </h2>
           <p className="text-sm text-[var(--muted)] dark:text-slate-400">
-            Aging schedule of outstanding {isCustomer ? 'customer invoices' : 'vendor bills'} grouped by days past the due date, in the base currency.
+            {reportText('r.aging-schedule-of-outstanding', 'Aging schedule of outstanding ')}{isCustomer ? reportText('r.customer-invoices', 'customer invoices') : reportText('r.vendor-bills', 'vendor bills')} {reportText('r.grouped-by-days-past-the-due-date-in-the-base-cu', 'grouped by days past the due date, in the base currency.')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -141,7 +143,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
             className="min-h-11 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
           >
             <Download aria-hidden="true" className="w-4 h-4" />
-            Export CSV
+            {reportText('r.export-csv', 'Export CSV')}
           </button>
         </div>
       </div>
@@ -149,14 +151,14 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
       {/* Visual Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-          <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">Total Outstanding</span>
+          <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{reportText('r.total-outstanding', 'Total Outstanding')}</span>
           <span className="text-xl font-mono font-black text-slate-900 dark:text-white tracking-tight block mt-1">
             <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal, currency)}</bdi>
           </span>
         </div>
         {AGING_BUCKETS.map((b, i) => (
           <div key={b.key} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{b.key === 'current' ? 'Not yet due' : `${b.label} overdue`}</span>
+            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{b.key === 'current' ? reportText('r.not-yet-due', 'Not yet due') : fill(reportText('r.bucket-overdue', '{bucket} overdue'), { bucket: b.label })}</span>
             <span className={`text-xl font-mono font-black tracking-tight block mt-1 ${['text-emerald-600 dark:text-emerald-400', 'text-amber-600', 'text-amber-600', 'text-orange-600', 'text-rose-600 dark:text-rose-400'][i]}`}>
               <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi>
             </span>
@@ -171,9 +173,9 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
               <Search aria-hidden="true" className="h-4 w-4 text-[var(--muted)]" />
             </span>
-            <input aria-label={`Search by ${isCustomer ? "customer" : "vendor"}`}
+            <input aria-label={isCustomer ? reportText('r.search-customer', 'Search by customer') : reportText('r.search-vendor', 'Search by vendor')}
               type="text"
-              placeholder={`Search by ${isCustomer ? 'customer' : 'vendor'}...`}
+              placeholder={isCustomer ? reportText('r.search-customer-dots', 'Search by customer...') : reportText('r.search-vendor-dots', 'Search by vendor...')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="min-h-11 w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
@@ -183,12 +185,12 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <caption className="sr-only">{isCustomer ? 'Receivables aging by customer' : 'Payables aging by vendor'}</caption>
+            <caption className="sr-only">{isCustomer ? reportText('r.receivables-aging-by-customer', 'Receivables aging by customer') : reportText('r.payables-aging-by-vendor', 'Payables aging by vendor')}</caption>
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                 <th scope="col" className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('partyName')}>
                   <span className="flex items-center gap-1">
-                    {isCustomer ? 'Customer' : 'Vendor'}
+                    {isCustomer ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}
                     <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                   </span>
                 </th>
@@ -202,11 +204,11 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                 ))}
                 <th scope="col" className="p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('total')}>
                   <span className="flex items-center justify-end gap-1">
-                    Total Outstanding
+                    {reportText('r.total-outstanding', 'Total Outstanding')}
                     <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                   </span>
                 </th>
-                <th scope="col" className="p-4 w-10"><span className="sr-only">Actions</span></th>
+                <th scope="col" className="p-4 w-10"><span className="sr-only">{reportText('r.actions', 'Actions')}</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
@@ -217,7 +219,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                   onClick={e => { openerRef.current = (e.target as HTMLElement).closest('button'); setSelectedPartyId(row.partyId); }}
                   onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); } }}
                   tabIndex={0}
-                  aria-label={`Open the ${isCustomer ? 'customer' : 'vendor'} aging detail for ${row.partyName}`}
+                  aria-label={fill(isCustomer ? reportText('r.open-customer-aging', 'Open the customer aging detail for {name}') : reportText('r.open-vendor-aging', 'Open the vendor aging detail for {name}'), { name: row.partyName })}
                   className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                 >
                   <td className="p-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -233,7 +235,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>
                   </td>
                   <td className="p-4 text-right">
-                    <button type="button" aria-label={`Open ${row.partyName}`} onClick={e => { e.stopPropagation(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
+                    <button type="button" aria-label={fill(reportText('r.open-name', 'Open {name}'), { name: row.partyName })} onClick={e => { e.stopPropagation(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
                       <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                     </button>
                   </td>
@@ -244,8 +246,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                 <tr>
                   <td data-report-empty-state colSpan={AGING_BUCKETS.length + 3} className="p-8 text-center text-[var(--muted)] dark:text-slate-400">
                     {docsPartial
-                      ? `Loaded ${isCustomer ? 'invoice' : 'bill'} history is incomplete. Clear the search, then load full ${isCustomer ? 'invoice' : 'bill'} history before treating this report as empty; an open document may be outside the loaded records.`
-                      : `No outstanding ${isCustomer ? 'receivables' : 'payables'} found matching criteria. Clear the search to see every party, or record an open ${isCustomer ? 'customer invoice' : 'vendor bill'} in ${isCustomer ? 'Sales' : 'Purchases'}; this report reads saved documents.`}
+                      ? (isCustomer ? reportText('r.partial-invoices', 'Loaded invoice history is incomplete. Clear the search, then load full invoice history before treating this report as empty; an open document may be outside the loaded records.') : reportText('r.partial-bills', 'Loaded bill history is incomplete. Clear the search, then load full bill history before treating this report as empty; an open document may be outside the loaded records.'))
+                      : (isCustomer ? reportText('r.empty-receivables', 'No outstanding receivables found matching criteria. Clear the search to see every party, or record an open customer invoice in Sales; this report reads saved documents.') : reportText('r.empty-payables', 'No outstanding payables found matching criteria. Clear the search to see every party, or record an open vendor bill in Purchases; this report reads saved documents.'))}
                   </td>
                 </tr>
               )}
@@ -253,7 +255,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
             {sortedAndFilteredRows.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-50 dark:bg-slate-800/30 font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800">
-                  <td className="p-4">Grand Total</td>
+                  <td className="p-4">{reportText('r.grand-total', 'Grand Total')}</td>
                   {AGING_BUCKETS.map(b => <td key={b.key} className="p-4 text-right font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi></td>)}
                   <td className="p-4 text-right font-mono text-lg"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal, currency)}</bdi></td>
                   <td></td>
@@ -275,17 +277,17 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                   onClick={closeDrillDown}
                   className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-bold mb-1"
                 >
-                  <ArrowLeft aria-hidden="true" className="w-3 h-3" /> Back to Aging Schedule
+                  <ArrowLeft aria-hidden="true" className="w-3 h-3" /> {reportText('r.back-to-aging-schedule', 'Back to Aging Schedule')}
                 </button>
                 <h3 id={overlayTitleId} className="text-xl font-black text-slate-900 dark:text-white">
-                  Outstanding Ledger: {selectedParty.name}
+                  {reportText('r.outstanding-ledger', 'Outstanding Ledger: ')}{selectedParty.name}
                 </h3>
               </div>
               <button
                 onClick={closeDrillDown}
                 className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-lg"
               >
-                Close
+                {reportText('r.close', 'Close')}
               </button>
             </div>
 
@@ -308,11 +310,11 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                           #{doc.number || doc.id.slice(0, 8).toUpperCase()}
                         </span>
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider">
-                          {overdue > 0 ? `${overdue} days overdue` : 'Not yet due'}
+                          {overdue > 0 ? fill(reportText('r.n-days-overdue', '{n} days overdue'), { n: overdue }) : reportText('r.not-yet-due', 'Not yet due')}
                         </span>
                       </div>
                       <div className="text-xs text-[var(--muted)] dark:text-slate-400">
-                        Date: {doc.date?.slice(0, 10)} | Due Date: {doc.dueDate || doc.date?.slice(0, 10)}
+                        {reportText('r.date', 'Date: ')}{doc.date?.slice(0, 10)} {reportText('r.due-date', '| Due Date: ')}{doc.dueDate || doc.date?.slice(0, 10)}
                       </div>
                     </div>
                     <div className="text-right">
@@ -321,10 +323,10 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                       </div>
                       <button type="button" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                         onClick={() => { setSelectedPartyId(null); openRecord({ type: isCustomer ? 'invoice' : 'bill', id: doc.id }); }}>
-                        Open<span className="sr-only"> {isCustomer ? 'invoice' : 'bill'} {doc.number || doc.id}</span>
+                        {reportText('r.open', 'Open')}<span className="sr-only"> {isCustomer ? reportText('r.invoice', 'invoice') : reportText('r.bill', 'bill')} {doc.number || doc.id}</span>
                       </button>
                       <div className="text-xs text-[var(--muted)]">
-                        Total <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(docTotal, doc.currency)}</bdi> | Still owed <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(owed, doc.currency)}</bdi>
+                        {reportText('r.total-sp', 'Total ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(docTotal, doc.currency)}</bdi> {reportText('r.still-owed', '| Still owed ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(owed, doc.currency)}</bdi>
                       </div>
                     </div>
                   </div>
@@ -333,16 +335,16 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
 
               {selectedPartyDocs.length === 0 && (
                 <div className="text-center py-12 text-[var(--muted)]">
-                  No unpaid records found.
+                  {reportText('r.no-unpaid-records-found', 'No unpaid records found.')}
                 </div>
               )}
               {selectedPartyDocs.length > 0 && (
                 <div className="flex items-center justify-between border-t border-[var(--line)] pt-3 text-sm font-semibold">
-                  <span>Still owed in all ({selectedPartyDocs.length} document{selectedPartyDocs.length === 1 ? '' : 's'}, in the base currency)</span>
+                  <span>{fill(selectedPartyDocs.length === 1 ? reportText('r.still-owed-one', 'Still owed in all ({n} document, in the base currency)') : reportText('r.still-owed-many', 'Still owed in all ({n} documents, in the base currency)'), { n: selectedPartyDocs.length })}</span>
                   <span className="font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(selectedPartyDocs.reduce((sum, d) => sum + outstandingBaseCents(d, side, currency), 0), currency)}</bdi></span>
                 </div>
               )}
-              {docsPartial && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Only part of the {isCustomer ? 'invoices' : 'bills'} is loaded on this screen, so this list and the row may be short. Load the full history to be sure.</p>}
+              {docsPartial && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{isCustomer ? reportText('r.part-invoices-loaded', 'Only part of the invoices is loaded on this screen, so this list and the row may be short. Load the full history to be sure.') : reportText('r.part-bills-loaded', 'Only part of the bills is loaded on this screen, so this list and the row may be short. Load the full history to be sure.')}</p>}
             </div>
           </div>
         </div>

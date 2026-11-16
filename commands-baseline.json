@@ -1,9 +1,8 @@
 {
-  "writeRoutes": 181,
+  "writeRoutes": 171,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
-    "src/server/routes/accountRoutes.ts": 10,
     "src/server/routes/aiRoutes.ts": 1,
     "src/server/routes/apiKeysRoutes.ts": 8,
     "src/server/routes/assetDisposalRoutes.ts": 2,

@@ -4,32 +4,32 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part54,
+    "id": COMMAND_SCHEMA_PARTS.part56,
     "data": {
       "type": "object",
       "properties": {
-        "vendorId": COMMAND_SCHEMA_PARTS.part22,
-        "vendorName": COMMAND_SCHEMA_PARTS.part10,
-        "number": COMMAND_SCHEMA_PARTS.part10,
-        "billId": COMMAND_SCHEMA_PARTS.part10,
-        "amountCents": COMMAND_SCHEMA_PARTS.part69,
-        "remainingCents": COMMAND_SCHEMA_PARTS.part64,
-        "date": COMMAND_SCHEMA_PARTS.part59,
-        "reason": COMMAND_SCHEMA_PARTS.part34,
-        "status": COMMAND_SCHEMA_PARTS.part79,
-        "currency": COMMAND_SCHEMA_PARTS.part10,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part41,
-        "tags": COMMAND_SCHEMA_PARTS.part43,
-        "metadata": COMMAND_SCHEMA_PARTS.part77,
-        "taxAmountCents": COMMAND_SCHEMA_PARTS.part64,
-        "taxInclusive": COMMAND_SCHEMA_PARTS.part12,
-        "taxVersion": COMMAND_SCHEMA_PARTS.part19,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part84,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part126
+        "vendorId": COMMAND_SCHEMA_PARTS.part24,
+        "vendorName": COMMAND_SCHEMA_PARTS.part11,
+        "number": COMMAND_SCHEMA_PARTS.part11,
+        "billId": COMMAND_SCHEMA_PARTS.part11,
+        "amountCents": COMMAND_SCHEMA_PARTS.part71,
+        "remainingCents": COMMAND_SCHEMA_PARTS.part66,
+        "date": COMMAND_SCHEMA_PARTS.part61,
+        "reason": COMMAND_SCHEMA_PARTS.part36,
+        "status": COMMAND_SCHEMA_PARTS.part81,
+        "currency": COMMAND_SCHEMA_PARTS.part11,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part43,
+        "tags": COMMAND_SCHEMA_PARTS.part45,
+        "metadata": COMMAND_SCHEMA_PARTS.part79,
+        "taxAmountCents": COMMAND_SCHEMA_PARTS.part66,
+        "taxInclusive": COMMAND_SCHEMA_PARTS.part13,
+        "taxVersion": COMMAND_SCHEMA_PARTS.part20,
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part86,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part130
       }
     },
-    "postingDay": COMMAND_SCHEMA_PARTS.part10
+    "postingDay": COMMAND_SCHEMA_PARTS.part11
   },
-  "required": COMMAND_SCHEMA_PARTS.part6,
+  "required": COMMAND_SCHEMA_PARTS.part7,
   "additionalProperties": false
 } as const;

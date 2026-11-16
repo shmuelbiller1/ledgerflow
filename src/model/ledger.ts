@@ -36,6 +36,8 @@ export interface DimensionNode {
   description: string;   // Full meaning, e.g. "123 Ocean Ave Maint"
   aliases?: string[];    // Aliases for the statement matching engine e.g. ["123 OCEAN AVE MAINT", "123 Ocean"]
   status?: 'active' | 'archived'; // Keeps nodes append-only so ID's aren't reused if "deleted"
+  /** EU-E3: the value this one sits under, in the same label (Region → Property → Unit) */
+  parentId?: string;
   createdAt?: string;
 }
 
