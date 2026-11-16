@@ -45,7 +45,7 @@ table the codemod refuses, which is why 41 files moved the counter by 26. The pl
 - [x] **A codemod that can write, not just survey.** `scripts/codemod-row-table.ts` — `--write` converts,
       `--files` names every table it refuses and why. 14 rules pinned by `src/tests/row-table-codemod.test.ts`,
       including the two ways it could destroy a screen: a dropped `<tfoot>` totals row, and an interpolated class
-      `${th}` turned into the text `${th}`.
+      `${th}` turned into the text `${th}`, and a `over` re-scoped out of the row it was read in.
 - [x] **The five review findings on the first draft are fixed, each with the test that would have caught it.**
       The codemod's first draft passed every structural refusal and still changed screens, because a table that
       converts is not the same as a table that looks the same:
@@ -64,6 +64,13 @@ table the codemod refuses, which is why 41 files moved the counter by 26. The pl
       Two more of the same kind were found while re-running the sweep: a bare `<thead>`/`<tbody>` must not inherit
       the component's default `text-[var(--muted)]` / `divide-y`, and the replacement must not double the indent
       the source keeps.
+      6. a nested map emitted `over: row.months` — the `columns` array is outside every row callback, so `row` is
+         not in scope there. `over` is the header's own list, and a body that maps a *different* list than its
+         header is refused (the two lists lining up is the contract the column depends on);
+      7. every cell got `text-left` or `text-right`, so a bare `<th>` that browsers centre moved left, and a
+         one-sided `text-right` turned a left header right. A column now carries an alignment class only when it
+         declares `align`, and the codemod declares it only when the header *and* the body said right — otherwise
+         each side keeps the class it had.
 - [x] **45 tables in 41 files converted**, `rawTables` 184 → 158, 41 screen files −60 lines net (the explicit
       class props cost lines and buy exactness), `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the
       two pre-existing warnings, **5315/5315 unit tests green**.

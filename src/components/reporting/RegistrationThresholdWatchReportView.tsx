@@ -113,12 +113,12 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Entity", headClassName: "", cell: (row) => (<><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></>) },
+        { header: "Entity", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></>) },
         { header: "Threshold / test", headClassName: "", cell: (row) => (<><bdi>{row.rule.name}</bdi><div className="text-xs text-[var(--muted)]">{row.rule.source.authority}</div><div className="text-xs text-[var(--muted)]"><bdi>Effective {row.rule.validFrom}{row.rule.validTo ? ` – ${row.rule.validTo}` : ' onward'}</bdi></div></>) },
         { header: "Period", headClassName: "", cell: (row) => (<><bdi>{row.periodLabel}</bdi><div className="text-xs text-[var(--muted)]">{row.periodStart} – {row.periodEnd}</div></>) },
-        { header: "Posted sales", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.salesCents, row.baseCurrency) },
-        { header: "Threshold", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.thresholdCents, row.thresholdCurrency) },
-        { header: "Progress", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%` },
+        { header: "Posted sales", className: "text-right tabular-nums", headClassName: "", cell: (row) => money(row.salesCents, row.baseCurrency) },
+        { header: "Threshold", className: "text-right tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.thresholdCents, row.thresholdCurrency) },
+        { header: "Progress", className: "text-right tabular-nums", headClassName: "", cell: (row) => row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%` },
         { header: "Comparison", headClassName: "", cell: (row) => row.result === 'currency-mismatch'
           ? `Not compared: ledger base ${row.baseCurrency || 'unknown'}, threshold ${row.thresholdCurrency}`
           : row.result === 'over'

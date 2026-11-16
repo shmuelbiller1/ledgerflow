@@ -79,7 +79,7 @@ export default function ImportServicesReportView({ endDate = '' }: { endDate?: s
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Bill", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
+        { header: "Bill", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
         { header: "Vendor", headClassName: "", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
         { header: "Country", headClassName: "", cell: (row) => row.vendorCountry },
         { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },

@@ -111,10 +111,10 @@ export default function ExpensePolicyReportView({ endDate = '' }: { endDate?: st
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Claim", headClassName: "", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
+        { header: "Claim", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
         { header: "State", headClassName: "", cell: (row) => row.claim?.state || '' },
         { header: "Account", headClassName: "", cell: (row) => <code>{row.account || '—'}</code> },
-        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
+        { header: "Amount", className: "text-right tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
         { header: "Finding", headClassName: "", cell: (row) => row.finding },
         { header: "What the policy asks", headClassName: "", cell: (row) => row.ask || (policy.rows.length ? 'The policy rows in force match nothing on this claim' : '') },
       ]}

@@ -31,10 +31,10 @@ export default function VendorReturnFields({ lines, value, onChange, currency, o
         headRowClassName="text-gray-500"
         bodyClassName=""
         columns={[
-          { header: "Item", className: "py-1", headClassName: "font-semibold py-1", cell: (line) => <bdi>{line.description || line.itemId}</bdi> },
+          { header: "Item", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (line) => <bdi>{line.description || line.itemId}</bdi> },
           { header: "Bought", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.quantity },
           { header: "Already back", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.returned },
-          { header: "Sent back now", align: 'right', className: "py-1 pl-2", headClassName: "font-semibold py-1 w-24", cell: (line) => <input aria-label={`How many of ${line.description || line.itemId} go back`} inputMode="decimal" value={value[line.billLine] ?? ''} placeholder="0"
+          { header: "Sent back now", className: "py-1 pl-2", headClassName: "text-right font-semibold py-1 w-24", cell: (line) => <input aria-label={`How many of ${line.description || line.itemId} go back`} inputMode="decimal" value={value[line.billLine] ?? ''} placeholder="0"
                   disabled={line.returned >= line.quantity}
                   onChange={e => onChange({ ...value, [line.billLine]: e.target.value })}
                   className="w-full p-1.5 text-right font-mono bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg" /> },

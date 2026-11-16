@@ -49,7 +49,7 @@ export default function CurrenciesSettings() {
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Currency", className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (r) => r.currency },
+            { header: "Currency", className: "text-left font-mono py-1", headClassName: "text-left font-semibold py-1", cell: (r) => r.currency },
             { header: "Invoices and bills", align: 'right', className: "py-1", headClassName: "font-semibold py-1", cell: (r) => r.documents },
             { header: "Still open", align: 'right', className: "py-1", headClassName: "font-semibold py-1", cell: (r) => r.open },
             { header: (<>Last rate (1 = … {home})</>), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (r) => r.lastRate ? `${r.lastRate} on ${formatDate(r.lastDate || '')}` : '—' },
@@ -86,9 +86,9 @@ export default function CurrenciesSettings() {
               headRowClassName="sticky top-0 bg-[var(--panel)] text-xs text-[var(--muted)]"
               bodyClassName=""
               columns={[
-                { header: "Code", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2", cell: (currency) => currency.code },
-                { header: "Currency", className: "px-3 py-1.5", headClassName: "px-3 py-2", cell: (currency) => currency.name },
-                { header: "Symbol", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2", cell: (currency) => currency.symbol ?? currency.code },
+                { header: "Code", className: "px-3 py-1.5 text-left font-mono", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.code },
+                { header: "Currency", className: "px-3 py-1.5", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.name },
+                { header: "Symbol", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.symbol ?? currency.code },
                 { header: "Minor-unit digits", align: 'right', className: "px-3 py-1.5 tabular-nums", headClassName: "px-3 py-2", cell: (currency) => currency.minorUnitDigits ?? 'N.A.' },
                 { header: "Numeric code", align: 'right', className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2", cell: (currency) => currency.numeric },
               ]}

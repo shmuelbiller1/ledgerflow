@@ -41,12 +41,12 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Category / asset", headClassName: "", cell: (r) => <bdi>{r.category} — {r.name}</bdi> },
+        { header: "Category / asset", className: "text-left", headClassName: "", cell: (r) => <bdi>{r.category} — {r.name}</bdi> },
         { header: "Tag", headClassName: "", cell: (r) => r.tag },
         { header: "Purchase date", headClassName: "", cell: (r) => r.purchaseDate },
-        { header: "Cost", align: 'right', headClassName: "", cell: (r) => money(r.costCents) },
-        { header: "Depreciation", align: 'right', headClassName: "", cell: (r) => money(r.depreciationCents) },
-        { header: "Book value", align: 'right', headClassName: "", cell: (r) => money(r.bookValueCents) },
+        { header: "Cost", className: "text-right", headClassName: "", cell: (r) => money(r.costCents) },
+        { header: "Depreciation", className: "text-right", headClassName: "", cell: (r) => money(r.depreciationCents) },
+        { header: "Book value", className: "text-right", headClassName: "", cell: (r) => money(r.bookValueCents) },
       ]}
     /></ReportTableScroll>
     <ReportTableScroll><table className="w-full text-sm"><caption>Category totals as of {date}</caption><thead><tr><th scope="col">Category</th><th scope="col">Assets</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.categories.map(g => <tr key={g.category}><th scope="row" className="text-left"><bdi>{g.category}</bdi></th><td>{g.count}</td><td>{money(g.costCents)}</td><td>{money(g.depreciationCents)}</td><td>{money(g.bookValueCents)}</td></tr>)}</tbody><tfoot><tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr></tfoot></table></ReportTableScroll>

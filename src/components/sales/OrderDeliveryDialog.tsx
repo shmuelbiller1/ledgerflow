@@ -151,7 +151,7 @@ export default function OrderDeliveryDialog({ order, canWrite, onClose }: { orde
             headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
             bodyClassName=""
             columns={[
-              { header: "Item", className: "py-1", headClassName: "font-semibold py-1", cell: (l) => <bdi>{l.description || 'Item'}</bdi> },
+              { header: "Item", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (l) => <bdi>{l.description || 'Item'}</bdi> },
               { header: "Ordered", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => l.ordered },
               { header: "Delivered", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => l.delivered },
               { header: "Now", align: 'right', className: "py-1", headClassName: "font-semibold py-1", cell: (l) => <input aria-label={`Deliver now: ${l.description || 'item'}`} inputMode="decimal" value={now[l.position] ?? ''} disabled={!canWrite || l.left === 0}

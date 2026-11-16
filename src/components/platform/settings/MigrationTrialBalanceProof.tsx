@@ -110,8 +110,8 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
             headRowClassName=""
             bodyClassName=""
             columns={[
-              { header: "Account", className: "py-2", headClassName: "", cell: (row) => row.account },
-              { header: "Reason", headClassName: "", cell: (row) => row.problem.replaceAll('-', ' ') },
+              { header: "Account", className: "py-2", headClassName: "text-left", cell: (row) => row.account },
+              { header: "Reason", headClassName: "text-left", cell: (row) => row.problem.replaceAll('-', ' ') },
               { header: "Difference", align: 'right', headClassName: "", cell: (row) => amount(row.differenceCents) },
             ]}
           /></div>}

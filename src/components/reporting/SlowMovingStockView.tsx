@@ -72,10 +72,10 @@ export const SlowMovingStockView: React.FC = () => {
               headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
               bodyClassName=""
               columns={[
-                { header: "Item", className: "font-normal py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => (<><bdi>{r.name}</bdi>{r.sku && <span className="text-xs text-[var(--muted)]"> · {r.sku}</span>}</>) },
+                { header: "Item", className: "text-left font-normal py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => (<><bdi>{r.name}</bdi>{r.sku && <span className="text-xs text-[var(--muted)]"> · {r.sku}</span>}</>) },
                 { header: "On hand", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => r.quantity },
                 { header: "Value", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => formatCurrency(r.valueCents) },
-                { header: "Age", className: "py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label },
+                { header: "Age", className: "py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label },
                 { header: "Last sold", align: 'right', className: "py-1 px-2 text-xs", headClassName: "font-semibold py-1 px-2", cell: (r) => r.lastSold ? `${r.lastSold} (${r.daysSinceSold} days ago)` : 'never' },
               ]}
             />

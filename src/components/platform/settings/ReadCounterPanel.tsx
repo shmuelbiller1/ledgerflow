@@ -21,7 +21,7 @@ export default function ReadCounterPanel() {
           rowKey={r => r.table}
           bodyClassName=""
           columns={[
-            { header: "Table", className: "font-mono font-normal py-0.5", headClassName: "py-1", cell: (r) => r.table },
+            { header: "Table", className: "text-left font-mono font-normal py-0.5", headClassName: "text-left py-1", cell: (r) => r.table },
             { header: "Rows", align: 'right', className: "font-mono", headClassName: "py-1", cell: (r) => r.rows },
             { header: "Reads", align: 'right', className: "font-mono", headClassName: "py-1", cell: (r) => r.reads },
           ]}

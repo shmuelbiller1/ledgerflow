@@ -140,7 +140,7 @@ export default function Form856ReportView() {
               headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
               bodyClassName=""
               columns={[
-                { header: "Vendor", className: "font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.name}</bdi> },
+                { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.name}</bdi> },
                 { header: "Tax id", className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.taxId || '—' },
                 { header: "Payments", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.payments },
                 { header: "Paid", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.paidCents) },

@@ -225,7 +225,7 @@ export function FxRevaluationPanel() {
                 headRowClassName="text-left text-[var(--muted)]"
                 bodyClassName=""
                 columns={[
-                  { header: "Document", className: "py-1 pr-3 font-normal text-[var(--text)]", headClassName: "py-1 pr-3 font-semibold", cell: (d) => (<>{d.number}<span className="block text-[var(--muted)]">{d.partyName}</span></>) },
+                  { header: "Document", className: "py-1 pr-3 text-left font-normal text-[var(--text)]", headClassName: "py-1 pr-3 font-semibold", cell: (d) => (<>{d.number}<span className="block text-[var(--muted)]">{d.partyName}</span></>) },
                   { header: "Open", className: "py-1 pr-3 text-[var(--text)] whitespace-nowrap", headClassName: "py-1 pr-3 font-semibold", cell: (d) => money(d.openCents, d.currency) },
                   { header: "Booked at", align: 'right', className: "py-1 pr-3 text-[var(--muted)] tabular-nums", headClassName: "py-1 pr-3 font-semibold", cell: (d) => d.bookedRate.toFixed(4) },
                   { header: historical ? `Rate on ${valuationDate}` : 'Today at', align: 'right', className: "py-1 pr-3 text-[var(--muted)] tabular-nums", headClassName: "py-1 pr-3 font-semibold", cell: (d) => d.todayRate.toFixed(4) },

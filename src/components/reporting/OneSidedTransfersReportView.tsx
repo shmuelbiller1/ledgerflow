@@ -41,10 +41,10 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Date / transaction", headClassName: "", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
+        { header: "Date / transaction", className: "text-left", headClassName: "", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
         { header: "From", headClassName: "", cell: (row) => <bdi>{row.fromAccount}</bdi> },
         { header: "To", headClassName: "", cell: (row) => <bdi>{row.toAccount}</bdi> },
-        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.amountCents, currency) },
+        { header: "Amount", className: "text-right tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.amountCents, currency) },
         { header: "Why review", headClassName: "", cell: (row) => row.status },
       ]}
     />{!rows.length && <p>No one-sided transfer warnings in the loaded history.</p>}</ReportTableScroll>}

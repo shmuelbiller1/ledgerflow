@@ -138,8 +138,8 @@ export default function AccessibilityAndLanguagePanel({ onOpenSupport }: Accessi
             headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
             bodyClassName=""
             columns={[
-              { header: "Key", className: "py-2 pr-3 font-mono text-xs text-[var(--muted)]", headClassName: "py-2 pr-3", cell: (item) => item.key },
-              { header: "English (`en`)", className: "py-2 pr-3 text-[var(--text)]", headClassName: "py-2 pr-3", cell: (item) => item.en },
+              { header: "Key", className: "py-2 pr-3 font-mono text-xs text-[var(--muted)]", headClassName: "text-left py-2 pr-3", cell: (item) => item.key },
+              { header: "English (`en`)", className: "py-2 pr-3 text-[var(--text)]", headClassName: "text-left py-2 pr-3", cell: (item) => item.en },
               { header: "Hebrew (`he`)", align: 'right', className: "py-2 pl-3 text-[var(--text)]", headClassName: "py-2 pl-3", cell: (item) => <bdi>{item.he}</bdi> },
             ]}
           />

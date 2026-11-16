@@ -286,10 +286,10 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
           headRowClassName=""
           bodyClassName=""
           columns={[
-            { header: "Source", className: "font-normal py-2 px-2", headClassName: "py-2 px-2", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
-            { header: "Shipped", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => record.shippedDate },
-            { header: "Carrier", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
-            { header: "Tracking number", className: "py-2 px-2", headClassName: "py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
+            { header: "Source", className: "text-left font-normal py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
+            { header: "Shipped", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.shippedDate },
+            { header: "Carrier", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
+            { header: "Tracking number", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
           ]}
         />
         {!existingShipments.length && <p className="p-3 text-sm text-[var(--muted)]">No shipment tracking has been recorded for this order.</p>}

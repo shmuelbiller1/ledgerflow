@@ -206,7 +206,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
           headRowClassName=""
           bodyClassName=""
           columns={[
-            { header: "Month", className: "font-normal", headClassName: "", cell: (month) => month.label },
+            { header: "Month", className: "text-left font-normal", headClassName: "text-left", cell: (month) => month.label },
             { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (month) => formatCurrency(month[metric], currency) },
           ]}
         /></details></>;

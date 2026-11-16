@@ -33,11 +33,11 @@ export default function DepreciationScheduleTable({ asset }: { asset: FixedAsset
         rows={years}
         rowKey={y => y.year}
         columns={[
-          { header: "Year", className: "py-1 font-semibold", headClassName: "py-1", cell: (y) => (<>{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</>) },
+          { header: "Year", className: "py-1 text-left font-semibold", headClassName: "py-1 text-left", cell: (y) => (<>{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</>) },
           { header: "Depreciation", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.amountCents) },
           { header: "Accumulated", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.accumulatedCents) },
           { header: "Book value", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.bookValueCents) },
-          { header: "Posted", className: "py-1 pl-3 text-[var(--muted)]", headClassName: "py-1 pl-3", cell: (y) => y.posted ? 'yes' : 'not yet' },
+          { header: "Posted", className: "py-1 pl-3 text-[var(--muted)]", headClassName: "py-1 text-left pl-3", cell: (y) => y.posted ? 'yes' : 'not yet' },
         ]}
       />
     </div>

@@ -97,7 +97,7 @@ function VendorScorecardContent({ endDate = '', orders, ordersLoading = false }:
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Vendor", className: "min-w-60", headClassName: "", cell: (row) => (<><bdi>{row.vendorName}</bdi>
+        { header: "Vendor", className: "text-left min-w-60", headClassName: "", cell: (row) => (<><bdi>{row.vendorName}</bdi>
           <details key={`${workspaceId}:${row.vendorId}`} className="font-normal mt-2 w-64 max-w-full">
             <summary className="min-h-11 cursor-pointer">Review source bills</summary>
             <p className="text-sm text-[var(--muted)]">Loaded bills in this date range, including bills without item quantities. Open a bill to inspect its original lines. Orders and return credits keep their own screens.</p>

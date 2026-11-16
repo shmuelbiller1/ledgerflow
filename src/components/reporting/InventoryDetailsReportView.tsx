@@ -64,7 +64,7 @@ export default function InventoryDetailsReportView() {
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Item", className: "font-normal py-1", headClassName: "font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
+            { header: "Item", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
             { header: "Units", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
             { header: "Cost", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
             { header: "Per unit", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },

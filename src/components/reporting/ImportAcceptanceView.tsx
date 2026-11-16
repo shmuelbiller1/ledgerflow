@@ -96,8 +96,8 @@ export default function ImportAcceptanceView() {
                 headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
                 bodyClassName=""
                 columns={[
-                  { header: "Account", className: "font-normal py-1", headClassName: "font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
-                  { header: "Why", className: "py-1", headClassName: "font-semibold py-1", cell: (d) => d.why },
+                  { header: "Account", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
+                  { header: "Why", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (d) => d.why },
                   { header: "Source", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.sourceCents) },
                   { header: BRAND_NAME, align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.ledgerCents) },
                   { header: "Difference", align: 'right', className: "font-mono py-1 text-rose-600", headClassName: "font-semibold py-1", cell: (d) => money(d.differenceCents) },

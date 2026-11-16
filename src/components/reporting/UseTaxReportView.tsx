@@ -90,7 +90,7 @@ export default function UseTaxReportView({ endDate = '' }: { endDate?: string })
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Bill", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi>{row.note && <div className="text-xs text-[var(--muted)]">{row.note}</div>}</>) },
+        { header: "Bill", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi>{row.note && <div className="text-xs text-[var(--muted)]">{row.note}</div>}</>) },
         { header: "Vendor", headClassName: "", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
         { header: "Taxable", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.taxableCents) },
         { header: "Reduced", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.reducedCents ? money(row.reducedCents) : '—' },

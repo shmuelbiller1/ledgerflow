@@ -32,10 +32,10 @@ export default function ReturnedGoodsFields({ lines, value, onChange, currency, 
         headRowClassName="text-gray-500"
         bodyClassName=""
         columns={[
-          { header: "Item", className: "py-1", headClassName: "font-semibold py-1", cell: (line) => <bdi>{line.description}</bdi> },
+          { header: "Item", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (line) => <bdi>{line.description}</bdi> },
           { header: "Sold", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.sold },
           { header: "Already back", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (line) => line.returned },
-          { header: "Came back now", align: 'right', className: "py-1 pl-2", headClassName: "font-semibold py-1 w-24", cell: (line) => <input aria-label={`How many of ${line.description} came back`} inputMode="decimal" value={value[line.invoiceLineId] ?? ''} placeholder="0"
+          { header: "Came back now", className: "py-1 pl-2", headClassName: "text-right font-semibold py-1 w-24", cell: (line) => <input aria-label={`How many of ${line.description} came back`} inputMode="decimal" value={value[line.invoiceLineId] ?? ''} placeholder="0"
                   disabled={line.returnable <= 0}
                   onChange={e => onChange({ ...value, [line.invoiceLineId]: e.target.value })}
                   className="w-full p-1.5 text-right font-mono bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg" /> },

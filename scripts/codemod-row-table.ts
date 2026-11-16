@@ -137,8 +137,6 @@ const attr = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '
 
 const literal = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
-const ALIGNMENT = new Set(['text-left', 'text-right']);
-
 /** The content between a JSX opening and closing tag, as one expression. */
 function jsxValue(content: string): string {
   const trimmed = content.trim();
@@ -157,6 +155,11 @@ function jsxValue(content: string): string {
  * `pl-3` and bolds a body cell that was never bold. The header entry is always written, `""` when the header
  * carried no class, so a plain `<th scope="col">` does not silently pick up the default weight.
  */
+/** `align: 'right'` only when the header cell and the body cell both said right — one side alone is that side's. */
+function alignEntry(headClasses: string[], cellClasses: string[]): string {
+  return headClasses.includes('text-right') && cellClasses.includes('text-right') ? "align: 'right'" : '';
+}
+
 function classesOf(headRaw: string | undefined, cellRaw: string | undefined, headClasses: string[], cellClasses: string[]): string[] {
   const isExpression = (raw?: string) => Boolean(raw && (raw.includes('${') ||
     (raw.startsWith('{') && !/^\{\s*["'][^"']*["']\s*\}$/.test(raw))));
@@ -164,17 +167,21 @@ function classesOf(headRaw: string | undefined, cellRaw: string | undefined, hea
     const inner = raw.startsWith('{') ? raw.slice(1, -1).trim() : raw.slice(1, -1);
     return inner;
   };
+  // `text-right` leaves the class lists only when the column declares `align: 'right'`, so the alignment class
+  // is written once; a side that said it alone keeps it, because moving it would move that side's text
+  const both = alignEntry(headClasses, cellClasses) !== '';
+  const keep = (classes: string[]) => classes.filter(name => !(both && name === 'text-right'));
   const entries: string[] = [];
   if (cellRaw && isExpression(cellRaw)) {
     entries.push(`className: ${source(cellRaw)}`);
   } else {
-    const names = cellClasses.filter(name => !ALIGNMENT.has(name));
+    const names = keep(cellClasses);
     if (names.length) entries.push(`className: ${JSON.stringify(names.join(' '))}`);
   }
   if (headRaw && isExpression(headRaw)) {
     entries.push(`headClassName: ${source(headRaw)}`);
   } else {
-    entries.push(`headClassName: ${JSON.stringify(headClasses.filter(name => !ALIGNMENT.has(name)).join(' '))}`);
+    entries.push(`headClassName: ${JSON.stringify(keep(headClasses).join(' '))}`);
   }
   return entries;
 }
@@ -473,7 +480,7 @@ export function attemptConvert(source: string, start: number): Attempt {
     const text = header.content;
     entries.push(entry([
       /[<{]/.test(text) ? `header: ${jsxValue(text)}` : `header: ${literal(text)}`,
-      header.classes.includes('text-right') || cell.classes.includes('text-right') ? "align: 'right'" : '',
+      alignEntry(header.classes, cell.classes),
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
       `cell: (${row}) => ${jsxValue(cell.content)}`,
     ]));
@@ -482,11 +489,17 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (nestedCells.length === 1) {
     if (head.kind === 'literal') return { reason: 'a nested map under a header that does not declare it' };
     const nested = nestedCells[0].nested!;
+    // `over` sits in the `columns` array, outside every row callback, so it can only be the list the header
+    // itself maps. A body cell that maps `row.months` under a header that maps `months` would convert to
+    // `over: row.months`, where `row` is not in scope — and nothing would line the two lists up if they differ.
+    if (nested.list.replace(/\s+/g, '') !== (head.list ?? '').replace(/\s+/g, '')) {
+      return { reason: 'a nested map over a list the header does not map, so the columns would not line up' };
+    }
     const headClasses = classOf(head.cellTag);
     entries.push(entry([
-      `over: ${nested.list}`,
+      `over: ${head.list}`,
       `head: (${nested.parameter}) => ${head.kind === 'array' ? nested.parameter : head.text}`,
-      headClasses.includes('text-right') || nestedCells[0].classes.includes('text-right') ? "align: 'right'" : '',
+      alignEntry(headClasses, nestedCells[0].classes),
       ...classesOf(classSource(head.cellTag), nestedCells[0].rawClass, headClasses, nestedCells[0].classes),
       `cell: (${row}, ${nested.parameter}) => ${jsxValue(nested.content)}`,
     ]));
@@ -502,7 +515,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       const cell = literalCells[index];
       entries.push(entry([
         `header: ${literal(name)}`,
-        classOf(head.headTag).includes('text-right') || cell.classes.includes('text-right') ? "align: 'right'" : '',
+        alignEntry(classOf(head.headTag), cell.classes),
         ...classesOf(classSource(head.headTag), cell.rawClass, classOf(head.headTag), cell.classes),
         `cell: (${row}) => ${jsxValue(cell.content)}`,
       ]));

@@ -31,9 +31,9 @@ export default function AccountIcicle({ members, currency }: { members: BalanceM
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Account or group", className: "font-normal", headClassName: "", cell: (node) => <bdi>{node.ancestors().reverse().map(parent => parent.data.label).join(' / ')}</bdi> },
-        { header: "Balance", align: 'right', className: "tabular-nums", headClassName: "", cell: (node) => formatCurrency(node.data.cents, currency) },
-        { header: "Share of parent", align: 'right', headClassName: "", cell: (node) => node.parent && node.parent.data.cents !== 0 ? `${(node.data.cents / node.parent.data.cents * 100).toFixed(1)}%` : '—' },
+        { header: "Account or group", className: "text-left font-normal", headClassName: "", cell: (node) => <bdi>{node.ancestors().reverse().map(parent => parent.data.label).join(' / ')}</bdi> },
+        { header: "Balance", className: "text-right tabular-nums", headClassName: "", cell: (node) => formatCurrency(node.data.cents, currency) },
+        { header: "Share of parent", className: "text-right", headClassName: "", cell: (node) => node.parent && node.parent.data.cents !== 0 ? `${(node.data.cents / node.parent.data.cents * 100).toFixed(1)}%` : '—' },
       ]}
     /></div></details>
   </section>;

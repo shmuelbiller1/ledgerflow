@@ -208,9 +208,9 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
         headRowClassName=""
         bodyClassName=""
         columns={[
-          { header: "Country", className: "font-normal py-1 px-2", headClassName: "", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
-          { header: "Review period", className: "py-1 px-2", headClassName: "", cell: (period) => (<>{period.years} years</>) },
-          { header: "Basis", className: "py-1 px-2", headClassName: "", cell: (period) => period.source },
+          { header: "Country", className: "text-left font-normal py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
+          { header: "Review period", className: "py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.years} years</>) },
+          { header: "Basis", className: "py-1 px-2", headClassName: "text-left", cell: (period) => period.source },
         ]}
       />
     </ReportTableScroll>

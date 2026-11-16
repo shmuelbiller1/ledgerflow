@@ -169,8 +169,8 @@ export default function AskBooksView() {
               headRowClassName="text-xs text-[var(--muted)] border-b border-[var(--line)]"
               bodyClassName=""
               columns={[
-                { header: "Date", className: "py-1 font-mono text-xs", headClassName: "font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
-                { header: "Entry", className: "py-1", headClassName: "font-semibold py-1", cell: (l) => (<>{l.document ? (
+                { header: "Date", className: "py-1 font-mono text-xs", headClassName: "text-left font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
+                { header: "Entry", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (l) => (<>{l.document ? (
                         <button type="button" className="text-left text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: l.document!.type, id: l.document!.id })}>
                           <bdi>{l.description || l.payee || 'Entry'}</bdi><span className="sr-only"> (open the {l.document.type === 'transaction' ? 'entry' : l.document.type})</span>
                         </button>

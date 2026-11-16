@@ -53,7 +53,9 @@ export interface PlannedColumn<T> {
   csvHeader: string;
   cell: (row: T) => ReactNode;
   csv: (row: T) => string;
-  align: 'left' | 'right';
+  /** The column's alignment, when it declares one. Undeclared means no alignment class at all, so a cell keeps
+   *  the alignment it inherited rather than being forced to the left edge. */
+  align?: 'left' | 'right';
   className?: string;
   headClassName?: string;
 }
@@ -72,7 +74,7 @@ function itemText(item: unknown): string {
 export function planColumns<T, C>(columns: RowTableColumns<T, C>): PlannedColumn<T>[] {
   const planned: PlannedColumn<T>[] = [];
   for (const column of columns) {
-    const align = column.align ?? 'left';
+    const align = column.align;
     if (column.over !== undefined) {
       for (const item of column.over) {
         const header = column.head ? column.head(item) : itemText(item);

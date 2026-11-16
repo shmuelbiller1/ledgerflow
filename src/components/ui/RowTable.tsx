@@ -54,6 +54,15 @@ export interface RowTableProps<T, C = never> {
   empty?: ReactNode;
 }
 
+/**
+ * A cell's class: the column's own alignment, when it declares one, then its class. A column that declares no
+ * alignment gets no alignment class, so a cell that inherited alignment from its table still does — a bare `<th>`
+ * in a table someone centred, a `<td>` that follows the start edge in a right-to-left layout.
+ */
+function alignClass(align: 'left' | 'right' | undefined, className: string | undefined): string {
+  return [align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : '', className ?? ''].filter(Boolean).join(' ');
+}
+
 export function RowTable<T, C = never>({
   caption,
   captionClassName = 'sr-only',
@@ -78,11 +87,7 @@ export function RowTable<T, C = never>({
       <thead className={headRowClassName}>
         <tr>
           {planned.map(column => (
-            <th
-              key={column.key}
-              scope="col"
-              className={`${column.align === 'right' ? 'text-right' : 'text-left'} ${column.headClassName ?? 'py-2 font-semibold'}`.trim()}
-            >
+            <th key={column.key} scope="col" className={alignClass(column.align, column.headClassName ?? 'py-2 font-semibold')}>
               {column.header}
             </th>
           ))}
@@ -92,7 +97,7 @@ export function RowTable<T, C = never>({
         {rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={rowClassName}>
             {planned.map((column, index) => {
-              const className = `${column.align === 'right' ? 'text-right' : 'text-left'} ${column.className ?? ''}`.trim();
+              const className = alignClass(column.align, column.className);
               // the first column names the record, so it is a header cell for the row it starts
               if (index === 0 && rowHeaderColumn) {
                 return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()}>{column.cell(row)}</th>;

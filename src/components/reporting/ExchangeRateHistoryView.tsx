@@ -65,9 +65,9 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
             headRowClassName=""
             bodyClassName=""
             columns={[
-              { header: "Date", headClassName: "", cell: (u) => u.date },
-              { header: (<>{home} for 1 {currency || '…'}</>), align: 'right', className: "font-mono", headClassName: "", cell: (u) => u.rate },
-              { header: "Documents", align: 'right', headClassName: "", cell: (u) => u.count },
+              { header: "Date", className: "text-left", headClassName: "text-left", cell: (u) => u.date },
+              { header: (<>{home} for 1 {currency || '…'}</>), className: "text-right font-mono", headClassName: "", cell: (u) => u.rate },
+              { header: "Documents", className: "text-right", headClassName: "", cell: (u) => u.count },
             ]}
           />
           {currencies.length === 0 && <p>No document in another currency yet.</p>}

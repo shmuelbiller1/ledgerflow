@@ -87,6 +87,26 @@ describe('RowTable', () => {
     assert.deepEqual(csv.rows, [['3', '5']]);
   });
 
+  test('a column that declares no alignment gets no alignment class, so a cell keeps the one it inherited', () => {
+    render(
+      <RowTable
+        caption="Quiet cells"
+        rows={[{ label: 'Total', amount: '1' }]}
+        rowKey={row => row.label}
+        columns={[
+          { header: 'Label', cell: row => row.label },
+          { header: 'Amount', cell: row => row.amount },
+        ]}
+      />,
+    );
+    // a bare `<th>` in a table someone centred stays centred, and a `<td>` follows the start edge in a
+    // right-to-left screen: forcing `text-left` on every cell moves text the screen never moved
+    const header = document.querySelectorAll('th[scope="col"]')[1];
+    const cell = document.querySelectorAll('td')[0];
+    assert.doesNotMatch(header.className, /text-(left|right)/);
+    assert.doesNotMatch(cell.className, /text-(left|right)/);
+  });
+
   test('a footer renders as the table\'s totals row, so a sum is not a column', () => {
     render(
       <RowTable

@@ -97,7 +97,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
                 captionClassName="text-left text-xs font-semibold text-[var(--muted)] mb-1"
                 bodyClassName=""
                 columns={[
-                  { header: "Line", className: "py-0.5 pr-2", headClassName: "font-semibold py-0.5", cell: (line) => (<>{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</>) },
+                  { header: "Line", className: "py-0.5 pr-2", headClassName: "text-left font-semibold py-0.5", cell: (line) => (<>{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</>) },
                   { header: "Ordered", align: 'right', className: "py-0.5 font-mono", headClassName: "font-semibold py-0.5", cell: (line) => line.quantity },
                   { header: "Left", align: 'right', className: "py-0.5 font-mono", headClassName: "font-semibold py-0.5", cell: (line) => line.leftQuantity },
                   { header: "Now", align: 'right', className: "py-0.5 pl-2", headClassName: "font-semibold py-0.5", cell: (line) => <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
