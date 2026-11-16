@@ -130,9 +130,7 @@ function assertDocumentMutationAllowed(
         throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} with an active revenue or prepaid recognition schedule.` });
       }
     } else {
-      const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
-      const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
-      if (appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0) {
+      if (creditHasSettlement(existing)) {
         throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} that has already been applied or refunded.` });
       }
     }
@@ -149,12 +147,10 @@ function assertDocumentMutationAllowed(
       return;
     }
     if (existing) {
-      const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
-      const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
       const oldAmount = asNonNegativeNumber(existing.amountCents);
       const oldRemaining = typeof existing.remainingCents === 'number' ? existing.remainingCents : oldAmount;
-      const hasSettlement = appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0;
-      if (typeof incoming.status === 'string' && UNPOSTED_DOCUMENT_STATUSES.has(incoming.status) && (hasSettlement || oldRemaining < oldAmount)) {
+      const hasSettlement = creditHasSettlement(existing);
+      if (typeof incoming.status === 'string' && UNPOSTED_DOCUMENT_STATUSES.has(incoming.status) && hasSettlement) {
         throw new BulkRefusal(409, { error: `An applied or refunded ${NAMES[collection]} cannot go back to ${incoming.status}.` });
       }
       if (hasSettlement) {
@@ -190,11 +186,22 @@ function assertDocumentMutationAllowed(
       if (typeof incoming.amountPaidCents === 'number' && incoming.amountPaidCents < settled) {
         throw new BulkRefusal(409, { error: `amountPaidCents (${incoming.amountPaidCents}) cannot be reduced below recorded settlements (${settled}).` });
       }
-      if (typeof incoming.amountCents === 'number' && incoming.amountCents < settled + writtenOff) {
-        throw new BulkRefusal(409, { error: `Document total cannot be reduced below recorded settlements and write-offs (${settled + writtenOff}).` });
+      // A write-off is already counted in settledByRecordsCents (badDebtService), so it is not added again.
+      if (typeof incoming.amountCents === 'number' && incoming.amountCents < settled) {
+        throw new BulkRefusal(409, { error: `Document total cannot be reduced below recorded settlements and write-offs (${settled}).` });
       }
     }
   }
+}
+
+/**
+ * A credit has been used once any of it was applied (creditService lowers remainingCents) or refunded
+ * (refundedCents). Nothing writes an `appliedTo` list, so the remaining balance is the evidence.
+ */
+function creditHasSettlement(existing: Record<string, unknown>): boolean {
+  const amount = asNonNegativeNumber(existing.amountCents);
+  const remaining = typeof existing.remainingCents === 'number' ? existing.remainingCents : amount;
+  return remaining < amount || asNonNegativeNumber(existing.refundedCents) > 0;
 }
 
 /**

@@ -4,11 +4,11 @@ import { checkLedgerEntry } from './ledgerDoor';
 import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
 import { isPostable } from '../../lib/txFilters';
 
+// Only caches that are rebuilt from the restored books. paymentAllocations / allocationOperations (the
+// EG-2 payment ledger, append-only) and periodClosings (close history) are records, not caches: a restore
+// cannot write them back, so it must never delete them.
 const DERIVED_RESTORE_TABLES = [
-  'paymentAllocations',
-  'allocationOperations',
   'periodBalances',
-  'periodClosings',
   'stockClosings',
   'repostQueue',
 ] as const;
@@ -101,6 +101,12 @@ export const RESTORE_COLLECTIONS: RestoreTable[] = [
   { key: 'periods', coll: 'periods' },
   // W-02: the stock history goes with the quantities (an older backup without it clears it)
   { key: 'stockMoves', coll: 'stockMoves' },
+  // The EG-2 payment ledger and the close history are records, not caches: a backup carries them and a
+  // restore writes them back with the payments they belong to (an older backup without them clears them,
+  // so no allocation row outlives the payments it points at).
+  { key: 'paymentAllocations', coll: 'paymentAllocations' },
+  { key: 'allocationOperations', coll: 'allocationOperations' },
+  { key: 'periodClosings', coll: 'periodClosings' },
   // BK-10: the rest of the workspace's own records — templates, learned bank-rule patterns, forecast
   // scenarios, loans, filed tax returns, the fixed-asset table, client queries, and the `documents`
   // rows that are records (tasks, time entries, stage and rate settings), not files.
@@ -334,8 +340,7 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       }
       existing.push(docs);
     }
-    // A8-017: clear stale derived tables (paymentAllocations, periodBalances, periodClosings,
-    // stockClosings, repostQueue, allocationOperations) whenever core books/settlements/stock are restored
+    // A8-017: clear stale derived caches (periodBalances, stockClosings, repostQueue) whenever core books/settlements/stock are restored
     // so reports and payment voids never read stale pre-restore derived rows.
     const shouldClearDerived = colls.some(c => ['transactions', 'payments', 'invoices', 'bills', 'creditNotes', 'vendorCredits', 'stockMoves'].includes(c));
     const staleDerivedDocs: Array<{ ref: Parameters<typeof t.delete>[0] }> = [];

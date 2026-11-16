@@ -702,7 +702,6 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
 
     // Seed stale derived periodBalances & paymentAllocations rows
     await db.collection('periodBalances').doc(`${ws}_2026-05-31`).set({ workspaceId: ws, asOf: '2026-05-31', stale: true });
-    await db.collection('paymentAllocations').doc(`${ws}_stale_alloc`).set({ workspaceId: ws, paymentId: 'ghost', amountCents: 999 });
 
     // A8-017: Forged unsigned backup claiming lockDate='2099-12-31' to wipe closed May tx MUST BE REFUSED (409)
     await assert.rejects(
@@ -718,6 +717,8 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
 
     // Export a genuine server-signed backup, tamper with it => rejected (400)
     const realBackup = await exportWorkspaceBackup(db, ws, owner);
+    // A payment-ledger row written after the backup was taken is not in it, so the restore removes it.
+    await db.collection('paymentAllocations').doc(`${ws}_stale_alloc`).set({ workspaceId: ws, paymentId: 'ghost', amountCents: 999 });
     const tampered = JSON.parse(JSON.stringify(realBackup));
     tampered.workspace.lockDate = '2099-12-31';
     await assert.rejects(
