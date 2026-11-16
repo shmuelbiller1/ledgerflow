@@ -38,6 +38,8 @@ export interface Candidate {
   method: string;
   /** what stops this being rewritten automatically; empty means it can be */
   blockers: string[];
+  /** things to look at in a call that *can* be rewritten (e.g. an abort path nearby) */
+  reasons?: string[];
   /** the rewritten source for this call, when it can be rewritten */
   replacement?: string;
   /** how much of the original source the replacement covers, for splicing */
@@ -121,19 +123,22 @@ export function findCandidates(file: string, source: string): Candidate[] {
 
     const line = source.slice(0, at).split('\n').length;
     const blockers: string[] = [];
+    const reasons: string[] = [];
     if (!/method:\s*'(GET|POST|PUT|PATCH|DELETE)'/.test(call)) {
       // a GET with no method is still convertible; anything else is not a shape we recognise
       if (/method:\s*`/.test(call)) blockers.push('method is computed');
     }
     if (!/headers:\s*\{/.test(call)) blockers.push('no headers object');
     if (/responseType|blob|arrayBuffer|\.text\(\)/.test(call)) blockers.push('reads the response as something other than JSON');
-    if (/signal:/.test(call)) blockers.push('passes an AbortSignal');
+    // `runCommand` takes a signal and passes it to fetch, so this is not a blocker. It is listed because a
+    // call that carries one usually has an abort path nearby that the rewrite must not disturb.
+    if (/signal:/.test(call)) reasons.push('carries an AbortSignal (runCommand takes one: check the abort path)');
 
     // anything after the call that inspects the response in a way runCommand cannot express
     const after = source.slice(end, end + 800);
     if (/res\.status\s*===\s*204|res\.headers/.test(after)) blockers.push('inspects the response beyond ok/status');
 
-    found.push({ file, line, path: literal.path, method: (/method:\s*'(GET|POST|PUT|PATCH|DELETE)'/.exec(call)?.[1]) || 'GET', blockers });
+    found.push({ file, line, path: literal.path, method: (/method:\s*'(GET|POST|PUT|PATCH|DELETE)'/.exec(call)?.[1]) || 'GET', blockers, reasons });
   }
   // silence the unused warning for variables kept for readability of the shape
   void lines;
@@ -187,7 +192,7 @@ function withImport(source: string, names: string, file: string): string | null 
 /** The GET that sets only the auth header, followed by how its answer is read. */
 export function rewrite(source: string, file: string): { source: string; changed: number } {
   let changed = 0;
-  let names = 'runCommand, type CommandBody';
+  const names = 'runCommand, type CommandBody';
 
   // (a) the GET, the answer read as JSON, and (usually) one `if (!res.ok …)` line right after it.
   //
@@ -263,7 +268,7 @@ export function rewrite(source: string, file: string): { source: string; changed
     const after = next.slice(match.index + match[0].length);
     const tail = /^[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n(?:[ \t]*if \(!res\.ok\) throw[^\n]*;\n)?/.exec(after);
     if (!tail) break;
-    const [whole, pathArg, method, body] = match;
+    const [, pathArg, method, body] = match;
     // a body that is never read afterwards needs no binding — and reading it was never the point of the call
     const rest = next.slice(match.index + match[0].length + tail[0].length);
     const usedLater = new RegExp(`\\b${tail[1]}\\b`).test(rest);

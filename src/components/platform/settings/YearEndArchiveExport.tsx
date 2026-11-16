@@ -21,6 +21,7 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { BRAND } from '../../../config/brand';
 import { verifiedBackupCollections, makeStoredZip } from '../../../lib/workspaceArchive';
 import type { ZipEntry } from '../../../lib/workspaceArchive';
+import { runCommand, type CommandBody } from '../../../lib/runCommand';
 import {
   buildYearArchiveCsvEntries, fetchYearArchivePdfBatches, planYearArchive, withPdfOutcome, type YearArchivePlan,
 } from '../../../lib/yearEndArchive';
@@ -73,12 +74,12 @@ function YearEndArchiveExportBody() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const token = await user.getIdToken();
-      const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`, {
-        headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
+      // the signal comes through so closing the dialog aborts the read, as before
+      const body = await runCommand<CommandBody>({
+        path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error('The server backup could not be read, so nothing was planned. No partial archive was made.');
-      const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      const collections = await verifiedBackupCollections(body, selectedId);
       if (!stillSameScope()) return;
       setPlan(planYearArchive(collections, { year }));
     } catch (failure) {
@@ -106,12 +107,11 @@ function YearEndArchiveExportBody() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const token = await user.getIdToken();
-      const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`, {
-        headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
+      const body = await runCommand<CommandBody>({
+        path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error('The server backup could not be read. No incomplete archive was downloaded.');
-      const collections = await verifiedBackupCollections(await response.json(), selectedId);
+      const collections = await verifiedBackupCollections(body, selectedId);
       if (!stillSameScope()) return;
       const current = planYearArchive(collections, { year });
       let entries: ZipEntry[] = buildYearArchiveCsvEntries(collections, current);
