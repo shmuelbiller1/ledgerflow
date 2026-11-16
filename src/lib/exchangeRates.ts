@@ -4,7 +4,7 @@
  * forms). Never a guessed number: the last rate this workspace used for that currency, or today's
  * rate from the server's rate service when it answers.
  */
-import { getIdToken } from '../firebase';
+import { runCommand } from './runCommand';
 
 export function lastUsedRate(currency: string, docs: Array<{ currency?: string; exchangeRate?: number; date?: string }>): number | null {
   const used = docs
@@ -16,12 +16,10 @@ export function lastUsedRate(currency: string, docs: Array<{ currency?: string; 
 /** Today's rate for 1 `from` in `to`, or null when the rate service can't answer. */
 export async function fetchLiveRate(from: string, to: string): Promise<number | null> {
   try {
-    const res = await fetch(`/api/v1/fx/rate?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
-      headers: { Authorization: `Bearer ${await getIdToken()}` },
+    const data = await runCommand<{ rate?: unknown }>({
+      path: `/api/v1/fx/rate?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     });
-    if (!res.ok) return null;
-    const data = await res.json() as { rate?: unknown };
-    const rate = Number(data.rate);
+    const rate = Number(data?.rate);
     return Number.isFinite(rate) && rate > 0 && rate < 1e6 ? Math.round(rate * 10000) / 10000 : null;
   } catch {
     return null;

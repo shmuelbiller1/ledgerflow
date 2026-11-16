@@ -1,4 +1,4 @@
-import { getIdToken } from '../../firebase';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 
 /**
  * Uses a recovery code at the code step of sign-in (L-85): the password-only session may call this
@@ -7,16 +7,11 @@ import { getIdToken } from '../../firebase';
  */
 export async function redeemRecoveryCode(code: string): Promise<string> {
   try {
-    const res = await fetch('/api/v1/account/recovery-codes/use', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-      body: JSON.stringify({ code }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return data.message || 'That recovery code did not work';
+    await runCommand({ path: '/api/v1/account/recovery-codes/use', method: 'POST', body: { code } });
     window.location.reload();
     return '';
   } catch (err) {
-    return err instanceof Error ? err.message : 'That recovery code could not be checked';
+    // a refused code is an ordinary answer to this screen, so it returns the server's sentence instead of throwing
+    return commandErrorMessage(err) || 'That recovery code could not be checked';
   }
 }

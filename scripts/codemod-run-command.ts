@@ -46,7 +46,9 @@ export interface Candidate {
   length?: number;
 }
 
-const ROOTS = ['src/components', 'src/hooks', 'src/services', 'src/stores'];
+// Every directory a screen's request can come from. `src/lib` and `src/modules` were missing at first, which is
+// how three hand-typed helpers sat in the report's blind spot while the counter still counted them.
+const ROOTS = ['src/components', 'src/hooks', 'src/services', 'src/stores', 'src/lib', 'src/modules', 'src/core'];
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;

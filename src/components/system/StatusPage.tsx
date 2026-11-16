@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand } from '../../lib/runCommand';
 /**
  * Public status page at /status (L-17, BO-06, G-14): each part of LedgerFlow and whether it works,
  * from GET /api/v1/public/status. Needs no sign-in, so people can check it when they can't log in.
@@ -52,8 +53,8 @@ export default function StatusPage() {
   useEffect(() => {
     let alive = true;
     const started = performance.now();
-    fetch('/api/v1/public/status')
-      .then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json() as Promise<SystemStatus>; })
+    // a public page: no session exists here, and `token: null` says so rather than leaving it to chance
+    runCommand<SystemStatus>({ path: '/api/v1/public/status', token: null })
       .then(data => {
         if (!alive) return;
         setLatencyMs(Math.max(1, Math.round(performance.now() - started)));
