@@ -6,6 +6,7 @@ import type { SourceTrialBalance, ServerTrialBalanceSnapshot } from '../../../li
 
 import { BRAND_NAME } from '../../../config/brand';
 import { runCommand } from '../../../lib/runCommand';
+import { RowTable } from '../../ui/RowTable';
 type Proof = ReturnType<typeof compareTrialBalances>;
 
 export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: string }) {
@@ -99,11 +100,19 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
               <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Credits</th><td className="text-right">{amount(proof.sourceCreditCents)}</td><td className="text-right">{amount(proof.ledgerCreditCents)}</td><td className="text-right">{amount(proof.creditDifferenceCents)}</td></tr>
             </tbody>
           </table></div>
-          {proof.differences.length > 0 && <div className="max-h-60 overflow-auto"><table className="w-full text-xs tabular-nums">
-            <caption className="sr-only">Accounts with discrepancies</caption>
-            <thead><tr><th scope="col" className="text-left">Account</th><th scope="col" className="text-left">Reason</th><th scope="col" className="text-right">Difference</th></tr></thead>
-            <tbody>{proof.differences.map(row => <tr key={row.accountId} className="border-t border-[var(--line)]"><td className="py-2">{row.account}</td><td>{row.problem.replaceAll('-', ' ')}</td><td className="text-right">{amount(row.differenceCents)}</td></tr>)}</tbody>
-          </table></div>}
+          {proof.differences.length > 0 && <div className="max-h-60 overflow-auto">          <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-t border-[var(--line)]"
+            caption={(<>Accounts with discrepancies</>)}
+            rows={proof.differences}
+            rowKey={row => row.accountId}
+            tableClassName="w-full text-xs tabular-nums"
+            columns={[
+              { header: "Account", className: "py-2", cell: (row) => row.account },
+              { header: "Reason", cell: (row) => row.problem.replaceAll('-', ' ') },
+              { header: "Difference", align: 'right', cell: (row) => amount(row.differenceCents) },
+            ]}
+          /></div>}
           <p className="text-xs font-semibold text-[var(--text)]">Financial migration NOT verified. A/R, A/P, cash and tax payable still need independently sourced totals and Agent #1's server-side AU-4 check. Even matching balances do not certify posting, documents, opening stock, currency, completeness or unchanged data between requests.</p>
         </div>
       )}

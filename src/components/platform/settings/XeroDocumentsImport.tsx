@@ -18,6 +18,7 @@ import { cn, formatCurrency } from '../../../lib/utils';
 import { readXeroDocumentsCsv, type XeroDateOrder, type XeroDocumentKind, type XeroDraftDocument } from '../../../lib/xeroDocumentsImport';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { allSettledWrites } from '../../../lib/serverAction';
+import { RowTable } from '../../ui/RowTable';
 
 const KIND_LABEL: Record<XeroDocumentKind, string> = { invoices: 'Sales invoices', bills: 'Bills' };
 
@@ -276,35 +277,24 @@ export default function XeroDocumentsImport({ onSave }: XeroDocumentsImportProps
 
           {preview.ready.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <caption className="sr-only">Drafts that will be created</caption>
-                <thead>
-                  <tr className="text-left text-[var(--muted)]">
-                    <th scope="col" className="py-1 pr-3">Number</th>
-                    <th scope="col" className="py-1 pr-3">{kind === 'invoices' ? 'Customer' : 'Vendor'}</th>
-                    <th scope="col" className="py-1 pr-3">Date</th>
-                    <th scope="col" className="py-1 pr-3">Due</th>
-                    <th scope="col" className="py-1 pr-3 text-right">Lines</th>
-                    <th scope="col" className="py-1 pr-3 text-right">Net</th>
-                    <th scope="col" className="py-1 pr-3 text-right">Tax</th>
-                    <th scope="col" className="py-1 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.ready.map(doc => (
-                    <tr key={doc.number} className="border-t border-[var(--line)]">
-                      <td className="py-1 pr-3 font-semibold text-[var(--text)]">{doc.number}</td>
-                      <td className="py-1 pr-3 text-[var(--text)]">{doc.contactName}</td>
-                      <td className="py-1 pr-3">{doc.date}</td>
-                      <td className="py-1 pr-3">{doc.dueDate}</td>
-                      <td className="py-1 pr-3 text-right">{doc.lines.length}</td>
-                      <td className="py-1 pr-3 text-right">{money(doc.netCents)}</td>
-                      <td className="py-1 pr-3 text-right">{money(doc.taxCents)}</td>
-                      <td className="py-1 text-right font-semibold text-[var(--text)]">{money(doc.totalCents)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <RowTable
+                rowHeaderColumn={false}
+                rowClassName="border-t border-[var(--line)]"
+                caption={(<>Drafts that will be created</>)}
+                rows={preview.ready}
+                rowKey={doc => doc.number}
+                headRowClassName="text-left text-[var(--muted)]"
+                columns={[
+                  { header: "Number", className: "py-1 pr-3 font-semibold text-[var(--text)]", cell: (doc) => doc.number },
+                  { header: kind === 'invoices' ? 'Customer' : 'Vendor', className: "py-1 pr-3 text-[var(--text)]", cell: (doc) => doc.contactName },
+                  { header: "Date", className: "py-1 pr-3", cell: (doc) => doc.date },
+                  { header: "Due", className: "py-1 pr-3", cell: (doc) => doc.dueDate },
+                  { header: "Lines", align: 'right', className: "py-1 pr-3", cell: (doc) => doc.lines.length },
+                  { header: "Net", align: 'right', className: "py-1 pr-3", cell: (doc) => money(doc.netCents) },
+                  { header: "Tax", align: 'right', className: "py-1 pr-3", cell: (doc) => money(doc.taxCents) },
+                  { header: "Total", align: 'right', className: "py-1 font-semibold text-[var(--text)]", cell: (doc) => money(doc.totalCents) },
+                ]}
+              />
             </div>
           )}
 

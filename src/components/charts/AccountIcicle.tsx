@@ -3,6 +3,7 @@ import { hierarchy, partition } from 'd3-hierarchy';
 import { accountIcicleTree, type BalanceMember, type AccountBlock } from '../../lib/chartDrillShapes';
 import { formatCurrency } from '../../lib/utils';
 import { ChartTooltip } from './ChartFrame';
+import { RowTable } from '../ui/RowTable';
 
 export default function AccountIcicle({ members, currency }: { members: BalanceMember[]; currency?: string }) {
   const tree = useMemo(() => accountIcicleTree(members), [members]);
@@ -21,6 +22,16 @@ export default function AccountIcicle({ members, currency }: { members: BalanceM
     <nav aria-label="Account chart zoom" className="flex flex-wrap gap-2">{breadcrumbs.map(node => <button key={node.data.id} type="button" className="min-h-11 px-3 border rounded" onClick={() => { setZoom(node.data.id); setInspect(undefined); }}><bdi>{node.data.label}</bdi></button>)}</nav>
     {root.value ? <div role="region" aria-label="Account icicle blocks" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<div className="relative" style={{ width, height: levels * 48 }}>{nodes.filter(node => (node.value || 0) > 0).map((node, index) => <button type="button" key={node.data.id} aria-label={`${node.data.label}: ${formatCurrency(node.data.cents, currency)}${node.children?.length ? ', zoom in' : ''}`} onClick={() => { if (node.children?.length) { setZoom(node.data.id); setInspect(undefined); } }} onFocus={() => setInspect(node.data.id)} onBlur={() => setInspect(undefined)} onPointerEnter={() => setInspect(node.data.id)} onPointerLeave={() => setInspect(undefined)} className="absolute min-h-11 border border-[var(--panel)] overflow-hidden text-left px-1 text-xs focus-visible:z-10 focus-visible:outline-2" style={{ left: node.x0, width: node.x1 - node.x0, minWidth: 44, top: node.y0, height: 48, background: `hsl(${index * 47 % 360} 45% 30%)`, color: 'white' }}><bdi>{node.data.label}</bdi></button>)}</div></div> : <p role="status">No non-zero account balances to draw.</p>}
     {active && <ChartTooltip active currency={currency} series={[{ key: 'cents', name: 'Balance' }, { key: 'share', name: 'Share of parent', unit: 'percent' }]} payload={[{ dataKey: 'cents', value: active.data.cents, payload: { id: active.data.id, label: active.data.label } }, ...(active.parent && active.parent.data.cents !== 0 ? [{ dataKey: 'share', value: Number((active.data.cents / active.parent.data.cents * 100).toFixed(1)) }] : [])]} />}
-    <details><summary className="min-h-11 cursor-pointer">Account balances table</summary><div role="region" aria-label="Account balances table scroll" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<table className="w-full text-sm"><caption>Signed account balances and parent shares</caption><thead><tr><th scope="col">Account or group</th><th scope="col">Balance</th><th scope="col">Share of parent</th></tr></thead><tbody>{full.descendants().map(node => <tr key={node.data.id}><th scope="row" className="text-left font-normal"><bdi>{node.ancestors().reverse().map(parent => parent.data.label).join(' / ')}</bdi></th><td className="text-right tabular-nums">{formatCurrency(node.data.cents, currency)}</td><td className="text-right">{node.parent && node.parent.data.cents !== 0 ? `${(node.data.cents / node.parent.data.cents * 100).toFixed(1)}%` : '—'}</td></tr>)}</tbody></table></div></details>
+    <details><summary className="min-h-11 cursor-pointer">Account balances table</summary><div role="region" aria-label="Account balances table scroll" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}    <RowTable
+      caption={(<>Signed account balances and parent shares</>)}
+      rows={full.descendants()}
+      rowKey={node => node.data.id}
+      tableClassName="w-full text-sm"
+      columns={[
+        { header: "Account or group", className: "font-normal", cell: (node) => <bdi>{node.ancestors().reverse().map(parent => parent.data.label).join(' / ')}</bdi> },
+        { header: "Balance", align: 'right', className: "tabular-nums", cell: (node) => formatCurrency(node.data.cents, currency) },
+        { header: "Share of parent", align: 'right', cell: (node) => node.parent && node.parent.data.cents !== 0 ? `${(node.data.cents / node.parent.data.cents * 100).toFixed(1)}%` : '—' },
+      ]}
+    /></div></details>
   </section>;
 }

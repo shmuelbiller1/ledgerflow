@@ -25,6 +25,7 @@ import BillModal from './BillModal';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { inBackground } from '../../lib/inBackground';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * Purchase orders (saved in `purchaseOrders`), goods received against them, and turning an order
@@ -371,32 +372,23 @@ export const PurchaseOrdersView: React.FC = () => {
             ))}
           </div>
           <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="3-way match table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-            <table className="w-full text-left text-xs">
-              <caption className="sr-only">3-way match</caption>
-              <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
-                <tr>
-                  <th scope="col" className="py-3 px-4">Order</th><th scope="col" className="py-3 px-4 text-right">Ordered</th>
-                  <th scope="col" className="py-3 px-4 text-right">Received</th><th scope="col" className="py-3 px-4 text-right">Billed</th>
-                  <th scope="col" className="py-3 px-4 text-center">Result</th><th scope="col" className="py-3 px-4">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--line)]">
-                {matchSummary.results.map(res => (
-                  <tr key={res.poId}>
-                    <td className="py-3 px-4 font-mono font-bold">{res.poNumber}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(res.poAmountCents)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(res.receiptAmountCents)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{res.billAmountCents > 0 ? formatCurrency(res.billAmountCents) : '—'}</td>
-                    <td className="py-3 px-4 text-center"><span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(res.status)}`}>{res.status.replace('_', ' ')}</span></td>
-                    <td className="py-3 px-4 text-[11px]">
-                      {res.discrepancies.length > 0
+                        <RowTable
+              rowHeaderColumn={false}
+              caption={(<>3-way match</>)}
+              rows={matchSummary.results}
+              rowKey={res => res.poId}
+              tableClassName="w-full text-left text-xs"
+              columns={[
+                { header: "Order", className: "py-3 px-4 font-mono font-bold", cell: (res) => res.poNumber },
+                { header: "Ordered", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => formatCurrency(res.poAmountCents) },
+                { header: "Received", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => formatCurrency(res.receiptAmountCents) },
+                { header: "Billed", align: 'right', className: "py-3 px-4 font-mono", cell: (res) => res.billAmountCents > 0 ? formatCurrency(res.billAmountCents) : '—' },
+                { header: "Result", className: "py-3 px-4 text-center", cell: (res) => <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(res.status)}`}>{res.status.replace('_', ' ')}</span> },
+                { header: "Notes", className: "py-3 px-4 text-[11px]", cell: (res) => res.discrepancies.length > 0
                         ? <ul className="space-y-0.5 text-[var(--neg)]">{res.discrepancies.map(d => <li key={d}>• {d}</li>)}</ul>
-                        : <span className="text-[var(--pos)] inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Order, receipt and bill agree</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        : <span className="text-[var(--pos)] inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Order, receipt and bill agree</span> },
+              ]}
+            />
           </div>
         </div>
       )}

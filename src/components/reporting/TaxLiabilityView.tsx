@@ -13,6 +13,7 @@ import type { TaxReturnBox, TaxTreatment } from '../../lib/taxCodes';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { wholeWorkspaceReturn } from '../../lib/tax/filedReturns';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * The tax return for a period (T-06): boxes in the home currency from invoices, bills, credit
@@ -159,45 +160,36 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {(['sales', 'purchases'] as const).map(side => (
-          <table key={side} className="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden">
-            <caption className="text-left font-semibold p-2">{side === 'sales' ? 'Sales' : 'Purchases'} by treatment</caption>
-            <thead className="text-[var(--muted)] border-b border-[var(--line)]">
-              <tr><th scope="col" className="text-left p-2">Treatment</th><th scope="col" className="text-right p-2">Excluding tax</th><th scope="col" className="text-right p-2">Tax</th></tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {treatments.filter(t => taxReturn[side][t].netCents !== 0 || taxReturn[side][t].taxCents !== 0).map(t => (
-                <tr key={t}><td className="p-2">{TAX_TREATMENTS[t]}</td><td className="p-2 text-right font-mono">{money(taxReturn[side][t].netCents)}</td><td className="p-2 text-right font-mono">{money(taxReturn[side][t].taxCents)}</td></tr>
-              ))}
-            </tbody>
-          </table>
+                    <RowTable
+            rowHeaderColumn={false}
+            caption={(<>{side === 'sales' ? 'Sales' : 'Purchases'} by treatment</>)}
+            rows={treatments.filter(t => taxReturn[side][t].netCents !== 0 || taxReturn[side][t].taxCents !== 0)}
+            rowKey={t => t}
+            tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
+            columns={[
+              { header: "Treatment", className: "p-2", cell: (t) => TAX_TREATMENTS[t] },
+              { header: "Excluding tax", align: 'right', className: "p-2 font-mono", cell: (t) => money(taxReturn[side][t].netCents) },
+              { header: "Tax", align: 'right', className: "p-2 font-mono", cell: (t) => money(taxReturn[side][t].taxCents) },
+            ]}
+          />
         ))}
       </div>
       {byRate.length > 0 && (
-        <table className="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden">
-          <caption className="text-left font-semibold p-2">Tax by rate (collected minus paid)</caption>
-          <thead className="text-[var(--muted)] border-b border-[var(--line)]">
-            <tr>
-              <th scope="col" className="text-left p-2">Tax</th>
-              <th scope="col" className="text-right p-2">Taxable sales</th>
-              <th scope="col" className="text-right p-2">Collected</th>
-              <th scope="col" className="text-right p-2">Taxable purchases</th>
-              <th scope="col" className="text-right p-2">Paid</th>
-              <th scope="col" className="text-right p-2">Net</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--line)]">
-            {byRate.map(r => (
-              <tr key={`${r.name}|${r.rate}`}>
-                <td className="p-2">{r.name} {r.rate}%</td>
-                <td className="p-2 text-right font-mono tabular-nums">{money(r.salesNetCents)}</td>
-                <td className="p-2 text-right font-mono tabular-nums">{money(r.salesTaxCents)}</td>
-                <td className="p-2 text-right font-mono tabular-nums">{money(r.purchasesNetCents)}</td>
-                <td className="p-2 text-right font-mono tabular-nums">{money(r.purchasesTaxCents)}</td>
-                <td className="p-2 text-right font-mono tabular-nums font-semibold">{money(r.netTaxCents)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <RowTable
+          rowHeaderColumn={false}
+          caption={(<>Tax by rate (collected minus paid)</>)}
+          rows={byRate}
+          rowKey={r => `${r.name}|${r.rate}`}
+          tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
+          columns={[
+            { header: "Tax", className: "p-2", cell: (r) => (<>{r.name} {r.rate}%</>) },
+            { header: "Taxable sales", align: 'right', className: "p-2 font-mono tabular-nums", cell: (r) => money(r.salesNetCents) },
+            { header: "Collected", align: 'right', className: "p-2 font-mono tabular-nums", cell: (r) => money(r.salesTaxCents) },
+            { header: "Taxable purchases", align: 'right', className: "p-2 font-mono tabular-nums", cell: (r) => money(r.purchasesNetCents) },
+            { header: "Paid", align: 'right', className: "p-2 font-mono tabular-nums", cell: (r) => money(r.purchasesTaxCents) },
+            { header: "Net", align: 'right', className: "p-2 font-mono tabular-nums font-semibold", cell: (r) => money(r.netTaxCents) },
+          ]}
+        />
       )}
       {taxReturn.sales.out_of_scope.netCents !== 0 && (
         <p className="text-xs text-[var(--muted)]">Sales of {money(taxReturn.sales.out_of_scope.netCents)} have no tax code and are not in the boxes. If they are taxable, zero-rated or exempt, set a tax code on those invoices.</p>
@@ -217,22 +209,19 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
       )}
 
       {filed && filed.length > 0 && (
-        <table className="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden">
-          <caption className="text-left font-semibold p-2">Filed returns</caption>
-          <thead className="text-[var(--muted)] border-b border-[var(--line)]">
-            <tr><th scope="col" className="text-left p-2">Period</th><th scope="col" className="text-left p-2">Reference</th><th scope="col" className="text-left p-2">Filed</th><th scope="col" className="text-right p-2">Net tax</th></tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--line)]">
-            {filed.map(r => (
-              <tr key={r.id}>
-                <td className="p-2"><button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}>{r.startDate} – {r.endDate}</button></td>
-                <td className="p-2">{r.reference || '—'}</td>
-                <td className="p-2">{r.filedAt.slice(0, 10)}</td>
-                <td className="p-2 text-right font-mono">{money(r.boxes.find(b => b.key === '5')?.cents || 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <RowTable
+          rowHeaderColumn={false}
+          caption={(<>Filed returns</>)}
+          rows={filed}
+          rowKey={r => r.id}
+          tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
+          columns={[
+            { header: "Period", className: "p-2", cell: (r) => <button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}>{r.startDate} – {r.endDate}</button> },
+            { header: "Reference", className: "p-2", cell: (r) => r.reference || '—' },
+            { header: "Filed", className: "p-2", cell: (r) => r.filedAt.slice(0, 10) },
+            { header: "Net tax", align: 'right', className: "p-2 font-mono", cell: (r) => money(r.boxes.find(b => b.key === '5')?.cents || 0) },
+          ]}
+        />
       )}
     </div>
   );

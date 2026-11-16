@@ -5,6 +5,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { customerOpenQuotes, type CustomerQuoteItem } from '../../lib/customerQuotes';
 import type { Estimate } from '../../types';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * Customer portal (K-27, A-49 / A-175, G-16): what a customer sees at `/c/<token>`: their invoices
@@ -195,37 +196,27 @@ export default function CustomerPortalPage() {
               <section aria-label="Quotes and proposals" className="space-y-2 pt-2">
                 <h2 className="text-lg font-bold">Estimates &amp; proposals</h2>
                 <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-                  <table className="w-full text-sm">
-                    <caption className="sr-only">Quotes and proposals for {data.customer}</caption>
-                    <thead>
-                      <tr className="text-left text-xs text-[var(--muted)]">
-                        <th scope="col" className="p-3">Quote</th>
-                        <th scope="col" className="p-3">Title</th>
-                        <th scope="col" className="p-3">Valid until</th>
-                        <th scope="col" className="p-3 text-right">Amount</th>
-                        <th scope="col" className="p-3">Status</th>
-                        <th scope="col" className="p-3"><span className="sr-only">Accept</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quoteRows.map(q => (
-                        <tr key={q.estimateId} className="border-t border-[var(--line)]">
-                          <td className="p-3 font-semibold"><bdi>{q.number}</bdi>{q.versionLabel ? <div className="text-xs font-normal text-[var(--muted)]"><bdi>{q.versionLabel} — the latest is shown</bdi></div> : null}</td>
-                          <td className="p-3"><bdi>{q.title}</bdi></td>
-                          <td className="p-3 tabular-nums">{q.expiryDate || '—'}</td>
-                          <td className="p-3 text-right tabular-nums">{formatCurrency(q.amountCents, q.currency || data.currency)}</td>
-                          <td className="p-3">{QUOTE_STATE[q.state]}</td>
-                          <td className="p-3">
-                            {q.canAccept && q.signToken && (
+                                    <RowTable
+                    rowHeaderColumn={false}
+                    rowClassName="border-t border-[var(--line)]"
+                    caption={(<>Quotes and proposals for {data.customer}</>)}
+                    rows={quoteRows}
+                    rowKey={q => q.estimateId}
+                    tableClassName="w-full text-sm"
+                    headRowClassName="text-left text-xs text-[var(--muted)]"
+                    columns={[
+                      { header: "Quote", className: "p-3 font-semibold", cell: (q) => (<><bdi>{q.number}</bdi>{q.versionLabel ? <div className="text-xs font-normal text-[var(--muted)]"><bdi>{q.versionLabel} — the latest is shown</bdi></div> : null}</>) },
+                      { header: "Title", className: "p-3", cell: (q) => <bdi>{q.title}</bdi> },
+                      { header: "Valid until", className: "p-3 tabular-nums", cell: (q) => q.expiryDate || '—' },
+                      { header: "Amount", align: 'right', className: "p-3 tabular-nums", cell: (q) => formatCurrency(q.amountCents, q.currency || data.currency) },
+                      { header: "Status", className: "p-3", cell: (q) => QUOTE_STATE[q.state] },
+                      { header: <span className="sr-only">Accept</span>, className: "p-3", cell: (q) => q.canAccept && q.signToken && (
                               <a href={`/e/${encodeURIComponent(q.signToken)}`} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
                                 Review and accept<span className="sr-only"> quote {q.number}</span>
                               </a>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            ) },
+                    ]}
+                  />
                 </div>
               </section>
             )}

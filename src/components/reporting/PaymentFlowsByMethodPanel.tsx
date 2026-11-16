@@ -5,6 +5,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { downloadCsv } from '../../lib/csvExport';
 import { paymentMethodCsvAmount } from '../../lib/paymentMethodCsvAmount';
 import { formatCurrency } from '../../lib/utils';
+import { RowTable } from '../ui/RowTable';
 
 interface Props {
   payments: readonly Payment[];
@@ -61,23 +62,19 @@ export default function PaymentFlowsByMethodPanel({
       ? <p className="text-sm text-neutral-600">No dated posted payments found in this period.</p>
       : null}
     {summary && summary.rows.length > 0 && <div className="max-w-full overflow-x-auto rounded-lg border border-neutral-200">
-      <table className="min-w-full text-left text-sm">
-        <caption className="sr-only">Posted payment document totals by method and currency, received and paid separately</caption>
-        <thead className="bg-neutral-50"><tr>
-          <th scope="col" className="p-2">Method</th>
-          <th scope="col" className="p-2">Currency</th>
-          <th scope="col" className="p-2 text-right">Received</th>
-          <th scope="col" className="p-2 text-right">Paid</th>
-        </tr></thead>
-        <tbody>
-          {summary.rows.map(row => <tr key={row.method + ':' + row.currency} className="border-t border-neutral-100">
-            <th scope="row" className="p-2 font-medium">{row.method}</th>
-            <td className="p-2">{row.currency}</td>
-            <td className="p-2 text-right">{row.receivedCount} / {formatCurrency(row.receivedCents, row.currency)}</td>
-            <td className="p-2 text-right">{row.madeCount} / {formatCurrency(row.madeCents, row.currency)}</td>
-          </tr>)}
-        </tbody>
-      </table>
+            <RowTable
+        rowClassName="border-t border-neutral-100"
+        caption={(<>Posted payment document totals by method and currency, received and paid separately</>)}
+        rows={summary.rows}
+        rowKey={row => row.method + ':' + row.currency}
+        tableClassName="min-w-full text-left text-sm"
+        columns={[
+          { header: "Method", className: "p-2 font-medium", cell: (row) => row.method },
+          { header: "Currency", className: "p-2", cell: (row) => row.currency },
+          { header: "Received", align: 'right', className: "p-2", cell: (row) => (<>{row.receivedCount} / {formatCurrency(row.receivedCents, row.currency)}</>) },
+          { header: "Paid", align: 'right', className: "p-2", cell: (row) => (<>{row.madeCount} / {formatCurrency(row.madeCents, row.currency)}</>) },
+        ]}
+      />
     </div>}
   </section>;
 }

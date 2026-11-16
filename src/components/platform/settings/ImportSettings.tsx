@@ -38,6 +38,7 @@ import XeroDocumentsImport from './XeroDocumentsImport';
 import { inBackground } from '../../../lib/inBackground';
 
 import { BRAND_NAME } from '../../../config/brand';
+import { RowTable } from '../../ui/RowTable';
 /** PREV-6: a garbled (non-UTF-8) or cut-off CSV is refused whole, with a message. */
 const readCsvUpload = (text: string): string[][] => {
   assertReadableText(text);
@@ -553,20 +554,17 @@ export default function ImportSettings() {
 
             {issuesAfterPreview.length > 0 && (
               <div className="max-h-64 overflow-auto border border-[var(--line)] rounded-xl">
-                <table className="w-full text-xs">
-                  <caption className="sr-only">Rows with problems</caption>
-                  <thead className="bg-[var(--panel)] text-[var(--muted)]">
-                    <tr><th scope="col" className="text-left px-3 py-2">Row</th><th scope="col" className="text-left px-3 py-2">Problem</th></tr>
-                  </thead>
-                  <tbody>
-                    {issuesAfterPreview.slice(0, 200).map(issue => (
-                      <tr key={`${issue.row}:${issue.field ?? ''}:${issue.message}`} className="border-t border-[var(--line)]">
-                        <td className="px-3 py-1.5 font-mono">{issue.row}</td>
-                        <td className="px-3 py-1.5 text-[var(--text)]"><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                <RowTable
+                  rowHeaderColumn={false}
+                  rowClassName="border-t border-[var(--line)]"
+                  caption={(<>Rows with problems</>)}
+                  rows={issuesAfterPreview.slice(0, 200)}
+                  rowKey={issue => `${issue.row}:${issue.field ?? ''}:${issue.message}`}
+                  columns={[
+                    { header: "Row", className: "px-3 py-2 py-1.5 font-mono", cell: (issue) => issue.row },
+                    { header: "Problem", className: "px-3 py-2 py-1.5 text-[var(--text)]", cell: (issue) => (<><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</>) },
+                  ]}
+                />
                 {issuesAfterPreview.length > 200 && (
                   <p className="border-t border-[var(--line)] px-3 py-2 text-[10px] text-[var(--muted)]">
                     Showing the first 200 of {issuesAfterPreview.length} rows with problems. Fix these and check again to see the rest.

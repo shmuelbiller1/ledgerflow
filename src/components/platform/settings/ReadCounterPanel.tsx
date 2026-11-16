@@ -1,5 +1,6 @@
 import React, { useSyncExternalStore } from 'react';
 import { onReadCounts, readCounts, readVersion, resetReadCounts } from '../../../lib/db/readCounter';
+import { RowTable } from '../../ui/RowTable';
 
 /** C-17: rows this tab read from the database, per table (shown with the developer switch on). */
 export default function ReadCounterPanel() {
@@ -14,13 +15,16 @@ export default function ReadCounterPanel() {
       </div>
       <p className="text-xs text-[var(--muted)]">{total} rows in all since this tab opened (or since Start again). Open a screen and come back to see what it read.</p>
       {rows.length > 0 && (
-        <table className="w-full text-xs">
-          <caption className="sr-only">Rows read per table</caption>
-          <thead><tr className="text-[var(--muted)]"><th scope="col" className="text-left py-1">Table</th><th scope="col" className="text-right py-1">Rows</th><th scope="col" className="text-right py-1">Reads</th></tr></thead>
-          <tbody>
-            {rows.map(r => <tr key={r.table}><th scope="row" className="text-left font-mono font-normal py-0.5">{r.table}</th><td className="text-right font-mono">{r.rows}</td><td className="text-right font-mono">{r.reads}</td></tr>)}
-          </tbody>
-        </table>
+                <RowTable
+          caption={(<>Rows read per table</>)}
+          rows={rows}
+          rowKey={r => r.table}
+          columns={[
+            { header: "Table", className: "py-1 font-mono font-normal py-0.5", cell: (r) => r.table },
+            { header: "Rows", align: 'right', className: "py-1 font-mono", cell: (r) => r.rows },
+            { header: "Reads", align: 'right', className: "py-1 font-mono", cell: (r) => r.reads },
+          ]}
+        />
       )}
     </section>
   );

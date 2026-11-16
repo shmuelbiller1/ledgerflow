@@ -9,6 +9,7 @@ import { ISO_CURRENCY_REFERENCE, ISO_CURRENCY_REFERENCE_AS_OF, searchIsoCurrency
 import { isOpenBill, isOpenInvoice } from '../../../lib/txFilters';
 import { formatDate } from '../../../lib/utils';
 import FxRevaluationPanel from '../../finance/FxRevaluationPanel';
+import { RowTable } from '../../ui/RowTable';
 
 /**
  * Settings → Currencies (BB-02): the workspace's own currency, every other currency its invoices and
@@ -39,27 +40,20 @@ export default function CurrenciesSettings() {
         <p className="text-sm text-[var(--muted)]">The books are kept in <strong>{home}</strong>. An invoice or bill in another currency keeps the rate it was posted at; reports show it in {home}.</p>
       </div>
       {rows.length === 0 ? <p className="text-sm text-[var(--muted)]">No invoice or bill uses another currency yet. Choose one on the document; its rate is filled from the last one used or today's rate.</p> : (
-        <table className="w-full text-sm">
-          <caption className="sr-only">Currencies used besides {home}</caption>
-          <thead>
-            <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-              <th scope="col" className="text-left font-semibold py-1">Currency</th>
-              <th scope="col" className="text-right font-semibold py-1">Invoices and bills</th>
-              <th scope="col" className="text-right font-semibold py-1">Still open</th>
-              <th scope="col" className="text-right font-semibold py-1">Last rate (1 = … {home})</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.currency} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-mono py-1">{r.currency}</th>
-                <td className="text-right py-1">{r.documents}</td>
-                <td className="text-right py-1">{r.open}</td>
-                <td className="text-right font-mono py-1">{r.lastRate ? `${r.lastRate} on ${formatDate(r.lastDate || '')}` : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Currencies used besides {home}</>)}
+          rows={rows}
+          rowKey={r => r.currency}
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          columns={[
+            { header: "Currency", className: "font-semibold py-1 font-mono", cell: (r) => r.currency },
+            { header: "Invoices and bills", align: 'right', className: "font-semibold py-1", cell: (r) => r.documents },
+            { header: "Still open", align: 'right', className: "font-semibold py-1", cell: (r) => r.open },
+            { header: "Last rate (1 = … {home})", align: 'right', className: "font-semibold py-1 font-mono", cell: (r) => r.lastRate ? `${r.lastRate} on ${formatDate(r.lastDate || '')}` : '—' },
+          ]}
+        />
       )}
       <button type="button" onClick={() => goToPage({ tab: 'reports', sub: 'exchange-rates-used' })} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
         See every rate used, day by day (Reports → Exchange Rates Used)
@@ -82,29 +76,20 @@ export default function CurrenciesSettings() {
         <p className="text-xs text-[var(--muted)]" aria-live="polite">Showing {referenceRows.length} of {ISO_CURRENCY_REFERENCE.length} currency codes.</p>
         {referenceRows.length === 0 ? <p className="text-sm text-[var(--muted)]">No ISO 4217 currencies match this search.</p> : (
           <div className="max-h-[32rem] overflow-auto rounded border border-[var(--line)]">
-            <table className="w-full text-sm">
-              <caption className="sr-only">ISO 4217 currency codes, names, symbols and minor-unit digits</caption>
-              <thead className="sticky top-0 bg-[var(--panel)] text-xs text-[var(--muted)]">
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-left">Code</th>
-                  <th scope="col" className="px-3 py-2 text-left">Currency</th>
-                  <th scope="col" className="px-3 py-2 text-left">Symbol</th>
-                  <th scope="col" className="px-3 py-2 text-right">Minor-unit digits</th>
-                  <th scope="col" className="px-3 py-2 text-right">Numeric code</th>
-                </tr>
-              </thead>
-              <tbody>
-                {referenceRows.map(currency => (
-                  <tr key={currency.code} className="border-t border-[var(--line)]/50">
-                    <th scope="row" className="px-3 py-1.5 text-left font-mono">{currency.code}</th>
-                    <td className="px-3 py-1.5">{currency.name}</td>
-                    <td className="px-3 py-1.5 font-mono" aria-label={currency.symbol ? `Symbol ${currency.symbol}` : `No symbol listed; use ${currency.code}`}>{currency.symbol ?? currency.code}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{currency.minorUnitDigits ?? 'N.A.'}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">{currency.numeric}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        <RowTable
+              rowClassName="border-t border-[var(--line)]/50"
+              caption={(<>ISO 4217 currency codes, names, symbols and minor-unit digits</>)}
+              rows={referenceRows}
+              rowKey={currency => currency.code}
+              tableClassName="w-full text-sm"
+              columns={[
+                { header: "Code", className: "px-3 py-2 py-1.5 font-mono", cell: (currency) => currency.code },
+                { header: "Currency", className: "px-3 py-2 py-1.5", cell: (currency) => currency.name },
+                { header: "Symbol", className: "px-3 py-2 py-1.5 font-mono", cell: (currency) => currency.symbol ?? currency.code },
+                { header: "Minor-unit digits", align: 'right', className: "px-3 py-2 py-1.5 tabular-nums", cell: (currency) => currency.minorUnitDigits ?? 'N.A.' },
+                { header: "Numeric code", align: 'right', className: "px-3 py-2 py-1.5 font-mono", cell: (currency) => currency.numeric },
+              ]}
+            />
           </div>
         )}
       </section>
