@@ -17,7 +17,8 @@ test('EU-A4b Odoo chart: labels and technical values both translate; off-balance
     ['201000', 'Company card', 'liability_credit_card', '', ''],
     ['400000', 'Product Sales', 'Income', '', ''],
     ['500000', 'Cost of Goods Sold', 'expense_direct_cost', '', ''],
-    ['610000', 'Rent', 'Expenses', 'True', ''],
+    ['610000', 'Rent', 'Expenses', '', ''],
+    ['620000', 'Old rent', 'Expenses', 'True', ''],
     ['999999', 'Undistributed Profits/Losses', 'Current Year Earnings', '', ''],
     ['999998', 'Memo', 'off_balance', '', ''],
   ]);
@@ -29,7 +30,7 @@ test('EU-A4b Odoo chart: labels and technical values both translate; off-balance
   assert.equal(byCode.get('400000')?.type, 'revenue');
   assert.equal(byCode.get('500000')?.type, 'cost_of_goods');
   assert.equal(byCode.get('610000')?.type, 'expense');
-  assert.deepEqual(result.errors.map(e => [e.row, e.field]), [[9, 'type'], [10, 'type']]);
+  assert.deepEqual(result.errors.map(e => [e.row, e.field]), [[9, 'type'], [10, 'type'], [11, 'type']], 'deprecated, current-year earnings and off-balance are held back, never imported as active');
   assert.ok(result.records.every(r => !('balanceCents' in r.data)), 'no balance is imported');
 });
 
@@ -69,4 +70,9 @@ test('EU-A4b Odoo import-compatible exports (technical field names) read the sam
   const account = prepared('accounts', [['code', 'name', 'account_type', 'currency_id'], ['101402', 'EUR bank', 'asset_cash', 'EUR']]).result.records[0].data;
   assert.equal(account.category, 'Cash');
   assert.equal(account.currency, 'EUR');
+});
+
+test('EU-A4b Odoo contacts: an empty Phone falls back to Mobile', () => {
+  const r = prepared('customers', [['Name', 'Phone', 'Mobile'], ['Deco Addict', '', '+1 555 0199']]).result;
+  assert.equal(r.records[0].data.phone, '+1 555 0199');
 });

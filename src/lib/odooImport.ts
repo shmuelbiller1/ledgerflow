@@ -26,7 +26,7 @@
 import type { ImportKind } from './recordImport';
 import { columnText, joinedAddress } from './providerListCsv';
 
-const ACCOUNTS_HEADER = ['Name', 'Code', 'Type', 'Category', 'Subtype', 'Description', 'Currency', 'Status'];
+const ACCOUNTS_HEADER = ['Name', 'Code', 'Type', 'Category', 'Subtype', 'Description', 'Currency'];
 const CONTACTS_HEADER = ['Name', 'Email', 'Phone', 'Address', 'Website', 'Tax ID', 'Status'];
 const ITEMS_HEADER = ['Name', 'SKU', 'Description', 'Sale price', 'Cost', 'Quantity on hand', 'Reorder point', 'Unit', 'Category'];
 
@@ -64,14 +64,16 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
     return [ACCOUNTS_HEADER, ...rows.map(row => {
       const code = columnText(header, row, 'Code', 'code');
       const typeRaw = columnText(header, row, 'Type', 'account_type');
-      const deprecated = columnText(header, row, 'Deprecated', 'deprecated');
+      // the account import has no archived state: a deprecated account is held back (no type, so
+      // the preview lists it) instead of coming back as an active account
+      const deprecated = yes(columnText(header, row, 'Deprecated', 'deprecated'));
       return [
         columnText(header, row, 'Account Name', 'Name', 'name') || code,
         code,
-        typeRaw ? (ODOO_ACCOUNT_TYPES[typeRaw.toLowerCase()] ?? '') : '',
-        '', '', '',
+        deprecated || !typeRaw ? '' : (ODOO_ACCOUNT_TYPES[typeRaw.toLowerCase()] ?? ''),
+        '', '',
+        deprecated ? 'Deprecated in Odoo: not imported as an active account. Remove this row, or set its type to bring it back on purpose.' : '',
         columnText(header, row, 'Account Currency', 'Currency', 'currency_id'),
-        yes(deprecated) ? 'inactive' : no(deprecated) ? 'active' : '',
       ];
     })];
   }
@@ -82,7 +84,7 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
       return [
         columnText(header, row, 'Name', 'Display Name', 'Company Name', 'name', 'display_name'),
         columnText(header, row, 'Email', 'email'),
-        columnText(header, row, 'Phone', 'Mobile', 'phone', 'mobile'),
+        columnText(header, row, 'Phone', 'phone') || columnText(header, row, 'Mobile', 'mobile'), // a contact with only a mobile keeps it
         joinedAddress(
           columnText(header, row, 'Street', 'street'), columnText(header, row, 'Street2', 'street2'), columnText(header, row, 'City', 'city'),
           columnText(header, row, 'State', 'state_id'), columnText(header, row, 'Zip', 'zip'), columnText(header, row, 'Country', 'country_id'),
