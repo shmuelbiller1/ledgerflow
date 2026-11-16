@@ -98,11 +98,12 @@ export function RowTable<T, C = never>({
           <tr key={keyOf(row, position)} className={rowClassName}>
             {planned.map((column, index) => {
               const className = alignClass(column.align, column.className);
+              const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
               // the first column names the record, so it is a header cell for the row it starts
               if (index === 0 && rowHeaderColumn) {
-                return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()}>{column.cell(row)}</th>;
+                return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
               }
-              return <td key={column.key} className={className}>{column.cell(row)}</td>;
+              return <td key={column.key} className={className} {...cellProps}>{column.cell(row)}</td>;
             })}
           </tr>
         ))}

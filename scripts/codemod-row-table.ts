@@ -240,6 +240,57 @@ function classesOf(headRaw: string | undefined, cellRaw: string | undefined, hea
   return entries;
 }
 
+/**
+ * The attributes of an opening tag other than `className`, as their name and their value exactly as written.
+ *
+ * A cell carries more than a class: `dir="rtl"` on a Hebrew cell, an `aria-label` that explains a bare symbol.
+ * Those are not decoration — they are what a screen reader says — so a column keeps them, and a table whose cell
+ * carries an attribute this list does not cover is refused rather than quietly stripped.
+ */
+function attributesOf(tag: string): { name: string; raw: string }[] {
+  const attributes: { name: string; raw: string }[] = [];
+  const pattern = /\s([A-Za-z_][-\w:.]*)\s*=\s*/g;
+  const open = tag.slice(0, tag.length - (tag.endsWith('/>') ? 2 : 1));
+  for (let match = pattern.exec(open); match; match = pattern.exec(open)) {
+    const name = match[1];
+    const valueAt = match.index + match[0].length;
+    const quote = open[valueAt];
+    let raw: string;
+    if (quote === '{') {
+      raw = open.slice(valueAt, skipExpression(open, valueAt));
+    } else if (quote === '"' || quote === "'") {
+      const end = open.indexOf(quote, valueAt + 1);
+      raw = open.slice(valueAt, end === -1 ? open.length : end + 1);
+    } else {
+      raw = /^[^\s>]*/.exec(open.slice(valueAt))?.[0] ?? '';
+    }
+    if (name !== 'className') attributes.push({ name, raw });
+    pattern.lastIndex = valueAt + raw.length;
+  }
+  return attributes;
+}
+
+/** The attributes a cell may keep: `scope` and `className` are the component's, the rest are the screen's. */
+const CELL_ATTRIBUTES = new Set(['scope', 'className']);
+
+/**
+ * `cellProps: { 'aria-label': … , dir: "rtl" }` for a column, or `''` when the cell carried nothing extra.
+ *
+ * A column is declared outside the row, so an attribute that reads the row — `aria-label` naming the row's own
+ * currency — becomes a function of the row instead, which is the only scope where that name exists.
+ */
+function cellPropsEntry(attributes: { name: string; raw: string }[], row: string): string {
+  if (attributes.length === 0) return '';
+  const readsRow = new RegExp(`\\b${row}\\.`);
+  const values = attributes.map(({ name, raw }) => {
+    const value = raw.startsWith('{') ? raw.slice(1, -1).trim() : raw;
+    const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`;
+    return { key, value };
+  });
+  const body = values.map(({ key, value }) => `${key}: ${value}`).join(', ');
+  return readsRow.test(body) ? `cellProps: (${row}) => ({ ${body} })` : `cellProps: { ${body} }`;
+}
+
 /* ───────────────────────────── the shapes ───────────────────────────── */
 
 interface LiteralHead {
@@ -306,8 +357,13 @@ function readMapped(source: string): Mapped | undefined {
   if (!list) return undefined;
   const arrowAt = inner.indexOf('=>', mapAt);
   if (arrowAt === -1) return undefined;
-  const parameter = /^\(?\s*([A-Za-z_$][\w$]*)/.exec(inner.slice(mapAt + 5, arrowAt))?.[1];
-  if (!parameter) return undefined;
+  // `(item) =>`, `item =>`, `(item: string) =>` name one item; `(item, index) =>` reads a second one, which a
+  // column cannot carry, so it is refused here rather than silently dropped from the output
+  const signature = inner.slice(mapAt + 5, arrowAt).trim();
+  const bare = signature.startsWith('(') && signature.endsWith(')') ? signature.slice(1, -1) : signature;
+  const colonAt = bare.indexOf(':');
+  const parameter = (colonAt === -1 ? bare : bare.slice(0, colonAt)).trim();
+  if (!/^[A-Za-z_$][\w$]*$/.test(parameter)) return undefined;
   const closeAt = closingParen(inner, mapAt + 4);
   if (closeAt === -1 || inner.slice(closeAt + 1).trim()) return undefined;
   const rendered = inner.slice(arrowAt + 2, closeAt).trim();
@@ -387,6 +443,8 @@ interface Cell {
   content: string;
   /** The list a nested `map` renders, when the cell is a list rather than a value. */
   nested?: { list: string; parameter: string; content: string };
+  /** Attributes the cell carried besides its class — `dir`, `aria-label` — written as they were. */
+  extra: { name: string; raw: string }[];
 }
 
 function readCells(rowInner: string): Cell[] | undefined {
@@ -413,6 +471,7 @@ function readCells(rowInner: string): Cell[] | undefined {
       rawClass: classSource(open),
       classes: classOf(open),
       content,
+      extra: attributesOf(open).filter(attribute => !CELL_ATTRIBUTES.has(attribute.name)),
       nested: nested && !nested.rendered.includes('.map(')
         ? { list: nested.list, parameter: nested.parameter, content: nested.rendered }
         : undefined,
@@ -550,6 +609,11 @@ export function attemptConvert(source: string, start: number): Attempt {
   void cellCallback;
 
   const fixedHeaders = head.kind === 'literal' ? head.headers : head.kind === 'virtual' ? head.fixed : [];
+  // a header cell's own attributes (`aria-label`, `dir`) would have to travel as `headProps`; no converted table
+  // needs one, so a table that has one is hand work rather than a header that loses its name
+  if (fixedHeaders.some(header => header.raw !== undefined && attributesOf(header.raw).length > 0)) {
+    return { reason: 'a header cell with an attribute of its own this script would drop' };
+  }
   const nestedCells = cells.filter(cell => cell.nested);
   const literalCells = cells.filter(cell => !cell.nested);
   if (nestedCells.length > 1) return { reason: 'more than one nested map in a row' };
@@ -568,6 +632,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       /[<{]/.test(text) ? `header: ${jsxValue(text)}` : `header: ${literal(text)}`,
       alignEntry(header.classes, cell.classes),
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
+      cellPropsEntry(cell.extra, row),
       `cell: (${row}) => ${jsxValue(cell.content)}`,
     ]));
   });
@@ -587,6 +652,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       `head: (${nested.parameter}) => ${head.kind === 'array' ? nested.parameter : head.text}`,
       alignEntry(headClasses, nestedCells[0].classes),
       ...classesOf(classSource(head.cellTag), nestedCells[0].rawClass, headClasses, nestedCells[0].classes),
+      cellPropsEntry(nestedCells[0].extra, row),
       `cell: (${row}, ${nested.parameter}) => ${jsxValue(nested.content)}`,
     ]));
   } else if (head.kind === 'array') {
@@ -603,6 +669,7 @@ export function attemptConvert(source: string, start: number): Attempt {
         `header: ${literal(name)}`,
         alignEntry(classOf(head.headTag), cell.classes),
         ...classesOf(classSource(head.headTag), cell.rawClass, classOf(head.headTag), cell.classes),
+        cellPropsEntry(cell.extra, row),
         `cell: (${row}) => ${jsxValue(cell.content)}`,
       ]));
     });

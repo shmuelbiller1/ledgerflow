@@ -21,6 +21,18 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { translateScreenString } from '../../lib/i18n/screenTranslations';
 
+/** Ledger account types as words; an unknown value is shown as stored. */
+function accountTypeLabel(value: string | undefined, bankText: (key: string, fallback: string) => string): string {
+  switch (value) {
+    case 'bank': return bankText('type.bank', 'Bank');
+    case 'cash': return bankText('type.cash', 'Cash');
+    case 'credit_card': return bankText('type.creditCard', 'Credit card');
+    case 'asset': return bankText('type.asset', 'Asset');
+    case undefined: case '': return bankText('label.asset', 'Asset');
+    default: return value;
+  }
+}
+
 export default function Banking() {
   // EU-G1: visible text goes through the EN/HE table (src/lib/i18n/screenTranslations.ts)
   const language = useUIStore(s => s.language);
@@ -157,7 +169,7 @@ export default function Banking() {
             </button>
           </div>
         ) : loading && accounts.length === 0 ? (
-          <LoadingState what="bank accounts" />
+          <LoadingState label={bankText('status.loading', 'Loading bank accounts…')} />
         ) : accounts.length === 0 ? (
           <EmptyState
             title={bankText('empty.title', 'No bank accounts yet')}
@@ -187,7 +199,7 @@ export default function Banking() {
                 <div className="mt-auto pt-4 border-t border-slate-100 space-y-4">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-600 font-medium">{bankText('label.type', 'Type')}</span>
-                    <span className="text-slate-800 font-mono font-bold uppercase">{account.subtype || account.type || bankText('label.asset', 'Asset')}</span>
+                    <span className="text-slate-800 font-mono font-bold uppercase">{accountTypeLabel(account.subtype || account.type, bankText)}</span>
                   </div>
                   <div className="flex gap-2">
                     <button

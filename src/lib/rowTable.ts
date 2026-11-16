@@ -13,7 +13,7 @@
  * for that property. So the repeated shape is the same interface with `over` set, and every caller's `row` is
  * typed from the table's rows alone.
  */
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 
 /**
  * One column. A column declared once names itself with `header`; a column that renders one `<td>` per item
@@ -35,6 +35,10 @@ export interface RowTableColumn<T, C = never> {
   align?: 'left' | 'right';
   /** A class for this column's body cells only. */
   className?: string;
+  /** Attributes every body cell of this column carries, as the screen wrote them: `dir` on a right-to-left
+   *  cell, an `aria-label` that explains a bare symbol. Not decoration — this is what a screen reader says.
+   *  A value computed from the row is a function of the row, because a column is declared outside it. */
+  cellProps?: HTMLAttributes<HTMLTableCellElement> | ((row: T) => HTMLAttributes<HTMLTableCellElement>);
   /** A class for this column's header cell only. Defaults to `py-2 font-semibold`; a caller reproducing an
    *  existing table passes the class its header cell already had, so no cell changes weight in the sweep. */
   headClassName?: string;
@@ -58,6 +62,7 @@ export interface PlannedColumn<T> {
   align?: 'left' | 'right';
   className?: string;
   headClassName?: string;
+  cellProps?: HTMLAttributes<HTMLTableCellElement> | ((row: T) => HTMLAttributes<HTMLTableCellElement>);
 }
 
 /** A cell's text, when the cell is text. A cell of markup has no text form; a CSV of it needs `csv`. */
@@ -87,6 +92,7 @@ export function planColumns<T, C>(columns: RowTableColumns<T, C>): PlannedColumn
           align,
           className: column.className,
           headClassName: column.headClassName,
+          cellProps: column.cellProps,
         });
       }
       continue;
@@ -103,6 +109,7 @@ export function planColumns<T, C>(columns: RowTableColumns<T, C>): PlannedColumn
       align,
       className: column.className,
       headClassName: column.headClassName,
+      cellProps: column.cellProps,
     });
   }
   // two columns that render the same header are told apart by an occurrence suffix, not by where they are

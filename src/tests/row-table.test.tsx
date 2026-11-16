@@ -107,6 +107,32 @@ describe('RowTable', () => {
     assert.doesNotMatch(cell.className, /text-(left|right)/);
   });
 
+  test('a column keeps the attributes its cells had, and one computed from the row is a function of it', () => {
+    render(
+      <RowTable
+        caption="Currencies"
+        rows={[{ code: 'EUR', symbol: '€' }, { code: 'XXX', symbol: undefined }]}
+        rowKey={row => row.code}
+        columns={[
+          { header: 'Code', cell: row => row.code },
+          {
+            header: 'Symbol',
+            cell: row => row.symbol ?? row.code,
+            // a bare code is not a symbol: the label says so, which is what a screen reader reads
+            cellProps: row => ({ 'aria-label': row.symbol ? `Symbol ${row.symbol}` : `No symbol listed; use ${row.code}` }),
+          },
+          { header: 'Hebrew', cell: row => row.code, cellProps: { dir: 'rtl' } },
+        ]}
+      />,
+    );
+    const firstRow = screen.getAllByRole('row')[1];
+    const cells = [...firstRow.querySelectorAll('td')];
+    assert.equal(cells[0].getAttribute('aria-label'), 'Symbol €');
+    assert.equal(cells[1].getAttribute('dir'), 'rtl');
+    const secondRow = screen.getAllByRole('row')[2];
+    assert.equal([...secondRow.querySelectorAll('td')][0].getAttribute('aria-label'), 'No symbol listed; use XXX');
+  });
+
   test('a footer renders as the table\'s totals row, so a sum is not a column', () => {
     render(
       <RowTable

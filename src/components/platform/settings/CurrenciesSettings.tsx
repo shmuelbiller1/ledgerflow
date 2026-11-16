@@ -88,7 +88,7 @@ export default function CurrenciesSettings() {
               columns={[
                 { header: "Code", className: "px-3 py-1.5 text-left font-mono", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.code },
                 { header: "Currency", className: "px-3 py-1.5", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.name },
-                { header: "Symbol", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2 text-left", cell: (currency) => currency.symbol ?? currency.code },
+                { header: "Symbol", className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2 text-left", cellProps: (currency) => ({ 'aria-label': currency.symbol ? `Symbol ${currency.symbol}` : `No symbol listed; use ${currency.code}` }), cell: (currency) => currency.symbol ?? currency.code },
                 { header: "Minor-unit digits", align: 'right', className: "px-3 py-1.5 tabular-nums", headClassName: "px-3 py-2", cell: (currency) => currency.minorUnitDigits ?? 'N.A.' },
                 { header: "Numeric code", align: 'right', className: "px-3 py-1.5 font-mono", headClassName: "px-3 py-2", cell: (currency) => currency.numeric },
               ]}
