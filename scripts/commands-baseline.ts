@@ -45,7 +45,8 @@ function stringValues(node: ts.Expression | undefined): string[] {
 
 function containsCommandRunnerCall(node: ts.Node): boolean {
   let found = false;
-  const commandRunners = new Set(['executeCommand', 'previewCommand']);
+  // `runLegacyCommand` is the task/time/stage compatibility adapter; its implementation delegates to executeCommand.
+  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand']);
   const visit = (child: ts.Node) => {
     if (ts.isCallExpression(child) && commandRunners.has(callName(child) || '')) found = true;
     if (!found) ts.forEachChild(child, visit);

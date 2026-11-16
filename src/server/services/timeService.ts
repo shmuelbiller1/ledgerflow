@@ -1,4 +1,4 @@
-import { isWorkspaceMemberData, type Firestore } from '../db/firestore';
+import { isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { RATES_KIND, ratesProblem, TIME_KIND, timeProblem, type TimeEntry, type TimeInput, type TimeRates, type TimeStatus } from '../../lib/timeEntries';
 import { writeServerAuditLog } from './auditLogService';
@@ -11,7 +11,11 @@ import { notify } from './notificationService';
  * approver until it is invoiced. Owners, accountants and bookkeepers mark approved time invoiced.
  */
 export class TimeError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly code: string;
+  constructor(readonly status: number, message: string, code?: string) {
+    super(message);
+    this.code = code || (status === 400 ? 'INVALID_INPUT' : status === 403 ? 'ROLE_REQUIRED' : status === 404 ? 'NOT_FOUND' : status === 409 ? 'CONFLICT' : 'TIME_ERROR');
+  }
 }
 
 const APPROVERS = ['owner', 'accountant'];
@@ -176,4 +180,217 @@ export async function setRates(db: Firestore, input: Actor & { rates: unknown })
   await ratesRef(db, input.workspaceId).set({ kind: RATES_KIND, workspaceId: input.workspaceId, rates, updatedAt: new Date().toISOString() });
   await writeServerAuditLog({ workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'TIME_RATES_SET', entityType: 'documents', entityId: `${input.workspaceId}_timeRates`, details: { description: 'Hourly rates changed' } }, { db });
   return { rates };
+}
+
+/** Results returned to commands so inverses and audit summaries describe the exact committed change. */
+export interface TimeEntryWriteResult {
+  entry: TimeEntry;
+  previous?: Omit<TimeEntry, 'id'>;
+}
+export interface TimeMoveWriteResult {
+  entries: TimeEntry[];
+  previousStatuses: TimeStatus[];
+  to: TimeStatus;
+  note: string;
+  requestedCount: number;
+  requestedIds: string[];
+  notifyPeople: string[];
+}
+
+async function roleOfInTransaction(db: Firestore, tx: FirestoreTransaction, input: Actor) {
+  const workspace = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!workspace) throw new TimeError(404, 'Workspace not found');
+  if (!isWorkspaceMemberData(workspace, { uid: input.uid }, input.workspaceId)) {
+    throw new TimeError(403, 'Only people in this workspace log time here');
+  }
+  const people = [...new Set([...(Array.isArray(workspace.members) ? workspace.members.map(String) : []), String(workspace.uid)])];
+  return { role: workspaceRole(workspace as never, input.uid), people };
+}
+
+/** Log a time entry in the command runner's transaction. */
+export async function logTimeInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { entry: TimeInput & { person?: unknown } },
+): Promise<TimeEntry> {
+  const problem = timeProblem(input.entry);
+  if (problem) throw new TimeError(400, problem);
+  const { role, people } = await roleOfInTransaction(db, tx, input);
+  const person = typeof input.entry.person === 'string' && input.entry.person ? input.entry.person : input.uid;
+  if (person !== input.uid && !APPROVERS.includes(role)) throw new TimeError(403, 'Only owners and accountants log time for someone else');
+  if (!people.includes(person)) throw new TimeError(400, 'That person is not in this workspace');
+  const ref = db.collection('documents').doc();
+  const entry: Omit<TimeEntry, 'id'> = {
+    kind: TIME_KIND,
+    workspaceId: input.workspaceId,
+    person,
+    ...fieldsOf(input.entry),
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  };
+  tx.create(ref, entry);
+  return { ...entry, id: ref.id };
+}
+
+/** Edit a time entry in the command runner's transaction. */
+export async function changeTimeInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { entryId: string; entry: TimeInput },
+): Promise<TimeEntryWriteResult> {
+  const { role } = await roleOfInTransaction(db, tx, input);
+  const ref = db.collection('documents').doc(input.entryId);
+  const current = (await tx.get(ref)).data() as Omit<TimeEntry, 'id'> | undefined;
+  if (!current || current.kind !== TIME_KIND || current.workspaceId !== input.workspaceId) {
+    throw new TimeError(404, 'That time entry is not in this workspace');
+  }
+  const found = { ref, entry: current, approver: APPROVERS.includes(role), own: current.person === input.uid, role };
+  if (!mayEdit(found)) {
+    throw new TimeError(found.entry.status === 'invoiced' ? 409 : 403,
+      found.entry.status === 'invoiced' ? 'This time is on an invoice already' : 'Submitted time is changed by an owner or accountant, or sent back first');
+  }
+  const merged = { ...found.entry, ...input.entry };
+  const problem = timeProblem(merged);
+  if (problem) throw new TimeError(400, problem);
+  const fields = fieldsOf(merged);
+  tx.set(ref, {
+    ...found.entry,
+    ...fields,
+    ...(input.entry.customerId === '' ? { customerId: undefined } : {}),
+    ...(input.entry.projectId === '' ? { projectId: undefined } : {}),
+  });
+  return { entry: { ...found.entry, ...fields, id: input.entryId }, previous: found.entry };
+}
+
+/** Remove a time entry in the command runner's transaction. */
+export async function removeTimeInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { entryId: string },
+): Promise<Omit<TimeEntry, 'id'>> {
+  const { role } = await roleOfInTransaction(db, tx, input);
+  const ref = db.collection('documents').doc(input.entryId);
+  const entry = (await tx.get(ref)).data() as Omit<TimeEntry, 'id'> | undefined;
+  if (!entry || entry.kind !== TIME_KIND || entry.workspaceId !== input.workspaceId) {
+    throw new TimeError(404, 'That time entry is not in this workspace');
+  }
+  const found = { ref, entry, approver: APPROVERS.includes(role), own: entry.person === input.uid, role };
+  if (!mayEdit(found)) throw new TimeError(403, 'This time can no longer be removed');
+  tx.delete(ref);
+  return entry;
+}
+
+/** Submit, withdraw, approve or send back all selected entries atomically. */
+export async function moveTimeInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { entryIds: unknown; to: unknown; note?: unknown },
+): Promise<TimeMoveWriteResult> {
+  if (!['submitted', 'open', 'approved'].includes(String(input.to))) throw new TimeError(400, 'Submit, approve or send back');
+  if (!Array.isArray(input.entryIds) || input.entryIds.length === 0 || input.entryIds.length > 500) {
+    throw new TimeError(400, 'Choose the time entries');
+  }
+  const to = input.to as TimeStatus;
+  const note = typeof input.note === 'string' ? input.note.trim().slice(0, 300) : '';
+  const { role } = await roleOfInTransaction(db, tx, input);
+  const approver = APPROVERS.includes(role);
+  const ids = [...new Set(input.entryIds.map(String))];
+  const found: Array<{ ref: import('../db/firestore').DocumentReference; entry: Omit<TimeEntry, 'id'>; entryId: string; own: boolean }> = [];
+  for (const entryId of ids) {
+    const ref = db.collection('documents').doc(entryId);
+    const entry = (await tx.get(ref)).data() as Omit<TimeEntry, 'id'> | undefined;
+    if (!entry || entry.kind !== TIME_KIND || entry.workspaceId !== input.workspaceId) {
+      throw new TimeError(404, 'That time entry is not in this workspace');
+    }
+    found.push({ ref, entry, entryId, own: entry.person === input.uid });
+  }
+  for (const item of found) {
+    const from = item.entry.status;
+    const allowed = (to === 'submitted' && item.own && from === 'open')
+      || (to === 'open' && item.own && from === 'submitted')
+      || (to === 'approved' && approver && from === 'submitted')
+      || (to === 'open' && approver && (from === 'submitted' || from === 'approved'));
+    if (!allowed) throw new TimeError(approver || item.own ? 409 : 403,
+      `A ${item.entry.date} entry is ${from}: it cannot be made ${to === 'open' ? 'open again' : to}`);
+    if (item.entry.paidRunId) throw new TimeError(409, `The ${item.entry.date} entry was paid in a pay run: undo that run first`);
+  }
+  const entries: TimeEntry[] = [];
+  const previousStatuses = found.map(item => item.entry.status);
+  const notifyPeople = new Set<string>();
+  for (const item of found) {
+    const next = {
+      ...item.entry,
+      status: to,
+      ...(to === 'approved' ? { approvedBy: input.uid, approvedAt: new Date().toISOString() } : {}),
+      ...(to === 'open' && !item.own && note ? { note } : {}),
+    };
+    tx.set(item.ref, next);
+    entries.push({ ...next, id: item.entryId });
+    if (!item.own) notifyPeople.add(item.entry.person);
+  }
+  return {
+    entries,
+    previousStatuses,
+    to,
+    note,
+    requestedCount: input.entryIds.length,
+    requestedIds: input.entryIds.map(String),
+    notifyPeople: [...notifyPeople],
+  };
+}
+
+/** Mark approved billable time invoiced in the command runner's transaction. */
+export async function markInvoicedInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { entryIds: unknown; invoiceId: unknown },
+): Promise<{ invoiced: number; updated: number; invoiceId: string; entryIds: string[] }> {
+  const { role } = await roleOfInTransaction(db, tx, input);
+  if (!BILLERS.includes(role)) throw new TimeError(403, 'Only owners, accountants and bookkeepers invoice time');
+  if (!Array.isArray(input.entryIds) || input.entryIds.length === 0 || input.entryIds.length > 500 || typeof input.invoiceId !== 'string') {
+    throw new TimeError(400, 'Choose the time and the invoice');
+  }
+  const invoiceId = input.invoiceId;
+  const invoice = (await tx.get(db.collection('invoices').doc(invoiceId))).data();
+  if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace');
+  const ids = [...new Set(input.entryIds.map(String))];
+  const found: Array<{ ref: import('../db/firestore').DocumentReference; entry: Omit<TimeEntry, 'id'> }> = [];
+  for (const entryId of ids) {
+    const ref = db.collection('documents').doc(entryId);
+    const entry = (await tx.get(ref)).data() as Omit<TimeEntry, 'id'> | undefined;
+    if (!entry || entry.kind !== TIME_KIND || entry.workspaceId !== input.workspaceId) {
+      throw new TimeError(404, 'That time entry is not in this workspace');
+    }
+    found.push({ ref, entry });
+  }
+  for (const item of found) {
+    if (item.entry.status === 'invoiced' && item.entry.invoiceId === invoiceId) continue;
+    if (item.entry.status !== 'approved' || !item.entry.billable || item.entry.invoiceId) {
+      throw new TimeError(409, `The ${item.entry.date} entry is not approved billable time waiting for an invoice`);
+    }
+  }
+  let updated = 0;
+  for (const item of found) {
+    if (item.entry.status === 'invoiced' && item.entry.invoiceId === invoiceId) continue;
+    tx.set(item.ref, { ...item.entry, status: 'invoiced', invoiceId });
+    updated++;
+  }
+  return { invoiced: input.entryIds.length, updated, invoiceId, entryIds: ids };
+}
+
+/** Set hourly rates in the command runner's transaction. */
+export async function setRatesInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { rates: unknown },
+): Promise<{ rates: TimeRates; previousRates: TimeRates; ratesId: string }> {
+  const problem = ratesProblem(input.rates);
+  if (problem) throw new TimeError(400, problem);
+  const { role } = await roleOfInTransaction(db, tx, input);
+  if (!APPROVERS.includes(role)) throw new TimeError(403, 'Only owners and accountants keep the rates');
+  const rates = input.rates as TimeRates;
+  const ref = ratesRef(db, input.workspaceId);
+  const previous = (await tx.get(ref)).data()?.rates as TimeRates | undefined;
+  tx.set(ref, { kind: RATES_KIND, workspaceId: input.workspaceId, rates, updatedAt: new Date().toISOString() });
+  return { rates, previousRates: previous || {}, ratesId: ref.id };
 }

@@ -1,10 +1,9 @@
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction as FirestoreTransaction } from '../db/firestore';
 import {
   alertSettingsProblem, budgetsOver, cashLowAction, cashPosition, closeReminderMonth,
   type AlertSettings, type AlertsSent,
 } from '../../lib/bookAlerts';
 import { workspaceRole } from '../../lib/periodLock';
-import { writeServerAuditLog } from './auditLogService';
 import type { SavedBudget } from '../../lib/budgetActual';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { formatTzDate } from '../../lib/calendarDate';
@@ -21,38 +20,59 @@ import { notify } from './notificationService';
 const BOOK_TABLES = ['transactions', 'chartAccounts', 'budgets'];
 
 export class AlertSettingsError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  constructor(readonly status: number, message: string, readonly code?: string) { super(message); }
 }
 
-/** Settings → Alerts (owners and accountants). The ledger is looked at again the next night. */
-export async function saveAlertSettings(db: Firestore, input: { workspaceId: string; uid: string; email?: string; alerts: AlertSettings }): Promise<AlertSettings> {
-  const problem = alertSettingsProblem(input.alerts);
-  if (problem) throw new AlertSettingsError(400, problem);
-  const alerts: AlertSettings = {
-    cashLowCents: input.alerts.cashLowCents ?? null,
-    closeReminderDay: input.alerts.closeReminderDay === undefined ? 5 : input.alerts.closeReminderDay,
-    budgetAlerts: input.alerts.budgetAlerts !== false,
+export interface AlertSettingsWriteResult {
+  workspaceId: string;
+  alerts: AlertSettings;
+  previousAlerts: AlertSettings;
+  currency: string;
+}
+
+/** Apply the defaults the nightly job has always used when a setting was omitted. */
+export function normalizeAlertSettings(alerts: AlertSettings): AlertSettings {
+  return {
+    cashLowCents: alerts.cashLowCents ?? null,
+    closeReminderDay: alerts.closeReminderDay === undefined ? 5 : alerts.closeReminderDay,
+    budgetAlerts: alerts.budgetAlerts !== false,
   };
-  return db.runTransaction(async t => {
-    const ref = db.collection('workspaces').doc(input.workspaceId);
-    const ws = (await t.get(ref)).data();
-    if (!ws) throw new AlertSettingsError(404, 'Workspace not found');
-    if (!['owner', 'accountant'].includes(workspaceRole(ws as never, input.uid))) throw new AlertSettingsError(403, 'Only owners and accountants change the alerts');
-    const sent = { ...((ws.alertsSent || {}) as Sent) };
-    delete sent.fingerprint;
-    t.update(ref, { alerts, alertsSent: sent, updatedAt: new Date().toISOString() });
-    const currency = String(ws.currency || 'USD');
-    const parts = [
-      alerts.closeReminderDay ? `close reminder from day ${alerts.closeReminderDay}` : 'no close reminder',
-      alerts.cashLowCents !== null ? `cash below ${formatCurrency(alerts.cashLowCents || 0, currency)}` : 'no cash alert',
-      alerts.budgetAlerts ? 'budget alerts on' : 'budget alerts off',
-    ];
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'ALERTS_SAVED', entityType: 'workspaces', entityId: input.workspaceId,
-      details: { description: `Alerts: ${parts.join(', ')}` },
-    }, { db, tx: t });
-    return alerts;
-  });
+}
+
+/** The stable audit summary used by the legacy response and the registered command. */
+export function alertSettingsAuditDescription(alerts: AlertSettings, currency: string): string {
+  const parts = [
+    alerts.closeReminderDay ? `close reminder from day ${alerts.closeReminderDay}` : 'no close reminder',
+    alerts.cashLowCents !== null ? `cash below ${formatCurrency(alerts.cashLowCents || 0, currency)}` : 'no cash alert',
+    alerts.budgetAlerts ? 'budget alerts on' : 'budget alerts off',
+  ];
+  return `Alerts: ${parts.join(', ')}`;
+}
+
+/** Settings → Alerts core write; the command runner owns transaction, retry, and audit policy. */
+export async function saveAlertSettingsInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: { workspaceId: string; uid: string; alerts: AlertSettings },
+): Promise<AlertSettingsWriteResult> {
+  const problem = alertSettingsProblem(input.alerts);
+  if (problem) throw new AlertSettingsError(400, problem, 'INVALID_ALERT_SETTINGS');
+  const alerts = normalizeAlertSettings(input.alerts);
+  const ref = db.collection('workspaces').doc(input.workspaceId);
+  const ws = (await tx.get(ref)).data();
+  if (!ws) throw new AlertSettingsError(404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
+  if (!['owner', 'accountant'].includes(workspaceRole(ws as never, input.uid))) {
+    throw new AlertSettingsError(403, 'Only owners and accountants change the alerts', 'ROLE_REQUIRED');
+  }
+  const sent = { ...((ws.alertsSent || {}) as Sent) };
+  delete sent.fingerprint;
+  tx.update(ref, { alerts, alertsSent: sent, updatedAt: new Date().toISOString() });
+  return {
+    workspaceId: input.workspaceId,
+    alerts,
+    previousAlerts: normalizeAlertSettings((ws.alerts || {}) as AlertSettings),
+    currency: String(ws.currency || 'USD'),
+  };
 }
 
 async function fingerprint(db: Firestore, workspaceId: string): Promise<string> {

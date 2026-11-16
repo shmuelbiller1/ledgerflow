@@ -7,27 +7,27 @@ export const COMMAND_INPUT_SCHEMA = {
     "vendorCredit": {
       "type": "object",
       "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part46,
-        "uid": COMMAND_SCHEMA_PARTS.part7,
-        "workspaceId": COMMAND_SCHEMA_PARTS.part46,
-        "vendorId": COMMAND_SCHEMA_PARTS.part17,
-        "vendorName": COMMAND_SCHEMA_PARTS.part7,
-        "number": COMMAND_SCHEMA_PARTS.part7,
-        "billId": COMMAND_SCHEMA_PARTS.part7,
-        "amountCents": COMMAND_SCHEMA_PARTS.part57,
-        "remainingCents": COMMAND_SCHEMA_PARTS.part53,
-        "date": COMMAND_SCHEMA_PARTS.part7,
-        "reason": COMMAND_SCHEMA_PARTS.part29,
-        "status": COMMAND_SCHEMA_PARTS.part73,
-        "currency": COMMAND_SCHEMA_PARTS.part23,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part36,
-        "tags": COMMAND_SCHEMA_PARTS.part38,
-        "metadata": COMMAND_SCHEMA_PARTS.part64,
-        "taxAmountCents": COMMAND_SCHEMA_PARTS.part53,
-        "taxInclusive": COMMAND_SCHEMA_PARTS.part9,
-        "taxVersion": COMMAND_SCHEMA_PARTS.part14,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part70,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part101
+        "id": COMMAND_SCHEMA_PARTS.part54,
+        "uid": COMMAND_SCHEMA_PARTS.part10,
+        "workspaceId": COMMAND_SCHEMA_PARTS.part54,
+        "vendorId": COMMAND_SCHEMA_PARTS.part22,
+        "vendorName": COMMAND_SCHEMA_PARTS.part10,
+        "number": COMMAND_SCHEMA_PARTS.part10,
+        "billId": COMMAND_SCHEMA_PARTS.part10,
+        "amountCents": COMMAND_SCHEMA_PARTS.part67,
+        "remainingCents": COMMAND_SCHEMA_PARTS.part62,
+        "date": COMMAND_SCHEMA_PARTS.part10,
+        "reason": COMMAND_SCHEMA_PARTS.part34,
+        "status": COMMAND_SCHEMA_PARTS.part84,
+        "currency": COMMAND_SCHEMA_PARTS.part28,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part41,
+        "tags": COMMAND_SCHEMA_PARTS.part43,
+        "metadata": COMMAND_SCHEMA_PARTS.part74,
+        "taxAmountCents": COMMAND_SCHEMA_PARTS.part62,
+        "taxInclusive": COMMAND_SCHEMA_PARTS.part12,
+        "taxVersion": COMMAND_SCHEMA_PARTS.part19,
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part81,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part121
       },
       "required": [
         "vendorId",
@@ -35,7 +35,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "date"
       ]
     },
-    "postingDay": COMMAND_SCHEMA_PARTS.part7
+    "postingDay": COMMAND_SCHEMA_PARTS.part10
   },
   "required": [
     "vendorCredit"

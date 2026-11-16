@@ -3,7 +3,7 @@ import { notify } from '../services/notificationService';
 import express from 'express';
 import type { DecodedIdToken } from '../auth/supabaseAuth';
 import { z } from 'zod';
-import { getDb, validateWorkspaceMember, FieldValue, type Firestore } from '../db/firestore';
+import { getDb, validateWorkspaceMember, type Firestore } from '../db/firestore';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { applyAccountTemplate, TemplateError } from '../services/templateService';
 import { importRecords, undoImport, ImportError } from '../services/recordImportService';
@@ -27,18 +27,30 @@ import { assetTransferRouter } from './assetTransferRoutes';
 import { placeInServiceRouter } from './placeInServiceRoutes';
 import { payRunRouter } from './payRunRoutes';
 import { twoStepPolicyRouter } from './twoStepPolicyRoutes';
-import { AlertSettingsError, saveAlertSettings } from '../services/bookAlertService';
+import { AlertSettingsError } from '../services/bookAlertService';
+import { alertSettingsUpdateCommand } from '../commands/alerts';
+import { importMapSaveCommand } from '../commands/importMaps';
+import { workspaceInviteRevokeCommand, WorkspaceInviteError } from '../commands/workspaceInvites';
+import { workspaceCancelDeletionCommand, WorkspaceLifecycleError } from '../commands/workspaceLifecycle';
+import {
+  workspaceModulesCommand,
+  workspaceNextNumberCommand,
+  workspaceOpeningBalancesCommand,
+  workspaceRetentionCommand,
+  workspaceSetupCompleteCommand,
+} from '../commands/workspaceSettings';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
 import { brandingRouter } from './brandingRoutes';
 import { contactMergeRouter } from './contactMergeRoutes';
 import { numberingRouter } from './numberingRoutes';
-import { allocateNextNumber, NUMBERED_TYPES, type NumberedType } from '../services/numberingService';
-import { retentionFor, RetentionSettingsSchema, scheduledPurgeAt as purgeDate } from '../../lib/retention';
-import { RetentionError, updateRetention } from '../services/retentionService';
+import { NUMBERED_TYPES } from '../services/numberingService';
+import { retentionFor, scheduledPurgeAt as purgeDate } from '../../lib/retention';
+import { RetentionError } from '../services/retentionService';
 import { budgetControlRouter } from './budgetControlRoutes';
-import { completeSetup, recordOpeningBalances, SetupError } from '../services/openingBalanceService';
-import { ModuleSettingError, moduleRecords, setModules } from '../services/moduleService';
+import { SetupError } from '../services/openingBalanceService';
+import { ModuleSettingError, moduleRecords } from '../services/moduleService';
 import { allocationRuleRouter, priceListRouter, salesRepRouter, roleDashboardRouter, approvalDelegateRouter, taxProfileRouter, paymentTypeRouter, customerGroupRouter } from './savedListRoutes';
 import { workspaceUsage } from '../middleware/planCapacity';
 import { planFor } from '../../lib/plans';
@@ -123,41 +135,32 @@ workspaceRouter.post('/:workspaceId/apply-template', requireWorkspaceRole(['owne
 });
 
 // Saved CSV column layouts for statement imports (src/lib/importColumnMaps.ts), keyed by the
-// file's header signature. Anyone who imports statements (owner/accountant/bookkeeper) may save.
-const importMapSchema = z.object({
-  signature: z.string().regex(/^csv_\d{1,3}_[0-9a-f]{8}$/),
-  columns: z.object(Object.fromEntries(['date', 'description', 'amount', 'debit', 'credit', 'payee', 'memo'].map(f => [f, z.string().min(1).max(200).optional()]))).strict(),
-  skipRows: z.number().int().min(0).max(20),
-}).strict();
-const MAX_IMPORT_MAPS = 50;
-
+// file's header signature. Keep the legacy address and response while the named command owns the
+// schema, transaction, idempotency, and audit entry.
 workspaceRouter.post('/:workspaceId/import-maps', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
-  try {
-    const { workspaceId } = req.params as Record<string, string>;
-    const { signature, columns, skipRows } = importMapSchema.parse(req.body);
-    const db = getDb();
-    const ref = db.collection('workspaces').doc(workspaceId);
-    await db.runTransaction(async (t) => {
-      const maps = { ...((await t.get(ref)).data()?.importColumnMaps || {}) } as Record<string, { savedAt?: string }>;
-      maps[signature] = { columns, skipRows, savedAt: new Date().toISOString() } as { savedAt: string };
-      // Keep the most recently used layouts only
-      const keep = Object.entries(maps).sort((a, b) => String(b[1].savedAt || '').localeCompare(String(a[1].savedAt || ''))).slice(0, MAX_IMPORT_MAPS);
-      t.update(ref, { importColumnMaps: Object.fromEntries(keep), updatedAt: new Date().toISOString() });
-      await writeServerAuditLog({
-        workspaceId,
-        uid: requestUser(req).uid,
-        email: requestUser(req).email,
-        action: 'IMPORT_MAP_SAVED',
-        entityType: 'workspace',
-        entityId: workspaceId,
-        details: { description: `Saved CSV import column layout (${signature})`, signature },
-      }, { db, tx: t });
-    });
-    res.json({ status: 'success' });
-  } catch (err) {
-    if (err instanceof z.ZodError) return sendError(res, 'Invalid column layout', 400, err.issues);
-    sendError(res, 'Could not save the column layout', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: importMapSaveCommand,
+    workspaceId: String((req.params as Record<string, string>).workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) return { status: outcome.status, body: { status: 'success' } };
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid column layout', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: 500,
+          body: {
+            status: 'error',
+            message: 'Could not save the column layout',
+            details: error instanceof Error ? errorMessage(error) : String(error || outcome.message),
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Closing the books: close / reopen / partial unlock / sign-offs (src/server/routes/periodRoutes.ts)
@@ -203,22 +206,37 @@ workspaceRouter.use('/:workspaceId/assets/:assetId/in-service', requireWorkspace
 // Pay runs posted by the server (U-02): owners and accountants
 workspaceRouter.use('/:workspaceId/pay-runs', requireWorkspaceRole(['owner', 'accountant']), payRunRouter);
 workspaceRouter.use('/:workspaceId/security', requireWorkspaceRole(['owner']), twoStepPolicyRouter);
-// Settings → Alerts (S-08, S-10, S-11): owners and accountants
-const alertsSchema = z.object({
-  cashLowCents: z.number().int().nullable().optional(),
-  closeReminderDay: z.number().int().nullable().optional(),
-  budgetAlerts: z.boolean().optional(),
-}).strict();
+// Settings → Alerts (S-08, S-10, S-11): keep the established address and response while the
+// named command owns validation, role rechecks, the write transaction, retry protection, and audit.
 workspaceRouter.put('/:workspaceId/alerts', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const user = (req as AuthenticatedRequest).user;
-  try {
-    const alerts = await saveAlertSettings(getDb(), { workspaceId: String(req.params.workspaceId), uid: user.uid, email: user.email, alerts: alertsSchema.parse(req.body) });
-    res.json({ status: 'success', alerts });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Those alert settings are not in the expected form' });
-    if (err instanceof AlertSettingsError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The alerts could not be saved', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    definition: alertSettingsUpdateCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', alerts: (outcome.data as { alerts: unknown }).alerts } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Those alert settings are not in the expected form' } };
+      }
+      if (outcome.error instanceof AlertSettingsError) {
+        return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: {
+            status: 'error',
+            message: 'The alerts could not be saved',
+            details: error instanceof Error ? error.message : String(error || outcome.message),
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Bulk import of customers, vendors, items or accounts from a spreadsheet (K-01; rules in
@@ -262,18 +280,32 @@ workspaceRouter.get('/:workspaceId/modules/records', requireWorkspaceRole(['owne
   }
 });
 
-/** BB-07: owners and accountants turn modules on or off (moduleService.ts); nothing is deleted. */
+/** BB-07: owners and accountants turn modules on or off; nothing is deleted. */
 workspaceRouter.put('/:workspaceId/modules', requireWorkspaceRole(LEDGER_ADMIN_ROLES), async (req, res) => {
-  try {
-    const { workspaceId } = req.params as Record<string, string>;
-    const { modules } = z.object({ modules: z.record(z.string(), z.boolean()) }).strict().parse(req.body);
-    const { user } = req as AuthenticatedRequest;
-    res.json({ status: 'success', ...(await setModules(getDb(), { workspaceId, uid: user.uid, email: user.email, modules })) });
-  } catch (err) {
-    if (err instanceof z.ZodError) return sendError(res, 'Send which modules are on (true or false)', 400, err.issues);
-    if (err instanceof ModuleSettingError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Could not save the modules', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceModulesCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', modules: (outcome.data as { modules: unknown }).modules } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Send which modules are on (true or false)', details: outcome.error.issues } };
+      }
+      if (outcome.error instanceof ModuleSettingError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Could not save the modules', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 workspaceRouter.post('/:workspaceId/import-records', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
@@ -304,24 +336,40 @@ workspaceRouter.post('/:workspaceId/import-records/:batchId/undo', requireWorksp
 });
 
 workspaceRouter.post('/:workspaceId/next-number', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const rawType = req.body?.type;
-
-  const schema = z.enum(NUMBERED_TYPES as unknown as [NumberedType, ...NumberedType[]]);
-  const parsed = schema.safeParse(rawType);
-  if (!parsed.success) return sendError(res, `Invalid request parameters. "type" (${NUMBERED_TYPES.join(', ')}) is required in request body.`, 400, parsed.error.issues);
-  const type = parsed.data;
-
-  try {
-    const db = getDb();
-    const formattedNumber = await allocateNextNumber(db, workspaceId, type);
-
-    res.json({ number: formattedNumber });
-  } catch (err) {
-    if (errorMessage(err) === 'FORBIDDEN') return sendError(res, 'Forbidden', 403);
-    if (errorMessage(err) === 'NOT_FOUND') return sendError(res, 'Workspace not found', 404);
-    sendError(res, 'Failed to allocate next document number', 500, errorMessage(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceNextNumberCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: { type: req.body?.type },
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { number: (outcome.data as { number: string }).number } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: {
+            status: 'error',
+            message: `Invalid request parameters. "type" (${NUMBERED_TYPES.join(', ')}) is required in request body.`,
+            details: outcome.error.issues,
+          },
+        };
+      }
+      if (outcome.status === 403) return { status: 403, body: { status: 'error', message: 'Forbidden' } };
+      if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: {
+            status: 'error',
+            message: 'Failed to allocate next document number',
+            details: error instanceof Error ? errorMessage(error) : outcome.message,
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Explicit 405 Method Not Allowed for GET/other methods on /:workspaceId/next-number
@@ -526,72 +574,118 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 });
 
 workspaceRouter.delete('/:workspaceId/invites/:inviteId', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId, inviteId } = req.params as Record<string, string>;
-  try {
-    const db = getDb();
-    const inviteRef = db.collection('invites').doc(inviteId);
-    const snap = await inviteRef.get();
-    if (!snap.exists) return sendError(res, 'Invite not found', 404);
-
-    if (snap.data()?.workspaceId !== workspaceId) {
-      return sendError(res, 'Forbidden', 403);
-    }
-
-    await inviteRef.update({
-      status: 'revoked',
-      updatedAt: new Date().toISOString()
-    });
-
-    res.json({ status: 'success', message: 'Invite revoked successfully' });
-  } catch (err) {
-    sendError(res, 'Failed to revoke invite', 500, errorMessage(err));
-  }
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash(workspaceInviteRevokeCommand),
+    workspaceId: String(req.params.workspaceId),
+    input: { inviteId: String(req.params.inviteId) },
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', message: 'Invite revoked successfully' } };
+      }
+      if (outcome.error instanceof WorkspaceInviteError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid invite ID', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to revoke invite', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /** First-run setup (L-19): opening balances as one balanced entry, or "start from zero". */
-const openingBalancesSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  balances: z.array(z.object({ accountId: z.string().min(1).max(127), amountCents: z.number().int() }).strict()).max(300),
-}).strict();
-
 workspaceRouter.post('/:workspaceId/opening-balances', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const parsed = openingBalancesSchema.safeParse(req.body);
-  if (!parsed.success) return sendError(res, 'Invalid opening balances', 400, parsed.error.issues.map(i => i.message).join('; '));
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const result = await recordOpeningBalances(getDb(), { workspaceId, uid: user.uid, email: user.email, ...parsed.data });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    if (err instanceof SetupError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to record the opening balances', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceOpeningBalancesCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        const { workspaceId: _workspaceId, ...result } = outcome.data as Record<string, unknown>;
+        return { status: outcome.status, body: { status: 'success', ...result } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: { status: 'error', message: 'Invalid opening balances', details: outcome.error.issues.map(issue => issue.message).join('; ') },
+        };
+      }
+      if (outcome.code === 'PERIOD_LOCKED') {
+        return { status: 409, body: { status: 'error', message: outcome.message } };
+      }
+      if (outcome.error instanceof SetupError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to record the opening balances', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 workspaceRouter.post('/:workspaceId/setup-complete', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  try {
-    await completeSetup(getDb(), { workspaceId, uid: (req as AuthenticatedRequest).user.uid });
-    res.json({ status: 'success' });
-  } catch (err) {
-    if (err instanceof SetupError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to finish the setup', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceSetupCompleteCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: {},
+    formatResponse(outcome) {
+      if (outcome.ok) return { status: outcome.status, body: { status: 'success' } };
+      if (outcome.error instanceof SetupError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to finish the setup', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /** Retention (L-08): how long logs are kept, the recovery window, legal hold. Owners only. */
 workspaceRouter.put('/:workspaceId/retention', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const parsed = RetentionSettingsSchema.safeParse(req.body);
-  if (!parsed.success) return sendError(res, 'Invalid retention settings', 400, parsed.error.issues.map(i => i.message).join('; '));
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const retention = await updateRetention(getDb(), { workspaceId, uid: user.uid, email: user.email, settings: parsed.data });
-    res.json({ status: 'success', retention });
-  } catch (err) {
-    if (err instanceof RetentionError) return sendError(res, errorMessage(err), err.status);
-    sendError(res, 'Failed to save retention settings', 500, err instanceof Error ? errorMessage(err) : String(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceRetentionCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: req.body,
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', retention: (outcome.data as { settings: unknown }).settings } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: { status: 'error', message: 'Invalid retention settings', details: outcome.error.issues.map(issue => issue.message).join('; ') },
+        };
+      }
+      if (outcome.error instanceof RetentionError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to save retention settings', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /**
@@ -648,48 +742,30 @@ workspaceRouter.delete('/:workspaceId', requireWorkspaceRole(['owner']), async (
  * (Its own path: POST /:workspaceId/restore is the backup import in server.ts, L-130.)
  */
 workspaceRouter.post('/:workspaceId/cancel-deletion', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  try {
-    const db = getDb();
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) {
-      return sendError(res, 'Workspace not found', 404);
-    }
-
-    const wsData = wsSnap.data() || {};
-    if (wsData.status !== 'pending_deletion') {
-      return sendError(res, 'Workspace is not pending deletion', 400);
-    }
-
-    const now = new Date();
-    await wsRef.update({
-      status: 'active',
-      deletedAt: FieldValue.delete(),
-      scheduledPurgeAt: FieldValue.delete(),
-      updatedAt: now.toISOString()
-    });
-
-    // Audit log entry
-    await writeServerAuditLog({
-      workspaceId,
-      uid: requestUser(req).uid,
-      email: requestUser(req).email || '',
-      action: 'WORKSPACE_RESTORED',
-      entityType: 'workspace',
-      entityId: workspaceId,
-      details: {
-        description: 'Workspace restored from pending deletion'
+  await executeCommand(req, res, {
+    definition: workspaceCancelDeletionCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: {},
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', message: 'Workspace restored successfully.' } };
       }
-    }, { db });
-
-    res.json({
-      status: 'success',
-      message: 'Workspace restored successfully.'
-    });
-  } catch (err) {
-    sendError(res, 'Failed to restore workspace', 500, errorMessage(err));
-  }
+      if (outcome.error instanceof WorkspaceLifecycleError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid workspace restoration request', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to restore workspace', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // #656: the demo-seed route was removed: no screen called it, and it wrote demo entries into real books, even a closed

@@ -1,4 +1,4 @@
-import { isWorkspaceMemberData, type Firestore } from '../db/firestore';
+import { isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
 import { RECORD_TABS, type RecordRef } from '../../lib/recordLinks';
 import { MAX_WATCHES_PER_PERSON, WATCH_KIND, WATCH_TABLES, watchNoticeRecordId, type Watch } from '../../lib/watches';
 import { notify } from './notificationService';
@@ -10,7 +10,11 @@ import { logger } from '../utils/logger';
  * about deleted ones (their watch then ends).
  */
 export class WatchError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly code: string;
+  constructor(readonly status: number, message: string, code?: string) {
+    super(message);
+    this.code = code || (status === 400 ? 'INVALID_INPUT' : status === 403 ? 'ROLE_REQUIRED' : status === 404 ? 'NOT_FOUND' : status === 409 ? 'CONFLICT' : 'WATCH_ERROR');
+  }
 }
 
 interface Actor { workspaceId: string; uid: string }
@@ -28,6 +32,70 @@ async function lastChange(db: Firestore, workspaceId: string, record: RecordRef)
   if (!table) return null;
   const { rows } = await db.pool.query<{ updated_at: Date }>(`select updated_at from public."${table}" where id = $1 and workspace_id = $2`, [record.id, workspaceId]);
   return rows[0] ? rows[0].updated_at.toISOString() : null;
+}
+
+export interface PreparedWatchTarget {
+  record: RecordRef & { label: string };
+  seenAt: string;
+}
+
+/** Read and validate the record before the command transaction opens (the underlying record table is read-only here). */
+export async function prepareWatchTarget(db: Firestore, input: Actor & { record: unknown }): Promise<PreparedWatchTarget> {
+  const value = (input.record || {}) as Partial<RecordRef & { label: string }>;
+  if (!value.type || !WATCH_TABLES[value.type] || typeof value.id !== 'string' || !value.id || value.id.length > 200
+    || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 200) {
+    throw new WatchError(400, 'Choose the record to watch');
+  }
+  await member(db, input);
+  const record = { type: value.type, id: value.id, label: value.label.trim() } as RecordRef & { label: string };
+  const seenAt = await lastChange(db, input.workspaceId, record);
+  if (!seenAt) throw new WatchError(404, 'That record is not in this workspace');
+  return { record, seenAt };
+}
+
+/** Apply the watch create in the command runner's transaction. */
+export async function watchRecordInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { record: RecordRef & { label: string }; seenAt: string },
+): Promise<{ watch: Watch; created: boolean }> {
+  const workspace = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!workspace) throw new WatchError(404, 'Workspace not found');
+  if (!isWorkspaceMemberData(workspace, { uid: input.uid }, input.workspaceId)) {
+    throw new WatchError(403, 'Only people in this workspace watch its records');
+  }
+  const mine = await tx.get(db.collection('documents')
+    .where('workspaceId', '==', input.workspaceId).where('kind', '==', WATCH_KIND).where('watcher', '==', input.uid));
+  const watches = mine.docs.map(doc => ({ ...(doc.data() as Watch), id: doc.id }));
+  const existing = watches.find(watch => watch.record.type === input.record.type && watch.record.id === input.record.id);
+  if (existing) return { watch: existing, created: false };
+  if (watches.length >= MAX_WATCHES_PER_PERSON) throw new WatchError(409, `${MAX_WATCHES_PER_PERSON} records at most: stop watching some first`);
+  const ref = db.collection('documents').doc();
+  const watch: Omit<Watch, 'id'> = {
+    kind: WATCH_KIND,
+    workspaceId: input.workspaceId,
+    watcher: input.uid,
+    record: input.record,
+    createdAt: new Date().toISOString(),
+    seenAt: input.seenAt,
+  };
+  tx.create(ref, watch);
+  return { watch: { ...watch, id: ref.id }, created: true };
+}
+
+/** Apply the watch delete in the command runner's transaction. */
+export async function unwatchInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { watchId: string },
+): Promise<Watch> {
+  const ref = db.collection('documents').doc(input.watchId);
+  const watch = (await tx.get(ref)).data() as Watch | undefined;
+  if (!watch || watch.kind !== WATCH_KIND || watch.workspaceId !== input.workspaceId || watch.watcher !== input.uid) {
+    throw new WatchError(404, 'You are not watching that');
+  }
+  tx.delete(ref);
+  return watch;
 }
 
 export async function myWatches(db: Firestore, input: Actor): Promise<Watch[]> {

@@ -6,7 +6,7 @@ import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { requirePlanCapacity } from '../middleware/planCapacity';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { writeServerAuditLog } from '../services/auditLogService';
-import type { CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
+import type { CommandDefinition, CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
 import type { Transaction as FirestoreTransaction } from '../db/firestore';
 import { getDb } from '../db/firestore';
 import {
@@ -17,13 +17,32 @@ import {
   assertSameRequest,
 } from './idempotency';
 import { logSafe, logSafeDetail } from './logSafe';
-import { ZodError } from 'zod';
+import { ZodError, type ZodType } from 'zod';
 
 export interface CommandContext {
   actor: string;
   workspaceId: string;
   operationType: string;
   operationId?: string;
+}
+
+/**
+ * Legacy routes can assemble command input from both the request body and URL parameters. Hash the
+ * validated input so reusing an operation ID for another path target is rejected instead of replayed.
+ */
+export function withLegacyInputIdempotencyHash<Schema extends ZodType, Result, Prepared>(
+  definition: CommandDefinition<Schema, Result, Prepared>,
+): CommandDefinition<Schema, Result, Prepared> {
+  const customHash = definition.idempotencyHash;
+  return {
+    ...definition,
+    idempotencyHash(ctx, input, prepared, req) {
+      const commandSpecificHash = customHash?.(ctx, input, prepared, req);
+      return commandSpecificHash === undefined
+        ? requestPayloadHash(input)
+        : requestPayloadHash({ input, commandSpecificHash });
+    },
+  };
 }
 
 /**
@@ -364,15 +383,17 @@ async function runRegisteredCommand(
     context.workspace = latestWorkspace;
     const result = await command.handler(context, tx, input);
     const summary = command.audit(input, result);
-    await (dependencies.auditWriter || writeServerAuditLog)({
-      workspaceId,
-      uid: user.uid,
-      email: user.email,
-      action: summary.action,
-      entityType: summary.entityType,
-      entityId: summary.entityId,
-      details: { description: summary.description, ...(summary.details || {}) },
-    }, { db, tx });
+    if (summary) {
+      await (dependencies.auditWriter || writeServerAuditLog)({
+        workspaceId,
+        uid: user.uid,
+        email: user.email,
+        action: summary.action,
+        entityType: summary.entityType,
+        entityId: summary.entityId,
+        details: { description: summary.description, ...(summary.details || {}) },
+      }, { db, tx });
+    }
     didRunHandler = true;
     return result;
   };
