@@ -12,6 +12,7 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { buildWorkspaceArchive } from '../../../lib/workspaceArchive';
 import { recordBackupCompleted } from '../../../lib/ledgerBackupHealth';
 import { BRAND } from '../../../config/brand';
+import { runCommand, type CommandBody } from '../../../lib/runCommand';
 
 export default function WorkspaceArchiveExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -50,14 +51,18 @@ function WorkspaceArchiveExportBody() {
       && useAuthStore.getState().currentWorkspaceId === selectedId
       && useAuthStore.getState().user?.uid === user.uid;
     try {
-      const token = await user.getIdToken();
       if (!scopeValid()) return;
-      const response = await fetch('/api/v1/workspaces/' + encodeURIComponent(selectedId) + '/export', {
-        headers: { Authorization: 'Bearer ' + token },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error('The server export failed. No incomplete archive was downloaded.');
-      const source: unknown = await response.json();
+      // The refusal is wrapped rather than shown as-is: what the person needs to know first is that nothing
+      // partial was written to disk.
+      let source: unknown;
+      try {
+        source = await runCommand<CommandBody>({
+          path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        throw new Error('The server export failed. No incomplete archive was downloaded.', { cause: error });
+      }
       if (!scopeValid()) return;
       const archive = await buildWorkspaceArchive(source, selectedId);
       if (!scopeValid()) return;

@@ -17,6 +17,7 @@ import { verifiedBackupCollections } from '../../../lib/workspaceArchive';
 import { buildIifExport } from '../../../lib/iifExport';
 import type { ChartAccount, Customer, InventoryItem, Vendor } from '../../../types';
 import { BRAND } from '../../../config/brand';
+import { runCommand, type CommandBody } from '../../../lib/runCommand';
 
 export default function IifListExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -54,14 +55,18 @@ function IifListExportBody() {
       && useAuthStore.getState().currentWorkspaceId === selectedId
       && useAuthStore.getState().user?.uid === user.uid;
     try {
-      const token = await user.getIdToken();
       if (!scopeValid()) return;
-      const response = await fetch('/api/v1/workspaces/' + encodeURIComponent(selectedId) + '/export', {
-        headers: { Authorization: 'Bearer ' + token },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error('The server export failed. No incomplete IIF was downloaded.');
-      const source: unknown = await response.json();
+      // The refusal is wrapped rather than shown as-is: what the person needs to know first is that nothing
+      // partial was written to disk.
+      let source: unknown;
+      try {
+        source = await runCommand<CommandBody>({
+          path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        throw new Error('The server export failed. No incomplete IIF was downloaded.', { cause: error });
+      }
       if (!scopeValid()) return;
       // Format, workspace and SHA-256 checksum checked — same gate as the archive (E-21).
       const collections = await verifiedBackupCollections(source, selectedId);
