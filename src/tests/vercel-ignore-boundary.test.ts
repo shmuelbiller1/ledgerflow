@@ -64,6 +64,10 @@ describe('.vercelignore deployment context boundary', () => {
       'server.ts',
       'api/index.mjs',
       'scripts/vercel-csp.ts',
+      // runs first in `npm run build`, so a missing copy fails the whole deployment with a confusing build error
+      'scripts/generate-supabase-config.mjs',
+      // written by that script and imported by the browser, the server and the CSP
+      'src/config/supabaseProject.ts',
       'src/main.tsx',
       'src/App.tsx',
       'src/index.css',
