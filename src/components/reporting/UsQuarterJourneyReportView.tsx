@@ -14,6 +14,7 @@ import { monthCloseState } from '../../lib/periodLock';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const QUARTER_TEXT = /^\d{4}-Q[1-4]$/;
@@ -182,25 +183,26 @@ export function UsQuarterJourneyPanel({ journey, currency = 'USD', quarterText, 
 
 function StateReturnTable({ returns, currency }: { returns: UsQuarter['steps'][number]['returns']; currency: string }) {
   return <ReportTableScroll>
-    <table className="w-full text-sm">
-      <caption className="text-left font-semibold text-[var(--text)] pb-1">The state returns of the quarter, as the return screen computes them</caption>
-      <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-        {['Permit', 'Documents', 'Gross', 'Exempt', 'Taxable', 'Tax collected', 'By jurisdiction', 'Planning due date', 'Recorded as filed'].map(head =>
-          <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-      </tr></thead>
-      <tbody>
-        {returns.map(r => <tr key={r.registration} className="border-b border-[var(--line)]/50">
-          <th scope="row" className="text-left font-normal py-1 px-2">{r.state} {r.permitNumber}<div className="text-xs text-[var(--muted)]">{r.stateName}</div></th>
-          <td className="py-1 px-2 tabular-nums">{r.documentCount}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.grossSalesCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.exemptSalesCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.taxableSalesCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.taxCollectedCents, currency)}</td>
-          <td className="py-1 px-2">{r.byJurisdiction.map(part => `${part.name} ${formatCurrency(part.taxCents, currency)}`).join(', ') || '—'}</td>
-          <td className="py-1 px-2 whitespace-nowrap">{r.dueDate || 'not in the planning calendar'}{r.dueNote ? <div className="text-xs text-[var(--muted)]">{r.dueNote}</div> : null}</td>
-          <td className="py-1 px-2">{r.filed ? 'Yes' : r.recordedForDates ? 'Period record only (not per state)' : 'Not recorded here'}</td>
-        </tr>)}
-      </tbody>
-    </table>
+    <RowTable
+      rowClassName="border-b border-[var(--line)]/50"
+      caption={(<>The state returns of the quarter, as the return screen computes them</>)}
+      rows={returns}
+      rowKey={r => r.registration}
+      captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+      tableClassName="w-full text-sm"
+      headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+      bodyClassName=""
+      columns={[
+        { header: "Permit", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<>{r.state} {r.permitNumber}<div className="text-xs text-[var(--muted)]">{r.stateName}</div></>) },
+        { header: "Documents", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => r.documentCount },
+        { header: "Gross", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.grossSalesCents, currency) },
+        { header: "Exempt", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.exemptSalesCents, currency) },
+        { header: "Taxable", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxableSalesCents, currency) },
+        { header: "Tax collected", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxCollectedCents, currency) },
+        { header: "By jurisdiction", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.byJurisdiction.map(part => `${part.name} ${formatCurrency(part.taxCents, currency)}`).join(', ') || '—' },
+        { header: "Planning due date", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{r.dueDate || 'not in the planning calendar'}{r.dueNote ? <div className="text-xs text-[var(--muted)]">{r.dueNote}</div> : null}</>) },
+        { header: "Recorded as filed", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : r.recordedForDates ? 'Period record only (not per state)' : 'Not recorded here' },
+      ]}
+    />
   </ReportTableScroll>;
 }

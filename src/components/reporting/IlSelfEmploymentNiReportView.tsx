@@ -9,6 +9,7 @@ import {
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const CSV_HEADERS = ['Valid from', 'Valid until', 'Minimum income a month', 'Reduced grade a month', 'Maximum income a month', 'National insurance (reduced)', 'National insurance (regular)', 'Health insurance (reduced)', 'Health insurance (regular)', 'Advance floor a month', 'Advance ceiling a month', 'Source', 'Read on', 'Note'];
 
@@ -105,34 +106,33 @@ export default function IlSelfEmploymentNiReportView() {
       )}
 
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold pb-1">Self-employed contribution rates by income band, dated</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['From', 'Until', 'Minimum income', 'Reduced grade', 'Maximum income', 'National insurance', 'Health insurance', 'Advance floor', 'Advance ceiling', 'Source', 'Note'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {IL_SELF_EMPLOYMENT_NI_ROWS.map(r => (
-              <tr key={r.validFrom} className="border-b border-[var(--line)]/50">
-                <td className="py-1 px-2 whitespace-nowrap">{r.validFrom}</td>
-                <td className="py-1 px-2 whitespace-nowrap">{r.validTo || '—'}</td>
-                <td className="py-1 px-2 tabular-nums">{money(r.minMonthlyIncomeCents)}</td>
-                <td className="py-1 px-2 tabular-nums">{money(r.reducedBandCeilingCents)}</td>
-                <td className="py-1 px-2 tabular-nums">{money(r.maxMonthlyIncomeCents)}</td>
-                <td className="py-1 px-2 tabular-nums whitespace-nowrap">{pct(r.niReducedBp)} / {pct(r.niFullBp)}</td>
-                <td className="py-1 px-2 tabular-nums whitespace-nowrap">{pct(r.healthReducedBp)} / {pct(r.healthFullBp)}</td>
-                <td className="py-1 px-2 tabular-nums">{money(r.publishedMinMonthlyAdvanceCents)}</td>
-                <td className="py-1 px-2 tabular-nums">{money(r.publishedMaxMonthlyAdvanceCents)}</td>
-                <td className="py-1 px-2">
-                  <a className="underline break-all" href={r.source.url}>{r.source.authority}</a> · read {r.source.retrieved}
+        <RowTable
+          rowHeaderColumn={false}
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Self-employed contribution rates by income band, dated</>)}
+          rows={IL_SELF_EMPLOYMENT_NI_ROWS}
+          rowKey={r => r.validFrom}
+          captionClassName="text-left font-semibold pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "From", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.validFrom },
+            { header: "Until", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.validTo || '—' },
+            { header: "Minimum income", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => money(r.minMonthlyIncomeCents) },
+            { header: "Reduced grade", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => money(r.reducedBandCeilingCents) },
+            { header: "Maximum income", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => money(r.maxMonthlyIncomeCents) },
+            { header: "National insurance", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{pct(r.niReducedBp)} / {pct(r.niFullBp)}</>) },
+            { header: "Health insurance", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{pct(r.healthReducedBp)} / {pct(r.healthFullBp)}</>) },
+            { header: "Advance floor", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => money(r.publishedMinMonthlyAdvanceCents) },
+            { header: "Advance ceiling", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => money(r.publishedMaxMonthlyAdvanceCents) },
+            { header: "Source", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<><a className="underline break-all" href={r.source.url}>{r.source.authority}</a> · read {r.source.retrieved}
                   <ul className="text-xs text-[var(--muted)] mt-1">
                     {r.corroboratedBy.map(c => <li key={c.url}><a className="underline break-all" href={c.url}>{c.note}</a></li>)}
-                  </ul>
-                </td>
-                <td className="py-1 px-2 text-[var(--muted)]">{r.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </ul></>) },
+            { header: "Note", className: "py-1 px-2 text-[var(--muted)]", headClassName: "text-left py-1 px-2", cell: (r) => r.note },
+          ]}
+        />
       </ReportTableScroll>
       <p className="text-xs text-[var(--muted)]">
         Reduced and regular rates are shown as one column each, in that order. An advance figure of — means the Authority's circular for that year

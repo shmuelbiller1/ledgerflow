@@ -9,6 +9,7 @@ import type { PurchaseOrder } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const STATUS_LABEL: Record<ThreeWayStatus, string> = {
@@ -85,26 +86,28 @@ export function ThreeWayMatchReviewPanel({ from = '', to = '', orders, ordersLoa
     </p>}
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Three-way match{from || to ? `: orders issued ${from || 'any date'} – ${to || 'today'}` : ': every loaded order'}</caption>
-        <thead>
-          <tr>{['Order', 'Vendor', 'Issued', 'Currency', 'Result', 'Ordered', 'Received', 'Billed', 'Variance', 'What the check found'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-        </thead>
-        <tbody>
-          {report.rows.map(row => <tr key={row.poId} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.poNumber}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.vendorName}</bdi></td>
-            <td className="py-1 px-2">{row.issueDate || '—'}</td>
-            <td className="py-1 px-2">{row.currency || home}</td>
-            <td className="py-1 px-2">{STATUS_LABEL[row.status]}</td>
-            <td className="py-1 px-2">{formatCurrency(row.orderedCents, row.currency || home)}</td>
-            <td className="py-1 px-2">{formatCurrency(row.receivedCents, row.currency || home)}</td>
-            <td className="py-1 px-2">{row.billedCents ? formatCurrency(row.billedCents, row.currency || home) : '—'}</td>
-            <td className="py-1 px-2">{row.billId ? `${formatCurrency(row.varianceCents, row.currency || home)}${row.variancePercent === undefined ? '' : ` (${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%)`}` : '—'}</td>
-            <td className="py-1 px-2">{row.findings.length ? <ul className="list-disc pl-4">{row.findings.map(finding => <li key={finding}>{finding}</li>)}</ul> : 'Order, receipt and bill agree.'}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Three-way match{from || to ? `: orders issued ${from || 'any date'} – ${to || 'today'}` : ': every loaded order'}</>)}
+        rows={report.rows}
+        rowKey={row => row.poId}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Order", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.poNumber}</bdi> },
+          { header: "Vendor", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.vendorName}</bdi> },
+          { header: "Issued", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.issueDate || '—' },
+          { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency || home },
+          { header: "Result", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => STATUS_LABEL[row.status] },
+          { header: "Ordered", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.orderedCents, row.currency || home) },
+          { header: "Received", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.receivedCents, row.currency || home) },
+          { header: "Billed", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billedCents ? formatCurrency(row.billedCents, row.currency || home) : '—' },
+          { header: "Variance", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billId ? `${formatCurrency(row.varianceCents, row.currency || home)}${row.variancePercent === undefined ? '' : ` (${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%)`}` : '—' },
+          { header: "What the check found", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.findings.length ? <ul className="list-disc pl-4">{row.findings.map(finding => <li key={finding}>{finding}</li>)}</ul> : 'Order, receipt and bill agree.' },
+        ]}
+      />
       {!loading && !report.rows.length && <p className="text-sm text-[var(--muted)]">No purchase order in this window.</p>}
     </ReportTableScroll>
 

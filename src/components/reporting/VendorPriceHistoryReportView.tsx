@@ -8,6 +8,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const TREND_LABEL: Record<ReturnType<typeof priceTrend>, string> = {
@@ -92,29 +93,29 @@ export function VendorPriceHistoryPanel({ from = '', to = '' }: { from?: string;
     {charted && <PriceChart row={charted} rows={rows} currency={currency} onChoose={setChartKey} keyOf={keyOf} />}
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Recorded purchase prices {windowValid ? `${from} – ${to}` : '(all recorded bills)'}</caption>
-        <thead>
-          <tr>
-            {['Vendor', 'Item', 'Currency', 'Purchases', 'Units', 'First', 'Last', 'Lowest', 'Highest', 'Change', 'Trend'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => <tr key={keyOf(row)} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.vendorName}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.itemName}</bdi>{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</td>
-            <td className="py-1 px-2">{row.currency}</td>
-            <td className="py-1 px-2">{row.points.length}</td>
-            <td className="py-1 px-2">{row.units}</td>
-            <td className="py-1 px-2">{formatCurrency(row.firstUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{formatCurrency(row.lastUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{formatCurrency(row.minUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{formatCurrency(row.maxUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{row.changePercent === undefined ? '—' : `${row.changePercent > 0 ? '+' : ''}${row.changePercent.toFixed(2)}%`}{row.changes > 0 ? ` (${row.changes} moves)` : ''}</td>
-            <td className="py-1 px-2">{TREND_LABEL[priceTrend(row)]}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Recorded purchase prices {windowValid ? `${from} – ${to}` : '(all recorded bills)'}</>)}
+        rows={rows}
+        rowKey={row => keyOf(row)}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.vendorName}</bdi> },
+          { header: "Item", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.itemName}</bdi>{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</>) },
+          { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency },
+          { header: "Purchases", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.points.length },
+          { header: "Units", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.units },
+          { header: "First", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.firstUnitCents, row.currency) },
+          { header: "Last", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.lastUnitCents, row.currency) },
+          { header: "Lowest", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.minUnitCents, row.currency) },
+          { header: "Highest", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.maxUnitCents, row.currency) },
+          { header: "Change", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.changePercent === undefined ? '—' : `${row.changePercent > 0 ? '+' : ''}${row.changePercent.toFixed(2)}%`}{row.changes > 0 ? ` (${row.changes} moves)` : ''}</>) },
+          { header: "Trend", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => TREND_LABEL[priceTrend(row)] },
+        ]}
+      />
       {valid && !loading && !rows.length && <p className="text-sm text-[var(--muted)]">No bill line in this window names an item with units.</p>}
     </ReportTableScroll>
   </section>;

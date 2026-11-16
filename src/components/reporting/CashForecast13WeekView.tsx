@@ -11,6 +11,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Bill, Invoice } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MAX_LINE_ROWS = 200;
@@ -170,21 +171,23 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
 
       <h3 className="font-semibold text-sm">What is dated in the next 13 weeks</h3>
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Each dated invoice, bill and recurring occurrence in the forecast</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['Date', 'Week', 'Direction', 'Document', 'Amount'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr></thead>
-          <tbody>
-            {lines.slice(0, MAX_LINE_ROWS).map(line => <tr key={`${line.kind}-${line.id}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2 tabular-nums">{line.date}{line.overdue ? ' (past due)' : ''}</th>
-              <td className="py-1 px-2 tabular-nums">{line.week}</td>
-              <td className="py-1 px-2">{line.kind === 'bill' ? 'Out' : 'In'}</td>
-              <td className="py-1 px-2"><bdi>{line.label}</bdi></td>
-              <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(line.cents, currency)}</td>
-            </tr>)}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Each dated invoice, bill and recurring occurrence in the forecast</>)}
+          rows={lines.slice(0, MAX_LINE_ROWS)}
+          rowKey={line => `${line.kind}-${line.id}`}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Date", className: "text-left font-normal py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => (<>{line.date}{line.overdue ? ' (past due)' : ''}</>) },
+            { header: "Week", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => line.week },
+            { header: "Direction", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => line.kind === 'bill' ? 'Out' : 'In' },
+            { header: "Document", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => <bdi>{line.label}</bdi> },
+            { header: "Amount", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (line) => formatCurrency(line.cents, currency) },
+          ]}
+        />
         {lines.length > MAX_LINE_ROWS && <p className="text-sm text-[var(--muted)]">Showing the first {MAX_LINE_ROWS} of {lines.length} dated lines; the weekly totals and the CSV include all of them.</p>}
         {!lines.length && <p className="text-sm text-[var(--muted)]">Nothing dated in the next 13 weeks: no open invoice, open bill or active recurring rule falls inside it.</p>}
       </ReportTableScroll>

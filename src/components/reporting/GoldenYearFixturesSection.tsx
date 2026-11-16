@@ -6,6 +6,7 @@ import {
 import { US_1099_THRESHOLDS } from '../../lib/tax/us1099Thresholds';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const ils = (cents: number) => formatCurrency(cents, 'ILS');
 const usd = (cents: number) => formatCurrency(cents, 'USD');
@@ -114,21 +115,23 @@ export function GoldenYearFixturesPanel({ result }: { result: { ilPeriods: numbe
 
     <h3 className="font-semibold text-sm">A-106 · US 1099 reporting thresholds by year ($)</h3>
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">1099-NEC and 1099-MISC thresholds: the year&rsquo;s total at or above which a payment is reportable</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {['Form and box', 'Threshold', 'Payments from', 'Payments through', 'Note'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {US_1099_THRESHOLDS.map(row => <tr key={`${row.kind}-${row.validFrom}`} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2">{row.form}</th>
-            <td className="py-1 px-2 tabular-nums">{usd(row.thresholdCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{row.validFrom}</td>
-            <td className="py-1 px-2 tabular-nums">{row.validTo || 'in force'}</td>
-            <td className="py-1 px-2">{row.note || ''}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>1099-NEC and 1099-MISC thresholds: the year&rsquo;s total at or above which a payment is reportable</>)}
+        rows={US_1099_THRESHOLDS}
+        rowKey={row => `${row.kind}-${row.validFrom}`}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Form and box", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.form },
+          { header: "Threshold", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => usd(row.thresholdCents) },
+          { header: "Payments from", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.validFrom },
+          { header: "Payments through", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.validTo || 'in force' },
+          { header: "Note", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.note || '' },
+        ]}
+      />
     </ReportTableScroll>
 
     <p className="text-xs text-[var(--muted)]">

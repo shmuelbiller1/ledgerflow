@@ -7,6 +7,7 @@ import {
   gsaLocalityLabel, readGsaPerDiemCsv, type GsaPerDiemImport,
 } from '../../lib/tax/gsaPerDiemImport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 // GSA rates are US dollars by definition (not the workspace currency), so USD is stated.
 const dollars = (cents: number) => formatCurrency(cents, 'USD');
@@ -98,33 +99,26 @@ export default function GsaPerDiemReportView() {
     </div>}
 
     {read && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>GSA per diem localities, fiscal year {read.fiscalYear} ({rows.length} shown)</caption>
-        <thead>
-          <tr>
-            {['Locality', 'County / location defined', 'M&IE per day', 'Lodging cap per night', 'Seasons'].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(l => (
-            <tr key={`${l.state}-${l.destination}-${l.county}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2">{gsaLocalityLabel(l)}</th>
-              <td className="py-1 px-2">{l.county}</td>
-              <td className="py-1 px-2 tabular-nums">{dollars(l.mieCents)}</td>
-              <td className="py-1 px-2 tabular-nums">
-                {[...new Set(l.seasons.map(s => s.lodgingCents).filter((c): c is number => c !== null))].map(c => dollars(c)).join(' / ') || '—'}
-              </td>
-              <td className="py-1 px-2">
-                {l.seasons.some(s => s.begin)
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>GSA per diem localities, fiscal year {read.fiscalYear} ({rows.length} shown)</>)}
+        rows={rows}
+        rowKey={l => `${l.state}-${l.destination}-${l.county}`}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        emptyRow={<tr><td colSpan={5} className="py-2 px-2">No locality matches — a place with no locality of its own takes the standard rate, it is not given a neighbour&apos;s.</td></tr>}
+        columns={[
+          { header: "Locality", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => gsaLocalityLabel(l) },
+          { header: "County / location defined", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.county },
+          { header: "M&IE per day", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => dollars(l.mieCents) },
+          { header: "Lodging cap per night", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => [...new Set(l.seasons.map(s => s.lodgingCents).filter((c): c is number => c !== null))].map(c => dollars(c)).join(' / ') || '—' },
+          { header: "Seasons", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.seasons.some(s => s.begin)
                   ? l.seasons.map(s => `${s.begin || '…'} to ${s.end || '…'}`).join('; ')
-                  : `All of FY${read.fiscalYear}`}
-              </td>
-            </tr>
-          ))}
-          {!rows.length && <tr><td colSpan={5} className="py-2 px-2">No locality matches — a place with no locality of its own takes the standard rate, it is not given a neighbour&apos;s.</td></tr>}
-        </tbody>
-      </table>
+                  : `All of FY${read.fiscalYear}` },
+        ]}
+      />
     </ReportTableScroll>}
 
     <p className="text-xs text-[var(--muted)]">

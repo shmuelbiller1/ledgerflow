@@ -9,6 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Bill } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
@@ -107,23 +108,25 @@ export function DuplicateBillsReviewPanel({ review, currency = 'USD', loading = 
 
     <p className="text-sm"><b>Pairs shown:</b> {visible.length} of {review.pairs.length}</p>
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">Bill pairs to check; no bill is changed by this report</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {['Vendor', 'First bill', 'Second bill', 'Amount', 'Days apart', 'Evidence'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {visible.map(pair => <tr key={pair.key} className="border-b border-[var(--line)]/50 align-top">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{pair.left.vendor}</bdi>
-              <div className="text-xs text-[var(--muted)]">{pair.strength === 'documented' ? 'Shared document evidence' : 'Date window only — review'}</div></th>
-            <td className="py-1 px-2"><bdi>{pair.left.number}</bdi><div className="text-xs text-[var(--muted)]">{pair.left.date} · {pair.left.status}</div></td>
-            <td className="py-1 px-2"><bdi>{pair.right.number}</bdi><div className="text-xs text-[var(--muted)]">{pair.right.date} · {pair.right.status}</div></td>
-            <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(pair.amountCents, currency)}</td>
-            <td className="py-1 px-2 tabular-nums">{pair.daysApart}</td>
-            <td className="py-1 px-2">{evidence(pair)}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50 align-top"
+        caption={(<>Bill pairs to check; no bill is changed by this report</>)}
+        rows={visible}
+        rowKey={pair => pair.key}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => (<><bdi>{pair.left.vendor}</bdi>
+              <div className="text-xs text-[var(--muted)]">{pair.strength === 'documented' ? 'Shared document evidence' : 'Date window only — review'}</div></>) },
+          { header: "First bill", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => (<><bdi>{pair.left.number}</bdi><div className="text-xs text-[var(--muted)]">{pair.left.date} · {pair.left.status}</div></>) },
+          { header: "Second bill", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => (<><bdi>{pair.right.number}</bdi><div className="text-xs text-[var(--muted)]">{pair.right.date} · {pair.right.status}</div></>) },
+          { header: "Amount", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (pair) => formatCurrency(pair.amountCents, currency) },
+          { header: "Days apart", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (pair) => pair.daysApart },
+          { header: "Evidence", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => evidence(pair) },
+        ]}
+      />
       {!loading && !visible.length && <p className="text-sm text-[var(--muted)]">No pair matches. That does not prove there is no duplicate — only that nothing matched this vendor, amount and three-day window.</p>}
     </ReportTableScroll>
   </section>;

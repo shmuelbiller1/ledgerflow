@@ -6,6 +6,7 @@ import { factSources } from '../../lib/rules/fromTaxProfiles';
 import { getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { downloadCsv } from '../../lib/csvExport';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Entity', 'Form', 'Frequency', 'Due', 'Source', 'Status', 'Because', 'Kind'] as const;
@@ -79,13 +80,25 @@ export default function EntityFilingsCalendarView() {
 
       {error && <p role="alert" className="text-sm text-amber-700">Could not compute the filings for {year}: <bdi>{error}</bdi>. This is a failure to calculate, <b>not</b> an all-clear — do not treat the table as empty because nothing is due.</p>}
       <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">Due filings — rule, form, frequency, due date, source, status and because</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{['Entity', 'Form', 'Frequency', 'Due', 'Source', 'Status', 'Because'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
-        <tbody>
-          {allRows.map(r => <tr key={`${r.entity}|${r.form}|${r.due || ''}|${r.frequency || ''}`} className="border-b border-[var(--line)]/50 align-top"><th scope="row" className="text-left font-normal py-1 px-2"><bdi>{r.entity}</bdi></th><td className="py-1 px-2"><bdi>{r.form}</bdi></td><td className="py-1 px-2">{r.frequency || '—'}</td><td className="py-1 px-2 whitespace-nowrap">{r.due || '—'}</td><td className="py-1 px-2"><a href={r.source} target="_blank" rel="noopener noreferrer" className="underline break-all">source</a></td><td className="py-1 px-2">{r.status}</td><td className="py-1 px-2 text-xs max-w-[36ch]">{r.because || '—'}</td></tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50 align-top"
+        caption={(<>Due filings — rule, form, frequency, due date, source, status and because</>)}
+        rows={allRows}
+        rowKey={r => `${r.entity}|${r.form}|${r.due || ''}|${r.frequency || ''}`}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Entity", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => <bdi>{r.entity}</bdi> },
+          { header: "Form", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => <bdi>{r.form}</bdi> },
+          { header: "Frequency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.frequency || '—' },
+          { header: "Due", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.due || '—' },
+          { header: "Source", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => <a href={r.source} target="_blank" rel="noopener noreferrer" className="underline break-all">source</a> },
+          { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.status },
+          { header: "Because", className: "py-1 px-2 text-xs max-w-[36ch]", headClassName: "text-left py-1 px-2", cell: (r) => r.because || '—' },
+        ]}
+      />
       {!allRows.length && !error && <p className="text-sm text-[var(--muted)]">No due filing for {year} with the current profiles. Add a place/registration or mark a fact verified in Settings → Facts to see due rows; blocked and undecided are listed below.</p>}
     </ReportTableScroll>
 

@@ -7,6 +7,7 @@ import { subscriptionPlans, subscriptionPlansCsvRows, SUBSCRIPTION_PLANS_CSV_HEA
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
@@ -82,42 +83,48 @@ export function SubscriptionPlansPanel({ from = '', to = '' }: { from?: string; 
     <MonthlyChart report={report} />
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Plans in the window {report.window.from || '—'} – {report.window.to || '—'}</caption>
-        <thead>
-          <tr>{['Customer', 'Plan', 'Frequency', 'Status', 'Amount', 'Per month', 'Per year', 'Next occurrence', 'Drafts generated'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map(row => <tr key={row.planId} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.customerName}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.description}</bdi></td>
-            <td className="py-1 px-2">{row.frequency}</td>
-            <td className="py-1 px-2">{row.status === 'completed' ? 'Stopped' : row.status}</td>
-            <td className="py-1 px-2">{formatCurrency(row.amountCents, row.currency)}</td>
-            <td className="py-1 px-2">{formatCurrency(row.monthlyCents, row.currency)}{row.approximate ? ' (approx.)' : ''}</td>
-            <td className="py-1 px-2">{formatCurrency(row.annualCents, row.currency)}</td>
-            <td className="py-1 px-2">{row.nextOccurrence?.slice(0, 10) || '—'}</td>
-            <td className="py-1 px-2">{row.generatedCount}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Plans in the window {report.window.from || '—'} – {report.window.to || '—'}</>)}
+        rows={rows}
+        rowKey={row => row.planId}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Customer", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.customerName}</bdi> },
+          { header: "Plan", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.description}</bdi> },
+          { header: "Frequency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.frequency },
+          { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.status === 'completed' ? 'Stopped' : row.status },
+          { header: "Amount", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, row.currency) },
+          { header: "Per month", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{formatCurrency(row.monthlyCents, row.currency)}{row.approximate ? ' (approx.)' : ''}</>) },
+          { header: "Per year", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.annualCents, row.currency) },
+          { header: "Next occurrence", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.nextOccurrence?.slice(0, 10) || '—' },
+          { header: "Drafts generated", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.generatedCount },
+        ]}
+      />
       {!loading && !rows.length && <p className="text-sm text-[var(--muted)]">No recurring invoice matches this status.</p>}
     </ReportTableScroll>
 
     {report.byCustomer.length > 0 && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Monthly value per customer (each currency on its own)</caption>
-        <thead><tr>{['Customer', 'Currency', 'Plans', 'Active', 'Per month'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr></thead>
-        <tbody>
-          {report.byCustomer.map(row => <tr key={`${row.customerId}:${row.currency}`} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.customerName}</bdi></th>
-            <td className="py-1 px-2">{row.currency}</td>
-            <td className="py-1 px-2">{row.plans}</td>
-            <td className="py-1 px-2">{row.activePlans}</td>
-            <td className="py-1 px-2">{formatCurrency(row.monthlyCents, row.currency)}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Monthly value per customer (each currency on its own)</>)}
+        rows={report.byCustomer}
+        rowKey={row => `${row.customerId}:${row.currency}`}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Customer", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.customerName}</bdi> },
+          { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency },
+          { header: "Plans", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.plans },
+          { header: "Active", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.activePlans },
+          { header: "Per month", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.monthlyCents, row.currency) },
+        ]}
+      />
       <p className="text-xs text-[var(--muted)]">A stopped plan&apos;s month is when it last ran: the rules record the last occurrence, not a cancellation date. Nothing here proves a plan is still wanted.</p>
     </ReportTableScroll>}
 

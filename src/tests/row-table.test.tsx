@@ -148,6 +148,38 @@ describe('RowTable', () => {
     assert.equal(footer.textContent, 'Total$2,100.00');
   });
 
+  test('an empty row keeps the table, so the sentence sits under the columns it is about', () => {
+    render(
+      <RowTable
+        caption="Waiting lines"
+        rows={[]}
+        columns={columns}
+        emptyRow={<tr><td colSpan={2}>Nothing is waiting.</td></tr>}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Waiting lines' });
+    assert.ok(table, 'the table stays: the sentence is under its head');
+    assert.equal(screen.getByText('Nothing is waiting.').getAttribute('colspan'), '2');
+    assert.equal(screen.getAllByRole('columnheader').length, 2);
+  });
+
+  test('the footer keeps the class the totals row had', () => {
+    render(
+      <RowTable
+        caption="Per vendor"
+        rows={rows}
+        rowKey={row => row.year}
+        columns={columns}
+        footer={<tr><th scope="row">Total</th><td className="text-right">$2,100.00</td></tr>}
+        footerClassName="sticky bottom-0 border-t-2 border-[var(--line)]"
+      />,
+    );
+    const footer = document.querySelector('tfoot');
+    assert.ok(footer, 'the totals row is a footer');
+    assert.match(footer.className, /sticky bottom-0/);
+    assert.match(footer.className, /border-t-2/);
+  });
+
   test('an empty table shows the caller\'s sentence instead of an empty grid', () => {
     render(<RowTable caption="Depreciation by year" rows={[]} columns={columns} empty={<p>No schedule</p>} />);
     assert.equal(screen.queryByRole('table'), null);

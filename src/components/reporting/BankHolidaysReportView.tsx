@@ -7,6 +7,7 @@ import {
   type BankCalendarId,
 } from '../../lib/bankHolidays';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const weekdayText = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -70,26 +71,23 @@ export default function BankHolidaysReportView() {
     {!moved && <p role="alert" className="text-sm">Choose a valid due date to check it.</p>}
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{meta.name}: bank holidays in {year}</caption>
-        <thead>
-          <tr>
-            {['Date', 'Day', 'Holiday', 'Banks', 'Note'].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => (
-            <tr key={`${row.date}-${row.name}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2 tabular-nums">{row.date}</th>
-              <td className="py-1 px-2">{new Date(`${row.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })}</td>
-              <td className="py-1 px-2">{row.name}{row.nameHe ? <> · <bdi lang="he">{row.nameHe}</bdi></> : null}</td>
-              <td className="py-1 px-2">{banksText(row.kind)}</td>
-              <td className="py-1 px-2">{row.note || '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>{meta.name}: bank holidays in {year}</>)}
+        rows={rows}
+        rowKey={row => `${row.date}-${row.name}`}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Date", className: "text-left font-normal py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.date },
+          { header: "Day", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => new Date(`${row.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }) },
+          { header: "Holiday", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.name}{row.nameHe ? <> · <bdi lang="he">{row.nameHe}</bdi></> : null}</>) },
+          { header: "Banks", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => banksText(row.kind) },
+          { header: "Note", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.note || '—' },
+        ]}
+      />
       {!rows.length && <p className="text-sm text-[var(--muted)]">No calendar is generated for {year}.</p>}
     </ReportTableScroll>
 

@@ -9,6 +9,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 /** N-12: the filter that made a report figure; the drill-down then explains it from the server. */
 export interface ExplainRequest {
@@ -59,42 +60,33 @@ function Explained({ request, formatCurrency, onOpen, onFail }: { request: Expla
         {request.label || (request.startDate ? `${formatDate(request.startDate)} – ${formatDate(request.endDate || '')}` : `As of ${request.endDate ? formatDate(request.endDate) : 'today'}`)} · posted entries only · {data.entries} entr{data.entries === 1 ? 'y' : 'ies'}, from the full history
       </p>
       {differs && <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">These lines add up to {formatCurrency(total)}, not the {formatCurrency(request.expectedCents!)} shown: the report on screen may be from a partial list. Refresh the report.</p>}
-      <table className="w-full text-sm">
-        <caption className="sr-only">Entries behind this amount</caption>
-        <thead>
-          <tr className="text-xs text-[var(--muted)] border-b border-[var(--line)]">
-            <th scope="col" className="text-left font-semibold py-1">Date</th>
-            <th scope="col" className="text-left font-semibold py-1">Entry</th>
-            <th scope="col" className="text-left font-semibold py-1">Bank</th>
-            <th scope="col" className="text-right font-semibold py-1">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.lines.map(l => (
-            <tr key={l.key} className="border-b border-[var(--line)]/50">
-              <td className="py-1 font-mono text-xs">{l.date ? formatDate(l.date) : ''}</td>
-              <td className="py-1">
-                {l.document ? (
+      <RowTable
+        rowHeaderColumn={false}
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Entries behind this amount</>)}
+        rows={data.lines}
+        rowKey={l => l.key}
+        tableClassName="w-full text-sm"
+        headRowClassName="text-xs text-[var(--muted)] border-b border-[var(--line)]"
+        bodyClassName=""
+        footer={<tr className="font-semibold">
+            <th scope="row" colSpan={3} className="text-left py-2">Total</th>
+            <td className="py-2 text-right font-mono">{formatCurrency(total)}</td>
+          </tr>}
+        columns={[
+          { header: "Date", className: "py-1 font-mono text-xs", headClassName: "text-left font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
+          { header: "Entry", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (l) => (<>{l.document ? (
                   <button type="button" className="text-left text-indigo-600 dark:text-indigo-400 hover:underline"
                     onClick={() => { onOpen(); openRecord({ type: l.document!.type, id: l.document!.id }); }}>
                     <bdi>{l.description || l.payee || 'Entry'}</bdi>
                     <span className="sr-only"> (open the {l.document.type === 'transaction' ? 'entry' : l.document.type})</span>
                   </button>
                 ) : <span><bdi>{l.description}</bdi></span>}
-                <span className="block text-[10px] text-[var(--muted)]"><bdi>{l.accountName}</bdi>{l.attachments > 0 ? ` · ${l.attachments} file${l.attachments === 1 ? '' : 's'}` : ''}</span>
-              </td>
-              <td className="py-1 text-xs">{l.bankMatched ? 'Matched' : ''}</td>
-              <td className="py-1 text-right font-mono">{formatCurrency(sign * l.amountCents)}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="font-semibold">
-            <th scope="row" colSpan={3} className="text-left py-2">Total</th>
-            <td className="py-2 text-right font-mono">{formatCurrency(total)}</td>
-          </tr>
-        </tfoot>
-      </table>
+                <span className="block text-[10px] text-[var(--muted)]"><bdi>{l.accountName}</bdi>{l.attachments > 0 ? ` · ${l.attachments} file${l.attachments === 1 ? '' : 's'}` : ''}</span></>) },
+          { header: "Bank", className: "py-1 text-xs", headClassName: "text-left font-semibold py-1", cell: (l) => l.bankMatched ? 'Matched' : '' },
+          { header: "Amount", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => formatCurrency(sign * l.amountCents) },
+        ]}
+      />
     </div>
   );
 }

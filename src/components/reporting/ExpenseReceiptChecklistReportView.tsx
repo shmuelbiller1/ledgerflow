@@ -9,6 +9,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 /** A-133: expense claims are bills; linked file metadata is loaded without selecting file contents. */
 export default function ExpenseReceiptChecklistReportView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
@@ -129,23 +130,25 @@ export function ExpenseReceiptChecklistPanel({
     </div>
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Expense claims{from || to ? ` from ${from || 'any date'} to ${to || 'any date'}` : ' in the loaded history'}; receipt evidence is not verified</caption>
-        <thead><tr>
-          {['Employee', 'Submitted by', 'Date', 'Claim', 'Claim state', 'Amount', 'Receipt record'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {report.rows.map(row => <tr key={row.billId} className="border-b border-[var(--line)]/50 align-top">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.employeeName}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.submittedBy || '—'}</bdi></td>
-            <td className="py-1 px-2">{row.date || '—'}</td>
-            <td className="py-1 px-2"><bdi>{row.billNumber}</bdi></td>
-            <td className="py-1 px-2">{row.state}</td>
-            <td className="py-1 px-2 text-right tabular-nums">{formatCurrency(row.amountCents, row.currency)}</td>
-            <td className="py-1 px-2">{evidenceLabel(row)}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50 align-top"
+        caption={(<>Expense claims{from || to ? ` from ${from || 'any date'} to ${to || 'any date'}` : ' in the loaded history'}; receipt evidence is not verified</>)}
+        rows={report.rows}
+        rowKey={row => row.billId}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Employee", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.employeeName}</bdi> },
+          { header: "Submitted by", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.submittedBy || '—'}</bdi> },
+          { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.date || '—' },
+          { header: "Claim", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.billNumber}</bdi> },
+          { header: "Claim state", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.state },
+          { header: "Amount", className: "py-1 px-2 text-right tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, row.currency) },
+          { header: "Receipt record", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => evidenceLabel(row) },
+        ]}
+      />
       {!loading && report.rows.length === 0 && <p className="text-sm text-[var(--muted)]">No expense claim is recorded in this period. Ordinary bills are not included.</p>}
     </ReportTableScroll>
   </section>;
