@@ -49,3 +49,24 @@ test('EU-A4b Odoo contacts and products: address joined, stock never staged', ()
   assert.equal(items.result.records[0].data.unitPriceCents, 7000);
   assert.ok(!items.result.records[0].data.quantityAtHand, 'quantity on hand is never imported');
 });
+
+test('EU-A4b Odoo import-compatible exports (technical field names) read the same as labelled ones', () => {
+  const items = prepared('items', [
+    ['id', 'name', 'default_code', 'list_price', 'standard_price', 'uom_id', 'categ_id', 'qty_available'],
+    ['product.product_1', 'Office Chair', 'FURN_7777', '70.00', '55.00', 'Units', 'All / Furniture', '12'],
+  ]).result.records[0].data;
+  assert.equal(items.sku, 'FURN_7777');
+  assert.equal(items.unitPriceCents, 7000);
+  assert.equal(items.unitCostCents, 5500);
+  assert.ok(!items.quantityAtHand);
+  const contact = prepared('vendors', [
+    ['name', 'email', 'street', 'city', 'state_id', 'country_id', 'vat', 'active'],
+    ['Wood Corner', 'wood@example.com', '1839 Arbor Way', 'Turlock', 'California (US)', 'United States', 'US98765', 'False'],
+  ]).result.records[0].data;
+  assert.equal(contact.taxId, 'US98765');
+  assert.match(String(contact.address), /Turlock.*California.*United States/);
+  assert.equal(contact.status, 'inactive');
+  const account = prepared('accounts', [['code', 'name', 'account_type', 'currency_id'], ['101402', 'EUR bank', 'asset_cash', 'EUR']]).result.records[0].data;
+  assert.equal(account.category, 'Cash');
+  assert.equal(account.currency, 'EUR');
+});

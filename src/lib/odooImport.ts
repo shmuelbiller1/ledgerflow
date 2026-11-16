@@ -62,15 +62,15 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
 
   if (kind === 'accounts') {
     return [ACCOUNTS_HEADER, ...rows.map(row => {
-      const code = columnText(header, row, 'Code');
+      const code = columnText(header, row, 'Code', 'code');
       const typeRaw = columnText(header, row, 'Type', 'account_type');
-      const deprecated = columnText(header, row, 'Deprecated');
+      const deprecated = columnText(header, row, 'Deprecated', 'deprecated');
       return [
-        columnText(header, row, 'Account Name', 'Name') || code,
+        columnText(header, row, 'Account Name', 'Name', 'name') || code,
         code,
         typeRaw ? (ODOO_ACCOUNT_TYPES[typeRaw.toLowerCase()] ?? '') : '',
         '', '', '',
-        columnText(header, row, 'Account Currency', 'Currency'),
+        columnText(header, row, 'Account Currency', 'Currency', 'currency_id'),
         yes(deprecated) ? 'inactive' : no(deprecated) ? 'active' : '',
       ];
     })];
@@ -78,34 +78,34 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
 
   if (kind === 'customers' || kind === 'vendors') {
     return [CONTACTS_HEADER, ...rows.map(row => {
-      const active = columnText(header, row, 'Active');
+      const active = columnText(header, row, 'Active', 'active');
       return [
-        columnText(header, row, 'Name', 'Display Name', 'Company Name'),
-        columnText(header, row, 'Email'),
-        columnText(header, row, 'Phone', 'Mobile'),
+        columnText(header, row, 'Name', 'Display Name', 'Company Name', 'name', 'display_name'),
+        columnText(header, row, 'Email', 'email'),
+        columnText(header, row, 'Phone', 'Mobile', 'phone', 'mobile'),
         joinedAddress(
-          columnText(header, row, 'Street'), columnText(header, row, 'Street2'), columnText(header, row, 'City'),
-          columnText(header, row, 'State'), columnText(header, row, 'Zip'), columnText(header, row, 'Country'),
+          columnText(header, row, 'Street', 'street'), columnText(header, row, 'Street2', 'street2'), columnText(header, row, 'City', 'city'),
+          columnText(header, row, 'State', 'state_id'), columnText(header, row, 'Zip', 'zip'), columnText(header, row, 'Country', 'country_id'),
         ),
-        columnText(header, row, 'Website'),
-        columnText(header, row, 'Tax ID'),
+        columnText(header, row, 'Website', 'website'),
+        columnText(header, row, 'Tax ID', 'vat'),
         no(active) ? 'inactive' : yes(active) ? 'active' : '',
       ];
     })];
   }
 
   return [ITEMS_HEADER, ...rows.map(row => {
-    const ref = columnText(header, row, 'Internal Reference');
+    const ref = columnText(header, row, 'Internal Reference', 'default_code');
     return [
-      columnText(header, row, 'Name') || ref,
-      ref || columnText(header, row, 'Barcode'),
-      columnText(header, row, 'Sales Description', 'Description for Customers'),
-      columnText(header, row, 'Sales Price'),
-      columnText(header, row, 'Cost'),
+      columnText(header, row, 'Name', 'name') || ref,
+      ref || columnText(header, row, 'Barcode', 'barcode'),
+      columnText(header, row, 'Sales Description', 'Description for Customers', 'description_sale'),
+      columnText(header, row, 'Sales Price', 'list_price'),
+      columnText(header, row, 'Cost', 'standard_price'),
       '', // never stage opening stock from a catalogue export
       '',
-      columnText(header, row, 'Unit of Measure'),
-      columnText(header, row, 'Product Category'),
+      columnText(header, row, 'Unit of Measure', 'uom_id'),
+      columnText(header, row, 'Product Category', 'categ_id'),
     ];
   })];
 }
