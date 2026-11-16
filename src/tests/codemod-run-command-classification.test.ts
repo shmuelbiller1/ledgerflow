@@ -47,5 +47,5 @@ test('a call that sends no session is flagged to pass token: null', () => {
     const res = await fetch('/api/v1/public/status', { headers: { 'Content-Type': 'application/json' } });`);
   // not a blocker — convertible — but `runCommand` would attach a session unless told not to
   assert.deepEqual(found.blockers, []);
-  assert.match(found.reasons.join(' '), /token: null/);
+  assert.match((found.reasons ?? []).join(" "), /token: null/);
 });

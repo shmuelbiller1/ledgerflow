@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import supabaseConfig from '../../../supabase-config.json';
+import { SUPABASE_PROJECT as supabaseConfig } from '../../config/supabaseProject';
 
 /**
  * One source for the Content-Security-Policy (AUD-12). connect-src follows the configured Supabase
