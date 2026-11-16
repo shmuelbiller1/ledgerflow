@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { FileCheck2, Printer } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { formatCurrency } from '../../lib/utils';
 import type { ClosingLine, PeriodClosing } from '../../server/services/periodClosingService';
 import { printElementById } from '../../lib/printRoot';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * EG-3 (docs/design/EG-3-period-closing.md): the period-closing documents the server wrote when each year was closed,
@@ -23,11 +23,10 @@ export default function PeriodClosingPanel({ workspaceId, currency, onOpenMonth 
     let alive = true;
     void (async () => {
       try {
-        const token = await getIdToken().catch(() => null);
-        const res = await fetch(`/api/v1/transactions/period-closings?workspaceId=${encodeURIComponent(workspaceId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        const data = await res.json().catch(() => ({}));
+        const data = await runCommand<{ closings?: Closing[] }>({
+          path: `/api/v1/transactions/period-closings?workspaceId=${encodeURIComponent(workspaceId)}`,
+        }) ?? {};
         if (!alive) return;
-        if (!res.ok) throw new Error(data.error || data.message || 'The closing documents could not be read');
         setClosings(Array.isArray(data.closings) ? data.closings : []);
         setError('');
       } catch (err) {
