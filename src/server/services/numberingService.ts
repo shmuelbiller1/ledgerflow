@@ -1,7 +1,6 @@
 import type { DocumentData, Firestore, Transaction } from '../db/firestore';
 import { formatTzDate } from '../../lib/calendarDate';
 import { workspaceRole } from '../../lib/periodLock';
-import { writeServerAuditLog } from './auditLogService';
 
 /**
  * Document numbers (BA-07): one series per type (prefix, next number, digits), allocated in a
@@ -22,7 +21,7 @@ const PREFIX: Record<NumberedType, string> = { invoice: 'INV', bill: 'BIL', esti
 export interface Series { prefix: string; nextNumber: number; padding: number }
 
 export class NumberingError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message);
     this.name = 'NumberingError';
   }
@@ -77,7 +76,7 @@ export function highestUsed(numbers: unknown[], prefix: string): number {
   return max;
 }
 
-async function usedNumbers(db: Firestore, workspaceId: string, type: NumberedType): Promise<unknown[]> {
+export async function usedDocumentNumbers(db: Firestore, workspaceId: string, type: NumberedType): Promise<unknown[]> {
   const snap = await db.collection(COLLECTION[type]).where('workspaceId', '==', workspaceId).get();
   return snap.docs.map(d => d.data().number);
 }
@@ -89,32 +88,60 @@ export async function readNumbering(db: Firestore, workspaceId: string, today: s
   return Promise.all(NUMBERED_TYPES.map(async type => {
     const stored = (await db.collection('numberingSeries').doc(`${workspaceId}_${type}`).get()).data();
     const series = resolveSeries(type, stored, workspace, today);
-    return { type, ...series, next: formatDocumentNumber(series), highestUsed: highestUsed(await usedNumbers(db, workspaceId, type), series.prefix) };
+    return { type, ...series, next: formatDocumentNumber(series), highestUsed: highestUsed(await usedDocumentNumbers(db, workspaceId, type), series.prefix) };
   }));
 }
 
 export interface NumberingUpdate extends Series { workspaceId: string; uid: string; email?: string; type: NumberedType }
+export interface NumberingUpdateResult {
+  before: Series;
+  previousHighestUsed: number;
+  series: NumberingView;
+}
 
-export async function updateNumbering(db: Firestore, input: NumberingUpdate, today: string = formatTzDate(new Date())): Promise<NumberingView> {
+/** Apply a series change inside the command runner's transaction, without writing a second audit entry. */
+export async function updateNumberingInTransaction(
+  db: Firestore,
+  tx: Transaction,
+  input: NumberingUpdate,
+  today: string = formatTzDate(new Date()),
+): Promise<NumberingUpdateResult> {
   const ref = db.collection('numberingSeries').doc(`${input.workspaceId}_${input.type}`);
-  return db.runTransaction(async tx => {
-    const workspace = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
-    if (!workspace) throw new NumberingError(404, 'Workspace not found');
-    if (!['owner', 'accountant'].includes(workspaceRole(workspace, input.uid))) throw new NumberingError(403, 'Only owners and accountants change document numbers');
-    const snap = await tx.get(db.collection(COLLECTION[input.type]).where('workspaceId', '==', input.workspaceId));
-    const used = highestUsed(snap.docs.map(d => d.data().number), input.prefix);
-    const series: Series = { prefix: input.prefix, nextNumber: input.nextNumber, padding: input.padding };
-    if (input.nextNumber <= used) {
-      throw new NumberingError(400, `${formatDocumentNumber(series, used)} is already used: start at ${used + 1} or higher`);
-    }
-    const before = resolveSeries(input.type, (await tx.get(ref)).data(), workspace, today);
-    const now = new Date().toISOString();
-    tx.set(ref, { workspaceId: input.workspaceId, type: input.type, ...series, updatedAt: now }, { merge: true });
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'NUMBERING_CHANGED', entityType: 'numberingSeries', entityId: input.type,
-      details: { description: `${input.type} numbers: next ${formatDocumentNumber(before)} → ${formatDocumentNumber(series)}`, before, after: series },
-      severity: 'info',
-    }, { db, tx });
-    return { type: input.type, ...series, next: formatDocumentNumber(series), highestUsed: used };
-  });
+  const workspace = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!workspace) throw new NumberingError(404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
+  if (!['owner', 'accountant'].includes(workspaceRole(workspace, input.uid))) {
+    throw new NumberingError(403, 'Only owners and accountants change document numbers', 'ROLE_REQUIRED');
+  }
+
+  const snap = await tx.get(db.collection(COLLECTION[input.type]).where('workspaceId', '==', input.workspaceId));
+  const usedNumbers = snap.docs.map(doc => doc.data().number);
+  const highestForNewPrefix = highestUsed(usedNumbers, input.prefix);
+  const series: Series = { prefix: input.prefix, nextNumber: input.nextNumber, padding: input.padding };
+  if (input.nextNumber <= highestForNewPrefix) {
+    throw new NumberingError(
+      400,
+      `${formatDocumentNumber(series, highestForNewPrefix)} is already used: start at ${highestForNewPrefix + 1} or higher`,
+      'NUMBER_ALREADY_USED',
+    );
+  }
+
+  const before = resolveSeries(input.type, (await tx.get(ref)).data(), workspace, today);
+  const now = new Date().toISOString();
+  tx.set(ref, { workspaceId: input.workspaceId, type: input.type, ...series, updatedAt: now }, { merge: true });
+  return {
+    before,
+    previousHighestUsed: highestUsed(usedNumbers, before.prefix),
+    series: { type: input.type, ...series, next: formatDocumentNumber(series), highestUsed: highestForNewPrefix },
+  };
+}
+
+export function numberingAuditSummary(input: Pick<NumberingUpdate, 'type' | 'prefix' | 'nextNumber' | 'padding'>, result: NumberingUpdateResult) {
+  const after: Series = { prefix: input.prefix, nextNumber: input.nextNumber, padding: input.padding };
+  return {
+    action: 'NUMBERING_CHANGED',
+    entityType: 'numberingSeries',
+    entityId: input.type,
+    description: `${input.type} numbers: next ${formatDocumentNumber(result.before)} → ${formatDocumentNumber(after)}`,
+    details: { before: result.before, after },
+  };
 }

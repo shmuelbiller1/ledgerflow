@@ -1,6 +1,6 @@
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { MessageSquareText } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -51,10 +51,16 @@ export default function AskBooksView() {
     if (!key) return;
     let on = true;
     (async () => {
-      const res = await fetch(`/api/v1/reports/explain?${key}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.lines)) throw new Error(body.message || body.error || 'The answer could not be calculated');
-      return body as Explanation;
+      // the answer is only usable when it carries its lines; that check stays as `parse`, so a
+      // server answering something else keeps failing here rather than at the render
+      return runCommand({
+        path: `/api/v1/reports/explain?${key}`,
+        parse: (raw): Explanation => {
+          const body = raw as Explanation;
+          if (!Array.isArray(body.lines)) throw new ServerCommandError(200, 'The answer could not be calculated');
+          return body;
+        },
+      });
     })().then(data => { if (on) setResult({ key, data }); }).catch(err => { if (on) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { on = false; };
   }, [key]);

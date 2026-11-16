@@ -18,6 +18,7 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { runCommand } from '../../lib/runCommand';
 
 
 
@@ -62,7 +63,8 @@ const ForensicAudit = React.memo(() => {
   // 2. Z-SCORE ANOMALY DETECTION
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const isGuest = useAuthStore(s => s.isGuest);
-  const [anomalies, setAnomalies] = useState<(import("../../types").Transaction & { zScore: number })[]>([]);
+  type Anomaly = import("../../types").Transaction & { zScore: number };
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [, setIsScanning] = useState(false);
 
   useEffect(() => {
@@ -70,13 +72,11 @@ const ForensicAudit = React.memo(() => {
       if (isGuest || transactions.length < 5 || !currentWorkspaceId) return;
       setIsScanning(true);
       try {
-        const res = await fetch('/api/v1/forensics/anomaly-scan', {
+        const data = await runCommand<{ anomalies?: Anomaly[] }>({
+          path: '/api/v1/forensics/anomaly-scan',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId })
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+          body: { workspaceId: currentWorkspaceId },
+        }) ?? {};
         if (data.anomalies) {
           setAnomalies(data.anomalies);
         }

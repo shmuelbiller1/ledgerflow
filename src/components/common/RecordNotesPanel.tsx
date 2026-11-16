@@ -112,13 +112,17 @@ export default function RecordNotesPanel({ entityType, entityId, entityName, met
   const save = async (next: RecordNote[], message: string): Promise<boolean> => {
     setBusy(true);
     try {
-      await updateEntity(collection, entityId, {
-        metadata: {
-          ...(metadata || {}),
-          ...(savedThread ? { [COMMENT_THREAD_METADATA_KEY]: savedThread } : {}),
-          [RECORD_NOTES_METADATA_KEY]: next,
-        },
-      }, message);
+      // Customer/vendor profile commands accept metadata patches and preserve server-managed keys.
+      // Other collections retain their existing full-metadata update contract.
+      const metadataPatch = collection === 'customers' || collection === 'vendors'
+        ? { [RECORD_NOTES_METADATA_KEY]: next }
+        : {
+            ...(metadata || {}),
+            ...(savedThread ? { [COMMENT_THREAD_METADATA_KEY]: savedThread } : {}),
+            [RECORD_NOTES_METADATA_KEY]: next,
+          };
+      const savedNoteUpdate = await updateEntity(collection, entityId, { metadata: metadataPatch }, message);
+      if (!savedNoteUpdate) return false;
       setSaved(next);
       return true;
     } catch {
@@ -132,13 +136,15 @@ export default function RecordNotesPanel({ entityType, entityId, entityName, met
   const saveThread = async (nextThread: ThreadComment[], message: string): Promise<boolean> => {
     setBusy(true);
     try {
-      await updateEntity(collection, entityId, {
-        metadata: {
-          ...(metadata || {}),
-          ...(saved ? { [RECORD_NOTES_METADATA_KEY]: saved } : {}),
-          [COMMENT_THREAD_METADATA_KEY]: nextThread,
-        },
-      }, message);
+      const metadataPatch = collection === 'customers' || collection === 'vendors'
+        ? { [COMMENT_THREAD_METADATA_KEY]: nextThread }
+        : {
+            ...(metadata || {}),
+            ...(saved ? { [RECORD_NOTES_METADATA_KEY]: saved } : {}),
+            [COMMENT_THREAD_METADATA_KEY]: nextThread,
+          };
+      const savedThreadUpdate = await updateEntity(collection, entityId, { metadata: metadataPatch }, message);
+      if (!savedThreadUpdate) return false;
       setSavedThread(nextThread);
       return true;
     } catch {

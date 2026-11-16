@@ -5,7 +5,28 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-10-07.
+Last updated: 2026-11-15.
+
+## The ledger screen cannot become a plain list (default taken: keep it as it is)
+
+The task says to move the seven most-used screens onto the shared list, Transactions first. I moved
+every report I could and stopped at Transactions on purpose, because **it is not a list**:
+
+`TransactionGridBody.tsx` is a 544-line grid with **12 editable cells per row** — you type the account,
+the amount and the memo straight into the row, with a split editor, per-cell validation and a paste
+handler. The shared list is a read-only table with a search box. Moving the ledger onto it would delete
+the ability to edit an entry in place and split it, which is a feature, not a way of building a screen.
+
+**Default I took:** Transactions keeps its own grid, and the ratchet names it with that reason.
+The reports and the plain lists (customers, vendors, items, invoices, bills, journal entries) move.
+If you would rather the ledger lose in-place editing and become a uniform list, say so and I will do
+it — but I would be removing something that works, so I did not assume it.
+
+Two more sites are named rather than moved: `StockClosingPanel` (a four-column block printed inside a
+larger statement, not a list of records) and `JournalSheetReportView` (the lines of one journal entry,
+drawn inside that entry's card).
+
+
 
 *Done and superseded items were moved to [docs/archive/FOR_YOU_DONE.md](archive/FOR_YOU_DONE.md) on 10 Nov 2026 (AI #13 cleanup). Item numbers below keep their original values.*
 
@@ -584,7 +605,7 @@ the check can be tightened at the true count. Say "raise the ledger-door baselin
 - ~~**Apply migration `supabase/migrations/20261112000000_report_schedule_send_day.sql`** (merged in #665).~~ **Done 12 Nov** — applied by the owner, together with `20261111120000_ledger_server_only_and_balance_check.sql`; a check query confirmed all of 20261110000000…20261112000000 are live. Until it is applied, a scheduled report set to send on any day other than Monday / the 1st cannot be saved (the database refuses the new `sendDay` field); schedules on the default day work as before.
 - **EU-I2 "Sent with …" on the customer portal** (in draft #675): built as on for everyone, with a Branding setting to turn it off. Whether turning it off should need a paid plan is your decision; default used: anyone can turn it off.
 
-## 14 Nov — the last part of #646: what a browser may still write (AI #1)
+## 14 Nov — the last part of #646: what a browser may still write (AI #1) — **DONE 16 Nov**: covered by the #719 migration you ran on 15 Nov; #646 and #650 closed.
 
 The server now refuses to apply or refund a credit with no entry in the books (#712), and the database rules
 already stop a browser from marking documents paid or changing paid amounts. What a signed-in browser can still
@@ -619,3 +640,19 @@ way, and keyboard movement between rows. All three are in this pull request; thr
   settings tab that only renders one of its three buttons at a time). Fixing them means reading each
   one, not deleting buttons. *Default used:* the counter records 19 and may only go down; the list is in
   `docs/UI_REBUILD_RATCHETS.md`.
+
+## ~~15 Nov — migration from PR #719 (commands, Batch 0): wait for the deploy~~ **Done 15 Nov** — applied by the owner after #719 was live
+
+`supabase/migrations/20261115000000_document_commands_server_only.sql` stops the browser writing
+invoices, bills, credit notes, vendor credits, and automation rules directly; it also protects warranty
+history from browser changes. Those writes go through the server commands instead. **Run it only after
+#719 is merged and Vercel has finished deploying `main`** (check that saving an invoice works on the
+live site first). Run before that, and saving documents breaks. Estimates are not covered by this
+migration and remain in the CMD-1 write inventory. The current plan is [`docs/prompts/CMD-1-checklist.md`](prompts/CMD-1-checklist.md).
+
+## 15 Nov — outside security scans (your OK given: "so add it")
+
+Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a ZAP scan runs nightly,
+both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
+To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
+

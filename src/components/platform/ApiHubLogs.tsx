@@ -1,13 +1,68 @@
 
 
-import { RefreshCw, Activity, FileText } from 'lucide-react';
+import { RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 
 
 import type { useApiHubModel } from './useApiHubModel';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { EmptyState } from '../ui/EmptyState';
+import type { ColumnDef } from '@tanstack/react-table';
+
+/** One row of the API request log, as the model keeps it. */
+type ApiLog = ReturnType<typeof useApiHubModel>['apiLogs'][number];
 export function ApiHubLogs({ model }: { model: ReturnType<typeof useApiHubModel> }) {
  const { apiLogs, fetchLogs } = model;
+
+  /**
+   * One row per request. The path names the row; the credit cost and the credential label are worked
+   * out from the method and key, exactly as the old table showed them. The timestamp sorts on the
+   * stored value, not on the printed clock time.
+   */
+  const columns: ColumnDef<ApiLog, unknown>[] = [
+    { id: 'timestamp', accessorFn: row => row.timestamp ?? '', header: 'Timestamp', cell: info => (
+      <span className="whitespace-nowrap font-mono text-[11px]">{info.getValue() ? new Date(String(info.getValue())).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
+    ) },
+    { id: 'specs', accessorFn: row => `${row.method || 'GET'} ${row.path || '/api/v1/status'}`, header: 'Request Specs', cell: info => {
+      const row = info.row.original as ApiLog;
+      return (
+        <span className="flex items-center gap-2.5">
+          <span className={cn(
+            'px-2 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider font-mono text-white',
+            row.method === 'POST' ? 'bg-emerald-500'
+              : row.method === 'PUT' ? 'bg-amber-500'
+                : row.method === 'DELETE' ? 'bg-rose-500' : 'bg-blue-500',
+          )}>{row.method || 'GET'}</span>
+          <span className="font-mono text-xs font-bold max-w-[200px] truncate">{row.path || '/api/v1/status'}</span>
+        </span>
+      );
+    } },
+    { id: 'cost', accessorFn: row => (row.method === 'POST' && (row.path || '').includes('brain') ? 10 : row.method === 'POST' ? 3 : 1), header: 'Key Credit Cost', cell: info => (
+      <span className="whitespace-nowrap text-xs font-mono font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-100">{String(info.getValue())} cr</span>
+    ) },
+    { id: 'credentials', accessorFn: row => row.apiKeyUsed || '', header: 'API Origin Credentials', cell: info => {
+      const used = String(info.getValue());
+      return <span className="text-[11px] font-mono bg-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)]">{used === 'Active Admin Session' ? 'Admin session' : `Key: lf_id_${used.slice(-6)}`}</span>;
+    } },
+    { id: 'status', accessorFn: row => row.statusCode, header: 'Status', cell: info => {
+      const code = Number(info.getValue());
+      const ok = code >= 200 && code < 300;
+      return <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide font-mono uppercase text-white', ok ? 'bg-emerald-500' : 'bg-rose-500')}>{code} {ok ? 'Success' : 'Error'}</span>;
+    } },
+    { id: 'details', header: 'Details', cell: info => (
+      <button
+        type="button"
+        onClick={() => toast.info('API Frame Inspected', {
+          description: <div className="font-mono text-[9px] text-left overflow-x-auto max-h-[140px] bg-slate-900 text-slate-200 p-2 rounded mt-2">{JSON.stringify(info.row.original, null, 2)}</div>,
+          duration: 6000,
+        })}
+        className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer"
+      >
+        Inspect Raw
+      </button>
+    ) },
+  ];
  return (<div className="ledger-card p-6 space-y-6 animate-in fade-in duration-300 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
             <div className="flex items-center gap-3">
@@ -31,88 +86,19 @@ export function ApiHubLogs({ model }: { model: ReturnType<typeof useApiHubModel>
           </div>
 
           {/* Table display */}
-          {apiLogs.length === 0 ? (
-            <div className="py-12 text-center border border-slate-150 bg-[var(--ink)]/50 rounded-[32px]">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <Activity aria-hidden="true" size={20} className="text-[var(--muted)]" />
-              </div>
-              <p className="text-xs text-[var(--muted)] font-medium italic">No integration API requests have been processed in this workspace yet.</p>
-              <p className="text-[10px] text-[var(--muted)] mt-1">Make API queries via the <strong>Playground Sandbox</strong> or integrations to populate this monitor.</p>
-            </div>
-          ) : (
-            <div className="border border-slate-150 rounded-[32px] shadow-3xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <caption className="sr-only">API request log</caption>
-                  <thead className="bg-[#FAFBFB] border-b border-slate-150 text-[10px] text-[var(--muted)] uppercase tracking-wider font-extrabold">
-                    <tr>
-                      <th scope="col" className="p-4">Timestamp</th>
-                      <th scope="col" className="p-4">Request Specs</th>
-                      <th scope="col" className="p-4">Key Credit Cost</th>
-                      <th scope="col" className="p-4">API Origin Credentials</th>
-                      <th scope="col" className="p-4">Status</th>
-                      <th scope="col" className="p-4 text-right">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-[var(--surface)]">
-                    {apiLogs.map((log) => {
-                      const isSuccess = log.statusCode >= 200 && log.statusCode < 300;
-                      return (
-                        <tr key={log.id} className="hover:bg-[var(--ink)]/50 transition-colors">
-                          <td className="p-4 whitespace-nowrap text-xs font-mono font-bold text-slate-450 text-[11px]">
-                            {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2.5">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider font-mono text-white",
-                                log.method === 'POST' ? "bg-emerald-500" :
-                                log.method === 'PUT' ? "bg-amber-500" :
-                                log.method === 'DELETE' ? "bg-rose-500" : "bg-blue-500"
-                              )}>
-                                {log.method || 'GET'}
-                              </span>
-                              <span className="font-mono text-xs text-[var(--text)] font-bold max-w-[200px] truncate">{log.path || '/api/v1/status'}</span>
-                            </div>
-                          </td>
-                          <td className="p-4 whitespace-nowrap">
-                            <span className="text-xs font-mono font-bold text-slate-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
-                              {log.method === 'POST' && log.path.includes('brain') ? '10 cr' : log.method === 'POST' ? '3 cr' : '1 cr'}
-                            </span>
-                          </td>
-                          <td className="p-4 whitespace-nowrap">
-                            <span className="text-[11px] font-mono bg-[var(--ink)] text-slate-600 px-2 py-0.5 rounded border border-[var(--line)]">
-                              {log.apiKeyUsed === 'Active Admin Session' ? '🖥️ Admin Session' : `🔑 Key: lf_id_${String(log.apiKeyUsed).slice(-6)}`}
-                            </span>
-                          </td>
-                          <td className="p-4 whitespace-nowrap">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide font-mono uppercase text-white",
-                              isSuccess ? "bg-emerald-500" : "bg-rose-500"
-                            )}>
-                              {log.statusCode} {isSuccess ? 'Success' : 'Error'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-right">
-                            <button
-                              onClick={() => {
-                                toast.info("API Frame Inspected", {
-                                  description: <div className="font-mono text-[9px] text-left overflow-x-auto max-h-[140px] bg-slate-900 text-slate-200 p-2 rounded mt-2">{JSON.stringify(log, null, 2)}</div>,
-                                  duration: 6000
-                                });
-                              }}
-                              className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer"
-                            >
-                              Inspect Raw
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          <TanStackDataGrid
+            caption="API request log"
+            data={apiLogs}
+            columns={columns}
+            pageSize={25}
+            pageSizeOptions={[10, 25, 50, 100]}
+            searchPlaceholder="Search paths, methods and statuses..."
+            searchLabel="Search the API request log"
+            columnScope="api-hub-logs"
+            columnLabel="API request log columns"
+            columnNames={['Timestamp', 'Request Specs', 'Key Credit Cost', 'API Origin Credentials', 'Status', 'Details']}
+            emptyState={<EmptyState title="No integration API requests yet" description="Call the API from the Playground Sandbox to fill this log." />}
+            filteredEmptyState={<EmptyState title="No request matches your search" description="Try a path, a method or a status code." />}
+          />
         </div>);
 }

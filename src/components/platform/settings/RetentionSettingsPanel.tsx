@@ -1,3 +1,4 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -12,6 +13,9 @@ import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUp
  * it (PUT /api/v1/workspaces/:id/retention); everyone else sees it. The books and the audit
  * trail are always kept while the workspace exists.
  */
+/** The retention shape the workspace holds; the route answers the saved copy back. */
+type PermissionRetention = ReturnType<typeof retentionFor>;
+
 export default function RetentionSettingsPanel() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const user = useAuthStore(s => s.user);
@@ -33,13 +37,11 @@ export default function RetentionSettingsPanel() {
       : 'Lift the legal hold? Logs past their time will be pruned at the next daily run.')) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/retention`, {
+      const body = await runCommand<{ details?: string; message?: string; retention?: PermissionRetention }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/retention`,
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
-        body: JSON.stringify(form),
+        body: form,
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.details || body.message || body.error || 'Retention settings were not saved');
       const store = useAuthStore.getState();
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, retention: body.retention } : w));
       clearDirtyTracking(panelRef.current);

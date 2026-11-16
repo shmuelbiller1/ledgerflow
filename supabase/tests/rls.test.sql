@@ -69,22 +69,49 @@ select pg_temp.expect_denied('create a workspace owned by someone else', 'u-out'
 select pg_temp.expect_denied('create a workspace on a paid plan', 'u-out',
   $$insert into workspaces(id,data) values ('ws-y', '{"uid":"u-out","name":"Y","plan":"enterprise"}')$$);
 
--- documents: members read, writers write, outsiders see nothing
-select pg_temp.expect_ok('bookkeeper adds invoice', 'u-book',
-  $$insert into invoices(id,data) values ('inv1', '{"workspaceId":"ws1","status":"sent","date":"2026-03-01","amountCents":1000}')$$);
-select pg_temp.expect_denied('viewer adds invoice', 'u-view',
-  $$insert into invoices(id,data) values ('inv2', '{"workspaceId":"ws1","status":"draft","date":"2026-03-01"}')$$);
-select pg_temp.expect_count('viewer reads invoices', 'u-view', 'select count(*) from invoices', 1);
+-- Documents are server-posted: members read, but every browser write uses the command API.
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into invoices(id,data) values
+    ('inv1', '{"workspaceId":"ws1","status":"sent","date":"2026-03-01","amountCents":1000}'),
+    ('inv4', '{"workspaceId":"ws1","status":"draft","date":"2026-03-02"}');
+  insert into bills(id,data) values
+    ('bill-command-draft', '{"workspaceId":"ws1","status":"draft","date":"2026-03-02"}');
+  insert into "creditNotes"(id,data) values
+    ('creditnote-command-draft', '{"workspaceId":"ws1","status":"draft","date":"2026-03-02"}');
+  insert into "vendorCredits"(id,data) values
+    ('vendorcredit-command-draft', '{"workspaceId":"ws1","status":"draft","date":"2026-03-02"}');
+end $$;
+select pg_temp.expect_count('viewer reads invoices', 'u-view', 'select count(*) from invoices', 2);
 select pg_temp.expect_count('outsider reads invoices', 'u-out', 'select count(*) from invoices', 0);
-select pg_temp.expect_denied('outsider writes into ws1', 'u-out',
+select pg_temp.expect_denied('bookkeeper cannot insert an invoice directly', 'u-book',
+  $$insert into invoices(id,data) values ('inv2', '{"workspaceId":"ws1","status":"draft","date":"2026-03-01"}')$$);
+select pg_temp.expect_denied('viewer cannot insert an invoice directly', 'u-view',
   $$insert into invoices(id,data) values ('inv3', '{"workspaceId":"ws1","status":"draft"}')$$);
-select pg_temp.expect_denied('move a document to another workspace', 'u-book',
+select pg_temp.expect_denied('outsider cannot write an invoice into ws1', 'u-out',
+  $$insert into invoices(id,data) values ('inv5', '{"workspaceId":"ws1","status":"draft"}')$$);
+select pg_temp.expect_denied('browser cannot move a document to another workspace', 'u-book',
   $$select lf_update('invoices','inv1','{"workspaceId":"ws2"}'::jsonb)$$);
-
--- drafts only may be deleted
-select pg_temp.expect_denied('delete a sent invoice', 'u-book', $$select lf_delete('invoices','inv1')$$);
-select pg_temp.expect_ok('delete a draft invoice', 'u-book',
-  $$insert into invoices(id,data) values ('inv4', '{"workspaceId":"ws1","status":"draft","date":"2026-03-02"}'); select lf_delete('invoices','inv4')$$);
+select pg_temp.expect_denied('browser cannot delete an issued invoice', 'u-book', $$select lf_delete('invoices','inv1')$$);
+select pg_temp.expect_denied('browser cannot delete a draft invoice either', 'u-book', $$select lf_delete('invoices','inv4')$$);
+-- Check raw Postgres DML as well as the Firestore-compatible helper RPCs. The draft rows avoid
+-- unrelated issued-document/settlement guards, so these fail specifically at the server-only door.
+select pg_temp.expect_denied('browser cannot directly update an invoice', 'u-book',
+  $$update public.invoices set data = data where id = 'inv4'$$);
+select pg_temp.expect_denied('browser cannot directly delete a draft invoice', 'u-book',
+  $$delete from public.invoices where id = 'inv4'$$);
+select pg_temp.expect_denied('browser cannot directly update a bill', 'u-book',
+  $$update public.bills set data = data where id = 'bill-command-draft'$$);
+select pg_temp.expect_denied('browser cannot directly delete a draft bill', 'u-book',
+  $$delete from public.bills where id = 'bill-command-draft'$$);
+select pg_temp.expect_denied('browser cannot directly update a credit note', 'u-book',
+  $$update public."creditNotes" set data = data where id = 'creditnote-command-draft'$$);
+select pg_temp.expect_denied('browser cannot directly delete a draft credit note', 'u-book',
+  $$delete from public."creditNotes" where id = 'creditnote-command-draft'$$);
+select pg_temp.expect_denied('browser cannot directly update a vendor credit', 'u-book',
+  $$update public."vendorCredits" set data = data where id = 'vendorcredit-command-draft'$$);
+select pg_temp.expect_denied('browser cannot directly delete a draft vendor credit', 'u-book',
+  $$delete from public."vendorCredits" where id = 'vendorcredit-command-draft'$$);
 
 -- lock date
 select pg_temp.expect_denied('bookkeeper sets the lock date', 'u-book',
@@ -100,28 +127,28 @@ select pg_temp.expect_denied('browser writes transaction in a locked period', 'u
   $$insert into transactions(id,data) values ('tx1', '{"workspaceId":"ws1","date":"2026-01-15","lines":[]}')$$);
 select pg_temp.expect_denied('browser writes transaction in an open period', 'u-owner',
   $$insert into transactions(id,data) values ('tx3', '{"workspaceId":"ws1","date":"2026-02-01","status":"draft","lines":[]}')$$);
--- dated documents (invoices/bills/credits) enforce lockDate and softLockDate on browser writes
-select pg_temp.expect_denied('invoice in a locked period', 'u-book',
+-- Document dates are checked by the server command, not by direct browser writes.
+select pg_temp.expect_denied('browser cannot insert an invoice in a locked period', 'u-book',
   $$insert into invoices(id,data) values ('inv-lock-1', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_denied('dated document with an empty date while locked', 'u-book',
+select pg_temp.expect_denied('browser cannot insert a document with an empty date', 'u-book',
   $$insert into invoices(id,data) values ('inv-lock-2', '{"workspaceId":"ws1","date":"","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_ok('invoice in an open period', 'u-book',
+select pg_temp.expect_denied('browser cannot insert an invoice in an open period', 'u-book',
   $$insert into invoices(id,data) values ('inv-lock-3', '{"workspaceId":"ws1","date":"2026-02-01","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_denied('move an invoice into a locked period', 'u-book',
-  $$select lf_update('invoices','inv-lock-3','{"date":"2026-01-10"}'::jsonb)$$);
+select pg_temp.expect_denied('browser cannot change a document date directly', 'u-book',
+  $$select lf_update('invoices','inv1','{"date":"2026-01-10"}'::jsonb)$$);
 
 -- soft close (only owners/accountants post) and partial unlock, both set by the server
 do $$ begin
   perform set_config('request.jwt.claims', '', true);
   update workspaces set data = data || '{"softLockDate":"2026-02-28","lockException":{"fromDate":"2026-01-10","toDate":"2026-01-20"}}'::jsonb where id = 'ws1';
 end $$;
-select pg_temp.expect_denied('bookkeeper posts into a soft-closed month', 'u-book',
+select pg_temp.expect_denied('browser cannot post into a soft-closed month', 'u-book',
   $$insert into invoices(id,data) values ('inv-soft-b', '{"workspaceId":"ws1","date":"2026-02-10","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_ok('accountant posts an adjustment into a soft-closed month', 'u-acct',
+select pg_temp.expect_denied('accountant cannot bypass the invoice command in a soft-closed month', 'u-acct',
   $$insert into invoices(id,data) values ('inv-soft-a', '{"workspaceId":"ws1","date":"2026-02-10","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_ok('bookkeeper posts inside the partial unlock', 'u-book',
+select pg_temp.expect_denied('browser cannot use the partial unlock to write directly', 'u-book',
   $$insert into invoices(id,data) values ('inv-unl', '{"workspaceId":"ws1","date":"2026-01-15","status":"draft","amountCents":100}')$$);
-select pg_temp.expect_denied('bookkeeper posts outside the partial unlock', 'u-book',
+select pg_temp.expect_denied('browser cannot write outside the partial unlock', 'u-book',
   $$insert into invoices(id,data) values ('inv-unl2', '{"workspaceId":"ws1","date":"2026-01-25","status":"draft","amountCents":100}')$$);
 select pg_temp.expect_denied('owner removes the partial unlock from the browser', 'u-owner',
   $$select lf_update('workspaces','ws1','{}'::jsonb,'{lockException}')$$);
@@ -200,16 +227,18 @@ end $$;
 select pg_temp.expect_ok('set the cost of an item sold below zero (no value on the books)', 'u-book',
   $$select lf_update('inventory','i1','{"unitCostCents":1250}'::jsonb)$$);
 
--- only owners and accountants approve or send back an invoice (BE-04, L-191)
-select pg_temp.expect_ok('bookkeeper saves an invoice waiting for approval', 'u-book',
-  $$insert into invoices(id,data) values ('inv-appr', '{"workspaceId":"ws1","customerId":"c2","amountCents":150000,"status":"pending","date":"2026-10-05","approval":{"state":"awaiting","thresholdCents":100000}}')$$);
-select pg_temp.expect_denied('bookkeeper approves it', 'u-book',
+-- Invoice creation, edits and approval decisions all use the server command pipeline (BE-04, L-191).
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into invoices(id,data) values ('inv-appr', '{"workspaceId":"ws1","customerId":"c2","amountCents":150000,"status":"pending","date":"2026-10-05","approval":{"state":"awaiting","thresholdCents":100000}}');
+end $$;
+select pg_temp.expect_denied('bookkeeper cannot approve an invoice directly', 'u-book',
   $$select lf_update('invoices','inv-appr','{"approval":{"state":"approved","thresholdCents":100000}}'::jsonb)$$);
-select pg_temp.expect_denied('bookkeeper creates an invoice already approved', 'u-book',
+select pg_temp.expect_denied('bookkeeper cannot create an invoice already approved directly', 'u-book',
   $$insert into invoices(id,data) values ('inv-appr2', '{"workspaceId":"ws1","customerId":"c2","amountCents":150000,"status":"pending","date":"2026-10-05","approval":{"state":"approved","thresholdCents":100000}}')$$);
-select pg_temp.expect_ok('bookkeeper edits the invoice, leaving the approval alone', 'u-book',
+select pg_temp.expect_denied('bookkeeper cannot edit the invoice directly', 'u-book',
   $$select lf_update('invoices','inv-appr','{"notes":"PO 77"}'::jsonb)$$);
-select pg_temp.expect_ok('accountant approves it', 'u-acct',
+select pg_temp.expect_denied('accountant approval also uses the server command', 'u-acct',
   $$select lf_update('invoices','inv-appr','{"approval":{"state":"approved","thresholdCents":100000}}'::jsonb)$$);
 
 -- imported records (server-created with importBatchId) stay editable; the batch id is fixed
@@ -318,17 +347,14 @@ end $$;
 do $$
 declare
   t text;
-  doc text := '{"workspaceId":"ws1"}';
+  doc text;
 begin
   foreach t in array array[
-    'invoices','bills','creditNotes','vendorCredits',
-    'projects','estimates','inventory','recurring','budgets','autoRules','fixedAssets','assets',
+    'projects','estimates','inventory','recurring','budgets','fixedAssets','assets',
     'taxRates','dimensionNodes','vendors','customers','rulePatterns','scenarios','loans',
     'employees','partners'
   ] loop
-    doc := case when t in ('invoices','bills','creditNotes','vendorCredits')
-                then '{"workspaceId":"ws1","date":"2026-02-15","status":"draft"}'
-                else '{"workspaceId":"ws1"}' end;
+    doc := '{"workspaceId":"ws1"}';
     if not pg_temp.try_as('u-book', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-' || t, doc)) then
       raise exception 'FAIL %: bookkeeper could not add a document', t;
     end if;
@@ -353,15 +379,35 @@ begin
   end loop;
 end $$;
 
--- Server-written accounting tables (C-1): members read, no browser role may insert, update or delete.
+-- Automation rules are read by workspace members but mutated only by registered commands.
+select set_config('request.jwt.claims', '', true);
+insert into public."autoRules" (id, data) values
+  ('server-rule', '{"workspaceId":"ws1","uid":"u-owner","name":"Server rule","condition":{"descriptionContains":"Paper"},"action":{"targetCategory":"Office"}}');
+select pg_temp.expect_count('members read server-owned automation rules', 'u-view', $$select count(*) from public."autoRules" where id='server-rule'$$, 1);
+select pg_temp.expect_count('outsiders do not read automation rules', 'u-out', $$select count(*) from public."autoRules" where id='server-rule'$$, 0);
+select pg_temp.expect_denied('a bookkeeper cannot create a rule through lf_set', 'u-book',
+  $$select lf_set('autoRules','browser-rule','{"workspaceId":"ws1","name":"Browser"}'::jsonb)$$);
+select pg_temp.expect_denied('a bookkeeper cannot update a rule through lf_update', 'u-book',
+  $$select lf_update('autoRules','server-rule','{"name":"Changed"}'::jsonb)$$);
+select pg_temp.expect_denied('a raw browser INSERT cannot bypass the command', 'u-owner',
+  $$insert into public."autoRules" (id, data) values ('raw-browser-rule','{"workspaceId":"ws1","name":"Browser"}')$$);
+select pg_temp.expect_denied('a raw browser UPDATE cannot bypass the command', 'u-owner',
+  $$update public."autoRules" set data = jsonb_set(data, '{name}', '"Changed"') where id='server-rule'$$);
+select pg_temp.expect_denied('a raw browser DELETE cannot bypass the command', 'u-owner',
+  $$delete from public."autoRules" where id='server-rule'$$);
+
+-- Server-written ledger and posting-document tables (C-1): members read, no browser role may insert, update or delete.
 do $$
 declare
   t text;
   doc text;
 begin
-  foreach t in array array['transactions', 'journalEntries', 'payments', 'reconciliations', 'workspaceShards'] loop
+  foreach t in array array['transactions', 'journalEntries', 'payments', 'reconciliations', 'workspaceShards',
+                          'invoices', 'bills', 'creditNotes', 'vendorCredits'] loop
     doc := case when t in ('transactions', 'journalEntries')
                 then '{"workspaceId":"ws1","date":"2026-02-15","status":"completed","lines":[{"accountId":"a2","amountCents":100},{"accountId":"a-fx","amountCents":-100}]}'
+                when t in ('invoices', 'bills', 'creditNotes', 'vendorCredits')
+                then '{"workspaceId":"ws1","date":"2026-02-15","status":"draft"}'
                 else '{"workspaceId":"ws1"}' end;
     perform set_config('request.jwt.claims', '', true);
     execute format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-' || t, doc);
@@ -392,8 +438,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'invoices', 'bills', 'creditNotes', 'vendorCredits',
-    'projects', 'estimates', 'inventory', 'recurring', 'budgets', 'autoRules', 'fixedAssets', 'assets',
+    'projects', 'estimates', 'inventory', 'recurring', 'budgets', 'fixedAssets', 'assets',
     'taxRates', 'dimensionNodes', 'vendors', 'customers', 'rulePatterns', 'scenarios', 'loans',
     'employees', 'partners', 'workspaceShards'
   ] loop
@@ -505,7 +550,7 @@ select pg_temp.expect_denied('create an account with a nonzero balance from brow
   $$insert into "chartAccounts"(id,data) values ('a-nonzero', '{"workspaceId":"ws1","name":"Bad","type":"asset","balanceCents":500}')$$);
 select pg_temp.expect_denied('create an account with a nonzero opening balance from browser (C-1)', 'u-acct',
   $$insert into "chartAccounts"(id,data) values ('a-nonzero-ob', '{"workspaceId":"ws1","name":"Bad","type":"asset","openingBalanceCents":500}')$$);
-select pg_temp.expect_ok('posting without a lock date', 'u-out',
+select pg_temp.expect_denied('browser cannot bypass the document command when no period is locked', 'u-out',
   $$insert into workspaces(id,data) values ('ws-open', '{"uid":"u-out","name":"Open"}');
     insert into invoices(id,data) values ('inv-open', '{"workspaceId":"ws-open","date":"2020-01-01","status":"draft","amountCents":100}')$$);
 
@@ -726,6 +771,23 @@ select pg_temp.expect_ok('a browser edit elsewhere on that customer keeps the se
 select pg_temp.expect_denied('and cannot change its status', 'u-acct',
   $$select lf_update('customers','c2','{"metadata.returnAuthorizationsById.rma_s.status":"approved"}'::jsonb)$$);
 
+-- serial warranty history is validated and appended by the server command, never by browser field patches
+select pg_temp.expect_denied('a bookkeeper writes a warranty record from the browser', 'u-book',
+  $$select lf_update('customers','c2','{"metadata.warrantiesById.w_x":{"id":"w_x","endDate":"2028-01-01"}}'::jsonb)$$);
+select pg_temp.expect_denied('the owner cannot replace customer metadata with warranty history', 'u-owner',
+  $$select lf_update('customers','c2','{"metadata":{"warrantiesById":{"w_x":{"id":"w_x","endDate":"2028-01-01"}}}}'::jsonb)$$);
+select pg_temp.expect_denied('a new customer cannot arrive with a warranty history', 'u-book',
+  $$insert into customers(id,data) values ('c-warranty', '{"workspaceId":"ws1","name":"W","metadata":{"warrantiesById":{"w_y":{"id":"w_y","endDate":"2028-01-01"}}}}')$$);
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  update customers set data = jsonb_set(data, '{metadata,warrantiesById}', '{"w_server":{"id":"w_server","endDate":"2028-01-01"}}'::jsonb, true) where id = 'c2';
+end $$;
+select pg_temp.expect_value('the server writes warranty history', $$select data->'metadata'->'warrantiesById'->'w_server'->>'endDate' from customers where id='c2'$$, '2028-01-01');
+select pg_temp.expect_ok('a browser edit elsewhere preserves the server warranty history', 'u-book',
+  $$select lf_update('customers','c2','{"phone":"555-0103"}'::jsonb)$$);
+select pg_temp.expect_denied('and cannot change its warranty date', 'u-acct',
+  $$select lf_update('customers','c2','{"metadata.warrantiesById.w_server.endDate":"2029-01-01"}'::jsonb)$$);
+
 -- balance snapshots (L-123): written only by the server; members read; an entry written in a covered date by a
 -- member still marks the snapshot stale (the trigger runs as its owner)
 select set_config('request.jwt.claims', '', true);
@@ -828,9 +890,9 @@ begin
   end if;
 end $$;
 
--- Audit C-1 & C-2: core ledger tables (transactions, journalEntries, payments, reconciliations)
--- are server-written and member-readable; browser writers cannot forge paid invoices/bills;
--- and lf_enforce_balanced_ledger refuses unbalanced posted entries for ALL callers.
+-- Audit C-1 & C-2: core ledger and posted-document tables are server-written and member-readable;
+-- browser writers cannot forge document settlement state; lf_enforce_balanced_ledger refuses
+-- unbalanced posted entries for ALL callers.
 do $$
 declare
   t text;

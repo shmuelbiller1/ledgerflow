@@ -182,8 +182,8 @@ function result(date: string, reversalDate: string, base: string, plan: Revaluat
 }
 
 /** Preview or post the revaluation, in the same call: `dryRun` posts nothing and changes nothing. */
-export async function revaluateForeignBalances(db: Firestore, input: RevaluationInput): Promise<RevaluationResult> {
-  return db.runTransaction(async (t) => {
+export async function revaluateForeignBalances(db: Firestore, input: RevaluationInput, transaction?: DbTransaction): Promise<RevaluationResult> {
+  const run = async (t: DbTransaction) => {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new FxRevaluationError(404, 'Workspace not found');
     if (!ADMIN_ROLES.includes(workspaceRole(workspace, input.user.uid))) {
@@ -296,17 +296,18 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
     }, { db, tx: t });
 
     return result(date, reversalDate, base, plan, true, String(entry.id), String(reversal.id), rateDate);
-  });
+  };
+  return transaction ? run(transaction) : db.runTransaction(run);
 }
 
 /**
  * Undo a revaluation by posting its mirror today and voiding the paired next-day reversal in the
  * same transaction. Refuses unless both entries still agree and it has not already been undone.
  */
-export async function undoRevaluation(db: Firestore, input: { workspaceId: string; user: RevaluationInput['user']; date: string }): Promise<{ transactionId: string; reversesTxId: string }> {
+export async function undoRevaluation(db: Firestore, input: { workspaceId: string; user: RevaluationInput['user']; date: string }, transaction?: DbTransaction): Promise<{ transactionId: string; reversesTxId: string }> {
   const date = String(input.date || '');
   if (!DAY.test(date)) throw new FxRevaluationError(400, 'Date must be YYYY-MM-DD');
-  return db.runTransaction(async (t) => {
+  const run = async (t: DbTransaction) => {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new FxRevaluationError(404, 'Workspace not found');
     if (!ADMIN_ROLES.includes(workspaceRole(workspace, input.user.uid))) {
@@ -361,5 +362,6 @@ export async function undoRevaluation(db: Firestore, input: { workspaceId: strin
       },
     }, { db, tx: t });
     return { transactionId: String(reversal.id), reversesTxId: String(found.id) };
-  });
+  };
+  return transaction ? run(transaction) : db.runTransaction(run);
 }

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import PlaidConnectButton from '../finance/PlaidConnectButton';
 
 import { readBankStatuses } from '../../lib/bankFeedStatus';
 import type { BankStatus } from '../../lib/bankFeedStatus';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 export default function BankFeedHealth() {
   const uid = useAuthStore(state => state.user?.uid), workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const [refresh, setRefresh] = useState(0);
@@ -21,11 +21,11 @@ function ConnectionStatus() {
     let cancelled = false;
     const controller = new AbortController();
     (async () => {
-      const token = await getIdToken();
       if (cancelled) return;
-      const response = await fetch(`/api/v1/plaid/banks?workspaceId=${encodeURIComponent(workspaceId)}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
-      if (!response.ok) throw new Error('Could not read bank status. Refresh to retry.');
-      const banks = readBankStatuses(await response.json());
+      const banks = readBankStatuses(await runCommand<CommandBody>({
+        path: `/api/v1/plaid/banks?workspaceId=${encodeURIComponent(workspaceId)}`,
+        signal: controller.signal,
+      }));
       if (!cancelled) setResult({ banks });
     })().catch(error => { if (!cancelled) setResult({ error: error instanceof Error ? error.message : 'Could not read bank status.' }); });
     return () => { cancelled = true; controller.abort(); };

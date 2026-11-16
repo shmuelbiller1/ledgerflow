@@ -1,9 +1,10 @@
+import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertCircle, CheckCircle2, Download, FileUp, History, Loader2, Undo2, Upload } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { db, getIdToken } from '../../../firebase';
+import { db } from '../../../firebase';
 import { collection, getDocs, limit, orderBy, query, where } from '../../../lib/db/firestore';
 import { parseCsvChecked } from '../../../lib/csv';
 import { assertReadableText } from '../../../lib/bankCsvRows';
@@ -83,19 +84,15 @@ const KIND_HELP: Record<ImportKind, string> = {
 };
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const token = await getIdToken();
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const error = new Error(data.message || 'The request failed') as Error & { issues?: ImportIssue[] };
+  try {
+    return await runCommand<T>({ path, method: 'POST', body });
+  } catch (err) {
+    // an import that fails per row still lists the rows, so the refusal's details are kept
+    const data = ((err as ServerCommandError).body || {}) as { message?: string; details?: unknown };
+    const error = new Error((err as ServerCommandError).message) as Error & { issues?: ImportIssue[] };
     if (Array.isArray(data.details) && data.details.every((d: unknown) => typeof (d as ImportIssue)?.row === 'number')) error.issues = data.details;
     throw error;
   }
-  return data as T;
 }
 
 async function loadRecentImports(workspaceId: string): Promise<RecentImport[]> {

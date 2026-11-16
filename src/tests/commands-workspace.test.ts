@@ -1,0 +1,512 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { RequestUser } from '../server/auth/requestUser';
+import type { CommandDefinition } from '../server/commands/types';
+import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
+import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
+import { workspaceInviteRevokeCommand } from '../server/commands/workspaceInvites';
+import { workspaceCancelDeletionCommand } from '../server/commands/workspaceLifecycle';
+import {
+  workspaceModulesCommand,
+  workspaceNextNumberCommand,
+  workspaceOpeningBalancesCommand,
+  workspaceRetentionCommand,
+  workspaceSetupCompleteCommand,
+} from '../server/commands/workspaceSettings';
+import { entryLinkCreateCommand, entryLinkRemoveCommand } from '../server/commands/entryLinks';
+import { stageDefineCommand, stageMoveCommand } from '../server/commands/stages';
+import { taskCreateCommand, taskRemoveCommand, taskStatusCommand } from '../server/commands/tasks';
+import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from '../server/commands/time';
+import { watchCreateCommand, watchRemoveCommand } from '../server/commands/watches';
+import type { AlertSettingsWriteResult } from '../server/services/bookAlertService';
+import { executeCommand, previewCommand, withLegacyInputIdempotencyHash } from '../server/utils/commandExecutor';
+import { TASK_KIND } from '../lib/tasks';
+import {
+  captureResponse,
+  fakeRequest,
+  invocationInput,
+  MemoryDb,
+  owner,
+  runnerDependencies,
+  seedWorkspace,
+  testInput,
+  type TestCounters,
+  type TestResult,
+  workspaceId,
+  recordingCommand,
+} from './helpers/commandTestUtils';
+
+test('task, watch, entry-link, time, and stage commands publish validated examples and refusal guides', () => {
+  const teamCommands = [
+    taskCreateCommand, taskStatusCommand, taskRemoveCommand,
+    watchCreateCommand, watchRemoveCommand,
+    entryLinkCreateCommand, entryLinkRemoveCommand,
+    timeLogCommand, timeUpdateCommand, timeRemoveCommand, timeMoveCommand, timeInvoiceCommand, timeRatesCommand,
+    stageDefineCommand, stageMoveCommand,
+  ];
+  assert.equal(teamCommands.length, 15);
+  for (const command of teamCommands) {
+    assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
+    assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
+    assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
+    assert.ok(command.roles.length > 0, `${command.name} lists roles`);
+  }
+  assert.deepEqual(taskCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
+  assert.deepEqual(taskRemoveCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
+  assert.deepEqual(watchCreateCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
+  assert.deepEqual(entryLinkCreateCommand.roles, ['owner', 'accountant', 'bookkeeper']);
+  assert.deepEqual(timeLogCommand.roles, ['owner', 'accountant', 'bookkeeper', 'viewer']);
+  assert.deepEqual(stageDefineCommand.roles, ['owner', 'accountant']);
+});
+
+test('workspace import-map commands preview saves and can restore their full prior snapshot', async () => {
+  const db = new MemoryDb();
+  const previousMaps = {
+    csv_3_1234abcd: { columns: { date: 'Date' }, skipRows: 0, savedAt: '2026-11-01T00:00:00.000Z' },
+  };
+  seedWorkspace(db, workspaceId, { importColumnMaps: previousMaps });
+  const input = {
+    signature: 'csv_5_1234abcd',
+    columns: { date: 'Posted Date', description: 'Description', debit: 'Debit', credit: 'Credit' },
+    skipRows: 1,
+  };
+  assert.equal(importMapSaveInput.safeParse(input).success, true);
+  assert.equal(importMapSaveCommand.input.safeParse(importMapSaveCommand.describe.example).success, true);
+  assert.equal(importMapRestoreCommand.input.safeParse(importMapRestoreCommand.describe.example).success, true);
+  assert.ok(importMapSaveCommand.describe.refusals.length > 0);
+  assert.ok(importMapRestoreCommand.describe.refusals.length > 0);
+
+  const auditCounters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, auditCounters);
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: importMapSaveCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Skip 1 header row', 'credit: Credit', 'date: Posted Date', 'debit: Debit', 'description: Description']);
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'import-map-command-save'), captureResponse().response,
+    { definition: importMapSaveCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  assert.equal(auditCounters.audits, 1, 'the save command writes its audit summary through the shared runner');
+  if (!saved.ok) return;
+  const inverse = importMapSaveCommand.inverse?.(input, saved.data as Parameters<NonNullable<typeof importMapSaveCommand.inverse>>[1]);
+  assert.deepEqual(inverse, { command: 'workspace.restoremaps', input: { maps: previousMaps } });
+  const savedMaps = db.read(`workspaces/${workspaceId}`)?.importColumnMaps as Record<string, unknown> | undefined;
+  assert.ok(savedMaps && Object.hasOwn(savedMaps, 'csv_5_1234abcd'));
+
+  const restored = await executeCommand(fakeRequest(owner, inverse?.input, 'import-map-command-undo'), captureResponse().response,
+    { definition: importMapRestoreCommand, workspaceId, input: inverse?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.equal(auditCounters.audits, 2, 'the restore command writes its audit summary through the shared runner');
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.importColumnMaps, previousMaps);
+});
+
+test('workspace setup/settings commands publish validated examples and refusal guides', () => {
+  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand, workspaceInviteRevokeCommand, workspaceCancelDeletionCommand]) {
+    assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
+    assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
+    assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
+    assert.ok(command.roles.length > 0, `${command.name} lists roles`);
+  }
+  assert.deepEqual(workspaceModulesCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceNextNumberCommand.roles, ['owner', 'accountant', 'bookkeeper']);
+  assert.deepEqual(workspaceOpeningBalancesCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceRetentionCommand.roles, ['owner']);
+  assert.deepEqual(workspaceSetupCompleteCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceInviteRevokeCommand.roles, ['owner']);
+  assert.deepEqual(workspaceCancelDeletionCommand.roles, ['owner']);
+});
+
+test('workspace.canceldeletion previews a pending workspace, restores it transactionally, and refuses an already-active workspace', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, {
+    status: 'pending_deletion',
+    deletedAt: '2026-11-01T00:00:00.000Z',
+    scheduledPurgeAt: '2026-12-01T00:00:00.000Z',
+  });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = {};
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Cancel the scheduled deletion and return the workspace to active status']);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.status, 'pending_deletion');
+
+  const restored = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.status, 'active');
+  assert.equal(counters.audits, 1);
+
+  const repeated = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, false);
+  if (!repeated.ok) assert.equal(repeated.status, 400);
+  assert.equal(counters.audits, 1);
+});
+
+test('workspace.revokeinvite previews pending invites, rechecks workspace scope, and audits only a real change', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId);
+  db.seed('invites/pending-invite', { workspaceId, email: 'invitee@example.test', status: 'pending' });
+  db.seed('invites/accepted-invite', { workspaceId, email: 'joined@example.test', status: 'accepted' });
+  db.seed('invites/foreign-invite', { workspaceId: 'ws-other', email: 'other@example.test', status: 'pending' });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { inviteId: 'pending-invite' };
+
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Revoke the invite for invitee@example.test']);
+  assert.equal(db.read('invites/pending-invite')?.status, 'pending', 'preview does not revoke');
+
+  const saved = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  assert.equal(db.read('invites/pending-invite')?.status, 'revoked');
+  assert.equal(counters.audits, 1);
+  const repeated = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, true);
+  if (repeated.ok) assert.equal((repeated.data as { changed: boolean }).changed, false);
+  assert.equal(counters.audits, 1, 'repeating a revocation does not emit a duplicate audit');
+
+  const acceptedInput = { inviteId: 'accepted-invite' };
+  const accepted = await executeCommand(fakeRequest(owner, acceptedInput), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input: acceptedInput }, dependencies);
+  assert.equal(accepted.ok, false);
+  if (!accepted.ok) assert.equal(accepted.status, 409);
+  assert.equal(db.read('invites/accepted-invite')?.status, 'accepted');
+
+  const foreignInput = { inviteId: 'foreign-invite' };
+  const foreign = await executeCommand(fakeRequest(owner, foreignInput), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input: foreignInput }, dependencies);
+  assert.equal(foreign.ok, false);
+  if (!foreign.ok) assert.equal(foreign.status, 403);
+  assert.equal(db.read('invites/foreign-invite')?.status, 'pending');
+  assert.equal(counters.audits, 1);
+});
+
+test('workspace.nextnumber previews without reserving, audits once, and replays an operation ID without allocating twice', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { type: 'invoice' as const };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) {
+    assert.deepEqual(preview.preview.lines, [`INV-${new Date().getUTCFullYear()}-0001`, 'Preview only; execution reserves this number.']);
+  }
+  assert.equal(db.read(`numberingSeries/${workspaceId}_invoice`), undefined, 'preview does not reserve a number');
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(saved.data, { type: 'invoice', number: `INV-${new Date().getUTCFullYear()}-0001` });
+  assert.equal(counters.audits, 1);
+
+  const replayed = await executeCommand(fakeRequest(owner, input, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(replayed.ok, true);
+  if (replayed.ok) assert.equal(replayed.replayed, true);
+  assert.equal(counters.audits, 1);
+  assert.equal(db.read(`numberingSeries/${workspaceId}_invoice`)?.nextNumber, 2);
+
+  const conflict = await executeCommand(fakeRequest(owner, { type: 'bill' }, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input: { type: 'bill' } }, dependencies);
+  assert.equal(conflict.ok, false);
+  if (!conflict.ok) assert.equal(conflict.status, 409);
+  assert.equal(counters.audits, 1, 'changed input with a reused operation ID is refused before reserving another number');
+});
+
+test('workspace.modules previews changes, audits once, and restores its previous effective settings', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { modules: { payroll: true, loans: false } });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { modules: { payroll: false } };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceModulesCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview, { title: 'Change workspace modules', lines: ['Payroll off'] });
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.modules, { payroll: true, loans: false }, 'preview never writes');
+
+  const request = fakeRequest(owner, input, 'workspace-modules-change');
+  const saved = await executeCommand(request, captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.modules, { payroll: false, loans: false });
+  assert.equal(counters.audits, 1);
+  const result = saved.data as Parameters<NonNullable<typeof workspaceModulesCommand.inverse>>[1];
+  assert.deepEqual(workspaceModulesCommand.inverse?.(input, result), {
+    command: 'workspace.modules',
+    input: { modules: result.previousModules },
+  });
+
+  const restore = workspaceModulesCommand.inverse?.(input, result);
+  assert.ok(restore);
+  const restored = await executeCommand(fakeRequest(owner, restore?.input, 'workspace-modules-restore'), captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input: restore?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.equal((db.read(`workspaces/${workspaceId}`)?.modules as Record<string, boolean>)?.payroll, true);
+  assert.equal(counters.audits, 2);
+
+  const invalid = await executeCommand(fakeRequest(owner, { modules: { rockets: true } }), captureResponse().response,
+    { definition: workspaceModulesCommand, workspaceId, input: { modules: { rockets: true } } }, dependencies);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.status, 400);
+  assert.equal(counters.audits, 2, 'invalid module names are refused before writing or auditing');
+});
+
+test('workspace.setupcomplete is transactional, idempotent, and refuses roles below accountant', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { members: [owner.uid, 'viewer-1'], roles: { 'viewer-1': 'viewer' } });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = {};
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Mark this workspace as ready to use']);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.setupCompletedAt, undefined);
+
+  const first = await executeCommand(fakeRequest(owner, input, 'workspace-setup-complete'), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(first.ok, true);
+  assert.ok(db.read(`workspaces/${workspaceId}`)?.setupCompletedAt);
+  assert.equal(counters.audits, 1);
+  const repeated = await executeCommand(fakeRequest(owner, input, 'workspace-setup-complete-repeat'), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, true);
+  if (repeated.ok) assert.equal((repeated.data as { changed: boolean }).changed, false);
+  assert.equal(counters.audits, 1, 'repeating setup completion does not emit a duplicate audit');
+
+  const denied = await executeCommand(fakeRequest({ uid: 'viewer-1', aal: 'aal2' }, input), captureResponse().response,
+    { definition: workspaceSetupCompleteCommand, workspaceId, input }, dependencies);
+  assert.equal(denied.ok, false);
+  if (!denied.ok) assert.equal(denied.status, 403);
+});
+
+test('workspace.retention previews, saves, and reverses retention plus legal-hold settings', async () => {
+  const db = new MemoryDb();
+  const previous = { deletionGraceDays: 30, emailLogDays: 90, errorLogDays: 90, legalHold: false };
+  seedWorkspace(db, workspaceId, { retention: previous });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { deletionGraceDays: 90, emailLogDays: 365, errorLogDays: 60, legalHold: true };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceRetentionCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, [
+    'deletionGraceDays: 30 → 90', 'emailLogDays: 90 → 365', 'errorLogDays: 90 → 60', 'legalHold: false → true',
+  ]);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, previous, 'preview never writes');
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'workspace-retention-change'), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, input);
+  assert.equal(counters.audits, 1);
+  const result = saved.data as Parameters<NonNullable<typeof workspaceRetentionCommand.inverse>>[1];
+  assert.equal(workspaceRetentionCommand.audit(input, result)?.action, 'LEGAL_HOLD_ON');
+  const inverse = workspaceRetentionCommand.inverse?.(input, result);
+  assert.deepEqual(inverse, { command: 'workspace.retention', input: previous });
+  const restored = await executeCommand(fakeRequest(owner, inverse?.input, 'workspace-retention-restore'), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input: inverse?.input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.retention, previous);
+  assert.equal(counters.audits, 2);
+
+  const invalid = await executeCommand(fakeRequest(owner, { ...input, errorLogDays: 1 }), captureResponse().response,
+    { definition: workspaceRetentionCommand, workspaceId, input: { ...input, errorLogDays: 1 } }, dependencies);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.status, 400);
+  assert.equal(counters.audits, 2);
+});
+
+test('workspace.openingbalances previews the balanced ledger lines and respects existing setup refusals', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { currency: 'USD' });
+  db.seed('chartAccounts/opening-cash', {
+    id: 'opening-cash', workspaceId, name: 'Checking', type: 'asset', category: 'Cash', isArchived: false,
+  });
+  db.seed('chartAccounts/opening-equity', {
+    id: 'opening-equity', workspaceId, name: 'Opening Balance Equity', type: 'equity', category: 'Equity', isArchived: false,
+  });
+  const input = { date: '2026-01-01', balances: [{ accountId: 'opening-cash', amountCents: 125000 }] };
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceOpeningBalancesCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) {
+    assert.equal(preview.preview.title, 'Record opening balances on 2026-01-01');
+    assert.deepEqual(preview.preview.accounts?.map(line => [line.accountId, line.amountCents]), [
+      ['opening-cash', 125000], ['opening-equity', -125000],
+    ]);
+    assert.deepEqual(preview.preview.lines, ['2 account lines', '125000 cents debited; 125000 cents credited', '125000 cents to Opening Balance Equity']);
+  }
+  assert.equal(db.directWriteCount, 0, 'preview does not mark setup complete or post a transaction');
+});
+
+test('legacy route idempotency hashes include path targets for task deletes and status updates', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const seedTask = (id: string) => db.seed(`documents/${id}`, {
+    id, kind: TASK_KIND, workspaceId, title: `Task ${id}`, assignee: owner.uid, createdBy: owner.uid,
+    createdAt: '2026-11-15T00:00:00.000Z', status: 'open',
+  });
+  seedTask('remove-target-a');
+  seedTask('remove-target-b');
+  seedTask('status-target-a');
+  seedTask('status-target-b');
+  const dependencies = runnerDependencies(db);
+
+  const remove = withLegacyInputIdempotencyHash(taskRemoveCommand);
+  const firstDelete = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-a' } }, dependencies);
+  assert.equal(firstDelete.ok, true);
+  assert.equal(db.read('documents/remove-target-a'), undefined);
+  const exactDeleteRetry = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-a' } }, dependencies);
+  assert.equal(exactDeleteRetry.ok, true);
+  if (exactDeleteRetry.ok) assert.equal(exactDeleteRetry.replayed, true);
+  const reusedDelete = await executeCommand(fakeRequest(owner, {}, 'legacy-remove-operation'), captureResponse().response,
+    { definition: remove, workspaceId, input: { taskId: 'remove-target-b' } }, dependencies);
+  assert.equal(reusedDelete.ok, false);
+  if (!reusedDelete.ok) assert.equal(reusedDelete.status, 409);
+  assert.ok(db.read('documents/remove-target-b'), 'a replay for another path target must not delete it');
+
+  const status = withLegacyInputIdempotencyHash(taskStatusCommand);
+  const firstUpdate = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-a', status: 'done' } }, dependencies);
+  assert.equal(firstUpdate.ok, true);
+  assert.equal(db.read('documents/status-target-a')?.status, 'done');
+  const exactUpdateRetry = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-a', status: 'done' } }, dependencies);
+  assert.equal(exactUpdateRetry.ok, true);
+  if (exactUpdateRetry.ok) assert.equal(exactUpdateRetry.replayed, true);
+  const reusedUpdate = await executeCommand(fakeRequest(owner, { status: 'done' }, 'legacy-status-operation'), captureResponse().response,
+    { definition: status, workspaceId, input: { taskId: 'status-target-b', status: 'done' } }, dependencies);
+  assert.equal(reusedUpdate.ok, false);
+  if (!reusedUpdate.ok) assert.equal(reusedUpdate.status, 409);
+  assert.equal(db.read('documents/status-target-b')?.status, 'open', 'a replay must not return one task under another task URL');
+});
+
+test('the command runner omits audit records for idempotent no-op results', async () => {
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const base = recordingCommand(counters);
+  const noOp: CommandDefinition<typeof testInput, TestResult> = {
+    ...base,
+    async handler(_ctx, _tx, input) { counters.runs++; return { saved: true, value: input.value }; },
+    audit() { return null; },
+  };
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const result = await executeCommand(fakeRequest(owner, invocationInput()), captureResponse().response,
+    { definition: noOp, workspaceId, input: invocationInput() }, runnerDependencies(db, counters));
+  assert.equal(result.ok, true);
+  assert.equal(counters.runs, 1);
+  assert.equal(counters.audits, 0);
+});
+
+test('alerts.update has a valid example, a read-only preview, a transactional inverse and idempotent audit', async () => {
+  const example = alertSettingsUpdateCommand.describe.example as { cashLowCents: number; closeReminderDay: number; budgetAlerts: boolean };
+  assert.deepEqual(alertSettingsUpdateCommand.roles, ['owner', 'accountant']);
+  assert.equal(alertSettingsUpdateInput.safeParse(example).success, true);
+  assert.equal(alertSettingsUpdateInput.safeParse({ ...example, unexpected: true }).success, false);
+  assert.deepEqual(new Set(alertSettingsUpdateCommand.describe.refusals.map(refusal => refusal.code)),
+    new Set(['INVALID_INPUT', 'INVALID_ALERT_SETTINGS', 'WORKSPACE_NOT_FOUND', 'ROLE_REQUIRED']));
+
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, {
+    currency: 'USD',
+    alerts: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false },
+    alertsSent: { closeReminder: '2026-09', cashLow: true, fingerprint: 'stale' },
+  });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const preview = await previewCommand(fakeRequest(owner, example),
+    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) {
+    assert.deepEqual(preview.preview, {
+      title: 'Update book alert settings',
+      lines: ['Alerts: close reminder from day 5, cash below $500.00, budget alerts on'],
+    });
+  }
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false }, 'preview never writes');
+  assert.equal(counters.audits, 0, 'preview never audits');
+
+  const operationId = 'alerts-update-test-1';
+  const request = fakeRequest(owner, example, operationId);
+  const first = await executeCommand(request, captureResponse().response,
+    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  const result = first.data as AlertSettingsWriteResult;
+  assert.deepEqual(result, {
+    workspaceId,
+    alerts: example,
+    previousAlerts: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false },
+    currency: 'USD',
+  });
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, example);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alertsSent, { closeReminder: '2026-09', cashLow: true });
+  assert.deepEqual(counters, { runs: 0, previews: 0, afterCommit: 0, audits: 1 });
+  const summary = alertSettingsUpdateCommand.audit(example, result);
+  assert.ok(summary);
+  assert.equal(summary.action, 'ALERTS_SAVED');
+  assert.equal(summary.entityType, 'workspaces');
+  assert.equal(summary.entityId, workspaceId);
+  assert.match(summary.description, /close reminder from day 5, cash below \$500\.00, budget alerts on/);
+  assert.deepEqual(alertSettingsUpdateCommand.inverse?.(example, result),
+    { command: 'alerts.update', input: { cashLowCents: null, closeReminderDay: 3, budgetAlerts: false } });
+
+  const replay = await executeCommand(request, captureResponse().response,
+    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
+  assert.equal(replay.ok, true);
+  if (replay.ok) assert.equal(replay.replayed, true);
+  assert.deepEqual(counters, { runs: 0, previews: 0, afterCommit: 0, audits: 1 });
+
+  const conflict = await executeCommand(fakeRequest(owner, { ...example, budgetAlerts: false }, operationId), captureResponse().response,
+    { definition: alertSettingsUpdateCommand, workspaceId, input: { ...example, budgetAlerts: false } }, dependencies);
+  assert.equal(conflict.ok, false);
+  if (!conflict.ok) assert.equal(conflict.status, 409);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.alerts, example, 'a reused operation id cannot change the settings');
+});
+
+test('alerts.update refuses out-of-range settings and bookkeepers before any writes or audit', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { members: [owner.uid, 'bookkeeper-1'], roles: { 'bookkeeper-1': 'bookkeeper' } });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const invalidInput = { cashLowCents: -1 };
+  const invalid = await executeCommand(fakeRequest(owner, invalidInput), captureResponse().response,
+    { definition: alertSettingsUpdateCommand, workspaceId, input: invalidInput }, dependencies);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) {
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.code, 'INVALID_ALERT_SETTINGS');
+  }
+  assert.equal(db.directWriteCount, 0);
+  assert.equal(counters.audits, 0);
+
+  const bookkeeper: RequestUser = { uid: 'bookkeeper-1', aal: 'aal2' };
+  const example = alertSettingsUpdateCommand.describe.example;
+  const denied = await executeCommand(fakeRequest(bookkeeper, example), captureResponse().response,
+    { definition: alertSettingsUpdateCommand, workspaceId, input: example }, dependencies);
+  assert.equal(denied.ok, false);
+  if (!denied.ok) {
+    assert.equal(denied.status, 403);
+    assert.equal(denied.code, 'ROLE_REQUIRED');
+  }
+  assert.equal(db.directWriteCount, 0);
+  assert.equal(counters.audits, 0);
+});

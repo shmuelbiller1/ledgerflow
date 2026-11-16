@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { collection, doc } from '../../lib/db/firestore';
@@ -19,19 +20,20 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
   const { user, currentWorkspaceId, accounts, setIsSyncing } = ctx;
   const { balanceTransactionLines } = posting;
 
+  /**
+   * Every action in this file posts to the same route, with the same address and token. One helper
+   * names it once, so five copies of the header and of the error read are gone.
+   */
+  const postReconcile = (operations: unknown[]) =>
+    runCommand({ path: '/api/v1/transactions/reconcile', method: 'POST', body: { workspaceId: currentWorkspaceId, operations } });
+
   const handleReconcileMatch = async (bankLineId: string, transactionId: string) => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/v1/transactions/reconcile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId, operations: [
-          { type: 'updateBankLine', id: bankLineId, data: { status: 'matched', matchedTransactionId: transactionId } },
-          { type: 'updateTransaction', id: transactionId, data: { status: 'reconciled' } }
-        ]})
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Server error on match');
+      await postReconcile([
+        { type: 'updateBankLine', id: bankLineId, data: { status: 'matched', matchedTransactionId: transactionId } },
+        { type: 'updateTransaction', id: transactionId, data: { status: 'reconciled' } },
+      ]);
       toast.success('Match saved.');
     } catch (error) {
       toast.error('Could not save the match: ' + (errorMessage(error) || 'Network error'));
@@ -44,16 +46,7 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
     if (!user || !currentWorkspaceId) return;
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/v1/transactions/reconcile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-          body: JSON.stringify({ 
-            workspaceId: currentWorkspaceId, 
-            operations: [{ type: 'updateBankLine', id: bankLineId, data: { status: 'ignored' } }] 
-          })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Server error on ignore');
+      await postReconcile([{ type: 'updateBankLine', id: bankLineId, data: { status: 'ignored' } }]);
       toast.info('Item ignored');
     } catch (error) {
       toast.error('Action failed: ' + (errorMessage(error) || 'Network error'));
@@ -116,16 +109,10 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         ...(Object.keys(metadata).length ? { metadata } : {}),
       };
 
-      const res = await fetch('/api/v1/transactions/reconcile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId, operations: [
-          { type: 'createTransaction', id: txId, data: txData },
-          { type: 'updateBankLine', id: bankLine.id, data: { status: 'matched', matchedTransactionId: txId } }
-        ]})
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not create the entry');
+      await postReconcile([
+        { type: 'createTransaction', id: txId, data: txData },
+        { type: 'updateBankLine', id: bankLine.id, data: { status: 'matched', matchedTransactionId: txId } },
+      ]);
       toast.success('Entry created and matched.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'bankLines/create');
@@ -142,15 +129,7 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
       if (transactionId) {
          operations.push({ type: 'updateTransaction', id: transactionId, data: { status: 'completed' } });
       }
-      const res = await fetch('/api/v1/transactions/reconcile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId, operations })
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Could not undo the match');
-      }
+      await postReconcile(operations);
       toast.success('Match undone. The line is back in To review.');
     } catch {
       toast.error('Failed to undo match.');
@@ -266,13 +245,7 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
       });
 
       if (batchReconcile.length > 0) {
-         const res = await fetch('/api/v1/transactions/reconcile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-            body: JSON.stringify({ workspaceId: currentWorkspaceId, operations: batchReconcile })
-         });
-         const data = await res.json();
-         if (!res.ok) throw new Error(data.error || 'Server rejected auto-reconcile operations');
+         await postReconcile(batchReconcile);
       }
 
       if (matchCount > 0) {

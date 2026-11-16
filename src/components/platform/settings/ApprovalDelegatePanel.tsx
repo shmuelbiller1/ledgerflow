@@ -1,6 +1,6 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { formatDate, getLocalDateISO } from '../../../lib/utils';
@@ -35,12 +35,12 @@ export default function ApprovalDelegatePanel() {
   const save = async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/approval-delegate`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify(body),
+      const data = await runCommand<{ approvalDelegates?: ApprovalDelegate[] }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/approval-delegate`,
+        method: 'PUT',
+        body,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'It was not saved');
-      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, approvalDelegates: data.approvalDelegates as ApprovalDelegate[] } : w)));
+      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, approvalDelegates: data.approvalDelegates || [] } : w)));
       toast.success(body.clear ? 'You approve your invoices again' : `${nameOf(String(body.to))} approves in your place until ${formatDate(String(body.until))}`);
       setTo(''); setUntil('');
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }

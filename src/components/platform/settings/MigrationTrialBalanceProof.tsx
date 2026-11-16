@@ -5,6 +5,7 @@ import { compareTrialBalances, parseQuickBooksTrialBalance } from '../../../lib/
 import type { SourceTrialBalance, ServerTrialBalanceSnapshot } from '../../../lib/migrationTrialBalanceProof';
 
 import { BRAND_NAME } from '../../../config/brand';
+import { runCommand } from '../../../lib/runCommand';
 type Proof = ReturnType<typeof compareTrialBalances>;
 
 export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: string }) {
@@ -53,13 +54,8 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
       if (seq !== requestSeq.current) return;
       if (!token) throw new Error('Sign in again before reading the server trial balance.');
       const query = new URLSearchParams({ workspaceId, asOfDate: date });
-      const response = await fetch(`/api/v1/reports/trial-balance?${query}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
+      const data = await runCommand<ServerTrialBalanceSnapshot>({ path: `/api/v1/reports/trial-balance?${query}` });
       if (seq !== requestSeq.current) return;
-      if (!response.ok) throw new Error(`The server trial balance could not be read (HTTP ${response.status}).`);
-      const data = await response.json() as ServerTrialBalanceSnapshot;
       if (seq !== requestSeq.current) return;
       setProof(compareTrialBalances(source, data));
     } catch (cause) {

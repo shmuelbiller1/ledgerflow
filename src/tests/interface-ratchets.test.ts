@@ -18,6 +18,16 @@ afterEach(() => {
   for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+/** One screen holding the given file lines, for the counters to read. */
+function screenWith(lines: string[], file = 'src/components/sales/Sales.tsx'): string {
+  return scratch({ [file]: lines.join('\n') });
+}
+
+/** The count of screens that show more than one filled button. */
+function primaryButtonScreens(root: string): number {
+  return computeQualityMetrics(root).screensWithManyPrimaryButtons;
+}
+
 /** A minimal tree the counters can read: one screen and the shared list. */
 function scratch(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ratchet-'));
@@ -48,13 +58,125 @@ describe('the five interface ratchets', () => {
   test('a hand-typed server address raises handTypedApiCalls, whatever the quote style', () => {
     const root = scratch({
       'src/components/sales/Sales.tsx': [
-        "fetch('/api/invoices');",
-        'fetch(`/api/bills/${id}`);',
-        "fetch(\"https://api.ledgerflow.io/api/v1/x\");",
+        'fetch(\'/api/invoices\', { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        'fetch(`/api/bills/${id}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        "fetch('https://api.ledgerflow.io/api/v1/x', { headers: { Authorization: `Bearer ${await getIdToken()}` } });",
         'const note = "no call here";',
       ].join('\n'),
     });
     assert.equal(computeQualityMetrics(root).handTypedApiCalls, 3);
+  });
+
+  test('a call is hand-typed because it reads the token itself, not because its address is literal', () => {
+    // The first counter tested the address for `/api/`, so a wrapper taking its path as a parameter
+    // (`fetch(path, ...)`) counted as zero however it was written. The token is what separates the two
+    // ways of making the call: runCommand reads it once, a hand-typed call reads it at the call site.
+    const root = scratch({
+      'src/components/sales/Sales.tsx': [
+        'async function post(path, body) {',
+        '  return fetch(path, { method: \'POST\', body: JSON.stringify(body),',
+        '    headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+        '}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1, 'a parameterised address is still hand-typed');
+  });
+
+  test('a token read into a variable above the call counts too', () => {
+    // `const token = await getIdToken(); ... fetch(path, { ... Bearer ${token} })` is the shape 34 real
+    // calls had, and a regex over the one line `fetch(` appears on saw none of them.
+    const root = scratch({
+      'src/components/sales/Sales.tsx': [
+        'export async function post(path, body) {',
+        '  const token = await getIdToken();',
+        '  return fetch(path, {',
+        '    method: \'POST\',',
+        '    headers: { Authorization: `Bearer ${token}` },',
+        '    body: JSON.stringify(body),',
+        '  });',
+        '}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1);
+  });
+
+  test('a call made from a service, a hook or a beside-the-screen .ts file counts as one', () => {
+    // These three places held 63 of the calls and the counter read none of them: it walked
+    // `src/components` for `.tsx` only. A number that cannot see the majority of what it measures
+    // reports progress that converting those files never made.
+    const body = 'fetch(path, { headers: { Authorization: `Bearer ${await getIdToken()}` } });\n';
+    const root = scratch({
+      'src/services/posting.ts': body,
+      'src/hooks/useThing.ts': body,
+      'src/components/banking/stageStore.ts': body,
+      'src/components/sales/Sales.tsx': body,
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 4);
+  });
+
+  test('the token objects other than the bare helper are seen too', () => {
+    // `await user.getIdToken()` and `await auth.currentUser?.getIdToken()` are the same hand-typed
+    // call. The first version of this counter only knew the bare `getIdToken()`, so ~20 sites — a
+    // report pack, the invite flow, several dialogs — were invisible and their conversions moved
+    // nothing. Reported by review, not by me.
+    const root = scratch({
+      'src/components/sales/A.tsx': 'const token = await user.getIdToken();\nfetch(path, { headers: { Authorization: `Bearer ${token}` } });\n',
+      'src/components/sales/B.tsx': 'fetch(path, { headers: { Authorization: `Bearer ${await auth.currentUser?.getIdToken()}` } });\n',
+      'src/components/sales/C.tsx': 'fetch(path, { headers: { Authorization: `Bearer ${await userIdToken()}` } });\n',
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 2, 'both token shapes count; a name with no token does not');
+  });
+
+  test('a faint tint on a selected row is not a primary button', () => {
+    // `bg-indigo-600/[0.03]` is a wash behind a selectable row, and `\b` matched it because `/` is not
+    // a word character — so a list row counted as one of a screen's filled buttons.
+    const root = screenWith([
+      'export const R = () => (<ul>',
+      '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+      '  <li><button type="button" className="w-full text-left p-6 bg-indigo-600/[0.03]">row</button></li>',
+      '</ul>);',
+    ], 'src/components/sales/Rows.tsx');
+    assert.equal(primaryButtonScreens(root), 0);
+  });
+
+  test('a strong opacity is still a fill, and a faint one is still a wash', () => {
+    // The rule is "40% or more is a fill". The first version listed exclusions and got the 40s
+    // backwards — it excluded /40 and /50 while the comment said they count. Found by review.
+    const strong = screenWith([
+      '<button className="bg-indigo-600/60">Save</button>',
+      '<button className="bg-indigo-600/90">Send</button>',
+    ], 'src/components/sales/Strong.tsx');
+    assert.equal(primaryButtonScreens(strong), 1, 'two 60%+ fills are two primary buttons');
+
+    const faint = screenWith([
+      '<button className="bg-indigo-600/[0.03]">row</button>',
+      '<button className="bg-indigo-600/10">row</button>',
+    ], 'src/components/sales/Faint.tsx');
+    assert.equal(primaryButtonScreens(faint), 0, 'a wash of 10% or less is not a button');
+  });
+
+  test('a filled button outside the steps counts against the step that is showing', () => {
+    // A wizard's shared action is on screen with whichever step is showing. Counting it in a group of
+    // its own let a wizard show two filled buttons and still total one per group. Reported by review.
+    const root = screenWith([
+      'export const W = ({ step }) => (<>',
+      '  <button className="btn-primary">Help</button>',
+      '  {step === 2 && (<button className="btn-primary">Finish</button>)}',
+      '</>);',
+    ], 'src/components/sales/Wizard.tsx');
+    assert.equal(primaryButtonScreens(root), 1, 'two filled buttons on screen at once');
+  });
+
+  test('the API documentation and the one place itself are not counted as a screen typing an address', () => {
+    // A code sample a reader copies is not the app calling its server, and counting it made the ratchet
+    // reward deleting the docs. The one place the address lives is excluded for the same reason.
+    const root = scratch({
+      'src/components/platform/ApiHubAnalysisDocs.tsx': 'const sample = `fetch("/api/v1/metrics")`;',
+      'src/components/platform/ApiHubCoreDocs.tsx': 'const sample = `fetch("/api/v1/core")`;',
+      'src/lib/runCommand.ts': 'await fetch(path, { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+      'src/components/sales/Sales.tsx': 'fetch("/api/invoices", { headers: { Authorization: `Bearer ${await getIdToken()}` } });',
+    });
+    assert.equal(computeQualityMetrics(root).handTypedApiCalls, 1, 'only the real screen call counts');
   });
 
   test('a direct database write from a screen, a hook or a store raises directDbWrites', () => {
@@ -86,6 +208,109 @@ describe('the five interface ratchets', () => {
       'src/components/one/One.tsx': '<button className="bg-indigo-600 text-white">Save</button>\n<button className="border">Cancel</button>\n',
     });
     assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
+  });
+
+  test('the three lines that only look like a second primary button are not counted', () => {
+    const root = scratch({
+      // a selected chip: a state inside a ternary, spread over the line before the class
+      'src/components/chip/Chip.tsx': [
+        '<button className={cn(',
+        '  "chip",',
+        '  on === 1 ? "bg-indigo-600 text-white" : "bg-[var(--surface)]",',
+        ')}>One</button>',
+        '<button className="bg-indigo-600">Save</button>',
+      ].join('\n'),
+      // an icon tile: filled, but nothing is pressed
+      'src/components/tile/Tile.tsx': [
+        '<div className="w-14 h-14 bg-indigo-600 text-white"><Brain aria-hidden="true" /></div>',
+        '<button className="btn-primary">Save</button>',
+      ].join('\n'),
+      // one per step of a wizard, and the steps are mutually exclusive
+      'src/components/steps/Steps.tsx': [
+        '{step === 0 && (',
+        '  <section><button className="btn-primary">Next</button></section>',
+        ')}',
+        '{step === 1 && (',
+        '  <section><button className="btn-primary">Finish</button></section>',
+        ')}',
+      ].join('\n'),
+    });
+    // a ratchet nobody can satisfy is one people stop watching: all three were counted before
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
+  });
+
+  test('two real filled buttons on one step are still counted', () => {
+    const root = scratch({
+      'src/components/two/Two.tsx': [
+        '{step === 0 && (',
+        '  <section>',
+        '    <button className="btn-primary">Save</button>',
+        '    <button className="bg-indigo-600">Send</button>',
+        '  </section>',
+        ')}',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'the rule still bites');
+  });
+
+  test('a button written across several lines is still a button', () => {
+    // this is how most of this codebase writes one, and a line-by-line reading found none of them:
+    // it reported a comfortable zero while the screens were unchanged
+    const root = scratch({
+      'src/components/multi/Multi.tsx': [
+        '<div>',
+        '  <button',
+        '    type="button"',
+        '    onClick={save}',
+        '    className="btn-primary min-h-11"',
+        '  >Save</button>',
+        '  <button',
+        '    type="button"',
+        '    onClick={send}',
+        '    className="bg-indigo-600"',
+        '  >Send</button>',
+        '</div>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
+  });
+
+  test('an arrow function in an attribute does not end the tag', () => {
+    // `onClick={() => …}` puts a `>` inside the tag; a `[^>]*` regex stops there and sees no button
+    const root = scratch({
+      'src/components/arrow/Arrow.tsx': [
+        '<button type="button" onClick={() => save()} className="btn-primary">Save</button>',
+        '<button type="button" onClick={() => send()}',
+        '  className="bg-indigo-600">Send</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1);
+  });
+
+  test('a conditional in another attribute does not discard a real primary button', () => {
+    const root = scratch({
+      'src/components/other/Other.tsx': [
+        '<button type="button" disabled={busy ? true : false} className="btn-primary">Save</button>',
+        '<button type="button" className="bg-indigo-600">Send</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 1, 'the ternary is in disabled, not className');
+  });
+
+  test('an icon tile and a selected chip on their own lines are still not buttons', () => {
+    const root = scratch({
+      'src/components/decoration/Decoration.tsx': [
+        '<div className="w-14 h-14 bg-indigo-600 text-white"><Brain /></div>',
+        '<button',
+        '  className={cn(',
+        '    "chip",',
+        '    selected ? "bg-indigo-600" : "bg-[var(--surface)]",',
+        '  )}',
+        '>One</button>',
+        '<button className="btn-primary">Save</button>',
+      ].join('\n'),
+    });
+    assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
   });
 
   test('an index that stops reading a registry raises unreachableActions', () => {

@@ -32,9 +32,12 @@ describe('Contact row actions', () => {
     const calls = stubFetchWithBodies(200, {});
     render(<PartyRowActions side="customer" party={acme} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Archive Acme' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_update'))));
-    const update = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_id: string; p_set: Record<string, unknown> };
-    assert.deepEqual([update.p_table, update.p_id, update.p_set.status], ['customers', 'c1', 'inactive']);
+    await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/api/v1/commands/customer.update'))));
+    const update = calls.find(c => c.url.endsWith('/api/v1/commands/customer.update'))!.body as {
+      workspaceId: string; input: { id: string; data: Record<string, unknown> };
+    };
+    assert.deepEqual([update.workspaceId, update.input.id, update.input.data.status], ['component-workspace', 'c1', 'inactive']);
+    assert.equal('updatedAt' in update.input.data, false, 'the server owns the update timestamp');
     cleanup();
     render(<PartyRowActions side="customer" party={{ ...acme, status: 'inactive' }} />);
     assert.ok(screen.getByRole('button', { name: 'Restore Acme' }));

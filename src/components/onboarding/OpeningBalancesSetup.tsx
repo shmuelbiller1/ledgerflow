@@ -9,11 +9,11 @@ import { describeError } from '../../lib/errorRemedies';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { failed, identityScope, ok } from '../../lib/serverAction';
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand } from '../../lib/runCommand';
 
 /** Existing opening-entry preview/API, moved out of first-run setup; no posting rules change. */
 export default function OpeningBalancesSetup({ onClose }: { onClose: () => void }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const user = useAuthStore(s => s.user);
   const role = useCurrentRole();
   const accounts = useLedgerStore(s => s.accounts);
   const [busy, setBusy] = useState(false);
@@ -37,15 +37,13 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
     const isCurrent = () => live.current && scope.isCurrent();
     setBusy(true);
     try {
-      const token = await user?.getIdToken();
       if (!isCurrent()) return failed('The workspace or signed-in account changed');
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/opening-balances`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ date: startDate, balances: balances.filter(b => b.amountCents !== 0) }),
-      });
-      const result = await res.json().catch(() => ({}));
+      const result = await runCommand<{ debitsCents?: number }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/opening-balances`,
+        method: 'POST',
+        body: { date: startDate, balances: balances.filter(b => b.amountCents !== 0) },
+      }) ?? {};
       if (!isCurrent()) return failed('The workspace or signed-in account changed');
-      if (!res.ok) throw new Error(result.message || result.error || 'Could not record opening balances');
       setPosted(result.debitsCents || 0);
       toast.success('Opening balances recorded');
       const store = useAuthStore.getState();
@@ -58,7 +56,7 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
     } finally { pending.current = false; if (isCurrent()) setBusy(false); }
   };
   const field = 'w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-sm';
-  if (posted !== null) return <section className="space-y-3" aria-label="Opening balances recorded"><p>Opening balances recorded on {startDate}: debits and credits are both {money(posted)}.</p><button className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={onClose}>Done</button></section>;
+  if (posted !== null) return <section className="space-y-3" aria-label="Opening balances recorded"><p>Opening balances recorded on {startDate}: debits and credits are both {money(posted)}.</p><button className="btn-tonal min-h-11" onClick={onClose}>Done</button></section>;
   return (
           <section className="space-y-4" aria-labelledby="setup-opening">
             <h2 id="setup-opening" className="text-lg font-semibold">Opening balances</h2>

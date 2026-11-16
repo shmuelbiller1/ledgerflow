@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { db, auth, getIdToken } from '../firebase';
+import { db, auth } from '../firebase';
 import { doc, collection, addDoc, setDoc } from '../lib/db/firestore';
 import { signOut } from '../lib/db/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
+import { runCommand, type CommandBody } from '../lib/runCommand';
 
 /** Provides workspace-level system actions including sign-out, template application, and workspace creation. */
 export function useSystemActions() {
@@ -42,14 +43,7 @@ export function useSystemActions() {
   // Templates are applied by the server (POST /api/v1/workspaces/:id/apply-template): it writes the
   // accounts and, for built-in templates, the dashboard layout, which users may not write directly.
   const applyTemplate = useCallback(async (body: { templateId?: string; accounts?: unknown[] }) => {
-    const token = await getIdToken();
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId || '')}/apply-template`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'The template could not be applied');
+    const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId || '')}/apply-template`, method: 'POST', body }) ?? {};
     return data as { created: number; removed: number };
   }, [currentWorkspaceId]);
 

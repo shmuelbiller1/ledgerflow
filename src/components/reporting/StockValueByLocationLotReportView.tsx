@@ -8,6 +8,7 @@
  * goods), with the units recorded at sale as a reference only — on-hand per lot is not tracked and
  * is never computed here. Read-only; nothing posts.
  */
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -16,7 +17,6 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { getIdToken } from '../../firebase';
 import {
   valuationByLocation, valuationByLots,
   stockValueLocationCsvRows, stockValueLotCsvRows,
@@ -32,9 +32,7 @@ const HISTORY_START = '1900-01-01';
 /** one reading of the stock-moves ledger from its start to `endDate` (the server's itemDetails) */
 async function readHistory(workspaceId: string, endDate: string): Promise<ItemDetails[]> {
   const query = new URLSearchParams({ workspaceId, startDate: HISTORY_START, endDate }).toString();
-  const res = await fetch(`/api/v1/reports/inventory-details?${query}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || `The stock history could not be read (${res.status})`);
+  const data = await runCommand<{ items?: ItemDetails[] }>({ path: `/api/v1/reports/inventory-details?${query}` });
   return data.items || [];
 }
 

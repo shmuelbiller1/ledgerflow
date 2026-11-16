@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { MAX_SIGNER_NAME, signatureProblem, type SignState } from '../../lib/estimateSignature';
@@ -25,8 +26,10 @@ export default function PublicEstimatePage() {
 
   useEffect(() => {
     let live = true;
-    fetch(`/api/v1/invoices/public/estimate/${encodeURIComponent(token)}`)
-      .then(async res => { const body = await res.json().catch(() => ({})); if (!res.ok) throw new Error(body.message || 'This link is not valid'); return body.estimate as SignView; })
+    // a customer opening this link is not signed in; `token: null` says so explicitly, so a
+  // stale session on the same browser cannot fail the request before it is even sent
+  runCommand<{ estimate?: SignView }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}`, token: null })
+      .then(body => body.estimate as SignView)
       .then(v => { if (live) setView(v); })
       .catch(err => { if (live) setError(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
@@ -39,12 +42,10 @@ export default function PublicEstimatePage() {
     setBusy(true);
     setProblem('');
     try {
-      const res = await fetch(`/api/v1/invoices/public/estimate/${encodeURIComponent(token)}/sign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), agree }) });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message || 'The signature could not be saved');
+      const body = await runCommand<{ signedBy?: string; signedAt?: string }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}/sign`, method: 'POST', token: null, body: { name: name.trim(), agree } });
       setView(v => v && { ...v, state: 'signed', signedBy: body.signedBy, signedAt: body.signedAt });
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : String(err));
+      setProblem(commandErrorMessage(err));
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,5 @@
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
@@ -28,10 +28,14 @@ export default function InventoryDetailsReportView() {
     if (!key) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/reports/inventory-details?${key}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.items)) throw new Error(body.message || body.error || 'The stock history could not be read');
-      return body.items as ItemDetails[];
+      return runCommand({
+        path: `/api/v1/reports/inventory-details?${key}`,
+        parse: (raw): ItemDetails[] => {
+          const items = (raw as { items?: ItemDetails[] }).items;
+          if (!Array.isArray(items)) throw new ServerCommandError(200, 'The stock history could not be read');
+          return items;
+        },
+      });
     })().then(items => { if (live) setResult({ key, items }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };
   }, [key]);

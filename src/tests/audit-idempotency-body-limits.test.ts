@@ -27,6 +27,8 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     const routesDir = path.join(process.cwd(), 'src/server/routes');
     const REG = /\b(?:app|router|workspaceRouter|emailWebhookRouter|[a-zA-Z]+Router)\s*\.\s*(post|put|patch|delete)\s*\(\s*(['"`])(.*?)\2/g;
     const WRITE = /\.doc\([^)]*\)\s*\.\s*(?:set|update|delete)\(|\.add\(|batch\.commit|\.commit\(\)|runTransaction|FieldValue\.(?:serverTimestamp|arrayUnion|increment)|insert into|UPDATE /i;
+    // Registered-command routes delegate persistence and transactional auditing to the shared runner.
+    const COMMAND_WRITE = /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/;
     const AUDIT = /writeServerAuditLog\s*\(|writeAuditLog\s*\(|recordAuthEvent\s*\(|deleteAccount\s*\(/;
 
     const all: { file: string; method: string; route: string; audited: boolean }[] = [];
@@ -35,8 +37,11 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
       const starts = [...src.matchAll(REG)];
       starts.forEach((m, i) => {
         const body = src.slice(m.index! + m[0].length, i + 1 < starts.length ? starts[i + 1].index! : src.length);
-        if (!WRITE.test(body)) return;
-        all.push({ file, method: m[1].toUpperCase(), route: m[3], audited: AUDIT.test(body) });
+        const commandManaged = COMMAND_WRITE.test(body);
+        if (!WRITE.test(body) && !commandManaged) return;
+        // CommandDefinition requires an audit callback and runRegisteredCommand writes its summary
+        // in the same transaction. The command-specific tests cover the callback's concrete event.
+        all.push({ file, method: m[1].toUpperCase(), route: m[3], audited: AUDIT.test(body) || commandManaged });
       });
     }
 

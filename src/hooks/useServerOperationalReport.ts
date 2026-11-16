@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getIdToken } from '../firebase';
+import { runCommand } from '../lib/runCommand';
 
 /**
  * Lightweight revision stamp over subscribed store collections so any local insert, payment,
@@ -44,12 +44,9 @@ export function useServerOperationalReport<T>(
     if (!enabled || !url || typeof fetch !== 'function') return;
     void (async () => {
       try {
-        const token = await getIdToken();
-        const res = await fetch(url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const body = (await res.json()) as Record<string, unknown>;
+        // the token is `runCommand`'s business; a refusal or a cut connection both mean "keep the provisional rows"
+        const body = await runCommand<Record<string, unknown>>({ path: url, signal: undefined });
+        if (cancelled) return;
         const next = body && typeof body === 'object' ? extractRef.current(body) : undefined;
         if (!cancelled && next !== undefined) {
           setState({ key: requestKey, value: next });

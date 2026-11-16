@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CheckCircle2 } from 'lucide-react';
@@ -38,7 +39,6 @@ interface Props {
 
 export default function SetupWizard({ onStarted, onDone }: Props) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
-  const user = useAuthStore(s => s.user);
   const role = useCurrentRole();
   const accounts = useLedgerStore(s => s.accounts);
   const [step, setStep] = useState(0);
@@ -62,16 +62,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
     );
   }
 
-  const call = async (path: string, body?: unknown) => {
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user?.getIdToken()}` },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || data.error || 'The setup step failed');
-    return data;
-  };
+  const call = async (path: string, body?: unknown) =>
+    runCommand<Record<string, unknown>>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/${path}`, method: 'POST', body });
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -95,15 +87,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
       await updateDoc(doc(db, 'workspaces', workspaceId), { ...fields, updatedAt: new Date().toISOString() });
       const nextModules = businessType && businessType !== workspace.businessType ? modulesForBusiness(businessType) : workspace.modules;
       if (businessType && businessType !== workspace.businessType) {
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user?.getIdToken()}` },
-          body: JSON.stringify({ modules: nextModules }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || data.error || 'Could not update workspace modules');
-        }
+        await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules`, method: 'PUT', body: { modules: nextModules } });
       }
       const store = useAuthStore.getState();
       if (store.currentWorkspaceId && store.currentWorkspaceId !== workspaceId) return;

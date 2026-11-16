@@ -256,9 +256,20 @@ describe('Route Policy Coverage Suite (D-30 / F-02: Per-Registration & Tenant Wa
       const content = fs.readFileSync(filePath, 'utf8');
 
       const exportedRouters = [...content.matchAll(/export const (\w+Router)\s*=/g)].map(m => m[1]);
+      const reexportedRouters = [...content.matchAll(/export\s*{([^}]+)}\s*from\s*['"][^'"]+['"]/g)]
+        .flatMap(match => match[1].split(',').map(specifier => specifier.trim().split(/\s+as\s+/).at(-1) || ''))
+        .filter(symbol => /^\w+Router$/.test(symbol));
       const exportedRegistrars = [...content.matchAll(/export function ((?:register|mount)\w+Routes)\s*\(/g)].map(m => m[1]);
 
       let isGuarded = false;
+
+      // Re-export-only aggregators such as kernelRoutes own no handlers or middleware: each
+      // router they expose must be mounted in server.ts behind the verified auth middleware.
+      if (reexportedRouters.length > 0 && exportedRouters.length === 0 && exportedRegistrars.length === 0) {
+        isGuarded = reexportedRouters.every(symbol =>
+          serverMounts.some(line => line.includes(symbol) && line.includes('apiAuthenticate')),
+        );
+      }
 
       // Direct app registrars are verified registration-by-registration in the F-02 test above
       if (exportedRegistrars.length > 0 && exportedRouters.length === 0) {

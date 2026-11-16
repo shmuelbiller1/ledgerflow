@@ -1,8 +1,8 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { FolderTree } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { getIdToken } from '../../../firebase';
 import { groupProblem, structureProblem, type WorkspaceGroup } from '../../../lib/workspaceGroups';
 import { useCollection } from '../../../hooks/useCollection';
 import type { ChartAccount } from '../../../types';
@@ -70,11 +70,11 @@ function SharePanel({ group, onChanged }: { group: WorkspaceGroup; onChanged: ()
 }
 
 async function call(path: string, method: string, body?: unknown) {
-  const res = await fetch(`/api/v1/account/groups${path}`, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body ? { body: JSON.stringify(body) } : {}),
+  const data = await runCommand<Record<string, unknown>>({
+    path: `/api/v1/account/groups${path}`,
+    method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+    body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'That did not work');
   return data as { groups?: WorkspaceGroup[]; group?: WorkspaceGroup };
 }
 

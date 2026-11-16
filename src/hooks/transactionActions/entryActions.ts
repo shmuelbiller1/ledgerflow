@@ -1,4 +1,5 @@
 import { recategorizeLines } from '../../lib/accountChoices';
+import { commandErrorMessage, runCommand, runWrite, writeWasAccepted, ServerCommandError } from '../../lib/runCommand';
 import { identityScope } from '../../lib/serverAction';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -125,8 +126,6 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     // Deferred to ledger integrity stream
     setIsSyncing(true);
 
-    
-    const token = await user?.getIdToken();
     let err;
     try {
       const finalTx = {
@@ -144,18 +143,17 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // Let's preserve the optimistic ID
       finalTx.id = optimisticTx.id;
       
-      const res = await fetch('/api/v1/transactions', {
+      // `x-operation-id` is the idempotency key: a retry of this entry is recorded once, not twice
+      // `runWrite`, not `runCommand`: an answer cut off mid-body still means the entry is committed, and
+      // reporting that as a failure is what makes a person submit it a second time. A refusal still throws.
+      const answer = await runWrite<Record<string, unknown>>({
+        path: '/api/v1/transactions',
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}`,
-          'x-operation-id': finalTx.id
-        },
-        body: JSON.stringify({ transaction: finalTx })
+        headers: { 'x-operation-id': finalTx.id },
+        body: { transaction: finalTx }
       });
-      const answer = await res.json().catch(() => ({}));
-      // EG-4: a refusal over the budget comes as { message } (409); an entry posted over it lists budgetWarnings
-      if (!res.ok) throw new Error(answer.error || answer.message || 'Failed to save transaction');
+      // EG-4: a refusal over the budget comes as a 409 that `runCommand` throws with the server's own
+      // words; an entry *posted* over it still succeeds and lists budgetWarnings here
       showBudgetWarnings(answer);
       err = null;
     } catch(e) {
@@ -274,22 +272,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       }
 
       if (updatesPayload.length > 0) {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/v1/transactions/batch', {
+        await runCommand({
+          path: '/api/v1/transactions/batch',
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            workspaceId: currentWorkspaceId,
-            updates: updatesPayload
-          })
+          body: { workspaceId: currentWorkspaceId, updates: updatesPayload }
         });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Server rejected batch updates');
-        }
       }
 
       // Update local state atomically
@@ -336,22 +323,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
                 }
               }
               if (undoPayload.length > 0) {
-                const token = await user.getIdToken();
-                const res = await fetch('/api/v1/transactions/batch', {
+                await runWrite({
+                  path: '/api/v1/transactions/batch',
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({
-                    workspaceId: currentWorkspaceId,
-                    updates: undoPayload
-                  })
+                  body: { workspaceId: currentWorkspaceId, updates: undoPayload }
                 });
-                if (!res.ok) {
-                  const errData = await res.json().catch(() => ({}));
-                  throw new Error(errData.error || 'Server rejected undo batch updates');
-                }
               }
               // Revert store state
               useLedgerStore.setState(state => ({
@@ -377,34 +353,38 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     }
   };
 
-  const handleToggleFlag = async (id: string) => {
+  const handleToggleFlag = async (id: string): Promise<boolean> => {
     const scope = identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
-    if (!tx) return;
+    if (!tx) return false;
     const nextFlagged = !tx.isFlagged;
-    const res = await fetch(`/api/v1/transactions/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await user?.getIdToken()}` },
-      body: JSON.stringify({
-        partialUpdate: { isFlagged: nextFlagged },
-        expectedUpdatedAt: tx.updatedAt,
-      }),
-    });
-    if (!scope.isCurrent()) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      if (!scope.isCurrent()) return;
-      toast.error(body?.error || 'Could not update transaction flag');
-      return;
+    try {
+      await runCommand({
+        path: `/api/v1/transactions/${id}`,
+        method: 'PUT',
+        body: {
+          partialUpdate: { isFlagged: nextFlagged },
+          expectedUpdatedAt: tx.updatedAt,
+        },
+      });
+    } catch (error) {
+      // Two different outcomes, and the person needs to know which one this is. A *refusal* means the flag
+      // did not change, and returning normally here would read as success. An answer cut off mid-body means
+      // the server took the change — so the read below completes the work instead of inviting a second click.
+      if (!writeWasAccepted(error)) {
+        if (!scope.isCurrent()) return false;
+        toast.error(commandErrorMessage(error) || 'Could not update transaction flag');
+        return false;
+      }
     }
-    if (!scope.isCurrent()) return;
+    if (!scope.isCurrent()) return false;
     // The partial-update API does not include the committed row. Read it to
     // obtain both its fields and its version; adopting only updatedAt would
     // allow a subsequent full save to overwrite concurrent edits.
     let authoritative: Transaction | undefined;
     if (useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
       const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
-      if (!scope.isCurrent()) return;
+      if (!scope.isCurrent()) return false;
       if (refresh.status === 'fulfilled') {
         const fresh = refresh.value;
         const record = fresh.data();
@@ -417,7 +397,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         console.warn('Unable to refresh flag version after update:', refresh.reason);
       }
     }
-    if (!scope.isCurrent()) return;
+    if (!scope.isCurrent()) return false;
     setTransactions(
       useLedgerStore.getState().transactions.map(t => {
         if (t.id !== id) return t;
@@ -427,6 +407,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       }),
     );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
+    return true;
   };
 
   const handleDuplicateTransaction = async (id: string) => {
@@ -532,7 +513,6 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           setTransactions(latest);
         }
       }
-      const token = await user?.getIdToken();
       const expectedUpdatedAt = tx.updatedAt;
       const payload = {
         ...tx,
@@ -540,20 +520,28 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         ...(updatedVerification ? { verification: updatedVerification } : {}),
         updatedAt: optimisticUpdatedAt
       };
-      const res = await fetch(`/api/v1/transactions/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ transaction: payload, expectedUpdatedAt })
-      });
-      if (!res.ok) {
-         const data = await res.json();
-         if (res.status === 409 || data.error === 'version_conflict') {
-           const err: TransactionConflictError = new Error(data.message || 'This transaction was modified by another user.');
-           err.isConflict = true;
-           err.currentTransaction = data.currentTransaction;
-           throw err;
-         }
-         throw new Error(data.error || 'Failed to update transaction');
+      try {
+        await runCommand({
+          path: `/api/v1/transactions/${id}`,
+          method: 'PUT',
+          body: { transaction: payload, expectedUpdatedAt },
+        });
+      } catch (error) {
+        // The server took the save and only the answer was cut off. Rolling the row back would show the old
+        // version while the new one is committed, and the stale `updatedAt` makes this person's next save a 409.
+        if (!writeWasAccepted(error)) {
+          // A conflict is not a failure: someone else saved this entry, and the screen offers to reload theirs.
+          // `runCommand` keeps the status and body so that branch can still be told apart.
+          const body = (error instanceof ServerCommandError ? error.body : null) as { error?: string; message?: string; currentTransaction?: Transaction } | null;
+          const status = error instanceof ServerCommandError ? error.status : 0;
+          if (status === 409 || body?.error === 'version_conflict') {
+            const err: TransactionConflictError = new Error(body?.message || 'This transaction was modified by another user.');
+            err.isConflict = true;
+            err.currentTransaction = body?.currentTransaction;
+            throw err;
+          }
+          throw error;
+        }
       }
       // The full-update response echoes the request's transaction, including
       // its browser-generated updatedAt, NOT the persisted server timestamp.
@@ -675,27 +663,18 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     if (!user || !currentWorkspaceId) return null;
     const loader = toast.loading('Executing reverse & correct...');
     try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/v1/transactions/${id}/reverse`, {
+      // A reversal that went through and lost only its answer must not be reported as failed: the person would
+      // try again and reverse the same entry twice. `{}` means "committed, nothing to show" — the list reloads.
+      const data = await runWrite<{ reversal?: Transaction; replacement?: Transaction }>({
+        path: `/api/v1/transactions/${id}/reverse`,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+        body: {
           reversalDate,
           reason,
           replacement,
           workspaceId: currentWorkspaceId
-        })
+        }
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || errData.message || 'Failed to reverse transaction');
-      }
-
-      const data = await res.json();
       const store = useLedgerStore.getState();
       const currentTxs = store.transactions;
       const updatedTxs = currentTxs.map(t => t.id === id ? { ...t, reversalEventId: data.reversal?.id || 'reversed' } : t);

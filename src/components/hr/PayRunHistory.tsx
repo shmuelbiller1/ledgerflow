@@ -3,6 +3,7 @@
  * for approval, sent back with the owner's note, withdrawn), with payslips (U-01) and Undo for a
  * posted run, and the direct deposit file (U-09). Split out of PayrollView.
  */
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { getIdToken } from '../../firebase';
@@ -35,6 +36,7 @@ export function PayRunHistory({ payRuns, canRunPayroll, onDone, onError }: {
       const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/pay-runs/${encodeURIComponent(run.id)}/payslips/${encodeURIComponent(employeeId)}`, {
         headers: { Authorization: `Bearer ${await getIdToken()}` },
       });
+      // the payslip is a PDF, not JSON: runCommand parses JSON, so this one stays a plain fetch
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { message?: string }).message || 'The payslip could not be made');
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
@@ -45,7 +47,7 @@ export function PayRunHistory({ payRuns, canRunPayroll, onDone, onError }: {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+      onError(commandErrorMessage(err));
     }
   };
 
@@ -53,15 +55,11 @@ export function PayRunHistory({ payRuns, canRunPayroll, onDone, onError }: {
     if (!workspace?.id || !window.confirm(`Undo the pay run of ${formatDate(run.date)}? Its ledger entry is voided.`)) return;
     setUndoingRun(run.id);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/pay-runs/${encodeURIComponent(run.id)}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${await getIdToken()}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The pay run could not be undone');
+      await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/pay-runs/${encodeURIComponent(run.id)}`, method: 'DELETE' });
       setPayRuns(payRuns.map(r => (r.id === run.id ? { ...r, status: 'undone' } : r)));
       onDone(`Pay run of ${formatDate(run.date)} undone; its entry is void.`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+      onError(commandErrorMessage(err));
     } finally {
       setUndoingRun('');
     }

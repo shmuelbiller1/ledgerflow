@@ -17,7 +17,12 @@ import {
   computeAgedInventoryByLot,
   LOT_AGE_BUCKETS,
   type LotAgeBucketKey,
+  type AgedLotRow,
 } from '../../lib/agedInventoryByLot';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
+import { LoadingState } from '../ui/LoadingState';
+import { EmptyState } from '../ui/EmptyState';
+import type { ColumnDef } from '@tanstack/react-table';
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
@@ -49,6 +54,26 @@ export default function AgedInventoryByLotReportView({
     [purchaseOrders, inventory, invoices, asOfDate, workspaceCurrency],
   );
 
+  /**
+   * One row per lot: what it is, when it arrived, how old it is, what it is worth, and whether it has
+   * expired. The lot number names the row. Sorting is on the plain values the cells print beside
+   * (days, quantities, cents), never on the formatted text.
+   */
+  const columns: ColumnDef<AgedLotRow, unknown>[] = [
+    { id: 'item', accessorFn: row => row.itemName, header: 'Item', cell: info => <span className="font-medium"><bdi>{String(info.getValue())}</bdi></span> },
+    { id: 'lot', accessorFn: row => row.lotNumber, header: 'Lot number', cell: info => <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300"><bdi>{String(info.getValue())}</bdi></span> },
+    { id: 'received', accessorFn: row => row.firstReceivedDate, header: 'Received date', cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
+    { id: 'age', accessorFn: row => row.ageDays, header: 'Age (days)', cell: info => <span className="tabular-nums font-semibold">{String(info.getValue())}</span> },
+    { id: 'bucket', accessorFn: row => LOT_AGE_BUCKETS.find(b => b.key === row.bucket)?.label || row.bucket, header: 'Bucket' },
+    { id: 'units', accessorFn: row => row.receivedQty, header: 'Received units', cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
+    { id: 'value', accessorFn: row => row.receivedValueCents, header: 'Receipt value', cell: info => <span className="tabular-nums font-semibold">{formatCurrency(Number(info.getValue()), (info.row.original as AgedLotRow).currency)}</span> },
+    { id: 'expiry', accessorFn: row => row.expiryDate || '', header: 'Expiry', cell: info => {
+      const row = info.row.original as AgedLotRow;
+      return <span className="tabular-nums">{row.expiryDate || '—'}{row.expired && <span className="ms-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">Expired</span>}</span>;
+    } },
+    { id: 'sold', accessorFn: row => row.recordedSoldQty, header: 'Sold refs', cell: info => <span className="tabular-nums text-[var(--muted)]">{Number(info.getValue()) > 0 ? String(info.getValue()) : '—'}</span> },
+  ];
+
   const visible = useMemo(
     () => (bucketFilter === 'ALL' ? rows : rows.filter(r => r.bucket === bucketFilter)),
     [rows, bucketFilter],
@@ -62,7 +87,9 @@ export default function AgedInventoryByLotReportView({
   }, [rows]);
 
   if (loading || (ordersLoading && !purchaseOrdersProp)) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading lot aging…</p>;
+    // a named placeholder, not a bare spinner: the list below can be empty, and I-05 asks the screen
+    // that can say "nothing here" to say "still loading" while it does not know yet
+    return <LoadingState what="lot aging" rows={5} />;
   }
 
   return (
@@ -106,61 +133,26 @@ export default function AgedInventoryByLotReportView({
         </div>
       </div>
 
-      {visible.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No lot-numbered receipts on or before {asOfDate}</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Record lot numbers when receiving goods against a purchase order to track lot age and expiry across buckets.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">Aged inventory by lot table</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">Item</th>
-                <th scope="col" className="px-4 py-3 text-start">Lot number</th>
-                <th scope="col" className="px-4 py-3 text-start">Received date</th>
-                <th scope="col" className="px-4 py-3 text-end">Age (days)</th>
-                <th scope="col" className="px-4 py-3 text-start">Bucket</th>
-                <th scope="col" className="px-4 py-3 text-end">Received units</th>
-                <th scope="col" className="px-4 py-3 text-end">Receipt value</th>
-                <th scope="col" className="px-4 py-3 text-start">Expiry</th>
-                <th scope="col" className="px-4 py-3 text-end">Sold refs</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {visible.map(r => (
-                <tr key={`${r.itemId}-${r.lotNumber}-${r.currency}`}>
-                  <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.itemName}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">{r.lotNumber}</td>
-                  <td className="px-4 py-3 tabular-nums">{r.firstReceivedDate}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-semibold">{r.ageDays}</td>
-                  <td className="px-4 py-3">
-                    {LOT_AGE_BUCKETS.find(b => b.key === r.bucket)?.label || r.bucket}
-                  </td>
-                  <td className="px-4 py-3 text-end tabular-nums">{r.receivedQty}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-semibold">
-                    {formatCurrency(r.receivedValueCents, r.currency)}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {r.expiryDate || '—'}
-                    {r.expired && (
-                      <span className="ml-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">
-                        Expired
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-end tabular-nums text-slate-600 dark:text-slate-400">
-                    {r.recordedSoldQty > 0 ? r.recordedSoldQty : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TanStackDataGrid
+        caption="Aged inventory by lot table"
+        data={visible}
+        columns={columns}
+        rowHeaderColumn="lot"
+        pageSize={25}
+        searchPlaceholder="Search items, lots and buckets..."
+        searchLabel="Search items, lots and buckets"
+        columnScope="report-aged-inventory-by-lot"
+        columnLabel="Aged inventory columns"
+        columnNames={['Item', 'Lot number', 'Received date', 'Age (days)', 'Bucket', 'Received units', 'Receipt value', 'Expiry', 'Sold refs']}
+        exportConfig={{
+          filename: `aged-inventory-by-lot-${asOfDate}.csv`,
+          label: 'Export CSV',
+          headers: AGED_INVENTORY_BY_LOT_CSV_HEADERS,
+          mapRow: row => agedInventoryByLotCsvRows([row])[0],
+        }}
+        emptyState={<EmptyState title={`No lot-numbered receipts on or before ${asOfDate}`} description="Record lot numbers when receiving goods to track lot age and expiry." />}
+        filteredEmptyState={<EmptyState title="No lot matches your search" description="Try another item or lot number." />}
+      />
     </div>
   );
 }

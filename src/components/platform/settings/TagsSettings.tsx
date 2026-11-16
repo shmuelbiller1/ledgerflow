@@ -1,7 +1,8 @@
+import { getIdToken } from '../../../firebase';
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Tag } from 'lucide-react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { safeConfirm } from '../../../lib/utils';
@@ -20,16 +21,16 @@ const KIND: Record<string, string> = {
 };
 const field = 'px-2 py-1 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
-async function api(workspaceId: string, path: string, body?: unknown) {
-  const token = await getIdToken().catch(() => '');
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tags${path}`, {
+async function api(workspaceId: string, path: string, body?: unknown): Promise<{ tags?: TagUse[]; changed?: number }> {
+  const token = await getIdToken().catch(() => null);
+  const data = await runCommand<{ tags?: TagUse[]; changed?: number }>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tags${path}`,
     method: body ? 'POST' : 'GET',
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    token,
+    ...(body ? { body } : {}),
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The tags could not be reached');
-  return data.data;
+  // the tags routes answer `{ data: { … } }`
+  return (data as { data?: { tags?: TagUse[]; changed?: number } }).data || {};
 }
 
 export default function TagsSettings() {
@@ -51,7 +52,7 @@ export default function TagsSettings() {
       try {
         const data = await api(workspaceId, '');
         if (!live) return;
-        setTags(data.tags as TagUse[]);
+        setTags(data.tags || []);
         setError('');
       } catch (err) {
         if (!live) return;
@@ -68,7 +69,7 @@ export default function TagsSettings() {
   const change = async (from: string, to: string | null) => {
     setBusy(true);
     try {
-      const { changed } = await api(workspaceId, '/change', { from, to });
+      const { changed = 0 } = await api(workspaceId, '/change', { from, to });
       toast.success(to === null ? `"${from}" removed from ${changed} records` : `"${from}" is now "${to}" on ${changed} records`);
       setEditing(null);
       setAsked(n => n + 1);

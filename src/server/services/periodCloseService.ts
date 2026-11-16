@@ -27,9 +27,16 @@ import type { ChartAccount, Transaction as LedgerEntry } from '../../types';
  */
 
 export class PeriodCloseError extends Error {
+  readonly code?: string;
+
   constructor(readonly status: number, message: string, readonly details?: unknown) {
     super(message);
     this.name = 'PeriodCloseError';
+    this.code = status === 400 ? 'INVALID_INPUT'
+      : status === 403 ? 'ROLE_REQUIRED'
+        : status === 404 ? 'WORKSPACE_NOT_FOUND'
+          : status === 409 ? 'CONFLICT'
+            : undefined;
   }
 }
 
@@ -45,6 +52,47 @@ interface Actor {
 }
 
 const periodRef = (db: Firestore, workspaceId: string, month: string) => db.collection('periods').doc(`${workspaceId}_${month}`);
+
+function inTransaction<T>(db: Firestore, tx: Transaction | undefined, work: (transaction: Transaction) => Promise<T>): Promise<T> {
+  return tx ? work(tx) : db.runTransaction(work);
+}
+
+export function validatePeriodMonth(month: string): void {
+  if (!MONTH.test(month)) throw new PeriodCloseError(400, 'Month must be YYYY-MM');
+}
+
+export function validateClosePeriodInput(input: { month: string; mode: string }): void {
+  validatePeriodMonth(input.month);
+  if (input.mode !== 'soft' && input.mode !== 'hard') throw new PeriodCloseError(400, 'Choose a soft or hard close');
+}
+
+export function validateReopenPeriodInput(input: { month: string; reason: string }): string {
+  validatePeriodMonth(input.month);
+  const reason = String(input.reason || '').trim();
+  if (reason.length < 5) throw new PeriodCloseError(400, 'Say why the period is reopened (at least 5 characters)');
+  return reason;
+}
+
+export function validatePartialUnlockInput(input: { fromDate: string; toDate: string; reason: string }): string {
+  if (!DAY.test(input.fromDate) || !DAY.test(input.toDate) || input.fromDate > input.toDate) {
+    throw new PeriodCloseError(400, 'Choose a date range (from ≤ to)');
+  }
+  const reason = String(input.reason || '').trim();
+  if (reason.length < 5) throw new PeriodCloseError(400, 'Say why the dates are unlocked (at least 5 characters)');
+  return reason;
+}
+
+export function validateSignOffInput(input: { month: string; itemId: string }): boolean {
+  validatePeriodMonth(input.month);
+  const isStep = input.itemId.startsWith(STEP_PREFIX);
+  if (!CLOSE_ITEM_IDS.includes(input.itemId) && !isStep) throw new PeriodCloseError(400, 'Unknown checklist item');
+  return isStep;
+}
+
+export function validateCloseSteps(steps: unknown): void {
+  const problem = closeStepsProblem(steps);
+  if (problem) throw new PeriodCloseError(400, problem);
+}
 
 async function loadWorkspace(db: Firestore, t: Transaction, actor: Actor, roles: readonly string[], action: string) {
   const ref = db.collection('workspaces').doc(actor.workspaceId);
@@ -80,12 +128,11 @@ function audit(db: Firestore, t: Transaction, actor: Actor, action: string, desc
   }, { db, tx: t });
 }
 
-export async function closePeriod(db: Firestore, input: Actor & { month: string; mode: 'soft' | 'hard' }) {
-  if (!MONTH.test(input.month)) throw new PeriodCloseError(400, 'Month must be YYYY-MM');
-  if (input.mode !== 'soft' && input.mode !== 'hard') throw new PeriodCloseError(400, 'Choose a soft or hard close');
+export async function closePeriod(db: Firestore, input: Actor & { month: string; mode: 'soft' | 'hard' }, tx?: Transaction) {
+  validateClosePeriodInput(input);
   const end = monthEnd(input.month);
 
-  return db.runTransaction(async (t) => {
+  return inTransaction(db, tx, async (t) => {
     const { ref, ws } = await loadWorkspace(db, t, input, CLOSE_ROLES, 'close a period');
     const today = formatTzDate(new Date(), typeof ws.timezone === 'string' ? ws.timezone : 'UTC');
     if (end > today) throw new PeriodCloseError(400, `${input.month} hasn't ended yet (today is ${today})`);
@@ -131,7 +178,7 @@ export async function closePeriod(db: Firestore, input: Actor & { month: string;
  * was never closed (or was closed before snapshots were kept).
  */
 export async function closingBalanceCheck(db: Firestore, input: Actor & { month: string }) {
-  if (!MONTH.test(input.month)) throw new PeriodCloseError(400, 'Month must be YYYY-MM');
+  validatePeriodMonth(input.month);
   const period = (await periodRef(db, input.workspaceId, input.month).get()).data();
   const snapshot = period?.closingSnapshot as ClosingSnapshot | undefined;
   if (!snapshot?.asOfDate || !Array.isArray(snapshot.accounts)) return { snapshot: null, changes: [] };
@@ -144,12 +191,10 @@ export async function closingBalanceCheck(db: Firestore, input: Actor & { month:
   };
 }
 
-export async function reopenPeriod(db: Firestore, input: Actor & { month: string; reason: string }) {
-  if (!MONTH.test(input.month)) throw new PeriodCloseError(400, 'Month must be YYYY-MM');
-  const reason = String(input.reason || '').trim();
-  if (reason.length < 5) throw new PeriodCloseError(400, 'Say why the period is reopened (at least 5 characters)');
+export async function reopenPeriod(db: Firestore, input: Actor & { month: string; reason: string }, tx?: Transaction) {
+  const reason = validateReopenPeriodInput(input);
 
-  return db.runTransaction(async (t) => {
+  return inTransaction(db, tx, async (t) => {
     const { ref, ws, role } = await loadWorkspace(db, t, input, CLOSE_ROLES, 'reopen a period');
     const state = monthCloseState(input.month, { ...ws, lockException: null });
     if (state === 'open') throw new PeriodCloseError(409, `${input.month} is not closed`);
@@ -173,12 +218,10 @@ export async function reopenPeriod(db: Firestore, input: Actor & { month: string
   });
 }
 
-export async function partialUnlock(db: Firestore, input: Actor & { fromDate: string; toDate: string; reason: string }) {
-  if (!DAY.test(input.fromDate) || !DAY.test(input.toDate) || input.fromDate > input.toDate) throw new PeriodCloseError(400, 'Choose a date range (from ≤ to)');
-  const reason = String(input.reason || '').trim();
-  if (reason.length < 5) throw new PeriodCloseError(400, 'Say why the dates are unlocked (at least 5 characters)');
+export async function partialUnlock(db: Firestore, input: Actor & { fromDate: string; toDate: string; reason: string }, tx?: Transaction) {
+  const reason = validatePartialUnlockInput(input);
 
-  return db.runTransaction(async (t) => {
+  return inTransaction(db, tx, async (t) => {
     const { ref, ws, role } = await loadWorkspace(db, t, input, CLOSE_ROLES, 'unlock a closed period');
     const closedThrough = later(ws.lockDate, ws.softLockDate);
     if (!closedThrough || input.fromDate > closedThrough) throw new PeriodCloseError(400, 'Those dates are not closed');
@@ -194,26 +237,26 @@ export async function partialUnlock(db: Firestore, input: Actor & { fromDate: st
   });
 }
 
-export async function relock(db: Firestore, input: Actor) {
-  const result = await db.runTransaction(async (t) => {
+export async function relock(db: Firestore, input: Actor, tx?: Transaction) {
+  const result = await inTransaction(db, tx, async (t) => {
     const { ref, ws } = await loadWorkspace(db, t, input, CLOSE_ROLES, 'lock the period again');
     if (!ws.lockException) throw new PeriodCloseError(409, 'Nothing is unlocked');
     t.update(ref, { lockException: null, updatedAt: new Date().toISOString() });
     await audit(db, t, input, 'PERIOD_RELOCKED', `Closed ${ws.lockException.fromDate} to ${ws.lockException.toDate} again`, { fromDate: ws.lockException.fromDate, toDate: ws.lockException.toDate });
     return { lockException: null as null };
   });
-  // L-123: the range is closed again, so the year-end snapshots it made stale are rebuilt at once
-  await rebuildSnapshots(db, input.workspaceId, input.uid).catch(err => console.warn('[balances] rebuilding after the relock failed:', err instanceof Error ? err.message : err));
+  // L-123: standalone callers rebuild after their own transaction; command callers schedule this after commit.
+  if (!tx) {
+    await rebuildSnapshots(db, input.workspaceId, input.uid).catch(err => console.warn('[balances] rebuilding after the relock failed:', err instanceof Error ? err.message : err));
+  }
   return result;
 }
 
-export async function signOff(db: Firestore, input: Actor & { month: string; itemId: string; note?: string; remove?: boolean }) {
-  if (!MONTH.test(input.month)) throw new PeriodCloseError(400, 'Month must be YYYY-MM');
-  const isStep = input.itemId.startsWith(STEP_PREFIX);
-  if (!CLOSE_ITEM_IDS.includes(input.itemId) && !isStep) throw new PeriodCloseError(400, 'Unknown checklist item');
+export async function signOff(db: Firestore, input: Actor & { month: string; itemId: string; note?: string; remove?: boolean }, tx?: Transaction) {
+  const isStep = validateSignOffInput(input);
   const note = String(input.note || '').trim().slice(0, 500);
 
-  return db.runTransaction(async (t) => {
+  return inTransaction(db, tx, async (t) => {
     const { ws } = await loadWorkspace(db, t, input, WRITER_ROLES, 'sign off checklist items');
     // the client's own steps (BD-10): only one of this workspace's; a removed step's sign-off may still be taken back
     const steps = Array.isArray(ws.closeSteps) ? (ws.closeSteps as CloseStep[]) : [];
@@ -238,15 +281,14 @@ export async function signOff(db: Firestore, input: Actor & { month: string; ite
  * A checklist per client (BD-10): owners and accountants keep the workspace's own month-end steps.
  * The whole list is sent; new steps get an id here. Sign-offs already given stay with their months.
  */
-export async function saveCloseSteps(db: Firestore, input: Actor & { steps: Array<{ id?: string; title: string; frequency: string }> }) {
-  const problem = closeStepsProblem(input.steps);
-  if (problem) throw new PeriodCloseError(400, problem);
+export async function saveCloseSteps(db: Firestore, input: Actor & { steps: Array<{ id?: string; title: string; frequency: string }> }, tx?: Transaction) {
+  validateCloseSteps(input.steps);
   const steps: CloseStep[] = input.steps.map(s => ({
     id: s.id || `cs_${crypto.randomBytes(6).toString('hex')}`,
     title: String(s.title).trim(),
     frequency: s.frequency as CloseStep['frequency'],
   }));
-  return db.runTransaction(async (t) => {
+  return inTransaction(db, tx, async (t) => {
     const { ref, ws } = await loadWorkspace(db, t, input, CLOSE_ROLES, 'change the month-end steps');
     const before = Array.isArray(ws.closeSteps) ? (ws.closeSteps as CloseStep[]) : [];
     const added = steps.filter(s => !before.some(b => b.id === s.id)).map(s => s.title);

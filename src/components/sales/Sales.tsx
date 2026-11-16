@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
 import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-react';
 import { parseLocalDate, cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { getIdToken } from '../../firebase';
 import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { csvMoney } from '../../lib/csvExport';
@@ -19,7 +18,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import CustomerModal from './CustomerModal';
 import TagFilter from '../common/TagFilter';
-import { allTags, hasTag, isArchivedParty } from '../../lib/contacts';
+import { allTags, hasTag, isArchivedParty, matchPartyByName } from '../../lib/contacts';
 import PartyRowActions, { ArchivedBadge, ShowArchivedToggle } from '../common/PartyRowActions';
 import EmailStatementsButton from './EmailStatementsButton';
 import DocumentTotalsFoot from '../ui/DocumentTotalsFoot';
@@ -54,6 +53,7 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
 import { buildCustomerColumns, buildInvoiceColumns } from './salesColumns';
+import { runCommand } from '../../lib/runCommand';
 
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
@@ -121,9 +121,25 @@ export default function Sales() {
         toast.error("Pick a customer or type a new customer's name.");
         throw new Error('No customer name');
       }
-      const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
-      if (!created) throw new Error('Customer not saved');
-      data = { ...data, customerId: created.id };
+      // a customer of that name may already exist (typed with other capitals or spaces, or added a moment ago):
+      // use it instead of refusing the invoice; several near-identical names: ask, never add another
+      const { party: existing, ambiguous } = matchPartyByName(useLedgerStore.getState().customers, name);
+      if (ambiguous) {
+        toast.error(`More than one customer is called "${name}" in different capitals. Pick the customer from the list.`);
+        throw new Error('Ambiguous customer name');
+      }
+      if (existing) {
+        data = { ...data, customerId: existing.id, customerName: existing.name };
+      } else {
+        const created = await addEntity('customers', { name, status: 'active' }, `Customer "${name}" added`);
+        if (!created) throw new Error('Customer not saved');
+        data = { ...data, customerId: created.id };
+      }
+    }
+    // the box keeps what was typed ("acme "); the invoice is saved with the customer's own name
+    if (typeof data.customerId === 'string' && !data.customerId.startsWith('new-')) {
+      const chosen = useLedgerStore.getState().customers.find(c => c.id === data.customerId);
+      if (chosen?.name) data = { ...data, customerName: chosen.name };
     }
     try { data = await ensureInvoiceDimensionNodes(data); }
     catch (err) { toast.error(err instanceof Error && err.message ? err.message : 'Could not save dimension label.'); throw err; }
@@ -197,13 +213,8 @@ export default function Sales() {
   const reverseWriteOff = useCallback(async (inv: Invoice) => {
     if (!currentWorkspaceId) return;
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(inv.id)}/write-off/reverse`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ reason: 'Customer paid after all' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The write-off could not be reversed');
+      // the write-off reversal answers with the invoice; the screen shows its own success line
+      await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(inv.id)}/write-off/reverse`, method: 'POST', body: { reason: 'Customer paid after all' } });
       toast.success(`Write-off reversed: ${formatCurrency(inv.writtenOffCents || 0)} is due again. Record the payment now.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The write-off could not be reversed');
@@ -312,7 +323,12 @@ export default function Sales() {
           customers={customers} accounts={accounts} initialInvoice={newInvoiceFor} />
       )}
       <CustomerModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}
-        onSave={async (cust) => { await onAddCustomer(cust); setIsCustomerModalOpen(false); }} />
+        onSave={async (cust) => {
+          const saved = await onAddCustomer(cust);
+          if (!saved) return false;
+          setIsCustomerModalOpen(false);
+          return true;
+        }} />
       {isPaymentModalOpen && paymentDocumentId && paymentContactId && (
         <ReceivePaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)}
           defaultDirection="received" defaultDocumentId={paymentDocumentId} defaultContactId={paymentContactId} />

@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { runCommand } from '../../lib/runCommand';
 
 export interface BillingState {
   currentPlan: 'free' | 'growth' | 'pro' | 'enterprise';
@@ -34,9 +35,8 @@ export const useBillingStore = create<BillingState>()(
       incrementUserCount: () => set((state) => ({ userCount: state.userCount + 1 })),
       fetchSystemCaps: async () => {
         try {
-          const res = await fetch('/api/v1/public/registration-status');
-          if (res.ok) {
-            const data = await res.json();
+          const data = await runCommand<{ status?: string; freeWorkspaceTxCap?: number; maxRegistrationLimit?: number; totalUsers?: number; registrationAllowed?: boolean }>({ path: '/api/v1/public/registration-status', token: null });
+          if (data) {
             if (data.status === 'success') {
               set({
                 freeWorkspaceTxCap: data.freeWorkspaceTxCap ?? 100,

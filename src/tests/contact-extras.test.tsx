@@ -19,6 +19,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { makeChartAccount, makeCustomer, makeVendor } from './fixtures';
 import type { Bill, Invoice, Workspace } from '../types';
+import { setComponentWorkspace } from './helpers/componentFixtures';
 
 describe('contact helpers', () => {
   test('tags: trimmed, no empties or repeats in any case', () => {
@@ -90,6 +91,32 @@ describe('contact page panel', () => {
     assert.ok(notes.findIndex(t => t.includes('Promised')) < notes.findIndex(t => t.includes('First call')), 'newest note first');
     fireEvent.click(screen.getByRole('button', { name: 'Edit customer' }));
     assert.equal((screen.getByLabelText('Customer Name') as HTMLInputElement).value, 'Acme');
+  });
+
+  test('a refused profile or note command keeps the edit dialog and note draft', async () => {
+    const workspace = setComponentWorkspace('owner');
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, body: typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {} });
+      return Response.json({ message: 'Contact update refused' }, { status: 403 });
+    }) as typeof fetch;
+    render(<PartyProfilePanel side="customer" party={makeCustomer({ id: 'c1', name: 'Acme', workspaceId: workspace.id })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit customer' }));
+    const name = screen.getByLabelText('Customer Name') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'Keep this contact draft' } });
+    await act(async () => { fireEvent.submit(name.closest('form')!); });
+    await waitFor(() => assert.equal(calls.length, 1));
+    assert.ok(screen.getByRole('dialog', { name: 'Edit Customer' }));
+    assert.equal((screen.getByLabelText('Customer Name') as HTMLInputElement).value, 'Keep this contact draft');
+    assert.equal(calls[0].url, '/api/v1/commands/customer.update');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    const note = screen.getByLabelText('New note') as HTMLTextAreaElement;
+    fireEvent.change(note, { target: { value: 'Keep this note draft' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add note' })); });
+    await waitFor(() => assert.equal(calls.length, 2));
+    assert.equal(note.value, 'Keep this note draft');
   });
 
   test('a viewer reads but cannot edit or add notes', () => {

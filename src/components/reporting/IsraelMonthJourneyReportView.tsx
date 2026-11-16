@@ -10,9 +10,9 @@ import {
 } from '../../lib/israelMonthJourney';
 import { downloadCsv } from '../../lib/csvExport';
 import { monthCloseState, workspaceRole } from '../../lib/periodLock';
-import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { runCommand } from '../../lib/runCommand';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
@@ -70,12 +70,12 @@ export default function IsraelMonthJourneyReportView() {
     const load = async () => {
       try {
         if (!workspaceId) { if (!cancelled) { setFiledPeriods([]); setFiledLoadFailed(false); } return; }
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns`, {
-          headers: { Authorization: `Bearer ${await getIdToken()}` },
-        });
-        const data = await res.json().catch(() => ({}));
+        // a failure is shown as "filed returns could not be read", which is a flag rather than an exception
+        const data = await runCommand<{ returns?: unknown }>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns`,
+        }).catch(() => null);
         if (cancelled) return;
-        if (!res.ok) {
+        if (!data) {
           setFiledLoadFailed(true);
           setFiledPeriods([]);
           return;
@@ -100,13 +100,11 @@ export default function IsraelMonthJourneyReportView() {
   const canFile = Boolean(user && workspace && ['owner', 'accountant'].includes(workspaceRole(workspace as never, user.uid)));
   const recordFiled = async (r: { registration: string; startDate: string; endDate: string }) => {
     const asked = workspaceId;
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId || '')}/tax-returns`, {
+    await runCommand<{ message?: string }>({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId || '')}/tax-returns`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-      body: JSON.stringify({ startDate: r.startDate, endDate: r.endDate, registration: r.registration }),
+      body: { startDate: r.startDate, endDate: r.endDate, registration: r.registration },
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'The return could not be recorded');
     if (useAuthStore.getState().currentWorkspaceId === asked) setFiledReload(n => n + 1);
   };
   const partial = Boolean(

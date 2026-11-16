@@ -12,9 +12,9 @@ import { paymentPlan, type BulkDocument } from '../../lib/bulkDocuments';
 import { bankFileRows, billsDueBy, missingBankDetails } from '../../lib/paymentRun';
 import { computePlatformFeeQuote } from '../../lib/paymentVolumeFee';
 import { operationIdFor, workspaceScope } from '../../lib/serverAction';
-import { getIdToken } from '../../firebase';
 import { recordPayments } from '../../services/bulkDocumentActions';
 import type { Bill, Vendor } from '../../types';
+import { commandErrorMessage, runCommand } from '../../lib/runCommand';
 
 const field = 'w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 
@@ -95,7 +95,6 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     setSaving(true);
     try {
-      const token = await getIdToken();
       const payoutsPayload = payments.map(p => {
         const key = JSON.stringify([workspaceId, cashAccountId, payDate, p.partyId, p.amountCents, p.allocations]);
         const opId = operationIdFor(operationIds.current, key);
@@ -112,33 +111,37 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
         };
       });
 
-      const res = await fetch('/api/v1/payments/payout-run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          workspaceId,
-          cashAccountId,
-          paymentDate: payDate,
-          payouts: payoutsPayload,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!scope.isCurrent()) return;
-      if (!res.ok) {
-        toast.error(body.message || body.error || 'Vendor payouts failed');
+      // the answer names the payouts it sent, which the screen ticks off and counts
+      let body: { completed?: Array<{ vendorId: string }>; failed?: Array<{ vendorName: string; message: string }>; totalDisbursedCents?: number };
+      try {
+        body = await runCommand<{ completed?: Array<{ vendorId: string }>; failed?: Array<{ vendorName: string; message: string }>; totalDisbursedCents?: number }>({
+          path: '/api/v1/payments/payout-run',
+          method: 'POST',
+          body: {
+            workspaceId,
+            cashAccountId,
+            paymentDate: payDate,
+            payouts: payoutsPayload,
+          },
+        }) ?? {};
+      } catch (error) {
+        if (!scope.isCurrent()) return;
+        toast.error(commandErrorMessage(error) || 'Vendor payouts failed');
         return;
       }
-      const completedIds = new Set<string>((body.completed || []).map((c: { vendorId: string }) => c.vendorId));
+      if (!scope.isCurrent()) return;
+      const completed = body.completed || [];
+      const completedIds = new Set(completed.map(c => c.vendorId));
       const paidDocIds = payments
         .filter(p => completedIds.has(p.partyId))
         .flatMap(p => p.allocations.map(a => a.documentId));
       if (paidDocIds.length > 0) {
         setLeft(prev => new Set([...prev, ...paidDocIds]));
         toast.success(
-          `${body.completed.length} vendor ACH payout${body.completed.length === 1 ? '' : 's'} sent (${formatCurrency(body.totalDisbursedCents || 0, currency)})`,
+          `${completed.length} vendor ACH payout${completed.length === 1 ? '' : 's'} sent (${formatCurrency(body.totalDisbursedCents || 0, currency)})`,
         );
       }
-      for (const f of (body.failed || []) as Array<{ vendorName: string; message: string }>) {
+      for (const f of body.failed || []) {
         toast.error(`${f.vendorName}: ${f.message}`);
       }
       if (!body.failed?.length) onClose();

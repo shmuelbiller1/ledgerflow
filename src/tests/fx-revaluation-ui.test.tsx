@@ -14,7 +14,7 @@ import { addDaysYMD } from '../lib/fiscalCalendar';
 import { dayBefore } from '../lib/periodLock';
 import { getLocalDateISO } from '../lib/utils';
 
-interface Call { path: string; body: Record<string, unknown> }
+interface Call { path: string; body: Record<string, unknown>; headers?: Record<string, string> }
 
 /** fetch that answers each path with its own status and body, and records what was asked. */
 function stubRoutes(responses: Record<string, { status?: number; body: unknown } | Array<{ status?: number; body: unknown }>>): Call[] {
@@ -22,8 +22,12 @@ function stubRoutes(responses: Record<string, { status?: number; body: unknown }
   const counts = new Map<string, number>();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
-    calls.push({ path, body: typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {} });
-    const found = Object.entries(responses).find(([key]) => path.includes(key));
+    calls.push({
+      path,
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {},
+      ...(init?.headers ? { headers: init.headers as Record<string, string> } : {}),
+    });
+    const found = Object.entries(responses).filter(([key]) => path.includes(key)).sort(([a], [b]) => b.length - a.length)[0];
     const configured = found?.[1];
     const sequence = Array.isArray(configured) ? configured : configured ? [configured] : [];
     const index = found ? counts.get(found[0]) || 0 : 0;
@@ -89,7 +93,7 @@ describe('the revaluation panel', () => {
   test('nothing is posted by looking: the run is asked for only when the button is pressed', async () => {
     const calls = stubRoutes({
       '/revaluation/preview': { body: PLAN },
-      '/revaluation/run': { body: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } },
+      '/commands/period.fxrevaluation': { body: { status: 'success', data: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } } },
     });
     render(<FxRevaluationPanel />);
     // booleans, never the element itself: node's assert inspects a failing DOM node, and a jsdom
@@ -101,14 +105,37 @@ describe('the revaluation panel', () => {
     assert.deepEqual(calls[0].body, { workspaceId: 'component-workspace', date: TODAY }, 'the preview explicitly values this workspace at the date shown in the panel');
     fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
     await waitFor(() => assert.equal(calls.length, 2));
-    assert.match(calls[1].path, /\/revaluation\/run$/);
-    assert.deepEqual(calls[1].body, { workspaceId: 'component-workspace', date: TODAY });
+    assert.match(calls[1].path, /\/commands\/period\.fxrevaluation$/);
+    assert.deepEqual(calls[1].body, { workspaceId: 'component-workspace', input: { date: TODAY } });
+    const operationId = calls[1].headers?.['Idempotency-Key'];
+    assert.ok(operationId, 'the command request carries a stable retry key');
+    assert.match(operationId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'the retry key is a cryptographically generated UUID');
+  });
+
+  test('a retry after a lost run response reuses its idempotency key', async () => {
+    const calls = stubRoutes({
+      '/revaluation/preview': { body: PLAN },
+      '/commands/period.fxrevaluation': [
+        { status: 503, body: { status: 'error', message: 'Temporary server error' } },
+        { body: { status: 'success', data: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } } },
+      ],
+    });
+    render(<FxRevaluationPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Post it' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
+    await waitFor(() => assert.ok(screen.getByRole('alert')));
+    const firstKey = calls[1].headers?.['Idempotency-Key'];
+    assert.ok(firstKey);
+    fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
+    await waitFor(() => assert.ok(screen.getByText(new RegExp(`reversing on ${TOMORROW}`))));
+    assert.equal(calls[2].headers?.['Idempotency-Key'], firstKey);
   });
 
   test('after it is posted, the panel says when it reverses and offers to undo it', async () => {
     const calls = stubRoutes({
-      '/revaluation/run': { body: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } },
-      '/revaluation/undo': { body: { status: 'ok', transactionId: 'tx-reversal' } },
+      '/commands/period.fxrevaluation': { body: { status: 'success', data: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } } },
+      '/commands/period.fxrevaluationundo': { body: { status: 'success', data: { transactionId: 'tx-reversal' } } },
       '/revaluation/preview': { body: PLAN },
     });
     render(<FxRevaluationPanel />);
@@ -119,7 +146,10 @@ describe('the revaluation panel', () => {
     assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null, 'a second press is not offered');
     fireEvent.click(screen.getByRole('button', { name: 'Undo it' }));
     await waitFor(() => assert.equal(calls.length, 3));
-    assert.deepEqual(calls[2].body, { workspaceId: 'component-workspace', date: TODAY }, 'undo names the day it undoes');
+    assert.deepEqual(calls[2].body, { workspaceId: 'component-workspace', input: { date: TODAY } }, 'undo names the day it undoes through the command API');
+    assert.match(calls[2].path, /\/commands\/period\.fxrevaluationundo$/);
+    assert.ok(calls[2].headers?.['Idempotency-Key'], 'undo carries its own retry key');
+    assert.notEqual(calls[2].headers?.['Idempotency-Key'], calls[1].headers?.['Idempotency-Key'], 'undo is a distinct idempotent operation');
     await waitFor(() => assert.ok(screen.getByText('The revaluation is reversed.')));
     assert.ok(screen.queryByRole('button', { name: 'Undo it' }) === null, 'the bare undo response clears the posted plan instead of crashing or offering undo again');
   });

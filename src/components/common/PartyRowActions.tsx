@@ -1,10 +1,10 @@
+import { runCommand } from '../../lib/runCommand';
 import { useState } from 'react';
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
-import { getIdToken } from '../../firebase';
 import { isArchivedParty } from '../../lib/contacts';
 import { deleteWithUndo } from '../../lib/undoableDelete';
 import { changeWithUndo } from '../../lib/undoableChange';
@@ -44,9 +44,7 @@ export default function PartyRowActions({ side, party }: { side: PartySide; part
     setBusy(true);
     const url = `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/contacts/${side}/${encodeURIComponent(party.id)}`;
     const send = async (check: boolean) => {
-      const res = await fetch(check ? `${url}?check=1` : url, { method: 'DELETE', headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw Object.assign(new Error(data.message || 'The contact was not deleted'), { status: res.status });
+      await runCommand({ path: check ? `${url}?check=1` : url, method: 'DELETE' });
     };
     try {
       // ask first, so a contact in use is never hidden and then brought back

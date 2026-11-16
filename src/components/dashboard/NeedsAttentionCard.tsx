@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useRefreshTick } from '../../hooks/useRefreshTick';
@@ -10,7 +11,7 @@ import { needsAttention } from '../../lib/needsAttention';
 import { getLocalDateISO } from '../../lib/utils';
 import { useClientQueries } from '../../services/clientQueryActions';
 import { useCollection } from '../../hooks/useCollection';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { doc, getDoc } from '../../lib/db/firestore';
 import { readBankStatuses, type BankStatus } from '../../lib/bankFeedStatus';
 import type { PurchaseOrder } from '../../types';
@@ -49,9 +50,10 @@ export default function NeedsAttentionCard() {
     if (!workspaceId) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/plaid/banks?workspaceId=${encodeURIComponent(workspaceId)}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      if (!res.ok) return [];
-      return readBankStatuses(await res.json());
+      // a failed read means nothing to report on this card, not a broken dashboard
+      const answer = await runCommand<unknown>({ path: `/api/v1/plaid/banks?workspaceId=${encodeURIComponent(workspaceId)}` }).catch(() => null);
+      if (!answer) return [];
+      return readBankStatuses(answer);
     })().then(list => { if (live) setBanks(list); }).catch(() => { if (live) setBanks([]); });
     return () => { live = false; };
   }, [workspaceId, tick]);

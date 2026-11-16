@@ -1,9 +1,9 @@
+import { runCommand } from '../../lib/runCommand';
 import { useState } from 'react';
 import { Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { safeConfirm } from '../../lib/utils';
 
 interface Result { sent: Array<{ name: string }>; skipped: Array<{ name: string; reason: string }>; failed: Array<{ name: string; message: string }> }
@@ -22,13 +22,11 @@ export default function EmailStatementsButton({ className }: { className?: strin
     if (!safeConfirm('Email a statement to every active customer with an open balance?')) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/emails/statements`, {
+      const data = await runCommand<Partial<Result>>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/emails/statements`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: '{}',
+        body: {},
       });
-      const data = await res.json().catch(() => ({})) as Partial<Result> & { message?: string };
-      if (!res.ok) throw new Error(data.message || 'The statements could not be sent');
       const sent = data.sent || [];
       toast.success(sent.length ? `${sent.length} statement${sent.length === 1 ? '' : 's'} emailed` : 'No statements to send',
         data.skipped?.length ? { description: `Not sent: ${data.skipped.map(s => `${s.name} (${s.reason})`).join('; ')}` } : undefined);

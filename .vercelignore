@@ -41,9 +41,10 @@ work/
 **/*.spec.ts
 **/*.spec.tsx
 
-# Developer/CI scripts — keep ONLY scripts/vercel-csp.ts (invoked by `npm run build`)
+# Developer/CI scripts — keep ONLY the two invoked by `npm run build`
 /scripts/*
 !/scripts/vercel-csp.ts
+!/scripts/generate-supabase-config.mjs
 
 # Root documentation, AI instructions, linter/test configs, and quality-ratchet baselines
 **/AGENTS.md

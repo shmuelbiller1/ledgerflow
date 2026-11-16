@@ -1,7 +1,7 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useRef, useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -20,13 +20,17 @@ import TimeTimer from './TimeTimer';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
-async function call(workspaceId: string, path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time${path}`, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'That did not work');
-  return data;
+interface TimeAnswer {
+  entries?: TimeEntry[];
+  entry?: TimeEntry;
+  rates?: TimeRates;
+  canApprove?: boolean;
+}
+
+async function call(workspaceId: string, path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: unknown) {
+  // the time routes answer one mixed body (entries, rates, entry, canApprove); the screen reads the
+  // part it asked for, so the shape is named here once rather than guessed at each call site
+  return runCommand<TimeAnswer>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time${path}`, method, body });
 }
 
 /**
@@ -80,19 +84,23 @@ export default function TimeView() {
     setBusy(true);
     try {
       const data = await call(workspaceId, '', 'POST', input);
-      setEntries(list => [data.entry, ...(list || [])]);
+      const created = data.entry;
+      if (!created) throw new Error('The entry was saved but the server did not send it back. Reload to see it.');
+      setEntries(list => [created, ...(list || [])]);
       setDraft(d => ({ ...d, duration: '', description: '' }));
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
   };
   const move = async (list: TimeEntry[], to: 'submitted' | 'open' | 'approved', done: string, note?: string) => {
     try {
       const data = await call(workspaceId, '/move', 'POST', { entryIds: list.map(e => e.id), to, ...(note ? { note } : {}) });
-      replace(data.entries);
+      const answer = data.entries;
+      if (!answer) throw new Error('The move was sent but the server did not send the entries back. Reload to see them.');
+      replace(answer);
       toast.success(done);
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err)); }
   };
   const remove = async (e: TimeEntry) => {
-    try { await call(workspaceId, `/${encodeURIComponent(e.id)}`, 'DELETE'); setEntries(list => (list || []).filter(x => x.id !== e.id)); } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+    try { await call(workspaceId, `/${encodeURIComponent(e.id)}`, 'DELETE'); setEntries(list => (list || []).filter(x => x.id !== e.id)); } catch (err) { toast.error(commandErrorMessage(err)); }
   };
 
   const all = entries || [];
@@ -118,8 +126,11 @@ export default function TimeView() {
         toast.success(`Time linked to draft invoice ${pending.number}.`);
         return;
       }
-      const numberRes = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/next-number`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ type: 'invoice' }) });
-      const number = numberRes.ok ? (await numberRes.json()).number : undefined;
+      const number = (await runCommand<{ number?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/next-number`,
+        method: 'POST',
+        body: { type: 'invoice' },
+      })).number;
       if (!number) throw new Error('Could not get the next invoice number. Please try again.');
       const today = getLocalDateISO();
       const ref = await addEntity('invoices', {
@@ -131,12 +142,12 @@ export default function TimeView() {
       try {
         await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: ref.id });
       } catch (err) {
-        throw new Error(`Draft invoice ${number} was saved, but the time was not marked as invoiced (${err instanceof Error ? err.message : String(err)}). Press "Make a draft invoice" again to link it; no second invoice is made.`, { cause: err });
+        throw new Error(`Draft invoice ${number} was saved, but the time was not marked as invoiced (${commandErrorMessage(err)}). Press "Make a draft invoice" again to link it; no second invoice is made.`, { cause: err });
       }
       unlinked.current.delete(hours);
       setEntries(list => (list || []).map(e => (billable.some(b => b.id === e.id) ? { ...e, status: 'invoiced', invoiceId: ref.id } : e)));
       toast.success(`Draft invoice ${number} for ${formatCurrency(billTotal, currency)} made from ${lines.length} time ${lines.length === 1 ? 'entry' : 'entries'}. Review it in Sales, then send it.`);
-    } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
   };
 
   return (

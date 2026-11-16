@@ -1,4 +1,4 @@
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import type { Query } from '../db/pgFirestore';
 import { RETENTION_DEFAULTS, retentionFor, RetentionSettingsSchema, type RetentionSettings } from '../../lib/retention';
 import { workspaceRole } from '../../lib/periodLock';
@@ -22,29 +22,66 @@ export class RetentionError extends Error {
 const PRUNABLE_EMAIL_EVENTS = ['sent', 'failed', 'delivered'];
 const BATCH = 400;
 
-export async function updateRetention(db: Firestore, input: { workspaceId: string; uid: string; email?: string; settings: unknown }): Promise<RetentionSettings> {
+export interface RetentionWriteResult {
+  workspaceId: string;
+  before: RetentionSettings;
+  settings: RetentionSettings;
+  changes: string[];
+}
+
+export async function updateRetentionInTransaction(
+  db: Firestore,
+  tx: Transaction,
+  input: { workspaceId: string; uid: string; settings: unknown },
+): Promise<RetentionWriteResult> {
   const parsed = RetentionSettingsSchema.safeParse(input.settings);
   if (!parsed.success) throw new RetentionError(400, parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '));
   const ref = db.collection('workspaces').doc(input.workspaceId);
-  const workspace = (await ref.get()).data();
+  const workspace = (await tx.get(ref)).data();
   if (!workspace) throw new RetentionError(404, 'Workspace not found');
   if (workspaceRole(workspace, input.uid) !== 'owner') throw new RetentionError(403, 'Only owners change retention');
   const before = retentionFor(workspace);
-  const after = parsed.data;
-  const update: Record<string, unknown> = { retention: after, updatedAt: new Date().toISOString() };
+  const settings = parsed.data;
+  const update: Record<string, unknown> = { retention: settings, updatedAt: new Date().toISOString() };
   // a pending deletion follows the new grace period (and a legal hold keeps it from running)
-  if (workspace.status === 'pending_deletion' && typeof workspace.deletedAt === 'string' && after.deletionGraceDays !== before.deletionGraceDays) {
-    update.scheduledPurgeAt = new Date(Date.parse(workspace.deletedAt) + after.deletionGraceDays * 86_400_000).toISOString();
+  if (workspace.status === 'pending_deletion' && typeof workspace.deletedAt === 'string' && settings.deletionGraceDays !== before.deletionGraceDays) {
+    update.scheduledPurgeAt = new Date(Date.parse(workspace.deletedAt) + settings.deletionGraceDays * 86_400_000).toISOString();
   }
-  await ref.update(update);
-  const changes = (Object.keys(after) as Array<keyof RetentionSettings>).filter(k => after[k] !== before[k]).map(k => `${k}: ${before[k]} → ${after[k]}`);
-  await writeServerAuditLog({
-    workspaceId: input.workspaceId, uid: input.uid, email: input.email || '',
-    action: after.legalHold !== before.legalHold ? (after.legalHold ? 'LEGAL_HOLD_ON' : 'LEGAL_HOLD_OFF') : 'RETENTION_CHANGED',
-    entityType: 'workspace', entityId: input.workspaceId,
-    details: { description: changes.length ? `Retention changed (${changes.join(', ')})` : 'Retention saved (no change)', before, after },
-  }, { db });
-  return after;
+  tx.update(ref, update);
+  const changes = (Object.keys(settings) as Array<keyof RetentionSettings>)
+    .filter(key => settings[key] !== before[key])
+    .map(key => `${key}: ${before[key]} → ${settings[key]}`);
+  return { workspaceId: input.workspaceId, before, settings, changes };
+}
+
+export function retentionAuditSummary(result: RetentionWriteResult) {
+  return {
+    action: result.settings.legalHold !== result.before.legalHold
+      ? (result.settings.legalHold ? 'LEGAL_HOLD_ON' : 'LEGAL_HOLD_OFF')
+      : 'RETENTION_CHANGED',
+    entityType: 'workspace',
+    entityId: result.workspaceId,
+    description: result.changes.length ? `Retention changed (${result.changes.join(', ')})` : 'Retention saved (no change)',
+    details: { before: result.before, after: result.settings },
+  };
+}
+
+/** Service compatibility wrapper; command callers use updateRetentionInTransaction through the shared runner. */
+export async function updateRetention(db: Firestore, input: { workspaceId: string; uid: string; email?: string; settings: unknown }): Promise<RetentionSettings> {
+  return db.runTransaction(async tx => {
+    const result = await updateRetentionInTransaction(db, tx, input);
+    const summary = retentionAuditSummary(result);
+    await writeServerAuditLog({
+      workspaceId: input.workspaceId,
+      uid: input.uid,
+      email: input.email || '',
+      action: summary.action,
+      entityType: summary.entityType,
+      entityId: summary.entityId,
+      details: { description: summary.description, ...summary.details },
+    }, { db, tx });
+    return result.settings;
+  });
 }
 
 async function deleteAll(db: Firestore, query: Query): Promise<number> {

@@ -1,4 +1,4 @@
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { doc, getDoc } from '../../lib/db/firestore';
 import { toast } from 'sonner';
 import { showBudgetWarnings } from '../../lib/budgetWarnings';
@@ -9,6 +9,7 @@ import { postingToday, registerPostingHost } from './postingCore';
 import { getLocalDateISO } from '../../lib/utils';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
 import { reportCreditLimitRefusal } from '../../lib/creditLimitPrompt';
+import { runCommand, ServerCommandError, type CommandBody } from '../../lib/runCommand';
 
 // The browser's side of posting (L-94 step 0): the pure helpers are in postingCore.ts; this file
 // gives them the screen's data (the stores) and the one call that sends entries to the server, and
@@ -53,23 +54,16 @@ async function sendToServer(
   // Ids are chosen here so the entries added to the local store below carry the same ids as the
   // server copies; a quick second edit can then link its reversals to them.
   txs = (txs || []).map(tx => (tx.id ? tx : { ...tx, id: crypto.randomUUID() }));
-  const token = await getIdToken().catch(() => null);
   const idempotencyKey = context?.idempotencyKey || (txs.length > 0 ? txs[0].id : null) || crypto.randomUUID();
-  const response = await fetch('/api/v1/transactions/bulk', {
+  const data = await runCommand<CommandBody>({
+    path: '/api/v1/transactions/bulk',
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    },
-    // the day this posting counted as today, so the server's check rebuilds it with the same day (L-94)
-    body: JSON.stringify({ transactions: txs, workspaceId, entityMutation, postingDay: postingToday(context) })
-  });
+    // the key is what makes a retried posting one posting; the day is what lets the server's check rebuild
+    // it with the same day (L-94)
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: { transactions: txs, workspaceId, entityMutation, postingDay: postingToday(context) }
+  }) ?? {};
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || 'Server rejected transaction posting');
-  }
   if (Array.isArray(data.warnings)) data.warnings.forEach((w: unknown) => toast.warning(String(w)));
   showBudgetWarnings(data);
 
@@ -95,22 +89,24 @@ function putWrittenEntries(workspaceId: string, written: Transaction[]) {
 
 /** POST /api/v1/documents/:type/:id/post: the document only; the entries the server wrote go into the screen's list. */
 async function postDocumentToServer(workspaceId: string, entityMutation: EntityMutation, context?: LedgerPostContext) {
-  const token = await getIdToken().catch(() => null);
   // EG-5: an override of the credit limit rides with the invoice from the form; it is sent beside the document, never saved as a field
   const { creditLimitOverride, ...data } = (entityMutation.data || {}) as Record<string, unknown>;
-  const response = await fetch(`/api/v1/documents/${entityMutation.collection}/${encodeURIComponent(entityMutation.docId)}/post`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': context?.idempotencyKey || crypto.randomUUID(),
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify({ workspaceId, action: entityMutation.action, ...(entityMutation.action === 'delete' ? {} : { data }), postingDay: postingToday(context), ...(creditLimitOverride ? { creditLimitOverride } : {}) })
-  });
-  const answer = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 409 && answer.code === 'CREDIT_LIMIT') reportCreditLimitRefusal({ docId: entityMutation.docId, message: String(answer.error), canOverride: answer.canOverride === true });
-    throw new Error(answer.error || 'Server rejected the save');
+  let answer: { code?: string; error?: string; canOverride?: unknown; warnings?: unknown[]; creditLimitNote?: unknown; replayed?: boolean; transactions?: unknown };
+  try {
+    answer = await runCommand<typeof answer>({
+      path: `/api/v1/documents/${entityMutation.collection}/${encodeURIComponent(entityMutation.docId)}/post`,
+      method: 'POST',
+      // the key makes a retried save one save
+      headers: { 'Idempotency-Key': context?.idempotencyKey || crypto.randomUUID() },
+      body: { workspaceId, action: entityMutation.action, ...(entityMutation.action === 'delete' ? {} : { data }), postingDay: postingToday(context), ...(creditLimitOverride ? { creditLimitOverride } : {}) }
+    }) ?? {};
+  } catch (error) {
+    // A credit-limit refusal is a 409 with the overridable fact attached: the screen turns it into "post anyway?".
+    const refusal = error instanceof ServerCommandError ? error.body as { code?: string; error?: string; canOverride?: unknown } | null : null;
+    if (error instanceof ServerCommandError && error.status === 409 && refusal?.code === 'CREDIT_LIMIT') {
+      reportCreditLimitRefusal({ docId: entityMutation.docId, message: String(refusal.error), canOverride: refusal.canOverride === true });
+    }
+    throw error;
   }
   if (Array.isArray(answer.warnings)) answer.warnings.forEach((w: unknown) => toast.warning(String(w)));
   if (typeof answer.creditLimitNote === 'string') toast.info(answer.creditLimitNote);

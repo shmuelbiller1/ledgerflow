@@ -1,10 +1,10 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useState } from 'react';
 import { Split } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
 import { allocationRulesProblem, type AllocationRule } from '../../../lib/allocationRules';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
@@ -47,12 +47,12 @@ export default function AllocationRulesSettings() {
   const save = async (next: Array<ReturnType<typeof fromDraft> | AllocationRule>, done: string) => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/allocation-rules`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ rules: next }),
+      const data = await runCommand<{ rules?: AllocationRule[] }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/allocation-rules`,
+        method: 'PUT',
+        body: { rules: next },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'The rules were not saved');
-      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, allocationRules: data.rules } : w)));
+      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, allocationRules: data.rules || [] } : w)));
       toast.success(done);
       setEditing(null);
     } catch (err) {

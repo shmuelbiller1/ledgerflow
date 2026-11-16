@@ -1,3 +1,5 @@
+import { getIdToken } from '../../../firebase';
+import { runCommand } from '../../../lib/runCommand';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
 import { saveGuestAlerts } from '../../../lib/guestSettings';
 import React, { useState } from 'react';
@@ -5,7 +7,6 @@ import { BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
 import { alertSettingsProblem, DEFAULT_CLOSE_REMINDER_DAY, type AlertSettings } from '../../../lib/bookAlerts';
 import { formatCurrency, readAmountCents } from '../../../lib/utils';
 
@@ -51,14 +52,14 @@ export default function AlertsSettings() {
       } else {
         if (workspace.id === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
         const token = await getIdToken().catch(() => null);
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/alerts`, {
+        const data = await runCommand<{ alerts?: AlertSettings; message?: string }>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/alerts`,
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify(alerts),
+          token,
+          body: alerts,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || 'The alerts could not be saved');
-        savedAlerts = data.alerts as AlertSettings;
+        if (!data.alerts) throw new Error('The alerts were saved but the server did not send them back. Reload to see them.');
+        savedAlerts = data.alerts;
       }
       if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspace.id) return;
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, alerts: savedAlerts } : w)));

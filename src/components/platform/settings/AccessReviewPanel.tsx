@@ -3,7 +3,9 @@ import { Users, Download, Printer, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useAccessReview } from '../../../hooks/useAccessReview';
-import { ACCESS_REVIEW_HEADERS, ACCESS_ROLE_LABELS, TWO_STEP_LABELS, accessReviewCsvRows, twoStepLimitNote } from '../../../lib/accessReview';
+import { ACCESS_REVIEW_HEADERS, ACCESS_ROLE_LABELS, TWO_STEP_LABELS, accessReviewCsvRows, twoStepLimitNote, type AccessReviewRow } from '../../../lib/accessReview';
+import { TanStackDataGrid } from '../../ui/TanStackDataGrid';
+import type { ColumnDef } from '@tanstack/react-table';
 import { downloadCsv } from '../../../lib/csvExport';
 import { getLocalDateISO } from '../../../lib/utils';
 import { EmptyState } from '../../ui/EmptyState';
@@ -40,8 +42,47 @@ export default function AccessReviewPanel() {
 
 function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
   const review = useAccessReview(workspaceId);
-
   const exportCsv = () => downloadCsv(`access-review-${getLocalDateISO()}.csv`, [...ACCESS_REVIEW_HEADERS], accessReviewCsvRows(review.rows));
+
+  /**
+   * One row per person: who they are, their role, when they last signed in, whether two-step login is
+   * on, and when the role last changed. The person names the row. Every cell prints exactly what the
+   * old table printed, and the CSV rows come from the shared `accessReviewCsvRows`, so the export did
+   * not gain a second definition.
+   */
+  const columns: ColumnDef<AccessReviewRow, unknown>[] = [
+    { id: 'person', accessorFn: row => `${row.email || row.uid} ${row.uid}`, header: 'Person', cell: info => {
+      const row = info.row.original as AccessReviewRow;
+      return (
+        <div className="min-w-40">
+          <div className="font-bold break-all">{row.email || row.uid}</div>
+          {row.email && <div className="text-[10px] text-[var(--muted)] break-all">{row.uid}</div>}
+          {row.isSelf && <span className="text-[10px] font-bold text-[var(--brass)]">You</span>}
+          {row.roleOnly && <div className="text-[10px] text-amber-400">Role on record; not in the workspace member list — this person still has access, review it</div>}
+        </div>
+      );
+    } },
+    { id: 'role', accessorFn: row => ACCESS_ROLE_LABELS[row.role], header: 'Role' },
+    { id: 'signIn', accessorFn: row => (row.lastSignInAt ? row.lastSignInAt.toISOString() : ''), header: 'Last sign-in', cell: info => {
+      const row = info.row.original as AccessReviewRow;
+      return row.lastSignInAt
+        ? <time dateTime={row.lastSignInAt.toISOString()}>{row.lastSignInAt.toLocaleString()}</time>
+        : <span className="text-[var(--muted)]">Not in the recent audit entries</span>;
+    } },
+    { id: 'twoStep', accessorFn: row => TWO_STEP_LABELS[row.twoStep], header: 'Two-step login' },
+    { id: 'roleChanged', accessorFn: row => (row.roleChangedAt ? row.roleChangedAt.toISOString() : ''), header: 'Role last changed', cell: info => {
+      const row = info.row.original as AccessReviewRow;
+      if (!row.roleChangedAt) return <span className="text-[var(--muted)]">No role change recorded</span>;
+      return (
+        <>
+          <time dateTime={row.roleChangedAt.toISOString()}>{row.roleChangedAt.toLocaleString()}</time>
+          {row.roleChangedFrom && row.roleChangedTo && (
+            <div className="text-[10px] text-[var(--muted)]">{ACCESS_ROLE_LABELS[row.roleChangedFrom]} → {ACCESS_ROLE_LABELS[row.roleChangedTo]}{row.roleChangedBy ? ` by ${row.roleChangedBy}` : ''}</div>
+          )}
+        </>
+      );
+    } },
+  ];
 
   return (
     // H-7/AI #10: this panel is the printed sheet (it had no print root, so Print produced the whole
@@ -90,45 +131,19 @@ function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
 
       {review.status === 'ready' && review.rows.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <caption className="sr-only">Access review: every person in this workspace with their role, last sign-in, two-step login and last role change.</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)]">
-                {['Person', 'Role', 'Last sign-in', 'Two-step login', 'Role last changed'].map(header => (
-                  <th key={header} scope="col" className="py-2 pr-4 font-black uppercase tracking-wider text-[10px] text-[var(--muted)]">{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {review.rows.map(row => (
-                <tr key={row.uid} className="border-b border-[var(--line)] align-top">
-                  <td className="py-3 pr-4 min-w-40">
-                    <div className="font-bold text-[var(--text)] break-all">{row.email || row.uid}</div>
-                    {row.email && <div className="text-[10px] text-[var(--muted)] break-all">{row.uid}</div>}
-                    {row.isSelf && <span className="text-[10px] font-bold text-[var(--brass)]">You</span>}
-                    {row.roleOnly && <div className="text-[10px] text-amber-400">Role on record; not in the workspace member list — this person still has access, review it</div>}
-                  </td>
-                  <td className="py-3 pr-4">{ACCESS_ROLE_LABELS[row.role]}</td>
-                  <td className="py-3 pr-4">
-                    {row.lastSignInAt
-                      ? <time dateTime={row.lastSignInAt.toISOString()}>{row.lastSignInAt.toLocaleString()}</time>
-                      : <span className="text-[var(--muted)]">Not in the recent audit entries</span>}
-                  </td>
-                  <td className="py-3 pr-4">{TWO_STEP_LABELS[row.twoStep]}</td>
-                  <td className="py-3 pr-4">
-                    {row.roleChangedAt
-                      ? <>
-                        <time dateTime={row.roleChangedAt.toISOString()}>{row.roleChangedAt.toLocaleString()}</time>
-                        {row.roleChangedFrom && row.roleChangedTo && (
-                          <div className="text-[10px] text-[var(--muted)]">{ACCESS_ROLE_LABELS[row.roleChangedFrom]} → {ACCESS_ROLE_LABELS[row.roleChangedTo]}{row.roleChangedBy ? ` by ${row.roleChangedBy}` : ''}</div>
-                        )}
-                      </>
-                      : <span className="text-[var(--muted)]">No role change recorded</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TanStackDataGrid
+            caption="Access review: every person in this workspace with their role, last sign-in, two-step login and last role change."
+            data={review.rows}
+            columns={columns}
+            rowHeaderColumn="person"
+            pageSize={25}
+            searchPlaceholder="Search people, roles and sign-ins..."
+            searchLabel="Search the access review"
+            columnScope="access-review"
+            columnLabel="Access review columns"
+            columnNames={['Person', 'Role', 'Last sign-in', 'Two-step login', 'Role last changed']}
+            filteredEmptyState={<EmptyState title="No person matches your search" description="Try another name, email or role." />}
+          />
         </div>
       )}
 

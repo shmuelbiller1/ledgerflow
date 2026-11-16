@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -8,6 +7,7 @@ import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import type { ItemDetails } from '../../lib/stockMoves';
 import { stockSourcesUses, stockSourcesUsesCsv, type FlowLine, type ItemSourcesUses } from '../../lib/stockSourcesUses';
+import { runCommand } from '../../lib/runCommand';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -34,9 +34,8 @@ export default function StockSourcesUsesReportView() {
     if (!key) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/reports/inventory-details?${key}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.items)) throw new Error(body.message || body.error || 'The stock history could not be read');
+      const body = await runCommand<{ items?: ItemDetails[] }>({ path: `/api/v1/reports/inventory-details?${key}` }) ?? {};
+      if (!Array.isArray(body.items)) throw new Error('The stock history could not be read');
       return body.items as ItemDetails[];
     })().then(items => { if (live) setResult({ key, items }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };

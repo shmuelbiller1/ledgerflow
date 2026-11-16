@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
@@ -19,6 +18,7 @@ import {
 import { encodedPathPart, randomWarehouseToken, type WorkflowActor } from '../../lib/warehouseRecordUtils';
 import type { CreditNote, Customer, Invoice, InventoryItem } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { runCommand } from '../../lib/runCommand';
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 py-2 bg-[var(--panel)] text-[var(--text)]';
 const UNISSUED = new Set(['draft', 'rejected', 'void', 'cancelled']);
@@ -52,14 +52,13 @@ export default function ReturnAuthorizationsPanel() {
    * returned record is put into the customer in the store so the list shows it at once.
    */
   const postRma = async (path: string, body: Record<string, unknown>): Promise<ReturnAuthorizationRecord> => {
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId || '')}/return-authorizations${path}`, {
+    const data = await runCommand<{ record?: ReturnAuthorizationRecord }>({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId || '')}/return-authorizations${path}`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-      body: JSON.stringify({ ...body, requestKey: `rma-${randomWarehouseToken()}${randomWarehouseToken()}` }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.record) throw new Error(data.message || 'The return authorization could not be saved.');
-    const record = data.record as ReturnAuthorizationRecord;
+      body: { ...body, requestKey: `rma-${randomWarehouseToken()}${randomWarehouseToken()}` },
+    }) ?? {};
+    if (!data.record) throw new Error('The return authorization could not be saved.');
+    const record = data.record;
     // saved in the workspace it was asked in; when another workspace is open by now, its list is not touched
     if (useAuthStore.getState().currentWorkspaceId !== workspaceId) return record;
     const store = useLedgerStore.getState();

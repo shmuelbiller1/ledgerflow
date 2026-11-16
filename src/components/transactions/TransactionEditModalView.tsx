@@ -15,6 +15,7 @@ import AsyncButton from '../ui/AsyncButton';
 import EntryLinks from './EntryLinks';
 import EntryQuestions from './EntryQuestions';
 import type { TransactionEditModalModel } from './TransactionEditModal';
+import { runCommand } from '../../lib/runCommand';
 
 /** Presentation modal for editing or reversing a multi-line ledger transaction and its dimension labels. */
 export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, baseCurrency, isDocBacked, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
@@ -302,10 +303,9 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                           
                           // Use the edited transaction date or today, relative to workspace baseCurrency
                           const lookupDate = date || transaction.date || getLocalDateISO();
-                          const res = await fetch(`/api/v1/currency/historical?date=${encodeURIComponent(lookupDate)}&source=${encodeURIComponent(baseCurrency)}&currencies=${encodeURIComponent(originalCurrency)}`, {
-                             headers: { 'Authorization': `Bearer ${token}` }
-                          });
-                          const data = await res.json();
+                          const data = await runCommand<{ success?: boolean; historical?: unknown; quotes?: Record<string, number>; error?: { info?: string } }>({
+                            path: `/api/v1/currency/historical?date=${encodeURIComponent(lookupDate)}&source=${encodeURIComponent(baseCurrency)}&currencies=${encodeURIComponent(originalCurrency)}`,
+                          }) ?? {};
                           const quoteKey = `${baseCurrency}${originalCurrency}`;
                           if (data.success && data.historical && data.quotes?.[quoteKey]) {
                              // Quote is 1 baseCurrency = X originalCurrency. We need 1 originalCurrency = X baseCurrency (1 / X).

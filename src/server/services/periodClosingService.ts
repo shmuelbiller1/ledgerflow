@@ -50,18 +50,36 @@ export interface PeriodClosing {
 export const closingId = (workspaceId: string, yearEnd: string, version: number) => `${workspaceId}_${yearEnd}_v${version}`;
 
 let known: { exists: boolean; at: number } | null = null;
+let warned = false;
+
+function recordPeriodClosingsReady(exists: boolean): boolean {
+  known = { exists, at: Date.now() };
+  if (!exists && !warned) {
+    warned = true;
+    console.warn('[period-closings] the periodClosings table is missing: apply 20261024000000_period_closings.sql');
+  }
+  return exists;
+}
 
 /** Whether the migration is applied (a database without it closes the year as before, without the document). */
-export async function periodClosingsReady(db: Firestore): Promise<boolean> {
+export async function periodClosingsReady(db: Firestore, tx?: DbTransaction): Promise<boolean> {
+  // Reuse the command transaction's connection; a separate pool query can deadlock when PG_POOL_MAX=1.
+  if (tx && typeof tx.tablesExist === 'function') {
+    return recordPeriodClosingsReady(await tx.tablesExist('periodClosings'));
+  }
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
   try {
     const result = await db.pool.query(`select to_regclass('public."periodClosings"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
+    return recordPeriodClosingsReady(Boolean(result.rows[0]?.ok));
   } catch {
-    known = { exists: false, at: Date.now() };
+    return recordPeriodClosingsReady(false);
   }
-  if (!known.exists) console.warn('[period-closings] the periodClosings table is missing: apply 20261024000000_period_closings.sql');
-  return known.exists;
+}
+
+/** @internal Resets cached periodClosings readiness state between unit tests. */
+export function resetPeriodClosingsReadyForTests(): void {
+  known = null;
+  warned = false;
 }
 
 const lines = (group: Record<string, { name: string; code?: string; balance: number }>): ClosingLine[] =>
@@ -119,7 +137,7 @@ export function writeClosing(db: Firestore, t: DbTransaction, stored: Stored, in
 
 /** Inside a reopen's transaction, before its writes: every current document whose year end is now after the lock is superseded. */
 export async function supersedeClosings(db: Firestore, t: DbTransaction, input: { workspaceId: string; lockDate: string | null; by: string; reason: string; at: string }): Promise<number> {
-  if (!(await periodClosingsReady(db))) return 0;
+  if (!(await periodClosingsReady(db, t))) return 0;
   const open = (await readClosings(db, t, input.workspaceId)).filter(c => c.data.status === 'current' && c.data.yearEnd > (input.lockDate || ''));
   for (const c of open) {
     t.update(db.collection(PERIOD_CLOSINGS).doc(c.id), { status: 'superseded', supersededAt: input.at, supersededBy: input.by, supersededReason: input.reason, updatedAt: input.at });

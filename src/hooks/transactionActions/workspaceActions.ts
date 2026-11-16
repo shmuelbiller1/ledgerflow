@@ -3,6 +3,7 @@ import { collection, addDoc, updateDoc, deleteDoc, doc } from '../../lib/db/fire
 import { db } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { runCommand } from '../../lib/runCommand';
 import { Transaction } from '../../types';
 import { toast } from 'sonner';
 import { formatDate } from '../../lib/utils';
@@ -15,6 +16,21 @@ import { errorMessage } from './shared';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 
 /** Workspace and period work: reset, year and month close, export, delete an account, recurring entries. (F-05, moved from useTransactionActions.) */
+const yearCloseOperationIds = new Map<string, string>();
+
+function yearCloseOperationId(fingerprint: string): string {
+  let id = yearCloseOperationIds.get(fingerprint);
+  if (!id) {
+    id = globalThis.crypto.randomUUID();
+    yearCloseOperationIds.set(fingerprint, id);
+  }
+  return id;
+}
+
+function clearYearCloseOperationId(fingerprint: string, id: string): void {
+  if (yearCloseOperationIds.get(fingerprint) === id) yearCloseOperationIds.delete(fingerprint);
+}
+
 export function createWorkspaceActions(ctx: ActionContext) {
   const { user, currentWorkspaceId, setIsSyncing } = ctx;
 
@@ -25,12 +41,10 @@ export function createWorkspaceActions(ctx: ActionContext) {
     const graceDays = retentionFor(workspace).deletionGraceDays;
     if (!safeConfirm(`Delete "${name}"? Everything in it (entries, invoices, bills, contacts, files) will be deleted in ${graceDays} days. Until then an owner can keep it. The audit trail is kept.`)) return;
     try {
-      const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}`, {
+      const body = await runCommand<{ scheduledPurgeAt?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}`,
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${await user.getIdToken()}` },
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.message || body.error || 'The workspace could not be deleted');
       const when = body.scheduledPurgeAt ? formatDate(String(body.scheduledPurgeAt).slice(0, 10)) : `in ${graceDays} days`;
       toast.success(`"${name}" will be deleted on ${when}`, { description: 'Until then, an owner can keep it from the banner at the top of the screen.' });
       useAuthStore.getState().setWorkspaces(useAuthStore.getState().workspaces.map(w => w.id === currentWorkspaceId ? { ...w, status: 'pending_deletion', scheduledPurgeAt: body.scheduledPurgeAt } as typeof w : w));
@@ -42,40 +56,25 @@ export function createWorkspaceActions(ctx: ActionContext) {
 
   const handleCloseYear = async (closingDate: string, lockPeriod: boolean = true) => {
     if (!user || !currentWorkspaceId) return;
+    const fingerprint = JSON.stringify([user.uid, currentWorkspaceId, closingDate, lockPeriod]);
+    const operationId = yearCloseOperationId(fingerprint);
     const loader = toast.loading('Initiating fiscal year close protocol...');
     try {
       setIsSyncing(true);
-      const response = await fetch('/api/v1/transactions/close-year', {
+      const response = await runCommand<{
+        status: string;
+        data: { yearStart: string; closingDate: string; lockPeriod: boolean; year: { netIncome: number }; closingVersion: number | null };
+      }>({
+        path: '/api/v1/commands/period.yearclose',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`
-        },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId, closingDate, lockPeriod })
+        body: { workspaceId: currentWorkspaceId, input: { closingDate, lockPeriod } },
+        headers: { 'Idempotency-Key': operationId },
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute year-end close.');
-      }
-
-      // Add the new transaction to the client-side store
-      if (data.transaction) {
-        const currentTxs = useLedgerStore.getState().transactions;
-        useLedgerStore.getState().setTransactions([...currentTxs, data.transaction]);
-      }
-
-      // Add the generated synthetic account if it exists
-      if (data.generatedAccount) {
-        const currentAccs = useLedgerStore.getState().accounts;
-        useLedgerStore.getState().setAccounts([...currentAccs, data.generatedAccount]);
-      }
-
-      if (lockPeriod) {
-        useLedgerStore.getState().setLockDate(closingDate);
-      }
-
-      toast.success(data.message || `Fiscal year closed successfully.`, { id: loader });
+      const data = response.data;
+      clearYearCloseOperationId(fingerprint, operationId);
+      if (lockPeriod) useLedgerStore.getState().setLockDate(closingDate);
+      const net = `${(Math.abs(data.year.netIncome) / 100).toFixed(2)}`;
+      toast.success(`Year ${data.yearStart} closed with a net ${data.year.netIncome >= 0 ? 'profit' : 'loss'} of ${net}${lockPeriod ? ' and is now locked' : ''}.`, { id: loader });
       return data;
     } catch (error) {
       console.error('Close Year Error:', error);
@@ -189,19 +188,11 @@ export function createWorkspaceActions(ctx: ActionContext) {
         throw new Error("Invalid month format for period lock.");
       }
 
-      const response = await fetch('/api/v1/transactions/close-month', {
+      const data = await runCommand<{ closingDate: string; message?: string }>({
+        path: '/api/v1/transactions/close-month',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`
-        },
-        body: JSON.stringify({ workspaceId: currentWorkspaceId, month })
+        body: { workspaceId: currentWorkspaceId, month },
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to close month.');
-      }
 
       useLedgerStore.getState().setLockDate(data.closingDate);
       toast.success(data.message || `Month closed successfully.`, { id: loader });
@@ -216,21 +207,11 @@ export function createWorkspaceActions(ctx: ActionContext) {
     if (!user || !currentWorkspaceId) return { count: 0 };
     const loader = toast.loading('Triggering server recurring transaction processing...');
     try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/v1/system/recurring/process', {
+      const data = await runCommand<{ data?: { processedCount?: number } }>({
+        path: '/api/v1/system/recurring/process',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || errData.error || 'Failed to process recurring transactions.');
-      }
-
-      const data = await res.json();
       const processedCount = data.data?.processedCount ?? 0;
       if (processedCount === 0) {
         toast.info('No recurring transactions due at this time.', { id: loader });

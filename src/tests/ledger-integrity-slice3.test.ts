@@ -46,6 +46,83 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     assert.ok(sql.includes('revoke update, delete on public."auditLogs" from authenticated'), 'auditLogs revoke update/delete missing');
   });
 
+  test('AF-12: real document CRUD uses registered commands and RLS denies browser DML', () => {
+    const sql = read('supabase/migrations/20261115000000_document_commands_server_only.sql');
+    for (const table of ['invoices', 'bills', 'creditNotes', 'vendorCredits']) {
+      assert.ok(sql.includes(`'${table}'`), `Migration must close direct writes on ${table}`);
+    }
+    assert.match(sql, /drop policy if exists writer_insert on public\.%I/);
+    assert.match(sql, /drop policy if exists writer_update on public\.%I/);
+    assert.match(sql, /drop policy if exists writer_delete on public\.%I/);
+    assert.match(sql, /revoke insert, update, delete on public\.%I from authenticated/);
+    assert.match(sql, /set allowed_keys = '\{\}'/);
+
+    const rls = read('supabase/tests/rls.test.sql');
+    for (const [article, document] of [['an', 'invoice'], ['a', 'bill'], ['a', 'credit note'], ['a', 'vendor credit']] as const) {
+      assert.ok(rls.includes(`browser cannot directly update ${article} ${document}`), `RLS suite must cover raw ${document} updates`);
+      assert.ok(rls.includes(`browser cannot directly delete a draft ${document}`), `RLS suite must cover raw ${document} deletes`);
+    }
+
+    const ops = read('src/hooks/useEntityOperations.ts');
+    for (const command of [
+      'invoice.create', 'invoice.update', 'invoice.delete',
+      'bill.create', 'bill.update', 'bill.delete',
+      'creditnote.create', 'creditnote.update', 'creditnote.delete',
+      'vendorcredit.create', 'vendorcredit.update', 'vendorcredit.delete',
+    ]) assert.ok(ops.includes(`runDocumentCommand('${command}'`), `Expected browser UI to invoke ${command}`);
+    assert.match(ops, /sampleSession \|\| currentWorkspaceId === SAMPLE_WORKSPACE_ID/);
+    assert.match(ops, /withSamplePosting/);
+    assert.match(ops, /replaceAll\('-', ''\)/, 'generated command idempotency keys must pass the server validator');
+  });
+
+  test('AF-13: customer and vendor create/update paths use profile commands outside guest/sample workspaces', () => {
+    const ops = read('src/hooks/useEntityOperations.ts');
+    for (const command of ['customer.create', 'vendor.create']) {
+      assert.ok(ops.includes(`runDocumentCommand('${command}'`), `Expected party UI to invoke ${command}`);
+    }
+    assert.ok(ops.includes("'customer.update'"), 'Expected customer updates to use customer.update');
+    assert.ok(ops.includes("'vendor.update'"), 'Expected vendor updates to use vendor.update');
+    assert.match(ops, /path === 'customers'/);
+    assert.match(ops, /path === 'vendors'/);
+    assert.match(ops, /sampleSession \|\| currentWorkspaceId === SAMPLE_WORKSPACE_ID/);
+    assert.match(ops, /await setDoc\(doc\(db, path, docId\), finalData\)/, 'guest/sample creation must keep its local database path');
+    assert.match(ops, /await updateDoc\(doc\(db, path, id\), localData\)/, 'guest/sample edits must keep their local database path');
+  });
+
+  test('AF-14: warranty dates use an authorized server command and reject browser metadata bypasses', () => {
+    const panel = read('src/components/reporting/WarrantyRegisterPanel.tsx');
+    assert.ok(panel.includes("runCommand('warranty.update'"), 'WarrantyRegisterPanel must save through the command runner');
+    assert.ok(!panel.includes("updateEntity('customers'"), 'WarrantyRegisterPanel must not patch customer metadata directly');
+    const operations = read('src/hooks/useEntityOperations.ts');
+    assert.ok(operations.includes('assertCustomerHistoryServerManaged(path,'), 'Local create/update paths must reject direct warranty and RMA history writes');
+    assert.ok(!operations.includes('hasWarrantyPathPatch'), 'No legacy bypass may route warranty field paths around the command');
+    const command = read('src/server/commands/customers.ts');
+    assert.ok(command.includes('warrantyCandidates([invoice]'), 'The command must revalidate the selected issued-invoice serial');
+    assert.ok(command.includes('createWarrantyRecord('), 'The server must build the actor-stamped warranty history');
+    const migration = read('supabase/migrations/20261115000000_document_commands_server_only.sql');
+    assert.ok(migration.includes('create or replace function public.lf_warranty_guard()'), 'Customer warranty metadata needs a server-only database guard');
+    const rls = read('supabase/tests/rls.test.sql');
+    assert.ok(rls.includes('a bookkeeper writes a warranty record from the browser'), 'RLS suite must cover browser warranty writes');
+    assert.ok(rls.includes('and cannot change its warranty date'), 'RLS suite must cover browser edits to saved warranty history');
+    assert.ok(read('src/server/auth/apiAuthenticate.ts').includes("/^(customer|warranty)\\./"), 'Warranty commands use the customer API-key scope');
+  });
+
+  test('AF-15: automation-rule persistence uses registered commands and RLS closes browser DML', () => {
+    const rules = read('src/hooks/useAutoRules.ts');
+    for (const command of ['autorule.create', 'autorule.update', 'autorule.delete', 'autorule.group', 'autorule.recordhits']) {
+      assert.ok(rules.includes(`runCommand('${command}'`), `useAutoRules must invoke ${command}`);
+    }
+    assert.ok(read('src/hooks/transactionActions/ruleActions.ts').includes("runCommand('autorule.create'"));
+    assert.ok(read('src/components/ledger/InboxView.tsx').includes("runCommand('autorule.create'"));
+    assert.ok(read('src/hooks/transactionActions/postingHelpers.ts').includes("runCommand('autorule.create'"));
+    const migration = read('supabase/migrations/20261115000000_document_commands_server_only.sql');
+    assert.ok(migration.includes('drop policy if exists writer_insert on public."autoRules"'));
+    assert.ok(migration.includes("where table_name = 'autoRules'"));
+    const rls = read('supabase/tests/rls.test.sql');
+    assert.ok(rls.includes('a bookkeeper cannot update a rule through lf_update'));
+    assert.ok(rls.includes('a raw browser DELETE cannot bypass the command'));
+  });
+
   test('AF6-011: the final ledger trigger closes empty-line, FX-home-balance, and settlement transition gaps', () => {
     const sql = migrationsSql();
     const close = sql.slice(sql.lastIndexOf('create or replace function public.lf_enforce_balanced_ledger()'));

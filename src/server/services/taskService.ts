@@ -1,4 +1,4 @@
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction as FirestoreTransaction } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { MAX_OPEN_TASKS, TASK_KIND, taskProblem, type Task, type TaskInput } from '../../lib/tasks';
 import { writeServerAuditLog } from './auditLogService';
@@ -12,7 +12,11 @@ import { notifyMentions } from './mentionService';
  * owners remove it. The person is told when given one, and whoever made it when it is done.
  */
 export class TaskError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly code: string;
+  constructor(readonly status: number, message: string, code?: string) {
+    super(message);
+    this.code = code || (status === 400 ? 'INVALID_INPUT' : status === 403 ? 'ROLE_REQUIRED' : status === 404 ? 'NOT_FOUND' : status === 409 ? 'CONFLICT' : 'TASK_ERROR');
+  }
 }
 
 const GIVERS = ['owner', 'accountant', 'bookkeeper'];
@@ -117,4 +121,80 @@ export async function removeTask(db: Firestore, input: Actor & { taskId: string 
       details: { description: `Removed the task "${task.title}"` },
     }, { db, tx: t });
   });
+}
+
+/** The command runner owns this transaction; notifications are scheduled by the command after commit. */
+export async function createTaskInTransaction(db: Firestore, tx: FirestoreTransaction, input: Actor & { task: TaskInput }): Promise<Task> {
+  const problem = taskProblem(input.task);
+  if (problem) throw new TaskError(400, problem);
+  const ws = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!ws) throw new TaskError(404, 'Workspace not found');
+  if (!GIVERS.includes(workspaceRole(ws as never, input.uid))) throw new TaskError(403, 'Only owners, accountants and bookkeepers give tasks');
+  const assignee = String(input.task.assignee);
+  if (!peopleOf(ws).includes(assignee)) throw new TaskError(400, 'That person is not in this workspace');
+  const open = await tx.get(db.collection('documents')
+    .where('workspaceId', '==', input.workspaceId).where('kind', '==', TASK_KIND).where('status', '==', 'open'));
+  if (open.size >= MAX_OPEN_TASKS) throw new TaskError(409, `${MAX_OPEN_TASKS} open tasks at most: finish or remove some first`);
+  const ref = db.collection('documents').doc();
+  const record = input.task.record as Task['record'] | null | undefined;
+  const task: Omit<Task, 'id'> = {
+    kind: TASK_KIND,
+    workspaceId: input.workspaceId,
+    title: String(input.task.title).trim(),
+    ...(typeof input.task.note === 'string' && input.task.note.trim() ? { note: input.task.note.trim() } : {}),
+    assignee,
+    createdBy: input.uid,
+    ...(input.email ? { createdByEmail: input.email } : {}),
+    createdAt: new Date().toISOString(),
+    ...(typeof input.task.due === 'string' && input.task.due ? { due: input.task.due } : {}),
+    ...(record ? { record: { type: record.type, id: record.id, label: record.label.trim() } } : {}),
+    status: 'open',
+  };
+  tx.create(ref, task);
+  return { ...task, id: ref.id };
+}
+
+async function taskForInTransaction(db: Firestore, tx: FirestoreTransaction, input: Actor & { taskId: string }) {
+  const workspace = (await tx.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!workspace) throw new TaskError(404, 'Workspace not found');
+  const ref = db.collection('documents').doc(input.taskId);
+  const snapshot = await tx.get(ref);
+  const task = snapshot.data() as Task | undefined;
+  if (!task || task.kind !== TASK_KIND || task.workspaceId !== input.workspaceId) throw new TaskError(404, 'That task is not in this workspace');
+  return { ref, task, owner: workspaceRole(workspace as never, input.uid) === 'owner' };
+}
+
+export async function setTaskStatusInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { taskId: string; status: unknown },
+): Promise<{ task: Task; previousStatus: Task['status']; changed: boolean }> {
+  if (input.status !== 'open' && input.status !== 'done') throw new TaskError(400, 'A task is open or done');
+  const { ref, task, owner } = await taskForInTransaction(db, tx, input);
+  if (!owner && input.uid !== task.assignee && input.uid !== task.createdBy) {
+    throw new TaskError(403, 'Only the person given the task, whoever made it, or an owner changes it');
+  }
+  if (task.status === input.status) return { task: { ...task, id: ref.id }, previousStatus: task.status, changed: false };
+  const now = new Date().toISOString();
+  const next: Partial<Task> = input.status === 'done'
+    ? { status: 'done', doneAt: now, doneBy: input.uid }
+    : { status: 'open', doneAt: undefined, doneBy: undefined };
+  tx.update(ref, input.status === 'done' ? next : { status: 'open', doneAt: null, doneBy: null });
+  const { doneAt: _doneAt, doneBy: _doneBy, ...rest } = task;
+  return {
+    task: { ...(input.status === 'done' ? task : rest), ...next, id: ref.id },
+    previousStatus: task.status,
+    changed: true,
+  };
+}
+
+export async function removeTaskInTransaction(
+  db: Firestore,
+  tx: FirestoreTransaction,
+  input: Actor & { taskId: string },
+): Promise<Task> {
+  const { ref, task, owner } = await taskForInTransaction(db, tx, input);
+  if (!owner && input.uid !== task.createdBy) throw new TaskError(403, 'Only whoever made the task, or an owner, removes it');
+  tx.delete(ref);
+  return task;
 }

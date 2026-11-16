@@ -1,6 +1,6 @@
-import { getIdToken } from '../firebase';
 import { guestSession, guestRows, writeGuestBatch, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { priceListsProblem, type PriceList } from '../lib/priceLists';
+import { runCommand } from '../lib/runCommand';
 
 /** Same list validation in the local sample; real workspaces retain their existing server route. */
 export async function saveWorkspacePriceLists(workspaceId: string, input: unknown[]): Promise<PriceList[]> {
@@ -18,10 +18,12 @@ export async function saveWorkspacePriceLists(workspaceId: string, input: unknow
     return lists;
   }
   if (workspaceId === SAMPLE_WORKSPACE_ID) throw new Error('The sample company is closed.');
-  const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/price-lists`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ lists: input }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || data.message || 'The price lists were not saved');
+  const data = await runCommand<{ lists?: PriceList[] }>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/price-lists`,
+    method: 'PUT',
+    body: { lists: input },
+  }) ?? {};
+  // an answer without the saved lists means the save was not confirmed; saying so beats returning nothing
+  if (!Array.isArray(data.lists)) throw new Error('The price lists were not saved');
   return data.lists;
 }

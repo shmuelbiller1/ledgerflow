@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import supabaseConfig from '../../supabase-config.json';
+import { SUPABASE_PROJECT as supabaseConfig } from '../config/supabaseProject';
 import { applySecurityMiddleware } from '../server/http/securityMiddleware';
 import {
   clientSupabaseUrl, configuredSupabaseConnectSources, staticCspHeaderValue, supabaseConnectSources,

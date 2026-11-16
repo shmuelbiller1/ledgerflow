@@ -7,10 +7,11 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { TransactionLine, ChartAccount } from '../../types';
 import { toast } from 'sonner';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
-import type { ActionContext } from './shared';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
+import type { ActionContext, RunRegisteredCommand } from './shared';
 
 /** Shared by several groups: learn a categorisation from an entry, and balance entry lines. (F-05, moved from useTransactionActions.) */
-export function createPostingHelpers(ctx: ActionContext) {
+export function createPostingHelpers(ctx: ActionContext, runCommand: RunRegisteredCommand) {
   const { user, currentWorkspaceId, accounts, analyticalPatternCache } = ctx;
 
   const recordRulePattern = async (description: string, accountId: string, accountName: string, tags?: string[], dimensions?: Record<string, string>) => {
@@ -79,21 +80,19 @@ export function createPostingHelpers(ctx: ActionContext) {
         );
 
         if (!hasRule) {
-          await firestoreAddDoc(collection(db, 'autoRules'), {
-            uid: user.uid,
-            workspaceId: currentWorkspaceId,
+          const rule = {
             name: `Autonomous Item Rule: ${cleanDesc}`,
-            condition: {
-              descriptionContains: cleanDesc
-            },
-            action: {
-              type: 'categorize',
-              targetNodeId: accountId,
-              targetCategory: accountName
-            },
+            condition: { descriptionContains: cleanDesc },
+            action: { type: 'categorize' as const, targetNodeId: accountId, targetCategory: accountName },
             isActive: true,
-            createdAt: new Date().toISOString()
-          });
+          };
+          if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+            await firestoreAddDoc(collection(db, 'autoRules'), {
+              ...rule, uid: user.uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString(),
+            });
+          } else {
+            await runCommand('autorule.create', { rule });
+          }
           if (workspaceChangedSince(currentWorkspaceId)) {
             toast.info(savedInOtherWorkspace(`The rule for "${cleanDesc}"`, currentWorkspaceId));
           } else {

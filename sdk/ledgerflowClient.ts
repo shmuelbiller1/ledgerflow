@@ -16,8 +16,29 @@
  *   const lf = new LedgerFlowClient({ apiKey: process.env.LEDGERFLOW_KEY!, baseUrl: 'https://your-app' });
  *   for await (const entry of lf.listTransactions(workspaceId, { startDate: '2026-01-01' })) { … }
  *   const { ids } = await lf.createTransactions(workspaceId, [entryA, entryB]);
+ *   const commands = await lf.listCommands();
+ *   const result = await lf.executeCommand('customer.create', workspaceId, { customer: { name: 'Acme' } });
  */
+import type { CommandInput, RegisteredCommandName } from './commands.generated';
+
 export interface LedgerLine { accountId: string; accountName?: string; amountCents: number; description?: string }
+export interface CommandRefusal { code: string; when: string; next: string }
+export interface CommandDefinition {
+  name: RegisteredCommandName;
+  area: string;
+  roles: string[];
+  risk: 'normal' | 'high';
+  description: { sentence: string; example: unknown; refusals: CommandRefusal[] };
+  inputSchema: Record<string, unknown>;
+  runPath: string;
+  previewPath: string;
+}
+export interface CommandPreview {
+  title: string;
+  lines: string[];
+  accounts?: LedgerLine[];
+}
+export interface CommandResult<T = unknown> { data: T; replayed: boolean }
 export interface LedgerEntry {
   id?: string;
   workspaceId?: string;
@@ -47,6 +68,38 @@ export class LedgerFlowError extends Error {
 
 const randomKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`); // NOSONAR: S2245 — non-cryptographic Math.random fallback for retry key
 
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/** Search command metadata only; this helper never previews or executes a command. */
+export function findCommandMetadata(query: string, commands: readonly CommandDefinition[], limit = 5): CommandDefinition[] {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return [];
+  const terms = [...new Set(normalizedQuery.split(' '))];
+  const boundedLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(50, limit)) : 5;
+  return commands.map(command => {
+    const name = normalizeSearchText(command.name);
+    const text = normalizeSearchText([
+      command.name,
+      command.area,
+      command.description.sentence,
+      JSON.stringify(command.description.example) || '',
+      ...command.description.refusals.flatMap(refusal => [refusal.code, refusal.when, refusal.next]),
+    ].join(' '));
+    if (!terms.every(term => text.includes(term))) return { command, score: 0 };
+    const termsInName = terms.filter(term => name.includes(term)).length;
+    const score = name === normalizedQuery ? 1000
+      : name.includes(normalizedQuery) ? 800
+        : termsInName === terms.length ? 600
+          : 400 + termsInName * 25;
+    return { command, score };
+  }).filter(result => result.score > 0)
+    .sort((left, right) => right.score - left.score || (left.command.name < right.command.name ? -1 : left.command.name > right.command.name ? 1 : 0))
+    .slice(0, boundedLimit)
+    .map(result => result.command);
+}
+
 export class LedgerFlowClient {
   private readonly base: string;
   private readonly fetchImpl: typeof fetch;
@@ -65,6 +118,45 @@ export class LedgerFlowClient {
 
   /** A new operation key: keep it with your record and reuse it to repeat the same create safely. */
   static newOperationKey(): string { return randomKey(); }
+
+  /** Registered command metadata, including the input JSON Schema for each command. */
+  async listCommands(): Promise<CommandDefinition[]> {
+    const response = await this.request<{ commands?: CommandDefinition[] }>('GET', '/api/v1/commands');
+    return response.commands || [];
+  }
+
+  /** Find likely commands from their published metadata; results are suggestions, not execution. */
+  async findCommand(query: string, limit = 5): Promise<CommandDefinition[]> {
+    return findCommandMetadata(query, await this.listCommands(), limit);
+  }
+
+  /** The schema, roles, risk, examples, and refusals for one registered command. */
+  async describeCommand(name: RegisteredCommandName): Promise<CommandDefinition> {
+    const response = await this.request<{ command: CommandDefinition }>('GET', `/api/v1/commands/${encodeURIComponent(name)}`);
+    return response.command;
+  }
+
+  /** Preview a command without committing writes. The command's own authorization still applies. */
+  async previewCommand<Name extends RegisteredCommandName>(name: Name, workspaceId: string, input: CommandInput<Name>): Promise<CommandPreview> {
+    const response = await this.request<{ preview: CommandPreview }>(
+      'POST', `/api/v1/commands/${encodeURIComponent(name)}/preview`, { workspaceId, input },
+    );
+    return response.preview;
+  }
+
+  /** Execute a registered command; retries reuse one operation key so the command is applied once. */
+  async executeCommand<T = unknown, Name extends RegisteredCommandName = RegisteredCommandName>(
+    name: Name,
+    workspaceId: string,
+    input: CommandInput<Name>,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<CommandResult<T>> {
+    const response = await this.request<CommandResult<T> & { command: string; status: string }>(
+      'POST', `/api/v1/commands/${encodeURIComponent(name)}`, { workspaceId, input },
+      { 'Idempotency-Key': options.idempotencyKey || randomKey() },
+    );
+    return { data: response.data, replayed: response.replayed };
+  }
 
   private async request<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
     for (let attempt = 0; ; attempt++) {

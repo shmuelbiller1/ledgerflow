@@ -5,8 +5,10 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { addDoc, collection } from '../../lib/db/firestore';
+import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
+import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useBankRules } from '../../hooks/useBankRules';
 import { merchantKey, merchantLabel, ruleFromDecision } from '../../lib/ruleFromDecision';
 import { reviewReason, type ReviewReason } from '../../lib/reviewReason';
@@ -16,6 +18,7 @@ import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { commandErrorMessage, runCommand as sendCommand, writeWasAccepted } from '../../lib/runCommand';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -27,6 +30,7 @@ export default function InboxView() {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const { runCommand } = useEntityOperations();
   // BG-05: who has each entry, and "Give to…" (a task about it)
   const hand = useHandOvers();
   const entry = (t: { id: string; date: string; description?: string }) => ({ type: 'transaction' as const, id: t.id, label: `Entry ${t.date} · ${t.description || ''}`.trim() });
@@ -45,9 +49,17 @@ export default function InboxView() {
     const rule = account ? ruleFromDecision({ payee: t.payee, description: t.description, accountId: account.id, accountName: account.name, labels: { ...(t.dimensions || {}), ...(categoryLine?.dimensions || {}) } }) : null;
     if (!rule || !currentWorkspaceId || !uid) return;
     try {
-      const saved = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt: new Date().toISOString() };
-      const ref = await addDoc(collection(db, 'autoRules'), saved);
-      setRules(prev => [...prev, { ...saved, id: ref.id } as AutoRule]);
+      let saved: AutoRule;
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        const createdAt = new Date().toISOString();
+        const localRule = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt };
+        const ref = await addDoc(collection(db, 'autoRules'), localRule);
+        saved = { ...localRule, id: ref.id } as AutoRule;
+      } else {
+        const result = await runCommand('autorule.create', { rule: rule as Record<string, unknown> });
+        saved = result.rule as AutoRule;
+      }
+      setRules(prev => prev.some(existing => existing.id === saved.id) ? prev.map(existing => existing.id === saved.id ? saved : existing) : [...prev, saved]);
       toast.success(`Rule saved: ${rule.name}`);
     } catch (err) {
       toast.error('The entry was accepted, but the rule was not saved', { description: err instanceof Error ? err.message : String(err) });
@@ -133,14 +145,20 @@ export default function InboxView() {
       if (lines) updates.push({ id: tx.id, data: { lines, status: 'completed', isReviewed: true } });
     }
     if (!updates.length) { toast.error('Nothing to accept: the suggested accounts are missing or archived.'); return false; }
-    const token = await getIdToken();
-    const res = await fetch('/api/v1/transactions/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(body.error || body.message || 'Could not save the accepted entries'); return false; }
+    try {
+      await sendCommand({
+        path: '/api/v1/transactions/batch',
+        method: 'POST',
+        body: { workspaceId: currentWorkspaceId, updates },
+      });
+    } catch (error) {
+      // A cut-off answer means the batch was applied; only a refusal leaves the entries unaccepted. Carrying
+      // on below with the patch we sent is the honest reading of a 2xx whose body was cut in half.
+      if (!writeWasAccepted(error)) {
+        toast.error(commandErrorMessage(error));
+        return false;
+      }
+    }
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(
       useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),

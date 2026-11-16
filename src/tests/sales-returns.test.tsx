@@ -167,13 +167,13 @@ describe('In the credit note form', () => {
     fireEvent.click(screen.getByRole('button', { name: /Credit their price: \$180\.00/ }));
     assert.equal((screen.getByLabelText(/^Amount \(/) as HTMLInputElement).value, '180.00');
     await act(async () => { fireEvent.submit(screen.getByLabelText(/^Amount \(/).closest('form')!); });
-    // the credit note alone goes to the server, which builds its entries and the stock coming back (L94-STEP2B; the
-    // 2 × 4.00 = 8.00 back to Inventory is the return entry checked above)
-    const isSave = (c: { url: string }) => /\/api\/v1\/documents\/creditNotes\/[^/]+\/post$/.test(c.url);
+    // only the credit note reaches the command API; the server rebuilds its accounting and stock entries
+    // (2 × 4.00 = 8.00 back to Inventory, the return entry checked above)
+    const isSave = (c: { url: string }) => c.url.endsWith('/api/v1/commands/creditnote.create');
     await waitFor(() => assert.ok(calls.some(isSave)));
-    const body = calls.find(isSave)!.body as { action: string; data: Record<string, unknown>; transactions?: unknown };
-    assert.equal(body.transactions, undefined, 'no entries are sent');
-    assert.deepEqual(body.data.returnedGoods, [{ invoiceLineId: 'l1', itemId: 'chair', quantity: 2 }]);
+    const body = calls.find(isSave)!.body as { input: { creditNote: Record<string, unknown> } };
+    assert.equal('transactions' in body.input, false, 'no entries are sent');
+    assert.deepEqual(body.input.creditNote.returnedGoods, [{ invoiceLineId: 'l1', itemId: 'chair', quantity: 2 }]);
   });
 
   test('more than was sold is refused before saving', async () => {
@@ -184,6 +184,6 @@ describe('In the credit note form', () => {
     fireEvent.change(screen.getByLabelText('How many of Chair came back'), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText(/^Amount \(/), { target: { value: '100' } });
     await act(async () => { fireEvent.submit(screen.getByLabelText(/^Amount \(/).closest('form')!); });
-    assert.equal(calls.some(c => c.url.includes('/transactions/bulk') || c.url.includes('/documents/creditNotes/')), false);
+    assert.equal(calls.some(c => c.url.includes('/transactions/bulk') || c.url.includes('/documents/creditNotes/') || c.url.endsWith('/commands/creditnote.create')), false);
   });
 });

@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, Database, FileSpreadsheet, Archive, AlertCircle, Upload } from 'lucide-react';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
@@ -12,6 +13,13 @@ import YearEndArchiveExport from './YearEndArchiveExport';
 import IifListExport from './IifListExport';
 import { backupFromWorkspaceArchive } from '../../../lib/workspaceArchive';
 import { BRAND } from '../../../config/brand';
+
+/** The shape the export endpoint answers: a full archive plus a count of what is in it. */
+interface BackupPayload {
+  metadata?: { transactionCount?: number; totalCount?: number; [key: string]: unknown };
+  transactions?: unknown[];
+  [key: string]: unknown;
+}
 
 export default function BackupExportSettings() {
   const [exportOpen, setExportOpen] = useState(false);
@@ -41,20 +49,14 @@ export default function BackupExportSettings() {
         throw new Error("No active workspace selected");
       }
 
-      let payload = null;
+      let payload: BackupPayload | null = null;
       let usedServer = false;
 
       // 1. Authoritative Server-side complete streaming export
       try {
         const token = await authState.user?.getIdToken();
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`/api/v1/workspaces/${workspaceId}/export`, { headers });
-        if (res.ok) {
-          payload = await res.json();
-          usedServer = true;
-        }
+        payload = await runCommand<BackupPayload>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/export`, token });
+        usedServer = true;
       } catch (serverErr) {
         console.warn("Server backup export endpoint unavailable, attempting fallback:", serverErr);
       }
@@ -99,7 +101,8 @@ export default function BackupExportSettings() {
         (payload.metadata as typeof payload.metadata & { checksum?: string }).checksum = hashHex;
       }
 
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const doc = payload;
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -117,7 +120,7 @@ export default function BackupExportSettings() {
       }
     } catch (e) {
       console.error(e);
-      toast.error('Failed to export backup: ' + ((e as Error).message || 'Unknown error'));
+      toast.error('Failed to export backup: ' + commandErrorMessage(e));
     } finally {
       setIsExporting(false);
     }
@@ -165,27 +168,17 @@ export default function BackupExportSettings() {
       }
 
       const token = await authState.user?.getIdToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/workspaces/${workspaceId}/restore`, {
+      // the file's own text is the body: send it as it is, not JSON-encoded a second time
+      const result = await runCommand<{ message?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/restore`,
         method: 'POST',
-        headers,
-        body: text
+        token,
+        rawBody: text,
       });
-
-      if (!res.ok) {
-        const errorJson = await res.json().catch(() => ({}));
-        throw new Error(errorJson.message || "Failed to restore backup via server endpoint");
-      }
-
-      const result = await res.json();
       toast.success(result.message || "Workspace general ledger successfully restored from backup snapshot.");
     } catch (e) {
       console.error("Restore failed:", e);
-      toast.error(`Restore failed: ${(e as Error).message}`);
+      toast.error(`Restore failed: ${commandErrorMessage(e)}`);
     } finally {
       setIsRestoring(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

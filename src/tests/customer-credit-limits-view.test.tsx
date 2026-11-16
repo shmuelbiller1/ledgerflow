@@ -5,15 +5,16 @@ import { inlineEditName } from './helpers/inlineEditName';
  * foreign-currency balance stays beside the row, and the limit is editable in place on the
  * customer's own record (the money box is shown to a non-viewer and to nobody else).
  */
-import { stubFetch } from './helpers/dom';
+import { stubFetch, stubFetchWithBodies } from './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomerCreditLimitReportView from '../components/reporting/CustomerCreditLimitReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD } from '../lib/warehouseRecords';
 
 const customers = [
   { id: 'c1', name: 'Acme Ltd', metadata: { creditLimitCents: 100_000 }, workspaceId: 'w1' },
@@ -57,5 +58,28 @@ describe('Customer credit limits screen', () => {
     const betaLimit = screen.getByLabelText(inlineEditName('Edit Credit limit of Beta GmbH'));
     assert.equal(betaLimit.tagName, 'BUTTON');
     assert.match(betaLimit.textContent || '', /Set a limit/);
+  });
+
+  test('editing the credit limit sends only its metadata patch, not protected customer histories', async () => {
+    useAuthStore.setState({ isGuest: false, user: { uid: 'u1' }, currentWorkspaceId: 'w1', workspaces: [{ id: 'w1', name: 'W', currency: 'USD', uid: 'u1' }] } as never);
+    useDataNeedsStore.setState({ loaded: { customers: true, invoices: true }, failed: {} as never });
+    useLedgerStore.setState({ customers: [{
+      ...customers[0], metadata: {
+        creditLimitCents: 100_000,
+        [WARRANTIES_METADATA_FIELD]: { serial_one: { endDate: '2028-01-01' } },
+        [RMAS_METADATA_FIELD]: { rma_one: { status: 'approved' } },
+      },
+    }] as never });
+    const calls = stubFetchWithBodies(200, { status: 'success', data: {} });
+    render(<CustomerCreditLimitReportView />);
+    fireEvent.click(screen.getByLabelText(inlineEditName('Edit Credit limit of Acme Ltd')));
+    const input = screen.getByLabelText('Credit limit of Acme Ltd');
+    fireEvent.change(input, { target: { value: '1500.00' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => assert.ok(calls.some(call => call.url.endsWith('/api/v1/commands/customer.update'))));
+    const request = calls.find(call => call.url.endsWith('/api/v1/commands/customer.update'))!;
+    assert.deepEqual((request.body as { input: { id: string; data: Record<string, unknown> } }).input, {
+      id: 'c1', data: { metadata: { creditLimitCents: 150_000 } },
+    });
   });
 });

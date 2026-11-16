@@ -51,7 +51,9 @@ function updateBaseline() {
   }
 
   if (updated || !fs.existsSync(baselinePath)) {
-    fs.writeFileSync(baselinePath, JSON.stringify(newBaseline, null, 2));
+    // the newline matters: without it every run shows a `\ No newline at end of file` diff on a file
+    // that is otherwise unchanged
+    fs.writeFileSync(baselinePath, `${JSON.stringify(newBaseline, null, 2)}\n`);
     console.log('quality-baseline.json updated!');
   } else {
     console.log('No ratchet improvements detected. Baseline remains unchanged.');

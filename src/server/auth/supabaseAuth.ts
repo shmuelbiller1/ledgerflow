@@ -13,7 +13,7 @@
  */
 import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
-import supabaseConfig from '../../../supabase-config.json';
+import { SUPABASE_PROJECT as supabaseConfig } from '../../config/supabaseProject';
 import { getDb } from '../db/firestore';
 import { trimEndChar } from '../../lib/textShape';
 

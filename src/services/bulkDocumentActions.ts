@@ -1,4 +1,4 @@
-import { getIdToken } from '../firebase';
+import { runCommand } from '../lib/runCommand';
 import type { BulkDocument, BulkSide, PlannedPayment } from '../lib/bulkDocuments';
 import { documentLabel } from '../lib/bulkDocuments';
 
@@ -8,14 +8,13 @@ import { documentLabel } from '../lib/bulkDocuments';
  */
 
 async function post(path: string, body: unknown, operationId?: string): Promise<Record<string, unknown>> {
-  const res = await fetch(path, {
+  // the operation id is what makes a retried payment record once, so it travels with the command
+  return runCommand<Record<string, unknown>>({
+    path,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}`, ...(operationId ? { 'x-operation-id': operationId } : {}) },
-    body: JSON.stringify(body),
+    body,
+    headers: operationId ? { 'x-operation-id': operationId } : undefined,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(String(data.message || data.error || 'The request failed'));
-  return data;
 }
 
 export interface PaymentOptions { workspaceId: string; side: BulkSide; cashAccountId: string; date: string; method: string; sendRemittance?: boolean; /** Retains a payment's key across a failed or uncertain response in the same dialog. */ operationIds?: Map<string, string> }

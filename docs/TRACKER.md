@@ -23,6 +23,24 @@ then the checks: `npx tsc --noEmit -p tsconfig.json`, `LF_TEST_DATABASE_URL=... 
 
 ---
 
+# COMMANDS AND THE ASSISTANT — the plan (owner, 15 Nov 2026)
+
+Goal: every change to stored data goes through one list of named commands on the server, then an
+in-app assistant works in a sandbox copy of the books and proposes changes the person accepts.
+
+| step | prompt | state |
+|---|---|---|
+| CMD-1 Batch 0: runner, direct address, ratchet, generator, initial commands | `docs/prompts/CMD-1-commands.md` | merged as #719 (15 Nov); the five prompt-required initial commands are present; the owner records the server-only migration as applied after deployment |
+| CMD-1 Batches 1–N: remaining server routes, full command coverage, `risk: high` commands | same | Reconciled at base `a5b6eb3` / merged #731: 60 commands and 182 route-write / 106 browser-write sites. [PR #732](https://github.com/shmuelbiller1/ledgerflow/pull/732) adds `numbering.update`, now 61 commands and 181/106 sites. See [`docs/prompts/CMD-1-checklist.md`](prompts/CMD-1-checklist.md) for the per-file inventory, corrected order, and remaining acceptance gates; it supersedes the earlier draft-branch counts. |
+| CMD-1 browser writes, table by table, each with its migration (closes the rest of #646) | same | 106 direct-write call sites remain. #719 protects invoices, bills, credit notes, vendor credits, automation rules, and warranty history; estimates and the rest of the browser inventory are still open. |
+| CMD-1 proposals, undo, assistant tools (`assistant/tools.json`, system prompt, read tools) | same | The 25-command gate is met (61 commands on this branch), but proposal lifecycle, assistant-token restrictions, tools, and system prompt remain open; SBX-1 domain prerequisites are not all complete. |
+| SBX-1 the assistant's sandbox: overlay copy of the books, accept / partial / edit / reject, re-check | `docs/prompts/SBX-1-assistant-sandbox.md` | After CMD-1 workspace, accounts, periods and inventory batches. Period work is merged in #731; accounts and inventory remain among the next server-command areas. |
+| SBX-2 speed: answer without the model when code can, remembered decisions, caching, two models | to write | after SBX-1 |
+
+Migrations from this work are applied to the live database only **after** their PR is merged **and**
+Vercel has deployed it: a migration that removes a browser write before the new code is live breaks
+saving for everyone.
+
 # NOW — working straight on `main` (2026-09-24, late)
 
 **How we work now (your rule, in CLAUDE.md):** Claude commits and pushes directly to `main`.

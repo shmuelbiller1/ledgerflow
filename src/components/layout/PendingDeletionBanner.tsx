@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,12 +24,7 @@ export default function PendingDeletionBanner() {
     if (!user) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/cancel-deletion`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message || body.error || 'The workspace could not be kept');
+      await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/cancel-deletion`, method: 'POST' });
       useAuthStore.getState().setWorkspaces(useAuthStore.getState().workspaces.map(w => w.id === workspace.id ? { ...w, status: 'active', scheduledPurgeAt: undefined, deletedAt: undefined } : w));
       toast.success(`"${workspace.name}" is kept`);
     } catch (err) {

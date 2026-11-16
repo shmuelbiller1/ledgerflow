@@ -121,6 +121,20 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
       </div>
 
       <div className="flex items-center gap-3 flex-1 justify-end">
+        {/*
+          A phone has no room for the search bar (it is `hidden md:flex` above), and ⌘K is not a thing
+          a thumb can press — so on a narrow screen this is the only way into the palette, which is also
+          the only way to reach most of the app without hunting the navigation menu.
+        */}
+        <button
+          onClick={() => setCommandPaletteOpen(true)}
+          className="md:hidden -ml-1 w-11 h-11 inline-flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
+          title="Search, or type what you want to do"
+          aria-label="Search, or type what you want to do"
+        >
+          <Search aria-hidden="true" size={18} />
+        </button>
+
         {/* Help & Guide Button */}
         <button
           onClick={() => setActiveTab('help' as unknown as string)}

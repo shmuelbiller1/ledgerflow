@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
+import { runCommand } from '../lib/runCommand';
 
 /**
  * L-123 step 5c: every year with an entry, from the server (GET /api/v1/balances/entry-years), asked only when the
@@ -23,9 +23,10 @@ export function useServerEntryYears(): { years: number[]; failed: boolean } {
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/balances/entry-years?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as { years?: unknown };
-      if (!res.ok || !Array.isArray(body.years)) throw new Error(`entry-years ${res.status}`);
+      const body = await runCommand<{ years?: unknown }>({
+        path: `/api/v1/balances/entry-years?${new URLSearchParams({ workspaceId })}`,
+      }) ?? {};
+      if (!Array.isArray(body.years)) throw new Error('entry-years: no years in the answer');
       return body.years.filter((y): y is number => Number.isInteger(y));
     })().then(years => { if (live && scope.isCurrent()) setAnswer({ workspaceId, years, failed: false }); })
       .catch(() => {

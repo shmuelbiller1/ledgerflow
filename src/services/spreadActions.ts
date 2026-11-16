@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
-import { getIdToken } from '../firebase';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { commandErrorMessage, runCommand } from '../lib/runCommand';
 
 /**
  * Undo a bill's (K-17) or invoice's (K-16) spread over months: the server voids its entries (refused
@@ -8,13 +8,16 @@ import { useLedgerStore } from '../stores/useLedgerStore';
  * re-posting the document (Void right after) reads it from the store before the live update arrives.
  */
 export async function undoSpreadRequest(kind: 'bill' | 'invoice', workspaceId: string, documentId: string): Promise<boolean> {
-  const token = await getIdToken().catch(() => null);
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/${kind === 'bill' ? 'bills' : 'invoices'}/${encodeURIComponent(documentId)}/spread/undo`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: '{}',
-  }).catch(() => null);
-  const data = await res?.json().catch(() => ({}));
-  if (!res?.ok) {
-    toast.error(data?.message || 'The spread could not be undone');
+  try {
+    await runCommand({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/${kind === 'bill' ? 'bills' : 'invoices'}/${encodeURIComponent(documentId)}/spread/undo`,
+      method: 'POST',
+      body: {},
+    });
+  } catch (error) {
+    // a refusal here is expected and explainable (a closed month); the caller gets false and the
+    // screen is left as it was
+    toast.error(commandErrorMessage(error));
     return false;
   }
   if (kind === 'bill') {

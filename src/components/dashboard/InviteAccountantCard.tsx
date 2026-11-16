@@ -1,8 +1,8 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { isEmailShape } from '../../lib/textShape';
 
 /**
@@ -26,13 +26,18 @@ export default function InviteAccountantCard() {
     setBusy(true);
     const asked = workspaceId;
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(asked)}/invites`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ email: address, role: 'accountant' }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (useAuthStore.getState().currentWorkspaceId !== asked) return; // another set of books is open now
-      if (!res.ok) { toast.error(body.message || body.error || 'The invitation was not made'); return; }
+      let body: { invite?: { token?: string }; message?: string };
+      try {
+        body = await runCommand({
+          path: `/api/v1/workspaces/${encodeURIComponent(asked)}/invites`,
+          method: 'POST',
+          body: { email: address, role: 'accountant' },
+        });
+        if (useAuthStore.getState().currentWorkspaceId !== asked) return; // another set of books is open now
+      } catch (err) {
+        toast.error(commandErrorMessage(err));
+        return;
+      }
       const token = body.invite?.token;
       setLink(token ? `${window.location.origin}/invite/${token}` : '');
       setEmail('');

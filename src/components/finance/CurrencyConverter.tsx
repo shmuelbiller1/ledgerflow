@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
@@ -29,12 +30,12 @@ export default function CurrencyConverter({ isOpen, onClose }: CurrencyConverter
       try {
         const user = useAuthStore.getState().user;
         const token = user ? await user.getIdToken() : '';
-        const response = await fetch(`/api/v1/fx/rates/${fromCurrency}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const data = await runCommand<{ rates?: Record<string, number>; error?: string }>({
+          path: `/api/v1/fx/rates/${encodeURIComponent(fromCurrency)}`,
+          token,
         });
-        const data = await response.json().catch(() => ({}));
         if (cancelled) return;
-        if (response.ok && data.rates) { setExchangeRates(data.rates); setRatesError(''); }
+        if (data.rates) { setExchangeRates(data.rates); setRatesError(''); }
         else { setExchangeRates({}); setRatesError(data.error || 'Exchange rates are not available right now'); }
       } catch {
         if (!cancelled) { setExchangeRates({}); setRatesError('Exchange rates are not available right now'); }

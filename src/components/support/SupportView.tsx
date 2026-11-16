@@ -1,3 +1,4 @@
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { 
   Headphones, 
@@ -144,25 +145,22 @@ export default function SupportView() {
 
       await setDoc(doc(db, 'supportTickets', ticketId), newTicket);
 
-      const idToken = await user?.getIdToken();
       let sentViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${ticketId}/messages`, {
+        await runCommand({
+          path: `/api/v1/support/tickets/${ticketId}/messages`,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            body: safeInitialMessage,
-            authorRole: 'user'
-          })
+          body: { body: safeInitialMessage, authorRole: 'user' },
         });
-        if (res.ok) {
-          sentViaApi = true;
-        }
+        sentViaApi = true;
       } catch (apiErr) {
-        console.warn('API message send failed, using client write:', apiErr);
+        // A 2xx whose body was cut off means the server already took the message; writing it again
+        // from the browser would show it twice. A refusal (any status the server chose to answer
+        // with) or a request that never arrived still falls back, as before.
+        // A 2xx with an unreadable body means the server took the message; that is a send that
+        // happened, so it must neither write a second copy nor read as a failure to the person.
+        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
+        else console.warn('API message send failed, using client write:', apiErr);
       }
 
       if (!sentViaApi) {
@@ -198,25 +196,19 @@ export default function SupportView() {
     setIsSending(true);
     const textToSend = maskCardNumbers(messageInput.trim());
     try {
-      const idToken = await user?.getIdToken();
       let sentViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${selectedTicketId}/messages`, {
+        await runCommand({
+          path: `/api/v1/support/tickets/${selectedTicketId}/messages`,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            body: textToSend,
-            authorRole: isAdmin ? 'admin' : 'user'
-          })
+          body: { body: textToSend, authorRole: isAdmin ? 'admin' : 'user' },
         });
-        if (res.ok) {
-          sentViaApi = true;
-        }
+        sentViaApi = true;
       } catch (apiErr) {
-        console.warn('API send message failed, using client write:', apiErr);
+        // see the note above: a 2xx with a cut body was already accepted by the server
+        // see the note above: an accepted send whose answer was unreadable is still a send
+        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
+        else console.warn('API send message failed, using client write:', apiErr);
       }
 
       if (!sentViaApi) {
@@ -260,20 +252,10 @@ export default function SupportView() {
       ),
     }));
     try {
-      const idToken = await user?.getIdToken();
       let updatedViaApi = false;
       try {
-        const res = await fetch(`/api/v1/support/tickets/${selectedTicketId}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({ status })
-        });
-        if (res.ok) {
-          updatedViaApi = true;
-        }
+        await runCommand({ path: `/api/v1/support/tickets/${selectedTicketId}/status`, method: 'PATCH', body: { status } });
+        updatedViaApi = true;
       } catch (apiErr) {
         console.warn('API update status failed, using client write:', apiErr);
       }

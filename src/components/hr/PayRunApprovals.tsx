@@ -6,9 +6,9 @@
  * may decide too, and nobody approves a run they prepared. The server decides who may do what
  * (src/server/services/payRunService.ts); this panel only asks.
  */
+import { runCommand } from '../../lib/runCommand';
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -18,14 +18,11 @@ import { mayApprove, twoPersonOn } from '../../lib/twoPersonRule';
 import type { PayRun } from '../../types';
 
 async function call(workspaceId: string, path: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/pay-runs${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  return runCommand<{ transactionId?: string; required?: boolean }>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/pay-runs${path}`,
+    method: method as 'POST' | 'PUT',
+    body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.message || 'That did not work'), { status: res.status });
-  return data as { transactionId?: string; required?: boolean };
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));

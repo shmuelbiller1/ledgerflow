@@ -8,6 +8,45 @@ import { apiKeyLimit, apiKeyRateLimiter } from "../middleware/rateLimiters";
 import type { AuthenticatedRequest, AuthUser } from "../http/serverKit";
 
 import { BRAND_NAME } from '../../config/brand';
+
+/** Which existing API-key scope gates a request; command write scopes are deliberately domain-specific. */
+export function requiredApiKeyScope(method: string, path: string): string {
+  const cleanPath = path.toLowerCase().split('?')[0].replace(/\/$/, '');
+  const isWrite = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
+
+  if (cleanPath.includes('/brain/')) return 'brain:analyze';
+  // The explanation is posted only because its account list can be too long for a link; it reads.
+  if (cleanPath.endsWith('/reports/explain')) return 'read:transactions';
+
+  if (/(^|\/)commands(?:\/|$)/.test(cleanPath)) {
+    if (!isWrite) return 'read:transactions';
+    const match = /\/commands\/([^/]+)/.exec(cleanPath);
+    let name = match?.[1] || '';
+    try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
+    if (/^autorule\./.test(name)) return 'write:rules';
+    // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
+    // particular, transaction integrations must not gain permission to unlock or reopen books.
+    if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
+    // Workspace/team features use the same scope as their legacy /workspaces routes.
+    if (/^(alerts|tasks|watches|entrylink|time|stages|workspace|numbering)\./.test(name)) return 'write:workspaces';
+    if (/^(customer|warranty)\./.test(name)) return 'write:customers';
+    if (/^vendor\./.test(name)) return 'write:vendors';
+    if (/^(journal|payment|invoice|bill|creditnote|vendorcredit)\./.test(name)) return 'write:transactions';
+    return 'write:transactions';
+  }
+  if (cleanPath.includes('/transactions')) return isWrite ? 'write:transactions' : 'read:transactions';
+  if (cleanPath.includes('/projects')) return isWrite ? 'write:projects' : 'read:projects';
+  if (cleanPath.includes('/ledger')) return isWrite ? 'write:ledger' : 'read:ledger';
+  if (cleanPath.includes('/workspaces')) {
+    // Workspace settings are changed by people in the app, not by API keys.
+    return isWrite ? 'write:workspaces' : 'read:workspaces';
+  }
+  if (cleanPath.includes('/metrics')) return 'read:transactions';
+  if (cleanPath.includes('/logs')) return 'read:workspaces';
+  if (cleanPath.includes('/status')) return 'read:workspaces';
+  return isWrite ? 'write:transactions' : 'read:transactions';
+}
+
 // Deep API Key Authentication Middleware
 export const apiAuthenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization || (req.headers['x-api-key'] as string);
@@ -76,49 +115,7 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
       // Action Scope Matching & Authorization Guard
       const allowedScopes = Array.isArray(docData?.scopes) ? docData.scopes : [];
 
-      const getRequiredScope = (method: string, path: string): string => {
-        const cleanPath = path.toLowerCase().split("?")[0].replace(/\/$/, "");
-        
-        if (cleanPath.includes("/brain/")) {
-          return "brain:analyze";
-        }
-        
-        // the explanation is posted only because its account list can be too long for a link; it reads
-        if (cleanPath.endsWith("/reports/explain")) {
-          return "read:transactions";
-        }
-
-        const isWrite = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
-        
-        if (cleanPath.includes("/transactions")) {
-          return isWrite ? "write:transactions" : "read:transactions";
-        }
-        if (cleanPath.includes("/projects")) {
-          return isWrite ? "write:projects" : "read:projects";
-        }
-        if (cleanPath.includes("/ledger")) {
-          return isWrite ? "write:ledger" : "read:ledger";
-        }
-        if (cleanPath.includes("/workspaces")) {
-          // Workspace settings (payment types, alerts, modules, roles, members…) are changed by people
-          // in the app, not by API keys: no key can be issued "write:workspaces", so a key that may
-          // read workspaces cannot change them (a key holder acts with its owner's role).
-          return isWrite ? "write:workspaces" : "read:workspaces";
-        }
-        if (cleanPath.includes("/metrics")) {
-          return "read:transactions";
-        }
-        if (cleanPath.includes("/logs")) {
-          return "read:workspaces";
-        }
-        if (cleanPath.includes("/status")) {
-          return "read:workspaces";
-        }
-        
-        return isWrite ? "write:transactions" : "read:transactions";
-      };
-
-      const reqScope = getRequiredScope(req.method, req.originalUrl || req.url);
+      const reqScope = requiredApiKeyScope(req.method, req.originalUrl || req.url);
       if (!allowedScopes.includes(reqScope)) {
         return res.status(403).json({
           status: "error",
