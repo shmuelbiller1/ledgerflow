@@ -481,6 +481,46 @@ function readCells(rowInner: string): Cell[] | undefined {
   return cells;
 }
 
+/** The `{…}` groups a body is made of, or `undefined` when it is not only those. */
+function splitExpressions(source: string): string[] | undefined {
+  const chunks: string[] = [];
+  let at = 0;
+  const text = source.trim();
+  while (at < text.length) {
+    if (/\s/.test(text[at])) {
+      at++;
+      continue;
+    }
+    if (text[at] !== '{') return undefined;
+    const end = skipExpression(text, at);
+    if (end === at) return undefined;
+    chunks.push(text.slice(at, end));
+    at = end;
+  }
+  return chunks;
+}
+
+/**
+ * `{list.length === 0 && <tr>…</tr>}` — the sentence a report prints inside its body when it has no rows — as
+ * the row itself. A row that appears conditionally for another reason is not an empty state and is refused: the
+ * condition has to be about the list being empty.
+ */
+function readEmptyStateRow(chunk: string): string | undefined {
+  const text = chunk.slice(1, -1).trim();
+  const rowAt = text.search(/\(?\s*<tr\b/);
+  if (rowAt <= 0) return undefined;
+  const condition = text.slice(0, rowAt).trim();
+  const body = text.slice(rowAt).trim().replace(/^\(/, '');
+  const end = skipElement(body, 0, 'tr');
+  if (end === 0) return undefined;
+  // `{cond && <tr>…</tr>}`, `{cond ? <tr>…</tr> : null}`, and either of those inside parentheses
+  const trailing = body.slice(end).trim().replace(/^\)/, '').trim();
+  if (trailing !== '' && trailing !== ': null' && trailing !== ':null') return undefined;
+  if (!condition.endsWith('&&') && !condition.endsWith('?')) return undefined;
+  if (!/(\.length\s*===?\s*0|!\s*[A-Za-z_$][\w$.]*\s*\.length)/.test(condition)) return undefined;
+  return body.slice(0, end);
+}
+
 /** Convert the table that starts at `start`, or say why it cannot. */
 export function attemptConvert(source: string, start: number): Attempt {
   const line = source.slice(0, start).split('\n').length;
@@ -520,13 +560,20 @@ export function attemptConvert(source: string, start: number): Attempt {
   const head = readHead(headInner);
   if (!head) return { reason: 'a header row that is not one of the shapes the table can take' };
 
-  // a table with a footer has a totals row; a sweep that dropped it would silently delete a sum from a report,
-  // so every other part of the table has to be accounted for before this can go ahead
-  if (/<tfoot\b/.test(table)) return { reason: 'a totals row in a footer (a sum is not a column)' };
+  // the totals row keeps its own markup and moves into the component's `footer`, which renders it as a `<tfoot>`:
+  // a sweep that dropped it would silently delete a sum from a report
+  const footAt = table.indexOf('<tfoot');
+  const footEnd = footAt === -1 ? -1 : skipElement(table, footAt, 'tfoot');
+  const footerInner = footAt === -1
+    ? undefined
+    : table.slice(skipOpeningTag(table, footAt), footEnd - '</tfoot>'.length).trim();
+  if (footAt !== -1 && !footerInner) return { reason: 'an empty footer' };
+  const footerClass = footAt === -1 ? '' : classOf(openTagAt(table, footAt)).join(' ');
   const otherParts = table
     .replace(/<caption[\s\S]*?<\/caption>/, '')
     .replace(/<thead[\s\S]*?<\/thead>/, '')
     .replace(/<tbody[\s\S]*?<\/tbody>/, '')
+    .replace(/<tfoot[\s\S]*?<\/tfoot>/, '')
     .replace(/<\/?table\b[^>]*>/g, '')
     .trim();
   if (otherParts) return { reason: 'something outside the caption, header and body that a rewrite would drop' };
@@ -536,10 +583,19 @@ export function attemptConvert(source: string, start: number): Attempt {
   const tbodyOpen = openTagAt(table, bodyAt);
   const tbodyEnd = skipElement(table, bodyAt, 'tbody');
   const bodyInner = table.slice(skipOpeningTag(table, bodyAt), tbodyEnd - '</tbody>'.length).trim();
-  if (!bodyInner.startsWith('{') || skipExpression(bodyInner, 0) !== bodyInner.length) {
-    return { reason: 'a body that is not one expression: an empty-state row beside the rows, or a literal row' };
-  }
-  const expression = bodyInner.slice(1, -1).trim();
+  const chunks = splitExpressions(bodyInner);
+  const notOneExpression = { reason: 'a body that is not one expression: an empty-state row beside the rows, or a literal row' };
+  if (!chunks || chunks.length === 0) return notOneExpression;
+  const maps = chunks.filter(chunk => readMapped(chunk) !== undefined);
+  if (maps.length > 1) return { reason: 'a body with more than one map' };
+  if (maps.length === 0) return { reason: 'a body that is not a map' };
+  const extra = chunks.filter(chunk => chunk !== maps[0]);
+  if (extra.length > 1) return { reason: 'a body with more than one map' };
+  // the row a report shows when its list is empty stays a row inside the body: the component renders it in place
+  // of the rows, so the table, its head and its columns are still there to say what the sentence is about
+  const emptyRow = extra.length === 1 ? readEmptyStateRow(extra[0]) : undefined;
+  if (extra.length === 1 && emptyRow === undefined) return notOneExpression;
+  const expression = maps[0].slice(1, -1).trim();
   const mapAt = expression.indexOf('.map(');
   if (mapAt === -1) return { reason: 'a body that is not a map' };
   const list = expression.slice(0, mapAt).trim();
@@ -692,6 +748,9 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (tableClass !== 'w-full text-xs') props.push(`        tableClassName=${attr(tableClass)}`);
   if (headRowClass !== 'text-[var(--muted)]') props.push(`        headRowClassName=${attr(headRowClass)}`);
   if (bodyClass !== 'divide-y divide-[var(--line)]') props.push(`        bodyClassName=${attr(bodyClass)}`);
+  if (emptyRow !== undefined) props.push(`        emptyRow={${jsxValue(emptyRow)}}`);
+  if (footerInner !== undefined) props.push(`        footer={${jsxValue(footerInner)}}`);
+  if (footerClass) props.push(`        footerClassName=${attr(footerClass)}`);
 
   const lineStart = source.lastIndexOf('\n', start) + 1;
   const lineIndent = (source.slice(lineStart, start).match(/^\s*/) ?? [''])[0];

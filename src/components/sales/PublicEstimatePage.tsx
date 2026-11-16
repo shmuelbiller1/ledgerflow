@@ -2,6 +2,7 @@ import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { MAX_SIGNER_NAME, signatureProblem, type SignState } from '../../lib/estimateSignature';
+import { RowTable } from '../ui/RowTable';
 
 interface SignView {
   company: string; number: string; date: string; expiryDate: string; customerName: string; currency: string;
@@ -62,19 +63,23 @@ export default function PublicEstimatePage() {
           <h1 id="estimate-title" className="text-2xl font-bold">Estimate {view.number}</h1>
           <p className="text-sm text-slate-600">For <bdi>{view.customerName}</bdi> · {formatDate(view.date)}{view.expiryDate ? ` · valid until ${formatDate(view.expiryDate)}` : ''}</p>
         </header>
-        <table className="w-full text-sm">
-          <caption className="sr-only">The estimate's lines</caption>
-          <thead><tr className="border-b text-left text-xs text-slate-500"><th scope="col" className="py-1">Description</th><th scope="col" className="py-1 text-right">Qty</th><th scope="col" className="py-1 text-right">Amount</th></tr></thead>
-          <tbody>
-            {view.lines.map(l => (
-              <tr key={l.key} className="border-b border-slate-100"><td className="py-1"><bdi>{l.description}</bdi></td><td className="py-1 text-right">{l.quantity}</td><td className="py-1 text-right font-mono">{money(l.amountCents)}</td></tr>
-            ))}
-          </tbody>
-          <tfoot>
-            {view.taxCents > 0 && <tr><th scope="row" colSpan={2} className="py-1 text-right font-normal">Tax</th><td className="py-1 text-right font-mono">{money(view.taxCents)}</td></tr>}
-            <tr><th scope="row" colSpan={2} className="py-1 text-right">Total</th><td className="py-1 text-right font-mono font-bold">{money(view.amountCents)}</td></tr>
-          </tfoot>
-        </table>
+        <RowTable
+          rowHeaderColumn={false}
+          rowClassName="border-b border-slate-100"
+          caption={(<>The estimate's lines</>)}
+          rows={view.lines}
+          rowKey={l => l.key}
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b text-left text-xs text-slate-500"
+          bodyClassName=""
+          footer={(<>{view.taxCents > 0 && <tr><th scope="row" colSpan={2} className="py-1 text-right font-normal">Tax</th><td className="py-1 text-right font-mono">{money(view.taxCents)}</td></tr>}
+            <tr><th scope="row" colSpan={2} className="py-1 text-right">Total</th><td className="py-1 text-right font-mono font-bold">{money(view.amountCents)}</td></tr></>)}
+          columns={[
+            { header: "Description", className: "py-1", headClassName: "py-1", cell: (l) => <bdi>{l.description}</bdi> },
+            { header: "Qty", align: 'right', className: "py-1", headClassName: "py-1", cell: (l) => l.quantity },
+            { header: "Amount", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (l) => money(l.amountCents) },
+          ]}
+        />
         {view.notes && <p className="whitespace-pre-line text-sm text-slate-600"><bdi>{view.notes}</bdi></p>}
         {view.state === 'signed' && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-800">Accepted{view.signedBy ? <> and signed by <bdi>{view.signedBy}</bdi></> : ''}{view.signedAt ? ` on ${formatDate(view.signedAt.slice(0, 10))}` : ''}. Thank you.</p>}
         {view.state === 'expired' && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-amber-800">This estimate has expired. Ask <bdi>{view.company}</bdi> for a new one.</p>}

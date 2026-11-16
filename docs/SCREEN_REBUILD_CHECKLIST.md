@@ -1,4 +1,4 @@
-# Screen rebuild — PR #733 checklist
+# Screen rebuild — #733 (merged), this PR continues the sweep
 
 The task is unchanged: **every action and report the server offers can be reached, and a new person still sees
 only a few things.** Connect and simplify what exists. Do not add features.
@@ -16,7 +16,7 @@ the truth.
 
 | counter | before this PR | now | target | what it counts |
 |---|---|---|---|---|
-| `rawTables` | 184 | **158** | 0 | screen files drawing a hand-written `<table>` |
+| `rawTables` | 184 | **152** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
 | `directDbWrites` | 93 | 93 | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
@@ -24,9 +24,9 @@ the truth.
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
 | `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
 
-`rawTables` is a count of **files**, so converting 45 tables in 41 files moved it 184 → 158: the first table in a
-file is the one the counter sees, and a second table in a file is free. 14 of those 41 files still draw a second
-table the codemod refuses, which is why 41 files moved the counter by 26. The plan below is ordered by that fact.
+`rawTables` is a count of **files**, so converting 57 tables in 50 files moved it 184 → 152: the first table in
+a file is the one the counter sees, and a second table in a file is free. 14 of those 50 files still draw a second
+table the codemod refuses, which is why 50 files moved the counter by 32. The plan below is ordered by that fact.
 
 ## 1. One list — landed in this PR
 
@@ -81,38 +81,41 @@ table the codemod refuses, which is why 41 files moved the counter by 26. The pl
 - [x] **45 tables in 41 files converted**, `rawTables` 184 → 158, 41 screen files −60 lines net (the explicit
       class props cost lines and buy exactness), `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the
       two pre-existing warnings, **5315/5315 unit tests green**.
-- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 158`, so a new hand-written table fails CI.
+- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 152`, so a new hand-written table fails CI.
 - [x] **Two lists told the truth again.** `StockClosingPanel` and `JournalSheetReportView` left
       `raw-table-decisions.test.ts` (they no longer draw a table, so their reasons were false) and
       `PickPackShipPanel` left the H-8 date backlog (its dates now go through the resolver).
 
 ## 2. One list — what is left, in the order that moves the counter
 
-Measured now by `npx tsx scripts/codemod-row-table.ts` → **199 tables in 158 files still refused**, by reason:
+- [x] **The two shapes the component already had a prop for, taught to the codemod.** A `<tfoot>` totals row is
+      `footer` (and `footerClassName` when the `<tfoot>` carried `sticky bottom-0` or a rule), and the row a report
+      prints when its list is empty is `emptyRow` — rendered *inside* the body, so the table, its head and its
+      columns are still there and the sentence still sits under the columns it is about. `empty` (which replaces
+      the table) is unchanged. 12 tables in 9 files, `rawTables` 158 → 152.
+- [x] A conditional row that is not about the list being empty (`{canAdd && <tr>…}`) is still refused: it is not
+      an empty state, and moving it would delete it.
+
+Measured now by `npx tsx scripts/codemod-row-table.ts` → **187 tables in 152 files still refused**, by reason:
 
 | # | reason (the codemod's own refusal) | tables | route | est. files moved |
 |---|---|---|---|---|
-| 1 | a totals row in a `<tfoot>` | 17 | ✋ `RowTable` has `footer`; move the totals row across by hand | 17 |
-| 2 | a body that is not one expression (an empty-state row beside the rows) | 26 | ✋ pass `empty`, then the body is one map | ~24 |
-| 3 | a header row that is not one of the four shapes the table can take | 47 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
-| 4 | a row that does not line up with its header | 38 | ✋ usually a nested list, or a cell that spans — name which | ~37 |
-| 5 | a map that does not return a row | 27 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~28 |
-| 6 | a callback that is destructured, or has a body | 10 | ✋ `({id, name}) => …` or a `{ const x = …; return <tr> }` body | 10 |
-| 7 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
-| 8 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
-| 9 | a class computed from the row | 5 | ✋ same: the class belongs inside the cell | 5 |
+| 1 | a header row that is not one of the four shapes the table can take | 47 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
+| 2 | a row that does not line up with its header | 41 | ✋ usually a nested list, or a cell that spans — name which | ~38 |
+| 3 | a map that does not return a row | 31 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~30 |
+| 4 | a body that is not a map (a ternary between two maps) | 16 | ✋ the list is one expression away: `const rows = cond ? a : b` above the table | ~14 |
+| 5 | a body that is not one expression (a literal row, or a second conditional row) | 16 | ✋ name the second expression: it is a row, a fragment, or a second map | ~14 |
+| 6 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
+| 7 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
+| 8 | a class computed from the row | 7 | ✋ same: the class belongs inside the cell | 7 |
+| 9 | something outside the caption, header and body that a rewrite would drop / a row header after the first column | 8 | ✋ individually | 8 |
 | 10 | a table attribute a rewrite would drop (`aria-label`) | 3 | ✋ `PeriodClosingPanel`'s three totals tables: give `RowTable` the name, or keep the table | 1 |
-| 11 | more than one map in the body / a row header after the first column | 6 | ✋ the second map is a second table, or a `rows` list built outside | 6 |
-| 12 | no header row / no caption / one-row key / nested-cell edge cases | 6 | ✋ individually | 6 |
+| 11 | more than one map, no header row, one-row key, nested-cell edge cases | 3 | ✋ individually | 3 |
 
-**Fast order.** 1 and 2 first: `footer` and `empty` already exist, so each is a mechanical edit of a table the
-codemod has already normalised in every other way, and 43 tables move for it. 3, 4, 5 are the bulk (111) and are
-the honest hand work — do them by directory, starting with `reporting` (106 of the 244 tables live there), and
-re-run the codemod after every batch: a file that stops being refused is free.
-
-Do **not** hand-convert a table the codemod still refuses. Re-run it first — every batch so far has made the
-next one smaller, and the two bugs it caught (the `<tfoot>`, the class interpolation) are exactly the class of
-mistake that hand-converting 139 tables at speed produces.
+**Fast order.** The footer and empty-state buckets are done, which is the free 12. What is left is the hand work,
+and it is done by directory starting with `reporting` (the largest bucket), re-running the codemod after every
+batch: a file that stops being refused is free, and every batch so far has made the next one smaller. Do **not**
+hand-convert a table the codemod still refuses.
 
 ## 3. One way to act
 

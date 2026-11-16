@@ -50,6 +50,11 @@ export interface RowTableProps<T, C = never> {
   bodyClassName?: string;
   /** A totals row (or rows) under the body, rendered as the caller wrote it. */
   footer?: ReactNode;
+  /** A class for the `<tfoot>` the footer renders in — `sticky bottom-0` on a long list. */
+  footerClassName?: string;
+  /** A row to show *inside* the body when there are no rows: the sentence a report prints in place of its list.
+   *  Unlike `empty`, the table stays, so the sentence still sits under the columns it is about. */
+  emptyRow?: ReactNode;
   /** Shown instead of the table when there are no rows. */
   empty?: ReactNode;
 }
@@ -76,6 +81,8 @@ export function RowTable<T, C = never>({
   headRowClassName = 'text-[var(--muted)]',
   bodyClassName = 'divide-y divide-[var(--line)]',
   footer,
+  footerClassName,
+  emptyRow,
   empty,
 }: RowTableProps<T, C>) {
   if (rows.length === 0 && empty !== undefined) return <>{empty}</>;
@@ -94,7 +101,7 @@ export function RowTable<T, C = never>({
         </tr>
       </thead>
       <tbody className={bodyClassName}>
-        {rows.map((row, position) => (
+        {rows.length === 0 && emptyRow !== undefined ? emptyRow : rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={rowClassName}>
             {planned.map((column, index) => {
               const className = alignClass(column.align, column.className);
@@ -108,7 +115,7 @@ export function RowTable<T, C = never>({
           </tr>
         ))}
       </tbody>
-      {footer !== undefined ? <tfoot>{footer}</tfoot> : null}
+      {footer !== undefined ? <tfoot className={footerClassName}>{footer}</tfoot> : null}
     </table>
   );
 }

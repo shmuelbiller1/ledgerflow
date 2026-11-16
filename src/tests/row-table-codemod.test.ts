@@ -55,15 +55,48 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.doesNotMatch(conversion.after, /<t[hd]\b|<table\b/);
   });
 
-  test('a totals row in the footer is refused: a sum is not a column', () => {
-    const { conversion, reason } = convert(page(`      <table>
+  test('a totals row in the footer becomes the footer, not a column', () => {
+    const { conversion } = convert(page(`      <table>
         <caption>Per vendor</caption>
         <thead><tr><th scope="col">Vendor</th><th scope="col">Paid</th></tr></thead>
         <tbody>{rows.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{money(row.cents)}</td></tr>)}</tbody>
-        <tfoot><tr><th scope="row">Total</th><td>{money(total)}</td></tr></tfoot>
+        <tfoot className="border-t-2 border-[var(--line)]"><tr><th scope="row">Total</th><td>{money(total)}</td></tr></tfoot>
+      </table>`));
+    assert.ok(conversion);
+    // the sum is still a row under the body, with the class the footer had
+    assert.match(conversion.after, /footer=\{<tr><th scope="row">Total<\/th><td>\{money\(total\)\}<\/td><\/tr>\}/);
+    assert.match(conversion.after, /footerClassName="border-t-2 border-\[var\(--line\)\]"/);
+    // and nothing of it leaked into a column
+    assert.doesNotMatch(conversion.after, /header: "Total"/);
+  });
+
+  test('an empty-state row stays a row inside the body, under the columns it is about', () => {
+    const { conversion } = convert(page(`      <table>
+        <caption>Waiting lines</caption>
+        <thead><tr><th scope="col">Order</th></tr></thead>
+        <tbody>
+          {releasable.length === 0 && <tr><td colSpan={2} className="py-2 text-[var(--muted)]">Nothing is waiting.</td></tr>}
+          {releasable.map(r => <tr key={r.id}><th scope="row">{r.number}</th></tr>)}
+        </tbody>
+      </table>`));
+    assert.ok(conversion);
+    assert.match(conversion.after, /emptyRow=\{<tr><td colSpan=\{2\} className="py-2 text-\[var\(--muted\)\]">Nothing is waiting\.<\/td><\/tr>\}/);
+    // the rows are still the one map, and the body is no longer two expressions
+    assert.match(conversion.after, /rows=\{releasable\}/);
+    assert.doesNotMatch(conversion.after, /length === 0/);
+  });
+
+  test('a conditional row that is not about the list being empty is still refused', () => {
+    const { conversion, reason } = convert(page(`      <table>
+        <caption>Lines</caption>
+        <thead><tr><th scope="col">Line</th></tr></thead>
+        <tbody>
+          {canAdd && <tr><td colSpan={1}>Add a line</td></tr>}
+          {lines.map(l => <tr key={l.id}><th scope="row">{l.name}</th></tr>)}
+        </tbody>
       </table>`));
     assert.equal(conversion, undefined);
-    assert.match(reason, /totals row/);
+    assert.match(reason, /a body that is not one expression/);
   });
 
   test('a row whose class reads the row is refused, because a row class is fixed for the table', () => {
@@ -97,16 +130,6 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     // the variable is still a variable: the class entry is `className: \`text-left ${th}\``, not a quoted string
     assert.match(conversion.after, /className: `text-left \$\{th\}`/);
     assert.doesNotMatch(conversion.after, /"text-left \$\{th\}"/);
-  });
-
-  test('an empty-state row beside the rows is refused rather than dropped', () => {
-    const { conversion, reason } = convert(page(`      <table>
-        <caption>Open advances</caption>
-        <thead><tr><th scope="col">Advance</th></tr></thead>
-        <tbody>{rows.length === 0 && <tr><td>Nothing open.</td></tr>}{rows.map(r => <tr key={r.id}><th scope="row">{r.id}</th></tr>)}</tbody>
-      </table>`));
-    assert.equal(conversion, undefined);
-    assert.match(reason, /empty-state row/);
   });
 
   test('a table with no caption is refused: inventing one is a decision, not a rewrite', () => {

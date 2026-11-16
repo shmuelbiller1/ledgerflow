@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { purchaseRegister, registerTotals, salesRegister } from '../../lib/itemRegister';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -59,38 +60,17 @@ export default function ItemRegisterReportView() {
       {!loading && rows.length === 0 && <p className="text-sm text-[var(--muted)]">No {side === 'sales' ? 'invoice' : 'bill'} lines with a stock item in this period.</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-          <table className="w-full text-sm">
-            <caption className="text-left text-xs text-[var(--muted)] pb-1">{side === 'sales' ? 'Each invoice line that sold a stock item (issued invoices only)' : 'Each bill line that bought a stock item'}, oldest first.</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1 px-2">Date</th>
-                <th scope="col" className="text-left font-semibold py-1 px-2">{side === 'sales' ? 'Invoice' : 'Bill'}</th>
-                <th scope="col" className="text-left font-semibold py-1 px-2">{side === 'sales' ? 'Customer' : 'Vendor'}</th>
-                <th scope="col" className="text-left font-semibold py-1 px-2">Item</th>
-                <th scope="col" className="text-right font-semibold py-1 px-2">Units</th>
-                <th scope="col" className="text-right font-semibold py-1 px-2">Price</th>
-                <th scope="col" className="text-right font-semibold py-1 px-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.visible.map(r => (
-                <tr key={`${r.documentId}:${r.line}`} className="border-b border-[var(--line)]/50">
-                  <td className="py-1 px-2 font-mono text-xs">{formatDate(r.date)}</td>
-                  <td className="py-1 px-2">
-                    <button type="button" className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: r.documentType, id: r.documentId })}>
-                      {r.number}<span className="sr-only">: open it</span>
-                    </button>
-                  </td>
-                  <td className="py-1 px-2"><bdi>{r.party}</bdi></td>
-                  <td className="py-1 px-2"><bdi>{r.itemName}</bdi></td>
-                  <td className="text-right font-mono py-1 px-2">{qty(r.quantity)}</td>
-                  <td className="text-right font-mono py-1 px-2">{formatCurrency(r.unitCents, r.currency || home)}</td>
-                  <td className="text-right font-mono py-1 px-2">{formatCurrency(r.amountCents, r.currency || home)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              {totals.map(t => (
+          <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-b border-[var(--line)]/50"
+            caption={(<>{side === 'sales' ? 'Each invoice line that sold a stock item (issued invoices only)' : 'Each bill line that bought a stock item'}, oldest first.</>)}
+            rows={paged.visible}
+            rowKey={r => `${r.documentId}:${r.line}`}
+            captionClassName="text-left text-xs text-[var(--muted)] pb-1"
+            tableClassName="w-full text-sm"
+            headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+            bodyClassName=""
+            footer={totals.map(t => (
                 <tr key={t.itemId} className="font-semibold">
                   <th scope="row" colSpan={4} className="text-left py-1 px-2">Total <bdi>{t.itemName}</bdi></th>
                   <td className="text-right font-mono py-1 px-2">{qty(t.quantity)}</td>
@@ -98,8 +78,18 @@ export default function ItemRegisterReportView() {
                   <td className="text-right font-mono py-1 px-2">{Object.entries(t.amounts).map(([c, cents]) => formatCurrency(cents, c)).join(' + ')}</td>
                 </tr>
               ))}
-            </tfoot>
-          </table>
+            columns={[
+              { header: "Date", className: "py-1 px-2 font-mono text-xs", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => formatDate(r.date) },
+              { header: side === 'sales' ? 'Invoice' : 'Bill', className: "py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => <button type="button" className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: r.documentType, id: r.documentId })}>
+                      {r.number}<span className="sr-only">: open it</span>
+                    </button> },
+              { header: side === 'sales' ? 'Customer' : 'Vendor', className: "py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => <bdi>{r.party}</bdi> },
+              { header: "Item", className: "py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => <bdi>{r.itemName}</bdi> },
+              { header: "Units", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => qty(r.quantity) },
+              { header: "Price", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => formatCurrency(r.unitCents, r.currency || home) },
+              { header: "Amount", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => formatCurrency(r.amountCents, r.currency || home) },
+            ]}
+          />
           <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lines" onMore={paged.more} onAll={paged.all} />
         </div>
       )}
