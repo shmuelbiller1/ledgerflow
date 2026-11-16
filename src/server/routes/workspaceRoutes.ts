@@ -617,6 +617,9 @@ workspaceRouter.post('/:workspaceId/opening-balances', requireWorkspaceRole(['ow
           body: { status: 'error', message: 'Invalid opening balances', details: outcome.error.issues.map(issue => issue.message).join('; ') },
         };
       }
+      if (outcome.code === 'PERIOD_LOCKED') {
+        return { status: 409, body: { status: 'error', message: outcome.message } };
+      }
       if (outcome.error instanceof SetupError) {
         return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       }

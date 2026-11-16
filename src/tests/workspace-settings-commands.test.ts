@@ -13,6 +13,7 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
   const workspaces = {
     modules: `ws_cmd_modules_${suffix}`,
     opening: `ws_cmd_opening_${suffix}`,
+    openingLocked: `ws_cmd_opening_locked_${suffix}`,
     setup: `ws_cmd_setup_${suffix}`,
     retention: `ws_cmd_retention_${suffix}`,
     numbering: `ws_cmd_numbering_${suffix}`,
@@ -56,14 +57,17 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
         roles: { 'acct-1': 'accountant', 'book-1': 'bookkeeper', 'viewer-1': 'viewer' },
         ...(key === 'retention' ? { retention: { deletionGraceDays: 30, emailLogDays: 90, errorLogDays: 90, legalHold: false } } : {}),
         ...(key === 'restoration' ? { status: 'pending_deletion', deletedAt: '2026-11-01T00:00:00.000Z', scheduledPurgeAt: '2026-12-01T00:00:00.000Z' } : {}),
+        ...(key === 'openingLocked' ? { lockDate: '2026-01-31' } : {}),
       });
     }
-    await db.collection('chartAccounts').doc(`${workspaces.opening}_cash`).set({
-      id: `${workspaces.opening}_cash`, workspaceId: workspaces.opening, name: 'Checking', code: '1000', type: 'asset', category: 'Cash', isArchived: false,
-    });
-    await db.collection('chartAccounts').doc(`${workspaces.opening}_obe`).set({
-      id: `${workspaces.opening}_obe`, workspaceId: workspaces.opening, name: 'Opening Balance Equity', code: '3000', type: 'equity', category: 'Equity', isArchived: false,
-    });
+    for (const workspaceId of [workspaces.opening, workspaces.openingLocked]) {
+      await db.collection('chartAccounts').doc(`${workspaceId}_cash`).set({
+        id: `${workspaceId}_cash`, workspaceId, name: 'Checking', code: '1000', type: 'asset', category: 'Cash', isArchived: false,
+      });
+      await db.collection('chartAccounts').doc(`${workspaceId}_obe`).set({
+        id: `${workspaceId}_obe`, workspaceId, name: 'Opening Balance Equity', code: '3000', type: 'equity', category: 'Equity', isArchived: false,
+      });
+    }
 
     const app = express();
     app.use(express.json());
@@ -186,6 +190,21 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
     assert.deepEqual((await db.collection('workspaces').doc(workspaceId).get()).data()?.modules, { payroll: false });
     const audits = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).get();
     assert.equal(audits.docs.filter(doc => doc.data().action === 'MODULES_SET').length, 1);
+  });
+
+  test('opening balances maps the shared runner period-lock refusal to the legacy 409 response', async () => {
+    const workspaceId = workspaces.openingLocked;
+    const refused = await send('POST', workspaceId, 'opening-balances', 'owner-1', {
+      date: '2026-01-01', balances: [{ accountId: `${workspaceId}_cash`, amountCents: 125000 }],
+    });
+    assert.deepEqual(refused, {
+      status: 409,
+      body: { status: 'error', message: 'Period Locked: 2026-01-01 is in a closed period (closed through 2026-01-31).' },
+    });
+    assert.equal((await db.collection('transactions').where('workspaceId', '==', workspaceId).get()).size, 0);
+    assert.equal((await db.collection('workspaces').doc(workspaceId).get()).data()?.setupCompletedAt, undefined);
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).get();
+    assert.equal(audits.docs.length, 0);
   });
 
   test('opening balances keeps its old result shape, previews/posts once, and refuses duplicate setup', async () => {
