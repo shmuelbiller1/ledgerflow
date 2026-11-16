@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { runCommand } from '../lib/runCommand';
 
 export interface ServerPLData {
   income: { total: number; accounts: Record<string, { name: string; code?: string; balance: number; parentId?: string }> };
@@ -51,16 +52,6 @@ export interface ReportLoadingStates {
   cashFlow: boolean;
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-  const user = useAuthStore.getState().user;
-  if (!user) return {};
-  try {
-    const token = await user.getIdToken();
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
-}
 
 type ReportKind = 'pl' | 'bs' | 'tb' | 'cf';
 const LONG_NAME = { pl: 'profitAndLoss', bs: 'balanceSheet', tb: 'trialBalance', cf: 'cashFlow' } as const;
@@ -91,9 +82,7 @@ export function useFinancialReporting() {
     try {
       const query = new URLSearchParams({ workspaceId: currentWorkspaceId });
       for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
-      const response = await fetch(`/api/v1/reports/${PATH[kind]}?${query}`, { headers: await getAuthHeaders() });
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
-      const data = await response.json();
+      const data = await runCommand<{ data?: T } & T>({ path: `/api/v1/reports/${PATH[kind]}?${query}` });
       return (data.data || data) as T;
     } catch (e) {
       console.warn(`${PATH[kind]} server fetch fallback:`, e);

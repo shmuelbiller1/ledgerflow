@@ -10,7 +10,7 @@ import {
   orderBy,
   getDocs
 } from '../lib/db/firestore';
-import { db, getIdToken } from '../firebase';
+import { db } from '../firebase';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { Transaction, ChartAccount, RecurringTransaction, Workspace, CustomTemplate, UserProfile, DimensionNode } from '../types';
@@ -163,14 +163,9 @@ export function useLedgerData() {
     const sessionLoginKey = `login_logged_${currentWorkspaceId}_${userUid}`;
     if (!sessionStorage.getItem(sessionLoginKey)) {
       sessionStorage.setItem(sessionLoginKey, 'true');
-      void getIdToken().then(token => {
-        if (!token) return;
-        return fetch('/api/v1/auth/audit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ event: 'login', workspaceId: currentWorkspaceId }),
-        });
-      }).catch(err => console.error('Failed to write login audit:', err));
+      // fire and forget: an audit line that cannot be written must never hold up the sign-in
+      void runCommand({ path: '/api/v1/auth/audit', method: 'POST', body: { event: 'login', workspaceId: currentWorkspaceId } })
+        .catch(err => console.error('Failed to write login audit:', err));
     }
 
     // Clear data immediately to prevent ghosting between workspaces

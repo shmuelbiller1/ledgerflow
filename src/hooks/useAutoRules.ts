@@ -10,6 +10,8 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { useEntityOperations } from './useEntityOperations';
 import type { AutoRule, Transaction } from '../types';
+// aliased: this hook already destructures a `runCommand` (the named-command runner) from `useEntityOperations`
+import { commandErrorMessage, runCommand as sendRequest, writeWasAccepted, ServerCommandError } from '../lib/runCommand';
 
 /**
  * Saving automation rules (Settings → Rules, "Create rule" in the transaction list). Rules used to
@@ -211,15 +213,23 @@ export function useAutoRules() {
         .map(m => ({ id: m.transactionId, data: changedRuleFields(byId.get(m.transactionId) || m.txModified, m.txModified) }))
         .filter(u => Object.keys(u.data).length > 0);
       if (!changes.length && !updates.length) return 0;
-      const token = await user.getIdToken();
       if (!currentContext()) return 0;
-      const res = await fetch(changes.length ? '/api/v1/transactions/recategorize' : '/api/v1/transactions/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(changes.length ? { workspaceId, changes } : { workspaceId, updates }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`${body.message || body.error || 'The changes were not saved'}${body.entryId ? ` (entry ${body.entryId})` : ''}`);
+      // The entry id is part of the sentence this person needs ("(entry tx_123)"), so a refusal is caught and
+      // re-worded rather than shown as-is — and a committed write whose answer was cut off is not a failure.
+      let body: { changed?: number; message?: string; error?: string; entryId?: string } = {};
+      try {
+        body = await sendRequest<{ changed?: number; message?: string; error?: string; entryId?: string }>({
+          path: changes.length ? '/api/v1/transactions/recategorize' : '/api/v1/transactions/batch',
+          method: 'POST',
+          body: changes.length ? { workspaceId, changes } : { workspaceId, updates },
+        }) ?? {};
+      } catch (error) {
+        if (!writeWasAccepted(error)) {
+          const refusal = (error instanceof ServerCommandError ? error.body : null) as typeof body | null;
+          if (refusal) body = refusal;
+          throw new Error(`${body.message || body.error || commandErrorMessage(error)}${body.entryId ? ` (entry ${body.entryId})` : ''}`, { cause: error });
+        }
+      }
       if (!currentContext()) return 0;
       if (changes.length && body.changed !== changes.length) throw new Error('The server did not confirm every account change. Refresh before retrying.');
       if (changes.length) {
