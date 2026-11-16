@@ -231,13 +231,19 @@ export async function updateGroupInTransaction(db: Firestore, t: Transaction, in
   // someone else's group answers like a missing one
   if (!data || data.ownerUid !== input.uid) throw new WorkspaceGroupError(404, 'Group not found');
   const before = Array.isArray(data.workspaceIds) ? data.workspaceIds as string[] : [];
+  // What the inverse restores, filtered the same way the visible group is (`shown`): a member the
+  // person can no longer open stays in the group unseen, so its id, share, investment account and
+  // acquisition date must not come back through the previous values either.
+  const openOnly = <T>(value: Record<string, T> | undefined): Record<string, T> =>
+    Object.fromEntries(Object.entries(value || {}).filter(([w]) => open.has(w)));
+  const storedParent = typeof data.parentId === 'string' ? data.parentId : null;
   const previous: GroupUpdateResult['previous'] = {
     ...(input.name !== undefined ? { name: String(data.name || '') } : {}),
-    ...(input.workspaceIds !== undefined ? { workspaceIds: before } : {}),
-    ...(input.parentId !== undefined ? { parentId: typeof data.parentId === 'string' ? data.parentId : null } : {}),
-    ...(input.ownership !== undefined ? { ownership: (data.ownership as Record<string, number> | undefined) || {} } : {}),
-    ...(input.investments !== undefined ? { investments: (data.investments as Record<string, string> | undefined) || {} } : {}),
-    ...(input.acquired !== undefined ? { acquired: (data.acquired as Record<string, string> | undefined) || {} } : {}),
+    ...(input.workspaceIds !== undefined ? { workspaceIds: before.filter(w => open.has(w)) } : {}),
+    ...(input.parentId !== undefined ? { parentId: storedParent && open.has(storedParent) ? storedParent : null } : {}),
+    ...(input.ownership !== undefined ? { ownership: openOnly(data.ownership as Record<string, number> | undefined) } : {}),
+    ...(input.investments !== undefined ? { investments: openOnly(data.investments as Record<string, string> | undefined) } : {}),
+    ...(input.acquired !== undefined ? { acquired: openOnly(data.acquired as Record<string, string> | undefined) } : {}),
   };
   let workspaceIds = before;
   if (input.workspaceIds) {

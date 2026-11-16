@@ -62,8 +62,10 @@ async function createHarness() {
 
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const auditEntries: AuditEntry[] = [];
+  const state = { failAudits: false };
   const dependencies = runnerDependencies(db, counters);
   dependencies.auditWriter = async input => {
+    if (state.failAudits) throw new Error('audit writer is down');
     counters.audits++;
     auditEntries.push(input as AuditEntry);
     return 'account-audit-test';
@@ -111,6 +113,9 @@ async function createHarness() {
     db,
     counters,
     auditEntries,
+    factors: factorsByUid,
+    get failAudits() { return state.failAudits; },
+    set failAudits(value: boolean) { state.failAudits = value; },
     call,
     async close() {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
@@ -270,6 +275,25 @@ test('groups: create, update, delete keep the legacy shapes, refusals, audits an
   assert.equal((await call(ANN, 'PUT', '/api/v1/account/groups/grp_other999', { name: 'Takeover' })).status, 404, 'someone else’s group answers like a missing one');
   assert.equal((await call(ANN, 'PUT', '/api/v1/account/groups/not-a-group', { name: 'x' })).status, 404);
 
+  // A member ANN can no longer open stays in the group unseen — including in the previous values
+  // the inverse and the audit entry carry, which would otherwise hand its id and shares back.
+  db.seed(`workspaceGroups/${groupId}`, {
+    ...db.read(`workspaceGroups/${groupId}`),
+    workspaceIds: ['ws-own', 'ws-member', 'ws-other'],
+    parentId: 'ws-own',
+    ownership: { 'ws-other': 80, 'ws-member': 70 },
+    investments: { 'ws-other': 'acct-hidden' },
+    acquired: { 'ws-other': '2020-01-01' },
+  });
+  const hidden = await call(ANN, 'PUT', `/api/v1/account/groups/${groupId}`, { ownership: { 'ws-member': 60 } }, 'op-group-hidden');
+  assert.equal(hidden.status, 200, await hidden.clone().text());
+  const hiddenBody = await hidden.json() as typeof madeBody;
+  assert.ok(!hiddenBody.group.workspaceIds.includes('ws-other'), 'the visible group hides the workspace as before');
+  const hiddenPrevious = auditEntries.at(-1)?.details.previous as Record<string, unknown>;
+  assert.deepEqual(hiddenPrevious, { ownership: { 'ws-member': 70 } }, 'the previous values carry only what ANN can open');
+  const hiddenInverse = groupUpdateCommand.inverse?.({ groupId }, { group: hiddenBody.group, previous: hiddenPrevious } as never);
+  assert.ok(hiddenInverse && !JSON.stringify(hiddenInverse).includes('ws-other'), 'the inverse cannot name the hidden workspace either');
+
   const removed = await call(ANN, 'DELETE', `/api/v1/account/groups/${groupId}`, undefined, 'op-group-delete');
   assert.equal(removed.status, 200);
   assert.deepEqual(await removed.json(), { status: 'success' }, 'the delete body stays minimal');
@@ -385,9 +409,21 @@ test('POST /recovery-codes keeps the shown-once response, the refusals and safe 
   assert.equal(auditEntries.at(-1)?.action, 'ACCOUNT_RECOVERY_CODES_CREATED');
   assert.equal(auditEntries.at(-1)?.workspaceId, `person:${ANN}`);
 
+  // The ten working codes are a two-step bypass: they are never written to the idempotency record,
+  // so the retry replays only the uid and says so instead of answering with codes it cannot show.
+  const record = db.read(`idempotencyKeys/person:${ANN}:account.makerecoverycodes:op-codes-1`);
+  assert.ok(record, 'the retry record exists');
+  assert.deepEqual(record?.result, { uid: ANN }, 'only the uid is recorded');
+  for (const code of codes) {
+    assert.ok(!JSON.stringify(record).includes(code) && !JSON.stringify(record).includes(code.replace('-', '')), `code ${code} is not in the record`);
+  }
+
   const replay = await call(ANN, 'POST', '/api/v1/account/recovery-codes', undefined, 'op-codes-1');
-  assert.equal(replay.status, 200);
-  assert.deepEqual((await replay.json() as { codes: string[] }).codes, codes, 'a retry shows the same codes again');
+  assert.equal(replay.status, 409);
+  assert.deepEqual(await replay.json(), {
+    status: 'error',
+    message: 'These codes were already shown when the request was first made: make new ones if you did not keep them',
+  });
   assert.equal(counters.audits, 1, 'a retry does not audit again');
 
   const again = await call(ANN, 'POST', '/api/v1/account/recovery-codes');
@@ -431,6 +467,39 @@ test('POST /recovery-codes/use keeps validation, lockout, spend semantics and re
   assert.equal(locked.status, 429);
   assert.deepEqual(await locked.json(), { status: 'error', message: 'Too many wrong codes. Try again in an hour' });
   assert.ok(db.read(`recoveryCodes/${ANN}`), 'the lockout kept the codes stored');
+});
+
+test('a failed or retried use spends the code once, removes the authenticator once, and stays truthful', async t => {
+  const harness = await createHarness();
+  t.after(harness.close);
+  const { db, factors, call } = harness;
+
+  const codes = (await (await call(ANN, 'POST', '/api/v1/account/recovery-codes')).json() as { codes: string[] }).codes;
+
+  // A refusal from the audit writer rolls the runner's transaction back: the code must come back
+  // with it, and the authenticator must stay — otherwise a retry answers "already used" while the
+  // second step is permanently off.
+  harness.failAudits = true;
+  const failed = await call(ANN, 'POST', '/api/v1/account/recovery-codes/use', { code: codes[0] }, 'op-use-fail');
+  assert.equal(failed.status, 500);
+  const afterFailure = db.read(`recoveryCodes/${ANN}`) as { codes: Array<{ usedAt?: string }> };
+  assert.ok(afterFailure.codes.every(c => !c.usedAt), 'the rolled-back spend left every code unused');
+  assert.deepEqual(factors.get(ANN), ['factor-a1'], 'the authenticator stays while the command did not commit');
+  harness.failAudits = false;
+
+  // The same operation id, retried for real after the failure: a normal success.
+  const retried = await call(ANN, 'POST', '/api/v1/account/recovery-codes/use', { code: codes[0] }, 'op-use-fail');
+  assert.equal(retried.status, 200);
+  assert.deepEqual(await retried.json(), { status: 'success', left: 9 });
+  assert.deepEqual(factors.get(ANN), [], 'the authenticator is removed once the command committed');
+
+  // A replayed success runs no handler: the authenticator is not removed a second time (a second
+  // removal would fail, or remove a factor set up again afterwards).
+  factors.set(ANN, ['factor-b2']);
+  const replay = await call(ANN, 'POST', '/api/v1/account/recovery-codes/use', { code: codes[0] }, 'op-use-fail');
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { status: 'success', left: 9 });
+  assert.deepEqual(factors.get(ANN), ['factor-b2'], 'a replay touches no authenticator');
 });
 
 test('previews are read-only and the direct command address needs no workspace', async t => {

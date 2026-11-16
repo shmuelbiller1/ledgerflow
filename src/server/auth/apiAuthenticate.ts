@@ -47,6 +47,17 @@ export function requiredApiKeyScope(method: string, path: string): string {
   return isWrite ? 'write:transactions' : 'read:transactions';
 }
 
+/**
+ * L-85: someone who lost the authenticator signs in with the password and uses a recovery code, so
+ * that one call must accept a password-only session. Both ways to make it are excused — the legacy
+ * URL, and the command that replaced its body (`account.userecoverycode`); no other command is.
+ */
+export function acceptsPasswordOnlySession(method: string, originalUrl: string): boolean {
+  if (method.toUpperCase() !== 'POST') return false;
+  const cleanPath = originalUrl.split('?')[0].replace(/\/$/, '');
+  return cleanPath === '/api/v1/account/recovery-codes/use' || cleanPath === '/api/v1/commands/account.userecoverycode';
+}
+
 // Deep API Key Authentication Middleware
 export const apiAuthenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization || (req.headers['x-api-key'] as string);
@@ -179,8 +190,8 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
   if (authHeader.startsWith("Bearer ")) {
     const idToken = authHeader.split("Bearer ")[1];
     try {
-      // L-85: someone who lost the authenticator signs in with the password and uses a recovery code
-      const firstStepOnly = req.method === 'POST' && req.originalUrl.split('?')[0] === '/api/v1/account/recovery-codes/use';
+      // L-85: the recovery-code call is the one that accepts a password-only session (see above).
+      const firstStepOnly = acceptsPasswordOnlySession(req.method, req.originalUrl || req.url);
       // Y-30: someone who must still set up two-step login can ask why
       const setupCheck = req.method === 'GET' && req.originalUrl.split('?')[0] === '/api/v1/account/two-step';
       const decodedToken = await verifyIdToken(idToken, { firstStepOnly, setupCheck }) as AuthUser;

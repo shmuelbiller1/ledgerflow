@@ -43,11 +43,20 @@ import {
 
 import { BRAND } from '../../config/brand';
 
+/** A retried "make new codes" shows nothing: the codes were shown once, on the first answer. */
+const ALREADY_SHOWN = 'These codes were already shown when the request was first made: make new ones if you did not keep them';
+
 /** Recovery codes: the pre-command route answered { status, message } with the RecoveryError's status. */
 function recoveryCommandResponse(codesField: 'codes' | 'left') {
   return (outcome: CommandExecutionOutcome): { status: number; body: unknown } => {
     if (outcome.ok) {
       const data = outcome.data as Record<string, unknown>;
+      // A replayed "make new codes" has no codes to show (they are kept out of the idempotency
+      // record on purpose), and answering "success" with none would look like ten new codes that
+      // cannot be read. Say what happened instead; the person can make a fresh set.
+      if (codesField === 'codes' && outcome.replayed) {
+        return { status: 409, body: { status: 'error', message: ALREADY_SHOWN } };
+      }
       return { status: 200, body: { status: 'success', [codesField]: data[codesField] } };
     }
     const err = outcome.error;

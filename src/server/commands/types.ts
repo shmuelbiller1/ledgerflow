@@ -65,7 +65,7 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
    * groups of books): the runner asks only for a signed-in person, not for a workspace and one of
    * its roles, and none is granted one — `ctx.role` is 'owner' and `ctx.workspace` is empty. The
    * idempotency and audit scope becomes `person:<uid>`. A person command cannot declare `dated` or
-   * `capacity` (both read workspace state), and its `roles` list is informational: any signed-in
+   * `capacity` (both read workspace state), and its `roles` list is informational: every signed-in
    * person may run it on their own account. Defaults to `workspace`.
    */
   scope?: 'workspace' | 'person';

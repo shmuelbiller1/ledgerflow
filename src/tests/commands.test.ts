@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { RequestUser } from '../server/auth/requestUser';
-import { requiredApiKeyScope } from '../server/auth/apiAuthenticate';
+import { acceptsPasswordOnlySession, requiredApiKeyScope } from '../server/auth/apiAuthenticate';
 import { API_KEY_SCOPE_IDS, validateApiKeyScopes } from '../lib/apiScopes';
 import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
@@ -167,6 +167,14 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.deepEqual(validateApiKeyScopes(['write:vendors', 'write:vendors']), { ok: false, reason: 'duplicate' });
   assert.deepEqual(AVAILABLE_SCOPES.map(scope => scope.id), [...API_KEY_SCOPE_IDS]);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.create'), 'write:customers');
+  // L-85: the lost-authenticator call is the one that accepts a password-only session, and it must
+  // work through the command that replaced the legacy URL's body.
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/account/recovery-codes/use'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode?x=1'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.makerecoverycodes'), false);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/groups.share'), false);
+  assert.equal(acceptsPasswordOnlySession('GET', '/api/v1/commands/account.userecoverycode'), false);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/warranty.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');

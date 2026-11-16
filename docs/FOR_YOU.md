@@ -679,3 +679,10 @@ one workspace, so they needed two decisions that were never written down:
   used:* keys keep working under the key owner's person scope and keep the same `write:transactions`
   permission the old routes required — no new key permission was invented. If you would rather walls
   these off from API keys entirely, say so and I will add a "session only" flag.
+
+**One visible change in this batch.** Recovery codes are shown once. Before, if the browser
+retried "make new codes" after a dropped connection it got the same ten codes back; now the retry
+comes back as *"these codes were already shown — make new ones if you did not keep them"*. That is
+deliberate: keeping the codes so they could be replayed meant ten working ways past two-step login
+sat in plain text in the database and its backups for a month. The screen marks the request so a
+retry is rare; when it happens the answer now tells you what to do instead of pretending.

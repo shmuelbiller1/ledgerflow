@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { EMAIL_MODE_LABEL, EMAIL_MODES, type NotificationEmailMode } from '../../lib/notificationEmail';
 import { getNotificationEmail, setNotificationEmailInTransaction } from '../services/notificationEmailService';
-import { buildRecoveryCodes, RecoveryError, recoveryStatus, useRecoveryCode as consumeRecoveryCode, verifiedFactors } from '../services/recoveryCodeService';
+import {
+  buildRecoveryCodes, prepareUseRecoveryCode, RecoveryError, recoveryStatus, removeAuthenticators, spendRecoveryCode, verifiedFactors,
+} from '../services/recoveryCodeService';
 import { COMMAND_ROLES, type CommandDefinition } from './types';
 
 /**
@@ -27,7 +29,12 @@ export const accountMakeRecoveryCodesCommand: CommandDefinition<typeof accountMa
   async handler(ctx, tx) {
     const { codes, stored } = buildRecoveryCodes(ctx.actor);
     tx.set(ctx.db.collection('recoveryCodes').doc(ctx.actor), stored);
-    return { codes, uid: ctx.actor };
+    // The codes are shown once, so they are *not* part of the handler result: the runner saves that
+    // result as the idempotency record for a month, which would put ten working two-step bypass codes
+    // in plain text in the database and its backups. Only the uid is recorded; a retry replays the
+    // uid and gets no codes, so the route answers it with the "make new ones" refusal below.
+    ctx.afterCommit(() => ({ codes }));
+    return { uid: ctx.actor } as AccountMakeRecoveryCodesResult;
   },
   async preview(ctx) {
     const [status, factors] = await Promise.all([recoveryStatus(ctx.db, ctx.actor), verifiedFactors(ctx.db, ctx.actor)]);
@@ -72,12 +79,21 @@ export const accountUseRecoveryCodeCommand: CommandDefinition<typeof accountUseR
   input: accountUseRecoveryCodeInput,
   roles: COMMAND_ROLES,
   scope: 'person',
-  async handler(ctx, _tx, input: AccountUseRecoveryCodeInput) {
-    // The service owns its transaction: it spends the code, removes the authenticator outside the
-    // books' tables, and gives the code back when that removal fails. Keep that flow intact; the
-    // runner's transaction around it carries the idempotency record and the audit entry.
-    const result = await consumeRecoveryCode(ctx.db, ctx.actor, input.code);
-    return { ...result, uid: ctx.actor };
+  // The checks and the spend read the same rows, so they run in that order: the lockout and whether
+  // the code is an unused one (a wrong one is counted here, because the refusal that follows rolls
+  // the runner's transaction back), then the spend inside the runner's own transaction, so the spent
+  // code, the idempotency record and the audit entry commit together. Removing the authenticator
+  // stays an after-commit step: it reaches Supabase's auth tables, which no books transaction covers.
+  async prepare(ctx, input: AccountUseRecoveryCodeInput) {
+    await prepareUseRecoveryCode(ctx.db, ctx.actor, input.code);
+  },
+  async handler(ctx, tx, input: AccountUseRecoveryCodeInput) {
+    const { left } = await spendRecoveryCode(ctx.db, tx, ctx.actor, input.code);
+    // The authenticator is removed only once the spend, the idempotency record and the audit entry
+    // have committed: a rolled-back attempt leaves it, and the code, in place. A retry that replays
+    // the committed result runs no handler at all, so this never removes a second one.
+    ctx.afterCommit(() => removeAuthenticators(ctx.db, ctx.actor));
+    return { left, uid: ctx.actor };
   },
   async preview(ctx) {
     const status = await recoveryStatus(ctx.db, ctx.actor);
