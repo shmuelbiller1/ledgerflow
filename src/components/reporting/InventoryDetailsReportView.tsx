@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { purchasesByItem, STOCK_MOVE_LABEL, type ItemDetails } from '../../lib/stockMoves';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -53,27 +54,22 @@ export default function InventoryDetailsReportView() {
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {shown?.items && shown.items.length === 0 && <p className="text-sm text-[var(--muted)]">No stock and no movements in this period.</p>}
       {shown?.items && purchasesByItem(shown.items).length > 0 && (
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Bought in the period</caption>
-          <thead>
-            <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-              <th scope="col" className="text-left font-semibold py-1">Item</th>
-              <th scope="col" className="text-right font-semibold py-1">Units</th>
-              <th scope="col" className="text-right font-semibold py-1">Cost</th>
-              <th scope="col" className="text-right font-semibold py-1">Per unit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {purchasesByItem(shown.items).map(p => (
-              <tr key={p.itemId} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-normal py-1"><bdi>{p.itemName}</bdi></th>
-                <td className="text-right font-mono py-1">{qty(p.quantity)}</td>
-                <td className="text-right font-mono py-1">{formatCurrency(p.valueCents, currency)}</td>
-                <td className="text-right font-mono py-1">{formatCurrency(p.averageCents, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Bought in the period</>)}
+          rows={purchasesByItem(shown.items)}
+          rowKey={p => p.itemId}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Item", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
+            { header: "Units", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
+            { header: "Cost", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
+            { header: "Per unit", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },
+          ]}
+        />
       )}
       {shown?.items?.map(item => (
         <div key={item.itemId} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">

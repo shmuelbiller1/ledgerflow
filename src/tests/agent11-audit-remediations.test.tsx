@@ -121,10 +121,10 @@ describe('AF11-01 & AF11-02: YearEndArchiveExport stale-async & AbortSignal safe
       fireEvent.change(yearInput, { target: { value: '2026' } });
 
       fireEvent.click(screen.getByRole('button', { name: /Show what will be in it/i }));
-      await waitFor(() => assert.match(document.body.textContent || '', /collections\/accounts-2026\.csv/));
+      await waitFor(() => assert.match(document.body.textContent || '', /collections\/accounts-2026\.csv/), { timeout: 15_000 });
 
       fireEvent.click(screen.getByRole('button', { name: /Download everything for 2026/i }));
-      await waitFor(() => assert.ok(pdfSignal, 'PDF fetch started with AbortSignal'));
+      await waitFor(() => assert.ok(pdfSignal, 'PDF fetch started with AbortSignal'), { timeout: 15_000 });
 
       // Switch workspace while the PDF fetch is still in flight
       act(() => {

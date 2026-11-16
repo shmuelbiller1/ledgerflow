@@ -904,7 +904,7 @@ The document's ten "do first" items are marked **★**.
 - [ ] **EU-H2 "Your books are safe" card** (§H-2): on the overview — last backup, months closed, problems found, with links. Read-only.
 
 ### 7. Later
-- [ ] **EU-A4b Importers for this market** (§A-4): Odoo, and the Israeli packages (Hashavshevet, Rivhit, Priority) — start with whichever has a documented export format; each ends on the trial-balance proof.
+- [ ] **EU-A4b Importers for this market** (§A-4): Odoo, and the Israeli packages (Hashavshevet, Rivhit, Priority) — start with whichever has a documented export format; each ends on the trial-balance proof. *(AI #9, 16 Nov: Odoo done — chart, contacts, products (`odooImport.ts`). The Israeli three have no public export format; waiting on a sample file, see FOR_YOU.)*
 - [ ] **EU-I1 Accountants bring clients** (§I-1): a one-click "Invite my accountant", and in "All my books" what needs attention in each set of books. (Pricing of a free accountant seat is the owner's decision: build the invite and the list, not the billing.)
 - [ ] **EU-I3 A free invoice maker at the door** (§I-3): a public page that needs no account and ends on "Save this and track who paid", feeding the guest demo (EU-A1).
 - [ ] **EU-I2 "Sent with …" on the customer portal** (§I-2): a small line using `BRAND.name`, with a setting to turn it off. (Tying the setting to paid plans is the owner's decision.)

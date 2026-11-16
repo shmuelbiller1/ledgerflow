@@ -7,6 +7,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 export default function AssetRegisterReportView({ endDate }: { endDate?: string }) {
   const [chosen, setChosen] = useState<string | null>(null);
@@ -31,7 +32,23 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
     {report?.source === 'server' && <p role="status" data-testid="asset-register-source">Every asset and depreciation run was read from the server.</p>}
     {partial && <p role="alert" data-testid="asset-register-partial">Loaded asset or transaction history is incomplete. Figures are provisional; CSV is disabled.</p>}
     {!!report?.historicalChanges && <p role="alert">{report.historicalChanges} asset(s) were changed after the chosen date. Their current cost/account details may not represent that earlier date; verify historical records before using this report.</p>}
-    {report && <><ReportTableScroll><table className="w-full text-sm"><caption>Asset register through {date}</caption><thead><tr><th scope="col">Category / asset</th><th scope="col">Tag</th><th scope="col">Purchase date</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.rows.map(r => <tr key={r.id}><th scope="row" className="text-left"><bdi>{r.category} — {r.name}</bdi></th><td>{r.tag}</td><td>{r.purchaseDate}</td><td className="text-right">{money(r.costCents)}</td><td className="text-right">{money(r.depreciationCents)}</td><td className="text-right">{money(r.bookValueCents)}</td></tr>)}</tbody></table></ReportTableScroll>
+    {report && <><ReportTableScroll><RowTable
+      caption={(<>Asset register through {date}</>)}
+      rows={report.rows}
+      rowKey={r => r.id}
+      captionClassName=""
+      tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
+      columns={[
+        { header: "Category / asset", className: "text-left", headClassName: "", cell: (r) => <bdi>{r.category} — {r.name}</bdi> },
+        { header: "Tag", headClassName: "", cell: (r) => r.tag },
+        { header: "Purchase date", headClassName: "", cell: (r) => r.purchaseDate },
+        { header: "Cost", className: "text-right", headClassName: "", cell: (r) => money(r.costCents) },
+        { header: "Depreciation", className: "text-right", headClassName: "", cell: (r) => money(r.depreciationCents) },
+        { header: "Book value", className: "text-right", headClassName: "", cell: (r) => money(r.bookValueCents) },
+      ]}
+    /></ReportTableScroll>
     <ReportTableScroll><table className="w-full text-sm"><caption>Category totals as of {date}</caption><thead><tr><th scope="col">Category</th><th scope="col">Assets</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.categories.map(g => <tr key={g.category}><th scope="row" className="text-left"><bdi>{g.category}</bdi></th><td>{g.count}</td><td>{money(g.costCents)}</td><td>{money(g.depreciationCents)}</td><td>{money(g.bookValueCents)}</td></tr>)}</tbody><tfoot><tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr></tfoot></table></ReportTableScroll>
     {report.rows.length === 0 && <p>No assets acquired and held through this date.</p>}</>}
   </section>;

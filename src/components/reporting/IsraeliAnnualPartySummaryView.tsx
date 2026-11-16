@@ -18,6 +18,7 @@ import {
   IL_ANNUAL_CUSTOMER_CSV_HEADERS,
   IL_ANNUAL_VENDOR_CSV_HEADERS,
 } from '../../lib/israeliAnnualPartySummary';
+import { RowTable } from '../ui/RowTable';
 
 export default function IsraeliAnnualPartySummaryView() {
   const customers = useLedgerStore(s => s.customers);
@@ -154,34 +155,24 @@ export default function IsraeliAnnualPartySummaryView() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <table className="w-full text-sm text-start">
-              <caption className="sr-only">Annual customer summary for {year}</caption>
-              <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                <tr>
-                  <th scope="col" className="px-4 py-3 text-start">Customer</th>
-                  <th scope="col" className="px-4 py-3 text-start">Dealer / VAT ID</th>
-                  <th scope="col" className="px-4 py-3 text-end">Docs</th>
-                  <th scope="col" className="px-4 py-3 text-end">Net pre-VAT</th>
-                  <th scope="col" className="px-4 py-3 text-end">VAT</th>
-                  <th scope="col" className="px-4 py-3 text-end">Gross billed</th>
-                  <th scope="col" className="px-4 py-3 text-end">Collected</th>
-                  <th scope="col" className="px-4 py-3 text-end">Closing open</th>
-                  <th scope="col" className="px-4 py-3 text-start">Allocation # check</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {summary.customers.map(r => (
-                  <tr key={r.customerId}>
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.customerName}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{r.maskedTaxId || 'Missing'}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{r.documentCount}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.netSalesCents, baseCurrency)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.vatChargedCents, baseCurrency)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums font-semibold">{formatCurrency(r.grossBilledCents, baseCurrency)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.collectionsInYearCents, baseCurrency)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.closingOpenCents, baseCurrency)}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {r.allocationMissingCount > 0 ? (
+            <RowTable
+              rowHeaderColumn={false}
+              caption={(<>Annual customer summary for {year}</>)}
+              rows={summary.customers}
+              rowKey={r => r.customerId}
+              tableClassName="w-full text-sm text-start"
+              headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
+              bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
+              columns={[
+                { header: "Customer", className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.customerName },
+                { header: "Dealer / VAT ID", className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
+                { header: "Docs", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
+                { header: "Net pre-VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.netSalesCents, baseCurrency) },
+                { header: "VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.vatChargedCents, baseCurrency) },
+                { header: "Gross billed", className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
+                { header: "Collected", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.collectionsInYearCents, baseCurrency) },
+                { header: "Closing open", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
+                { header: "Allocation # check", className: "px-4 py-3 text-xs", headClassName: "px-4 py-3 text-start", cell: (r) => r.allocationMissingCount > 0 ? (
                         <span className="font-semibold text-rose-700 dark:text-rose-300">
                           {r.allocationMissingCount} missing of {r.allocationRequiredCount}
                         </span>
@@ -191,12 +182,9 @@ export default function IsraeliAnnualPartySummaryView() {
                         </span>
                       ) : (
                         '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      ) },
+              ]}
+            />
           </div>
         )
       ) : summary.vendors.length === 0 ? (
@@ -205,37 +193,26 @@ export default function IsraeliAnnualPartySummaryView() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">Annual vendor summary for {year}</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">Vendor</th>
-                <th scope="col" className="px-4 py-3 text-start">Dealer / Tax ID</th>
-                <th scope="col" className="px-4 py-3 text-end">Docs</th>
-                <th scope="col" className="px-4 py-3 text-end">Gross billed</th>
-                <th scope="col" className="px-4 py-3 text-end">Input VAT</th>
-                <th scope="col" className="px-4 py-3 text-end">Paid in year</th>
-                <th scope="col" className="px-4 py-3 text-end">Tax withheld</th>
-                <th scope="col" className="px-4 py-3 text-start">WHT cert</th>
-                <th scope="col" className="px-4 py-3 text-end">Closing open</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {summary.vendors.map(r => (
-                <tr key={r.vendorId}>
-                  <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.vendorName}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{r.maskedTaxId || 'Missing'}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{r.documentCount}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-semibold">{formatCurrency(r.grossBilledCents, baseCurrency)}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.inputVatCents, baseCurrency)}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.paymentsInYearCents, baseCurrency)}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.taxWithheldCents, baseCurrency)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{r.withholdingCertificate}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.closingOpenCents, baseCurrency)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RowTable
+            rowHeaderColumn={false}
+            caption={(<>Annual vendor summary for {year}</>)}
+            rows={summary.vendors}
+            rowKey={r => r.vendorId}
+            tableClassName="w-full text-sm text-start"
+            headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
+            bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
+            columns={[
+              { header: "Vendor", className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.vendorName },
+              { header: "Dealer / Tax ID", className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
+              { header: "Docs", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
+              { header: "Gross billed", className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
+              { header: "Input VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.inputVatCents, baseCurrency) },
+              { header: "Paid in year", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.paymentsInYearCents, baseCurrency) },
+              { header: "Tax withheld", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.taxWithheldCents, baseCurrency) },
+              { header: "WHT cert", className: "px-4 py-3 text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.withholdingCertificate },
+              { header: "Closing open", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
+            ]}
+          />
         </div>
       )}
     </div>

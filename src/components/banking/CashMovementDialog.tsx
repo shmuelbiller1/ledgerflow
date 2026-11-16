@@ -1,4 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
+import { useUIStore } from '../../stores/useUIStore';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import React, { useId, useMemo, useState } from 'react';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -33,6 +35,8 @@ interface CashMovementDialogProps {
 const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose, direction }) => {
   const { dialogProps, titleId } = useDialog(onClose, isOpen);
   const amountId = useId();
+  const language = useUIStore(st => st.language);
+  const bankText = (key: string, fallback: string) => translateScreenString('banking', key, language, fallback);
   const labels = CASH_MOVEMENT_LABELS[direction];
   // the names in the who-paid box are asked for, not assumed (AGENTS: a screen asks for what it reads)
   useLedgerCollections('customers', 'vendors');
@@ -106,16 +110,16 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
             {direction === 'in'
               ? <ArrowDownToLine aria-hidden="true" className="h-4 w-4 text-emerald-700" />
               : <ArrowUpFromLine aria-hidden="true" className="h-4 w-4 text-rose-700" />}
-            <h2 id={titleId} className="text-sm font-bold text-neutral-900">{labels.title}</h2>
+            <h2 id={titleId} className="text-sm font-bold text-neutral-900">{direction === 'in' ? bankText('cash.titleIn', 'Money In') : bankText('cash.titleOut', 'Money Out')}</h2>
           </div>
-          <button onClick={onClose} aria-label={`Close ${labels.title} dialog`} className="rounded-md p-1.5 text-neutral-400 hover:text-neutral-700">
+          <button onClick={onClose} aria-label={bankText('cash.close', 'Close dialog')} className="rounded-md p-1.5 text-neutral-400 hover:text-neutral-700">
             <X aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
 
         <div className="space-y-3 p-4">
           <div className="grid grid-cols-2 gap-3">
-            <Labelled label="Amount">
+            <Labelled label={bankText('cash.amount', 'Amount')}>
               <input
                 id={amountId}
                 type="text"
@@ -126,36 +130,36 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
                 className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm"
               />
             </Labelled>
-            <Labelled label="Date">
+            <Labelled label={bankText('cash.date', 'Date')}>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm" />
             </Labelled>
           </div>
 
-          <Labelled label={direction === 'in' ? 'Money goes into' : 'Money comes out of'}>
+          <Labelled label={direction === 'in' ? bankText('cash.into', 'Money goes into') : bankText('cash.outOf', 'Money comes out of')}>
             <select value={cashAccountId} onChange={e => setCashAccountId(e.target.value)} className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-2 text-sm">
-              <option value="">Choose an account…</option>
+              <option value="">{bankText('cash.chooseAccount', 'Choose an account…')}</option>
               {cashAccounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
             </select>
           </Labelled>
 
-          <Labelled label={labels.whatFor}>
+          <Labelled label={direction === 'in' ? bankText('cash.whatForIn', 'What is it for?') : bankText('cash.whatForOut', 'What was it for?')}>
             <select value={counterAccountId} onChange={e => setCounterAccountId(e.target.value)} className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-2 text-sm">
-              <option value="">Choose an account…</option>
+              <option value="">{bankText('cash.chooseAccount', 'Choose an account…')}</option>
               {counterAccounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
             </select>
           </Labelled>
           {direction === 'out' && <BudgetLeft accountId={counterAccountId} date={date} addingCents={amountCents} />}
 
           <div className="grid grid-cols-2 gap-3">
-            <Labelled label={direction === 'in' ? 'Who paid it (optional)' : 'Who you paid (optional)'}>
-              <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Acme Ltd" className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm" list="lf-cash-movement-contacts" />
+            <Labelled label={direction === 'in' ? bankText('cash.whoPaid', 'Who paid it (optional)') : bankText('cash.youPaid', 'Who you paid (optional)')}>
+              <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder={bankText('cash.namePlaceholder', 'Acme Ltd')} className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm" list="lf-cash-movement-contacts" />
             </Labelled>
-            <Labelled label="Cheque or bank reference (optional)">
+            <Labelled label={bankText('cash.reference', 'Cheque or bank reference (optional)')}>
               <input value={reference} onChange={e => setReference(e.target.value)} placeholder="1042" className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm" />
             </Labelled>
           </div>
 
-          <Labelled label="What to call it (optional)">
+          <Labelled label={bankText('cash.description', 'What to call it (optional)')}>
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder={counterAccount ? `${labels.verb}: ${counterAccount.name}` : labels.verb} className="h-9 w-full rounded-lg border border-neutral-200 px-2 text-sm" list="lf-cash-movement-descriptions" />
           </Labelled>
           <datalist id="lf-cash-movement-descriptions">
@@ -167,8 +171,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
 
           {direction === 'in' && (
             <p className="text-[11px] leading-snug text-neutral-500">
-              Money someone paid before their invoice exists goes to the customer deposits account — the
-              invoice draws it back out, so it is counted once.
+              {bankText('cash.depositNote', 'Money someone paid before their invoice exists goes to the customer deposits account — the invoice draws it back out, so it is counted once.')}
             </p>
           )}
 
@@ -184,7 +187,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
 
           {!canPost ? (
             <p className="text-[11px] leading-snug text-neutral-500">
-              You can look, not post. Someone who keeps the books records money in and out.
+              {bankText('cash.viewOnly', 'You can look, not post. Someone who keeps the books records money in and out.')}
             </p>
           ) : (
             <button
@@ -193,7 +196,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
               disabled={!!problem || !amountCents}
               className="h-9 w-full rounded-lg bg-neutral-900 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
             >
-              {labels.button}
+              {direction === 'in' ? bankText('cash.buttonIn', 'Record money in') : bankText('cash.buttonOut', 'Record money out')}
             </button>
           )}
         </div>

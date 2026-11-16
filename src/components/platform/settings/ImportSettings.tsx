@@ -22,6 +22,7 @@ import { normalizeXeroCsv } from '../../../lib/xeroChartContactsImport';
 import { normalizeWaveCsv } from '../../../lib/waveImport';
 import { normalizeZohoBooksCsv } from '../../../lib/zohoBooksImport';
 import { normalizeSage50Csv } from '../../../lib/sage50Import';
+import { normalizeOdooCsv } from '../../../lib/odooImport';
 import { readIif, type IifReadResult } from '../../../lib/iifImport';
 import {
   contactImportDuplicates, googleContactsToContactTable, isGoogleContactsHeader, vCardToContactTable,
@@ -38,20 +39,22 @@ import XeroDocumentsImport from './XeroDocumentsImport';
 import { inBackground } from '../../../lib/inBackground';
 
 import { BRAND_NAME } from '../../../config/brand';
+import { RowTable } from '../../ui/RowTable';
 /** PREV-6: a garbled (non-UTF-8) or cut-off CSV is refused whole, with a message. */
 const readCsvUpload = (text: string): string[][] => {
   assertReadableText(text);
   return parseCsvChecked(text);
 };
 
-type CsvSource = 'generic' | 'freshbooks' | 'quickbooks' | 'iif' | 'xero' | 'wave' | 'zoho' | 'sage';
+type CsvSource = 'generic' | 'freshbooks' | 'quickbooks' | 'iif' | 'xero' | 'wave' | 'zoho' | 'sage' | 'odoo';
 const normalizeSourceTable = (source: CsvSource, kind: ImportKind, cells: string[][]): string[][] =>
   source === 'freshbooks' ? normalizeFreshBooksCsv(kind, cells) :
   source === 'quickbooks' ? normalizeQuickBooksCsv(kind, cells) :
   source === 'xero' ? normalizeXeroCsv(kind, cells) :
   source === 'wave' ? normalizeWaveCsv(kind, cells) :
   source === 'zoho' ? normalizeZohoBooksCsv(kind, cells) :
-  source === 'sage' ? normalizeSage50Csv(kind, cells) : cells;
+  source === 'sage' ? normalizeSage50Csv(kind, cells) :
+  source === 'odoo' ? normalizeOdooCsv(kind, cells) : cells;
 // E-29: an IIF carries several list sections at once, so the file is read once and its section for
 // the chosen kind is used (readIif in src/lib/iifImport.ts).
 
@@ -351,7 +354,7 @@ export default function ImportSettings() {
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-xs font-bold flex flex-col gap-1">CSV source
             <select aria-label="CSV source" value={source} onChange={e => {
-              const next: CsvSource = (['freshbooks', 'quickbooks', 'iif', 'xero', 'wave', 'zoho', 'sage'] as const).includes(e.target.value as never)
+              const next: CsvSource = (['freshbooks', 'quickbooks', 'iif', 'xero', 'wave', 'zoho', 'sage', 'odoo'] as const).includes(e.target.value as never)
                 ? e.target.value as CsvSource : 'generic';
               if (next !== 'iif') setIif(null);
               setContactFile(null);
@@ -362,7 +365,7 @@ export default function ImportSettings() {
               setMapping(converted.length ? guessMapping(kind, converted[0]) : {});
               resetResults();
             }} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-sm">
-              <option value="generic">Standard spreadsheet / CSV template</option><option value="freshbooks">FreshBooks CSV</option><option value="quickbooks">QuickBooks Online CSV</option><option value="iif">QuickBooks Desktop IIF</option><option value="xero">Xero CSV (chart or contacts)</option><option value="wave">Wave customers CSV</option><option value="zoho">Zoho Books CSV</option><option value="sage">Sage 50 CSV</option>
+              <option value="generic">Standard spreadsheet / CSV template</option><option value="freshbooks">FreshBooks CSV</option><option value="quickbooks">QuickBooks Online CSV</option><option value="iif">QuickBooks Desktop IIF</option><option value="xero">Xero CSV (chart or contacts)</option><option value="wave">Wave customers CSV</option><option value="zoho">Zoho Books CSV</option><option value="sage">Sage 50 CSV</option><option value="odoo">Odoo CSV export</option>
             </select>
           </label>
           {source === 'freshbooks' && <p className="text-xs text-[var(--muted)]">Choose a FreshBooks Clients, Vendors, or Items export. We combine name and address columns for preview, then use the normal validated import. No transactions are imported. <a className="underline" href="https://support.freshbooks.com/hc/en-us/articles/360032628152-How-do-I-export-my-data" target="_blank" rel="noopener noreferrer">Export instructions</a>.</p>}
@@ -371,6 +374,7 @@ export default function ImportSettings() {
           {source === 'xero' &&<p className="text-xs text-[var(--muted)]">Choose a Xero <strong>Chart of Accounts export</strong> (Accounting → Chart of accounts → Export) as &ldquo;Accounts&rdquo;, or a Xero <strong>contacts</strong> CSV as &ldquo;Customers&rdquo; or &ldquo;Vendors&rdquo; — a Xero contacts file is mixed, and you pick the list. Columns are read by their documented names; required columns missing from a re-arranged file fail the check rather than being guessed. Xero invoice/bill exports use the panel below instead. No balances, YTD figures or transactions are imported. <a className="underline" href="https://central.xero.com/0/article/Export-or-print-your-chart-of-accounts" target="_blank" rel="noopener noreferrer">Xero Central export steps</a>.</p>}
           {source === 'wave' && <p className="text-xs text-[var(--muted)]">Choose the customers CSV Wave exports (Sales &amp; Payments → Customers → Import or Export) as &ldquo;Customers&rdquo;. Wave has no vendor CSV export to key on, and a Wave chart-of-accounts CSV already reads through the standard spreadsheet source — its account-type names are recognised. Wave&rsquo;s accountants&rsquo; download is transactions, never imported here. <a className="underline" href="https://support.waveapps.com/hc/en-us/articles/208623076-Import-a-customer-list" target="_blank" rel="noopener noreferrer">Wave&rsquo;s customer CSV columns</a>.</p>}
           {source === 'zoho' && <p className="text-xs text-[var(--muted)]">Choose a Zoho Books export (Customers, Vendors, Items, or Chart of Accounts). Zoho&rsquo;s export fields are the user&rsquo;s choice, so the reader keys on Zoho&rsquo;s documented field names; an export whose fields don&rsquo;t include a required column fails the check instead of being guessed, and a Zoho-specific account type (for example Payment Clearing Account) is listed as a row to fix, never reclassified. Item prices and purchase rates import as catalogue figures — stock quantities are never staged. <a className="underline" href="https://www.zoho.com/us/books/help/import-export/export.html" target="_blank" rel="noopener noreferrer">Zoho export steps</a>.</p>}
+          {source === 'odoo' && <p className="text-xs text-[var(--muted)]">Choose an Odoo list export (Contacts, Products or Chart of Accounts: select the rows, then Export). Field labels and the import-compatible technical names are both read. An account type with no {BRAND_NAME} counterpart (Off-Balance Sheet, Current Year Earnings) is listed as a row to fix, never reclassified; balances and quantities on hand are never imported. Then check the totals with the trial-balance check below: it reads a CSV with Account, Debit and Credit columns, so save Odoo's ending balances in that shape. <a className="underline" href="https://www.odoo.com/documentation/17.0/applications/essentials/export_import_data.html" target="_blank" rel="noopener noreferrer">Odoo export steps</a>.</p>}
           {source === 'sage' && <p className="text-xs text-[var(--muted)]">Choose a Sage 50 (US) export written by Select Import/Export (CUSTOMER.CSV, VENDOR.CSV, CHART.CSV or ITEM.CSV). The chart&rsquo;s numeric account-type code is translated only through Sage&rsquo;s documented table; codes with no {BRAND_NAME} counterpart (retainage, accumulated depreciation) are left for you to fix in the preview, and the export-only columns (current balance, period totals) are never imported. <a className="underline" href="https://help-sage50.na.sage.com/en-us/2023/Content/Importing_Exporting/Import_Export_Fields/IEFIELDS_Chart_of_Accounts.htm" target="_blank" rel="noopener noreferrer">Sage 50 export field lists</a>.</p>}
 
           {contactFile && (
@@ -553,20 +557,19 @@ export default function ImportSettings() {
 
             {issuesAfterPreview.length > 0 && (
               <div className="max-h-64 overflow-auto border border-[var(--line)] rounded-xl">
-                <table className="w-full text-xs">
-                  <caption className="sr-only">Rows with problems</caption>
-                  <thead className="bg-[var(--panel)] text-[var(--muted)]">
-                    <tr><th scope="col" className="text-left px-3 py-2">Row</th><th scope="col" className="text-left px-3 py-2">Problem</th></tr>
-                  </thead>
-                  <tbody>
-                    {issuesAfterPreview.slice(0, 200).map(issue => (
-                      <tr key={`${issue.row}:${issue.field ?? ''}:${issue.message}`} className="border-t border-[var(--line)]">
-                        <td className="px-3 py-1.5 font-mono">{issue.row}</td>
-                        <td className="px-3 py-1.5 text-[var(--text)]"><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <RowTable
+                  rowHeaderColumn={false}
+                  rowClassName="border-t border-[var(--line)]"
+                  caption={(<>Rows with problems</>)}
+                  rows={issuesAfterPreview.slice(0, 200)}
+                  rowKey={issue => `${issue.row}:${issue.field ?? ''}:${issue.message}`}
+                  headRowClassName="bg-[var(--panel)] text-[var(--muted)]"
+                  bodyClassName=""
+                  columns={[
+                    { header: "Row", className: "px-3 py-1.5 font-mono", headClassName: "text-left px-3 py-2", cell: (issue) => issue.row },
+                    { header: "Problem", className: "px-3 py-1.5 text-[var(--text)]", headClassName: "text-left px-3 py-2", cell: (issue) => (<><AlertCircle size={12} className="inline mr-1 text-[var(--neg)]" aria-hidden="true" />{issue.message}</>) },
+                  ]}
+                />
                 {issuesAfterPreview.length > 200 && (
                   <p className="border-t border-[var(--line)] px-3 py-2 text-[10px] text-[var(--muted)]">
                     Showing the first 200 of {issuesAfterPreview.length} rows with problems. Fix these and check again to see the rest.
