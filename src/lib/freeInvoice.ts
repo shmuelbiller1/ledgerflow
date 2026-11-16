@@ -96,11 +96,12 @@ export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
 }
 
 /** Put the draft where the sample company's Sales screen will pick it up once. */
-export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice, forUid?: string): boolean {
+export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice, forUid?: string, forWorkspace?: string): boolean {
   try {
     const draft = toInvoiceDraft(inv);
     // signed in: the draft is for that person's own books, and only theirs
-    if (forUid) draft.metadata = { ...draft.metadata, forUid };
+    // signed in: for that person's books, in the workspace they were in, and only there
+    if (forUid) draft.metadata = { ...draft.metadata, forUid, ...(forWorkspace ? { forWorkspace } : {}) };
     storage.setItem(FREE_INVOICE_STORAGE_KEY, JSON.stringify(draft));
     return true;
   } catch {
@@ -110,14 +111,16 @@ export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInv
 
 /** A waiting draft for this session, or null. A sample-company session takes only an unclaimed
  *  draft; a signed-in person only one made while signed in as them. Reading does not clear it. */
-export function readFreeInvoice(storage: Pick<Storage, 'getItem'>, session: { sample: boolean; uid?: string } = { sample: true }): Partial<Invoice> | null {
+export function readFreeInvoice(storage: Pick<Storage, 'getItem'>, session: { sample: boolean; uid?: string; workspaceId?: string } = { sample: true }): Partial<Invoice> | null {
   try {
     const raw = storage.getItem(FREE_INVOICE_STORAGE_KEY);
     if (!raw) return null;
     const draft = JSON.parse(raw) as Partial<Invoice>;
     if (!draft || typeof draft !== 'object' || draft.metadata?.source !== 'free-invoice-maker') return null;
     const forUid = typeof draft.metadata.forUid === 'string' ? draft.metadata.forUid : undefined;
-    return (session.sample && !forUid) || (session.uid && forUid === session.uid) ? draft : null;
+    const forWorkspace = typeof draft.metadata.forWorkspace === 'string' ? draft.metadata.forWorkspace : undefined;
+    if (session.sample) return forUid ? null : draft;
+    return session.uid && forUid === session.uid && forWorkspace && forWorkspace === session.workspaceId ? draft : null;
   } catch {
     return null; // unreadable or blocked storage: there is simply no draft to open
   }

@@ -94,7 +94,8 @@ export default function Sales() {
   // EU-I3: a draft from the free maker opens only in the sample company (a guest with no account)
   const sampleSession = useAuthStore(st => st.isGuest && !st.user);
   const signedInUid = useAuthStore(st => st.user?.uid);
-  const [freeDraft] = useState(() => (typeof window === 'undefined' || (!sampleSession && !signedInUid) ? null : readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid })));
+  const workspaceIdNow = useAuthStore(st => st.currentWorkspaceId);
+  const [freeDraft] = useState(() => (typeof window === 'undefined' || (!sampleSession && !signedInUid) ? null : readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid, workspaceId: workspaceIdNow || undefined })));
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(Boolean(freeDraft));
   const [openingOpen, setOpeningOpen] = useState(false);
   const [receiptMode, setReceiptMode] = useState(false);

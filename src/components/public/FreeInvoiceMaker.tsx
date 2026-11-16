@@ -30,6 +30,7 @@ export default function FreeInvoiceMaker() {
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [error, setError] = useState('');
   const uid = useAuthStore(st => st.user?.uid);
+  const workspaceId = useAuthStore(st => st.currentWorkspaceId);
 
   const parsed = lines.map(l => ({ description: l.description, quantity: Number(l.quantity), rateCents: parseRate(l.rate, currency) }));
   const badRate = parsed.findIndex(l => l.rateCents === null);
@@ -47,7 +48,7 @@ export default function FreeInvoiceMaker() {
     let carried: boolean;
     try {
       // signed in: it opens in their own books; otherwise in the sample company
-      carried = stashFreeInvoice(window.localStorage, invoice, uid);
+      carried = stashFreeInvoice(window.localStorage, invoice, uid, workspaceId || undefined);
       if (!uid) {
         window.localStorage.setItem('isGuest', 'true');
         window.localStorage.setItem('has_seen_onboarding', 'true');

@@ -78,11 +78,12 @@ test('EU-I3: quantities beyond 2 decimals are refused; a signed-in draft opens o
   }
   const store = new Map<string, string>();
   const storage = { setItem: (k: string, v: string) => { store.set(k, v); }, getItem: (k: string) => store.get(k) ?? null };
-  assert.ok(stashFreeInvoice(storage, base, 'u1'));
+  assert.ok(stashFreeInvoice(storage, base, 'u1', 'w1'));
   assert.equal(readFreeInvoice(storage, { sample: true }), null, 'the sample company does not take a signed-in draft');
-  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u2' }), null, 'nor does someone else');
-  assert.ok(readFreeInvoice(storage, { sample: false, uid: 'u1' }));
+  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u2', workspaceId: 'w1' }), null, 'nor does someone else');
+  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u1', workspaceId: 'w2' }), null, 'nor the same person in other books');
+  assert.ok(readFreeInvoice(storage, { sample: false, uid: 'u1', workspaceId: 'w1' }));
   assert.ok(stashFreeInvoice(storage, base));
   assert.ok(readFreeInvoice(storage, { sample: true }));
-  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u1' }), null, 'an unclaimed draft never opens in real books');
+  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u1', workspaceId: 'w1' }), null, 'an unclaimed draft never opens in real books');
 });
