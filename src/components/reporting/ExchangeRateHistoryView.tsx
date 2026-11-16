@@ -7,6 +7,7 @@ import { rateHistory } from '../../lib/exchangeRates';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import ReportTableScroll from './ReportTableScroll';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
+import { RowTable } from '../ui/RowTable';
 
 interface RatedDoc { currency?: string; exchangeRate?: number; date?: string }
 
@@ -55,15 +56,17 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
       {(truncated.invoices || truncated.bills || truncated.payments || truncated.transactions || failed.transactions) && <p role="alert">Loaded history is incomplete. These rates are provisional.</p>}
       {valid && !loading && (
         <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>{currency ? `${currency} rates used: ${startDate} – ${endDate}` : `Exchange rates used: ${startDate} – ${endDate}`}</caption>
-            <thead><tr><th scope="col" className="text-left">Date</th><th scope="col">{home} for 1 {currency || '…'}</th><th scope="col">Documents</th></tr></thead>
-            <tbody>
-              {uses.map(u => (
-                <tr key={`${u.date}-${u.rate}`}><th scope="row" className="text-left">{u.date}</th><td className="text-right font-mono">{u.rate}</td><td className="text-right">{u.count}</td></tr>
-              ))}
-            </tbody>
-          </table>
+                    <RowTable
+            caption={currency ? `${currency} rates used: ${startDate} – ${endDate}` : `Exchange rates used: ${startDate} – ${endDate}`}
+            rows={uses}
+            rowKey={u => `${u.date}-${u.rate}`}
+            tableClassName="w-full text-sm"
+            columns={[
+              { header: "Date", cell: (u) => u.date },
+              { header: (<>{home} for 1 {currency || '…'}</>), align: 'right', className: "font-mono", cell: (u) => u.rate },
+              { header: "Documents", align: 'right', cell: (u) => u.count },
+            ]}
+          />
           {currencies.length === 0 && <p>No document in another currency yet.</p>}
           {currencies.length > 0 && uses.length === 0 && <p>No {currency} rate was used in this period.</p>}
           {rates.length > 1 && <p className="text-xs text-[var(--muted)]">Lowest {Math.min(...rates)}, highest {Math.max(...rates)}, latest {uses[0].rate} ({uses[0].date}).</p>}

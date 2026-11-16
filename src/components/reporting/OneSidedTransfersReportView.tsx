@@ -9,6 +9,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?: string }) {
   const transactions = useLedgerStore(s => s.transactions), accounts = useLedgerStore(s => s.accounts);
@@ -30,12 +31,19 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
     {loading && <p role="status">Loading transactions and bank statements…</p>}
     {!valid && <p role="alert">Choose a valid report end date.</p>}
     {partial && <p role="alert">History is incomplete or failed to load. Missing counterpart warnings are provisional.</p>}
-    {valid && !loading && <ReportTableScroll><table className="w-full text-sm"><caption>Transfer counterpart review as of {endDate}</caption>
-      <thead><tr><th scope="col">Date / transaction</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Amount</th><th scope="col">Why review</th></tr></thead>
-      <tbody>{rows.map(row => <tr key={row.id} className="border-t border-[var(--line)]">
-        <th scope="row" className="text-left"><button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button></th>
-        <td><bdi>{row.fromAccount}</bdi></td><td><bdi>{row.toAccount}</bdi></td>
-        <td className="text-right tabular-nums">{formatCurrency(row.amountCents, currency)}</td><td>{row.status}</td>
-      </tr>)}</tbody></table>{!rows.length && <p>No one-sided transfer warnings in the loaded history.</p>}</ReportTableScroll>}
+    {valid && !loading && <ReportTableScroll>    <RowTable
+      rowClassName="border-t border-[var(--line)]"
+      caption={(<>Transfer counterpart review as of {endDate}</>)}
+      rows={rows}
+      rowKey={row => row.id}
+      tableClassName="w-full text-sm"
+      columns={[
+        { header: "Date / transaction", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
+        { header: "From", cell: (row) => <bdi>{row.fromAccount}</bdi> },
+        { header: "To", cell: (row) => <bdi>{row.toAccount}</bdi> },
+        { header: "Amount", align: 'right', className: "tabular-nums", cell: (row) => formatCurrency(row.amountCents, currency) },
+        { header: "Why review", cell: (row) => row.status },
+      ]}
+    />{!rows.length && <p>No one-sided transfer warnings in the loaded history.</p>}</ReportTableScroll>}
   </section>;
 }

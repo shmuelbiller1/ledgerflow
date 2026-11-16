@@ -1,143 +1,119 @@
-# Screen rebuild — PR #730 checklist
+# Screen rebuild — PR #731 checklist
 
-The task is unchanged: **every action and report the server offers can be reached, and a new person
-still sees only a few things.** Connect and simplify what exists. Do not add features.
+The task is unchanged: **every action and report the server offers can be reached, and a new person still sees
+only a few things.** Connect and simplify what exists. Do not add features.
 
-#724 closed parts 3, 4 and 5 and landed the acceptance journey. This PR takes what is left, and for each
-item names the **fastest honest route** — a codemod where the shape repeats, a hand edit where it does
-not. Anything that cannot be done mechanically is marked ✋ and says why.
+#730 measured the remainder and split it into buckets. This PR is about **the fastest honest route through the
+list**: the work that repeats gets a tool, and the work that does not gets a reason. Every box below is a number
+from `computeQualityMetrics()` (`scripts/quality-metrics.ts`) or a named test, never a description.
 
-State is measured, never described: `quality-baseline.json` and the guard tests are the truth. A box is
-ticked only when the number moved or the named test passes.
+State is measured, never described. `quality-baseline.json`, `raw-table-decisions.test.ts` and the guard tests are
+the truth.
 
 ## Where we are
 
-| counter | now | target | what it counts |
-|---|---|---|---|
-| `rawTables` | **184** | 0 | screens drawing their own `<table>` instead of the shared grid |
-| `handTypedApiCalls` | **5** (was 84) | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | **93** | 0 | the browser writing the books instead of asking the server |
-| `screensWithManyPrimaryButtons` | **0** | 0 | ✅ done |
-| `unreachableActions` | **0** | 0 | ✅ done |
+| counter | before this PR | now | target | what it counts |
+|---|---|---|---|---|
+| `rawTables` | 184 | **158** | 0 | screen files drawing a hand-written `<table>` |
+| `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
+| `directDbWrites` | 93 | 93 | 0 | the browser writing the books instead of asking the server |
+| `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
+| `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
+| `unreachableActions` | 0 | 0 | 0 | ✅ |
+| `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
 
-## How this PR goes fast
+`rawTables` is a count of **files**, so converting 45 tables in 42 files moved it 184 → 158: the first table in a
+file is the one the counter sees, and a second table in a file is free. The plan below is ordered by that fact.
 
-| lever | what it does | expected |
-|---|---|---|
-| `scripts/codemod-run-command.ts` | `--report` inventories every hand-typed call and names the blocker — including **its own header**: any key other than `Content-Type`/`Authorization` (an idempotency key above all) is a decision for a person, pinned by `codemod-run-command-classification.test.ts`. `--write` applies only blocker-free calls and **reverts a file it cannot finish** | done the boring half, not guessed it |
-| `scripts/codemod-table-to-grid.ts` | sorts every raw table into mechanical / by hand / stays with the reason | **139 / 31 / 73** |
-| `npm run ratchet:update` | moves the baseline after each batch | seconds |
-| one commit per **group**, not per file | the commit message carries the batch | ~6 commits, not 60 |
+## 1. One list — landed in this PR
 
-## 1. One list — the shared grid is the only list
+- [x] **A declarative table for the table that is part of a sentence.** `src/components/ui/RowTable.tsx`
+      (37 lines of component, guards in `src/lib/rowTable.ts`). It renders the markup the screens already
+      rendered — same table class, head class, row-header class, cell classes — and adds the four things a
+      hand-written table mostly lacked: a caption, a row header, `align: 'right'`, and CSV built from the same
+      columns. Pinned by `src/tests/row-table.test.tsx` (7 tests: accessible name, row header, right-aligned CSV
+      decimal, row order, repeated column, footer, empty state).
+- [x] **A codemod that can write, not just survey.** `scripts/codemod-row-table.ts` — `--write` converts,
+      `--files` names every table it refuses and why. 10 rules pinned by `src/tests/row-table-codemod.test.ts`,
+      including the two ways it could destroy a screen: a dropped `<tfoot>` totals row, and an interpolated class
+      `${th}` turned into the text `${th}`. Both refusals exist because both happened and a test caught it.
+- [x] **45 tables in 42 files converted**, `rawTables` 184 → 158, −139 net lines, `arrayIndexKeys` still 0,
+      `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the 2 pre-existing warnings,
+      **2211/2211 UI tests green**.
+- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 158`, so a new hand-written table fails CI.
 
-- [x] **Split the 184 into buckets before touching any** — `scripts/codemod-table-to-grid.ts` (committed
-      here, `npx tsx scripts/codemod-table-to-grid.ts --files`). Measured: **243 tables in 185 files →
-      139 mechanical, 31 by hand, 73 stays.** That is the number the rest of part 1 is planned from, and
-      it is the reason this PR does not finish part 1: converting 139 screens in one PR is how the PR
-      becomes unreviewable.
-- [ ] Convert the **short convertible files** first (`≤120` lines, 1 table).
-- [ ] Convert the **2–3 table** files.
-- [ ] The **4-table** files (`TaxLiabilityView`, `SerialLotLookupReportView`,
-      `IsraelMonthJourneyReportView`, `GoodsNotBilledReportView`, `PurchaseOrdersView`).
-- [ ] **Bank review** on the grid (`ReconciliationView`, `BankFeedImport`, `InboxView`).
-- [ ] Non-report screens: finance, platform, hr, dashboard.
-- [ ] Named reasons for whatever stays, in `raw-table-decisions.test.ts` — the ratchet fails on a stale
-      or false reason, so "not worth it" has to be written down honestly.
+## 2. One list — what is left, in the order that moves the counter
 
-## 2. One record page
+Measured now by `npx tsx scripts/codemod-row-table.ts` → **199 tables in 158 files still refused**, by reason:
 
-The foundation exists and invoices are already on it — this part is **connecting**, not building.
+| # | reason (the codemod's own refusal) | tables | route | est. files moved |
+|---|---|---|---|---|
+| 1 | a totals row in a `<tfoot>` | 17 | ✋ `RowTable` has `footer`; move the totals row across by hand | 17 |
+| 2 | a body that is not one expression (an empty-state row beside the rows) | 26 | ✋ pass `empty`, then the body is one map | ~24 |
+| 3 | a header row that is not one of the four shapes | 46 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
+| 4 | a row that does not line up with its header | 37 | ✋ usually a nested list, or a cell that spans — name which | ~37 |
+| 5 | a map that does not return a row | 28 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~28 |
+| 6 | a callback that is destructured, or has a body | 10 | ✋ `({id, name}) => …` or a `{ const x = …; return <tr> }` body | 10 |
+| 7 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
+| 8 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
+| 9 | a class computed from the row | 5 | ✋ same: the class belongs inside the cell | 5 |
+| 10 | no header row / no caption / one-row key / >1 map / nested-cell edge cases | 15 | ✋ individually | 15 |
 
-- [ ] `InvoiceRecordPage` takes its next step from the **manifest** (`useCommand('invoice.update').next`)
-      instead of a hard-coded `if (isDraft) … else …`. A next step a screen invents can drift from what
-      the server will accept; one it reads cannot.
-- [ ] A green/handled path that a `viewer` cannot see (the role gate from `paletteRoleFilter`).
-- [ ] `CustomerRecordPage`, `BillRecordPage` on the same `RecordPage` shell — same three sections, so the
-      second and third are mostly column definitions.
+**Fast order.** 1 and 2 first: `footer` and `empty` already exist, so each is a mechanical edit of a table the
+codemod has already normalised in every other way, and 43 tables move for it. 3, 4, 5 are the bulk (111) and are
+the honest hand work — do them by directory, starting with `reporting` (106 of the 244 tables live there), and
+re-run the codemod after every batch: a file that stops being refused is free.
+
+Do **not** hand-convert a table the codemod still refuses. Re-run it first — every batch so far has made the
+next one smaller, and the two bugs it caught (the `<tfoot>`, the class interpolation) are exactly the class of
+mistake that hand-converting 139 tables at speed produces.
 
 ## 3. One way to act
 
-- [x] **`transactionActions` — nine hand-typed calls, one shape.** Done; `integrityActions`, `ruleActions`,
-      `entryActions` (6) and `importActions` send through `runCommand`. The 409 version conflict and the
-      budget warnings survive because `ServerCommandError` carries `.status` and `.body`.
-- [x] `services/` — `clearanceActions`, `receiptActions`, `depositActions`, `journalTemplateActions`,
-      `clientQueryActions`, `documentNumbers`, `spreadActions`, `attachmentActions`, `workspacePriceLists`,
-      `stockRequests`, `postingKit` (2). The download/blob ones stay, by name (below).
-- [x] The `/api/v1/transactions` cluster across `components/` — entry, petty cash, bank-line, inbox, import,
-      intercompany, QBO migration, forensic scan, vault injection.
-- [x] The report views (six, by codemod), the settings screens (eleven), the customer-facing pages (three),
-      the export snapshots (five), the plumber hooks (`useServer*`, `useLedgerData`, `useHandOvers`).
-- [ ] **Undo on the result**: `deleteWithUndo` wired into `useCommand`'s result where the command's inverse
-      exists. (Not started — it needs the command schemas, part 3's second half.)
+- [ ] `directDbWrites` **93** → 0. PR #731's writer (`workspaceActions.ts`) is the third of 54 files; the browser
+      sites are listed in `commands-baseline.json` (`useAutoRules.ts` 6, `useEntityOperations.ts` 6 at the top).
+      Route: one commit per **hook**, not per call — a hook that writes has one shape.
+- [ ] Undo on the result: `deleteWithUndo` into `useCommand` where the command's inverse exists.
 - [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
 
-### What the sweep learned, in the order it learned it
+## 4. One record page
 
-These are the findings that decide how the rest of the list gets done. Each cost a failing test or a wrong
-first attempt, so they are cheaper to read than to rediscover.
+- [ ] `InvoiceRecordPage` takes its next step from the manifest (`useCommand('invoice.update').next`), not a
+      hard-coded `if (isDraft)`.
+- [ ] `CustomerRecordPage`, `BillRecordPage` on the same shell — column definitions, not new layout.
 
-1. **`rawBody` exists for a reason.** `DrillDownModal` passed a JSON *string* as `body`; `runCommand` encoded it
-   again and the endpoint received a quoted string. A caller that already holds the request text passes
-   `rawBody`. The same applies to the payment modals: their idempotency key is a hash **of the serialized body**,
-   so re-serializing an object can change the key and record a second payment.
-2. **A refusal body is sometimes the feature.** The landed-cost 409 carries the *new plan* so the panel can show
-   it; the credit-limit 409 carries `canOverride` so the screen can offer "post anyway"; a dead public invoice
-   link carries a sentence written for the customer. `ServerCommandError.body` keeps all three, and each caller
-   says which one it needs.
-3. **"Not an exception" is not "success".** `handleToggleFlag` toasted the error and returned normally; the
-   per-function ratchet in `bug-patterns.test.ts` flagged it as a *new* risk location. It returns `false` now.
-4. **Ordering around the token is load-bearing.** `TaxProfilesSettings` re-checks the role *after* the token
-   arrives; `PlaidConnectButton` aborts *after* it arrives. Both had tests. A conversion that lets `runCommand`
-   fetch the token silently moves the check earlier.
-5. **`token: null` is a security boundary, not a default.** The public invoice and portal pages must not send
-   the signed-in person's credentials to a public route. `runCommand` attaches a token unless told not to.
-6. **Two AbortSignal cases were not problems.** `runCommand` takes a `signal`; the codemod was over-reporting 6
-   calls as "needs a person". Correcting the tool changed the plan from 14 hand edits to 8.
-7. **The test fixture was signing in the wrong place.** `setComponentWorkspace` set the store user but not the
-   auth singleton that `runCommand` reads, so ~271 tests exercised screens that sent no `Authorization` header.
+## 5. One screen shape, one form
 
-### What stays hand-typed, by name — and why
+- [ ] **Two form systems, two callers each.** `CommandForm` (2) and `SchemaForm` (2) — a schema-driven form and a
+      command-driven one. Pick one per case, or merge them: this is 4 call sites, not a project.
+- [ ] Palette reachability is **already proven in EN and HE** by `palette-reachability-guard.test.tsx`. The
+      remaining item is not "make screens findable" — it is **retiring the old guard** once the plain-word search
+      is the only path, so there is one test instead of two mechanisms.
 
-Five calls. Each one is a case where `runCommand`'s contract does not fit the answer or the question the screen
-is asking, so converting it would lose something:
+## 6. What the sweep learned — cheaper to read than to rediscover
 
-| where | what the call does | why it cannot move |
-|---|---|---|
-| `documentDownloads.ts` (×2) | payslip, invoice and delivery-note **PDFs**, and the ZIP batch | the answer is bytes. `runCommand` reads JSON; a blob passed through it would have to be base64'd and decoded again to no benefit |
-| `PayRunHistory.tsx` | one payslip PDF | same |
-| `BrandingSettings.tsx` | `POST /branding/preview` | answers with a rendered image, not JSON |
-| `OrderDeliveryDialog.tsx` | the delivery note | opens a blob URL in a new tab |
-| `useApiHubModel.ts` sandbox | any endpoint, and it **reports the status code as a result** | "HTTP Status 503" is the point of a sandbox. `runCommand` turns a status into an exception, which is exactly the information this screen exists to show |
+1. **`rawTables` counts files, not tables.** A 4-table screen is one number. Convert by file first, then by
+   table inside the file.
+2. **A `<tfoot>` is data.** The first sweep dropped a totals row from `DepreciationLedgerReportView` and
+   `depreciation-ledger.test.tsx` caught it. `RowTable` has `footer` now, and the codemod refuses a `<tfoot>`.
+3. **A class is code.** An interpolated `className` in backticks became a plain string with the
+   `${th}` still written inside it: the same literal text in every cell, evaluated once, and it type-checks.
+   It renders wrong, which is the worst kind. The codemod now keeps an interpolated class as an expression, and refuses a
+   class that reads the row, because a column-level class is evaluated once, outside the row's scope.
+4. **A scanner is not a parser.** Every conversion is parsed with TypeScript before it is written
+   (`parses()` in the codemod). That is what turned "60 conversions, 6 red tests" into "45 conversions,
+   0 red tests".
+5. **`react-refresh` counts exports, not intent.** `RowTable.tsx` exported the component *and* `rowTableCsv`,
+   which is a lint warning and a lost fast refresh. The columns and the CSV live in `src/lib/rowTable.ts`.
+6. **The ratchet's zero is real.** `arrayIndexKeys` is 0 and a `<th key={index}>` inside the shared table
+   failed it. The fix was not to raise the baseline — it was to key a header by its own name.
 
-### A rule this sweep produced, now enforced by a test
+## Verification for this PR
 
-**A committed write whose answer was cut off is not a failure.** Two bots found this in five places, all of them
-mine: the hand-typed calls read a success body with `res.json().catch(() => ({}))`, so a 2xx whose body was cut
-mid-flight counted as saved. `runCommand` throws `ServerCommandError(accepted: true)` there, and every caller I
-had converted treated any throw as failure — telling the person "Failed to add transaction" over an entry that was
-already recorded, and inviting the second click that records it twice.
-
-It is now the library's job, not each caller's: `writeWasAccepted(error)` and `runWrite(request)` in
-`runCommand.ts`, pinned by three tests in `run-command.test.ts`. **Every future conversion of a write should use
-one of those two, not `runCommand` directly.**
-
-### Two build-time boundaries that fail *outside* the test suite
-
-Both of these cost a red pipeline while every unit test was green, so they are written down:
-
-- **`.vercelignore` decides what exists at build time.** `npm run build` runs before Vite; anything a script in it
-  needs must be re-included there, and listed in `vercel-ignore-boundary.test.ts`. A generator added to `build`
-  without that line fails the deployment with `Cannot find module` while building perfectly on a laptop — build
-  from a copy of the tree containing only the non-ignored files to reproduce it.
-- **A JSON module cannot be imported by source.** A JSON import needs an attribute plain Node and Playwright
-  loaders do not supply, and e2e specs import source files directly, so one JSON import anywhere takes out the
-  whole browser suite in *setup*. `supabase-config.json` is generated into `src/config/supabaseProject.ts` for
-  this reason; `supabase-config-generated.test.ts` fails if a source file goes back to importing the JSON.
-
-### The measurement itself was wrong once
-
-`scripts/codemod-run-command.ts` walked `components`, `hooks`, `services`, `stores` — so `src/lib`, `src/modules`
-and `src/core` were invisible to every report it printed while `quality-metrics.ts` counted them. Seven calls sat
-in that blind spot. If a number and the tool that is supposed to explain it disagree, the tool is the first thing
-to check.
+```
+npx tsc --noEmit                       # 0 errors
+npx eslint . --max-warnings 2          # 2 pre-existing warnings, no new ones
+npx tsx --test src/tests/*.test.tsx    # 2211 tests, 0 failures
+npx tsx scripts/codemod-row-table.ts   # 0 tables still convertible (the sweep is complete)
+npx tsx -e "import('./scripts/quality-metrics.js').then(m => console.log(m.computeQualityMetrics().rawTables))"  # 158
+```

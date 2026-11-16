@@ -11,6 +11,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { PurchaseOrder } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const percent = (value: number | null | undefined) => (value === null || value === undefined ? 'Not measured' : `${value.toFixed(2)}%`);
@@ -86,14 +87,14 @@ function VendorScorecardContent({ endDate = '', orders, ordersLoading = false }:
     {!valid && <p role="alert">Choose a valid date range; From must be on or before To.</p>}
     {partial && <p role="alert">Some history is incomplete or failed to load. Figures here may leave out older orders, bills or credits.</p>}
 
-    {visibleRows.length > 0 && <ReportTableScroll><table className="w-full min-w-[900px] text-sm">
-      <caption>Vendors from {from} to {to}</caption>
-      <thead><tr>
-        <th scope="col">Vendor</th><th scope="col" className="text-right">Orders with dates</th><th scope="col" className="text-right">On time</th>
-        <th scope="col" className="text-right">Average days late</th><th scope="col">Price changes</th><th scope="col" className="text-right">Returns</th>
-      </tr></thead>
-      <tbody>{visibleRows.map(row => <tr key={row.vendorId} className="border-t border-[var(--line)] align-top">
-        <th scope="row" className="text-left min-w-60"><bdi>{row.vendorName}</bdi>
+    {visibleRows.length > 0 && <ReportTableScroll>    <RowTable
+      rowClassName="border-t border-[var(--line)] align-top"
+      caption={(<>Vendors from {from} to {to}</>)}
+      rows={visibleRows}
+      rowKey={row => row.vendorId}
+      tableClassName="w-full min-w-[900px] text-sm"
+      columns={[
+        { header: "Vendor", className: "min-w-60", cell: (row) => (<><bdi>{row.vendorName}</bdi>
           <details key={`${workspaceId}:${row.vendorId}`} className="font-normal mt-2 w-64 max-w-full">
             <summary className="min-h-11 cursor-pointer">Review source bills</summary>
             <p className="text-sm text-[var(--muted)]">Loaded bills in this date range, including bills without item quantities. Open a bill to inspect its original lines. Orders and return credits keep their own screens.</p>
@@ -103,17 +104,16 @@ function VendorScorecardContent({ endDate = '', orders, ordersLoading = false }:
                   <bdi>{bill.number || bill.id}</bdi> · <bdi>{bill.date?.slice(0, 10)}</bdi>
                 </button>
               </li>)}</ul>
-          </details>
-        </th>
-        <td className="text-right tabular-nums">{row.orders.withDates}{row.orders.withDates ? ` (${percent(row.orders.onTimeRate)} on time)` : ''}</td>
-        <td className="text-right tabular-nums">{row.orders.onTime} on time, {row.orders.late} late</td>
-        <td className="text-right tabular-nums">{row.orders.averageDaysLate ?? 'Not measured'}</td>
-        <td>{row.priceChanges.length ? <ul className="space-y-1">{row.priceChanges.map(p => <li key={`${p.itemId}-${p.currency}`}>
+          </details></>) },
+        { header: "Orders with dates", align: 'right', className: "tabular-nums", cell: (row) => (<>{row.orders.withDates}{row.orders.withDates ? ` (${percent(row.orders.onTimeRate)} on time)` : ''}</>) },
+        { header: "On time", align: 'right', className: "tabular-nums", cell: (row) => (<>{row.orders.onTime} on time, {row.orders.late} late</>) },
+        { header: "Average days late", align: 'right', className: "tabular-nums", cell: (row) => row.orders.averageDaysLate ?? 'Not measured' },
+        { header: "Price changes", cell: (row) => row.priceChanges.length ? <ul className="space-y-1">{row.priceChanges.map(p => <li key={`${p.itemId}-${p.currency}`}>
           <code>{p.itemId}</code> ({p.currency}): {money(p.firstUnitCents, p.currency)} to {money(p.lastUnitCents, p.currency)} per unit, {p.changes} change{p.changes === 1 ? '' : 's'}{p.changePercent !== undefined ? ` (${p.changePercent}%)` : ''}
-        </li>)}</ul> : 'No price changes'}</td>
-        <td className="text-right tabular-nums">{row.returns.credits ? `${row.returns.credits} credit${row.returns.credits === 1 ? '' : 's'}, ${row.returns.units} unit${row.returns.units === 1 ? '' : 's'}, ${money(row.returns.cents)}` : 'None'}</td>
-      </tr>)}</tbody>
-    </table></ReportTableScroll>}
+        </li>)}</ul> : 'No price changes' },
+        { header: "Returns", align: 'right', className: "tabular-nums", cell: (row) => row.returns.credits ? `${row.returns.credits} credit${row.returns.credits === 1 ? '' : 's'}, ${row.returns.units} unit${row.returns.units === 1 ? '' : 's'}, ${money(row.returns.cents)}` : 'None' },
+      ]}
+    /></ReportTableScroll>}
 
     {!loading && visibleRows.length === 0 && valid && <p>{rows.length ? 'No matching vendors. Clear the vendor search.' : 'No vendors to show for this period.'}</p>}
   </section>;

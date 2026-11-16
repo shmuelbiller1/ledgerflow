@@ -8,6 +8,7 @@ import type { Milestone } from '../../lib/milestones';
 import { db } from '../../firebase';
 import { doc, updateDoc } from '../../lib/db/firestore';
 import { MilestoneSchedule } from './MilestoneSchedule';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 type Mode = OrderPart['mode'];
@@ -88,31 +89,20 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
           {byQuantity ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--muted)]">This order has stock items, so it is invoiced by quantity: stock and cost move with what is invoiced. To take money before delivery, use Deposit on the order.</p>
-              <table className="w-full text-xs">
-                <caption className="text-left text-xs font-semibold text-[var(--muted)] mb-1">How many to invoice now</caption>
-                <thead>
-                  <tr className="text-[var(--muted)]">
-                    <th scope="col" className="text-left font-semibold py-0.5">Line</th>
-                    <th scope="col" className="text-right font-semibold py-0.5">Ordered</th>
-                    <th scope="col" className="text-right font-semibold py-0.5">Left</th>
-                    <th scope="col" className="text-right font-semibold py-0.5">Now</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map(line => (
-                    <tr key={line.position}>
-                      <td className="py-0.5 pr-2">{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</td>
-                      <td className="py-0.5 text-right font-mono">{line.quantity}</td>
-                      <td className="py-0.5 text-right font-mono">{line.leftQuantity}</td>
-                      <td className="py-0.5 pl-2 text-right">
-                        <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
+                            <RowTable
+                rowHeaderColumn={false}
+                caption={(<>How many to invoice now</>)}
+                rows={lines}
+                rowKey={line => line.position}
+                columns={[
+                  { header: "Line", className: "font-semibold py-0.5 pr-2", cell: (line) => (<>{line.description}{line.itemId ? '' : <span className="text-[var(--muted)]"> (not a stock item)</span>}</>) },
+                  { header: "Ordered", align: 'right', className: "font-semibold py-0.5 font-mono", cell: (line) => line.quantity },
+                  { header: "Left", align: 'right', className: "font-semibold py-0.5 font-mono", cell: (line) => line.leftQuantity },
+                  { header: "Now", align: 'right', className: "font-semibold py-0.5 pl-2", cell: (line) => <input aria-label={`How many of ${line.description || `line ${line.position + 1}`} to invoice now`} inputMode="decimal" value={quantities[line.position] ?? ''}
                           disabled={line.leftQuantity <= 0}
-                          onChange={e => { setDirty(true); setQuantities(qs => qs.map((q, i) => (i === line.position ? e.target.value : q))); }} className={`${field} w-20 font-mono text-right`} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          onChange={e => { setDirty(true); setQuantities(qs => qs.map((q, i) => (i === line.position ? e.target.value : q))); }} className={`${field} w-20 font-mono text-right`} /> },
+                ]}
+              />
             </div>
           ) : (
           <fieldset className="space-y-2">

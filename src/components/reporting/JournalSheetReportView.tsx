@@ -5,6 +5,7 @@ import { BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, cn } from '../../lib/utils';
 import { computeJournalSheet, yearRange } from '../../server/reports/itemReports';
+import { RowTable } from '../ui/RowTable';
 
 interface Props {
   selectedYear?: number;
@@ -87,27 +88,20 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
               </div>
 
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <caption className="sr-only">{`Lines of ${entry.description || entry.id}`}</caption>
-                  <thead>
-                    <tr className="text-[var(--muted)] font-bold uppercase text-[10px]">
-                      <th scope="col" className="pb-2">Account</th>
-                      <th scope="col" className="pb-2">Memo</th>
-                      <th scope="col" className="pb-2 text-right">Debit</th>
-                      <th scope="col" className="pb-2 text-right">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {entry.lines.map(line => (
-                      <tr key={line.key}>
-                        <td className="py-2 font-medium">{line.accountName}</td>
-                        <td className="py-2 text-[var(--muted)]">{line.description || '—'}</td>
-                        <td className="py-2 text-right font-mono">{line.debitCents ? formatCurrency(line.debitCents) : '—'}</td>
-                        <td className="py-2 text-right font-mono">{line.creditCents ? formatCurrency(line.creditCents) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                <RowTable
+                  rowHeaderColumn={false}
+                  caption={`Lines of ${entry.description || entry.id}`}
+                  rows={entry.lines}
+                  rowKey={line => line.key}
+                  tableClassName="w-full text-left text-xs"
+                  headRowClassName="text-[var(--muted)] font-bold uppercase text-[10px]"
+                  columns={[
+                    { header: "Account", className: "pb-2 py-2 font-medium", cell: (line) => line.accountName },
+                    { header: "Memo", className: "pb-2 py-2 text-[var(--muted)]", cell: (line) => line.description || '—' },
+                    { header: "Debit", align: 'right', className: "pb-2 py-2 font-mono", cell: (line) => line.debitCents ? formatCurrency(line.debitCents) : '—' },
+                    { header: "Credit", align: 'right', className: "pb-2 py-2 font-mono", cell: (line) => line.creditCents ? formatCurrency(line.creditCents) : '—' },
+                  ]}
+                />
               </div>
             </div>
           ))}

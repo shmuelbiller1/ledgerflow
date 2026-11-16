@@ -25,6 +25,7 @@ import { randomWarehouseToken } from '../../lib/warehouseRecordUtils';
 import { goodsLeaveWith } from '../../lib/deliveries';
 import type { Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const PICK_CSV_HEADERS = ['Sales order', 'Customer', 'Location', 'Bin', 'SKU', 'Item', 'Quantity to pick'];
@@ -275,23 +276,19 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
       {problem && <p role="alert" className="text-sm text-[var(--neg)]">{problem}</p>}
 
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>Shipment tracking history for {order?.number || order?.id || 'selected sales order'}</caption>
-          <thead><tr>
-            <th scope="col" className="text-left py-2 px-2">Source</th>
-            <th scope="col" className="text-left py-2 px-2">Shipped</th>
-            <th scope="col" className="text-left py-2 px-2">Carrier</th>
-            <th scope="col" className="text-left py-2 px-2">Tracking number</th>
-          </tr></thead>
-          <tbody>
-            {existingShipments.map(record => <tr key={record.id} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-2 px-2">{record.label || `${record.sourceType} ${record.sourceNumber}`}</th>
-              <td className="py-2 px-2">{record.shippedDate}</td>
-              <td className="py-2 px-2"><bdi>{record.carrier}</bdi></td>
-              <td className="py-2 px-2"><bdi>{record.trackingNumber}</bdi></td>
-            </tr>)}
-          </tbody>
-        </table>
+                <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Shipment tracking history for {order?.number || order?.id || 'selected sales order'}</>)}
+          rows={existingShipments}
+          rowKey={record => record.id}
+          tableClassName="w-full text-sm"
+          columns={[
+            { header: "Source", className: "py-2 px-2 font-normal", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
+            { header: "Shipped", className: "py-2 px-2", cell: (record) => record.shippedDate },
+            { header: "Carrier", className: "py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
+            { header: "Tracking number", className: "py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
+          ]}
+        />
         {!existingShipments.length && <p className="p-3 text-sm text-[var(--muted)]">No shipment tracking has been recorded for this order.</p>}
       </ReportTableScroll>
     </div>

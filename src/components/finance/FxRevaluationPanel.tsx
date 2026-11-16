@@ -6,6 +6,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { CLOSE_ROLES } from '../../lib/periodLock';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * The month-end currency revaluation (R-07), shown in the currency tool.
@@ -187,33 +188,22 @@ export function FxRevaluationPanel() {
           )}
           {plan.unpriced.length === 0 && plan.details.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <caption className="sr-only">What the revaluation moves, document by document</caption>
-                <thead>
-                  <tr className="text-left text-[var(--muted)]">
-                    <th scope="col" className="py-1 pr-3 font-semibold">Document</th>
-                    <th scope="col" className="py-1 pr-3 font-semibold">Open</th>
-                    <th scope="col" className="py-1 pr-3 font-semibold text-right">Booked at</th>
-                    <th scope="col" className="py-1 pr-3 font-semibold text-right">{historical ? `Rate on ${valuationDate}` : 'Today at'}</th>
-                    <th scope="col" className="py-1 pr-3 font-semibold text-right">In {base}</th>
-                    <th scope="col" className="py-1 font-semibold text-right">Moves by</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plan.details.map(d => (
-                    <tr key={`${d.side}:${d.id}`} className="border-t border-[var(--line)]">
-                      <th scope="row" className="py-1 pr-3 text-left font-normal text-[var(--text)]">
-                        {d.number}<span className="block text-[var(--muted)]">{d.partyName}</span>
-                      </th>
-                      <td className="py-1 pr-3 text-[var(--text)] whitespace-nowrap">{money(d.openCents, d.currency)}</td>
-                      <td className="py-1 pr-3 text-right text-[var(--muted)] tabular-nums">{d.bookedRate.toFixed(4)}</td>
-                      <td className="py-1 pr-3 text-right text-[var(--muted)] tabular-nums">{d.todayRate.toFixed(4)}</td>
-                      <td className="py-1 pr-3 text-right text-[var(--muted)] tabular-nums whitespace-nowrap">{money(d.bookedBaseCents)} → {money(d.todayBaseCents)}</td>
-                      <td className="py-1 text-right font-semibold tabular-nums text-[var(--text)]">{money(d.deltaCents)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <RowTable
+                rowClassName="border-t border-[var(--line)]"
+                caption={(<>What the revaluation moves, document by document</>)}
+                rows={plan.details}
+                rowKey={d => `${d.side}:${d.id}`}
+                tableClassName="w-full border-collapse"
+                headRowClassName="text-left text-[var(--muted)]"
+                columns={[
+                  { header: "Document", className: "py-1 pr-3 font-semibold font-normal text-[var(--text)]", cell: (d) => (<>{d.number}<span className="block text-[var(--muted)]">{d.partyName}</span></>) },
+                  { header: "Open", className: "py-1 pr-3 font-semibold text-[var(--text)] whitespace-nowrap", cell: (d) => money(d.openCents, d.currency) },
+                  { header: "Booked at", align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums", cell: (d) => d.bookedRate.toFixed(4) },
+                  { header: historical ? `Rate on ${valuationDate}` : 'Today at', align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums", cell: (d) => d.todayRate.toFixed(4) },
+                  { header: "In {base}", align: 'right', className: "py-1 pr-3 font-semibold text-[var(--muted)] tabular-nums whitespace-nowrap", cell: (d) => (<>{money(d.bookedBaseCents)} → {money(d.todayBaseCents)}</>) },
+                  { header: "Moves by", align: 'right', className: "py-1 font-semibold tabular-nums text-[var(--text)]", cell: (d) => money(d.deltaCents) },
+                ]}
+              />
             </div>
           )}
           {plan.unpriced.length === 0 && plan.lines.length > 0 && (

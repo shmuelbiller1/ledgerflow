@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Bill, ChartAccount } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { billsInExpenseCategory, expenseAccountCategories, UNMAPPED_BILL_CATEGORY } from '../../lib/expenseAccountCategories';
+import { RowTable } from '../ui/RowTable';
 
 interface Props {
   accounts: readonly ChartAccount[];
@@ -88,25 +89,21 @@ export default function ExpenseBillCategories({
       {selectedBills.length === 0
         ? <p className="text-neutral-500">{loading ? 'Loading bill records…' : 'No loaded bills match this category and period.'}</p>
         : <div role="region" aria-label="Bills by expense category" tabIndex={0} className="max-h-72 overflow-auto rounded-lg border border-neutral-200">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Bills matching the selected expense account category</caption>
-            <thead className="sticky top-0 bg-neutral-50"><tr>
-              <th scope="col" className="p-2">Vendor</th>
-              <th scope="col" className="p-2">Bill</th>
-              <th scope="col" className="p-2">Date</th>
-              <th scope="col" className="p-2">Status</th>
-              <th scope="col" className="p-2 text-right">Document amount</th>
-            </tr></thead>
-            <tbody>
-              {selectedBills.map(bill => <tr key={bill.id} className="border-t border-neutral-100">
-                <td className="p-2">{bill.vendorName || bill.vendorId}</td>
-                <td className="p-2">{bill.number || bill.id}</td>
-                <td className="p-2">{bill.date || bill.issueDate || 'Unknown'}</td>
-                <td className="p-2">{bill.status}</td>
-                <td className="p-2 text-right">{formatCurrency(bill.amountCents, bill.currency || currency)}</td>
-              </tr>)}
-            </tbody>
-          </table>
+                    <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-t border-neutral-100"
+            caption={(<>Bills matching the selected expense account category</>)}
+            rows={selectedBills}
+            rowKey={bill => bill.id}
+            tableClassName="w-full text-left text-xs"
+            columns={[
+              { header: "Vendor", className: "p-2", cell: (bill) => bill.vendorName || bill.vendorId },
+              { header: "Bill", className: "p-2", cell: (bill) => bill.number || bill.id },
+              { header: "Date", className: "p-2", cell: (bill) => bill.date || bill.issueDate || 'Unknown' },
+              { header: "Status", className: "p-2", cell: (bill) => bill.status },
+              { header: "Document amount", align: 'right', className: "p-2", cell: (bill) => formatCurrency(bill.amountCents, bill.currency || currency) },
+            ]}
+          />
         </div>}
       <p className="text-neutral-500">
         The bill amount is its original document total, not the amount assigned to the selected account.

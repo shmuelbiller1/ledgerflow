@@ -12,6 +12,7 @@ import { getLocalDateISO, formatDate } from '../../lib/utils';
 import { findAccount, reversalDate } from '../../services/ledgerPost/postingKit';
 import { deliveredByLine, deliveryLines, deliveryProblem, newDeliveryId, newReturnId, orderDeliveries, returnProblem } from '../../lib/deliveries';
 import type { Estimate } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'px-2 py-1 text-sm bg-[var(--ink)] border border-[var(--line)] rounded text-[var(--text)]';
 
@@ -141,30 +142,21 @@ export default function OrderDeliveryDialog({ order, canWrite, onClose }: { orde
         </div>
         <div className="p-5 space-y-4 text-sm">
           <p className="text-xs text-[var(--muted)]">The units that leave now come out of stock and their cost is booked. Invoicing is separate.</p>
-          <table className="w-full text-xs">
-            <caption className="sr-only">Items of order {name}</caption>
-            <thead>
-              <tr className="text-[var(--muted)] border-b border-[var(--line)]">
-                <th scope="col" className="text-left font-semibold py-1">Item</th>
-                <th scope="col" className="text-right font-semibold py-1">Ordered</th>
-                <th scope="col" className="text-right font-semibold py-1">Delivered</th>
-                <th scope="col" className="text-right font-semibold py-1">Now</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map(l => (
-                <tr key={l.position} className="border-b border-[var(--line)]/50">
-                  <td className="py-1"><bdi>{l.description || 'Item'}</bdi></td>
-                  <td className="py-1 text-right font-mono">{l.ordered}</td>
-                  <td className="py-1 text-right font-mono">{l.delivered}</td>
-                  <td className="py-1 text-right">
-                    <input aria-label={`Deliver now: ${l.description || 'item'}`} inputMode="decimal" value={now[l.position] ?? ''} disabled={!canWrite || l.left === 0}
-                      onChange={e => setNow(n => ({ ...n, [l.position]: e.target.value }))} className={`${field} w-20 text-right font-mono`} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-b border-[var(--line)]/50"
+            caption={(<>Items of order {name}</>)}
+            rows={lines}
+            rowKey={l => l.position}
+            headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
+            columns={[
+              { header: "Item", className: "font-semibold py-1", cell: (l) => <bdi>{l.description || 'Item'}</bdi> },
+              { header: "Ordered", align: 'right', className: "font-semibold py-1 font-mono", cell: (l) => l.ordered },
+              { header: "Delivered", align: 'right', className: "font-semibold py-1 font-mono", cell: (l) => l.delivered },
+              { header: "Now", align: 'right', className: "font-semibold py-1", cell: (l) => <input aria-label={`Deliver now: ${l.description || 'item'}`} inputMode="decimal" value={now[l.position] ?? ''} disabled={!canWrite || l.left === 0}
+                      onChange={e => setNow(n => ({ ...n, [l.position]: e.target.value }))} className={`${field} w-20 text-right font-mono`} /> },
+            ]}
+          />
           {canWrite && (
             <div className="flex flex-wrap items-end gap-3 text-xs">
               <label className="flex flex-col gap-0.5 text-[var(--muted)]">Date

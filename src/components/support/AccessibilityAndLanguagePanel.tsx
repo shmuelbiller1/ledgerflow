@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Accessibility, CheckCircle2, Languages } from 'lucide-react';
 import { auditScreenTranslations, SCREEN_TRANSLATION_TABLE } from '../../lib/i18n/screenTranslations';
 import { useUIStore } from '../../stores/useUIStore';
+import { RowTable } from '../ui/RowTable';
 
 interface AccessibilityAndLanguagePanelProps {
   onOpenSupport?: () => void;
@@ -127,25 +128,20 @@ export default function AccessibilityAndLanguagePanel({ onOpenSupport }: Accessi
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <caption className="sr-only">English and Hebrew UI strings for {activeBundle.screenNameEn}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left py-2 pr-3">Key</th>
-                <th scope="col" className="text-left py-2 pr-3">English (`en`)</th>
-                <th scope="col" className="text-right py-2 pl-3">Hebrew (`he`)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeBundle.strings.map(item => (
-                <tr key={item.key} className="border-b border-[var(--line)]/60">
-                  <td className="py-2 pr-3 font-mono text-xs text-[var(--muted)]">{item.key}</td>
-                  <td className="py-2 pr-3 text-[var(--text)]">{item.en}</td>
-                  <td className="py-2 pl-3 text-right text-[var(--text)]" dir="rtl"><bdi>{item.he}</bdi></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-b border-[var(--line)]/60"
+            caption={(<>English and Hebrew UI strings for {activeBundle.screenNameEn}</>)}
+            rows={activeBundle.strings}
+            rowKey={item => item.key}
+            tableClassName="w-full text-sm"
+            headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+            columns={[
+              { header: "Key", className: "py-2 pr-3 font-mono text-xs text-[var(--muted)]", cell: (item) => item.key },
+              { header: "English (`en`)", className: "py-2 pr-3 text-[var(--text)]", cell: (item) => item.en },
+              { header: "Hebrew (`he`)", align: 'right', className: "py-2 pl-3 text-[var(--text)]", cell: (item) => <bdi>{item.he}</bdi> },
+            ]}
+          />
         </div>
       </section>
     </div>

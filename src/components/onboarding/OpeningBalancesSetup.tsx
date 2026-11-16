@@ -10,6 +10,7 @@ import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { failed, identityScope, ok } from '../../lib/serverAction';
 import { BRAND_NAME } from '../../config/brand';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 /** Existing opening-entry preview/API, moved out of first-run setup; no posting rules change. */
 export default function OpeningBalancesSetup({ onClose }: { onClose: () => void }) {
@@ -71,23 +72,20 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
             {!equity ? (
               <p className="text-sm text-[var(--neg)]">Add an &quot;Opening Balance Equity&quot; account to the chart of accounts first, or start from zero.</p>
             ) : (
-              <table className="w-full text-sm">
-                <caption className="sr-only">Opening balance per account</caption>
-                <thead>
-                  <tr className="text-left text-xs text-[var(--muted)]"><th scope="col" className="py-1">Account</th><th scope="col" className="py-1 text-right">Balance ({currency})</th></tr>
-                </thead>
-                <tbody>
-                  {eligible.map(a => (
-                    <tr key={a.id} className="border-t border-[var(--line)]">
-                      <td className="py-1.5"><label htmlFor={`ob-${a.id}`}>{a.code ? `${a.code} · ` : ''}{a.name}</label></td>
-                      <td className="py-1.5 text-right">
-                        <input id={`ob-${a.id}`} type="number" step="0.01" inputMode="decimal" className={`${field} w-36 text-right font-mono`}
-                          value={amounts[a.id] || ''} placeholder="0.00" onChange={e => setAmounts({ ...amounts, [a.id]: e.target.value })} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <RowTable
+                rowHeaderColumn={false}
+                rowClassName="border-t border-[var(--line)]"
+                caption={(<>Opening balance per account</>)}
+                rows={eligible}
+                rowKey={a => a.id}
+                tableClassName="w-full text-sm"
+                headRowClassName="text-left text-xs text-[var(--muted)]"
+                columns={[
+                  { header: "Account", className: "py-1 py-1.5", cell: (a) => <label htmlFor={`ob-${a.id}`}>{a.code ? `${a.code} · ` : ''}{a.name}</label> },
+                  { header: "Balance ({currency})", align: 'right', className: "py-1 py-1.5", cell: (a) => <input id={`ob-${a.id}`} type="number" step="0.01" inputMode="decimal" className={`${field} w-36 text-right font-mono`}
+                          value={amounts[a.id] || ''} placeholder="0.00" onChange={e => setAmounts({ ...amounts, [a.id]: e.target.value })} /> },
+                ]}
+              />
             )}
             {preview && preview.lines.length > 0 && (
               <p className="text-sm tabular-nums" aria-live="polite">

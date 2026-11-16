@@ -12,6 +12,7 @@ import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { LandedCostRequestError, landedCostRequest, undoLandedCostRequest, type LandedCostPostResult } from '../../services/stockRequests';
 import type { SpreadBasis } from '../../lib/landedCostPreview';
 import type { Bill, ChartAccount } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 interface Props {
   workspaceId: string;
@@ -151,15 +152,20 @@ export default function LandedCostPostPanel({ workspaceId, currency, bills, acco
       {plan && (
         <div className="space-y-2 overflow-x-auto">
           <p className="text-sm">{plan.dryRun ? 'Will post' : 'Posted'} on {plan.date}{plan.movedToOpenDay ? ' (today: the day asked for is locked)' : ''}:</p>
-          <table className="w-full text-sm border-collapse">
-            <caption className="sr-only">Entry the landed cost posts</caption>
-            <thead><tr className="border-b text-left"><th scope="col" className="py-1 pr-3">Account</th><th scope="col" className="py-1 pr-3">Line</th><th scope="col" className="py-1 text-right">Amount</th></tr></thead>
-            <tbody>
-              {plan.entryLines.map(l => (
-                <tr key={`${l.accountId}|${l.description}|${l.amountCents}`} className="border-b"><td className="py-1 pr-3">{l.accountName || l.accountId}</td><td className="py-1 pr-3">{l.description}</td><td className="py-1 text-right tabular-nums">{formatCurrency(l.amountCents, currency)}</td></tr>
-              ))}
-            </tbody>
-          </table>
+                    <RowTable
+            rowHeaderColumn={false}
+            rowClassName="border-b"
+            caption={(<>Entry the landed cost posts</>)}
+            rows={plan.entryLines}
+            rowKey={l => `${l.accountId}|${l.description}|${l.amountCents}`}
+            tableClassName="w-full text-sm border-collapse"
+            headRowClassName="border-b text-left"
+            columns={[
+              { header: "Account", className: "py-1 pr-3", cell: (l) => l.accountName || l.accountId },
+              { header: "Line", className: "py-1 pr-3", cell: (l) => l.description },
+              { header: "Amount", align: 'right', className: "py-1 tabular-nums", cell: (l) => formatCurrency(l.amountCents, currency) },
+            ]}
+          />
           <ul className="text-sm">
             {plan.lines.map(l => (
               <li key={l.key}>{l.itemName}: +{formatCurrency(l.allocatedCents, currency)}{l.cogsCents ? ` (${formatCurrency(l.cogsCents, currency)} to cost of goods sold for units already sold)` : ''}, unit cost {formatCurrency(l.unitCostBeforeCents, currency)} → {formatCurrency(l.unitCostAfterCents, currency)}</li>

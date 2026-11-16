@@ -37,6 +37,7 @@ import { HourlyPayCell } from './HourlyPayCell';
 import { asPaidFor, hoursToPay, isHourly, type PayableTime } from '../../lib/hourlyPay';
 import { isEmailShape } from '../../lib/textShape';
 import { secureId } from '../../lib/secureId';
+import { RowTable } from '../ui/RowTable';
 
 const PayrollViewContent: React.FC = () => {
   const employees = useLedgerStore(s => (s.employees || []) as Employee[]);
@@ -673,35 +674,21 @@ const PayrollViewContent: React.FC = () => {
 
               {/* Employee Breakdown */}
               <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-[11px]">
-                  <caption className="sr-only">Pay run by employee</caption>
-                  <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold">
-                    <tr>
-                      <th scope="col" className="py-2 px-3">Employee</th>
-                      <th scope="col" className="py-2 px-3 text-right">Gross</th>
-                      <th scope="col" className="py-2 px-3 text-right">Income Tax W/H</th>
-                      <th scope="col" className="py-2 px-3 text-right">FICA & Med</th>
-                      <th scope="col" className="py-2 px-3 text-right">Net Pay</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {calculatedPayRun.items.map((item) => (
-                      <tr key={item.employee.id}>
-                        <td className="py-2 px-3 font-medium text-neutral-900"><EmployeeInlineDetails employee={item.employee} /></td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(item.calc.grossPayCents)}</td>
-                        <td className="py-2 px-3 text-right font-mono text-neutral-600">
-                          {formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents)}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono text-neutral-600">
-                          {formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents)}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600">
-                          {formatCurrency(item.calc.netPayCents)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                <RowTable
+                  rowHeaderColumn={false}
+                  caption={(<>Pay run by employee</>)}
+                  rows={calculatedPayRun.items}
+                  rowKey={item => item.employee.id}
+                  tableClassName="w-full text-left text-[11px]"
+                  bodyClassName="divide-y divide-neutral-100"
+                  columns={[
+                    { header: "Employee", className: "py-2 px-3 font-medium text-neutral-900", cell: (item) => <EmployeeInlineDetails employee={item.employee} /> },
+                    { header: "Gross", align: 'right', className: "py-2 px-3 font-mono", cell: (item) => formatCurrency(item.calc.grossPayCents) },
+                    { header: "Income Tax W/H", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", cell: (item) => formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents) },
+                    { header: "FICA & Med", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", cell: (item) => formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents) },
+                    { header: "Net Pay", align: 'right', className: "py-2 px-3 font-mono font-bold text-emerald-600", cell: (item) => formatCurrency(item.calc.netPayCents) },
+                  ]}
+                />
               </div>
             </div>
 
