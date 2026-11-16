@@ -17,3 +17,12 @@ test('Bank: every bankText key has its English fallback and Hebrew in the table'
   assert.equal(translateScreenString('banking', 'error.loadTitle', 'he', ''), 'לא הצלחנו לטעון את חשבונות הבנק');
   assert.equal(translateScreenString('banking', 'action.syncFeed', 'en', 'Sync Feed'), 'Sync Feed');
 });
+
+for (const dialog of ['TransferModal', 'MakeDepositDialog', 'CashMovementDialog', 'ConnectedBanks']) {
+  test(`Bank ${dialog}: no visible English outside bankText, and every key has Hebrew`, () => {
+    const r = checkTranslatedScreen(fileURLToPath(new URL(`../components/banking/${dialog}.tsx`, import.meta.url)), 'banking', 'bankText');
+    assert.deepEqual(r.untranslated, []);
+    assert.deepEqual(r.badKeys, []);
+    assert.ok(r.calls > 0);
+  });
+}

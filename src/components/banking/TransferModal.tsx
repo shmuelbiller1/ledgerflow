@@ -2,6 +2,8 @@ import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import { toast } from 'sonner';
 import { runOnce } from '../../lib/serverAction';
+import { useUIStore } from '../../stores/useUIStore';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import React, { useState, useMemo, useId, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -28,6 +30,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 }) => {
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, isOpen);
   const amountId = useId();
+  const language = useUIStore(st => st.language);
+  const bankText = (key: string, fallback: string) => translateScreenString('banking', key, language, fallback);
   const accounts = useLedgerStore(s => s.accounts);
   const transactions = useLedgerStore(s => s.transactions);
   const txActions = useTransactionActions();
@@ -163,9 +167,9 @@ export const TransferModal: React.FC<TransferModalProps> = ({
         <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
           <div className="flex items-center gap-2">
             <ArrowRightLeft aria-hidden="true" className="w-4 h-4 text-neutral-800" />
-            <h2 id={overlayTitleId} className="text-sm font-bold text-neutral-900">Inter-Account Transfer</h2>
+            <h2 id={overlayTitleId} className="text-sm font-bold text-neutral-900">{bankText('transfer.title', 'Inter-Account Transfer')}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close transfer dialog" className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-md">
+          <button onClick={onClose} aria-label={bankText('transfer.close', 'Close transfer dialog')} className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-md">
             <X aria-hidden="true" className="w-4 h-4" />
           </button>
         </div>
@@ -178,7 +182,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               activeTab === 'create' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
-            Record Transfer
+            {bankText('transfer.tabRecord', 'Record Transfer')}
           </button>
           <button
             onClick={() => setActiveTab('detect')}
@@ -187,7 +191,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
             }`}
           >
             <Sparkles aria-hidden="true" className="w-3 h-3 text-amber-600" />
-            Transfer Suggestions ({candidates.length})
+            {bankText('transfer.tabSuggestions', 'Transfer Suggestions')} ({candidates.length})
           </button>
         </div>
 
@@ -202,13 +206,13 @@ export const TransferModal: React.FC<TransferModalProps> = ({
           ) : activeTab === 'create' ? (
             <div className="space-y-4 text-xs">
               <div>
-                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="From Account (Source)">
+                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label={bankText('transfer.from', 'From Account (Source)')}>
                   <select
                     value={fromAccountId}
                     onChange={e => setFromAccountId(e.target.value)}
                     className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg text-xs focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                   >
-                    <option value="">Select source bank/cash account...</option>
+                    <option value="">{bankText('transfer.chooseFrom', 'Select source bank/cash account...')}</option>
                     {cashAccounts.map(a => (
                       <option key={a.id} value={a.id} disabled={a.id === toAccountId}>
                         {a.name} ({a.code || a.category})
@@ -219,13 +223,13 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               </div>
 
               <div>
-                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="To Account (Destination)">
+                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label={bankText('transfer.to', 'To Account (Destination)')}>
                   <select
                     value={toAccountId}
                     onChange={e => setToAccountId(e.target.value)}
                     className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg text-xs focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                   >
-                    <option value="">Select destination bank/cash account...</option>
+                    <option value="">{bankText('transfer.chooseTo', 'Select destination bank/cash account...')}</option>
                     {cashAccounts.map(a => (
                       <option key={a.id} value={a.id} disabled={a.id === fromAccountId}>
                         {a.name} ({a.code || a.category})
@@ -237,7 +241,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor={amountId} className="block font-semibold text-neutral-700 mb-1">Amount ($)</label>
+                  <label htmlFor={amountId} className="block font-semibold text-neutral-700 mb-1">{bankText('transfer.amount', 'Amount')}</label>
                   <div className="relative">
                     <DollarSign aria-hidden="true" className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-neutral-400" />
                     <input
@@ -253,7 +257,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   </div>
                 </div>
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Transfer Date">
+                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label={bankText('transfer.date', 'Transfer Date')}>
                     <input
                       type="date"
                       value={date}
@@ -265,10 +269,10 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               </div>
 
               <div>
-                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Reference / Note (Optional)">
+                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label={bankText('transfer.note', 'Reference / Note (Optional)')}>
                   <input
                     type="text"
-                    placeholder="e.g. Sweep to high-yield savings"
+                    placeholder={bankText('transfer.notePlaceholder', 'e.g. Sweep to high-yield savings')}
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     className="w-full p-2 bg-white border border-neutral-300 rounded-lg text-xs focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
@@ -279,7 +283,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-[11px] text-neutral-600 flex items-start gap-2">
                 <HelpCircle aria-hidden="true" className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
                 <span>
-                  Inter-account transfers are recorded as balanced double-entry journals without affecting your Profit & Loss income or operational expenses.
+                  {bankText('transfer.explain', 'Inter-account transfers are recorded as balanced double-entry journals without affecting your Profit & Loss income or operational expenses.')}
                 </span>
               </div>
 
@@ -289,7 +293,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   onClick={onClose}
                   className="px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
                 >
-                  Cancel
+                  {bankText('action.cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
@@ -298,19 +302,19 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   className="px-4 py-2 text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
                 >
                   <Check aria-hidden="true" className="w-3.5 h-3.5" />
-                  {saving ? 'Recording…' : 'Post Transfer'}
+                  {saving ? bankText('transfer.recording', 'Recording…') : bankText('transfer.post', 'Post Transfer')}
                 </button>
               </div>
             </div>
           ) : (
             <div className="space-y-3">
               <p className="text-xs text-neutral-500">
-                The smart transfer detector found these matched transactions between cash accounts that look like internal money movements:
+                {bankText('transfer.detectIntro', 'The smart transfer detector found these matched transactions between cash accounts that look like internal money movements:')}
               </p>
 
               {candidates.length === 0 ? (
                 <div className="text-center py-8 text-neutral-400 text-xs">
-                  No unmatched inter-account transfer pairs detected in the current ledger.
+                  {bankText('transfer.none', 'No unmatched inter-account transfer pairs detected in the current ledger.')}
                 </div>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -319,19 +323,19 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                       <div>
                         <div className="font-semibold text-neutral-900 flex items-center gap-1.5">
                           <span>{cand.fromAccount.name}</span>
-                          <span className="text-neutral-400">&rarr;</span>
+                          <span aria-hidden="true" className="text-neutral-400">→</span>
                           <span>{cand.toAccount.name}</span>
                         </div>
                         <div className="text-[11px] text-neutral-500 mt-0.5">
-                          {formatCurrency(cand.amountCents)} &bull; {cand.outflowTx.date}
-                          {cand.dateDiffDays > 0 ? ` (+${cand.dateDiffDays}d)` : ''}
+                          {formatCurrency(cand.amountCents)} • {cand.outflowTx.date}
+                          {cand.dateDiffDays > 0 ? ` (+${cand.dateDiffDays} ${bankText('transfer.days', 'days')})` : ''}
                         </div>
                       </div>
                       <button
                         onClick={() => handleMergeCandidate(cand)}
                         className="px-3 py-1.5 text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-800 rounded-md transition-colors whitespace-nowrap"
                       >
-                        Link as Transfer
+                        {bankText('transfer.link', 'Link as Transfer')}
                       </button>
                     </div>
                   ))}
