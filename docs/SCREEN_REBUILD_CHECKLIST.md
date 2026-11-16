@@ -87,9 +87,9 @@ Measured now by `npx tsx scripts/codemod-row-table.ts` → **199 tables in 158 f
 |---|---|---|---|---|
 | 1 | a totals row in a `<tfoot>` | 17 | ✋ `RowTable` has `footer`; move the totals row across by hand | 17 |
 | 2 | a body that is not one expression (an empty-state row beside the rows) | 26 | ✋ pass `empty`, then the body is one map | ~24 |
-| 3 | a header row that is not one of the four shapes the table can take | 46 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
-| 4 | a row that does not line up with its header | 37 | ✋ usually a nested list, or a cell that spans — name which | ~37 |
-| 5 | a map that does not return a row | 28 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~28 |
+| 3 | a header row that is not one of the four shapes the table can take | 44 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
+| 4 | a row that does not line up with its header | 40 | ✋ usually a nested list, or a cell that spans — name which | ~37 |
+| 5 | a map that does not return a row | 27 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~28 |
 | 6 | a callback that is destructured, or has a body | 10 | ✋ `({id, name}) => …` or a `{ const x = …; return <tr> }` body | 10 |
 | 7 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
 | 8 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |

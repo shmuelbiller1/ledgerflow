@@ -53,30 +53,75 @@ export interface Attempt {
 /** `index` moved to just past the expression that starts with `{` at `index`. */
 function skipExpression(source: string, index: number): number {
   let depth = 0;
-  for (let at = index; at < source.length; at++) {
+  let at = index;
+  while (at < source.length) {
     const ch = source[at];
-    if (ch === '{') depth++;
-    else if (ch === '}') {
+    if (ch === '{') {
+      depth++;
+    } else if (ch === '}') {
       depth--;
       if (depth === 0) return at + 1;
     } else if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch;
-      for (at++; at < source.length; at++) {
-        if (source[at] === '\\') at++;
-        else if (source[at] === quote) break;
-      }
+      at = endOfString(source, at);
+      continue;
     }
+    at++;
+  }
+  return source.length;
+}
+
+/** `index` (at a quote) moved to just past the matching quote, a backslash escape included. */
+function endOfString(source: string, index: number): number {
+  const quote = source[index];
+  let at = index + 1;
+  while (at < source.length) {
+    if (source[at] === '\\') {
+      at += 2;
+      continue;
+    }
+    if (source[at] === quote) return at + 1;
+    at++;
   }
   return source.length;
 }
 
 /** `index` moved to just past the opening tag that starts at `index`. */
 function skipOpeningTag(source: string, index: number): number {
-  for (let at = index; at < source.length; at++) {
-    if (source[at] === '{') { at = skipExpression(source, at) - 1; continue; }
+  let at = index;
+  while (at < source.length) {
+    if (source[at] === '{') {
+      at = skipExpression(source, at);
+      continue;
+    }
     if (source[at] === '>') return at + 1;
+    at++;
   }
   return source.length;
+}
+
+/** The `)` that closes the `(` at `index`, or `-1`. Comments, strings and `{…}` are skipped. */
+function closingParen(source: string, index: number): number {
+  let depth = 0;
+  let at = index;
+  while (at < source.length) {
+    const ch = source[at];
+    if (ch === '{') {
+      at = skipExpression(source, at);
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      at = endOfString(source, at);
+      continue;
+    }
+    if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+      if (depth === 0) return at;
+    }
+    at++;
+  }
+  return -1;
 }
 
 /** The `<tag>`/`</tag>` element starting at `index`, to just past its closing tag. */
@@ -120,8 +165,17 @@ function classSource(tag: string): string | undefined {
 }
 
 function classOf(tag: string): string[] {
-  const match = tag.match(/\bclassName=(?:"([^"]*)"|\{`([^`]*)`\}|\{[^}]*`([^`]*)`[^}]*\}|\{'([^']*)'\})/);
-  return (match?.[1] ?? match?.[2] ?? match?.[3] ?? match?.[4] ?? '').split(/\s+/).filter(Boolean);
+  const at = tag.search(/\bclassName=/);
+  if (at === -1) return [];
+  const value = tag.slice(at + 'className='.length);
+  // one anchored alternative each, so no pattern can backtrack over the tag: a quoted class, a template
+  // literal, or a template literal inside an expression (`{`text-left ${th}`}`)
+  const quoted = /^"([^"]*)"|^'([^']*)'/.exec(value);
+  if (quoted) return (quoted[1] ?? quoted[2] ?? '').split(/\s+/).filter(Boolean);
+  const template = /^\{`([^`]*)`\}/.exec(value);
+  if (template) return template[1].split(/\s+/).filter(Boolean);
+  const inExpression = /^\{[^}]*`([^`]*)`[^}]*\}/.exec(value);
+  return (inExpression?.[1] ?? '').split(/\s+/).filter(Boolean);
 }
 
 /** The value of `name=` on a tag, unwrapped from quotes or braces. */
@@ -227,14 +281,47 @@ interface VirtualHead {
 
 type HeadShape = LiteralHead | ArrayHead | ComputedHead | VirtualHead;
 
+interface Mapped {
+  /** The list the map iterates, as written. */
+  list: string;
+  /** The name the map gives one item. */
+  parameter: string;
+  /** The expression the map returns for one item. */
+  rendered: string;
+}
+
+/**
+ * `{list.map((item) => rendered)}` read as its three parts, or `undefined` when it is another shape.
+ *
+ * Scanned rather than matched: a pattern that finds `{`…`.map(`…`)` by lazy repetition is super-linear on the
+ * long, deeply nested one-line JSX these screens are written in, and one of them is 40 KB on a single line.
+ */
+function readMapped(source: string): Mapped | undefined {
+  const text = source.trim();
+  if (!text.startsWith('{') || skipExpression(text, 0) !== text.length) return undefined;
+  const inner = text.slice(1, -1);
+  const mapAt = inner.indexOf('.map(');
+  if (mapAt <= 0) return undefined;
+  const list = inner.slice(0, mapAt).trim();
+  if (!list) return undefined;
+  const arrowAt = inner.indexOf('=>', mapAt);
+  if (arrowAt === -1) return undefined;
+  const parameter = /^\(?\s*([A-Za-z_$][\w$]*)/.exec(inner.slice(mapAt + 5, arrowAt))?.[1];
+  if (!parameter) return undefined;
+  const closeAt = closingParen(inner, mapAt + 4);
+  if (closeAt === -1 || inner.slice(closeAt + 1).trim()) return undefined;
+  const rendered = inner.slice(arrowAt + 2, closeAt).trim();
+  return rendered ? { list, parameter, rendered } : undefined;
+}
+
 /** `<th scope="col" …>text</th>`, where the text holds no tag and no expression. */
 const LITERAL_HEAD_CELL = /^<th\b((?:[^>{}]|\{[^{}]*\})*)>([^<>{}]*)<\/th>$/;
 
 function readHead(inner: string): HeadShape | undefined {
   // one `{list.map(param => …)}` around the whole row is how the array and computed shapes are written
-  const mapped = /^\{([\s\S]+?)\.map\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)?\s*=>\s*([\s\S]+)\)\}\s*$/.exec(inner.trim());
+  const mapped = readMapped(inner);
   if (mapped) {
-    const [, list, parameter, rendered] = mapped;
+    const { list, parameter, rendered } = mapped;
     const tag = /^\s*<th\b/.test(rendered) ? 'th' : 'td';
     const open = openTagAt(rendered, rendered.indexOf('<'));
     const content = rendered.slice(skipOpeningTag(rendered, rendered.indexOf('<')), rendered.lastIndexOf(`</${tag}>`)).trim();
@@ -262,10 +349,10 @@ function readHead(inner: string): HeadShape | undefined {
     if (trimmed[at] === '{') {
       // a `{list.map(…)}` that is not the whole row: the "virtual" shape, a fixed column and then columns
       const end = skipExpression(trimmed, at);
-      const mappedTail = /^\{([\s\S]+?)\.map\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)?\s*=>\s*([\s\S]+)\)\}$/.exec(trimmed.slice(at, end).replace(/\s+/g, ' '));
+      const mappedTail = readMapped(trimmed.slice(at, end));
       if (!mappedTail) return undefined;
       if (trimmed.slice(end).trim()) return undefined;
-      const [, list, parameter, rendered] = mappedTail;
+      const { list, parameter, rendered } = mappedTail;
       const open = openTagAt(rendered, rendered.indexOf('<'));
       const content = rendered.slice(skipOpeningTag(rendered, rendered.indexOf('<')), rendered.lastIndexOf('</th>')).trim();
       const key = attributeOf(open, 'key');
@@ -319,14 +406,16 @@ function readCells(rowInner: string): Cell[] | undefined {
     if (isHeader && !/\bscope="row"/.test(open)) return undefined;
     const content = source.slice(skipOpeningTag(source, 0), source.lastIndexOf(`</${tag[1]}>`)).trim();
     if (!content) return undefined;
-    const nested = /^\{([\s\S]+?)\.map\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)?\s*=>\s*([\s\S]+)\)\}$/.exec(content);
+    const nested = readMapped(content);
     cells.push({
       tag: tag[1] as 'td' | 'th',
       rowHeader: isHeader,
       rawClass: classSource(open),
       classes: classOf(open),
       content,
-      nested: nested && !/\.map\(/.test(nested[3]) ? { list: nested[1], parameter: nested[2], content: nested[3] } : undefined,
+      nested: nested && !nested.rendered.includes('.map(')
+        ? { list: nested.list, parameter: nested.parameter, content: nested.rendered }
+        : undefined,
     });
     at = end;
   }
@@ -397,25 +486,22 @@ export function attemptConvert(source: string, start: number): Attempt {
   const list = expression.slice(0, mapAt).trim();
   // the map's own callback: everything from its `(` to the `)` that closes it, found by balance so a nested
   // `map` inside a cell does not end the body
-  let depth = 0;
-  let close = -1;
-  for (let at = mapAt + 4; at < expression.length; at++) {
-    const ch = expression[at];
-    if (ch === '{') { at = skipExpression(expression, at) - 1; continue; }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      for (at++; at < expression.length && expression[at] !== ch; at++) if (expression[at] === '\\') at++;
-      continue;
-    }
-    if (ch === '(') depth++;
-    else if (ch === ')') { depth--; if (depth === 0) { close = at; break; } }
-  }
+  const close = closingParen(expression, mapAt + 4);
   if (close === -1) return { reason: 'a body this script could not read as one map' };
   if (expression.slice(close + 1).trim()) return { reason: 'a body with more than one map' };
   const callback = expression.slice(mapAt + 5, close).trim();
-  const arrow = callback.match(/^\(?\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)?\s*=>\s*([\s\S]*)$/);
-  if (!arrow) return { reason: 'a callback that is destructured, or has a body this script would have to rewrite' };
-  const [, row, renderedRaw] = arrow;
-  const trimmed = renderedRaw.trim();
+  const arrowAt = callback.indexOf('=>');
+  if (arrowAt === -1) return { reason: 'a callback that is destructured, or has a body this script would have to rewrite' };
+  // `(row) => …`, `row => …` and `(row: Row) => …` name the row; `({ id }) => …` does not, and a callback the
+  // script would have to rewrite is hand work
+  const signature = callback.slice(0, arrowAt).trim();
+  const bare = signature.startsWith('(') && signature.endsWith(')') ? signature.slice(1, -1) : signature;
+  const colonAt = bare.indexOf(':');
+  const row = (colonAt === -1 ? bare : bare.slice(0, colonAt)).trim();
+  if (!/^[A-Za-z_$][\w$]*$/.test(row)) {
+    return { reason: 'a callback that is destructured, or has a body this script would have to rewrite' };
+  }
+  const trimmed = callback.slice(arrowAt + 2).trim();
   // a parenthesised body, `=> ( <tr>…</tr> )`, is the same row
   const rendered = /^\([\s\S]*\)$/.test(trimmed) ? trimmed.slice(1, -1).trim() : trimmed;
   if (!/^\(?\s*<tr\b/.test(rendered)) return { reason: 'a map that does not return a row' };
