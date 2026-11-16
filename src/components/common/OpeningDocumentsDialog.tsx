@@ -27,9 +27,16 @@ async function callOpenItems(mode: 'preview' | 'confirm', body: { workspaceId: s
     if (!json || json.status !== 'success') return { status: 'error', message: json?.message || 'The open items could not be read', rows: json?.rows || [] };
     return json;
   } catch (error) {
+    // A refusal still carries the **rows**: this one says which line failed and why ("Already in the books for
+    // this contact"), and that sentence next to the row is the whole reason the dialog shows a table. Dropping
+    // the rows here left the person with a message and no idea which line to fix.
     const body = error instanceof ServerCommandError ? error.body : null;
-    const message = (body as { message?: string } | null)?.message;
-    return { status: 'error', message: message || commandErrorMessage(error), rows: [] };
+    const refusal = (body && typeof body === 'object' ? body : {}) as { message?: string; rows?: OpenItemRow[] };
+    return {
+      status: 'error',
+      message: refusal.message || commandErrorMessage(error),
+      rows: Array.isArray(refusal.rows) ? refusal.rows : [],
+    };
   }
 }
 
