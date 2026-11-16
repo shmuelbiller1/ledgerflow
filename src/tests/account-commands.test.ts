@@ -56,13 +56,15 @@ async function createHarness() {
   };
   factorsByUid.set(ANN, ['factor-a1']);
   setGroupEmailLookupForTests(async email => EMAIL[email]);
-  setFactorRemoverForTests(async (_db, uid, factorId) => {
+  const removeFactor = async (_db: unknown, uid: string, factorId: string) => {
+    if (state.failFactorRemoval) throw new Error('auth tables unavailable');
     factorsByUid.set(uid, (factorsByUid.get(uid) || []).filter(id => id !== factorId));
-  });
+  };
+  setFactorRemoverForTests(removeFactor);
 
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const auditEntries: AuditEntry[] = [];
-  const state = { failAudits: false };
+  const state = { failAudits: false, failFactorRemoval: false };
   const dependencies = runnerDependencies(db, counters);
   dependencies.auditWriter = async input => {
     if (state.failAudits) throw new Error('audit writer is down');
@@ -116,6 +118,9 @@ async function createHarness() {
     factors: factorsByUid,
     get failAudits() { return state.failAudits; },
     set failAudits(value: boolean) { state.failAudits = value; },
+    get failFactorRemoval() { return state.failFactorRemoval; },
+    set failFactorRemoval(value: boolean) { state.failFactorRemoval = value; },
+    removeFactor,
     call,
     async close() {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
@@ -434,6 +439,38 @@ test('POST /recovery-codes keeps the shown-once response, the refusals and safe 
   const refused = await call('carol-1', 'POST', '/api/v1/account/recovery-codes');
   assert.equal(refused.status, 409);
   assert.deepEqual(await refused.json(), { status: 'error', message: 'Turn on two-step login first; recovery codes are for when the authenticator is lost' });
+});
+
+test('a failed authenticator removal answers an error and gives the code back', async t => {
+  const harness = await createHarness();
+  t.after(harness.close);
+  const { db, factors, call } = harness;
+
+  const codes = (await (await call(ANN, 'POST', '/api/v1/account/recovery-codes')).json() as { codes: string[] }).codes;
+
+  // The person lost their phone: spending the code only helps if the authenticator goes with it.
+  // A pool failure there must not answer success — that would burn a code and leave them locked out.
+  harness.failFactorRemoval = true;
+  try {
+    const failed = await call(ANN, 'POST', '/api/v1/account/recovery-codes/use', { code: codes[0] }, 'op-use-removal');
+    assert.equal(failed.status, 503);
+    const body = await failed.json() as { status: string; message: string };
+    assert.equal(body.status, 'error');
+    assert.match(body.message, /could not be removed/);
+    assert.ok(!JSON.stringify(body).includes(codes[0]), 'the answer never repeats the code');
+  } finally {
+    harness.failFactorRemoval = false;
+  }
+  // the code is unused again, so the person can retry it once the auth tables are back
+  const storedAfterFailure = db.read(`recoveryCodes/${ANN}`) as { codes: Array<{ usedAt?: string }> };
+  assert.deepEqual(storedAfterFailure.codes.filter(c => c.usedAt), [], 'the refused use gave the code back');
+  assert.deepEqual(factors.get(ANN), ['factor-a1'], 'the authenticator is still there, as it must be');
+
+  const retried = await call(ANN, 'POST', '/api/v1/account/recovery-codes/use', { code: codes[0] });
+  assert.equal(retried.status, 200, 'once removal works, the same code still gets them in');
+  assert.deepEqual(await retried.json(), { status: 'success', left: 9 });
+  assert.deepEqual(factors.get(ANN), [], 'the authenticator is gone and the code spent');
+  assert.ok((db.read(`recoveryCodes/${ANN}`) as { codes: Array<{ usedAt?: string }> }).codes.filter(c => c.usedAt).length === 1, 'exactly one code is spent');
 });
 
 test('POST /recovery-codes/use keeps validation, lockout, spend semantics and replay', async t => {

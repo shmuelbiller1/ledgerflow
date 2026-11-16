@@ -686,3 +686,7 @@ comes back as *"these codes were already shown — make new ones if you did not 
 deliberate: keeping the codes so they could be replayed meant ten working ways past two-step login
 sat in plain text in the database and its backups for a month. The screen marks the request so a
 retry is rare; when it happens the answer now tells you what to do instead of pretending.
+
+One more detail of that flow: if the authenticator cannot be removed (Supabase auth tables briefly
+unavailable), the code is put back and the answer is an error telling you to try again — not a
+success that has quietly used up a code while your old authenticator is still the one signing you in.

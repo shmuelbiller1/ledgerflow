@@ -57,6 +57,16 @@ function recoveryCommandResponse(codesField: 'codes' | 'left') {
       if (codesField === 'codes' && outcome.replayed) {
         return { status: 409, body: { status: 'error', message: ALREADY_SHOWN } };
       }
+      // Spending a code only counts once the authenticator is gone. Its removal happens after the
+      // commit, so a failure cannot undo the spend here — it puts the code back and reports itself
+      // in `recoveryFailure`, and this answers with the error instead of a success that lies.
+      const failure = data.recoveryFailure as { status?: unknown; message?: unknown } | undefined;
+      if (failure) {
+        return {
+          status: typeof failure.status === 'number' ? failure.status : 503,
+          body: { status: 'error', message: typeof failure.message === 'string' ? failure.message : 'The authenticator could not be removed; try again' },
+        };
+      }
       return { status: 200, body: { status: 'success', [codesField]: data[codesField] } };
     }
     const err = outcome.error;

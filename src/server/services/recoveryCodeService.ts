@@ -132,6 +132,30 @@ export async function spendRecoveryCode(db: Firestore, t: Transaction, uid: stri
 }
 
 /**
+ * Gives a spent code back, for when the authenticator could not be removed: without this the person
+ * has burned a way in and still cannot sign in. True when the code is unused again.
+ */
+export async function restoreRecoveryCode(db: Firestore, uid: string, code: string): Promise<boolean> {
+  const hash = keyedHash(uid, code);
+  try {
+    return await db.runTransaction(async t => {
+      const ref = db.collection('recoveryCodes').doc(uid);
+      const stored = (await t.get(ref)).data() as Stored | undefined;
+      if (!stored) return false;
+      const used = stored.codes.some(c => c.usedAt && crypto.timingSafeEqual(Buffer.from(c.hash), Buffer.from(hash)));
+      if (!used) return false;
+      // the record has no per-code id, so the hash is the match (only the person's own code can hit it)
+      const codes = stored.codes.map(c => (c.usedAt && crypto.timingSafeEqual(Buffer.from(c.hash), Buffer.from(hash)) ? { hash: c.hash } : c));
+      t.update(ref, { codes });
+      return true;
+    });
+  } catch (error) {
+    logger.error('recovery code could not be given back after a failed authenticator removal', { uid, error: String(error) });
+    return false;
+  }
+}
+
+/**
  * Removes the person's authenticators (the point of spending a code): they sign in with the password
  * alone and set two-step login up again. Idempotent, so a retried command may run it again safely.
  */

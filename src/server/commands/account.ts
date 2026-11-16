@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { EMAIL_MODE_LABEL, EMAIL_MODES, type NotificationEmailMode } from '../../lib/notificationEmail';
 import { getNotificationEmail, setNotificationEmailInTransaction } from '../services/notificationEmailService';
 import {
-  buildRecoveryCodes, prepareUseRecoveryCode, RecoveryError, recoveryStatus, removeAuthenticators, spendRecoveryCode, verifiedFactors,
+  buildRecoveryCodes, prepareUseRecoveryCode, RecoveryError, recoveryStatus, removeAuthenticators, restoreRecoveryCode, spendRecoveryCode, verifiedFactors,
 } from '../services/recoveryCodeService';
 import { COMMAND_ROLES, type CommandDefinition } from './types';
 
@@ -92,7 +92,26 @@ export const accountUseRecoveryCodeCommand: CommandDefinition<typeof accountUseR
     // The authenticator is removed only once the spend, the idempotency record and the audit entry
     // have committed: a rolled-back attempt leaves it, and the code, in place. A retry that replays
     // the committed result runs no handler at all, so this never removes a second one.
-    ctx.afterCommit(() => removeAuthenticators(ctx.db, ctx.actor));
+    //
+    // The callback never throws: the runner only logs an after-commit failure, which would answer
+    // success for a code that is spent while the authenticator stays — the person has burned a code
+    // and still cannot sign in. So a failed removal puts the code back and reports the failure,
+    // which the runner puts in this response and which the route answers as an error.
+    ctx.afterCommit(async () => {
+      try {
+        await removeAuthenticators(ctx.db, ctx.actor);
+      } catch {
+        const restored = await restoreRecoveryCode(ctx.db, ctx.actor, input.code);
+        return {
+          recoveryFailure: {
+            status: 503,
+            message: restored
+              ? 'Your authenticator could not be removed, so the recovery code was not used up: try again in a few minutes'
+              : 'Your authenticator could not be removed. Try the same recovery code again, or make new codes with two-step login',
+          },
+        };
+      }
+    });
     return { left, uid: ctx.actor };
   },
   async preview(ctx) {
