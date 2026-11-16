@@ -21,19 +21,23 @@ export function setDimensionNodeParentInline(
   rename?: string,
   adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter,
 ): Promise<void> {
+  // the session is taken when the change is asked for: a change still queued when the workspace
+  // or user changes is refused, never written into the new workspace
+  const session = adapter.session();
   const key = norm(dimensionId);
   const run = (queues.get(key) || Promise.resolve())
     .catch(() => undefined) // ignore: an earlier change's failure was already reported to its caller (best-effort ordering)
-    .then(() => writeParent(dimensionId, nodeId, parentId, rename, adapter));
+    .then(() => writeParent(dimensionId, nodeId, parentId, rename, adapter, session));
   queues.set(key, run);
   return run;
 }
 
 async function writeParent(
   dimensionId: string, nodeId: string, parentId: string | null, rename: string | undefined, adapter: DimensionNodeActionAdapter,
+  session: ReturnType<DimensionNodeActionAdapter['session']>,
 ): Promise<void> {
-  const session = adapter.session();
   if (!session?.canWriteNodes) throw new Error('Your workspace role cannot edit dimension labels.');
+  assertSameSession(adapter, session);
   const nodes = adapter.getNodes();
   const problem = parentProblem(nodes, dimensionId, nodeId, parentId);
   if (problem) throw new Error(problem);

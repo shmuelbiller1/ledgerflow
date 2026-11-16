@@ -24,6 +24,8 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
 export default function LabelProfitReportView() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes);
+  // the roll-up needs every value's parent: with a partial list it would leave children out
+  const nodesPartial = useLedgerStore(s => Boolean(s.truncatedCollections.dimensionNodes));
   // EU-E5: budgets that carry a value of this label give a budget row and a "vs budget" row
   const budgets = useLedgerStore(s => s.budgets);
   const ledgerAccounts = useLedgerStore(s => s.accounts);
@@ -179,6 +181,9 @@ export default function LabelProfitReportView() {
         }
         const rows = rollUp(nodes || [], dimensionId, id => netById.get(id) || 0);
         if (!rows.length) return null;
+        if (nodesPartial) {
+          return <p role="status" className="text-sm text-[var(--muted)]">Totals with children are not shown: this workspace has more label values than were loaded, so some children could be missing from a parent&apos;s total.</p>;
+        }
         return (
           <section aria-label="Totals with children" className="space-y-1 text-sm" data-testid="label-rollup">
             <h3 className="font-semibold">Net income with children</h3>

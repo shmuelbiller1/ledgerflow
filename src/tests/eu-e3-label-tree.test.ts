@@ -90,3 +90,24 @@ test('EU-E3: a conversion name another value uses is refused; overlapping change
   await first;
   await assert.rejects(second, /loop/, 'the second change is checked after the first is saved');
 });
+
+test('EU-E3: a parent change still queued when the workspace changes is refused, not written there', async () => {
+  let store = [...nodes];
+  let workspaceId = 'w1';
+  let release: () => void = () => {};
+  const written: string[] = [];
+  const adapter = {
+    session: () => ({ workspaceId, uid: 'u1', canWriteNodes: true }),
+    getNodes: () => store,
+    setNodes: (next: DimensionNode[]) => { store = next; },
+    updateNode: (w: string) => { written.push(w); return new Promise<void>(r => { release = r; }); },
+  } as unknown as DimensionNodeActionAdapter;
+  const first = setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter);
+  const queued = setDimensionNodeParentInline('property', 'U1', null, undefined, adapter);
+  await new Promise(r => setTimeout(r, 0));
+  workspaceId = 'w2';
+  release();
+  await assert.rejects(first, /changed/);
+  await assert.rejects(queued, /changed/);
+  assert.deepEqual(written, ['w1'], 'nothing is written into the new workspace');
+});
