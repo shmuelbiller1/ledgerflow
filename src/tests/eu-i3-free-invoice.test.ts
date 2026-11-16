@@ -70,3 +70,17 @@ test('EU-I3: the rate is handed over as a fraction, so 1% and below keep their m
   assert.equal(toInvoiceDraft({ ...base, taxRate: 1.5 }).taxRate, 1.5);
   assert.equal(toInvoiceDraft({ ...base, taxRate: 0 }).taxRate, 0);
 });
+
+test('EU-I3: quantities beyond 2 decimals are refused; a signed-in draft opens only for that person', () => {
+  assert.equal(freeInvoiceProblem({ ...base, lines: [{ description: 'x', quantity: 0.125, rateCents: 100 }] }), 'Quantities can have at most 2 decimals.');
+  assert.equal(freeInvoiceProblem({ ...base, lines: [{ description: 'x', quantity: 1.25, rateCents: 100 }] }), null);
+  const store = new Map<string, string>();
+  const storage = { setItem: (k: string, v: string) => { store.set(k, v); }, getItem: (k: string) => store.get(k) ?? null };
+  assert.ok(stashFreeInvoice(storage, base, 'u1'));
+  assert.equal(readFreeInvoice(storage, { sample: true }), null, 'the sample company does not take a signed-in draft');
+  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u2' }), null, 'nor does someone else');
+  assert.ok(readFreeInvoice(storage, { sample: false, uid: 'u1' }));
+  assert.ok(stashFreeInvoice(storage, base));
+  assert.ok(readFreeInvoice(storage, { sample: true }));
+  assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u1' }), null, 'an unclaimed draft never opens in real books');
+});

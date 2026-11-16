@@ -114,7 +114,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     // A new invoice opened for a chosen customer (e.g. from its row) starts with that customer's usual
     // terms, as picking the customer in the form does (I-23, CC-11: its own, its group's, its last);
     // terms the caller set, and every existing invoice, are kept as they are.
-    const preset = !initialInvoice.id && initialInvoice.customerId && !initialInvoice.paymentTerms
+    // a free-maker draft carries the due date already printed on it: the customer's terms don't move it
+    const fromFreeMaker = initialInvoice.metadata?.source === 'free-invoice-maker';
+    const preset = !initialInvoice.id && initialInvoice.customerId && !initialInvoice.paymentTerms && !fromFreeMaker
       ? termsForCustomer(safeCustomers.find(c => c.id === initialInvoice.customerId) as { id: string; paymentTerms?: string; groupId?: string } | undefined,
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;

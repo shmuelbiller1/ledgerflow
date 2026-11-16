@@ -63,6 +63,8 @@ export function freeInvoiceProblem(inv: FreeInvoice): string | null {
   if (!used.length) return 'Add at least one line.';
   if (used.some(l => !l.description.trim())) return 'Every line needs a description.';
   if (used.some(l => !(l.quantity > 0))) return 'Every line needs a quantity above zero.';
+  // the invoice form takes quantities to 2 decimals: refuse more here rather than round a printed one
+  if (used.some(l => Math.round(l.quantity * 100) !== l.quantity * 100)) return 'Quantities can have at most 2 decimals.';
   return null;
 }
 
@@ -94,22 +96,28 @@ export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
 }
 
 /** Put the draft where the sample company's Sales screen will pick it up once. */
-export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice): boolean {
+export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice, forUid?: string): boolean {
   try {
-    storage.setItem(FREE_INVOICE_STORAGE_KEY, JSON.stringify(toInvoiceDraft(inv)));
+    const draft = toInvoiceDraft(inv);
+    // signed in: the draft is for that person's own books, and only theirs
+    if (forUid) draft.metadata = { ...draft.metadata, forUid };
+    storage.setItem(FREE_INVOICE_STORAGE_KEY, JSON.stringify(draft));
     return true;
   } catch {
     return false; // private mode / blocked storage: the caller says the draft could not be carried
   }
 }
 
-/** A waiting draft, or null when there is none or it is unreadable. Reading does not clear it. */
-export function readFreeInvoice(storage: Pick<Storage, 'getItem'>): Partial<Invoice> | null {
+/** A waiting draft for this session, or null. A sample-company session takes only an unclaimed
+ *  draft; a signed-in person only one made while signed in as them. Reading does not clear it. */
+export function readFreeInvoice(storage: Pick<Storage, 'getItem'>, session: { sample: boolean; uid?: string } = { sample: true }): Partial<Invoice> | null {
   try {
     const raw = storage.getItem(FREE_INVOICE_STORAGE_KEY);
     if (!raw) return null;
     const draft = JSON.parse(raw) as Partial<Invoice>;
-    return draft && typeof draft === 'object' && draft.metadata?.source === 'free-invoice-maker' ? draft : null;
+    if (!draft || typeof draft !== 'object' || draft.metadata?.source !== 'free-invoice-maker') return null;
+    const forUid = typeof draft.metadata.forUid === 'string' ? draft.metadata.forUid : undefined;
+    return (session.sample && !forUid) || (session.uid && forUid === session.uid) ? draft : null;
   } catch {
     return null; // unreadable or blocked storage: there is simply no draft to open
   }

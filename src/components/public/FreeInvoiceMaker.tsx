@@ -11,6 +11,7 @@ import {
   type FreeInvoice,
 } from '../../lib/freeInvoice';
 import { BRAND_NAME } from '../../config/brand';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 interface LineDraft { id: string; description: string; quantity: string; rate: string }
 
@@ -28,6 +29,7 @@ export default function FreeInvoiceMaker() {
   const [tax, setTax] = useState('0');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [error, setError] = useState('');
+  const uid = useAuthStore(st => st.user?.uid);
 
   const parsed = lines.map(l => ({ description: l.description, quantity: Number(l.quantity), rateCents: parseRate(l.rate, currency) }));
   const badRate = parsed.findIndex(l => l.rateCents === null);
@@ -44,9 +46,12 @@ export default function FreeInvoiceMaker() {
     if (problem) { setError(problem); return; }
     let carried: boolean;
     try {
-      carried = stashFreeInvoice(window.localStorage, invoice);
-      window.localStorage.setItem('isGuest', 'true');
-      window.localStorage.setItem('has_seen_onboarding', 'true');
+      // signed in: it opens in their own books; otherwise in the sample company
+      carried = stashFreeInvoice(window.localStorage, invoice, uid);
+      if (!uid) {
+        window.localStorage.setItem('isGuest', 'true');
+        window.localStorage.setItem('has_seen_onboarding', 'true');
+      }
     } catch {
       carried = false;
     }
@@ -142,7 +147,9 @@ export default function FreeInvoiceMaker() {
             Save this and track who paid
           </button>
         </div>
-        <p data-print-hide className="text-xs text-[var(--muted)]">Saving opens {BRAND_NAME}&apos;s sample company with this invoice ready as a draft. Sign up from there to keep it in your own books.</p>
+        <p data-print-hide className="text-xs text-[var(--muted)]">{uid
+          ? <>You&apos;re signed in: saving opens this invoice as a draft in your own books.</>
+          : <>Saving opens {BRAND_NAME}&apos;s sample company with this invoice ready as a draft. Sign up from there to keep it in your own books.</>}</p>
       </div>
     </main>
   );
