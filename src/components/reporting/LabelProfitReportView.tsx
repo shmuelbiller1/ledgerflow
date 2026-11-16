@@ -7,6 +7,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { budgetedResult, budgetLabel } from '../../lib/budgetByLabel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
+import { rollUp } from '../../lib/labelTree';
 
 type Section = 'income' | 'cogs' | 'expense';
 interface Column { value: string; income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; accounts: Record<string, number> }
@@ -169,6 +170,33 @@ export default function LabelProfitReportView() {
           </table>
         </div>
       )}
+      {report && (() => {
+        // EU-E3: each parent with its own net income, its children's, and the two together
+        const netById = new Map<string, number>();
+        for (const c of report.columns) {
+          const id = stableLabelValue(c.value, dimensionId, nodes || []);
+          netById.set(id, (netById.get(id) || 0) + c.netIncome);
+        }
+        const rows = rollUp(nodes || [], dimensionId, id => netById.get(id) || 0);
+        if (!rows.length) return null;
+        return (
+          <section aria-label="Totals with children" className="space-y-1 text-sm" data-testid="label-rollup">
+            <h3 className="font-semibold">Net income with children</h3>
+            <div aria-hidden="true" className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,8rem))] gap-2 text-xs text-[var(--muted)]">
+              <span>{dimensionName}</span><span className="text-right">Own</span><span className="text-right">Children</span><span className="text-right">Total</span>
+            </div>
+            {rows.map(r => (
+              <div key={r.id} role="group" aria-label={`${r.name}: own ${formatCurrency(r.own, currency)}, children ${formatCurrency(r.children, currency)}, total ${formatCurrency(r.total, currency)}`}
+                className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,8rem))] gap-2 border-t border-[var(--line)] py-1">
+                <bdi className="truncate">{r.name}</bdi>
+                <span className="text-right font-mono">{formatCurrency(r.own, currency)}</span>
+                <span className="text-right font-mono">{formatCurrency(r.children, currency)}</span>
+                <span className="text-right font-mono font-semibold">{formatCurrency(r.total, currency)}</span>
+              </div>
+            ))}
+          </section>
+        );
+      })()}
       <DrillDownModal key={drill ? drill.name + JSON.stringify(drill.explain) : 'closed'} isOpen={Boolean(drill)} onClose={() => setDrill(null)} accountName={drill?.name || ''} transactions={[]} explain={drill?.explain} formatCurrency={(v: number) => formatCurrency(v, currency)} from="Profit by label" />
     </section>
   );

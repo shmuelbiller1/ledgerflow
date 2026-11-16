@@ -171,7 +171,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
 };
 
 /** Verifies the signed-in user and active workspace have not changed while an async write was in flight. */
-function assertSameSession(adapter: DimensionNodeActionAdapter, initial: DimensionActionSession) {
+export function assertSameSession(adapter: DimensionNodeActionAdapter, initial: DimensionActionSession) {
   const current = adapter.session();
   if (!current || current.uid !== initial.uid || current.workspaceId !== initial.workspaceId || current.sampleSession !== initial.sampleSession) {
     throw new Error('Workspace or signed-in user changed before the label finished saving.');
@@ -784,3 +784,4 @@ export async function ensureTransactionDimensionNodes<
   if (dimensions === tx.dimensions && !linesChanged) return tx;
   return { ...tx, ...(dimensions !== tx.dimensions ? { dimensions } : {}), ...(linesChanged ? { lines } : {}) };
 }
+
