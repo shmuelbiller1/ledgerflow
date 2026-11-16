@@ -1,5 +1,5 @@
 /** EU-E3: the parent picker for one label value, and the one-click "Parent / Child" conversion. */
-import React from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import AsyncButton from '../../ui/AsyncButton';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -15,9 +15,17 @@ const sessionScope = () => identityScope(() => useAuthStore.getState().user?.uid
 export function LabelParentSelect({ dimensionId, node, nodes, canWrite, onChanged }: {
   dimensionId: string; node: DimensionNode; nodes: DimensionNode[]; canWrite: boolean; onChanged: () => void;
 }) {
-  const own = nodes.filter(n => n.dimensionId === dimensionId);
-  if (!canWrite) return <span>{own.find(p => p.id === node.parentId)?.description || '—'}</span>;
-  const below = new Set(descendants(nodes, dimensionId, node.id).map(d => d.id));
+  // the full list of choices is built only for the picker being used: one per row for every value
+  // would be (values × values) options on a large label
+  const [open, setOpen] = useState(false);
+  const current = node.parentId ? nodes.find(p => p.id === node.parentId && p.dimensionId === dimensionId) : undefined;
+  if (!canWrite) return <span>{current?.description || '—'}</span>;
+  const choices = (): DimensionNode[] => {
+    if (!open) return current ? [current] : [];
+    const below = new Set(descendants(nodes, dimensionId, node.id).map(d => d.id));
+    // the current parent stays shown even when archived, so the link is visible and can be cleared
+    return nodes.filter(p => p.dimensionId === dimensionId && p.id !== node.id && !below.has(p.id) && (p.status !== 'archived' || p.id === node.parentId));
+  };
   const choose = async (parentId: string) => {
     const scope = sessionScope();
     const res = await attempt(() => setDimensionNodeParentInline(dimensionId, node.id, parentId || null));
@@ -27,11 +35,11 @@ export function LabelParentSelect({ dimensionId, node, nodes, canWrite, onChange
     toast.success(parentId ? 'Parent saved.' : 'Moved to the top level.');
   };
   return (
-    <select aria-label={`Parent of ${node.description}`} value={node.parentId || ''} onChange={e => { void choose(e.target.value); }}
+    <select aria-label={`Parent of ${node.description}`} value={node.parentId || ''} onFocus={() => setOpen(true)} onPointerDown={() => setOpen(true)}
+      onChange={e => { void choose(e.target.value); }}
       className="min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 text-xs">
       <option value="">None (top level)</option>
-      {/* the current parent stays shown even when archived, so the link is visible and can be cleared */}
-      {own.filter(p => p.id !== node.id && !below.has(p.id) && (p.status !== 'archived' || p.id === node.parentId)).map(p => (
+      {choices().map(p => (
         <option key={p.id} value={p.id} disabled={p.status === 'archived'}>{p.description}{p.status === 'archived' ? ' (archived)' : ''}</option>
       ))}
     </select>
