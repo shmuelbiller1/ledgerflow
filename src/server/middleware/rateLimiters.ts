@@ -72,6 +72,27 @@ export function apiKeyLimit(raw: unknown): number {
   return Number.isInteger(n) && n >= 10 && n <= 10_000 ? n : API_KEY_DEFAULT_PER_MINUTE;
 }
 
+const STRUCTURED_API_KEY_PATTERN = /^lf_[A-Za-z0-9_-]{6,200}\.[0-9a-f]{64}$/i;
+
+/**
+ * True when a `/api/v1/*` request carries a syntactically well-formed `lf_<id>.<64-hex-secret>`
+ * credential so `apiKeyRateLimiter` (Z-02, up to 10,000/min) governs authenticated calls instead
+ * of the 100/min IP ceiling, while failed (401) key attempts remain IP-throttled.
+ */
+export function hasStructuredApiKeyHeader(req: {
+  headers?: Record<string, string | string[] | undefined>;
+  originalUrl?: string;
+  url?: string;
+}): boolean {
+  const pathOnly = String(req.originalUrl || req.url || '').split('?')[0];
+  if (!pathOnly.startsWith('/api/v1/')) return false;
+  const rawHeader = req.headers?.authorization || req.headers?.['x-api-key'];
+  const header = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (typeof header !== 'string' || !header) return false;
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : header.trim();
+  return STRUCTURED_API_KEY_PATTERN.test(token);
+}
+
 /**
  * Z-02: requests made with an API key count against that key, not the caller's IP: each key has
  * its own limit a minute (`rateLimitPerMinute` on the key), so one busy integration does not slow
@@ -95,6 +116,7 @@ export function createAppRateLimiters() {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 1000, // increased to 1000 to prevent false positives in high-density SPA usage
+    skip: (req) => hasStructuredApiKeyHeader(req),
     message: { status: "error", message: "Maximum rate limit reached. Please hold for calibration." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -109,13 +131,34 @@ export function createAppRateLimiters() {
     legacyHeaders: false,
   });
 
-  // Interceptor middleware for Developer API Logging
-  const apiLimiter = rateLimit({
+  // IP ceiling for non-API-key traffic on /api/v1/* (authenticated API keys use apiKeyRateLimiter, Z-02)
+  const ipApiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute window
     max: 100, // Limit each IP to 100 requests per `window` (here, per minute)
+    skip: (req) => hasStructuredApiKeyHeader(req),
     message: { status: "error", message: "Too many requests from this IP, please try again after a minute." },
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   });
+
+  // Brute-force guard on invalid/revoked structured API keys: counts only 401 responses per IP
+  const apiKeyAuthFailureLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    skip: (req) => !hasStructuredApiKeyHeader(req),
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (_req, res) => res.statusCode !== 401,
+    message: { status: "error", code: "RATE_LIMIT_EXCEEDED", message: "Too many failed API key authentication attempts from this IP." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const apiLimiter: typeof ipApiLimiter = ((req, res, next) => {
+    ipApiLimiter(req, res, (err?: unknown) => {
+      if (err) return next(err);
+      return apiKeyAuthFailureLimiter(req, res, next);
+    });
+  }) as typeof ipApiLimiter;
+
   return { limiter, matchLimiter, apiLimiter };
 }

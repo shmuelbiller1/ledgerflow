@@ -93,6 +93,24 @@ export function isIngestJsonRoute(method: string, pathOnly: string): boolean {
   return INGEST_JSON_ROUTE_PATTERNS.some((pattern) => pattern.test(pathOnly));
 }
 
+function containsNullByte(root: unknown): boolean {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (typeof current === "string") {
+      if (current.includes("\0")) return true;
+    } else if (Array.isArray(current)) {
+      for (let i = 0; i < current.length; i += 1) stack.push(current[i]);
+    } else if (current !== null && typeof current === "object") {
+      for (const [k, v] of Object.entries(current)) {
+        if (k.includes("\0")) return true;
+        stack.push(v);
+      }
+    }
+  }
+  return false;
+}
+
 export function applyJsonBodyParser(app: express.Express): void {
   const defaultJson = express.json({ limit: "1mb" });
   const ingestJson = express.json({ limit: "15mb" });
@@ -105,8 +123,22 @@ export function applyJsonBodyParser(app: express.Express): void {
         ? ingestJson
         : defaultJson;
     parser(req, res, (err) => {
-      if (err) return next(err);
+      if (err) {
+        const status = typeof (err as { status?: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : typeof (err as { statusCode?: unknown }).statusCode === "number"
+            ? (err as { statusCode: number }).statusCode
+            : 400;
+        const message = status === 413
+          ? "Request body exceeds the maximum allowed payload size."
+          : "Malformed JSON request body.";
+        return res.status(status).json({ status: "error", error: message, message });
+      }
       req.body ??= {};
+      if (containsNullByte(req.body)) {
+        const message = "Request body must not contain NUL bytes.";
+        return res.status(400).json({ status: "error", error: message, message });
+      }
       next();
     });
   });

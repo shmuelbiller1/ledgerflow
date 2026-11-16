@@ -1,0 +1,197 @@
+name: API schema fuzzing (Schemathesis)
+
+# SEC-SCAN-1: Property-based OpenAPI fuzzing against a locally booted Express + Postgres test instance.
+# Phase 1 (report-only): `continue-on-error: true` keeps PRs unblocked while existing schema/handler
+# mismatches in AI #1's lane (crudRoutes 500s — Patch 03) are landed.
+# Phase 2 promotion: remove `continue-on-error: true` below once main passes 3 consecutive runs cleanly.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-fuzz-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schemathesis:
+    name: Schemathesis OpenAPI fuzzing (Phase 1 report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
+          POSTGRES_DB: lf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install pinned Schemathesis
+        run: python -m pip install --disable-pip-version-check schemathesis==4.33.4
+
+      - name: Install Node dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_ENV: development
+          npm_config_production: 'false'
+          HUSKY: '0'
+
+      - name: Apply Supabase migrations to ephemeral test database
+        run: npm run db:test-setup
+
+      - name: Seed ephemeral fuzz workspace and API key, start local server, and run Schemathesis
+        run: |
+          set -euo pipefail
+
+          # Generate ephemeral runtime secrets inside the job; never commit secrets to workflow YAML.
+          SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          INVITE_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
+          FUZZ_API_KEY="$(node --import tsx --input-type=module <<'EOF'
+          import crypto from 'node:crypto';
+          import pg from 'pg';
+          import { API_KEY_SCOPE_IDS } from './src/lib/apiScopes.ts';
+
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+          const ownerUid = '11111111-1111-4111-8111-111111111199';
+          const wsId = 'ws_fuzz_ci';
+          const keyId = `lf_id_${wsId}_${crypto.randomBytes(8).toString('hex')}`;
+          const rawSecret = crypto.randomBytes(32).toString('hex');
+          const keyHash = crypto.createHash('sha256').update(rawSecret).digest('hex');
+          const fullKey = `${keyId}.${rawSecret}`;
+
+          await pool.query(
+            `INSERT INTO auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+             VALUES ($1::uuid, 'fuzz-ci@ledgerflow.test', now(), '{}'::jsonb)
+             ON CONFLICT (id) DO UPDATE SET email_confirmed_at = now()`,
+            [ownerUid],
+          );
+          await pool.query(
+            `INSERT INTO public.users (id, data)
+             VALUES ($1, jsonb_build_object('uid', $1::text, 'email', 'fuzz-ci@ledgerflow.test', 'planId', 'enterprise'))
+             ON CONFLICT (id) DO NOTHING`,
+            [ownerUid],
+          );
+          await pool.query(
+            `INSERT INTO public.workspaces (id, data)
+             VALUES ($1, $2::jsonb)
+             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+            [wsId, JSON.stringify({
+              id: wsId,
+              name: 'CI Fuzz Workspace',
+              ownerUid,
+              members: [ownerUid],
+              roles: { [ownerUid]: 'owner' },
+              defaultCurrency: 'USD',
+              baseCurrency: 'USD',
+            })],
+          );
+          for (const [id, code, name, type] of [
+            ['acct_cash', '1000', 'Cash', 'Asset'],
+            ['acct_rev', '4000', 'Revenue', 'Income'],
+            ['acct_exp', '5000', 'Expense', 'Expense'],
+          ]) {
+            await pool.query(
+              `INSERT INTO public."chartAccounts" (id, data)
+               VALUES ($1, $2::jsonb)
+               ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+              [id, JSON.stringify({ id, workspaceId: wsId, code, name, type, currency: 'USD', isActive: true })],
+            );
+          }
+          await pool.query(
+            `INSERT INTO public."apiKeys" (id, data)
+             VALUES ($1, $2::jsonb)
+             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+            [keyId, JSON.stringify({
+              id: keyId,
+              workspaceId: wsId,
+              uid: ownerUid,
+              createdBy: ownerUid,
+              name: 'Schemathesis CI Runner',
+              keyHash,
+              keyHashAlg: 'scrypt-v1',
+              scopes: [...API_KEY_SCOPE_IDS],
+              rateLimitPerMinute: 10000,
+              status: 'active',
+              createdAt: new Date().toISOString(),
+            })],
+          );
+          await pool.end();
+          process.stdout.write(fullKey);
+          EOF
+          )"
+
+          NODE_ENV=test \
+          SESSION_SECRET="$SESSION_VAL" \
+          SYSTEM_SALT="$SALT_VAL" \
+          INVITE_SECRET="$INVITE_VAL" \
+          node --import tsx --input-type=module -e '
+            import { createApp } from "./server.ts";
+            const app = await createApp();
+            app.listen(3000, "127.0.0.1", () => console.log("API fuzz target listening on 127.0.0.1:3000"));
+          ' > server-fuzz.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/v1/openapi.json >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/v1/openapi.json > openapi-snapshot.json
+
+          schemathesis run http://127.0.0.1:3000/api/v1/openapi.json \
+            -H "Authorization: Bearer $FUZZ_API_KEY" \
+            -H "X-LedgerFlow-Request: 1" \
+            --checks not_a_server_error,status_code_conformance,response_schema_conformance,content_type_conformance \
+            --max-examples 25 \
+            --report junit \
+            --report-junit-path schemathesis-junit.xml 2>&1 | tee schemathesis-output.txt
+
+      - name: Upload Schemathesis reports and server logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: schemathesis-report-${{ github.sha }}
+          path: |
+            schemathesis-junit.xml
+            schemathesis-output.txt
+            openapi-snapshot.json
+            server-fuzz.log
+          if-no-files-found: warn
+          retention-days: 14

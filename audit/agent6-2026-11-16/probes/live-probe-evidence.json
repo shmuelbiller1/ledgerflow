@@ -1,0 +1,126 @@
+{
+  "commit": "1f183efc",
+  "timestamp": "2026-11-16T22:26:50.896Z",
+  "results": [
+    {
+      "id": "ACC-NEW-01",
+      "severity": "CRITICAL",
+      "status": "REPRODUCED_LIVE",
+      "summary": "TransactionLineSchema.exchangeRate.default(1) shadows tx.exchangeRate in settleHomeCurrency/lineAmount, AND settleHomeCurrency/lineAmount/baseAbsoluteTotal ignore ISO 4217 minor units (JPY=0, KWD=3): refundCredit books +$1,000.00 (100,000 USD cents, rate=1!) instead of +$670.00 for ¥100,000 JPY and +$1,000.00 instead of +$325.00 for KWD 100.000, stranding +$1,005.00 phantom A/R on Balance Sheet with zero audit log.",
+      "evidence": {
+        "jpyExpectedBaseCents": 67000,
+        "jpyActualRefundTotalAmountCents": 100000,
+        "jpyActualRefundLines": [
+          {
+            "accountId": "ws_probe_369b4a6d_ar",
+            "accountName": "Accounts Receivable",
+            "amountCents": 100000,
+            "description": "Credit note CN-JPY-001 refund: Full refund of ¥100,000",
+            "exchangeRate": 1
+          },
+          {
+            "accountId": "ws_probe_369b4a6d_cash",
+            "accountName": "Operating Cash",
+            "amountCents": -100000,
+            "description": "Credit note CN-JPY-001 refund: Full refund of ¥100,000",
+            "exchangeRate": 1
+          }
+        ],
+        "jpyCreditRemainingAfterRefund": 0,
+        "kwdExpectedBaseCents": 32500,
+        "kwdActualRefundTotalAmountCents": 100000,
+        "balanceSheetAssetsExpectedZero": 0,
+        "balanceSheetAssetsActual": {
+          "ws_probe_369b4a6d_ar": 100500,
+          "ws_probe_369b4a6d_cash": -200000
+        },
+        "refundAuditLogsCount": 0
+      }
+    },
+    {
+      "id": "SEC-NEW-01..02",
+      "severity": "HIGH",
+      "status": "REPRODUCED_LIVE",
+      "summary": "API key scoped ONLY to write:transactions bypasses period-management restrictions on period.yearclose (setting workspaces.lockDate), period.fxrevaluation, period.fxrevaluationundo, and period.balancesrebuild; read-only preview on POST /commands/:name/preview requires write scope; unauthenticated JSON errors leak Express HTML stack traces.",
+      "evidence": {
+        "provisionStatus": 201,
+        "previewStatus": 403,
+        "previewBody": {
+          "status": "error",
+          "message": "Forbidden: This action requires 'write:customers' scope permission. Currently allowed scopes on this token are: [read:transactions, write:transactions]"
+        },
+        "periodFxRevaluationStatus": 400,
+        "periodBalancesRebuildStatus": 200,
+        "periodYearCloseStatus": 200,
+        "periodYearCloseBody": {
+          "status": "success",
+          "command": "period.yearclose",
+          "data": {
+            "workspaceId": "ws_probe_369b4a6d",
+            "yearStart": "2025-10-01",
+            "closingDate": "2026-09-30",
+            "lockPeriod": true,
+            "year": {
+              "income": 0,
+              "cogs": 0,
+              "expense": 0,
+              "grossProfit": 0,
+              "netIncome": 0
+            },
+            "closingVersion": 1
+          },
+          "replayed": false
+        },
+        "workspaceLockDateAfterApiKeyCall": "2026-09-30",
+        "htmlStackLeakStatus": 400,
+        "htmlStackLeakContentType": "text/html; charset=utf-8",
+        "htmlStackLeakSnippet": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>SyntaxError: Unexpected token &#39;&quot;&#39;, &quot;&quot;AAA&quot;&quot; is not valid JSON<br> &nbsp; &nbsp;at JSON.parse (&lt;anonym"
+      }
+    },
+    {
+      "id": "API-NEW-01..02_IMP-NEW-01",
+      "severity": "HIGH",
+      "status": "REPRODUCED_LIVE",
+      "summary": "POST /api/v1/transactions and POST /api/v1/transactions/batch-create return HTTP 500 on client validation/null-line inputs; normalizeOdooCsv (#739) resurrects Odoo 18 archived accounts (Active=False), silently drops currency_id/id, and fails on XML currency IDs (base.EUR).",
+      "evidence": {
+        "postTxUnknownAccountStatus": 500,
+        "cmdJournalUnknownAccountStatus": 400,
+        "cmdJournalLockedPeriodStatus": 400,
+        "batchNullLineStatus": 500,
+        "odoo18ArchivedAccountImportedCount": 1,
+        "odooSlashIdCurrencyDropped": null,
+        "odooXmlIdCurrencyErrors": [
+          {
+            "row": 2,
+            "field": "currency",
+            "message": "Currency: \"base.EUR\" is not a 3-letter currency code"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SEC-NEW-04_AND_A7N-03..07",
+      "severity": "HIGH",
+      "status": "REPRODUCED_LIVE",
+      "summary": "Read-only viewer role directly INSERTs time entries into public.documents and UPDATEs another member supportTicket via PostgREST RLS; bookkeeper resets assets.accumulatedDepreciationCents via RLS; PUT /transactions/:id partialUpdate mutates exchangeRate in place on posted entry.",
+      "evidence": {
+        "viewerInsertedTimeDoc": true,
+        "viewerMutatedOwnerTicket": true,
+        "bookkeeperResetAssetDepr": true,
+        "partialExchangeRateUpdateStatus": 200,
+        "exchangeRateAfterPartialUpdate": 999,
+        "totalAmountCentsStaleAfterPartialUpdate": 11000
+      }
+    },
+    {
+      "id": "SEC-NEW-03",
+      "severity": "MEDIUM",
+      "status": "REPRODUCED_LIVE",
+      "summary": "API key configured with rateLimitPerMinute=5000 (Z-02) is throttled around request <=100/min because global IP apiLimiter (max: 100/min) runs before apiAuthenticate without skipping lf_ API keys.",
+      "evidence": {
+        "configuredRateLimitPerMinute": 5000,
+        "throttledWith429AtRequest": 91
+      }
+    }
+  ]
+}

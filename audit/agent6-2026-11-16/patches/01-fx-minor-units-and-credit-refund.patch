@@ -1,0 +1,210 @@
+diff --git a/src/kernel/validation/TransactionValidator.ts b/src/kernel/validation/TransactionValidator.ts
+index 8fdb5c1..b9ad434 100644
+--- a/src/kernel/validation/TransactionValidator.ts
++++ b/src/kernel/validation/TransactionValidator.ts
+@@ -123,9 +123,10 @@ export class TransactionValidator {
+       }
+     }
+ 
+-    // 5. Double Entry (in the entry's currency, then in the home currency — BUG-07)
++    // 5. Double Entry (in the entry's currency, then in the home currency — BUG-07 / ACC-NEW-01)
+     DoubleEntryValidator.validateJournalEntry(validatedTx);
+-    settleHomeCurrency(validatedTx);
++    const homeCurrency = String((context.wsData as { currency?: string } | undefined)?.currency || 'USD');
++    settleHomeCurrency(validatedTx, homeCurrency);
+     // #654: settling can move a rounding cent onto a line; the total follows the settled home amounts
+     if (Array.isArray(validatedTx.lines) && validatedTx.lines.length > 0) validatedTx.totalAmountCents = getAbsoluteTotal(validatedTx);
+     
+diff --git a/src/lib/txFilters.ts b/src/lib/txFilters.ts
+index f815e6a..6417116 100644
+--- a/src/lib/txFilters.ts
++++ b/src/lib/txFilters.ts
+@@ -1,4 +1,5 @@
+ import type { AccountingPeriod, Transaction, TransactionLine, ChartAccount } from '../types';
++import { convertMinorUnits, currencyDigits } from './currencyMinorUnits';
+ 
+ /**
+  * Checks if a transaction is a simulation/ghost transaction created for scenario forecasting
+@@ -87,11 +88,14 @@ export function isPeriodLocked(date: string, periods: Array<Pick<AccountingPerio
+  * Calculates the base-currency amount in cents for a line item,
+  * incorporating line or transaction-level FX exchange rates.
+  */
+-export function lineAmount(l: TransactionLine, t?: Transaction): number {
++export function lineAmount(l: TransactionLine, t?: Transaction, homeCurrency?: string): number {
+   if (!l) return 0;
+   if (Number.isInteger(l.baseAmountCents)) return l.baseAmountCents as number;
+   const raw = l.amountCents || 0;
+   const rate = l.exchangeRate ?? t?.exchangeRate ?? 1;
++  if (homeCurrency && t?.currency && t.currency.toUpperCase() !== homeCurrency.toUpperCase()) {
++    return convertMinorUnits(raw, rate, t.currency, homeCurrency);
++  }
+   return Math.round(raw * rate);
+ }
+ 
+@@ -101,7 +105,10 @@ export function lineAmount(l: TransactionLine, t?: Transaction): number {
+  * line's home amount is written down (`baseAmountCents`), so reports read exactly what balanced.
+  * Lines at different rates must balance by themselves (an exchange gain/loss line), else refused (INT-5).
+  */
+-export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'>): void {
++export function settleHomeCurrency(
++  t: Pick<Transaction, 'lines' | 'exchangeRate'> & { currency?: string },
++  homeCurrency?: string,
++): void {
+   const lines = t.lines || [];
+   if (lines.length === 0) return;
+   // Some producers (including manual FX journals) already store home-currency line amounts
+@@ -120,15 +127,25 @@ export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'
+     }
+     return;
+   }
++  const fromCode = t.currency ? String(t.currency).trim().toUpperCase() : undefined;
++  const toCode = homeCurrency ? String(homeCurrency).trim().toUpperCase() : undefined;
++  const hasMinorShift = Boolean(fromCode && toCode && fromCode !== toCode && currencyDigits(fromCode) !== currencyDigits(toCode));
+   const rateOf = (l: TransactionLine) => l.exchangeRate ?? t.exchangeRate ?? 1;
+-  if (lines.every(l => rateOf(l) === 1)) return;
+-  const base = lines.map(l => Math.round((l.amountCents || 0) * rateOf(l)));
++  if (!hasMinorShift && lines.every(l => rateOf(l) === 1)) return;
++  const base = lines.map(l =>
++    fromCode && toCode && fromCode !== toCode
++      ? convertMinorUnits(l.amountCents || 0, rateOf(l), fromCode, toCode)
++      : Math.round((l.amountCents || 0) * rateOf(l)),
++  );
+   const residual = base.reduce((a, b) => a + b, 0);
+-  if (residual === 0) return;
++  if (residual === 0) {
++    lines.forEach((l, i) => { l.baseAmountCents = base[i]; });
++    return;
++  }
+   // INT-5, the rule: only rounding at ONE rate is settled here (at most a cent per line). Foreign lines
+   // at different rates must balance in the home currency by themselves — normally through an explicit
+   // exchange gain/loss line (rate 1) — otherwise the entry is refused, however small the gap.
+-  const foreignRates = new Set(lines.filter(l => rateOf(l) !== 1).map(rateOf));
++  const foreignRates = new Set(lines.filter(l => rateOf(l) !== 1 || hasMinorShift).map(rateOf));
+   if (foreignRates.size > 1 || Math.abs(residual) > lines.length) {
+     throw new Error(`Validation Failed: the lines balance in the foreign currency but differ by ${residual} cents in the home currency (different rates) — add an exchange-difference line`);
+   }
+@@ -409,11 +426,15 @@ export function getAbsoluteTotal(tx: Transaction): number {
+  * An entry's size in the base currency: its debit lines converted with lineAmount, or its total
+  * times its rate when it has no lines (totalAmountCents is in the entry's own currency).
+  */
+-export function baseAbsoluteTotal(tx: Transaction): number {
++export function baseAbsoluteTotal(tx: Transaction, homeCurrency?: string): number {
+   if (!tx) return 0;
+-  return Array.isArray(tx.lines) && tx.lines.length > 0
+-    ? getAbsoluteTotal(tx)
+-    : Math.round(Math.abs(tx.totalAmountCents || 0) * (tx.exchangeRate ?? 1));
++  if (Array.isArray(tx.lines) && tx.lines.length > 0) return getAbsoluteTotal(tx);
++  const raw = Math.abs(tx.totalAmountCents || 0);
++  const rate = tx.exchangeRate ?? 1;
++  if (homeCurrency && tx.currency && tx.currency.toUpperCase() !== homeCurrency.toUpperCase()) {
++    return convertMinorUnits(raw, rate, tx.currency, homeCurrency);
++  }
++  return Math.round(raw * rate);
+ }
+ 
+ /**
+diff --git a/src/schemas.ts b/src/schemas.ts
+index b0f814d..d6a28b4 100644
+--- a/src/schemas.ts
++++ b/src/schemas.ts
+@@ -16,7 +16,7 @@ export const TransactionLineSchema = z.object({
+   // BUG-07: explicit settled home units must survive server validation; dropping
+   // them silently recalculates manually settled FX journals on metadata-only edits.
+   baseAmountCents: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).optional(),
+-  exchangeRate: z.number().positive().finite().default(1),
++  exchangeRate: z.number().positive().finite().optional(),
+   description: z.string().max(500).optional(),
+   class: z.string().optional(),
+   location: z.string().optional(),
+diff --git a/src/server/commands/periods.ts b/src/server/commands/periods.ts
+index b539c6d..2813007 100644
+--- a/src/server/commands/periods.ts
++++ b/src/server/commands/periods.ts
+@@ -1,5 +1,6 @@
+ import { z } from 'zod';
+ import { calculateNetIncome } from '../../lib/txFilters';
++import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
+ import { lockMessage, monthCloseState, monthEnd, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
+ import { closeStepsProblem } from '../../lib/closeSteps';
+ import { formatTzDate } from '../../lib/calendarDate';
+@@ -60,6 +61,7 @@ export const periodYearCloseInput = z.object({ closingDate: fiscalYearCloseDate,
+ type PeriodYearCloseInput = z.output<typeof periodYearCloseInput>;
+ type PeriodYearCloseResult = {
+   workspaceId: string;
++  currency: string;
+   yearStart: string;
+   closingDate: string;
+   lockPeriod: boolean;
+@@ -99,17 +101,21 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
+       }
+     }
+ 
+-    return { workspaceId: ctx.workspaceId, yearStart, closingDate: input.closingDate, lockPeriod, year, closingVersion };
++    const currency = String((ctx.workspace as { currency?: string } | undefined)?.currency || 'USD');
++    return { workspaceId: ctx.workspaceId, currency, yearStart, closingDate: input.closingDate, lockPeriod, year, closingVersion };
+   },
+   async preview(ctx, input) {
+     assertYearCloseable(input.closingDate, ctx.workspace);
+     const yearStart = fiscalYearStart(input.closingDate);
+     const { accounts, entries } = await ctx.db.runTransaction(tx => readSnapshotInputs(ctx.db, tx, ctx.workspaceId, input.closingDate));
+     const year = calculateNetIncome(entries as Transaction[], accounts, yearStart, input.closingDate);
++    const currency = String((ctx.workspace as { currency?: string } | undefined)?.currency || 'USD');
++    const digits = currencyDigits(currency);
++    const fmt = (cents: number) => minorToMajor(cents, currency).toFixed(digits);
+     return {
+       title: `Close fiscal year ${yearStart} through ${input.closingDate}`,
+       lines: [
+-        `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}).`,
++        `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}).`,
+         `The year ${input.lockPeriod ? 'will be locked' : 'will remain open'} after the close.`,
+         'No closing journal entry is posted; the balance sheet already carries past profit in retained earnings.',
+       ],
+@@ -117,9 +123,11 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
+   },
+   audit(input, result) {
+     const { year } = result;
++    const digits = currencyDigits(result.currency);
++    const fmt = (cents: number) => minorToMajor(cents, result.currency).toFixed(digits);
+     return {
+       action: 'FISCAL_YEAR_CLOSE', entityType: 'workspace', entityId: result.workspaceId,
+-      description: `Year ${result.yearStart} – ${result.closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}), carried in retained earnings on the balance sheet${result.lockPeriod ? '; the year is locked' : ''}.`,
++      description: `Year ${result.yearStart} – ${result.closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}), carried in retained earnings on the balance sheet${result.lockPeriod ? '; the year is locked' : ''}.`,
+       details: {
+         closingDate: input.closingDate, yearStart: result.yearStart, netIncomeCents: year.netIncome,
+         incomeCents: year.income, costsCents: year.cogs + year.expense, lockPeriod: result.lockPeriod,
+diff --git a/src/server/services/creditService.ts b/src/server/services/creditService.ts
+index a1ee0b8..6aa222e 100644
+--- a/src/server/services/creditService.ts
++++ b/src/server/services/creditService.ts
+@@ -11,6 +11,7 @@ import { lockMessage, postingLock } from '../../lib/periodLock';
+ import { formatTzDate } from '../../lib/calendarDate';
+ import { createHash } from 'crypto';
+ import { deriveScopedOperationKey } from '../utils/idempotency';
++import { writeServerAuditLog } from './auditLogService';
+ import { ALLOCATION_OPERATIONS, AllocationError, allocationId, allocationLedgerReady, assertApplicationDate, baseFigures, recordAllocation, type AllocationSide, type NewAllocation } from './allocationLedger';
+ 
+ /**
+@@ -444,6 +445,23 @@ export async function refundCredit(db: Firestore, input: RefundCreditInput) {
+     ledgerCreate(t, db.collection('transactions').doc(ledgerTx.id), { ...ledgerTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+     // refundedCents: statements and balance summaries count a credit less what was paid back (L-160)
+     t.update(creditRef, { remainingCents: newRemaining, refundedCents: (credit.refundedCents || 0) + amountCents, status: creditStatus(newRemaining), updatedAt: new Date().toISOString() });
++    await writeServerAuditLog({
++      workspaceId: input.workspaceId,
++      uid: input.uid,
++      email: '',
++      action: input.kind === 'customer' ? 'CREDIT_NOTE_REFUNDED' : 'VENDOR_CREDIT_REFUNDED',
++      entityType: input.kind === 'customer' ? 'creditNote' : 'vendorCredit',
++      entityId: input.creditId,
++      details: {
++        description,
++        amountCents,
++        currency: credit.currency || workspace.currency || 'USD',
++        baseAmountCents: ledgerTx.totalAmountCents,
++        transactionId: ledgerTx.id,
++        creditRemainingCents: newRemaining,
++      },
++      severity: 'info',
++    }, { db, tx: t });
+     return { transactionId: ledgerTx.id, creditRemainingCents: newRemaining };
+   });
+ }
