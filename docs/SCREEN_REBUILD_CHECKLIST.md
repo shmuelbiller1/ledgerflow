@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 93 | 93 | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 96 | 96 | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -131,9 +131,25 @@ hand-convert a table the codemod still refuses.
 
 ## 3. One way to act
 
-- [ ] `directDbWrites` **93** → 0. PR #731's writer (`workspaceActions.ts`) is the third of 54 files; the browser
-      sites are listed in `commands-baseline.json` (`useAutoRules.ts` 6, `useEntityOperations.ts` 6 at the top).
-      Route: one commit per **hook**, not per call — a hook that writes has one shape.
+- [x] **The sample company's writes have one home.** Two kinds of write exist in the browser and only two: a
+      **command** for a workspace on the server, and the **local store** for the sample company, which has no
+      workspace there. Both used to be the same six names (`setDoc`, `updateDoc`, …), so the demo's write and a
+      screen writing to Postgres read identically — and `src/lib/db/` was *ignored* by the counter, so the demo's
+      writes were not even measured. `src/lib/db/localStore.ts` is now the only place they live: `localAdd`,
+      `localSet`, `localUpdate`, `localDelete`, `localUpdateMany`, each of which asserts a guest session first, so
+      a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
+      `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
+      `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
+- [ ] `directDbWrites` **96** → 0. 51 files. The remaining sites are not one problem, and the order below is the
+      order they can actually be done in:
+      - **bootstrap** (`useLedgerData` 2) — the profile and the first personal workspace, written before any
+        workspace exists to send a command to. Needs `user.provision` / `workspace.create`, not a rewrite.
+      - **derived maintenance** (`useEntityOperations` 6, `postingHelpers` 1, `dimensionNodeActions` 3) — the
+        `balanceCents` sync, `rulePatterns`/`learnedDeltas`, the workspace's dimension tree. 10 sites, 3 commands.
+      - **undo** (`projectUndo` 2) — `project.delete` / `project.restore`, which do not exist yet.
+      - **the rest** (~82 sites in 44 files) — write routes that already have a command in most cases
+        (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
+        call, because a hook that writes has one shape.
 - [ ] Undo on the result: `deleteWithUndo` into `useCommand` where the command's inverse exists.
 - [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
 

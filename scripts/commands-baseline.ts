@@ -7,6 +7,13 @@ export interface CommandWriteCounts {
   directBrowserWrites: number;
   routeSites: Record<string, number>;
   browserSites: Record<string, number>;
+  /**
+   * Writes by the sample company's own store (`src/lib/db/localStore.ts`). They are not direct writes
+   * to a workspace — the demo has no workspace on the server — but they are counted, so "the browser
+   * writes in exactly two places" is measurable rather than a claim.
+   */
+  localStoreWrites: number;
+  localStoreSites: Record<string, number>;
 }
 
 const ROOT = process.cwd();
@@ -14,7 +21,9 @@ const ROUTE_ROOT = path.join(ROOT, 'src/server/routes');
 const SOURCE_ROOT = path.join(ROOT, 'src');
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 const BROWSER_WRITE_CALLS = new Set(['setDoc', 'updateDoc', 'deleteDoc', 'addDoc', 'writeBatch', 'runTransaction']);
-const IGNORED_BROWSER_SEGMENTS = new Set(['server', 'tests', 'lib/db']);
+const IGNORED_BROWSER_SEGMENTS = new Set(['server', 'tests']);
+// the local store is where the sample company's writes live; it is counted, not ignored
+const LOCAL_STORE_ROOT = 'lib/db';
 
 function walk(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -81,8 +90,9 @@ function isIgnoredBrowserFile(file: string): boolean {
   return [...IGNORED_BROWSER_SEGMENTS].some(segment => relative === segment || relative.startsWith(`${segment}/`) || relative.includes(`/${segment}/`));
 }
 
-function countDirectBrowserWrites(): { total: number; sites: Record<string, number> } {
+function countDirectBrowserWrites(): { total: number; sites: Record<string, number>; localTotal: number; localSites: Record<string, number> } {
   const sites: Record<string, number> = {};
+  const localSites: Record<string, number> = {};
   for (const file of walk(SOURCE_ROOT)) {
     if (isIgnoredBrowserFile(file)) continue;
     const source = fs.readFileSync(file, 'utf8');
@@ -93,9 +103,18 @@ function countDirectBrowserWrites(): { total: number; sites: Record<string, numb
       ts.forEachChild(node, visit);
     };
     visit(ast);
-    if (count) sites[path.relative(ROOT, file).split(path.sep).join('/')] = count;
+    if (!count) continue;
+    const relative = path.relative(ROOT, file).split(path.sep).join('/');
+    const inLocalStore = path.relative(SOURCE_ROOT, file).split(path.sep).join('/').startsWith(`${LOCAL_STORE_ROOT}/`);
+    (inLocalStore ? localSites : sites)[relative] = count;
   }
-  return { total: Object.values(sites).reduce((sum, n) => sum + n, 0), sites: Object.fromEntries(Object.entries(sites).sort(([a], [b]) => a.localeCompare(b))) };
+  const sortSites = (entries: Record<string, number>) => Object.fromEntries(Object.entries(entries).sort(([a], [b]) => a.localeCompare(b)));
+  return {
+    total: Object.values(sites).reduce((sum, n) => sum + n, 0),
+    sites: sortSites(sites),
+    localTotal: Object.values(localSites).reduce((sum, n) => sum + n, 0),
+    localSites: sortSites(localSites),
+  };
 }
 
 export function scanCommandWrites(): CommandWriteCounts {
@@ -106,6 +125,8 @@ export function scanCommandWrites(): CommandWriteCounts {
     directBrowserWrites: browser.total,
     routeSites: routes.sites,
     browserSites: browser.sites,
+    localStoreWrites: browser.localTotal,
+    localStoreSites: browser.localSites,
   };
 }
 
