@@ -1,11 +1,11 @@
-# Independent Launch-Readiness & Engineering Audit Report — `main` `f6ff005` (2026-11-16)
+# Independent Launch-Readiness & Engineering Audit Report (Agent #10) — `main` `f6ff005` (2026-11-16)
 
 - **Pinned Base Commit:** `f6ff00511fef2eea283531b8966368c1ad5f2615` (`shmuelbiller1/ledgerflow` `main` — PR `#737`: `EU-I3: free invoice maker at the door, plus EU queue docs`)
 - **Working Branch:** `arena/7d2d63f2-ledgerflow`
 - **Active Upstream PR Overlap Guard:** Zero files touched by open PRs `#743` (`CMD-1: person-scoped commands + accountRoutes conversion`) or `#744` (`Raw table sweep, batch 2`) were modified on this branch.
 - **Governance & Lane Boundaries (`AGENTS.md`, `docs/COORDINATION.md`, `docs/INDEPENDENT_AUDIT_AGENT.md`):**
   - **Authorized UI / client / non-reserved fixes committed on this branch:** `src/components/common/SpreadDialog.tsx`, `src/components/ui/PdfPreviewModal.tsx`, `src/services/documentDownloads.ts`, `src/tests/audit-2026-11-16-ui-regressions.test.tsx`.
-  - **Reserved server / migration / tax / ledger-posting fixes (`src/server/**`, `supabase/migrations/**`, `src/lib/tax/*`, `src/lib/taxCodes.ts`, `src/lib/taxRecompute.ts`, `src/lib/taxReturnDocs.ts`, `src/lib/prepaidSchedule.ts`):** Untouched on this branch; delivered as `git apply --check`-verified, live-PostgreSQL-tested standalone patches under `audit/agent9-2026-11-16/patches/` paired with executable adversarial probes under `audit/agent9-2026-11-16/probes/`.
+  - **Reserved server / migration / tax / ledger-posting fixes (`src/server/**`, `supabase/migrations/**`, `src/lib/tax/*`, `src/lib/taxCodes.ts`, `src/lib/taxRecompute.ts`, `src/lib/taxReturnDocs.ts`, `src/lib/prepaidSchedule.ts`):** Untouched on this branch; delivered as `git apply --check`-verified, live-PostgreSQL-tested standalone patches under `audit/agent10-2026-11-16/patches/` paired with executable adversarial probes under `audit/agent10-2026-11-16/probes/`.
 
 ---
 
@@ -36,10 +36,10 @@
   - `auditLogService` concurrency (`E`): `12` non-tx, `12` `runTransaction`, `10` dual-`Firestore`-pool, and `10` prior-read `SERIALIZABLE` transactions all produced contiguous `seq 1..N`, `valid: true`, `duplicates: []`.
   - `customTemplates` `stranger: "i"` (`security-baseline.json`): verified safe-by-design personal templates scoped to `uid` (`r/u/d = ""` cross-user).
 - **Prior Agent #7 Findings STILL LIVE on `main` `f6ff005` (`exit 0`):**
-  - `A7N-03` (`probe-03`): `POST /api/v1/transactions/reconcile` voids `invoice-posting` and rewrites `depreciation` lines (`200`); `POST /api/v1/transactions/batch` demotes `completed -> draft` (`200`). *(Note: `agent7` patch `02` conflicts on `f6ff005`; rebased cleanly in `audit/agent9-2026-11-16/patches/02`.)*
+  - `A7N-03` (`probe-03`): `POST /api/v1/transactions/reconcile` voids `invoice-posting` and rewrites `depreciation` lines (`200`); `POST /api/v1/transactions/batch` demotes `completed -> draft` (`200`). *(Note: `agent7` patch `02` conflicts on `f6ff005`; rebased cleanly in `audit/agent10-2026-11-16/patches/02`.)*
   - `A7N-04` (`probe-04`): `recomputeDocumentTax` posts corrupted `-6,633` cent GL `tax-adjustment` on valid `JPY` bill; `buildTaxReturn` `67` vs `6700`; `taxByRate` `67` vs `6700`; `kwdBox1Cents` `32500` vs `3250`; `ilVat` `67` vs `6700`; `taxReturnService` omits `4a`/`4b` boxes; `ilAllocation` returns `false` on `₪120,000 > ₪5,000`; `usNexusWatch` misses `$134,000 > $100,000`; `usSalesTaxReturn` returns `67` vs `6700`; `prepaidSchedule.documentLine` returns `670` vs `67000`.
   - `A7N-05` & `A7N-06` (`probe-05`): `revaluateForeignBalances` ignores `asOf` cutoff (`2026-09-30`) and bill `apAccountId`; bookkeeper `ROLE authenticated` `UPDATE public.assets` doubles GL depreciation (`50,000 -> 100,000`). *(Agent #7 patches `04` & `05` still `git apply --check` cleanly on `f6ff005`.)*
-  - `A7N-07` & `A7N-08` (`probe-06`): `computeStatement` returns `150,000` vs `computeCustomerBalanceSummary` `117,000`; `PUT /api/v1/transactions/:id` returns client's stale `updatedAt`, triggering immediate `409` self-conflict. *(Agent #7 patch `06` still applies cleanly; `A7N-08` rebased in `audit/agent9-2026-11-16/patches/02`.)*
+  - `A7N-07` & `A7N-08` (`probe-06`): `computeStatement` returns `150,000` vs `computeCustomerBalanceSummary` `117,000`; `PUT /api/v1/transactions/:id` returns client's stale `updatedAt`, triggering immediate `409` self-conflict. *(Agent #7 patch `06` still applies cleanly; `A7N-08` rebased in `audit/agent10-2026-11-16/patches/02`.)*
 
 ---
 
@@ -61,7 +61,7 @@
 
 ---
 
-## 3. Standalone Patches & Verification Matrix (`audit/agent9-2026-11-16/patches/`)
+## 3. Standalone Patches & Verification Matrix (`audit/agent10-2026-11-16/patches/`)
 
 All 5 patches below were verified individually via `git apply --check` on `main` `f6ff005` (`CLEAN`) and **applied together in an isolated verification workspace** against live PostgreSQL 16.2 (`lf_test`) + `tsc --noEmit` (`0` errors) + `eslint --max-warnings 2` (`0` errors, `2` warnings) + `npm run test:rules` (`ALL RLS TESTS PASSED`) + `npm run test:security` (`PASS`) + `l94-step2`, `l94-step2b`, `prepaid-spread`, `revenue-spread`, `tax-return`, `tax-recompute`, `report-routes`, `document-pdf-route`, `copy-mark`, `ledger-edit-guards-db`, `transaction-batch-safety`, `etags-if-match`, `audit-f1-f2`, `audit-f3`, `eg2-*`, `eg10`, and `bug-patterns` (**0 failures**; note `credits` DB suite passed prior to adding the 1-line audit `description` field to `creditService.ts` in Patch `02`, after which `tsc` and `eslint` passed cleanly):
 
