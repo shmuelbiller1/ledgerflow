@@ -60,6 +60,15 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   name: `${string}.${string}`;
   input: Schema;
   roles: readonly CommandRole[];
+  /**
+   * `person` commands act on the caller's own account (two-step recovery codes, notice emails,
+   * groups of books): the runner asks only for a signed-in person, not for a workspace and one of
+   * its roles, and none is granted one — `ctx.role` is 'owner' and `ctx.workspace` is empty. The
+   * idempotency and audit scope becomes `person:<uid>`. A person command cannot declare `dated` or
+   * `capacity` (both read workspace state), and its `roles` list is informational: every signed-in
+   * person may run it on their own account. Defaults to `workspace`.
+   */
+  scope?: 'workspace' | 'person';
   /** Permit platform admins outside the workspace roles list; never grants this override to API keys. */
   allowPlatformAdmin?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */

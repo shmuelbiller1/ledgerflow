@@ -127,7 +127,8 @@ export function forgetAuthenticator(uid: string): void {
 /**
  * Checks a Supabase access token (signature, issuer, audience, expiry) and decodes it.
  * `firstStepOnly`: accept a password-only session of someone with an authenticator; only for using a
- * recovery code (POST /api/v1/account/recovery-codes/use).
+ * recovery code (POST /api/v1/account/recovery-codes/use, and its command
+ * POST /api/v1/commands/account.userecoverycode).
  * `setupCheck`: accept a password-only session of someone who still has to set up two-step login for
  * a workspace that requires it (Y-30); only for asking whether they must (GET /api/v1/account/two-step).
  */
