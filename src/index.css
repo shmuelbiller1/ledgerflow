@@ -17,7 +17,7 @@
   --color-ledger-error: #ef4444;
   --color-ledger-warning: #f59e0b;
 
-  /* LedgerFlow Theme */
+  /* Countmora theme tokens: surfaces stay calm, the accent carries the brand */
   --color-ledgerflow-ink: var(--ink);
   --color-ledgerflow-surface: var(--surface);
   --color-ledgerflow-panel: var(--panel);
@@ -78,7 +78,7 @@
     --ink: #0A1920; --surface: #0F242D; --panel: #122A33; --elevated: #173741;
     --line: #20414B; --grid: rgba(120, 170, 175, 0.06);
     --text: #DEE8E6; --muted: #87A0A2; --faint: #7E989B;
-    --brass: #D6A852; --brass-soft: rgba(214, 168, 82, 0.14); --brass-line: rgba(214, 168, 82, 0.4);
+    --brass: #C4B5FD; --brass-soft: rgba(167, 139, 250, 0.16); --brass-line: rgba(167, 139, 250, 0.45);
     --pos: #49B67F; --neg: #DE6E52;
     --w-personal: #6488AC; --w-charity: #63977B; --w-book: #9E7EBA; --w-estate: #BE7392;
     color-scheme: dark;
@@ -87,7 +87,7 @@
     --ink: #E7EDEB; --surface: #F4F8F7; --panel: #FFFFFF; --elevated: #FFFFFF;
     --line: #D4DEDB; --grid: rgba(20, 60, 64, 0.05);
     --text: #0E2229; --muted: #4D6564; --faint: #4F6469;
-    --brass: #7A550E; --brass-soft: rgba(122, 85, 14, 0.10); --brass-line: rgba(122, 85, 14, 0.35);
+    --brass: #6D28D9; --brass-soft: rgba(109, 40, 217, 0.08); --brass-line: rgba(109, 40, 217, 0.35);
     --pos: #17754A; --neg: #A9412C; /* ≥ 4.5:1 on surface and ink (were 4.06 / 4.41) */
     --w-personal: #4E6E92; --w-charity: #3F7C5E; --w-book: #7E5DA0; --w-estate: #A5537A;
     color-scheme: light;

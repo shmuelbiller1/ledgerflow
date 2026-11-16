@@ -1,11 +1,11 @@
-# LedgerFlow
+# Countmora
 
 ## License
 
-LedgerFlow is **source-available, not open source**. It is licensed under the [PolyForm Strict License 1.0.0](LICENSE.md), which permits limited noncommercial use but does **not** permit distribution, modifications, or commercial deployment. Commercial use, resale, managed hosting, or other public business offerings require separate written permission from the copyright holder. The public repository is not permission to commercialize LedgerFlow.
+Countmora is **source-available, not open source**. It is licensed under the [PolyForm Strict License 1.0.0](LICENSE.md), which permits limited noncommercial use but does **not** permit distribution, modifications, or commercial deployment. Commercial use, resale, managed hosting, or other public business offerings require separate written permission from the copyright holder. The public repository is not permission to commercialize Countmora.
 
 
-LedgerFlow is double-entry bookkeeping for small businesses and their accountants, built with TypeScript, React 19 and Vite. It covers the main path: books, bank, money in and out, labels, payments, reconciliation (LedgerFlow suggests matches, a person confirms), reports that explain each figure, period close, and backup and restore. Several companies can be grouped and seen side by side; full consolidation is not there yet.
+Countmora is double-entry bookkeeping for small businesses and their accountants, built with TypeScript, React 19 and Vite. It covers the main path: books, bank, money in and out, labels, payments, reconciliation (Countmora suggests matches, a person confirms), reports that explain each figure, period close, and backup and restore. Several companies can be grouped and seen side by side; full consolidation is not there yet.
 
 **What works today, with its limits and the tests behind it: [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).** Where this README says more than that table, the table is right.
 
@@ -27,7 +27,7 @@ LedgerFlow is double-entry bookkeeping for small businesses and their accountant
 
 ## 🏛 Three-Layer System Architecture
 
-LedgerFlow strictly separates data, computation, and rendering into three decoupled layers:
+Countmora strictly separates data, computation, and rendering into three decoupled layers:
 
 ### Layer 1: Data Source of Truth (Zustand & Supabase Postgres)
 - All client-side runtime ledger state is managed via `useLedgerStore` (`src/stores/useLedgerStore.ts`).

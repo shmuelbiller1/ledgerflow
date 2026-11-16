@@ -9,23 +9,23 @@
  */
 export const BRAND = {
   /** the product name as people see it */
-  name: 'LedgerFlow',
+  name: 'Countmora',
   /** the same name written in Hebrew */
-  nameHe: 'לדג׳רפלואו',
+  nameHe: 'קאונטמורה',
   /** one short line under the name (emails, link previews, the installed app) */
-  tagline: 'Bookkeeping for your business',
+  tagline: 'Accounting made clear',
   /** the same line in Hebrew */
   taglineHe: 'הנהלת חשבונות לעסק שלך',
   /** a longer line for search engines and link previews */
   description: 'Bookkeeping for small businesses: invoices, bills, bank reconciliation, VAT and reports.',
   /** lowercase, no spaces: the start of downloaded file names (e.g. `ledgerflow_transactions_2026-11-10.csv`) */
-  fileSlug: 'ledgerflow',
+  fileSlug: 'countmora',
   /** the public site address (no https://) */
-  domain: 'ledgerflow.app',
+  domain: 'countmora.com',
   /** reverse-domain id for the installed app */
-  appId: 'com.ledgerflow.app',
+  appId: 'com.countmora.app',
   /** the letter shown in the logo box */
-  logoLetter: 'L',
+  logoLetter: 'C',
 } as const;
 
 export const BRAND_NAME = BRAND.name;

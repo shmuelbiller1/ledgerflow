@@ -1,4 +1,4 @@
-# UI guide: how LedgerFlow screens should look and behave
+# UI guide: how Countmora screens should look and behave
 
 Written 18 Oct 2026 for every AI that touches a screen. The owner asked for "better design in certain
 places"; this is the yardstick. When a screen breaks a rule below, fixing it is a valid task. Tasks

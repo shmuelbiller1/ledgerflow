@@ -1,4 +1,4 @@
-# LedgerFlow: the plan (updated 13 Oct 2026)
+# Countmora: the plan (updated 13 Oct 2026)
 
 > **Not the current task list.** What to do now: [`CURRENT_WORK.md`](../CURRENT_WORK.md). Product status: [`RELEASE_GATE.md`](RELEASE_GATE.md). This file is kept for the strategy (§15–16 are current).
 
@@ -157,7 +157,7 @@ posts money.
 The full list is in `docs/FOR_YOU.md`. The tax items:
 
 - **Israel Tax Authority registration** for allocation numbers (IL-6). It is free. Until then
-  LedgerFlow prepares the request but cannot fetch the number.
+  Countmora prepares the request but cannot fetch the number.
 - **An accountant's check** of one real month of Israeli VAT and US payroll before the "not for
   filing" note comes off.
 - **Roll the old Stripe test key** (item 41).
@@ -183,7 +183,7 @@ alone.
 4. **Returns per registration.** Each tax return (Israeli VAT report, each US state's sales tax return,
    941 per EIN) is built from the lines whose seller profile carries that registration, across labels in
    one set of books and across books in a group (DA-01).
-5. **Learning and checking (algorithms).** From the history LedgerFlow suggests the tax code per vendor,
+5. **Learning and checking (algorithms).** From the history Countmora suggests the tax code per vendor,
    item, entity and place; it learns from each correction (what the person changed it to is the next
    suggestion); it flags a line whose tax differs from what the same entity, item and place usually get;
    it warns when an entity's sales into a state approach nexus. Suggestions are never applied silently:
@@ -286,14 +286,14 @@ suggests facts and rules, never sets them.
 Checked against the repos (storytold/gridcraft 0.6.1, storytold/craft-libs 0.1.0): pure Rust, ~121k lines, MIT OR
 Apache-2.0, alpha, browser build is a WebAssembly canvas app (`apps/gridcraft-web`), not a React component. The
 ArtCraft brand is excluded from the licence (NOTICE, docs/brand/LICENSE-brand.txt). craft-libs (atomic files,
-printing, macOS quit, egui UI) is desktop plumbing that LedgerFlow does not need.
+printing, macOS quit, egui UI) is desktop plumbing that Countmora does not need.
 
 - **Rule that never changes:** the spreadsheet never writes to the books. Data goes in one way: a report snapshot
   made on the server. Any change goes back through our own screens (InlineEdit, Explain-number).
 - **Shape:** a separate build artifact served from its own origin, in a sandboxed iframe, with a typed postMessage
-  bridge that carries no login tokens. "Explain in LedgerFlow" on a cell opens our drill-down.
+  bridge that carries no login tokens. "Explain in Countmora" on a cell opens our drill-down.
 - **Order:** SL-1 licence notice and no-brand check; SL-2 server report snapshot (read only, with provenance ids);
-  SL-3 the iframe and bridge behind a feature flag; SL-4 Explain-in-LedgerFlow; SL-5 export to .xlsx.
+  SL-3 the iframe and bridge behind a feature flag; SL-4 Explain-in-Countmora; SL-5 export to .xlsx.
 - **Not before:** the tax and payroll work in §6 and §10. Native Pivot Sheet and pins stay the main way to analyse.
 
 ## 12. The owner's two audit reports (13 Oct) — what was taken
@@ -373,7 +373,7 @@ re-running a red job hoping it turns green — a failure is fixed or explained.
 
 **Compared with storytold/photocraft (13 Oct).** PhotoCraft (Rust, ~516k lines) has ~7,600 tests, 35 fuzz
 targets, property tests, a corpus of real files, nightly speed budgets, a dependency-layer check and a
-quality scorecard, on several operating systems. LedgerFlow (~236k lines) has ~3,000 tests (a similar
+quality scorecard, on several operating systems. Countmora (~236k lines) has ~3,000 tests (a similar
 number per line), coverage floors, time-zone runs, screenshots and mutation tests, but no fuzzing, no
 real-file corpus, no speed budgets and no layer check. Added: AU-3 property tests (Claude), F-37 fuzzing,
 F-38 speed budgets, F-39 scorecard, F-40 layer check (AI #7), E-56 real-file corpus (AI #5).
@@ -435,7 +435,7 @@ Read in full: `audit/ARCHITECTURE_AND_STRATEGY_REVIEW.md` and the owner's pasted
 
 ## 17. Bookkeeping first (owner, 20 Oct) — this order wins over §15 where they differ
 
-LedgerFlow becomes an exceptionally reliable, low-friction, multidimensional bookkeeping system **before** it tries
+Countmora becomes an exceptionally reliable, low-friction, multidimensional bookkeeping system **before** it tries
 to be a payroll processor or a tax-filing platform. Nothing built is thrown away; the order changes.
 
 - **Stages:** A synthetic bookkeeping beta → B narrow real-records pilot → C tax and payroll automation. Exact
