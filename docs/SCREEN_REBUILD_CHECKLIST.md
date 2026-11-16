@@ -1,4 +1,4 @@
-# Screen rebuild — PR #725 checklist
+# Screen rebuild — PR #730 checklist
 
 The task is unchanged: **every action and report the server offers can be reached, and a new person
 still sees only a few things.** Connect and simplify what exists. Do not add features.
@@ -15,7 +15,7 @@ ticked only when the number moved or the named test passes.
 | counter | now | target | what it counts |
 |---|---|---|---|
 | `rawTables` | **184** | 0 | screens drawing their own `<table>` instead of the shared grid |
-| `handTypedApiCalls` | **84** | 0 | `fetch('/api/…')` typed by hand |
+| `handTypedApiCalls` | **15** (was 84) | 0 | `fetch('/api/…')` typed by hand |
 | `directDbWrites` | **93** | 0 | the browser writing the books instead of asking the server |
 | `screensWithManyPrimaryButtons` | **0** | 0 | ✅ done |
 | `unreachableActions` | **0** | 0 | ✅ done |
@@ -24,7 +24,7 @@ ticked only when the number moved or the named test passes.
 
 | lever | what it does | expected |
 |---|---|---|
-| `scripts/codemod-run-command.ts` | inventories the one `fetch` + `if (!res.ok)` + `res.json()` shape: **98 calls, 82 mechanical, 16 need a person** (an AbortSignal, no headers object, a raw body) | the batch is chosen, not guessed |
+| `scripts/codemod-run-command.ts` | `--report` inventories every hand-typed call and names the blocker; `--write` applies **eight confirmed rewrite shapes** and **reverts a file it cannot finish**, so `tsc` is never what notices | done the boring half, not guessed it |
 | `scripts/codemod-table-to-grid.ts` | sorts every raw table into mechanical / by hand / stays with the reason | **139 / 31 / 73** |
 | `npm run ratchet:update` | moves the baseline after each batch | seconds |
 | one commit per **group**, not per file | the commit message carries the batch | ~6 commits, not 60 |
@@ -58,16 +58,54 @@ The foundation exists and invoices are already on it — this part is **connecti
 
 ## 3. One way to act
 
-- [ ] **`transactionActions` — nine hand-typed calls, one shape.** All nine do `fetch` → `if (!res.ok)` →
-      `res.json()` → `throw new Error(...)`. `runCommand` already returns exactly what they need
-      (`ServerCommandError.status` and `.body`) and throws with the server's own words.
-      **Route: the codemod, then one commit.** This is the single best mechanical win in the PR.
-- [ ] `services/`: 14 calls, several already small wrappers — convert the plain ones (`clearanceActions`,
-      `receiptActions`, `depositActions`, `journalTemplateActions`), leave the download/blob ones.
-- [ ] The remaining `components/` cluster for `/api/v1/transactions` (23 call sites — the largest group).
-- [ ] **Undo on the result**: `deleteWithUndo` wired into `useCommand`'s result where the command's
-      inverse exists.
+- [x] **`transactionActions` — nine hand-typed calls, one shape.** Done; `integrityActions`, `ruleActions`,
+      `entryActions` (6) and `importActions` send through `runCommand`. The 409 version conflict and the
+      budget warnings survive because `ServerCommandError` carries `.status` and `.body`.
+- [x] `services/` — `clearanceActions`, `receiptActions`, `depositActions`, `journalTemplateActions`,
+      `clientQueryActions`, `documentNumbers`, `spreadActions`, `attachmentActions`, `workspacePriceLists`,
+      `stockRequests`, `postingKit` (2). The download/blob ones stay, by name (below).
+- [x] The `/api/v1/transactions` cluster across `components/` — entry, petty cash, bank-line, inbox, import,
+      intercompany, QBO migration, forensic scan, vault injection.
+- [x] The report views (six, by codemod), the settings screens (eleven), the customer-facing pages (three),
+      the export snapshots (five), the plumber hooks (`useServer*`, `useLedgerData`, `useHandOvers`).
+- [ ] **Undo on the result**: `deleteWithUndo` wired into `useCommand`'s result where the command's inverse
+      exists. (Not started — it needs the command schemas, part 3's second half.)
 - [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
+
+### What the sweep learned, in the order it learned it
+
+These are the findings that decide how the rest of the list gets done. Each cost a failing test or a wrong
+first attempt, so they are cheaper to read than to rediscover.
+
+1. **`rawBody` exists for a reason.** `DrillDownModal` passed a JSON *string* as `body`; `runCommand` encoded it
+   again and the endpoint received a quoted string. A caller that already holds the request text passes
+   `rawBody`. The same applies to the payment modals: their idempotency key is a hash **of the serialized body**,
+   so re-serializing an object can change the key and record a second payment.
+2. **A refusal body is sometimes the feature.** The landed-cost 409 carries the *new plan* so the panel can show
+   it; the credit-limit 409 carries `canOverride` so the screen can offer "post anyway"; a dead public invoice
+   link carries a sentence written for the customer. `ServerCommandError.body` keeps all three, and each caller
+   says which one it needs.
+3. **"Not an exception" is not "success".** `handleToggleFlag` toasted the error and returned normally; the
+   per-function ratchet in `bug-patterns.test.ts` flagged it as a *new* risk location. It returns `false` now.
+4. **Ordering around the token is load-bearing.** `TaxProfilesSettings` re-checks the role *after* the token
+   arrives; `PlaidConnectButton` aborts *after* it arrives. Both had tests. A conversion that lets `runCommand`
+   fetch the token silently moves the check earlier.
+5. **`token: null` is a security boundary, not a default.** The public invoice and portal pages must not send
+   the signed-in person's credentials to a public route. `runCommand` attaches a token unless told not to.
+6. **Two AbortSignal cases were not problems.** `runCommand` takes a `signal`; the codemod was over-reporting 6
+   calls as "needs a person". Correcting the tool changed the plan from 14 hand edits to 8.
+7. **The test fixture was signing in the wrong place.** `setComponentWorkspace` set the store user but not the
+   auth singleton that `runCommand` reads, so ~271 tests exercised screens that sent no `Authorization` header.
+
+### What stays hand-typed, by name
+
+- `Banking.tsx` — the plaid sync reads `res.ok` to choose between four different messages ("some connections
+  failed", "another sync is running", "synced", "error"). The status is content, not a throw decision.
+- `documentDownloads.ts`, `OrderDeliveryDialog`, `PayRunHistory`, `BrandingSettings`' `/branding/preview` —
+  these answer with a **PDF blob**, which is the point of the call. `runCommand` reads JSON.
+- `StatusPage`, `useFinancialReporting`, `UsagePanel`, `IsraelMonthJourneyReportView`, `useApiHubModel`(logs),
+  `useLedgerData`(two reads) — public or unauthenticated reads whose `res.ok` is inspected as a value rather
+  than a failure.
 
 ## 4. Forms from the schema
 
