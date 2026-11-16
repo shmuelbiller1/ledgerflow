@@ -211,6 +211,7 @@ function toRemoteDimensionNode(
     description: raw.description,
     ...(Array.isArray(raw.aliases) ? { aliases: raw.aliases.filter((a): a is string => typeof a === 'string') } : {}),
     status: raw.status === 'archived' ? 'archived' : 'active',
+    ...(typeof raw.parentId === 'string' && raw.parentId ? { parentId: raw.parentId } : {}),
     ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
   };
 }

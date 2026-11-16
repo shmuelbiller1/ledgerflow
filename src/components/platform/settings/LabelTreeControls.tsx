@@ -30,7 +30,10 @@ export function LabelParentSelect({ dimensionId, node, nodes, canWrite, onChange
     <select aria-label={`Parent of ${node.description}`} value={node.parentId || ''} onChange={e => { void choose(e.target.value); }}
       className="min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 text-xs">
       <option value="">None (top level)</option>
-      {own.filter(p => p.id !== node.id && p.status !== 'archived' && !below.has(p.id)).map(p => <option key={p.id} value={p.id}>{p.description}</option>)}
+      {/* the current parent stays shown even when archived, so the link is visible and can be cleared */}
+      {own.filter(p => p.id !== node.id && !below.has(p.id) && (p.status !== 'archived' || p.id === node.parentId)).map(p => (
+        <option key={p.id} value={p.id} disabled={p.status === 'archived'}>{p.description}{p.status === 'archived' ? ' (archived)' : ''}</option>
+      ))}
     </select>
   );
 }
