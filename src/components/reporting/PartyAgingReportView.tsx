@@ -20,6 +20,8 @@ interface PartyAgingReportViewProps {
 
 export default function PartyAgingReportView({ side }: PartyAgingReportViewProps) {
   const reportText = useReportText();
+  const bucketNames: Record<string, string> = { current: reportText('r.bucket.current', 'Current'), d1_30: reportText('r.bucket.d1_30', '1–30 days'), d31_60: reportText('r.bucket.d31_60', '31–60 days'), d61_90: reportText('r.bucket.d61_90', '61–90 days'), d90plus: reportText('r.bucket.d90plus', 'Over 90 days') };
+  const bucketName = (key: string, label: string) => bucketNames[key] ?? label;
   const isCustomer = side === 'customer';
   // A-270: the keyboard path. Opening a row's drill-down must leave focus on that row when it
   // closes, whichever control opened it (the row itself, its arrow, or Enter on either).
@@ -158,7 +160,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         </div>
         {AGING_BUCKETS.map((b, i) => (
           <div key={b.key} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{b.key === 'current' ? reportText('r.not-yet-due', 'Not yet due') : fill(reportText('r.bucket-overdue', '{bucket} overdue'), { bucket: b.label })}</span>
+            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider block">{b.key === 'current' ? reportText('r.not-yet-due', 'Not yet due') : fill(reportText('r.bucket-overdue', '{bucket} overdue'), { bucket: bucketName(b.key, b.label) })}</span>
             <span className={`text-xl font-mono font-black tracking-tight block mt-1 ${['text-emerald-600 dark:text-emerald-400', 'text-amber-600', 'text-amber-600', 'text-orange-600', 'text-rose-600 dark:text-rose-400'][i]}`}>
               <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi>
             </span>
@@ -197,7 +199,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                 {AGING_BUCKETS.map(b => (
                   <th key={b.key} scope="col" className="p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort(b.key)}>
                     <span className="flex items-center justify-end gap-1">
-                      {b.label}
+                      {bucketName(b.key, b.label)}
                       <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                     </span>
                   </th>
