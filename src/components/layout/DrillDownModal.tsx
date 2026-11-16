@@ -41,7 +41,9 @@ function Explained({ request, formatCurrency, onOpen, onFail }: { request: Expla
     if (!query) return;
     let live = true;
     (async () => {
-      const body = await runCommand<Partial<Explanation>>({ path: '/api/v1/reports/explain', method: 'POST', body: query }) ?? {};
+      // `query` is already the request text (it is also the effect's key), so it goes on the wire as-is —
+      // passing it as `body` would JSON-encode the string and wrap the whole request in quotes
+      const body = await runCommand<Partial<Explanation>>({ path: '/api/v1/reports/explain', method: 'POST', rawBody: query }) ?? {};
       if (!Array.isArray(body.lines)) throw new Error('The entries could not be loaded');
       return body as Explanation;
     })().then(d => { if (live) setData(d); }).catch(() => { if (live) onFail(); });

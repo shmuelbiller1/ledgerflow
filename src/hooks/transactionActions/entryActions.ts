@@ -351,10 +351,10 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     }
   };
 
-  const handleToggleFlag = async (id: string) => {
+  const handleToggleFlag = async (id: string): Promise<boolean> => {
     const scope = identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
     const tx = useLedgerStore.getState().transactions.find(t => t.id === id);
-    if (!tx) return;
+    if (!tx) return false;
     const nextFlagged = !tx.isFlagged;
     try {
       await runCommand({
@@ -366,20 +366,20 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         },
       });
     } catch (error) {
-      // a refusal is a line on the screen, not an exception: the flag stays as it was
-      if (!scope.isCurrent()) return;
+      // A refusal is a line on the screen rather than an exception, but it is still a *failure*: the flag did
+      // not change, and the caller must be able to tell (returning normally here reads as success).
+      if (!scope.isCurrent()) return false;
       toast.error(commandErrorMessage(error) || 'Could not update transaction flag');
-      return;
+      return false;
     }
-    if (!scope.isCurrent()) return;
-    if (!scope.isCurrent()) return;
+    if (!scope.isCurrent()) return false;
     // The partial-update API does not include the committed row. Read it to
     // obtain both its fields and its version; adopting only updatedAt would
     // allow a subsequent full save to overwrite concurrent edits.
     let authoritative: Transaction | undefined;
     if (useLedgerStore.getState().transactions.find(t => t.id === id)?.updatedAt === tx.updatedAt) {
       const [refresh] = await Promise.allSettled([getDoc(doc(db, 'transactions', id))]);
-      if (!scope.isCurrent()) return;
+      if (!scope.isCurrent()) return false;
       if (refresh.status === 'fulfilled') {
         const fresh = refresh.value;
         const record = fresh.data();
@@ -392,7 +392,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         console.warn('Unable to refresh flag version after update:', refresh.reason);
       }
     }
-    if (!scope.isCurrent()) return;
+    if (!scope.isCurrent()) return false;
     setTransactions(
       useLedgerStore.getState().transactions.map(t => {
         if (t.id !== id) return t;
@@ -402,6 +402,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       }),
     );
     toast.info(tx.isFlagged ? 'Transaction flag removed' : 'Transaction flagged for review');
+    return true;
   };
 
   const handleDuplicateTransaction = async (id: string) => {
