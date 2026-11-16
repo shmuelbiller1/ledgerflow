@@ -15,7 +15,7 @@ ticked only when the number moved or the named test passes.
 | counter | now | target | what it counts |
 |---|---|---|---|
 | `rawTables` | **184** | 0 | screens drawing their own `<table>` instead of the shared grid |
-| `handTypedApiCalls` | **15** (was 84) | 0 | `fetch('/api/…')` typed by hand |
+| `handTypedApiCalls` | **5** (was 84) | 5, each named | `fetch('/api/…')` typed by hand |
 | `directDbWrites` | **93** | 0 | the browser writing the books instead of asking the server |
 | `screensWithManyPrimaryButtons` | **0** | 0 | ✅ done |
 | `unreachableActions` | **0** | 0 | ✅ done |
@@ -97,54 +97,34 @@ first attempt, so they are cheaper to read than to rediscover.
 7. **The test fixture was signing in the wrong place.** `setComponentWorkspace` set the store user but not the
    auth singleton that `runCommand` reads, so ~271 tests exercised screens that sent no `Authorization` header.
 
-### What stays hand-typed, by name
+### What stays hand-typed, by name — and why
 
-- `Banking.tsx` — the plaid sync reads `res.ok` to choose between four different messages ("some connections
-  failed", "another sync is running", "synced", "error"). The status is content, not a throw decision.
-- `documentDownloads.ts`, `OrderDeliveryDialog`, `PayRunHistory`, `BrandingSettings`' `/branding/preview` —
-  these answer with a **PDF blob**, which is the point of the call. `runCommand` reads JSON.
-- `StatusPage`, `useFinancialReporting`, `UsagePanel`, `IsraelMonthJourneyReportView`, `useApiHubModel`(logs),
-  `useLedgerData`(two reads) — public or unauthenticated reads whose `res.ok` is inspected as a value rather
-  than a failure.
+Five calls. Each one is a case where `runCommand`'s contract does not fit the answer or the question the screen
+is asking, so converting it would lose something:
 
-## 4. Forms from the schema
+| where | what the call does | why it cannot move |
+|---|---|---|
+| `documentDownloads.ts` (×2) | payslip, invoice and delivery-note **PDFs**, and the ZIP batch | the answer is bytes. `runCommand` reads JSON; a blob passed through it would have to be base64'd and decoded again to no benefit |
+| `PayRunHistory.tsx` | one payslip PDF | same |
+| `BrandingSettings.tsx` | `POST /branding/preview` | answers with a rendered image, not JSON |
+| `OrderDeliveryDialog.tsx` | the delivery note | opens a blob URL in a new tab |
+| `useApiHubModel.ts` sandbox | any endpoint, and it **reports the status code as a result** | "HTTP Status 503" is the point of a sandbox. `runCommand` turns a status into an exception, which is exactly the information this screen exists to show |
 
-- [ ] `SchemaForm` (zod-driven) and `CommandForm` (schema-driven) are now **two** form systems. Fold the
-      one caller of `SchemaForm` onto `CommandForm`, delete the other, keep the tests.
-- [ ] The hand-built invoice/bill/journal forms move onto the shared `Field` + validation helpers, so
-      there is one field component and one way an error appears under it.
+### A rule this sweep produced, now enforced by a test
 
-## 5. One box that can do anything
+**A committed write whose answer was cut off is not a failure.** Two bots found this in five places, all of them
+mine: the hand-typed calls read a success body with `res.json().catch(() => ({}))`, so a 2xx whose body was cut
+mid-flight counted as saved. `runCommand` throws `ServerCommandError(accepted: true)` there, and every caller I
+had converted treated any throw as failure — telling the person "Failed to add transaction" over an entry that was
+already recorded, and inviting the second click that records it twice.
 
-- [x] Role filter — **in `useCommand` and the API hub**, where commands run (a palette entry is a
-      navigation action, not a manifest command; the earlier palette-side gate matched nothing).
-- [x] A switched-off module appears as "Payroll (off) — turn on in Settings → Modules".
-- [x] A phone can open the palette at all (44px trigger; the search bar is `hidden md:flex`).
+It is now the library's job, not each caller's: `writeWasAccepted(error)` and `runWrite(request)` in
+`runCommand.ts`, pinned by three tests in `run-command.test.ts`. **Every future conversion of a write should use
+one of those two, not `runCommand` directly.**
 
-## 6. Short by default
+### The measurement itself was wrong once
 
-- [x] `screensWithManyPrimaryButtons` **19 → 0**.
-- [ ] Every screen keeps one filled button as new screens move onto the shared list — the ratchet in
-      `interface-ratchets.test.ts` already fails on a second one, so this stays ticked on its own.
-
-## 7. Assistant proposals
-
-- [ ] ✋ The only part with no foundation. "Waiting for you" list, one row per proposal with
-      Accept / Edit / Reject and "Accept all" per group; a switch showing the books with it applied using
-      the server's overlay; high-risk rows accepted one at a time after a two-step confirmation; Undo
-      after accepting; the screen says nothing in the list has changed the books yet.
-      **This is a build, not a connect — it does not fit in this PR without making it enormous.**
-
-## Done when
-
-- [ ] Every counter at zero, or each remaining site named with a reason a reader accepts.
-- [x] A first-time user at 390px, keyboard only: customer → invoice → payment → profit and loss, proven
-      in `e2e/first-hour-journey.spec.ts` (green in CI on #724).
-- [x] Any command or report findable by typing a plain word into the palette, English and Hebrew.
-
-## Rules for every PR in this list
-
-- CI green, every bot thread answered — not left open.
-- A ratchet may go up only when the new number is the **true** one and the commit says why.
-- Do not add a feature. Connect what exists.
-- Nothing is "done" because the code exists: a test must fail without it.
+`scripts/codemod-run-command.ts` walked `components`, `hooks`, `services`, `stores` — so `src/lib`, `src/modules`
+and `src/core` were invisible to every report it printed while `quality-metrics.ts` counted them. Seven calls sat
+in that blind spot. If a number and the tool that is supposed to explain it disagree, the tool is the first thing
+to check.
