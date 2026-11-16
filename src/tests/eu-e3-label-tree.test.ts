@@ -1,0 +1,139 @@
+/** EU-E3: parents and children for label values — order, loops, roll-ups and the "/" conversion. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ancestors, descendants, parentProblem, rollUp, slashConversionPlan, treeOrder } from '../lib/labelTree';
+import { setDimensionNodeParentInline } from '../lib/labelTreeActions';
+import type { DimensionNodeActionAdapter } from '../lib/dimensionNodeActions';
+import type { DimensionNode } from '../types';
+
+const n = (id: string, description: string, parentId?: string, extra: Partial<DimensionNode> = {}): DimensionNode =>
+  ({ id, dimensionId: 'property', description, ...(parentId ? { parentId } : {}), ...extra });
+// North → Maui house → Unit 1, Unit 2; South (no children); a value of another label
+const nodes = [
+  n('R1', 'North'), n('P1', 'Maui house', 'R1'), n('U1', 'Unit 1', 'P1'), n('U2', 'Unit 2', 'P1'), n('R2', 'South'),
+  { id: 'C1', dimensionId: 'class', description: 'Operations' } as DimensionNode,
+];
+
+test('EU-E3: tree order puts each parent before its children, with depth', () => {
+  assert.deepEqual(treeOrder(nodes, 'property').map(({ node, depth }) => `${depth}:${node.id}`), ['0:R1', '1:P1', '2:U1', '2:U2', '0:R2']);
+  assert.deepEqual(ancestors(nodes, 'property', 'U2').map(x => x.id), ['P1', 'R1']);
+  assert.deepEqual(descendants(nodes, 'property', 'R1').map(x => x.id), ['P1', 'U1', 'U2']);
+});
+
+test('EU-E3: a value with a missing parent, or in a loop, is still shown at the top level', () => {
+  const broken = [n('A', 'A', 'B'), n('B', 'B', 'A'), n('X', 'X', 'gone')];
+  assert.deepEqual(treeOrder(broken, 'property').map(({ node }) => node.id).sort(), ['A', 'B', 'X']);
+  assert.deepEqual(ancestors(broken, 'property', 'A').map(x => x.id), ['B'], 'stops at the loop');
+});
+
+test('EU-E3: the parent choices that are refused', () => {
+  assert.equal(parentProblem(nodes, 'property', 'P1', null), null);
+  assert.equal(parentProblem(nodes, 'property', 'P1', 'R2'), null);
+  assert.equal(parentProblem(nodes, 'property', 'P1', 'P1'), 'A value cannot be its own parent.');
+  assert.equal(parentProblem(nodes, 'property', 'R1', 'U1'), 'That value is already under this one; choosing it would make a loop.');
+  assert.equal(parentProblem(nodes, 'property', 'P1', 'C1'), 'Choose a value of the same label as the parent.');
+  assert.equal(parentProblem([...nodes, n('OLD', 'Old', undefined, { status: 'archived' })], 'property', 'P1', 'OLD'), 'An archived value cannot be a parent.');
+});
+
+test('EU-E3: totals with children — Unit 1 100.00, Unit 2 250.00, Maui 50.00, North 0', () => {
+  const net: Record<string, number> = { U1: 10_000, U2: 25_000, P1: 5_000 };
+  assert.deepEqual(rollUp(nodes, 'property', id => net[id] || 0), [
+    { id: 'R1', name: 'North', own: 0, children: 40_000, total: 40_000 },
+    { id: 'P1', name: 'Maui house', own: 5_000, children: 35_000, total: 40_000 },
+  ]);
+});
+
+test('EU-E3: "/" names become a plan, matched to an existing parent or one to create', () => {
+  const flat = [n('R1', 'North'), n('P1', 'North / Maui house'), n('P2', 'south/Aspen cabin'), n('P3', 'A / B / C'), n('P4', 'Plain'), n('P5', 'X / Y', 'R1')];
+  assert.deepEqual(slashConversionPlan(flat, 'property'), [
+    { nodeId: 'P1', from: 'North / Maui house', newName: 'Maui house', parentName: 'North', parentId: 'R1' },
+    { nodeId: 'P2', from: 'south/Aspen cabin', newName: 'Aspen cabin', parentName: 'south', parentId: null },
+    { nodeId: 'P3', from: 'A / B / C', newName: 'C', parentName: 'A / B', parentId: null },
+  ], 'a value that already has a parent, and one without "/", are not offered');
+});
+
+test('EU-E3: setting a parent writes parentId (and the new name in a conversion), and refuses a loop', async () => {
+  let store = [...nodes];
+  const writes: Array<Record<string, unknown>> = [];
+  const adapter = {
+    session: () => ({ workspaceId: 'w1', uid: 'u1', canWriteNodes: true }),
+    getNodes: () => store,
+    setNodes: (next: DimensionNode[]) => { store = next; },
+    updateNode: async (_w: string, _d: string, id: string, fields: Record<string, unknown>) => { writes.push({ id, ...fields }); },
+  } as unknown as DimensionNodeActionAdapter;
+  await setDimensionNodeParentInline('property', 'R2', 'R1', 'South coast', adapter);
+  assert.equal(writes.length, 1);
+  const { aliases, ...first } = writes[0] as { aliases: string[] };
+  assert.deepEqual({ ...first, updatedAt: 'x' }, { id: 'R2', parentId: 'R1', description: 'South coast', updatedAt: 'x' });
+  assert.ok(aliases.includes(nodes.find(x => x.id === 'R2')!.description), 'the old name stays an alias');
+  assert.equal(store.find(x => x.id === 'R2')?.parentId, 'R1');
+  await setDimensionNodeParentInline('property', 'R2', null, undefined, adapter);
+  assert.equal(store.find(x => x.id === 'R2')?.parentId, undefined, 'cleared');
+  await assert.rejects(setDimensionNodeParentInline('property', 'R1', 'U1', undefined, adapter), /loop/);
+  assert.equal(writes.length, 2, 'nothing written for the refused loop');
+});
+
+test('EU-E3: a conversion name another value uses is refused; overlapping changes cannot make a loop', async () => {
+  let store = [...nodes];
+  let release: () => void = () => {};
+  const adapter = {
+    session: () => ({ workspaceId: 'w1', uid: 'u1', canWriteNodes: true }),
+    getNodes: () => store,
+    setNodes: (next: DimensionNode[]) => { store = next; },
+    updateNode: () => new Promise<void>(r => { release = r; }),
+  } as unknown as DimensionNodeActionAdapter;
+  await assert.rejects(setDimensionNodeParentInline('property', 'R2', 'R1', nodes.find(x => x.id === 'R1')!.description, adapter), /already uses/);
+  const first = setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter);
+  const second = setDimensionNodeParentInline('property', 'R1', 'R2', undefined, adapter);
+  await new Promise(r => setTimeout(r, 0));
+  release();
+  await first;
+  await assert.rejects(second, /loop/, 'the second change is checked after the first is saved');
+});
+
+test('EU-E3: a parent change still queued when the workspace changes is refused, not written there', async () => {
+  let store = [...nodes];
+  let workspaceId = 'w1';
+  let release: () => void = () => {};
+  const written: string[] = [];
+  const adapter = {
+    session: () => ({ workspaceId, uid: 'u1', canWriteNodes: true }),
+    getNodes: () => store,
+    setNodes: (next: DimensionNode[]) => { store = next; },
+    updateNode: (w: string) => { written.push(w); return new Promise<void>(r => { release = r; }); },
+  } as unknown as DimensionNodeActionAdapter;
+  const first = setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter);
+  const queued = setDimensionNodeParentInline('property', 'U1', null, undefined, adapter);
+  await new Promise(r => setTimeout(r, 0));
+  workspaceId = 'w2';
+  release();
+  await assert.rejects(first, /changed/);
+  await assert.rejects(queued, /changed/);
+  assert.deepEqual(written, ['w1'], 'nothing is written into the new workspace');
+});
+
+test('EU-E3: parent changes are refused while the label list is only partly loaded', async () => {
+  let written = 0;
+  const adapter = {
+    session: () => ({ workspaceId: 'w1', uid: 'u1', canWriteNodes: true }),
+    getNodes: () => nodes, setNodes: () => {},
+    updateNode: async () => { written++; },
+  } as unknown as DimensionNodeActionAdapter;
+  await assert.rejects(setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter, () => true), /more label values than were loaded/);
+  assert.equal(written, 0);
+});
+
+test('EU-E3: roll-up of a large tree is quick (children indexed once)', () => {
+  const big: DimensionNode[] = [];
+  for (let r = 0; r < 30; r++) {
+    big.push(n(`R${r}`, `Region ${r}`));
+    for (let p = 0; p < 30; p++) {
+      big.push(n(`P${r}-${p}`, `Property ${r}-${p}`, `R${r}`));
+      for (let u = 0; u < 9; u++) big.push(n(`U${r}-${p}-${u}`, `Unit ${r}-${p}-${u}`, `P${r}-${p}`));
+    }
+  }
+  const start = performance.now();
+  const rows = rollUp(big, 'property', () => 1);
+  assert.equal(rows.find(x => x.id === 'R0')?.children, 300);
+  assert.ok(performance.now() - start < 1000, `took ${performance.now() - start} ms`);
+});

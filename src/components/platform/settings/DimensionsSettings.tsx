@@ -9,6 +9,8 @@ import {
   setDimensionNodeAliasesInline,
   setDimensionNodeStatusInline,
 } from '../../../lib/dimensionNodeActions';
+import { slashConversionPlan, treeOrder } from '../../../lib/labelTree';
+import { LabelParentSelect, SlashConversionOffer } from './LabelTreeControls';
 import { attempt, identityScope } from '../../../lib/serverAction';
 import { RecordInlineField } from '../../ui/RecordInlineField';
 import { WorkspaceDimensionName } from './WorkspaceDimensionName';
@@ -597,6 +599,8 @@ function DimensionsSettingsContent() {
 
         {dimensions.map(dim => {
           const axisNodes = dimensionNodes.filter(n => n.dimensionId === dim.id);
+          const axisTree = treeOrder(dimensionNodes, dim.id);
+          const slashPlan = slashConversionPlan(dimensionNodes, dim.id);
           const nextSuggestedId = suggestNextDimensionNodeId(dim.id, dimensionNodes);
           const nodeInput = newNodeInputs[dim.id] || { description: '', aliases: '' };
 
@@ -627,6 +631,7 @@ function DimensionsSettingsContent() {
               </div>
 
               {/* Node List Table */}
+              {canWrite && <SlashConversionOffer dimensionId={dim.id} plan={slashPlan} onChanged={() => setDimensionNodes(useLedgerStore.getState().dimensionNodes)} />}
               {axisNodes.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -635,19 +640,25 @@ function DimensionsSettingsContent() {
                       <tr className="border-b border-[var(--line)] text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                         <th scope="col" className="py-2 px-3 w-24">Value ID</th>
                         <th scope="col" className="py-2 px-3">Display Description</th>
+                        <th scope="col" className="py-2 px-3">Parent</th>
                         <th scope="col" className="py-2 px-3">Aliases (CSV)</th>
                         <th scope="col" className="py-2 px-3 w-28">Status</th>
                         <th scope="col" className="py-2 px-3 w-28 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">
-                      {axisNodes.map(node => (
+                      {axisTree.map(({ node, depth }) => (
                         <tr key={node.id} className={node.status === 'archived' ? 'opacity-50 bg-slate-900/30' : ''}>
                           <td className="py-2.5 px-3 font-mono font-bold text-indigo-400 text-xs">
                             {node.id}
                           </td>
                           <td className="py-2.5 px-3">
-                            <RecordInlineField collection="dimensionNodes" record={node} documentId={`${currentWorkspaceId}_${dim.id}_${node.id}`} field="description" label={`Label ${dim.id} ${node.id}`} canEdit={canWrite} />
+                            <div style={{ paddingInlineStart: `${depth * 1.25}rem` }}>
+                              <RecordInlineField collection="dimensionNodes" record={node} documentId={`${currentWorkspaceId}_${dim.id}_${node.id}`} field="description" label={`Label ${dim.id} ${node.id}`} canEdit={canWrite} />
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <LabelParentSelect dimensionId={dim.id} node={node} nodes={dimensionNodes} canWrite={canWrite} onChanged={() => setDimensionNodes(useLedgerStore.getState().dimensionNodes)} />
                           </td>
                           <td className="py-2.5 px-3">
                             {canWrite ? <EditableNodeAliases initialValue={(node.aliases || []).join(', ')} onCommit={newVal => { void handleUpdateNodeAliases(node.id, dim.id, newVal); }} /> : <span>{(node.aliases || []).join(', ')}</span>}
