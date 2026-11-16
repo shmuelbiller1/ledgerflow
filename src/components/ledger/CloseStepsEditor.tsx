@@ -1,7 +1,6 @@
 import React, { useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ListChecks, Plus, Trash2 } from 'lucide-react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { workspaceRole } from '../../lib/periodLock';
 import { closeStepsProblem, FREQUENCY_LABEL, MAX_CLOSE_STEPS, type CloseStep, type CloseStepFrequency } from '../../lib/closeSteps';
@@ -19,7 +18,6 @@ type Draft = Omit<CloseStep, 'id'> & { id?: string };
 const FREQUENCIES = Object.keys(FREQUENCY_LABEL) as CloseStepFrequency[];
 
 async function saveSteps(workspaceId: string, steps: Draft[]): Promise<CloseStep[]> {
-  const token = await getIdToken().catch(() => null);
   const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods/close-steps`, method: 'PUT', body: { steps } }) ?? {};
   return data.closeSteps as CloseStep[];
 }

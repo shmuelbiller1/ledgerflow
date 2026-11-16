@@ -78,7 +78,7 @@ export default function StockHistoryDialog({ item, workspaceId, currency, onClos
     if (moveProblem || !move.quantity) return;
     setMoving(true);
     try {
-      const data = await runCommand<CommandBody>({ path: '/api/v1/inventory/transfer', method: 'POST', body: { workspaceId, itemId: item.id, from: move.from, to: move.to.trim(), quantity: Number(move.quantity), date: move.date } }) ?? {};
+      await runCommand<CommandBody>({ path: '/api/v1/inventory/transfer', method: 'POST', body: { workspaceId, itemId: item.id, from: move.from, to: move.to.trim(), quantity: Number(move.quantity), date: move.date } });
       toast.success(`Moved ${move.quantity} to ${locationName(move.to.trim())}`);
       setMove(m => ({ ...m, quantity: '' }));
       setReload(n => n + 1);

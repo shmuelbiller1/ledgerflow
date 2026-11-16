@@ -2,7 +2,6 @@ import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 type BudgetControl = 'off' | 'warn' | 'block';
@@ -30,7 +29,6 @@ export default function BudgetControlSetting() {
     if (!workspace?.id || next === stored) return;
     setPending(next);
     try {
-      const token = await getIdToken().catch(() => null);
       await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/budget-control`, method: 'PUT', body: { budgetControl: next } });
       // patch the store as it is now: if the user signed out or switched account meanwhile, the
       // workspace is no longer there and nothing is written back
