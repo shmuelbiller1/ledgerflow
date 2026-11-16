@@ -13,7 +13,7 @@ test('Bank: no visible English outside bankText (text, markup strings, label/tit
 
 test('Bank: every bankText key has its English fallback and Hebrew in the table', () => {
   assert.deepEqual(report.badKeys, []);
-  assert.equal(report.calls, 23, 'counted from the syntax tree, so a fallback with an apostrophe is not skipped');
+  assert.equal(report.calls, 28, 'counted from the syntax tree, so a fallback with an apostrophe is not skipped');
   assert.equal(translateScreenString('banking', 'error.loadTitle', 'he', ''), 'לא הצלחנו לטעון את חשבונות הבנק');
   assert.equal(translateScreenString('banking', 'action.syncFeed', 'en', 'Sync Feed'), 'Sync Feed');
 });
