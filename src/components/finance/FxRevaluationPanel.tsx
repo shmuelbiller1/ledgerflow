@@ -62,7 +62,7 @@ async function ask(path: string, body: Record<string, unknown>, headers?: Record
 }
 
 function newOperationId(): string {
-  return globalThis.crypto?.randomUUID?.() || `fx-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return globalThis.crypto.randomUUID();
 }
 
 export function FxRevaluationPanel() {

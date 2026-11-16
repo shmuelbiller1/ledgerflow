@@ -107,7 +107,9 @@ describe('the revaluation panel', () => {
     await waitFor(() => assert.equal(calls.length, 2));
     assert.match(calls[1].path, /\/commands\/period\.fxrevaluation$/);
     assert.deepEqual(calls[1].body, { workspaceId: 'component-workspace', input: { date: TODAY } });
-    assert.ok(calls[1].headers?.['Idempotency-Key'], 'the command request carries a stable retry key');
+    const operationId = calls[1].headers?.['Idempotency-Key'];
+    assert.ok(operationId, 'the command request carries a stable retry key');
+    assert.match(operationId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'the retry key is a cryptographically generated UUID');
   });
 
   test('a retry after a lost run response reuses its idempotency key', async () => {
