@@ -28,6 +28,15 @@ export interface CommandDescription {
   sentence: string;
   example: unknown;
   refusals: Array<{ code: string; when: string; next: string }>;
+  /**
+   * What a person usually does next, named as commands rather than as buttons.
+   *
+   * This is the half of "one way to act" a refusal cannot carry: after an invoice is saved, the next
+   * thing anyone does is send it or record a payment. The client looks each name up in this same
+   * manifest, so an offered step is always a command that exists and that the person's role may run —
+   * a screen cannot invent one, and a renamed command cannot leave a dead link behind.
+   */
+  next?: Array<{ command: string; label: string }>;
 }
 
 export interface CommandContext {

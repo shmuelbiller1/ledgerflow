@@ -1,10 +1,10 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Receipt, FileCheck2, AlertTriangle } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
 import { buildTaxReturn, returnChanges, taxByRate } from '../../lib/taxReturnDocs';
 import type { TaxableDocument } from '../../lib/taxReturnDocs';
@@ -22,11 +22,9 @@ import { wholeWorkspaceReturn } from '../../lib/tax/filedReturns';
 
 interface FiledReturn { id: string; startDate: string; endDate: string; boxes: TaxReturnBox[]; filedAt: string; reference?: string; registration?: string }
 
-async function api(path: string, init?: RequestInit) {
-  const res = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}`, ...(init?.headers || {}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The request failed');
-  return data;
+interface ReturnsAnswer { returns?: FiledReturn[] }
+async function api(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }) {
+  return runCommand<ReturnsAnswer>({ path, method: init?.method, rawBody: init?.body as string | undefined });
 }
 
 interface TaxLiabilityViewProps {

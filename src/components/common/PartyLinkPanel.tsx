@@ -1,6 +1,8 @@
 import React, { useId, useMemo, useState } from 'react';
 import { Link2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
+import { useCommand } from '../../hooks/useCommand';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -25,6 +27,12 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
   const bills = useLedgerStore(s => s.bills);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const { updateEntity } = useEntityOperations();
+  /**
+   * The link itself is one command. It brings what `updateEntity` cannot: when the server refuses
+   * because the vendor is already linked to someone else, `customer.update` already declares the step
+   * that unsticks it ("unlink the other customer first"), so this panel shows that instead of a dead end.
+   */
+  const relink = useCommand('customer.update');
   const canEdit = useCurrentRole() !== 'viewer';
   const [saving, setSaving] = useState(false);
   // the vendor picked while its save runs or after it was refused, so a retry does not need picking again
@@ -64,9 +72,21 @@ export default function PartyLinkPanel({ side, partyId }: { side: PartySide; par
     if (saving || !canEdit || side !== 'customer') return;
     setSaving(true);
     setPending(vendorId);
-    updateEntity('customers', partyId, { linkedVendorId: vendorId }, vendorId ? 'Vendor linked' : 'Link removed').then(
-      () => setPending(null),
-      () => undefined, // refused (e.g. the vendor was just linked elsewhere): keep the choice shown; updateEntity reported it
+    const label = vendorId ? 'Vendor linked' : 'Link removed';
+    updateEntity('customers', partyId, { linkedVendorId: vendorId }, label).then(
+      () => {
+        setPending(null);
+        // the command's own offered next step, if it has one — never invented by this panel
+        const offered = relink.next[0];
+        if (offered) toast.info(`Next: ${offered.label}`, { description: offered.command });
+      },
+      () => {
+        // refused (e.g. the vendor was just linked elsewhere): the command's own next step says what
+        // to do about it, and the choice stays shown so nothing was silently undone
+        toast.error(relink.refusal?.message || 'The link was not saved.', {
+          description: relink.refusal?.next,
+        });
+      },
     ).finally(() => setSaving(false));
   };
 

@@ -1,6 +1,7 @@
+import { getIdToken } from '../../../firebase';
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Info, RefreshCw } from 'lucide-react';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import type { EventSource, EventTone, IncomingEvent } from '../../../lib/incomingEvents';
@@ -34,11 +35,12 @@ export default function IncomingEventsSettings() {
     void (async () => {
       try {
         const token = await getIdToken().catch(() => '');
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/incoming-events`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || 'The incoming events could not be read');
+        const data = await runCommand<{ data?: { events?: IncomingEvent[] }; message?: string }>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/incoming-events`,
+          token,
+        });
         if (!live) return;
-        setEvents((data.data?.events || []) as IncomingEvent[]);
+        setEvents(data.data?.events || []);
         setError('');
       } catch (err) {
         if (!live) return;

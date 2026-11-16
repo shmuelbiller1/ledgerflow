@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage, ServerCommandError } from '../../../lib/runCommand';
 import { displayDimensionName } from '../../../lib/dimensionUtils';
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
 import { normalizeSearchText } from '../../../lib/textNormalization';
@@ -18,7 +19,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { doc, updateDoc, writeBatch } from '../../../lib/db/firestore';
-import { db, getIdToken } from '../../../firebase';
+import { db } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { 
@@ -336,13 +337,15 @@ function DimensionsSettingsContent() {
 
       // Persist full workspace dimension migration atomically on the server before updating local caches
       if (db) {
-        const token = await getIdToken();
-        const migrateRes = await fetch('/api/v1/transactions/migrate-dimensions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId, dimensions }),
-        });
-        if (migrateRes.status === 404) {
+        let migrationMissing = false;
+        try {
+          await runCommand({ path: '/api/v1/transactions/migrate-dimensions', method: 'POST', body: { workspaceId: currentWorkspaceId, dimensions } });
+        } catch (err) {
+          // 404 is the older server without the bulk migration: fall back to writing in batches
+          if (err instanceof ServerCommandError && err.status === 404) migrationMissing = true;
+          else throw err;
+        }
+        if (migrationMissing) {
           const chunkSize = 450;
           const changedTransactions = updatedTransactions.filter((tx, idx) => {
             if (!tx.id) return false;
@@ -355,19 +358,8 @@ function DimensionsSettingsContent() {
             if (updates.length > 0) chunks.push(updates);
           }
           await Promise.all(chunks.map(async updates => {
-            const res = await fetch('/api/v1/transactions/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-              body: JSON.stringify({ workspaceId: currentWorkspaceId, updates }),
-            });
-            if (!res.ok) {
-              const errBody = await res.json().catch(() => ({}));
-              throw new Error(errBody?.error || errBody?.message || 'Failed to migrate transaction dimensions');
-            }
+            await runCommand({ path: '/api/v1/transactions/batch', method: 'POST', body: { workspaceId: currentWorkspaceId, updates } });
           }));
-        } else if (!migrateRes.ok) {
-          const errBody = await migrateRes.json().catch(() => ({}));
-          throw new Error(errBody.error || errBody.message || 'Failed to migrate transaction dimension labels');
         }
       }
 
@@ -390,7 +382,7 @@ function DimensionsSettingsContent() {
       toast.success(`Migration complete! Converted ${migrationCount} free-text labels to stable node IDs.`);
     } catch (err) {
       console.error('Migration failed:', err);
-      toast.error(`Migration failed: ${(err as Error).message || err}`);
+      toast.error(`Migration failed: ${commandErrorMessage(err)}`);
     } finally {
       setIsMigrating(false);
     }
@@ -595,7 +587,7 @@ function DimensionsSettingsContent() {
                 type="button"
                 disabled={isAddingAxis}
                 onClick={() => { void handleAddAxis(); }}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl disabled:opacity-50"
+                className="px-5 py-2 btn-tonal hover:bg-indigo-500 font-bold text-xs rounded-xl disabled:opacity-50"
               >
                 Create label
               </button>
@@ -750,7 +742,7 @@ function DimensionsSettingsContent() {
                       type="button"
                       disabled={addingNodeAxis === dim.id}
                       onClick={() => { void handleAddNode(dim.id); }}
-                      className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="w-full px-3 py-2 btn-tonal hover:bg-indigo-500 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <Plus aria-hidden="true" size={14} /> Add value<span className="sr-only"> to {displayDimensionName(dim)}</span>
                     </button>

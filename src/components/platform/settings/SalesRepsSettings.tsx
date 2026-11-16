@@ -1,3 +1,4 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useState } from 'react';
 import { UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -5,7 +6,6 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
 import { salesRepsProblem, type SalesRep } from '../../../lib/salesReps';
 
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
@@ -43,12 +43,12 @@ export default function SalesRepsSettings() {
   const save = async (next: Array<ReturnType<typeof fromDraft> | SalesRep>, done: string) => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/sales-reps`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ reps: next }),
+      const data = await runCommand<{ reps?: SalesRep[] }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/sales-reps`,
+        method: 'PUT',
+        body: { reps: next },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'The sales reps were not saved');
-      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, salesReps: data.reps } : w)));
+      setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, salesReps: data.reps || [] } : w)));
       toast.success(done);
       setEditing(null);
     } catch (err) {

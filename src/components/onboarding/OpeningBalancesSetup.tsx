@@ -58,7 +58,7 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
     } finally { pending.current = false; if (isCurrent()) setBusy(false); }
   };
   const field = 'w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-sm';
-  if (posted !== null) return <section className="space-y-3" aria-label="Opening balances recorded"><p>Opening balances recorded on {startDate}: debits and credits are both {money(posted)}.</p><button className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={onClose}>Done</button></section>;
+  if (posted !== null) return <section className="space-y-3" aria-label="Opening balances recorded"><p>Opening balances recorded on {startDate}: debits and credits are both {money(posted)}.</p><button className="btn-tonal min-h-11" onClick={onClose}>Done</button></section>;
   return (
           <section className="space-y-4" aria-labelledby="setup-opening">
             <h2 id="setup-opening" className="text-lg font-semibold">Opening balances</h2>

@@ -33,6 +33,12 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
+      "next": [
+        {
+          "command": "payment.receive",
+          "label": "Record a payment"
+        }
+      ],
       "refusals": COMMAND_SCHEMA_PARTS.part129
     },
     "runPath": "/api/v1/commands/invoice.create",

@@ -588,7 +588,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                 onClick={handleUpdateProject}
                 disabled={!editingProject.name}
                 loadingText="COMMITTING..."
-                className="px-8 py-3 bg-indigo-600 text-white rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-indigo-600/90 transition-all shadow-xl disabled:opacity-50"
+                className="px-8 py-3 btn-tonal rounded-[32px] text-xs font-medium uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-xl disabled:opacity-50"
               >
                 SAVE MODIFICATIONS
               </AsyncButton>

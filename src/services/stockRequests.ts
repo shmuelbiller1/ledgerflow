@@ -1,4 +1,5 @@
 import { getIdToken } from '../firebase';
+import { runCommand } from '../lib/runCommand';
 
 export interface StockMove {
   itemId: string;
@@ -41,15 +42,8 @@ export interface CountStockBody extends StockAccounts {
   counts: Array<{ itemId: string; counted: number }>;
 }
 
-async function postStock(path: string, body: object): Promise<StockResult> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'The stock change was not saved');
-  return data as StockResult;
+function postStock(path: string, body: object): Promise<StockResult> {
+  return runCommand<StockResult>({ path, method: 'POST', body });
 }
 
 /** Adds or removes stock of one item; the server posts the entry and changes the quantity together. */
@@ -82,14 +76,7 @@ export interface RevalueStockResult {
 
 /** ISS-130: revalues one item's stock on hand to a new cost; the server posts the difference and changes the cost together. */
 export async function revalueStockRequest(body: RevalueStockBody): Promise<RevalueStockResult> {
-  const res = await fetch('/api/v1/inventory/revalue', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'The revaluation was not saved');
-  return data as RevalueStockResult;
+  return runCommand<RevalueStockResult>({ path: '/api/v1/inventory/revalue', method: 'POST', body });
 }
 
 /** EG-6: what a landed cost posts (or, with dryRun, would post); the server's LandedCostResult. */
@@ -127,12 +114,5 @@ export async function landedCostRequest(body: Record<string, unknown>): Promise<
 
 /** EG-6: undoes a landed cost (its entry and its stock moves together). */
 export async function undoLandedCostRequest(workspaceId: string, entryId: string): Promise<{ entryId: string; undoEntryId: string; date: string; replayed: boolean }> {
-  const res = await fetch(`/api/v1/inventory/landed-cost/${encodeURIComponent(entryId)}/undo`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify({ workspaceId }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'The landed cost was not undone');
-  return data;
+  return runCommand({ path: `/api/v1/inventory/landed-cost/${encodeURIComponent(entryId)}/undo`, method: 'POST', body: { workspaceId } });
 }

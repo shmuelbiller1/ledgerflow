@@ -374,7 +374,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
                 }
                 setStep(2);
               }}
-              className="flex items-center gap-3 px-12 py-4 bg-indigo-600 text-white rounded-[32px] font-black uppercase tracking-[0.2em] text-[10px] hover:brightness-110 transition-all shadow-xl shadow-ledger-accent/20"
+              className="flex items-center gap-3 px-12 py-4 btn-tonal rounded-[32px] font-black uppercase tracking-[0.2em] text-[10px] hover:brightness-110 transition-all shadow-xl shadow-ledger-accent/20"
             >
               Continue
               <ChevronRight aria-hidden="true" size={18} />

@@ -3,7 +3,7 @@ import { Blocks } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { getIdToken } from '../../../firebase';
+import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
 import { isModuleOn, MODULES } from '../../../lib/modules';
 
 /**
@@ -24,9 +24,10 @@ export default function ModulesSettings() {
     if (!workspaceId) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules/records`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const data = await res.json().catch(() => ({}));
-      return res.ok && data.records && typeof data.records === 'object' ? data.records as Record<string, number> : {};
+      const data = await runCommand<{ records?: Record<string, number> }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules/records`,
+      });
+      return data.records && typeof data.records === 'object' ? data.records : {};
     })().then(r => { if (live) setRecords(r); }).catch(() => { if (live) setRecords({}); });
     return () => { live = false; };
   }, [workspaceId]);
@@ -35,18 +36,17 @@ export default function ModulesSettings() {
   const change = async (id: string, on: boolean) => {
     setSaving(id);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/modules`, {
+      // this route answers `{ error }`, which runCommand reads as well as `message`
+      const data = await runCommand<{ modules?: Record<string, boolean> }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/modules`,
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ modules: { [id]: on } }),
+        body: { modules: { [id]: on } },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'The modules were not saved');
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, modules: data.modules } : w)));
       const name = MODULES.find(m => m.id === id)?.name || id;
       toast.success(on ? `${name} is on: its screens are in the menu` : `${name} is off: its screens left the menu, nothing was deleted`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setSaving(null);
     }

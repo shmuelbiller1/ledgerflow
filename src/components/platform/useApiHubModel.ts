@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { toast } from 'sonner';
 import { getLocalDateISO } from '../../lib/utils';
 import { errorMessage } from '../../lib/errorRemedies';
+import { commandErrorMessage, runCommand, ServerCommandError } from '../../lib/runCommand';
+import { COMMAND_MANIFEST } from '../../lib/commands.generated';
 import { convertXeroAccounts as _convertXeroAccounts } from '../../lib/xeroAdapter';
 import { db, getIdToken } from '../../firebase';
 import { collection, query, where, getDocs } from '../../lib/db/firestore';
@@ -294,7 +296,51 @@ export function useApiHubModel() {
     });
   };
 
+  /**
+   * Runs one registered command from the sandbox, with the same credentials the endpoint list uses.
+   *
+   * This is what the schema form is for: the 24 commands the server publishes have no sandbox entry
+   * today, and the alternative to this is 24 hand-built payload forms that go stale the first time a
+   * command changes. `runCommand` reads the answer the same way every screen does, so the sandbox shows
+   * exactly what a screen would see — including the refusal sentence, not a bare status.
+   */
+  const runSandboxCommand = async (command: string, input: Record<string, unknown>) => {
+    setSandboxLoading(true);
+    setSandboxResult(null);
+    setSandboxStatus(null);
+    setSandboxLatency(null);
+    const startedAt = performance.now();
+    try {
+      const auth = sandboxCredType === 'session'
+        ? (user ? await getIdToken() : '')
+        : (sandboxSelectedKey || apiKey || publicKeys[0]?.id || '');
+      if (!auth) throw new Error('No API key selected or generated yet. Choose User Session instead, or generate a key.');
+      const answer = await runCommand({
+        path: `/api/v1/commands/${command}`,
+        method: 'POST',
+        token: auth,
+        body: { workspaceId: currentWorkspace?.id, input },
+      });
+      setSandboxLatency(Math.round(performance.now() - startedAt));
+      setSandboxStatus(200);
+      setSandboxResult(answer ?? { ok: true });
+      return true;
+    } catch (error) {
+      setSandboxLatency(Math.round(performance.now() - startedAt));
+      setSandboxStatus(error instanceof ServerCommandError ? error.status : 0);
+      setSandboxResult({
+        error: commandErrorMessage(error),
+        // the offered next step, for the sandbox reader who wants to know what to change
+        next: error instanceof ServerCommandError && (error.body as { next?: string } | undefined)?.next,
+      });
+      return false;
+    } finally {
+      setSandboxLoading(false);
+    }
+  };
+
   const getEndpointPath = (endpoint: string) => {
+    if (endpoint.startsWith('COMMAND_')) return `commands/${endpoint.slice('COMMAND_'.length)}`;
     switch (endpoint) {
       case 'GET_v1_status': return 'status';
       case 'GET_v1_workspaces': return 'workspaces';
@@ -314,8 +360,18 @@ export function useApiHubModel() {
     }
   };
 
+  /** The HTTP method an endpoint selection implies. A registered command is always a POST. */
+  const sandboxMethod = (endpoint: string) => endpoint.startsWith('COMMAND_') ? 'POST' : endpoint.split('_')[0];
+
   const getSandboxPayload = (endpoint: string) => {
     const wsId = currentWorkspace?.id || '';
+    if (endpoint.startsWith('COMMAND_')) {
+      // the command's own documented example, so the snippet a reader copies is a real request
+      const name = endpoint.slice('COMMAND_'.length);
+      const entry = COMMAND_MANIFEST.find(command => command.name === name);
+      const example = (entry?.description as { example?: unknown } | undefined)?.example;
+      return { workspaceId: wsId, input: example && typeof example === 'object' ? example : {} };
+    }
     switch (endpoint) {
       case 'POST_v1_transactions':
         return {
@@ -562,5 +618,5 @@ export function useApiHubModel() {
     }
   };
 
-  return { overlayDialogProps, overlayTitleId, formId, currentWorkspaceId, workspaces, setCurrentWorkspaceId, currentWorkspace, nowMs, apiKey, apiLogs, isRegenerating, isCopied, activeTab, setActiveTab, activeDoc, setActiveDoc, docLang, setDocLang, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, simSeatsCount, setSimSeatsCount, simRequestsCount, setSimRequestsCount, isSimulatingBurst, setIsSimulatingBurst, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, loadBillingStatus, handleCheckout, fetchLogs, generateNewKey, revokeKey, copyKey, getEndpointPath, getSandboxPayload, runSandboxRequest };
+  return { overlayDialogProps, overlayTitleId, formId, currentWorkspaceId, workspaces, setCurrentWorkspaceId, currentWorkspace, nowMs, apiKey, apiLogs, isRegenerating, isCopied, activeTab, setActiveTab, activeDoc, setActiveDoc, docLang, setDocLang, publicKeys, newKeyName, setNewKeyName, selectedScopes, setSelectedScopes, expiration, setExpiration, perMinute, setPerMinute, showCreateModal, setShowCreateModal, simSeatsCount, setSimSeatsCount, simRequestsCount, setSimRequestsCount, isSimulatingBurst, setIsSimulatingBurst, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, loadBillingStatus, handleCheckout, fetchLogs, generateNewKey, revokeKey, copyKey, getEndpointPath, getSandboxPayload, runSandboxRequest, runSandboxCommand, sandboxMethod };
 }

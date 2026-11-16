@@ -261,3 +261,41 @@ test('G-24 W1: first invoice through the invoice form, then the customer stateme
   await expectNoSeriousAxe(page, 'table', 'w1-statement-axe', testInfo);
   expect(errors).toEqual([]);
 });
+
+/**
+ * Part 5 / the rebuild's acceptance journey: a phone must be able to reach the palette at all.
+ *
+ * The header's search bar is `hidden md:flex` and the only other way in was ⌘K, which a thumb cannot
+ * press — so at 390px there was no visible way into the app's own index. This loads the real shell
+ * (the journey fixture mounts only the screens it is given, so it cannot answer this question) and
+ * requires a 44px trigger, keyboard focus and a working search.
+ */
+test('G-25 W1: the palette is reachable by keyboard at 390px, where the search bar is hidden', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => route.fulfill({ json: {} }));
+  await page.addInitScript(() => {
+    localStorage.setItem('isGuest', 'true');
+    localStorage.setItem('has_seen_onboarding', 'true');
+    localStorage.setItem('ledgerflow-cookie-consent', JSON.stringify({ essential: true, analytics: false }));
+  });
+  await page.goto('/#dashboard');
+
+  const search = page.getByRole('button', { name: 'Search, or type what you want to do', exact: true });
+  await expect(search).toBeVisible();
+  // 44px is the smallest target a thumb hits reliably (src/components/AGENTS.md)
+  const box = await search.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+
+  await search.focus();
+  await expect(search).toBeFocused();
+  await page.keyboard.press('Enter');
+  const input = page.getByRole('textbox', { name: /Search commands or enter a transaction/i });
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await page.keyboard.type('profit');
+  await expect(page.getByRole('button', { name: /Profit &? ?Loss/i }).first()).toBeVisible();
+  expect(errors).toEqual([]);
+});

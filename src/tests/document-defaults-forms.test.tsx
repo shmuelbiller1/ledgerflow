@@ -181,3 +181,42 @@ test('a no-tax choice the caller gave stays when the customer or vendor is clear
   change('Vendor', ''); change('Vendor', 'v');
   assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, '');
 });
+
+test('a customer typed with other capitals or spaces is the existing customer, not a new one', () => {
+  invoice();
+  change('Customer', '  client ');
+  // the existing customer's defaults fill in, which happens only when the form found it
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'gst');
+});
+
+test('two customers whose names differ only in capitals stay apart: the exact one is chosen', () => {
+  const twins = [makeCustomer({ id: 'upper', name: 'ACME', metadata: { documentDefaults: { accountId: 'alt' } } }), makeCustomer({ id: 'lower', name: 'Acme', metadata: { documentDefaults: { accountId: 'rev' } } })];
+  render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={twins} accounts={accounts} />);
+  change('Customer', 'Acme');
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, 'Sales', 'Acme, not ACME');
+  cleanup();
+  render(<InvoiceModal isOpen onClose={() => {}} onSave={() => {}} customers={twins} accounts={accounts} />);
+  change('Customer', 'acme');
+  assert.equal((screen.getByLabelText('Income Account') as HTMLInputElement).value, '', 'ambiguous: neither is picked for you');
+});
+
+test('typing a longer new name next to an existing one keeps every character', () => {
+  invoice();
+  change('Customer', 'Client ');
+  assert.equal((screen.getByLabelText('Customer') as HTMLInputElement).value, 'Client ', 'the space stays while typing');
+  change('Customer', 'Client Ltd');
+  assert.equal((screen.getByLabelText('Customer') as HTMLInputElement).value, 'Client Ltd');
+});
+
+
+test('"Other rate…" stays chosen, the rate can be typed, and the total shows that tax', () => {
+  useLedgerStore.setState({ taxRates: [] });
+  invoice();
+  assert.match(document.body.textContent || '', /No sales tax rates are set up yet/);
+  change('Tax', 'custom');
+  assert.equal((screen.getByLabelText('Tax') as HTMLSelectElement).value, 'custom', 'it does not snap back to No tax');
+  change('Tax rate (%)', '17');
+  assert.equal((screen.getByLabelText('Tax rate (%)') as HTMLInputElement).value, '17');
+  assert.match(document.body.textContent || '', /17%/, 'the totals name the rate used');
+});

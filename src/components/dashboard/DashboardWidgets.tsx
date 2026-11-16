@@ -1,3 +1,5 @@
+import type { Workspace } from '../../types';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { collection, getDocs, limit, orderBy, query, where } from '../../lib/db/firestore';
 import { db } from '../../firebase';
@@ -14,7 +16,6 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { dashboardReportHref, dashboardComparison, withServerBalances, dashboardPeriod, dashboardAging, validDashboardPeriod, startingLayout, DASHBOARD_ROLES, DASHBOARD_WIDGETS } from '../../lib/dashboardOverview';
 import type { DashboardRange, DashboardRole, DashboardWidget, DashboardLayout } from '../../lib/dashboardOverview';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { AGING_BUCKETS, partyStats } from '../../lib/aging';
 import { reportVariance, reportPercent } from '../../lib/reportColumns';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -111,9 +112,14 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
   const [roleNote, setRoleNote] = useState('');
   const giveToRole = async () => {
     if (!workspace) return;
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/role-dashboards`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify({ role: forRole, layout }) }).catch(() => null);
-    const body = res ? await res.json().catch(() => ({})) : {};
-    if (!res?.ok) { setRoleNote(body.message || 'The starting dashboard was not saved'); return; }
+    // a failed save only means the starting dashboard is not remembered; say so and carry on
+    let body: { roleDashboards?: Workspace['roleDashboards'] } = {};
+    try {
+      body = await runCommand<{ roleDashboards?: Workspace['roleDashboards'] }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/role-dashboards`, method: 'PUT', body: { role: forRole, layout } });
+    } catch (err) {
+      setRoleNote(commandErrorMessage(err));
+      return;
+    }
     useAuthStore.setState(state => ({ workspaces: state.workspaces.map(w => (w.id === workspace.id ? { ...w, roleDashboards: body.roleDashboards } : w)) }));
     setRoleNote(`Saved: ${forRole === 'owner' ? 'owners' : `${forRole}s`} who have not arranged their own start from this layout.`);
   };

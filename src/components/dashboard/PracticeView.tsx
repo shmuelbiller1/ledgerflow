@@ -1,5 +1,5 @@
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { formatDate } from '../../lib/utils';
@@ -29,11 +29,10 @@ export default function PracticeView() {
   useEffect(() => {
     let live = true;
     (async () => {
-      const res = await fetch('/api/v1/account/practice', { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.rows)) throw new Error(body.message || 'The practice view could not be loaded');
-      return body.rows as PracticeRow[];
-    })().then(r => { if (live) { setRows(r); setError(''); } }).catch(err => { if (live) { setRows([]); setError(err instanceof Error ? err.message : String(err)); } });
+      const body = await runCommand<{ rows?: PracticeRow[] }>({ path: '/api/v1/account/practice' });
+      if (!Array.isArray(body.rows)) throw new Error('The practice view could not be loaded');
+      return body.rows;
+    })().then(r => { if (live) { setRows(r); setError(''); } }).catch(err => { if (live) { setRows([]); setError(commandErrorMessage(err)); } });
     return () => { live = false; };
   }, []);
   const groups = useMemo(() => [...new Set((rows || []).flatMap(r => r.groups))].sort(byCodeUnit), [rows]);

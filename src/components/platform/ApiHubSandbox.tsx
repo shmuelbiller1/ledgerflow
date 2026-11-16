@@ -9,8 +9,10 @@ import { Labelled } from '../ui/Labelled';
 import type { useApiHubModel } from './useApiHubModel';
 import { copyWithFeedback } from '../../lib/clipboard';
 import { BRAND_NAME } from '../../config/brand';
+import { COMMAND_MANIFEST } from '../../lib/commands.generated';
+import CommandForm from '../common/CommandForm';
 export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubModel> }) {
- const { formId, currentWorkspace, publicKeys, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
+ const { formId, currentWorkspace, runSandboxCommand, sandboxMethod, publicKeys, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
  return (<div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
           <div className="lg:col-span-5 space-y-6">
             <div className="ledger-card p-6 space-y-6">
@@ -51,6 +53,13 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                     <option value="POST_ledger_match">POST /api/v1/ledger/match (Parallel Rule Matching)</option>
                     <option value="POST_brain_analyze">POST /api/v1/brain/analyze (Query {BRAND_NAME} AI Cognitive AI)</option>
                     <option value="POST_v1_brain_classify_batch">POST /api/v1/brain/classify-batch (10x Cognitive NLP Batch Categorizer)</option>
+                    <optgroup label="Registered commands — the form comes from each command's own schema">
+                      {COMMAND_MANIFEST.map(command => (
+                        <option key={command.name} value={`COMMAND_${command.name}`}>
+                          POST /api/v1/commands/{command.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </Labelled>
               </div>
@@ -113,6 +122,20 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
               {/* Dynamic input blocks based on active endpoint path selection */}
               <div className="space-y-4 pt-2 border-t border-[var(--line)]">
                 <h4 className="text-[11px] font-extrabold uppercase text-slate-450 tracking-widest">Aperiodic Scope Parameters</h4>
+
+                {/*
+                  A registered command has a schema, so its fields come from that schema: required first,
+                  the rest behind "More options". 24 commands would otherwise be 24 hand-built payload
+                  forms that go stale the first time a command changes.
+                */}
+                {sandboxEndpoint.startsWith('COMMAND_') && (
+                  <CommandForm
+                    key={sandboxEndpoint}
+                    command={sandboxEndpoint.slice('COMMAND_'.length)}
+                    submitLabel="Run this command"
+                    onSubmit={async input => { await runSandboxCommand(sandboxEndpoint.slice('COMMAND_'.length), input); }}
+                  />
+                )}
 
                 {/* POST TRANSACTION inputs */}
                 {sandboxEndpoint === 'POST_v1_transactions' && (
@@ -307,14 +330,15 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 {(sandboxEndpoint.startsWith('GET_') || sandboxEndpoint === 'DELETE_') && (
                   <div className="py-4 text-center border border-[var(--line)] bg-[var(--ink)]/50 rounded-lg">
                     <p className="text-[11px] font-medium text-[var(--muted)] italic">No request body required for this rest protocol query.</p>
-                    <p className="text-[9px] text-[var(--muted)] mt-1 font-mono">{`Method: ${sandboxEndpoint.split('_')[0]} | Workspace: ${currentWorkspace?.id || ''}`}</p>
+                    <p className="text-[9px] text-[var(--muted)] mt-1 font-mono">{`Method: ${sandboxMethod(sandboxEndpoint)} | Workspace: ${currentWorkspace?.id || ''}`}</p>
                   </div>
                 )}
               </div>
 
-              {/* Fire button */}
+              {/* Fire button — a command sends through its own form above, not through this one */}
               <button
                 onClick={runSandboxRequest}
+                hidden={sandboxEndpoint.startsWith('COMMAND_')}
                 disabled={sandboxLoading}
                 className="w-full py-3.5 bg-slate-950 text-white font-black uppercase tracking-wider text-xs rounded-xl hover:bg-slate-800 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:scale-[1.01]"
                aria-label={sandboxLoading ? 'Calculating Double-Entry Matrix' : 'Execute aperiodic API query'}>
@@ -378,9 +402,9 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 <pre id="playground_snippet_text" className="font-mono text-xs leading-relaxed max-h-[220px]">
 {/* Display generated source code dynamically */}
 {sandboxLang === 'curl' ? (
-`curl -X ${sandboxEndpoint.split('_')[0]} "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEndpoint)}${sandboxEndpoint.startsWith('GET_') && !sandboxEndpoint.includes('workspaces') ? '?workspaceId='+(currentWorkspace?.id || '') : ''}" \\
+`curl -X ${sandboxMethod(sandboxEndpoint)} "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEndpoint)}${sandboxEndpoint.startsWith('GET_') && !sandboxEndpoint.includes('workspaces') ? '?workspaceId='+(currentWorkspace?.id || '') : ''}" \\
   -H "Authorization: Bearer ${sandboxCredType === 'session' ? '<YOUR_ADMIN_SESSION_TOKEN>' : (sandboxSelectedKey || '<YOUR_API_KEY>')}" \\
-${sandboxEndpoint.startsWith('POST_') ? `  -H "Content-Type: application/json" \\
+${sandboxMethod(sandboxEndpoint) === 'POST' ? `  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 2)}'` : ''}`
 ) : sandboxLang === 'python' ? (
 `import requests
@@ -390,9 +414,9 @@ headers = {
     "Authorization": "Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : (sandboxSelectedKey || 'API_KEY')}",
     "Content-Type": "application/json"
 }
-${sandboxEndpoint.startsWith('GET_') ? `params = { "workspaceId": "${currentWorkspace?.id || ''}" }
+${sandboxMethod(sandboxEndpoint) === 'GET' ? `params = { "workspaceId": "${currentWorkspace?.id || ''}" }
 response = requests.get(url, headers=headers, params=params)` : `payload = ${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 4)}
-response = requests.post(url, headers=headers, json=payload)`}
+response = requests.${sandboxMethod(sandboxEndpoint).toLowerCase()}(url, headers=headers, json=payload)`}
 print(response.json())`
 ) : (
 `import fetch from 'node-fetch';
@@ -400,11 +424,11 @@ print(response.json())`
 const url = "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEndpoint)}${sandboxEndpoint.startsWith('GET_') && !sandboxEndpoint.includes('workspaces') ? '?workspaceId='+(currentWorkspace?.id || '') : ''}";
 
 fetch(url, {
-  method: '${sandboxEndpoint.split('_')[0]}',
+  method: '${sandboxMethod(sandboxEndpoint)}',
   headers: {
     'Authorization': 'Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : (sandboxSelectedKey || 'API_KEY')}',
     'Content-Type': 'application/json'
-  }${sandboxEndpoint.startsWith('POST_') ? `,\n  body: JSON.stringify(${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 2).replace(/\n/g, '\n  ')})` : ''}
+  }${sandboxMethod(sandboxEndpoint) === 'POST' ? `,\n  body: JSON.stringify(${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 2).replace(/\n/g, '\n  ')})` : ''}
 })
 .then(res => res.json())
 .then(data => console.info(data))

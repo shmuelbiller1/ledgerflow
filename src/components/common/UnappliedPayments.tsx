@@ -1,3 +1,5 @@
+import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Wallet } from 'lucide-react';
@@ -5,7 +7,6 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { applicableDocuments, suggestApplication, unappliedPayments, type AdvancePayment, type ApplicableDocument } from '../../lib/advancePayments';
 
@@ -70,13 +71,12 @@ export default function UnappliedPayments({ side, partyId }: { side: 'customer' 
     setBusy(true);
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/payments/${encodeURIComponent(open.id)}/apply`, {
+      const data = await runCommand<{ data?: { unappliedCents?: number } }>({
+        path: `/api/v1/payments/${encodeURIComponent(open.id)}/apply`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ workspaceId, date: getLocalDateISO(), allocations: chosen.map(({ dueCents: _due, ...a }) => a) }),
+        token,
+        body: { workspaceId, date: getLocalDateISO(), allocations: chosen.map(({ dueCents: _due, ...a }) => a) },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The payment could not be applied');
       const left = Number(data.data?.unappliedCents);
       setLeftAfter(prev => ({ ...prev, [open.id]: Number.isFinite(left) ? left : open.unappliedCents - total }));
       toast.success(`${formatCurrency(total, currency)} applied`);

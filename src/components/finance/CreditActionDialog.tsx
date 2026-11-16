@@ -1,8 +1,8 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
@@ -59,17 +59,14 @@ export default function CreditActionDialog({ target, onClose }: { target: Credit
     if (target.mode === 'refund' && !cashAccountId) return toast.error('Choose the bank or cash account');
     setBusy(true);
     try {
-      const token = await getIdToken().catch(() => null);
       const body = target.mode === 'apply'
         ? { workspaceId, kind: target.kind, creditId: target.id, documentId, amountCents }
         : { workspaceId, kind: target.kind, creditId: target.id, amountCents, cashAccountId, date };
-      const res = await fetch(`/api/v1/payments/credits/${target.mode}`, {
+      await runCommand({
+        path: `/api/v1/payments/credits/${target.mode}`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(body),
+        body,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The credit could not be processed');
       toast.success(target.mode === 'apply' ? `Applied ${formatCurrency(amountCents)} to the ${documentLabel}` : `Refund of ${formatCurrency(amountCents)} recorded`);
       onClose();
     } catch (err) {

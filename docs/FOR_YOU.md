@@ -649,3 +649,9 @@ commands instead. **Run it only after #719 is merged and Vercel has finished dep
 that saving an invoice works on the live site first). Run before that, and saving documents breaks.
 The plan for the whole commands and assistant work is at the top of `docs/TRACKER.md`.
 
+## 15 Nov — outside security scans (your OK given: "so add it")
+
+Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a ZAP scan runs nightly,
+both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
+To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
+

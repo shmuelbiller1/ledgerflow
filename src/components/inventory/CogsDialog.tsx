@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,7 +7,6 @@ import type { ChartAccount, InventoryItem } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { inventoryAccountsOf } from '../../lib/inventoryAccounts';
-import { getIdToken } from '../../firebase';
 import { Labelled } from '../ui/Labelled';
 
 interface CogsDialogProps {
@@ -42,13 +42,12 @@ export default function CogsDialog({ item, workspaceId, accounts, currency, onCl
     }
     setPosting(true);
     try {
-      const res = await fetch('/api/v1/inventory/cogs', {
+      const data = await runCommand<{ error?: string; totalCogsCents: number }>({
+        path: '/api/v1/inventory/cogs',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ workspaceId, itemId: item.id, quantitySold: quantity, inventoryAccountId: inventoryAcc.id, cogsAccountId: cogsAcc.id }),
+        body: { workspaceId, itemId: item.id, quantitySold: quantity, inventoryAccountId: inventoryAcc.id, cogsAccountId: cogsAcc.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) throw new Error(data.error || 'Failed to record the cost of goods sold');
+      if (data.error) throw new Error(data.error);
       toast.success(`Recorded the cost of ${quantity} units (${formatCurrency(data.totalCogsCents, currency)})`);
       onClose();
     } catch (err) {

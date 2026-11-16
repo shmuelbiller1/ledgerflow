@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Circle, Lock, LockOpen, ShieldCheck, Undo2, XCircle } from 'lucide-react';
@@ -5,7 +6,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { collection, doc, getDoc, getDocs, limit, query, where } from '../../lib/db/firestore';
 import { cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadWorkbook, createWorkbook } from '../../lib/excelExport';
@@ -57,16 +58,9 @@ function previousMonth(today: string): string {
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const token = await getIdToken();
-  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(data.message || data.error || 'The request failed') as Error & { details?: unknown };
-    err.details = data.details;
-    throw err;
-  }
-  return data as T;
+// one wrapper behind six calls; it now names the command instead of typing an address and a token
+function post<T>(path: string, body: unknown): Promise<T> {
+  return runCommand<T>({ path, method: 'POST', body });
 }
 
 
@@ -136,7 +130,8 @@ export default function MonthEndCloseView() {
       after?.(result);
       toast.success(success);
     } catch (err) {
-      const details = (err as { details?: unknown }).details;
+      // the refused close names the drafts that block it; runCommand keeps them on the error's body
+      const details = (err as { body?: { details?: unknown } }).body?.details ?? (err as { details?: unknown }).details;
       if (Array.isArray(details) && details.every(d => typeof (d as { collection?: unknown })?.collection === 'string')) setBlockedDrafts(details);
       toast.error(err instanceof Error ? err.message : 'That did not work');
     } finally {

@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -45,13 +46,12 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
     setBusy(true);
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch('/api/v1/payments/deposits', {
+      await runCommand({
+        path: '/api/v1/payments/deposits',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ workspaceId, bankAccountId, date, paymentIds: [...chosen] }),
+        token,
+        body: { workspaceId, bankAccountId, date, paymentIds: [...chosen] },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The deposit could not be recorded');
       toast.success(`Deposit of ${formatCurrency(total)} recorded`);
       onClose();
     } catch (err) {

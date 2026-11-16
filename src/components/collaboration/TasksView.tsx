@@ -1,7 +1,7 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -16,13 +16,18 @@ interface Person { uid: string; role: string; email?: string }
 type Show = 'mine' | 'open' | 'done';
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
+interface TasksAnswer {
+  tasks?: Task[];
+  task?: Task;
+  people?: Person[];
+}
+
 async function call(workspaceId: string, path: string, method = 'GET', body?: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks${path}`, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  return runCommand<TasksAnswer>({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks${path}`,
+    method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+    body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'That did not work');
-  return data;
 }
 
 
@@ -69,7 +74,7 @@ export default function TasksView() {
     setBusy(true);
     try {
       const data = await call(workspaceId, '', 'POST', input);
-      setTasks(list => [...(list || []), data.task]);
+      if (data.task) setTasks(list => [...(list || []), data.task as Task]);
       setDraft({ title: '', note: '', assignee: '', due: '', recordType: '', recordId: '' });
       toast.success(input.assignee === uid ? 'Task added to your list' : `Task given to ${nameOf(input.assignee)}`);
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
@@ -77,7 +82,7 @@ export default function TasksView() {
   const change = async (task: Task, status: 'open' | 'done') => {
     try {
       const data = await call(workspaceId, `/${encodeURIComponent(task.id)}`, 'PATCH', { status });
-      setTasks(list => (list || []).map(t => (t.id === task.id ? data.task : t)));
+      setTasks(list => (list || []).map(t => (t.id === task.id && data.task ? data.task : t)));
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
   };
   const remove = async (task: Task) => {

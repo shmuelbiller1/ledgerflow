@@ -32,6 +32,12 @@ export const BILL_COMMAND_MANIFEST = [
           ]
         }
       },
+      "next": [
+        {
+          "command": "payment.receive",
+          "label": "Pay this bill"
+        }
+      ],
       "refusals": COMMAND_SCHEMA_PARTS.part129
     },
     "runPath": "/api/v1/commands/bill.create",

@@ -1,8 +1,8 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { CLOSE_ROLES } from '../../lib/periodLock';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
@@ -57,15 +57,8 @@ function normalizePlan(value: unknown): Plan {
   };
 }
 
-async function ask(path: string, body: Record<string, unknown>, method = 'POST'): Promise<unknown> {
-  const res = await fetch(path, {
-    method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(String(data.message || data.error || 'The revaluation could not be run'));
-  return data;
+async function ask(path: string, body: Record<string, unknown>, method: 'POST' = 'POST'): Promise<unknown> {
+  return runCommand<Record<string, unknown>>({ path, method, body });
 }
 
 export function FxRevaluationPanel() {
