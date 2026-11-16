@@ -3,6 +3,7 @@ import React from 'react';
 import { toast } from 'sonner';
 import AsyncButton from '../../ui/AsyncButton';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { registerDimensionNodeInline } from '../../../lib/dimensionNodeActions';
 import { setDimensionNodeParentInline } from '../../../lib/labelTreeActions';
 import { descendants, type SlashConversion } from '../../../lib/labelTree';
@@ -41,6 +42,11 @@ export function LabelParentSelect({ dimensionId, node, nodes, canWrite, onChange
 export function SlashConversionOffer({ dimensionId, plan, onChanged }: { dimensionId: string; plan: SlashConversion[]; onChanged: () => void }) {
   if (!plan.length) return null;
   const convert = async (): Promise<boolean> => {
+    // refused before anything is created: with a partial label list a "missing" parent may exist
+    if (useLedgerStore.getState().truncatedCollections.dimensionNodes) {
+      toast.error('This workspace has more label values than were loaded, so parents can\'t be changed here yet.');
+      return false;
+    }
     const scope = sessionScope();
     const toCreate = [...new Set(plan.filter(p => !p.parentId).map(p => p.parentName))];
     const created = new Map<string, string>();
