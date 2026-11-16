@@ -1,3 +1,4 @@
+import { runCommand as sendCommand } from '../../lib/runCommand';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } from '../../lib/db/firestore';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { db } from '../../firebase';
@@ -215,16 +216,11 @@ export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredC
       });
 
       if (updatesToPost.length > 0) {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/v1/transactions/batch', {
+        await sendCommand({
+          path: '/api/v1/transactions/batch',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId, updates: updatesToPost })
+          body: { workspaceId: currentWorkspaceId, updates: updatesToPost }
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Server rejected batch rule updates');
-        }
       }
 
       if (count > 0) {
