@@ -66,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 750 zap-out
 
           SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
           SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
@@ -77,7 +77,7 @@ jobs:
           SESSION_SECRET="$SESSION_VAL" \
           SYSTEM_SALT="$SALT_VAL" \
           INVITE_SECRET="$INVITE_VAL" \
-          npx tsx server.ts > zap-out/server-prod.log 2>&1 &
+          ./node_modules/.bin/tsx server.ts > zap-out/server-prod.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
@@ -91,6 +91,7 @@ jobs:
 
           cp .zap/rules.tsv zap-out/rules.tsv
           docker run --rm --network host \
+            -u "$(id -u):$(id -g)" \
             -v "$PWD/zap-out:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:2.16.1 \
             zap-baseline.py \

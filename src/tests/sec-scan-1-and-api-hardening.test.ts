@@ -19,7 +19,7 @@ import express from 'express';
 import { applyJsonBodyParser } from '../server/http/securityMiddleware';
 import { requireOpenPeriod } from '../server/middleware/periodLock';
 import { requireLedgerWriter } from '../server/middleware/requireLedgerWriter';
-import { createAppRateLimiters, hasStructuredApiKeyHeader } from '../server/middleware/rateLimiters';
+import { createAppRateLimiters, isVerifiedApiKeyRequest } from '../server/middleware/rateLimiters';
 import { openApiDocument } from '../server/openapi';
 
 const VALID_SAMPLE_KEY = `lf_id_ws_demo_0123456789abcdef.${'a'.repeat(64)}`;
@@ -110,41 +110,27 @@ test('SEC-NEW-05: periodLock and requireLedgerWriter reject non-string or slash-
   }
 });
 
-test('SEC-NEW-03: structured API keys bypass the 100/min IP ceiling when authenticated, while 401 key brute-force stays throttled', async () => {
-  assert.equal(
-    hasStructuredApiKeyHeader({
-      originalUrl: '/api/v1/transactions?workspaceId=ws_1',
-      headers: { authorization: `Bearer ${VALID_SAMPLE_KEY}` },
-    }),
-    true,
-  );
-  assert.equal(
-    hasStructuredApiKeyHeader({
-      originalUrl: '/api/v1/transactions',
-      headers: { authorization: 'Bearer short.not64hex' },
-    }),
-    false,
-  );
-  assert.equal(
-    hasStructuredApiKeyHeader({
-      originalUrl: '/api/health',
-      headers: { authorization: `Bearer ${VALID_SAMPLE_KEY}` },
-    }),
-    false,
-  );
+test('SEC-NEW-03: verified API keys bypass the 100/min IP ceiling, while forged lf_ headers on public or 401 routes remain IP-throttled', async () => {
+  assert.equal(isVerifiedApiKeyRequest({ user: { usedApiKeyId: 'lf_id_ws_demo_0123456789abcdef' } }), true);
+  assert.equal(isVerifiedApiKeyRequest({ user: {} }), false);
+  assert.equal(isVerifiedApiKeyRequest({}), false);
 
   const app = express();
   const { limiter, apiLimiter } = createAppRateLimiters();
   app.use('/api/', limiter);
   app.use('/api/v1', apiLimiter);
-  app.get('/api/v1/ping', (req, res) => {
+  app.get('/api/v1/protected', (req, res) => {
     if (req.headers.authorization === `Bearer ${VALID_SAMPLE_KEY}`) {
+      (req as express.Request & { user?: { usedApiKeyId: string } }).user = {
+        usedApiKeyId: 'lf_id_ws_demo_0123456789abcdef',
+      };
       return res.status(200).json({ ok: true });
     }
-    if (req.headers.authorization?.startsWith('Bearer lf_')) {
-      return res.status(401).json({ status: 'error', message: 'Invalid API key' });
-    }
-    return res.status(200).json({ ok: true, mode: 'anonymous' });
+    return res.status(401).json({ status: 'error', message: 'Invalid API key' });
+  });
+  // Public route under /api/v1 that does not run apiAuthenticate (e.g. invite lookup returning 404)
+  app.get('/api/v1/invites/:token', (_req, res) => {
+    return res.status(404).json({ error: 'Invite not found' });
   });
 
   const server = await new Promise<ReturnType<typeof app.listen>>(resolve => {
@@ -153,30 +139,30 @@ test('SEC-NEW-03: structured API keys bypass the 100/min IP ceiling when authent
   try {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-    // 1. Authenticated structured API key exceeds 100 req/min without IP 429
+    // 1. Authenticated API key (`req.user.usedApiKeyId` set) exceeds 100 req/min without IP 429
     const okStatuses: number[] = [];
     for (let i = 0; i < 115; i += 1) {
-      const r = await fetch(`${base}/api/v1/ping`, {
+      const r = await fetch(`${base}/api/v1/protected`, {
         headers: { Authorization: `Bearer ${VALID_SAMPLE_KEY}` },
       });
       okStatuses.push(r.status);
     }
-    assert.ok(okStatuses.every(code => code === 200), `Expected 115 x 200 for valid API key, got ${new Set(okStatuses).size} distinct codes`);
+    assert.ok(okStatuses.every(code => code === 200), `Expected 115 x 200 for verified API key, got ${new Set(okStatuses).size} distinct codes`);
 
-    // 2. Forged structured API key returning 401 is throttled after 60 failed attempts/min
+    // 2. Forged structured lf_ header sent to a PUBLIC /api/v1 route MUST remain capped at 100/min/IP
     const badKey = `lf_id_ws_forged_abcdef0123456789.${'b'.repeat(64)}`;
-    let saw429OnForgedKey = false;
-    for (let i = 0; i < 65; i += 1) {
-      const r = await fetch(`${base}/api/v1/ping`, {
+    let saw429OnPublicRoute = false;
+    for (let i = 0; i < 105; i += 1) {
+      const r = await fetch(`${base}/api/v1/invites/probe-${i}`, {
         headers: { Authorization: `Bearer ${badKey}` },
       });
       if (r.status === 429) {
-        saw429OnForgedKey = true;
+        saw429OnPublicRoute = true;
         break;
       }
-      assert.equal(r.status, 401);
+      assert.equal(r.status, 404);
     }
-    assert.equal(saw429OnForgedKey, true, 'Forged API-key 401 brute-force must hit 429');
+    assert.equal(saw429OnPublicRoute, true, 'Forged lf_ header on public /api/v1/invites route must still hit 100/min IP 429');
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
