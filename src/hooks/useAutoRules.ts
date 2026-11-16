@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { db } from '../firebase';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from '../lib/db/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from '../lib/db/firestore';
+import { localDelete, localSet, localUpdate, localUpdateMany } from '../lib/db/localStore';
 import { dryRunRules, ruleGroupName } from '../lib/rulesEngine';
 import { describeError } from '../lib/errorRemedies';
 import { useCurrentRole } from './useCurrentRole';
@@ -91,9 +92,7 @@ export function useAutoRules() {
       if (name && name !== groupName && allRules.some(rule => ruleGroupName(rule) === name)) throw new Error('That group already exists. Choose another name.');
       const patch = name ? { groupName: name } : { groupIsActive: change.groupIsActive };
       if (isLocalSampleWorkspace(workspaceId)) {
-        const batch = writeBatch(db);
-        members.forEach(rule => batch.update(doc(db, 'autoRules', rule.id), patch));
-        await batch.commit();
+        await localUpdateMany('autoRules', members.map(rule => ({ id: rule.id, data: patch })));
       } else {
         await runCommand('autorule.group', {
           groupName,
@@ -114,7 +113,7 @@ export function useAutoRules() {
     if (!currentContext()) throw new Error('Your role cannot edit rules.');
     if (!(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) throw new Error('This rule is not in the current workspace.');
     if (!Number.isSafeInteger(priority)) throw new Error('Enter a whole-number priority.');
-    if (isLocalSampleWorkspace(workspaceId)) await updateDoc(doc(db, 'autoRules', ruleId), { priority });
+    if (isLocalSampleWorkspace(workspaceId)) await localUpdate('autoRules', ruleId, { priority });
     else await runCommand('autorule.update', { id: ruleId, data: { priority } });
     if (!currentContext()) return;
     const rules = useLedgerStore.getState().autoRules as AutoRule[];
@@ -138,7 +137,7 @@ export function useAutoRules() {
       full.groupIsActive = !members.some(candidate => candidate.groupIsActive === false);
       let saved = full;
       if (isLocalSampleWorkspace(workspaceId)) {
-        await setDoc(doc(db, 'autoRules', full.id), full as never);
+        await localSet('autoRules', full.id, full as never);
       } else {
         const data = commandRuleData(full);
         const result = existing
@@ -163,7 +162,7 @@ export function useAutoRules() {
   const setRuleActive = useCallback(async (ruleId: string, isActive: boolean) => {
     if (!currentContext() || !(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) return;
     try {
-      if (isLocalSampleWorkspace(workspaceId)) await updateDoc(doc(db, 'autoRules', ruleId), { isActive });
+      if (isLocalSampleWorkspace(workspaceId)) await localUpdate('autoRules', ruleId, { isActive });
       else await runCommand('autorule.update', { id: ruleId, data: { isActive } });
       if (!currentContext()) return;
       const rules = (useLedgerStore.getState().autoRules || []) as AutoRule[];
@@ -176,7 +175,7 @@ export function useAutoRules() {
   const deleteRule = useCallback(async (ruleId: string) => {
     if (!currentContext() || !(useLedgerStore.getState().autoRules as AutoRule[]).some(rule => rule.id === ruleId && rule.workspaceId === workspaceId)) return;
     try {
-      if (isLocalSampleWorkspace(workspaceId)) await deleteDoc(doc(db, 'autoRules', ruleId));
+      if (isLocalSampleWorkspace(workspaceId)) await localDelete('autoRules', ruleId);
       else await runCommand('autorule.delete', { id: ruleId });
       if (!currentContext()) return;
       const rules = (useLedgerStore.getState().autoRules || []) as AutoRule[];
@@ -252,7 +251,7 @@ export function useAutoRules() {
           const now = new Date().toISOString();
           await Promise.all(hitUpdates.map(({ id, hits }) => {
             const rule = rules.find(candidate => candidate.id === id);
-            return rule ? updateDoc(doc(db, 'autoRules', id), { hitCount: (rule.hitCount || 0) + hits, lastTriggeredAt: now }).catch(() => undefined) : undefined;
+            return rule ? localUpdate('autoRules', id, { hitCount: (rule.hitCount || 0) + hits, lastTriggeredAt: now }).catch(() => undefined) : undefined;
           }));
         } else {
           try {
