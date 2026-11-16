@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../firebase';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { openingRowsCsv } from '../../lib/partyOpeningBalance';
@@ -9,6 +8,7 @@ import type { OpenItemRow } from '../../lib/openItemImport';
 import { formatCurrency } from '../../lib/utils';
 
 import { BRAND_NAME } from '../../config/brand';
+import { commandErrorMessage, runCommand, ServerCommandError } from '../../lib/runCommand';
 /**
  * Opening invoices or bills (CA-08, on the EG-14 import): paste the unpaid invoices (bills) of the old system from a
  * spreadsheet — contact, number, date, due date, amount still owed — check them, and add them. The dialog makes no
@@ -20,14 +20,17 @@ import { BRAND_NAME } from '../../config/brand';
 interface ServerResult { status: 'success' | 'error'; message?: string; rows?: OpenItemRow[]; openTotalCents?: number; created?: string[]; cutOverDate?: string }
 
 async function callOpenItems(mode: 'preview' | 'confirm', body: { workspaceId: string; side: 'customer' | 'vendor'; csv: string }): Promise<ServerResult> {
-  const res = await fetch(`/api/v1/open-items/${mode}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => null) as ServerResult | null;
-  if (!res.ok || !json || json.status !== 'success') return { status: 'error', message: json?.message || `The server answered ${res.status}`, rows: json?.rows || [] };
-  return json;
+  // This helper answers with a result object rather than throwing, so a refusal is unpacked here — including
+  // the server's own reason, which is what the dialog shows next to the rows it could not read.
+  try {
+    const json = await runCommand<ServerResult>({ path: `/api/v1/open-items/${mode}`, method: 'POST', body });
+    if (!json || json.status !== 'success') return { status: 'error', message: json?.message || 'The open items could not be read', rows: json?.rows || [] };
+    return json;
+  } catch (error) {
+    const body = error instanceof ServerCommandError ? error.body : null;
+    const message = (body as { message?: string } | null)?.message;
+    return { status: 'error', message: message || commandErrorMessage(error), rows: [] };
+  }
 }
 
 export default function OpeningDocumentsDialog({ side, onClose }: { side: 'customer' | 'vendor'; onClose: () => void }) {

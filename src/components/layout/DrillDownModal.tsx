@@ -6,9 +6,9 @@ import { Transaction } from '../../types';
 import { cn, formatDate } from '../../lib/utils';
 import { lineAmount } from '../../lib/txFilters';
 import { useDialog } from '../../hooks/useDialog';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { runCommand } from '../../lib/runCommand';
 
 /** N-12: the filter that made a report figure; the drill-down then explains it from the server. */
 export interface ExplainRequest {
@@ -41,9 +41,8 @@ function Explained({ request, formatCurrency, onOpen, onFail }: { request: Expla
     if (!query) return;
     let live = true;
     (async () => {
-      const res = await fetch('/api/v1/reports/explain', { method: 'POST', headers: { Authorization: `Bearer ${await getIdToken()}`, 'Content-Type': 'application/json' }, body: query });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !Array.isArray(body.lines)) throw new Error(body.message || 'The entries could not be loaded');
+      const body = await runCommand<Partial<Explanation>>({ path: '/api/v1/reports/explain', method: 'POST', body: query }) ?? {};
+      if (!Array.isArray(body.lines)) throw new Error('The entries could not be loaded');
       return body as Explanation;
     })().then(d => { if (live) setData(d); }).catch(() => { if (live) onFail(); });
     return () => { live = false; };
